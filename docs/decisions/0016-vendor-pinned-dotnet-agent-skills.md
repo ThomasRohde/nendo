@@ -8,9 +8,9 @@
 
 ## Context
 
-Nendo is expected to become a multi-project .NET codebase, but it remains in an ADR-led exploration phase. Coding agents need current guidance for SDK setup, templates, MSBuild, Central Package Management and test-platform behaviour. User-level marketplace installations are mutable and differ between contributors.
+Nendo is expected to become a multi-project .NET codebase. But it remains in an ADR-led exploration phase. Coding agents need current guidance for SDK setup, templates, MSBuild, Central Package Management and test-platform behaviour. User-level marketplace installations are mutable and differ between contributors.
 
-Importing every available .NET skill would also add irrelevant activation candidates and could steer the project towards ASP.NET, MAUI, EF, AI or migration patterns that Nendo has not selected.
+If the project imported every available .NET skill, it would also add irrelevant activation candidates. Those skills could steer the project towards ASP.NET, MAUI, EF, AI or migration patterns that Nendo has not selected.
 
 ## Decision
 
@@ -28,9 +28,9 @@ The initial selection is:
 8. `run-tests`;
 9. `filter-syntax` as a hidden reference-only dependency.
 
-The selected files are copied unchanged from the exact upstream commit recorded in `.agents/skills/dotnet-skills.lock.json`. The lock also records the source path and Git blob SHA for every file. The upstream MIT licence is retained beside the skills.
+The selected files are copied unchanged from the exact upstream commit that `.agents/skills/dotnet-skills.lock.json` records. The lock also records the source path and Git blob SHA for every file. The upstream MIT licence is kept beside the skills.
 
-Nendo-specific instructions live in root `AGENTS.md`; copied skill files are not edited to encode local preferences.
+Nendo-specific instructions are in root `AGENTS.md`. Copied skill files are not edited to encode local preferences.
 
 Updates require an explicit 40-character upstream commit SHA:
 
@@ -39,9 +39,18 @@ pwsh ./tools/Sync-DotnetSkills.ps1 -UpdateToCommit <commit-sha>
 pwsh ./tools/Sync-DotnetSkills.ps1
 ```
 
-The script downloads all selected files into temporary staging, validates front matter, replaces local files only after all downloads succeed, updates hashes, verifies the result and leaves the Git diff for review. It neither expands the selection nor creates a commit automatically.
+The script does these steps:
 
-Adding or removing a skill is a reviewed repository change tied to a concrete Nendo need. It updates the lock, local README and this ADR or a superseding ADR when the selection principle changes.
+1. It downloads all selected files into temporary staging.
+2. It validates the front matter.
+3. It replaces local files only after all downloads succeed.
+4. It updates the hashes.
+5. It verifies the result.
+6. It leaves the Git diff for review.
+
+The script does not expand the selection, and it does not create a commit automatically.
+
+To add or remove a skill, make a reviewed repository change that is tied to a concrete Nendo need. The change updates the lock and the local README. When the selection principle changes, it also updates this ADR or a superseding ADR.
 
 ## Consequences
 
@@ -50,7 +59,7 @@ Adding or removing a skill is a reviewed repository change tied to a concrete Ne
 - Every checkout gives Codex the same repo-scoped .NET guidance.
 - Provenance and changes are visible as ordinary Git content and diffs.
 - Ordinary use requires no marketplace account or network access.
-- Curated scope reduces irrelevant activation and architecture drift.
+- The curated scope reduces irrelevant activation and architecture drift.
 - Upstream files remain byte-for-byte comparable.
 
 ### Negative
@@ -58,37 +67,37 @@ Adding or removing a skill is a reviewed repository change tied to a concrete Ne
 - Maintainers must review and refresh the copied guidance.
 - Upstream corrections are not received automatically.
 - The repository carries several documentation files.
-- Some skills refer to non-vendored siblings; that is not permission to install them automatically.
+- Some skills refer to non-vendored siblings. That reference does not give permission to install them automatically.
 - Other coding agents may use different local discovery conventions.
 
 ## Alternatives considered
 
 ### Require each contributor to install the marketplace
 
-Rejected as the project default because it is mutable, user-scoped and not reproducible from a Nendo commit.
+Rejected as the project default. The marketplace is mutable and user-scoped, and a Nendo commit cannot reproduce it.
 
 ### Vendor the whole upstream repository
 
-Rejected because most skills are unrelated to current Nendo work and would increase routing noise and review cost.
+Rejected. Most skills are unrelated to current Nendo work, and they would increase routing noise and review cost.
 
 ### Use a Git submodule
 
-Rejected because discovery and fresh-checkout behaviour would depend on nested initialisation and an external layout.
+Rejected. Discovery and fresh-checkout behaviour would depend on nested initialisation and an external layout.
 
 ### Rewrite the guidance as Nendo-specific skills
 
-Rejected for general .NET tasks. It would lose upstream provenance and create a needless fork. A custom skill is appropriate only for a genuinely Nendo-specific workflow.
+Rejected for general .NET tasks. It would lose upstream provenance and create an unnecessary fork. A custom skill is appropriate only for a workflow that is specific to Nendo.
 
 ### Track upstream `main`
 
-Rejected. Coding-agent instructions can change commands and prerequisites; unreviewed drift must not enter the project automatically.
+Rejected. Coding-agent instructions can change commands and prerequisites. Unreviewed drift must not enter the project automatically.
 
 ## Validation
 
 - `pwsh ./tools/Sync-DotnetSkills.ps1` verifies every recorded local Git blob SHA.
 - The lock references an exact upstream commit and path for every copied file.
 - `filter-syntax` remains hidden from direct invocation and available to `run-tests`.
-- An update fails before local replacement when a source is unavailable or malformed.
+- When a source is unavailable or malformed, an update fails before local replacement.
 - Selection changes remain visible in Git and the decision record.
 
 ## Revisit triggers

@@ -9,11 +9,11 @@
 
 ## Context
 
-Nendo needs a durable local artefact that remains useful without an account,
-agent, hosted service or generated application code. SQLite creates operational
-journals, backups and proposal clones, so “one file” must distinguish the
-canonical portable artefact at rest from host-owned derivatives used while the
-application is running.
+Nendo needs a durable local artefact that stays useful without an account, an
+agent, a hosted service or generated application code. SQLite creates
+operational journals, backups and proposal clones. Thus “one file” must
+distinguish two things: the canonical portable artefact at rest, and the
+host-owned derivatives that exist while the application runs.
 
 The MVP is personal, single-user and Windows-first. Cloud sync, collaboration
 and hostile same-user isolation are outside its boundary.
@@ -25,7 +25,7 @@ and hostile same-user isolation are outside its boundary.
 3. Users must be able to copy and back up one canonical artefact safely.
 4. Operational derivatives need explicit ownership and cleanup.
 5. The MVP must remain local/offline and bounded for one maintainer.
-6. Unsupported environments must be described honestly rather than implied.
+6. Unsupported environments must be described accurately and not implied.
 
 ## Options considered
 
@@ -37,41 +37,43 @@ proposal workspaces.
 
 ### Directory bundle
 
-Store data, definitions, assets and history as multiple coordinated files. This
-would make partial copies and externally reordered writes normal failure modes.
+Store data, definitions, assets and history as multiple coordinated files. With
+this option, partial copies and externally reordered writes would become normal
+failure modes.
 
 ### Hosted or account-backed authority
 
-Make a service the canonical authority and treat local files as caches or
-exports. This conflicts with the offline and durable-file proposition.
+Make a service the canonical authority, and treat local files as caches or
+exports. This option conflicts with the offline and durable-file proposition.
 
 ## Decision
 
 Nendo's canonical artefact is one local `.nendo` SQLite file at rest.
 
-- Creating a file writes only protected compatibility/identity metadata and a
-  genesis history entry; zero user entities and records is valid.
+- When the host creates a file, it writes only protected compatibility/identity
+  metadata and a genesis history entry. A file with zero user entities and
+  records is valid.
 - The file contains relational user data, protected Nendo metadata, semantic
   definitions and semantic history.
 - The host permanently provides Studio and recovery access. Custom surfaces and
   agents cannot hide or revoke that route.
 - Journals, backup outputs, staged restores and proposal clones are operational
-  derivatives. Their owner, lifetime and cleanup are host-defined; they are not
+  derivatives. The host defines their owner, lifetime and cleanup. They are not
   additional canonical artefacts.
 - Open-file copies use SQLite backup or an equivalent host-coordinated snapshot.
-  Raw main-file copying while operational derivatives exist is not presented as
-  a current backup.
-- Duplicate and Fork semantics follow ADR-0010; journal and close discipline
+  A raw copy of the main file while operational derivatives exist is not
+  presented as a current backup.
+- Duplicate and Fork semantics follow ADR-0010. Journal and close discipline
   follow ADR-0011.
 - Files in known sync-managed locations are unsupported for writable use in the
   MVP. Nendo warns where practical and makes no sync-safety claim. Live cloud
   provider qualification is not an implementation prerequisite.
 - The security boundary is the operating-system user account. Nendo does not
   claim protection from malware, privileged processes or arbitrary hostile
-  writers already running as that user.
+  writers that already run as that user.
 
-This decision selects the product boundary, not the disposable prototype's
-exact table layout or source tree.
+This decision selects the product boundary. It does not select the exact table
+layout or source tree of the disposable prototype.
 
 ## Evidence and validation obligations
 
@@ -82,31 +84,32 @@ exact table layout or source tree.
 - EX-0007 proved one coordinated Windows ownership interval and fail-closed
   outside-change detection.
 - EX-0008 proved local DELETE/WAL correctness and open-copy discipline.
-- Production tests must retain empty validity, close/reopen, coordinated backup,
-  copy, Duplicate/Fork and recovery journeys.
-- Release qualification must not claim sync, physical power-loss or hostile-
-  writer guarantees without separately authorised evidence.
+- Production tests must retain the empty validity, close/reopen, coordinated
+  backup, copy, Duplicate/Fork and recovery journeys.
+- Release qualification must not claim sync, physical power-loss or
+  hostile-writer guarantees without separately authorised evidence.
 
 ## Consequences
 
 ### Positive
 
-- The user's durable unit is simple, portable and independently inspectable.
+- The durable unit of the user is simple, portable and independently
+  inspectable.
 - Studio and safe mode can recover data without generated code or an agent.
-- Temporary complexity is kept behind a host-owned lifecycle boundary.
+- A host-owned lifecycle boundary contains the temporary complexity.
 
 ### Negative
 
 - Assets, executable extensions and multi-file application bundles are excluded
   from the MVP.
-- Open-file copying needs an explicit host operation rather than Explorer copy
-  being treated as transactionally current.
+- Open-file copies need an explicit host operation. An Explorer copy is not
+  treated as transactionally current.
 - Sync-managed folders receive a conservative unsupported-use warning.
 
 ## Rejected alternatives
 
-Directory bundles and hosted authority are rejected because they weaken the
-defining durable-local-file proposition and add coordination scope before the
+Directory bundles and hosted authority are rejected. They weaken the defining
+proposition of a durable local file, and they add coordination scope before the
 single-user MVP is proved.
 
 ## Revisit triggers

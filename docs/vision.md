@@ -2,35 +2,35 @@
 
 ## The problem
 
-AI can generate a small application in minutes. Each one becomes another silo:
-the data is coupled to disposable code, every change means regeneration, and the
-user has no visibility into schema migration, history or recovery. When the
-generated code stops working, the data goes with it.
+AI can generate a small application in minutes. Each application becomes another
+silo. The data is coupled to disposable code, and every change means
+regeneration. The user cannot see schema migration, history or recovery. When the
+generated code stops working, the data is lost with it.
 
-Low-code platforms solve the reuse problem by owning the runtime, but they
-require a hosted platform and proprietary storage. They are not a durable local
-file you can copy, inspect and reopen offline in ten years.
+Low-code platforms solve the reuse problem because they own the runtime. But they
+require a hosted platform and proprietary storage. They do not give you a durable
+local file that you can copy, inspect and reopen offline in ten years.
 
 ## The proposition
 
-Software should behave like structured clay. One portable SQLite file — the
-`.nendo` file — holds durable identity, schema, data, application meaning and
-history. People and coding agents reshape it in place through typed semantic
-operations. No generated project, no build step, no regeneration.
+Software should behave like structured clay. One portable SQLite file (the
+`.nendo` file) holds durable identity, schema, data, application meaning and
+history. People and coding agents change it in place through typed semantic
+operations. There is no generated project, no build step and no regeneration.
 
-The name is the thesis: *nendo* (粘土) is Japanese for clay.
+The name comes from this idea: *nendo* (粘土) is Japanese for clay.
 
 - The file keeps identity, schema, data and application meaning.
-- The installed host supplies a reliable human database Studio, always.
-- Humans and agents reshape the application through the same typed services.
+- The installed host always supplies a reliable human database Studio.
+- Humans and agents change the application through the same typed services.
 - Common changes require no generated project and no build.
-- Shape changes are previewed on a physical clone and promoted by replaying
-  validated operations against the active file.
-- Custom surfaces can fail without making the data inaccessible.
+- The host previews shape changes on a physical clone. It promotes them when it
+  replays the validated operations against the active file.
+- Custom surfaces can fail, and the data stays accessible.
 
 ## Product axioms
 
-These are load-bearing. A change that violates one needs an accepted ADR.
+These axioms are fundamental. A change that violates one needs an accepted ADR.
 
 - **Empty files are valid.** A `.nendo` file with no user schema is a working
   application, not an error state.
@@ -50,10 +50,10 @@ These are load-bearing. A change that violates one needs an accepted ADR.
 
 ## Primary user
 
-A technically curious individual with a modest local dataset who wants a polished
-application experience without managing SQL, Git, package managers or a hosted
-platform. The MVP is personal and single-user; it is not an enterprise
-deployment product.
+The primary user is a technically curious individual with a modest local dataset.
+This person wants a polished application experience and does not want to manage
+SQL, Git, package managers or a hosted platform. The MVP is personal and
+single-user. It is not an enterprise deployment product.
 
 ## The core loop
 
@@ -68,25 +68,29 @@ Create empty file
 
 ## What would falsify this
 
-The proof is that an agent, given only the MCP interface, can build an
-application whose shape nobody anticipated — and that a human can review that
-change and understand what it does before accepting it.
+The proof has two parts. First, an agent that has only the MCP interface can
+build an application with a shape that nobody anticipated. Second, a human can
+review that change and understand what it does before accepting it.
 
-If Studio succeeds but semantic surfaces cannot deliver value the table alone
-does not, Nendo has not passed its hypothesis. That is a pivot-or-stop signal,
-not a backlog item.
+If Studio succeeds but semantic surfaces cannot deliver value that the table
+alone does not, Nendo has not passed its hypothesis. That result is a signal to
+pivot or stop. It is not a backlog item.
 
-Four reference applications exist as falsification, each one shaped differently
-from the last: **Idea Garden** (the original form and board), **Decision Log**
-(the neutrality proof that the path is not Idea-specific), the **Axiom
-Register** (record pages, related lists, declared filters, summary tiles and
-multi-step commands — none of it expressible in the earlier vocabulary), and
-**Nendo Station** (every kind of screen this host compiles, the charts, the
-calculations, an automatic action and a custom view of its own). The Axiom
-Register was authored end to end through the MCP interface alone, reading the
-vocabulary off the wire rather than from this repository; the station was built
-the same way from an empty file, and [its walkthrough](nendo-station.md) is where
-the loop above is performed in front of somebody.
+Four reference applications exist as falsification tests. Each one has a
+different shape from the one before it:
+
+- **Idea Garden** (the original form and board).
+- **Decision Log** (the neutrality proof that the path is not Idea-specific).
+- The **Axiom Register** (record pages, related lists, declared filters, summary
+  tiles and multi-step commands; the earlier vocabulary could express none of
+  these).
+- **Nendo Station** (every kind of screen this host compiles, the charts, the
+  calculations, an automatic action and a custom view of its own).
+
+The Axiom Register was authored end to end through the MCP interface alone. Its
+author read the vocabulary from the wire and not from this repository. The
+station was built the same way from an empty file. [Its walkthrough](nendo-station.md)
+performs the loop above for an observer.
 
 ## Scope boundary
 
@@ -102,17 +106,17 @@ cloud sync, background agents, other database engines, cross-platform parity.
 
 The scope list describes the shipped product. Bounded calculations and local
 actions are in it because [ADR-0008](decisions/0008-general-scripting-and-capability-isolation.md)
-is delivered; general scripting, plug-ins, third-party controls and external
+is delivered. General scripting, plug-ins, third-party controls and external
 effects still require additional accepted authority.
 
 **Charts and dashboards came into scope on 2026-09-14**, and the slices S0 to S7
-are delivered. A
-chart in Nendo is an exact aggregate over a closed grouping — a choice field's
-options, a Boolean, a Date field's months — drawn as proportion with its numbers
-beside it; a dashboard is a page of such tiles and charts over one file. Neither
-stores layout, an expression or a sample. The ideas and their order are in
-[surfaces-and-charts-plan.md](design/surfaces-and-charts-plan.md); each lands as
-an accepted [ADR-0004](decisions/0004-versioned-semantic-ui-contract.md)
+are delivered. A chart in Nendo is an exact aggregate over a closed grouping: a
+choice field's options, a Boolean, or a Date field's months. Nendo draws the
+chart as a proportion and shows its numbers beside it. A dashboard is a page of
+such tiles and charts over one file. Neither one stores layout, an expression or
+a sample. The ideas and their order are in
+[surfaces-and-charts-plan.md](design/surfaces-and-charts-plan.md). Each idea
+lands as an accepted [ADR-0004](decisions/0004-versioned-semantic-ui-contract.md)
 amendment, and the axioms above hold throughout.
 
 ## Success criterion

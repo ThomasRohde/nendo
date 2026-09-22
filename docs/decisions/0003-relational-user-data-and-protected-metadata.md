@@ -12,53 +12,56 @@
 
 ### Accepted note — 2026-09-09 (covering index on configured reference columns)
 
-The ADR-0004 contract version 3 amendment adds `relatedList`, which reads the
-inverse of a reference: the records of one entity whose reference field points at
-one record of another. Reference values are an ordinary column and the schema
-carried no index on any field column, so that read was a table walk.
+The ADR-0004 contract version 3 amendment adds `relatedList`. A `relatedList`
+reads the inverse of a reference: the records of one entity whose reference field
+points at one record of another entity. Reference values are an ordinary column,
+and the schema had no index on any field column. Thus that read was a table walk.
 
 EX-0010 lane C
-measured it on the production table shape at 1,000 parents and 10,000 children.
-A dense parent met the R06 bounded-read target trivially, because SQLite walks
-the primary-key index for `ORDER BY __nendo_record_id` and stops as soon as the
-page fills. A sparse or empty relation cannot stop early: p50 3.97 ms and 3.86 ms
-against a 150 ms target. Both pass, and neither is a failure being repaired.
+measured the read on the production table shape at 1,000 parents and 10,000
+children. A dense parent met the R06 bounded-read target easily. For
+`ORDER BY __nendo_record_id`, SQLite walks the primary-key index and stops when
+the page is full. A sparse or empty relation cannot stop early: p50 3.97 ms and
+3.86 ms against a 150 ms target. Both results pass, and this note does not repair
+a failure.
 
-The cost is linear in table size rather than in result size, and a register with
-many parents each owning few children is the ordinary case rather than the edge.
-This note therefore accepts one covering index per configured reference field,
-created inside the same explicit typed operation that configures the reference:
+The cost is linear in table size and not in result size. A register with many
+parents that each own few children is the ordinary case, not the edge case.
+Thus this note accepts one covering index per configured reference field. The
+same explicit typed operation that configures the reference creates the index:
 
 ```sql
 CREATE INDEX <name> ON <entity table>(<reference column>, __nendo_record_id);
 ```
 
-The index is host-owned and created only by the supported schema service, inside
-the transaction that configures the reference and after the physical column
-exists, since the same change set may add both. It is never created on open and
-never as a repair. Ordinary opening of an existing file does not add it; files
-configured before this note keep working and read without it. Measured on the
-same fixture the index takes the sparse case to p50 0.05 ms and turns the plan
-into a covering search.
+The index is host-owned. Only the supported schema service creates it. It does so
+inside the transaction that configures the reference, after the physical column
+exists, because the same change set may add both. The host never creates the
+index on open and never creates it as a repair. An ordinary open of an existing
+file does not add it. Files configured before this note continue to work and read
+without it. On the same fixture, the index took the sparse case to p50 0.05 ms and
+changed the plan into a covering search.
 
-It is deliberately named outside the `__nendo_` namespace, so it is not part of
-the protected schema signature. That signature is a fixed set of recognised
-layouts, and the number of reference indexes varies per application; including
-them would make every configured reference produce an unrecognised layout and
-refuse to open. Losing the index is therefore not drift and not a fault: the
-inverse read stays correct without it, only slower. The existing required-
-constraint table rebuild already captures and recreates indexes on the table, so
-retiring a field does not silently drop it.
+The index name is outside the `__nendo_` namespace by design. Thus the index is
+not part of the protected schema signature. That signature is a fixed set of
+recognised layouts, and the number of reference indexes varies per application.
+If the signature included them, every configured reference would produce an
+unrecognised layout, and the file would refuse to open. Thus a lost index is not
+drift and not a fault: the inverse read stays correct without it, but is slower.
+The existing required-constraint table rebuild already captures and recreates
+indexes on the table. Thus when a field is retired, the rebuild does not drop the
+index without notice.
 
 This note authorises that index and nothing else. It adds no index for any other
-field kind, introduces no user-defined indexes, and changes no storage engine,
+field kind and introduces no user-defined indexes. It changes no storage engine,
 journal or copy-discipline decision.
 
-Nendo must support ordinary relational data while retaining stable semantic
+Nendo must support ordinary relational data. It must also keep stable semantic
 identity, mutable human labels, application definitions, history and format
-compatibility. A storage model optimized only for renderer convenience would
-make recovery and independent inspection unnecessarily difficult. Exposing raw
-SQL as the product mutation model would bypass semantic history and validation.
+compatibility. A storage model that is optimized only for renderer convenience
+would make recovery and independent inspection unnecessarily difficult. If raw
+SQL were the product mutation model, it would bypass semantic history and
+validation.
 
 ## Decision drivers
 
@@ -73,18 +76,20 @@ SQL as the product mutation model would bypass semantic history and validation.
 
 ### Ordinary relational user tables plus protected metadata
 
-Materialize each entity as a table and map stable semantic IDs to constrained
+Materialize each entity as a table. Map stable semantic IDs to constrained
 physical names in host-owned metadata.
 
 ### Entity-attribute-value storage
 
-Store all values in generic rows. This simplifies some dynamic-schema changes
-but degrades direct inspection, constraints, query planning and type clarity.
+Store all values in generic rows. This option makes some dynamic-schema changes
+simpler. But it degrades direct inspection, constraints, query planning and type
+clarity.
 
 ### One JSON application document
 
-Store schema, data and UI as a document blob. This couples unrelated edits,
-weakens relational behavior and encourages whole-document replacement.
+Store schema, data and UI as a document blob. This option couples unrelated
+edits and weakens relational behavior. It also encourages whole-document
+replacement.
 
 ## Decision
 
@@ -95,20 +100,20 @@ reserved protected metadata namespace for Nendo state.
   and constrained physical table/column names.
 - Protected metadata records the manifest, application/instance identity,
   semantic mappings, UI nodes/properties, revisions, canonical operations and
-  idempotency evidence. The exact prototype schema is not frozen by this ADR.
+  idempotency evidence. This ADR does not freeze the exact prototype schema.
 - `format_version` and `minimum_host_version` are mandatory from the first
-  production format. SQLite application/user version markers supplement rather
-  than replace the protected manifest.
+  production format. SQLite application/user version markers supplement the
+  protected manifest. They do not replace it.
 - Only the host schema service may mutate physical DDL or protected metadata.
   Storage-specific SQL and SQLite types remain inside the SQLite adapter.
-- External changes are detected as drift and produce a normal, read-only or
-  recovery-required open classification; the host does not guess a repair.
+- The host detects external changes as drift. Drift produces a normal, read-only
+  or recovery-required open classification. The host does not guess a repair.
 - MVP scalar storage kinds are text, integer, decimal, boolean, date, datetime,
   UUID and reference. Long text, single choice, email, URL, color and Markdown
   are presentation/validation semantics over those kinds.
 - Scalar multi-choice, JSON-as-a-user-type and binary/assets are deferred.
 - Relationships use explicit relational metadata and foreign-key/join
-  structures rather than encoded scalar lists.
+  structures. They do not use encoded scalar lists.
 - Generated display-label recovery views are not part of format version 1.
   Stable physical names plus the semantic map are the inspectability baseline.
 
@@ -116,10 +121,10 @@ reserved protected metadata namespace for Nendo state.
 
 - EX-0001 reopened an empty file and a populated Idea Garden file with coherent
   ordinary tables, stable mappings and protected history.
-- EX-0002 compiled the stored schema and UI through typed services without
-  exposing physical identifiers or SQLite authority.
-- Production migrations must be versioned, deterministic, transactional and
-  covered by old-file/new-host fixtures before a format version ships.
+- EX-0002 compiled the stored schema and UI through typed services. It did not
+  expose physical identifiers or SQLite authority.
+- Production migrations must be versioned, deterministic and transactional.
+  Before a format version ships, old-file/new-host fixtures must cover them.
 - Adversarial identifiers, rename collisions, reserved words, relationship
   integrity and externally modified schemas require implementation tests.
 - Direct SQLite inspection is a recovery aid, not a supported mutation API.
@@ -134,15 +139,15 @@ reserved protected metadata namespace for Nendo state.
 
 ### Negative
 
-- Schema evolution requires deliberate DDL migration logic.
+- Schema evolution requires intentional DDL migration logic.
 - Protected metadata and user tables must stay transactionally consistent.
 - Some dynamic low-code patterns are harder than with EAV or a document blob.
 
 ## Rejected alternatives
 
-EAV and a single JSON document are rejected because their flexibility does not
-justify weaker relational semantics, inspectability and operation-level change
-tracking for the bounded MVP.
+EAV and a single JSON document are rejected. For the bounded MVP, their
+flexibility does not justify weaker relational semantics, inspectability and
+operation-level change tracking.
 
 ## Revisit triggers
 

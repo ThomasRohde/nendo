@@ -11,9 +11,9 @@
 ## Context
 
 Agent-authored schema and semantic-surface changes need realistic validation and
-human review without mutating the active file. Replacing the active file with a
-proposal clone would discard legitimate work committed after the clone was
-created and make file identity ambiguous.
+human review, and they must not mutate the active file. If Nendo replaced the
+active file with a proposal clone, it would discard legitimate work committed
+after the host created the clone. It would also make file identity ambiguous.
 
 ## Decision drivers
 
@@ -28,45 +28,46 @@ created and make file identity ambiguous.
 
 ### SQLite backup clone plus operation replay
 
-Apply canonical operations to a host-owned clone, validate and preview them,
-then replay the exact digest against the active file after precondition checks.
+Apply canonical operations to a host-owned clone, and validate and preview them.
+Then check the preconditions, and replay the exact digest against the active
+file.
 
 ### Replace the active file with the validated clone
 
-Simple activation, but it can overwrite post-clone work and changes instance/
-path authority outside the typed operation model.
+Activation is simple. But this option can overwrite post-clone work, and it
+changes instance/path authority outside the typed operation model.
 
 ### Preview without a physical clone
 
-Simulate against an in-memory model. This is cheaper but may miss real storage,
-migration and validation failures.
+Simulate against an in-memory model. This option costs less, but it may miss
+real storage, migration and validation failures.
 
 ## Decision
 
-Agent-authored application changes use a host-owned proposal workspace and reach
-the active file only by exact operation replay.
+Agent-authored application changes use a host-owned proposal workspace. They
+reach the active file only by exact operation replay.
 
 - The lifecycle is Draft → Validating → Invalid or Previewable → Rejected,
-  Stale or Applying → Active or Failed, with later compensation only where the
+  Stale or Applying → Active or Failed. Later compensation occurs only where the
   accepted operations support it.
 - A proposal binds application/instance identity, required definition revision,
   touched-record versions, canonical operations, operation/interpreter version,
   validation evidence, semantic diff and operation digest.
 - The host creates the clone through SQLite backup into a protected proposal
-  workspace, applies the canonical operations there and validates the complete
+  workspace. It applies the canonical operations there and validates the complete
   result.
-- Preview is derived from the same canonical operation stream used for clone
-  application, semantic diff, history and eventual promotion.
+- Preview comes from the same canonical operation stream that clone
+  application, semantic diff, history and eventual promotion use.
 - Acceptance is an explicit host-owned user action. An agent or MCP adapter
   cannot call a generic promotion escape hatch.
 - Promotion rechecks identity, interpreter version, definition revision and
-  touched-record versions, then replays the exact validated operation digest in
+  touched-record versions. Then it replays the exact validated operation digest in
   one coordinator-owned active-file transaction.
 - Promotion never replaces the active file with the clone.
-- Invalid, stale or failed proposals leave active semantic state unchanged.
+- Invalid, stale or failed proposals leave the active semantic state unchanged.
 - Proposal workspaces contain user data and use host-owned ACL, retention and
-  explicit cleanup. The MVP does not promise cross-process proposal resume;
-  abandoned work may be listed for recovery and rejected/recreated safely.
+  explicit cleanup. The MVP does not promise cross-process proposal resume.
+  Abandoned work may be listed for recovery and safely rejected/recreated.
 
 ## Evidence and validation obligations
 
@@ -77,26 +78,30 @@ the active file only by exact operation replay.
   promotion tool through the installed Codex path.
 - Production must test cleanup, restart-abandoned proposals, schema migration,
   relationships, cancellation, large proposals and every typed operation class.
-- Human review must show affected semantics, records, validation and
-  reversibility before acceptance.
+- Before acceptance, human review must show the affected semantics, records,
+  validation and reversibility.
 
 ## Consequences
 
 The 2026-09-05 review remediation
-adds bounded production evidence for canonical proposal receipts after process
-loss, repeated promotion after reopen and retryable derivative cleanup. The
-receipt comes from existing proposal-tagged revisions; no clone replacement,
-second commit log or durable continuation of unaccepted proposals is introduced.
-The disposition records R03 transport/lifecycle qualification and its limits.
+adds bounded production evidence for three items: canonical proposal receipts
+after process loss, repeated promotion after reopen, and retryable derivative
+cleanup. The receipt comes from existing proposal-tagged revisions. The
+remediation introduces no clone replacement, no second commit log and no durable
+continuation of unaccepted proposals. The disposition records R03
+transport/lifecycle qualification and its limits.
+
 Schema-only proposals now validate on the same physical clone and reach Studio
-without requiring a custom surface. Present custom definitions must still compile
-fully; malformed or partial custom trees remain invalid. This permits the
-empty/schema-only file boundary, not a partial render plan or a new UI vocabulary.
+without a custom surface. Custom definitions that are present must still compile
+fully. Malformed or partial custom trees remain invalid. This change permits the
+empty/schema-only file boundary. It does not permit a partial render plan or a
+new UI vocabulary.
 
 ### Positive
 
 - Unaccepted work cannot partially mutate the active application.
-- Active changes after clone creation survive promotion when not relevant.
+- If active changes made after clone creation are not relevant, they survive
+  promotion.
 - Preview and applied history share one canonical evidence stream.
 
 ### Negative

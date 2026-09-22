@@ -10,108 +10,131 @@
 
 ### Accepted amendment — 2026-09-20 (an optional result is quietly empty, and a formula can refuse by name)
 
-The owner accepted both parts of this amendment on 2026-09-20, the day it was proposed
-for W-032, from what the planner had shown every day since it was set up on 2026-09-15.
+The owner accepted both parts of this amendment on 2026-09-20, the day that it was
+proposed for W-032. The owner based the acceptance on what the planner showed every
+day after its setup on 2026-09-15.
 
-**What is wrong.** Nine of the planner's fifty-three work items have no value or effort
-rating, because nobody has established one. Their *Value per effort* field shows
-*Cannot calculate* with "A value this formula needs is empty" beside it. That is the
-contract working as written — an empty value used as an operand is
-`calculation-missing-input` — and it is the wrong sentence: nothing failed, and the
-person who left a rating blank did so on purpose. The field was declared to allow an
-empty result (`resultNullable: true`) and both its inputs were declared optional
-(`nullable: true`), and none of that changes what the reader sees. There is no way to
-write the formula differently, either: the language has no test for empty, no empty
-literal and no way to say "then leave it blank". The same function guards its 1–5 scale
-with `0 / 0`, borrowing a division error because there is no way to refuse by name.
+**What is wrong.** Nine of the planner's fifty-three work items have no value or
+effort rating, because nobody has set one. Their *Value per effort* field shows
+*Cannot calculate* with "A value this formula needs is empty" beside it. The
+contract works as written: an empty value used as an operand is
+`calculation-missing-input`. But the sentence is wrong. Nothing failed, and the
+person who left a rating blank did so intentionally. The field was declared to
+allow an empty result (`resultNullable: true`), and both its inputs were declared
+optional (`nullable: true`). These declarations do not change what the reader sees.
+
+Also, an author cannot write the formula differently. The language has no test for
+empty, no empty literal and no way to say "then leave it blank". The same function
+guards its 1–5 scale with `0 / 0`. It uses a division error because there is no
+way to refuse by name.
 
 **Options considered.**
 
-- *A. The declaration decides — selected.* A calculation or function declared to allow an
-  empty result yields **empty** when an empty input stops its formula, instead of an
-  error. One declared always to produce a value keeps `calculation-missing-input`, and
-  now also reports it when its formula ends empty: the declaration is honoured both
-  ways. No new syntax and no new catalogue entry; the two flags authors already write
-  gain the meaning they read as having.
+- *A. The declaration decides — selected.* If a calculation or function is declared
+  to allow an empty result, and an empty input stops its formula, it yields
+  **empty** and not an error. If it is declared always to produce a value, it keeps
+  `calculation-missing-input`. It now also reports that error when its formula ends
+  empty. Thus the host honours the declaration in both directions. This option adds
+  no new syntax and no new catalogue entry. The two flags that authors already
+  write get the meaning that a reader expects from them.
 - *B. A test and a literal — deferred.* `IsEmpty(x)` and an `Empty` name typed from
-  context, so a formula can say `IsEmpty(effort) ? Empty : value / effort`. More
-  expressive, more vocabulary, and every optional formula — this planner's included —
-  would have to be re-authored to get the quiet blank it already asked for. Kept as the
-  revisit trigger below, for the day a formula needs to tell an empty from a value
-  inside itself.
-- *C. Empties propagate everywhere — rejected.* SQL's rule: any empty operand makes the
-  result empty. Simplest to build and it hides mistakes: a required input that is
-  unexpectedly empty would show a blank rather than an error, which is the number
-  nobody computed that section 6 exists to prevent.
-- *D. Show the error more gently — rejected.* Rendering `calculation-missing-input` as
-  *Not set* in the Workbench alone. The MCP read, an export and a future host would still
-  carry an error, and a reader on any of them would be told something failed.
+  context, so that a formula can say `IsEmpty(effort) ? Empty : value / effort`.
+  This option is more expressive and adds more vocabulary. Every optional formula,
+  including this planner's, would need new authoring to get the blank result that
+  it already requested. This option stays as the revisit trigger below, for when a
+  formula needs to tell an empty from a value inside itself.
+- *C. Empties propagate everywhere — rejected.* This is SQL's rule: any empty
+  operand makes the result empty. It is the simplest to build, but it hides
+  mistakes. A required input that is unexpectedly empty would show a blank and not
+  an error. That blank is a number that nobody computed, which section 6 exists to
+  prevent.
+- *D. Show the error more gently — rejected.* Render `calculation-missing-input` as
+  *Not set* in the Workbench only. The MCP read, an export and a future host would
+  still carry an error. A reader of any of them would be told that something
+  failed.
 
-**Decision, part one: an optional result is quietly empty.** Where the contract says an
-empty value used as an operand produces `calculation-missing-input`, it now says the
-operand stops the formula, and what is reported depends on the declaration: a
-calculation with `resultNullable: true` reports an **empty** of its result type; one
-with `resultNullable: false` reports `calculation-missing-input`, as today. The same
-rule applies to a reusable function at its call: a function whose result may be empty
-returns empty to its caller when an empty argument stops it, and the caller's own
-declaration then decides what the caller reports. A formula that ends empty in a
-definition declared never to be empty is `calculation-missing-input` too. Never zero,
-never false, never a previous result: section 4 and section 6 stand. The branch not
-taken is still never evaluated. A dependant of an empty result reads a typed empty, as
-today; `calculation-dependency-failed` is still reserved for a dependency that
-*errored*.
+**Decision, part one: an optional result is quietly empty.** The contract said that
+an empty value used as an operand produces `calculation-missing-input`. It now says
+that the operand stops the formula, and the declaration decides what the host
+reports:
 
-**Decision, part two: a formula can refuse by name.** One catalogue entry, `Refuse(text)`,
-which produces no value and reports `calculation-refused` carrying the author's own
-sentence. It is total in the sense every entry is — the same inputs always give the same
-outcome — and it has no clock, file or network. It stands in for a value of whatever kind
-the enclosing formula produces, so it can sit in either outcome of a choice; a formula
-that is only a refusal, or a refusal outside a choice, is refused at validation, because
-a calculation that can never answer is a definition error. The planner's guard becomes
-`… ? value / effort : Refuse('Ratings are 1 to 5.')`, and a reader is told that rather
-than that something was divided by zero. Reaching it from an agent: the entry is
-published at `nendo://application/vocabulary` through the catalogue, as `TextLength` was
-(P8), with nothing else to change.
+- A calculation with `resultNullable: true` reports an **empty** of its result
+  type.
+- A calculation with `resultNullable: false` reports `calculation-missing-input`,
+  as today.
 
-**What this is not.** Not a null literal, not a test for empty, not three-valued logic:
-`empty and false` stops the formula rather than answering false. Not a change to what is
-stored, staged or replayed. Not a new execution contract version: `behaviour-1` keeps its
-name, because no stored body changes shape and a definition means what its own
-declarations say. The one thing that reads differently is a definition that was declared
-never to be empty and ended empty anyway, which now reports an error where it showed a
-blank; no definition in the planner does that, and a file that does was mis-declared.
-No minimum host version is raised: an older host shows an error where a newer shows a
-blank, and refuses `Refuse` at validation as an unknown function, which is the ordinary
-behaviour of a host that lacks a catalogue entry.
+The same rule applies to a reusable function at its call. If an empty argument
+stops a function whose result may be empty, the function returns empty to its
+caller. The caller's own declaration then decides what the caller reports. If a
+formula ends empty in a definition declared never to be empty, the result is also
+`calculation-missing-input`. The result is never zero, never false and never a
+previous result: section 4 and section 6 stand. The branch not taken is still never
+evaluated. A dependant of an empty result reads a typed empty, as today.
+`calculation-dependency-failed` is still reserved for a dependency that *errored*.
+
+**Decision, part two: a formula can refuse by name.** The amendment adds one
+catalogue entry, `Refuse(text)`. It produces no value and reports
+`calculation-refused`, which carries the author's own sentence. It is total in the
+same sense as every entry: the same inputs always give the same outcome. It has no
+clock, file or network. It stands in for a value of the kind that the enclosing
+formula produces, so it can be in either outcome of a choice. Validation refuses a
+formula that is only a refusal, and a refusal outside a choice, because a
+calculation that can never answer is a definition error.
+
+The planner's guard becomes `… ? value / effort : Refuse('Ratings are 1 to 5.')`.
+The reader then sees that sentence, and not a report that something was divided by
+zero. For agents, the catalogue publishes the entry at
+`nendo://application/vocabulary`, as it published `TextLength` (P8). Nothing else
+needs to change.
+
+**What this is not.** The amendment adds no null literal, no test for empty and no
+three-valued logic. `empty and false` stops the formula; it does not answer false.
+The amendment does not change what is stored, staged or replayed. It is not a new
+execution contract version. `behaviour-1` keeps its name, because no stored body
+changes shape, and a definition means what its own declarations say.
+
+One case reads differently: a definition that was declared never to be empty and
+ended empty anyway. It now reports an error where it showed a blank. No definition
+in the planner does that, and a file that does it was mis-declared. The amendment
+raises no minimum host version. An older host shows an error where a newer host
+shows a blank. An older host also refuses `Refuse` at validation as an unknown
+function. That is the ordinary behaviour of a host that lacks a catalogue entry.
 
 **Evidence obligations before this entry is marked Accepted.**
 
-- `BehaviourScalarTests`: an empty operand under a nullable result is a typed empty;
-  under a non-nullable result it is `calculation-missing-input` (D1_15 and D1_16 stand);
-  a nullable function returning empty into a non-nullable caller is the caller's error;
-  `Refuse` reports `calculation-refused` with the author's text, sits in either outcome
-  of a choice, and is refused at validation on its own. Each guard falsified against the
-  old evaluator and the failure text quoted in the Check.
-- The planner: *Value per effort* reads *Not set* for the nine unrated items, without a
-  change to the file; after the owner accepts a change set replacing `0 / 0` with
-  `Refuse`, an out-of-scale rating reads the author's sentence. Owner-reported.
+- `BehaviourScalarTests`:
+  - an empty operand under a nullable result is a typed empty;
+  - an empty operand under a non-nullable result is `calculation-missing-input`
+    (D1_15 and D1_16 stand);
+  - if a nullable function returns empty into a non-nullable caller, the error is
+    the caller's;
+  - `Refuse` reports `calculation-refused` with the author's text, can be in either
+    outcome of a choice, and is refused at validation on its own.
+
+  Falsify each guard against the old evaluator, and quote the failure text in the
+  Check.
+- The planner: *Value per effort* reads *Not set* for the nine unrated items,
+  without a change to the file. After the owner accepts a change set that replaces
+  `0 / 0` with `Refuse`, an out-of-scale rating reads the author's sentence.
+  Owner-reported.
 - [`docs/contracts/calculations-and-actions.md`](../contracts/calculations-and-actions.md)
-  says the rule under *Values, empties and errors* and lists `Refuse` in the catalogue;
-  the Workbench help says which state a blank rating produces; the blackbox prompt
-  reaches both.
+  states the rule under *Values, empties and errors* and lists `Refuse` in the
+  catalogue. The Workbench help states which state a blank rating produces. The
+  blackbox prompt reaches both.
 
 **Consequences.** A reader sees a blank where somebody left a blank, and a sentence
-where an author wrote one; both were errors before. An author who wants a missing
-input to be an error declares the result non-nullable, which is the declaration that
-already says so. The revisit trigger: when a formula needs to tell an empty from a
-value inside itself — a default, a fallback, a count of the missing — option B is the
-next step, and it composes with this rule rather than replacing it.
+where an author wrote one. Before, both were errors. If an author wants a missing
+input to be an error, the author declares the result non-nullable. That
+declaration already has this meaning. The revisit trigger: when a formula needs to tell
+an empty from a value inside itself (a default, a fallback, a count of the missing
+values), option B is the next step. Option B composes with this rule and does not
+replace it.
 
 ## Context
 
 Nendo stores an application in a local `.nendo` file. The installed host supplies storage, Studio, validation and recovery. Applications can already contain semantic surfaces and bounded declarative commands. General expressions and scripting remain outside the accepted production scope. [R1–R4]
 
-The next step must let people and agents add calculations without changing the host for each application. Calculations should update when their inputs change. Excel is a reference for this experience, not a requirement for syntax or file compatibility.
+The next step must let people and agents add calculations without a change to the host for each application. Calculations should update when their inputs change. Excel is a reference for this experience. It is not a requirement for syntax or file compatibility.
 
 The application also needs explicit commands and automatic actions. These can change related records. They must not bypass the host's write authority, history or recovery rules.
 
@@ -123,7 +146,7 @@ The owner selected these requirements during design:
 - Save otherwise valid input when a calculation fails. Show the error in the calculated field.
 - Include automatic triggers in the initial implementation. Do not restrict the first release to buttons.
 - Commit an initiating edit and its local trigger actions together. A failed required action cancels the whole transaction.
-- Require local approval before editing a file with unfamiliar automatic actions. Inspection remains available before approval.
+- Require local approval before a person edits a file with unfamiliar automatic actions. Inspection remains available before approval.
 - Permit further use cases as people use Nendo. Do not make each additional function a new architecture project.
 
 This ADR covers bounded application behaviour. It does not create a general plug-in platform. ADR-0013 remains responsible for third-party packages, custom controls and broader extension concerns. [R4]
@@ -137,7 +160,7 @@ This ADR covers bounded application behaviour. It does not create a general plug
 5. Keep automatic changes atomic, attributable and bounded.
 6. Preserve Studio when application behaviour fails or lacks approval.
 7. Add use cases without a second language or runtime unless evidence requires one.
-8. Select the runtime from integration evidence, not a library feature list.
+8. Select the runtime from integration evidence, not from a library feature list.
 
 ## Options considered
 
@@ -145,25 +168,25 @@ This ADR covers bounded application behaviour. It does not create a general plug
 
 Use an existing expression evaluator for calculations and conditions. Store application functions as expression bodies. Represent actions as bounded steps that request typed host operations.
 
-NCalc 7.1.0 is selected behind the typed adapter demonstrated by D1–D4. Decimal configuration alone is insufficient: division must intercept typed operands before NCalc's integer-to-Double path. Nendo still supplies dependency tracking, application functions, permissions and action execution. [E1–E3]
+The project selects NCalc 7.1.0 behind the typed adapter that D1–D4 demonstrated. Decimal configuration alone is insufficient: division must intercept typed operands before NCalc's integer-to-Double path. Nendo still supplies dependency tracking, application functions, permissions and action execution. [E1–E3]
 
 This option avoids a custom parser and a general programming runtime. Its main risk is whether the selected library can satisfy numeric and resource limits with a small adapter.
 
 ### B. General C# or JavaScript scripting from the start
 
-This option would offer broader programming freedom. It would also require a wider execution contract before the first calculated field could ship.
+This option would give broader programming freedom. It would also require a wider execution contract before the first calculated field could ship.
 
-Compiled code, exposed objects, arbitrary loops and external effects create additional isolation questions. Their integration cost has not been measured. Defer this option unless a real use case cannot fit option A.
+Compiled code, exposed objects, arbitrary loops and external effects create additional isolation questions. Nobody has measured their integration cost. Defer this option unless a real use case cannot fit option A.
 
 ### C. A Nendo-specific expression language
 
-This would give Nendo direct control over syntax and execution. It would also make the project responsible for parsing, diagnostics and language maintenance.
+This option would give Nendo direct control over syntax and execution. It would also make the project responsible for parsing, diagnostics and language maintenance.
 
 Do not take this route while an existing library can meet the requirements at lower cost. Small checks around a library are acceptable. A replacement language is not the default fallback.
 
 ### D. Continue with fixed declarative commands only
 
-This preserves the current boundary. It does not provide reusable application formulas or the automatic behaviour the owner requested.
+This option preserves the current boundary. It does not provide reusable application formulas or the automatic behaviour that the owner requested.
 
 Retain existing commands for compatibility. Do not treat them as the permanent limit of application behaviour.
 
@@ -173,7 +196,7 @@ Retain existing commands for compatibility. Do not treat them as the permanent l
 
 Option A is accepted for the restricted vocabulary and host-owned action model. The experimental adapter uses NCalc 7.1.0's parser and evaluator, a typed allow-list, decimal division interception and shared resource accounting. It is not an arbitrary-code sandbox.
 
-The decision evidence below supports production implementation under this ADR. Only disposable experiments were delivered; the owner subsequently requested their removal after transfer into the [standalone implementation plan](../design/adr-0008-implementation-plan.md). No production scripting dependency, public API, storage contract, MCP authoring capability or installer is introduced by acceptance. The [preserved execution semantics](../design/adr-0008-semantics.md) record tested rules and limits; stable production contracts and P1–P8 checks remain required. [R5]
+The decision evidence below supports production implementation under this ADR. Only disposable experiments were delivered. After their transfer into the [standalone implementation plan](../design/adr-0008-implementation-plan.md), the owner requested their removal. Acceptance introduces no production scripting dependency, public API, storage contract, MCP authoring capability or installer. The [preserved execution semantics](../design/adr-0008-semantics.md) record tested rules and limits. Stable production contracts and P1–P8 checks remain required. [R5]
 
 The initial implementation includes calculated fields, reusable expression functions, explicit commands and automatic record triggers. It includes the local approval and failure rules in this ADR.
 
@@ -202,7 +225,7 @@ Typed request
     → result, history and refreshed calculations
 ```
 
-This is a responsibility boundary, not a requirement for new projects or public interfaces.
+This path is a responsibility boundary. It does not require new projects or public interfaces.
 
 ### 3. Definitions belong to the application
 
@@ -222,7 +245,7 @@ The first version has no per-record formula override. People edit the inputs of 
 
 A calculated field produces a typed value, null or a calculation error. Null and error are different results.
 
-Treat calculated results as derived values. Start with evaluation on demand and bounded host caches. Do not store them as independent user edits or generate a revision for each recalculation.
+Treat calculated results as derived values. Start with evaluation on demand and bounded host caches. Do not store them as independent user edits, and do not generate a revision for each recalculation.
 
 Return the same result semantics through Studio, custom surfaces and MCP. An out-of-date cached result must not appear as current. A pending calculation has an explicit pending state.
 
@@ -230,7 +253,7 @@ Preserve the scalar contract for signed 64-bit integers, .NET decimal values, te
 
 Use checked numeric operations and explicit result types. Do not silently convert decimal calculations to binary floating point. Do not coerce missing values, empty text or booleans into numbers.
 
-Arithmetic results are not always mathematically exact within the decimal domain. The experimental calculation contract defines division, scale reduction, rounding and overflow; production must retain these semantics in its stable contract. Test boundary values, not only ordinary prices.
+Arithmetic results are not always mathematically exact within the decimal domain. The experimental calculation contract defines division, scale reduction, rounding and overflow. Production must retain these semantics in its stable contract. Test boundary values, not only ordinary prices.
 
 The proposed default is documented .NET decimal arithmetic with explicit rounding functions. Do not force every result to two decimal places. Do not describe rounded arithmetic as exact storage arithmetic.
 
@@ -240,7 +263,7 @@ Use invariant expression parsing and explicit date rules. Local formatting belon
 
 The initial functions are pure. They receive inputs and return results. They cannot read the network, read files, modify records or call a general host method.
 
-A reusable function can call another approved expression function. Reject recursive function definitions. Bind dependencies through explicit parameters, not hidden global record access.
+A reusable function can call another approved expression function. Reject recursive function definitions. Bind dependencies through explicit parameters, not through hidden global record access.
 
 ### 5. Dependencies within and across records
 
@@ -250,17 +273,17 @@ A binding can refer to a field in the same record, a field reached through a dec
 
 Related queries use stable relationship and field IDs. Expressions cannot create SQL or resolve field names through arbitrary strings.
 
-A related aggregate depends on collection membership as well as the current values. Creation, deletion and reassignment can change the result. Moving a line between orders must invalidate both order totals.
+A related aggregate depends on collection membership as well as on the current values. Creation, deletion and reassignment can change the result. If a line moves between orders, both order totals must become invalid.
 
 Use the same dependency model for calculation results, action conditions and action inputs. In a transaction, evaluations see the current staged record state, including earlier action steps.
 
 Start with conservative invalidation where that is simpler. For example, a data revision can invalidate a related-query cache. Do not build fine-grained incremental indexes before measurements justify them.
 
-Automatic recalculation does not require every result to be recomputed on every save. It requires each requested result to reflect its input snapshot. Visible results must refresh after relevant changes.
+Automatic recalculation does not require the host to recompute every result on every save. It requires each requested result to reflect its input snapshot. Visible results must refresh after relevant changes.
 
-A calculated result changing does not itself create a record-update event in the initial contract. Subscribe triggers to the underlying record events. This avoids making a display refresh into a write trigger.
+In the initial contract, a change to a calculated result does not itself create a record-update event. Subscribe triggers to the underlying record events. This prevents a display refresh from becoming a write trigger.
 
-Do not silently sort or filter only the visible page when a query asks for all records. Either implement a bounded complete calculation query or refuse the unsupported operation clearly.
+If a query asks for all records, do not silently sort or filter only the visible page. Either implement a bounded complete calculation query, or refuse the unsupported operation clearly.
 
 ### 6. Calculation errors do not block valid input
 
@@ -268,15 +291,15 @@ Save input that passes ordinary field, record and storage checks. If a calculati
 
 Do not substitute zero, empty text or a previous result. A dependent calculation reports a dependency error. A later input or definition change causes a new evaluation.
 
-Reject invalid formula definitions before acceptance. An unknown function or a broken field binding is a definition error, not a reason to install a broken formula.
+Reject invalid formula definitions before acceptance. An unknown function or a broken field binding is a definition error. It is not a reason to install a broken formula.
 
 Errors caused by actual record values remain possible after definition validation. Examples include division by zero, overflow and a missing required calculation input.
 
-A trigger condition that depends on an errored calculation is marked **blocked**. It selects no action. The otherwise valid initiating edit can still commit. Show the blocked trigger in the operation outcome.
+If a trigger condition depends on an errored calculation, mark the condition **blocked**. It selects no action. The otherwise valid initiating edit can still commit. Show the blocked trigger in the operation outcome.
 
 Blocked is not false and is not success. Do not queue an invisible retry. A later subscribed event can evaluate the condition again.
 
-Once a condition selects an action, failure to evaluate an action input is an action failure. It cancels the transaction. An explicit validation rule can also require a valid calculation and refuse a save.
+If a condition selects an action and an action input then fails to evaluate, that failure is an action failure. It cancels the transaction. An explicit validation rule can also require a valid calculation and refuse a save.
 
 This distinction is intentional. A trigger condition must not act as an unstated data-integrity constraint.
 
@@ -284,17 +307,17 @@ This distinction is intentional. A trigger condition must not act as an unstated
 
 An action is an ordered set of bounded steps. Each step requests an allowed local data operation. Conditions and input expressions use the same expression service as calculated fields.
 
-Initially support record creation, field updates and record deletion through existing typed operations. Related targets must come from declared, bounded relationships or query bindings.
+Initially, support record creation, field updates and record deletion through existing typed operations. Related targets must come from declared, bounded relationships or query bindings.
 
-The initial events are record creation, record update and record deletion. Update triggers can select relevant stored fields. Give each event typed before and after values; one side is absent for creation or deletion.
+The initial events are record creation, record update and record deletion. Update triggers can select relevant stored fields. Give each event typed before and after values. For creation or deletion, one side is absent.
 
-Emit events at the logical mutation boundary. A multi-field form save must not expose an accidental sequence of half-edited forms to triggers. Stage the initiating batch before processing its event queue.
+Emit events at the logical mutation boundary. A multi-field form save must not expose an accidental sequence of half-edited forms to triggers. Stage the initiating batch before you process its event queue.
 
 Use a documented event order and a stable trigger order. Do not use dictionary iteration, thread scheduling or handler registration order as application semantics.
 
-Actions can cause further record events in the same transaction. Process these through a bounded queue. A field assignment that changes no value creates no update event.
+Actions can cause further record events in the same transaction. Process these events through a bounded queue. A field assignment that changes no value creates no update event.
 
-Do not execute actions merely because a file opens, a screen renders or a calculation is read. Enabling or changing a trigger does not replay past events.
+Do not execute actions only because a file opens, a screen renders or a calculation is read. Enabling or changing a trigger does not replay past events.
 
 A completion rule can subscribe to task updates, inspect the project's tasks and update the project. It must not depend on a background scheduler or a calculated-field display event.
 
@@ -332,9 +355,9 @@ Apply one shared work budget to an execution chain. A nested function or trigger
 
 Use cancellation, but do not treat a timeout token as proof that work stops. NCalc's documentation requires custom handlers to honour cancellation and does not promise general forced termination. [E4]
 
-The accepted design uses in-process evaluation of the restricted language. This is not a sandbox for arbitrary code or protection against another process running as the same OS user.
+The accepted design uses in-process evaluation of the restricted language. This design is not a sandbox for arbitrary code. It gives no protection against another process that runs as the same OS user.
 
-D2 establishes bounded cost for the tested restricted language and host functions through parser/visitor source inspection, finite ceilings, boundary workloads, allocations and joined cancellation. Keep evaluation off the UI thread. Widening the vocabulary or limits requires renewed evidence.
+D2 establishes bounded cost for the tested restricted language and host functions. It does this through parser/visitor source inspection, finite ceilings, boundary workloads, allocations and joined cancellation. Keep evaluation off the UI thread. A wider vocabulary or wider limits require new evidence.
 
 If this integration stops meeting these bounds without a substantial replacement interpreter, stop and reopen the decision. Neither another evaluator nor a process boundary is an automatic fallback. Do not silently broaden production authority.
 
@@ -346,27 +369,27 @@ Opening a file does not approve its actions. A received file cannot contain a gr
 
 Before approval, Studio can inspect the file, its data and its behaviour definitions. Bounded pure calculations can run under the same enforced limits. They have no authority to change records.
 
-Normal edits remain unavailable when required automatic behaviour is not approved. Do not silently save records while the application's required triggers are disabled.
+If required automatic behaviour is not approved, normal edits remain unavailable. Do not silently save records while the application's required triggers are disabled.
 
-The host presents the actions, trigger events, affected record types and requested local permissions. The person approves the reviewed behaviour once, not once per execution.
+The host presents the actions, trigger events, affected record types and requested local permissions. The person approves the reviewed behaviour once, not once for each execution.
 
 Accepting a proposal can also approve its exact behaviour definitions. This must be explicit in the host review. MCP cannot grant approval or promote its own proposal.
 
 Store approval in local host state. Bind it to application identity, instance identity, a behaviour digest and the granted capabilities. Include the execution-contract version in that binding.
 
-The behaviour digest covers actions, triggers and the functions, formulas and schema bindings that affect their meaning. An ordinary record edit does not change the grant. A behaviour change requires review.
+The behaviour digest covers actions, triggers, and the functions, formulas and schema bindings that affect their meaning. An ordinary record edit does not change the grant. A behaviour change requires review.
 
 A copied file does not carry local approval to another device or person. Duplicate and Fork produce identities that require their own grant. A matching previously approved restore need not prompt again.
 
-Review acceptance and local approval are separate storage operations. If the host stops between them, use the safer state: the definition can be installed while editing remains blocked pending approval.
+Review acceptance and local approval are separate storage operations. If the host stops between them, use the safer state: the definition can be installed while editing remains blocked until approval.
 
-The person can revoke approval at any time. Refuse new writes after revocation. Recheck approval before commit; an in-flight operation must not commit under a revoked grant.
+The person can revoke approval at any time. Refuse new writes after revocation. Check approval again before commit. An in-flight operation must not commit under a revoked grant.
 
-Emergency suspension makes normal editing unavailable. Permanently disabling a trigger is a reviewed definition change. Its consequences must be visible; it must not become a hidden bypass for required behaviour.
+Emergency suspension makes normal editing unavailable. Permanently disabling a trigger is a reviewed definition change. Its consequences must be visible. It must not become a hidden bypass for required behaviour.
 
 ### 11. Proposal validation and replay
 
-Preserve ADR-0007: validate on a physical clone and promote by replaying the exact reviewed operations. Do not swap in the clone. [R3]
+Preserve ADR-0007: validate on a physical clone, and promote by replaying the exact reviewed operations. Do not swap in the clone. [R3]
 
 For a proposal that contains record edits, expand applicable trigger effects on the clone under the candidate definition. Include every generated operation in the reviewed plan, digest and diff.
 
@@ -378,23 +401,23 @@ Only trusted internal replay can suppress trigger expansion. Do not expose a ski
 
 Capture every record read to determine an action, not only records that will be written. Related queries also need a membership precondition.
 
-A new matching record can change an aggregate without changing any previously read record version. The first implementation may conservatively require an unchanged data revision for such queries.
+A new matching record can change an aggregate without a change to any previously read record version. The first implementation may conservatively require an unchanged data revision for such queries.
 
 Reject a stale proposal and prepare it again. Do not silently recompute a different action plan during acceptance.
 
-Accepting new behaviour does not prove every possible future action will succeed. Runtime validation and transaction rollback still apply on each execution.
+Accepting new behaviour does not prove that every possible future action will succeed. Runtime validation and transaction rollback still apply on each execution.
 
 ### 12. History, compensation and file lifecycle
 
 History must identify the initiating edit, the executed triggers and their generated operations. Successful operation outcomes must also show blocked trigger conditions, where present.
 
-A rolled-back attempt is not a successful data revision. Report its failure through the existing outcome or diagnostic mechanism. Do not insert an application record merely to log a failed transaction.
+A rolled-back attempt is not a successful data revision. Report its failure through the existing outcome or diagnostic mechanism. Do not insert an application record only to log a failed transaction.
 
-Treat compensation as a host-owned operation over the causal change. Apply proven inverse operations together or refuse compensation. Do not repeat normal automatic actions while replaying those inverses.
+Treat compensation as a host-owned operation over the causal change. Apply proven inverse operations together, or refuse compensation. Do not repeat normal automatic actions while you replay those inverses.
 
 Validate the resulting state and current preconditions. A retained backup does not make an irreversible operation reversible. Do not promise universal undo. [R6]
 
-Restore, reopen and cache rebuild do not emit ordinary record events. Recalculate derived values as needed, but do not rerun historical actions.
+Restore, reopen and cache rebuild do not emit ordinary record events. Recalculate derived values as needed, but do not run historical actions again.
 
 Unknown execution contracts follow existing compatibility and safe-mode rules. Expose unaffected data only where the host can do so safely. Do not claim writable preservation of unknown semantics. [R7]
 
@@ -412,17 +435,17 @@ Repeated groups, new layout nodes and custom UI controls still require the relev
 
 External services, file access, timers, background execution and arbitrary code remain outside the initial authority. External effects cannot share the local transaction's rollback guarantee.
 
-Before adding external effects, define durable intent, retries, idempotency, credentials, consent and recovery. That requires an additional architecture decision. No such machinery is required for the first local implementation.
+Before you add external effects, define durable intent, retries, idempotency, credentials, consent and recovery. That requires an additional architecture decision. The first local implementation requires no such machinery.
 
 A runtime update must pass the existing semantic test suite. A change in meaning needs an explicit contract change and compatibility review. Never reinterpret stored formulas silently.
 
 ## Evidence and validation obligations
 
-Acceptance is supported by the [historical D1–D4 report](../design/adr-0008-evidence.md), the cases executed at that time, pinned dependency graph and working-source hashes. The initial raw configuration failed integer division, including a comparison result. The owner authorised a follow-up; the 272-line adapter fixed division before conversion, and the remaining experiments passed. At the owner's later request the disposable code and runners were removed after transferring the findings into documentation. The [regression specifications](../design/adr-0008-regressions.md) retain the exact numeric failure oracles and D1–D4 cases to recreate as production tests; no current rerunnable prototype claim is made.
+The [historical D1–D4 report](../design/adr-0008-evidence.md), the cases executed at that time, the pinned dependency graph and the working-source hashes support acceptance. The initial raw configuration failed integer division, including a comparison result. The owner authorised a follow-up. The 272-line adapter fixed division before conversion, and the remaining experiments passed. Later, at the owner's request, the findings moved into documentation, and the disposable code and runners were removed. The [regression specifications](../design/adr-0008-regressions.md) retain the exact numeric failure oracles and the D1–D4 cases to recreate as production tests. This ADR makes no claim of a current rerunnable prototype.
 
-D1 passed typed scalar, arithmetic, function and rejection cases. D2 passed bounded parsing/evaluation, cache, allocation, related-scan/action and cancellation checks; the actual isolated host remained responsive and reached native recovery. D3 used real SQLite/coordinator transactions, causal receipts and a real multi-field editor rollback. D4 used physical clones, exact replay, read-record/membership preconditions and local grants, including process interruption after definition promotion.
+D1 passed typed scalar, arithmetic, function and rejection cases. D2 passed bounded parsing/evaluation, cache, allocation, related-scan/action and cancellation checks. The real isolated host remained responsive and reached native recovery. D3 used real SQLite/coordinator transactions, causal receipts and a real multi-field editor rollback. D4 used physical clones, exact replay, read-record/membership preconditions and local grants, including process interruption after definition promotion.
 
-The host experiment required a disposable Workbench fix to retain the form after a validation refusal. Production must port and test that behaviour. The fixture's protected definition storage, read-set carrier and grant JSON are experimental; acceptance does not make them stable formats. All production release checks below remain pending.
+The host experiment required a disposable Workbench fix to retain the form after a validation refusal. Production must port and test that behaviour. The fixture's protected definition storage, read-set carrier and grant JSON are experimental. Acceptance does not make them stable formats. All production release checks below remain pending.
 
 ### Decision evidence required before acceptance
 
@@ -430,9 +453,9 @@ The host experiment required a disposable Workbench fix to retain the form after
 
 **D2 — Resource containment.** Test oversized and deeply nested input, repeated function calls, cycles, large strings and costly related queries. Set measured finite budgets. Prove that limit failures return control without active writes or loss of Studio. A test that only stops awaiting a still-running task does not pass.
 
-**D3 — Trigger transaction.** Create a project with related tasks. Complete one task and run a related-project action. Inject failure at each step. Assert complete rollback, preserved unsaved input and no successful receipt. Then test a successful chain and retry its idempotency key; no effect may occur twice.
+**D3 — Trigger transaction.** Create a project with related tasks. Complete one task and run a related-project action. Inject failure at each step. Assert complete rollback, preserved unsaved input and no successful receipt. Then test a successful chain and retry its idempotency key. No effect may occur twice.
 
-**D4 — Proposal equivalence and trust.** Expand a trigger chain on a real clone. Compare the reviewed and committed canonical operations. Insert a new related record before acceptance; the stale aggregate-dependent proposal must refuse. Test trust revocation, digest changes and a stop between promotion and grant persistence.
+**D4 — Proposal equivalence and trust.** Expand a trigger chain on a real clone. Compare the reviewed and committed canonical operations. Insert a new related record before acceptance. The stale aggregate-dependent proposal must refuse. Test trust revocation, digest changes and a stop between promotion and grant persistence.
 
 Use disposable experiments for these decisions. Record exact commands, expected results and observed results. Move the lasting checks into normal test suites when production work begins.
 
@@ -440,11 +463,11 @@ Do not accept the runtime or in-process isolation choice while a decision-critic
 
 ### Production implementation and release checks
 
-**P1 — Calculation journey.** Create inputs, two dependent calculated fields and a reusable function through MCP. Accept the proposal in the host. Edit input in Studio. Confirm matching results in a custom surface and through MCP. Rename fields and reopen offline; bindings and results must remain valid.
+**P1 — Calculation journey.** Create inputs, two dependent calculated fields and a reusable function through MCP. Accept the proposal in the host. Edit input in Studio. Confirm matching results in a custom surface and through MCP. Rename fields and reopen offline. Bindings and results must remain valid.
 
-**P2 — Related-record journey.** Test create, delete, update and reassignment of related records. Both former and new parents must show current totals. Reject static cycles and surface runtime cycles as errors. Never return a partial aggregate as complete.
+**P2 — Related-record journey.** Test create, delete, update and reassignment of related records. Both former and new parents must show current totals. Reject static cycles and show runtime cycles as errors. Never return a partial aggregate as complete.
 
-**P3 — Error semantics.** Save a valid zero denominator and show a calculation error. Verify dependent errors and a visibly blocked trigger condition. Correct the input and recover. Separately force an action-input error; the complete initiating transaction must roll back.
+**P3 — Error semantics.** Save a valid zero denominator and show a calculation error. Verify dependent errors and a visibly blocked trigger condition. Correct the input and recover. Separately, force an action-input error. The complete initiating transaction must roll back.
 
 **P4 — All write routes.** Exercise native entry, multi-field forms, MCP, bounded paste and import. Use the same trigger semantics. Verify before/after values, no-op suppression, deterministic order, recursion limits and permissions on generated writes.
 
@@ -460,13 +483,13 @@ The first complete P7 delivery must include automatic triggers and local approva
 
 ### Required companion documentation
 
-Link ADR-0008 as **Accepted** in the decision index. It covers restricted expressions and local actions, not a completed extension platform.
+Link ADR-0008 as **Accepted** in the decision index. It covers restricted expressions and local actions. It does not cover a completed extension platform.
 
-ADR-0013's acceptance addendum preserves its original deferral and scheduling history and clarifies the remaining third-party extension scope.
+ADR-0013's acceptance addendum preserves its original deferral and scheduling history. It also clarifies the remaining third-party extension scope.
 
 In the same architecture change, update the architecture overview and the scalar, read, MCP, operation-outcome and surface contracts where behaviour changes. Define the new calculation/action contract before its code is treated as stable.
 
-Exact DTO names, storage layout, function catalogue, numeric policies and measured budgets belong in those contracts. They must satisfy this ADR; they must not silently redefine it.
+Exact DTO names, storage layout, function catalogue, numeric policies and measured budgets belong in those contracts. They must satisfy this ADR. They must not silently redefine it.
 
 ## Consequences
 
@@ -474,11 +497,11 @@ Exact DTO names, storage layout, function catalogue, numeric policies and measur
 
 People can add useful calculations and local automation without a generated project. People and agents use one set of definitions and host services.
 
-Pure calculation errors remain visible without destroying otherwise valid work. Selected local actions remain atomic and attributable.
+Pure calculation errors remain visible, and otherwise valid work is not lost. Selected local actions remain atomic and attributable.
 
-The design supports related records and automatic triggers from the outset. It leaves room for dynamic screens and further functions without a general extension framework.
+The design supports related records and automatic triggers from the start. It leaves room for dynamic screens and further functions without a general extension framework.
 
-Local approval protects the boundary between inspection and automatic writes. Studio remains available without trusting application behaviour.
+Local approval protects the boundary between inspection and automatic writes. Studio remains available without trust in application behaviour.
 
 ### Negative
 
@@ -488,17 +511,17 @@ Trigger chains can increase save latency. Resource limits can refuse legitimate 
 
 In-process library defects remain a host risk. Bounded-language tests do not establish protection against arbitrary malicious native code.
 
-A blocked condition can permit a save without an optional automatic action. Applications that need a strict invariant must express a validation rule explicitly.
+A blocked condition can permit a save without an optional automatic action. If an application needs a strict invariant, it must express a validation rule explicitly.
 
-Users must understand why a received file is inspectable but not editable. Formula and action errors need different explanations.
+Users must understand why a received file is inspectable but not editable. Formula errors and action errors need different explanations.
 
 External integration, arbitrary code and third-party UI controls remain unavailable under the initial contract.
 
 ## Rejected alternatives
 
-These are scope exclusions, not claims of a measured comparison with other runtimes.
+These are scope exclusions. They are not claims of a measured comparison with other runtimes.
 
-Do not build Excel syntax compatibility. The owner prioritised implementation simplicity over formula notation.
+Do not build Excel syntax compatibility. The owner gave implementation simplicity priority over formula notation.
 
 Do not postpone all automatic triggers. The owner explicitly included them in the initial implementation.
 
@@ -508,13 +531,13 @@ Do not keep half of a selected local trigger chain after failure. The owner sele
 
 Do not give formulas write authority or general .NET objects. That would remove the calculation/action boundary.
 
-Do not replace the active file with a proposal clone or rerun scripts during replay. Preserve the reviewed operation plan.
+Do not replace the active file with a proposal clone, and do not run scripts again during replay. Preserve the reviewed operation plan.
 
-Do not select a general scripting runtime solely because it supports more syntax. Select additional machinery only when an observed use case requires it.
+Do not select a general scripting runtime only because it supports more syntax. Select additional machinery only when an observed use case requires it.
 
 ## Revisit triggers
 
-Revisit this ADR when a real application needs arbitrary control flow, recursion, per-cell formulas or capabilities the bounded model cannot express.
+Revisit this ADR when a real application needs arbitrary control flow, recursion, per-cell formulas or capabilities that the bounded model cannot express.
 
 Revisit the isolation decision if the selected evaluator cannot meet the execution budgets, or if untrusted-file tests can stop Studio.
 
@@ -537,10 +560,10 @@ Repository baseline: `ThomasRohde/nendo` at commit `4f279d0e7be98e01e687288eb22b
 - **R7:** [ADR-0012](0012-safe-mode-compatibility-and-migration.md). Safe-mode and compatibility rules.
 - **Repository snapshot:** the private working tree at commit `4f279d0e` on
   11 September 2026. That commit is not reachable from the public history,
-  which starts at a single root; the review's findings are stated above.
+  which starts at a single root. This ADR states the review's findings above.
 - **E1:** [NCalc project](https://github.com/ncalc/ncalc). Expression evaluator and integration surface.
 - **E2:** [NCalc configuration](https://ncalc.gumbarros.com.br/articles/evaluation/configuration.html). Decimal and overflow configuration. These options alone do not establish Nendo numeric conformance.
 - **E3:** [NCalc functions](https://ncalc.gumbarros.com.br/articles/language/functions.html). Built-in and custom functions. Stored Nendo functions require host integration.
 - **E4:** [NCalc cancellation](https://ncalc.gumbarros.com.br/articles/runtime/cancellation.html). Cooperative cancellation obligations. This is not evidence of hard execution isolation.
 
-External documentation and matching source were checked on 12 September 2026. The experiment pinned NCalc 7.1.0 at source commit `da4f6eab38c00287f53a8d6b221727b5b9113a3c`; package content hashes and transitive dependencies remain in the [reference resolution](../design/adr-0008-dependencies.lock.json). Future runtime updates must rerun the semantic and containment checks.
+External documentation and matching source were checked on 12 September 2026. The experiment pinned NCalc 7.1.0 at source commit `da4f6eab38c00287f53a8d6b221727b5b9113a3c`. The [reference resolution](../design/adr-0008-dependencies.lock.json) keeps the package content hashes and transitive dependencies. Future runtime updates must rerun the semantic and containment checks.

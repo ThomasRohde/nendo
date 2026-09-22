@@ -1,12 +1,12 @@
 # Studio contract
 
-Requirements for the permanent host-owned database editor.
+This contract gives the requirements for the permanent host-owned database editor.
 
 - **Decision:** [ADR-0015](../decisions/0015-host-owned-database-studio-and-ag-grid-community.md)
 
 ## 1. Axiom
 
-Every valid `.nendo` file opens with a permanent, host-supplied human workspace called **Nendo Studio**.
+Every valid `.nendo` file opens with a permanent human workspace that the host supplies. This workspace is **Nendo Studio**.
 
 Studio is available when:
 
@@ -20,17 +20,17 @@ Application content cannot remove, replace or hide the route back to Studio.
 
 ## 2. Experience target
 
-The default Data workspace should feel closer to a modern Notion database table than to a raw SQLite browser. This is an interaction-quality target, not visual imitation or feature parity.
+The default Data workspace should feel closer to a modern Notion database table than to a raw SQLite browser. This is a target for interaction quality. It is not a target for visual imitation or feature parity.
 
-A user should experience records as typed objects with understandable properties, relations, validation and history—not as anonymous rows and foreign-key values.
+A user should experience records as typed objects with understandable properties, relations, validation and history. The user should not see anonymous rows and foreign-key values.
 
 The minimum Studio destinations are:
 
-1. **Data** — table, record inspector, search, filters, sorts, import and export;
-2. **Structure** — entities, fields, constraints, relationships and physical mapping;
-3. **Surfaces** — generated and custom semantic views plus validation/disable/restore;
-4. **History** — revisions, attribution, semantic changes and supported compensation;
-5. **Health** — compatibility, integrity, drift, backup, recovery and safe mode.
+1. **Data**: table, record inspector, search, filters, sorts, import and export;
+2. **Structure**: entities, fields, constraints, relationships and physical mapping;
+3. **Surfaces**: generated and custom semantic views plus validation/disable/restore;
+4. **History**: revisions, attribution, semantic changes and supported compensation;
+5. **Health**: compatibility, integrity, drift, backup, recovery and safe mode.
 
 ## 3. Empty database experience
 
@@ -41,11 +41,11 @@ A new Nendo file contains only kernel metadata and a genesis revision. Studio op
 - **Attach agent** and copy connection guidance;
 - **Inspect file** identity, versions and health.
 
-No sample entity, record or custom surface is added implicitly.
+Studio does not add a sample entity, record or custom surface implicitly.
 
 ## 4. Automatic experience for every entity
 
-As soon as an entity exists, Studio supplies:
+When an entity exists, Studio immediately supplies:
 
 - an `All records` table;
 - a generated record inspector/form;
@@ -54,7 +54,7 @@ As soon as an entity exists, Studio supplies:
 - schema and record-history inspection;
 - CSV import and export.
 
-These are runtime projections from the semantic schema. A generated default need not become stored application content until the user customises or names it.
+These are runtime projections from the semantic schema. A generated default does not have to become stored application content until the user customises or names it.
 
 ## 5. Table interaction contract
 
@@ -74,7 +74,7 @@ The first MVP should provide:
 - accessible names, roles, errors and focus;
 - stable semantic test targets based on entity, field and record IDs.
 
-Saved views are desirable but secondary to correct editing. The MVP may ship one default view plus one saved custom view per entity before supporting a general view-management system.
+Saved views are desirable, but they are secondary to correct editing. The MVP may ship one default view plus one saved custom view per entity before it supports a general view-management system.
 
 ## 6. Field presentations
 
@@ -87,14 +87,14 @@ The Studio maps semantic storage and constraints to editors:
 | integer/decimal | numeric scalar | locale-aware numeric editor |
 | checkbox | `boolean` | direct toggle with nullable state where declared |
 | date/datetime | canonical date value | date/time editor with explicit timezone semantics |
-| single choice | scalar + allowed stable option IDs | searchable choice picker; the cell shows the option's tone as a dot |
-| rating | `integer` + a closed min/max scale of at most ten values | the cell draws dots filled to the value and is edited by choosing one of the scale's numbers; a value outside the scale shows as that number with the issue stated, never as a dot count nobody chose |
+| single choice | scalar + allowed stable option IDs | searchable choice picker; the cell shows the tone of the option as a dot |
+| rating | `integer` + a closed min/max scale of at most ten values | the cell draws dots filled to the value; the user edits it by choosing one of the numbers of the scale; a value outside the scale shows as that number with the issue stated, never as a dot count that nobody chose |
 | reference | relationship/foreign key | related-record label and picker |
 | UUID | `uuid` | normally read-only abbreviated value |
 
 Multi-choice is not an MVP scalar type. It requires a relationship/join model and is deferred. Binary fields/assets and general JSON editing are also deferred.
 
-Unknown future types remain visible and read-only rather than disappearing.
+Unknown future types stay visible and read-only. They do not disappear.
 
 ## 7. Authority boundary
 
@@ -121,19 +121,19 @@ saveTableView
 
 Every mutation includes an active application/session identifier, stable semantic IDs, optimistic version preconditions and an idempotency key. A value is authoritative only after the host commits it and returns the resulting version.
 
-Schema actions launched from a column menu are application-lane operations. The table never executes DDL.
+Schema actions that start from a column menu are application-lane operations. The table never executes DDL.
 
 ## 8. Component and containing architecture status
 
 ADR-0002 selected a single local web workbench in a thin WinUI host. DS1 then
-compared AG Grid Community and Tabulator through that containing boundary and
-recommended AG Grid Community for DS2. ADR-0015 now accepts AG Grid Community
-behind a Nendo-owned adapter after DS2 qualified the Windows provider,
-automation, high-contrast, focus, packaging and lifecycle paths. Actual 200%
-Windows scale remains unverified and is an explicit post-selection, pre-release
-hardening obligation rather than a recorded pass.
+compared AG Grid Community and Tabulator through that containing boundary. It
+recommended AG Grid Community for DS2. DS2 qualified the Windows provider,
+automation, high-contrast, focus, packaging and lifecycle paths. ADR-0015 then
+accepted AG Grid Community behind an adapter that Nendo owns. The real 200%
+Windows scale has no recorded pass. It is an explicit hardening obligation after
+selection and before release.
 
-The remaining decision must continue to price the full system, not only the grid:
+The remaining decision must continue to price the full system, and not only the grid:
 
 - duplicate typed editors;
 - theming and high contrast;
@@ -146,14 +146,14 @@ The remaining decision must continue to price the full system, not only the grid
 - long-term replacement cost.
 
 The semantic renderer, containing-architecture and functional-grid experiments
-are complete. Their prototypes remain disposable evidence, not production
-scaffolding; accepting the direction does not select the production source
-structure or waive the host/service boundary.
+are complete. Their prototypes stay disposable evidence. They are not production
+scaffolding. Acceptance of the direction does not select the production source
+structure, and it does not waive the host/service boundary.
 
 ## 9. Prototype gates
 
 ADR-0015 was accepted after the following evidence and the explicit owner risk
-disposition were recorded under `docs/experiments/results/` and the ADR.
+disposition were recorded under `docs/experiments/results/` and in the ADR.
 
 ### DS1 — functional grid spike — complete
 
@@ -187,11 +187,11 @@ Prove:
 
 ### Exit rule
 
-Vendor documentation and a visually convincing mock-up are insufficient. The experiment result must record commands, versions, measurements, observations, failures and unresolved limitations.
+Vendor documentation and a mock-up that looks convincing are not sufficient. The experiment result must record commands, versions, measurements, observations, failures and unresolved limitations.
 
 ## 10. Safe-mode fallback
 
-If the primary table renderer cannot initialise, Studio must retain a bounded fallback that can:
+If the primary table renderer cannot initialise, Studio must keep a bounded fallback that can:
 
 - list entities;
 - inspect one record at a time;
@@ -205,13 +205,13 @@ A renderer crash must not close the database, replay an unconfirmed mutation or 
 
 - [ ] Empty `.nendo` files open into a useful Studio without an agent.
 - [ ] Every entity receives a usable table and record editor automatically.
-- [ ] Records can be created and edited without SQL or a custom surface.
-- [ ] Basic entity/field creation remains available through host-owned tooling.
-- [ ] A large flat table is block-loaded rather than copied wholesale into the UI process.
+- [ ] Users can create and edit records without SQL or a custom surface.
+- [ ] Basic entity/field creation stays available through host-owned tooling.
+- [ ] A large flat table is block-loaded. It is not copied whole into the UI process.
 - [ ] Edits are atomic, attributed, idempotent and version checked.
 - [ ] Invalid or conflicting edits are never presented as committed.
-- [ ] Custom surfaces can fail while Studio remains usable.
+- [ ] Custom surfaces can fail while Studio stays usable.
 - [ ] Keyboard, accessibility, scaling, high-contrast and automation gates pass.
 - [ ] The packaged experience works offline.
-- [ ] The selected grid/component licence and dependency boundary are enforced in CI.
+- [ ] CI enforces the selected grid/component licence and dependency boundary.
 - [ ] Ordinary SQLite inspection still exposes understandable user data.

@@ -10,11 +10,11 @@
 
 ## Context
 
-An operating-system copy preserves bytes and embedded IDs, but users also need
+An operating-system copy preserves bytes and embedded IDs. But users also need
 intentional Duplicate, Fork, Backup and Restore operations with different
-semantic meanings. Silently rewriting identity when a raw copy is opened would
-mutate user data without consent and leave no typed history. Replacing an
-existing destination risks destroying unrelated files.
+semantic meanings. If Nendo silently rewrote identity when a user opened a raw
+copy, it would mutate user data without consent and leave no typed history. If
+Nendo replaced an existing destination, it could destroy unrelated files.
 
 ## Decision drivers
 
@@ -29,18 +29,19 @@ existing destination risks destroying unrelated files.
 
 ### Typed transitions on a verified staged SQLite backup
 
-Create a host-owned destination stage, apply one canonical identity operation,
-validate it, then activate without overwriting a destination.
+Create a host-owned destination stage, apply one canonical identity operation and
+validate it. Then activate it without overwriting a destination.
 
 ### Raw copy followed by silent identity repair
 
-Rewrite IDs when duplicate identity is detected at open. This hides a semantic
-mutation outside normal history and can surprise users.
+Rewrite IDs when the host detects duplicate identity at open. This option hides a
+semantic mutation outside normal history and can surprise users.
 
 ### Treat every copy as a new application
 
-Always generate new application and instance IDs. This loses the useful
-distinction between another instance of the same application and a true fork.
+Always generate new application and instance IDs. This option loses a useful
+distinction: another instance of the same application is not the same as a true
+fork.
 
 ## Decision
 
@@ -57,28 +58,28 @@ Nendo distinguishes five lifecycle operations:
 Duplicate and Fork use one canonical `identity.transition` operation through a
 dedicated kernel/application-service path.
 
-- The transition records source/result IDs and the source revision point in
-  ordinary canonical operation history; no identity sidecar or separate
-  provenance table is introduced.
-- It is `irreversible-declared`, advances the definition revision and change
-  sequence once, and does not advance data revision or alter user records.
+- The transition records the source/result IDs and the source revision point in
+  ordinary canonical operation history. It introduces no identity sidecar and no
+  separate provenance table.
+- It is `irreversible-declared`. It advances the definition revision and change
+  sequence once. It does not advance the data revision or alter user records.
 - Generic mutation and proposal paths reject identity transitions.
-- The host creates a SQLite backup stage in the destination filesystem, applies
-  the transition, validates format/identity/revisions/integrity, then activates
-  with no-overwrite semantics.
-- Source path authority is verified through the ADR-0005 coordinator. The source
+- The host creates a SQLite backup stage in the destination filesystem and
+  applies the transition. It validates format/identity/revisions/integrity. Then
+  it activates the result with no-overwrite semantics.
+- The ADR-0005 coordinator verifies the source path authority. The source
   remains unchanged on success or failure.
 - Existing or racing destinations are never overwritten. Exact concurrent
   retries may converge only when the committed typed provenance matches.
-- Host-generated result IDs need only be collision-resistant inside the bounded
-  local product; Nendo does not claim a global registry.
+- Host-generated result IDs need to be collision-resistant only inside the
+  bounded local product. Nendo does not claim a global registry.
 - Move/Rename preserves embedded identity and is not a Duplicate or Fork.
 
 ## Evidence and validation obligations
 
 - [Review outcome/lifecycle audit](../contracts/operation-outcomes.md#file-lifecycle-outcomes-and-limits)
-  preserves the P4 copy/replacement evidence and retry limits, and separates a
-  completed native file-action notice from later view-refresh failure.
+  preserves the P4 copy/replacement evidence and retry limits. It separates a
+  completed native file-action notice from a later view-refresh failure.
 
 - EX-0006 proved both transition tables, one exact irreversible definition-lane
   revision, restart provenance, exact/concurrent replay, staged fault cleanup and
@@ -87,19 +88,19 @@ dedicated kernel/application-service path.
   staged restore and recoverable pre-restore retention.
 - EX-0007 supplied the long-lived source path/write authority boundary.
 - The 2026-09-04 P4 implementation checkpoints
-  add production Engine Backup, typed Duplicate/Fork and staged Restore evidence,
-  including source preservation, restart provenance, failure/cancellation,
-  no-overwrite tests, local instance admission and actual Restore child-process
-  termination with fresh-process read-only recovery inspection. Desktop controller
-  Restore/upgrade now stop MCP and reopen only the verified result with fresh
-  session authority.
+  add production Engine Backup, typed Duplicate/Fork and staged Restore evidence.
+  This evidence includes source preservation, restart provenance,
+  failure/cancellation, no-overwrite tests and local instance admission. It also
+  includes actual Restore child-process termination with fresh-process read-only
+  recovery inspection. Desktop controller Restore/upgrade now stop MCP and reopen
+  only the verified result with fresh session authority.
 - The P4 production closure
   completes the bounded native/Workbench naming, collision, recent-file,
-  cancel/retry, capacity and recovery journeys. Actual Windows destination ACL
-  denial, two Desktop instances, populated Idea/Decision offline copy/Restore
-  and delayed MCP invalidation are included. Human comprehension of the
-  Duplicate/Fork distinction remains unevaluated; only local tested filesystem
-  behavior is claimed.
+  cancel/retry, capacity and recovery journeys. It includes actual Windows
+  destination ACL denial, two Desktop instances, populated Idea/Decision offline
+  copy/Restore and delayed MCP invalidation. Human comprehension of the
+  Duplicate/Fork distinction remains unevaluated. The closure claims only local
+  tested filesystem behavior.
 - Cross-volume metadata atomicity and physical power loss are not claimed.
 
 ## Consequences
@@ -120,8 +121,8 @@ dedicated kernel/application-service path.
 
 ## Rejected alternatives
 
-Silent repair and “every copy is a fork” are rejected because both erase user
-intent and bypass explicit typed history.
+Silent repair and “every copy is a fork” are rejected. Both erase user intent and
+bypass explicit typed history.
 
 ## Revisit triggers
 

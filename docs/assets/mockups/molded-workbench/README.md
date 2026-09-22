@@ -6,13 +6,13 @@
 - **Generator:** Codex built-in image generation
 - **Brand reference:** [`../../brand/nendo.png`](../../brand/nendo.png)
 
-These images explore all material MVP interface areas described by the current product brief, Studio requirements and Idea Garden journey. They preserve a permanent host-owned Studio route and avoid selecting WinUI, WebView2, React, AG Grid or another production UI stack.
+These images explore all material MVP interface areas that the current product brief, the Studio requirements and the Idea Garden journey describe. They keep a permanent host-owned Studio route. They do not select WinUI, WebView2, React, AG Grid or another production UI stack.
 
 ## Visual contract
 
-Molded Workbench is a calm Windows desktop workspace with warm-white light surfaces, deep blue-black dark surfaces, navy text, cobalt focus, restrained violet accents and subtly sculpted rounded panels. The tactile treatment is intentionally quiet: it should make controls approachable without turning records into toys or obscuring dense work.
+Molded Workbench is a calm Windows desktop workspace. It has warm-white light surfaces, deep blue-black dark surfaces, navy text, cobalt focus, restrained violet accents and subtly sculpted rounded panels. The tactile treatment is quiet. It should make controls approachable, and it should not make records look like toys or obscure dense work.
 
-The supplied Nendo mark is the only logo. It remains small, recognizable and anchored in the upper-left application identity area.
+The supplied Nendo mark is the only logo. It stays small and recognizable, in the upper-left application identity area.
 
 ## Theme contract
 
@@ -22,7 +22,7 @@ Nendo offers three device preferences:
 - **Light** is an explicit warm-white override.
 - **Dark** is an explicit deep-navy override.
 
-The selected theme reaches the app frame, Studio, custom surfaces, dialogs, title bar and safe mode. It is saved for the device rather than inside an individual `.nendo` file. Light and dark must preserve hierarchy, focus, validation, conflict and status meaning; neither theme is a separate layout.
+The selected theme applies to the app frame, Studio, custom surfaces, dialogs, title bar and safe mode. Nendo saves it for the device, not inside an individual `.nendo` file. Light and dark must preserve hierarchy, focus, validation, conflict and status meaning. Neither theme is a separate layout.
 
 ## Screen inventory and prompt intent
 
@@ -37,7 +37,7 @@ The selected theme reaches the app frame, Studio, custom surfaces, dialogs, titl
 | `06-idea-form-dark.png` | Dark | Focused semantic Idea form, record navigation, validation, version badge, recent changes and declarative Move to Trying command. |
 | `07-import-csv-light.png` | Light | Host-owned CSV field mapping, fixture preview, validation summary and atomic-write guarantee; no chat upload or exposed path. |
 | `08-proposal-review-light.png` | Light | Previewable semantic proposal with active file unchanged, typed operations, reversibility, definition revision impact, conflict rules and host-owned apply action. |
-| `09-history-dark.png` | Dark | Separate definition/data lineages, attributable revisions, declared reversibility and compensation that creates history rather than erasing it. |
+| `09-history-dark.png` | Dark | Separate definition/data lineages, attributable revisions, declared reversibility and compensation that creates history and does not erase it. |
 | `10-agent-access-dark.png` | Dark | Disabled, read-only, data mutation and application authoring modes; bounded local lease, revocation and no raw credential display. |
 | `11-health-safe-mode-light.png` | Light | Restricted safe mode with intact data, disabled custom board, diagnostics, restore, fallback data access, export, backup and sync-root warning. |
 | `12-appearance-system-light.png` | Light | System, Light and Dark device preferences with live previews and an explicit whole-app theme scope. |
@@ -53,4 +53,4 @@ Every prompt used the `ui-mockup` taxonomy and requested a high-fidelity, straig
 - avoid browser chrome, macOS controls, watermarks, decorative blobs, heavy gradients and excessive glass effects;
 - present credible accessible focus, validation, conflict, loading, recovery and offline states.
 
-Image-generation text is illustrative product copy, not a frozen implementation contract. Repository design documents and Accepted ADRs remain authoritative.
+The image-generation text is illustrative product copy. It is not a frozen implementation contract. Repository design documents and Accepted ADRs remain authoritative.

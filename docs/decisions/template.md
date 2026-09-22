@@ -11,7 +11,7 @@
 
 ## Context
 
-What problem requires a decision? State constraints and facts without assuming the preferred option.
+What problem requires a decision? State the constraints and facts. Do not assume the preferred option.
 
 ## Decision drivers
 
@@ -30,11 +30,11 @@ Description, benefits, costs and failure modes.
 
 ### Do nothing / defer
 
-Explain the consequence of retaining the current state.
+Explain the consequence if the current state stays.
 
 ## Decision
 
-For a Proposed ADR, state the leading hypothesis and what remains undecided. For an Accepted ADR, state the chosen option and boundaries precisely.
+For a Proposed ADR, state the leading hypothesis and what is still undecided. For an Accepted ADR, state the chosen option and its boundaries precisely.
 
 ## Evidence and validation obligations
 
@@ -54,7 +54,7 @@ For a Proposed ADR, state the leading hypothesis and what remains undecided. For
 
 ## Rejected alternatives
 
-Explain why alternatives were rejected under the recorded evidence rather than merely naming them.
+Explain why the recorded evidence caused each alternative to be rejected. Do not only name the alternatives.
 
 ## Revisit triggers
 
