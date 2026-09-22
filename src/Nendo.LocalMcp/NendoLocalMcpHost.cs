@@ -299,7 +299,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             (mode >= AgentAccessMode.Unattended
                                 ? "this file session is set to Unattended, so nendo.change_set.accept applies your own validated proposal and records this device's consent for any automatic actions it installs. "
                                 : "there is no promotion tool at this access level. ") +
-                            "There is no credential and no session header.A standard MCP client sends initialize and " +
+                            "There is no credential and no session header. A standard MCP client sends initialize and " +
                             "proceeds. If you are building your own 2026-07-28 client: call server/discover, then send each " +
                             "request with MCP-Protocol-Version, Mcp-Method and Mcp-Name headers and params._meta keys " +
                             "io.modelcontextprotocol/protocolVersion, io.modelcontextprotocol/clientCapabilities and " +

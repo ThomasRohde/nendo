@@ -516,8 +516,9 @@ does not read zero to zero.
 A `fieldBinding` and a `relatedList` need a current record, and the front page has
 none, so both are `NUI398`. A `visibleWhen` calculation answers per record and is
 `NUI399` for the same reason. An overview with no `summaryTile`,
-`breakdownChart`, `progressTile`, `rangeTile`, `recentList` or `rankedList` is
-`NUI400`. A `trendChart` or an `activityGrid` alone does not satisfy this check. A heading over an empty space is not a front page. A description is not
+`breakdownChart`, `progressTile`, `rangeTile`, `recentList`, `rankedList`,
+`trendChart` or `activityGrid` is `NUI400`. A heading over an empty space is not
+a front page. A description is not
 a substitute for one, because a statement of what the file is for does not show
 any of the file.
 

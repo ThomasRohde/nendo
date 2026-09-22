@@ -488,7 +488,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
   private setAgentMode(payload: Record<string, unknown>): AgentStatus {
     const mode = requiredString(payload, 'mode');
     if (!isAgentMode(mode)) {
-      throw new WorkbenchHostError('validation', 'Choose Off, Inspect, Edit data or Shape app.');
+      throw new WorkbenchHostError('validation', 'Choose Off, Inspect, Edit data, Shape app or Unattended.');
     }
     this.agentStatus.mode = mode;
     this.agentStatus.state = mode === 'off' ? 'off' : 'ready';

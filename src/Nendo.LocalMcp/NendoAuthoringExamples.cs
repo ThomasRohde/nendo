@@ -1002,7 +1002,7 @@ internal static class NendoAuthoringExamples
             "A calculation reads another calculation with a SameRecordCalculation binding rather than repeating its work. Cycles are refused before installation.",
             "An action step writes through the same typed record operations a person's edit uses. target ReferencedRecord follows one declared reference from the record that raised the event; EventRecord writes to that record itself.",
             "An assignment's bindings resolve against the record the step WRITES TO, not the record that raised the event. A step targeting ReferencedRecord can read the referenced record and can assign a literal; it cannot read the event record's fields. Binding the event record's entity there refuses nothing at install and then fails on the first save that fires it.",
-            "Installing an action is authoring. Running it is consent: a file whose actions run automatically cannot be edited at all until the person at this device approves it, and there is no MCP route to that approval.",
+            "Installing an action is authoring. Running it is consent: a file whose actions run automatically cannot be edited at all until the person at this device approves it. Below Unattended access there is no MCP route to that approval; at Unattended, nendo.change_set.accept records it for the actions that the accepted proposal installs.",
         ],
         [
             new("Create the Project and Task record types",

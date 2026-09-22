@@ -95,7 +95,7 @@ internal static class NendoToolErrors
     private static readonly HashSet<string> DiagnosableAuthoringCodes =
         new([
             "CHANGE_SET_LIMIT", "CHANGE_SET_ORDINAL", "DRAFT_LIMIT", "CHANGE_SET_EMPTY", "CHANGE_SET_FROZEN",
-            "CHANGE_SET_NOT_FOUND", "UNKNOWN_OPERATION",
+            "CHANGE_SET_NOT_FOUND", "CHANGE_SET_NOT_VALIDATED", "UNKNOWN_OPERATION",
         ], StringComparer.Ordinal);
 
     private static McpException Error(string code, string message) =>
@@ -105,6 +105,7 @@ internal static class NendoToolErrors
     {
         "EDIT_DATA_REQUIRED" => "Edit data access is required.",
         "SHAPE_APP_REQUIRED" => "Shape app access is required.",
+        "UNATTENDED_REQUIRED" => "Unattended access is required.",
         "LEASE_HELD" => "Another local agent currently has edit access.",
         "LEASE_EXPIRED" => "The edit lease expired.",
         "INVALID_LEASE" => "A valid application handle and edit lease are required.",

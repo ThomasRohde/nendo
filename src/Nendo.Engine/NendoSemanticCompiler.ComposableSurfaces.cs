@@ -200,9 +200,10 @@ public sealed partial class NendoSemanticCompiler
         if (node.Kind == "overviewSurface" &&
             !DescendantKinds(children, "summaryTile").Any() && !DescendantKinds(children, "breakdownChart").Any() &&
             !DescendantKinds(children, "progressTile").Any() && !DescendantKinds(children, "rangeTile").Any() &&
-            !DescendantKinds(children, "recentList").Any() && !DescendantKinds(children, "rankedList").Any())
+            !DescendantKinds(children, "recentList").Any() && !DescendantKinds(children, "rankedList").Any() &&
+            !DescendantKinds(children, "trendChart").Any() && !DescendantKinds(children, "activityGrid").Any())
             AddError(diagnostics, "NUI400", "The front page shows nothing.", node.NodeId, null,
-                "Add a tile, a chart, a recent list or a ranking, each naming the record type it reads.");
+                "Add a tile, a chart, an activity grid, a recent list or a ranking, each naming the record type it reads.");
 
         var properties = node.Properties
             .OrderBy(pair => pair.Key, StringComparer.Ordinal)

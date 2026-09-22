@@ -602,8 +602,8 @@ internal sealed class NendoAgentAuthoringService(
                     "CHANGE_SET_FROZEN",
                     $"Change set {changeSetId} validated as proposal {validated.ProposalId} and is waiting for a person " +
                     "to accept it in Nendo; it takes no more operations. To change it, reject it with " +
-                    "nendo.change_set.reject and begin a new change set. To keep it, ask the person to accept it; " +
-                    "there is no promotion tool.");
+                    "nendo.change_set.reject and begin a new change set. To keep it, ask the person to accept it, " +
+                    "or, at Unattended access only, accept it with nendo.change_set.accept.");
             }
             throw new NendoAgentAuthoringException(
                 "CHANGE_SET_NOT_FOUND",

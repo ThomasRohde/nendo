@@ -254,8 +254,9 @@ What each now says:
   level. A client normally meets the SDK's unknown-tool refusal first, because the
   tool is not registered at those levels. This code exists as the second lock, for
   a build that registered the tool one level too low.
+  Its message is *Unattended access is required.*
 - `NENDO_CHANGE_SET_NOT_VALIDATED` is an accept for a change set that is still a
-  draft.
+  draft. Its message passes through and tells the agent to validate first.
 - `NENDO_INTERNAL_ERROR` names the exception type and nothing else.
 
 The closed authoring union is declared once, in `NendoAuthoringOperations`, and

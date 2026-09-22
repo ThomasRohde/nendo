@@ -109,7 +109,7 @@ internal sealed class NendoMcpResources(
         Name = "nendo.application.proposals",
         UriTemplate = "nendo://application/proposals",
         MimeType = "application/json")]
-    [Description("Every validated proposal waiting for a person to accept it in Nendo, with its title, the definition revision it captured, its state, how many operations it carries and the most severe reversibility class in it. Read this after a reconnect or a lost response: a pending proposal is otherwise invisible, and each one captured a revision, so accepting any one of them advances that revision and invalidates the rest. A proposal is accepted or rejected by the person in Nendo; there is no promotion tool.")]
+    [Description("Every validated proposal waiting for a person to accept it in Nendo, with its title, the definition revision it captured, its state, how many operations it carries and the most severe reversibility class in it. Read this after a reconnect or a lost response: a pending proposal is otherwise invisible, and each one captured a revision, so accepting any one of them advances that revision and invalidates the rest. A proposal is accepted or rejected by the person in Nendo. Only at Unattended access does nendo.change_set.accept apply your own validated proposal; below it there is no promotion tool.")]
     public Task<string> GetProposalsAsync(CancellationToken cancellationToken) =>
         TranslateAsync(() => Task.FromResult(proposals.Snapshot()));
 
@@ -117,7 +117,7 @@ internal sealed class NendoMcpResources(
         Name = "nendo.application.surfaces",
         UriTemplate = "nendo://application/surfaces",
         MimeType = "application/json")]
-    [Description("Every compiled screen in the open file, or the diagnostics that stop them compiling. Contract version 3 files describe themselves under applications[].surfaces as an ordered node tree; the form/list/board/command slots beside it are the version 1 and 2 shape and stay null for a version 3 file. A recordCommand root carries the commandId that nendo.data.execute_command takes. state is valid, invalid or noCustomSurfaces; a file with no custom screens is a deliberate shape, not a broken definition.")]
+    [Description("Every compiled screen in the open file, or the diagnostics that stop them compiling. Each record type is listed under applications[] with its surfaces as an ordered contract version 3 node tree; the file's front page is reported under overview, not under a record type. A recordCommand root carries the commandId that nendo.data.execute_command takes. state is valid, invalid or noCustomSurfaces; a file with no custom screens is a deliberate shape, not a broken definition.")]
     public Task<string> GetSurfacesAsync(CancellationToken cancellationToken) =>
         TranslateAsync(() => projection.GetSurfacesAsync(cancellationToken));
 

@@ -328,6 +328,31 @@ public sealed class OverviewSurfaceTests
     }
 
     /// <summary>
+    /// A trend chart and an activity grid read records as surely as a tile does. The
+    /// check that a front page reads something used to leave both kinds out, so a front
+    /// page holding only one of them was refused as showing nothing.
+    /// </summary>
+    [TestMethod]
+    [DataRow("trendChart")]
+    [DataRow("activityGrid")]
+    public void AFrontPageWithOnlyAChartOverTimeReadsSomething(string kind)
+    {
+        (string Name, object Value)[] properties = kind == "trendChart"
+            ? [("entityId", "e"), ("dateFieldId", "e-due"), ("bucket", "month"), ("range", "last12Months"), ("aggregate", "count")]
+            : [("entityId", "e"), ("dateFieldId", "e-due"), ("range", "thisYear")];
+        var compiled = new NendoSemanticCompiler().Compile(Source(
+        [
+            Overview("front"),
+            Node("front-chart", "front", kind, 0, properties),
+        ]));
+
+        Assert.IsFalse(
+            compiled.Diagnostics.Any(diagnostic => diagnostic.Code == "NUI400"),
+            Messages(compiled));
+        Assert.IsTrue(compiled.IsValid, Messages(compiled));
+    }
+
+    /// <summary>
     /// An overview adds no predicate of its own, so a tile on it carries the whole
     /// budget of eight and the ninth clause refuses with the count.
     /// </summary>

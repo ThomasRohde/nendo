@@ -290,7 +290,7 @@ public sealed partial class MainPage
                     () => { RouteTo("studio"); App.CurrentWindow?.Activate(); },
                     (fileSessionId, entityId, recordId) =>
                     {
-                        PostWorkbenchEvent("openRecord", new { fileSessionId, entityId, recordId });
+                        PostWorkbenchEvent(WorkbenchEvents.OpenRecord,new { fileSessionId, entityId, recordId });
                         App.CurrentWindow?.Activate();
                     });
                 ShowExtensionPane(pane);

@@ -90,6 +90,13 @@ internal static class WorkbenchEvents
     /// answer, and nothing on any screen said why.
     /// </summary>
     internal const string AgentActivity = "agentActivity";
+
+    /// <summary>
+    /// A custom view asked to open a record. Payload is the file session, the record type
+    /// and the record ID, and nothing else. The renderer opens the record only when the
+    /// file session still matches.
+    /// </summary>
+    internal const string OpenRecord = "openRecord";
 }
 
 /// <summary>What the renderer draws while an agent is working. Bounded by the adapter.</summary>

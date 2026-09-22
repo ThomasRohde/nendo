@@ -515,7 +515,7 @@ public static class NendoSemanticVocabulary
     /// </summary>
     internal static IReadOnlyList<NendoEffectiveFilterContext> EffectiveFilterContexts { get; } =
     [
-        new("List, board or gallery window", "the surface's own filterClause children"),
+        new("List, board, gallery or matrix window", "the surface's own filterClause children"),
         new("Surface tile", "the surface's clauses plus the tile's own"),
         new("Board column tile", "the board's clauses, the tile's own, and one column predicate"),
         new("Related list, and a tile inside one",
@@ -529,6 +529,9 @@ public static class NendoSemanticVocabulary
             "its own clauses, over the whole record type it names; an overview adds no predicate of its own"),
         new("Chart on a surface", "the surface's clauses plus the chart's own; the grouping is not a filter"),
         new("Board column chart", "the board's clauses, the chart's own, and one column predicate"),
+        new("Trend chart or activity grid",
+            "the clauses of wherever it sits, as for a chart there, plus the two date bounds of its range, so two fewer declared clauses"),
+        new("Ranked list", "its own clauses plus one predicate keeping the records that have a number to rank, so at most seven declared clauses"),
         new("Progress ring", "its own clauses over its scope for the numerator, and the scope alone for the denominator, as two counts"),
     ];
 
@@ -704,8 +707,9 @@ public static class NendoSemanticVocabulary
                 "dateFieldId is a stored Date field and a DateTime is refused by name rather than truncated. An " +
                 "activityGrid counts only and takes no aggregate or fieldId. Both are bounded by the same published " +
                 "group ceiling as every other grouped read, which a day grid over a leap year meets exactly. A " +
-                "trendChart takes two fewer authored filterClause children than the effective budget, because the host " +
-                "adds the two bounds of its range to it."),
+                "trendChart or an activityGrid takes two fewer authored filterClause children than the effective " +
+                "budget, because the host adds the two bounds of its range to it; in a board column it takes the " +
+                "column predicate as well."),
             Boards = new NendoBoardDescription(
                 MaximumReferenceBoardColumns,
                 "A boardSurface groups by a single-choice field, whose options are its columns, or by a bound Reference " +

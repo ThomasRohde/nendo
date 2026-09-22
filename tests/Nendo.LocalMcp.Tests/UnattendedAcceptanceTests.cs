@@ -129,6 +129,11 @@ public sealed class UnattendedAcceptanceTests
             authoring.AcceptAsync(sessionId, lease.LeaseId, "change-set-absent", "accept-backstop", CancellationToken.None));
         Assert.AreEqual("UNATTENDED_REQUIRED", refused.Code);
         StringAssert.Contains(refused.Message, "Unattended", StringComparison.Ordinal);
+
+        // The wire is where the agent reads it. Without a case of its own, this code
+        // reached the client as the generic "Agent authority rejected the request."
+        var translated = NendoToolErrors.Translate(refused);
+        Assert.AreEqual("NENDO_UNATTENDED_REQUIRED: Unattended access is required.", translated.Message);
     }
 
     [TestMethod]
@@ -157,6 +162,11 @@ public sealed class UnattendedAcceptanceTests
         StringAssert.Contains(
             JsonSerializer.Serialize(refusal),
             "NENDO_CHANGE_SET_NOT_VALIDATED",
+            StringComparison.Ordinal);
+        // The remedy must survive translation, not only the code.
+        StringAssert.Contains(
+            JsonSerializer.Serialize(refusal),
+            "Validate it before accepting it.",
             StringComparison.Ordinal);
     }
 

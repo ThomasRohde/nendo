@@ -173,6 +173,12 @@ public sealed class OverTimeChartTests
         CollectionAssert.AreEquivalent(new[] { "thisYear", "lastTwelveMonths" }, overTime.ActivityRanges.ToArray());
         StringAssert.Contains(overTime.Note, "never a stored date");
         StringAssert.Contains(overTime.Note, "refused by name");
+        // The compiler charges both kinds for the two bounds; the note once named only one.
+        StringAssert.Contains(overTime.Note, "A trendChart or an activityGrid takes two fewer");
+        var contexts = string.Join(" | ", description.EffectiveFilters!.Contexts.Select(context => context.Context));
+        StringAssert.Contains(contexts, "Trend chart or activity grid");
+        StringAssert.Contains(contexts, "Ranked list");
+        StringAssert.Contains(contexts, "matrix window");
 
         var trend = description.Kinds.Single(kind => kind.Kind == "trendChart");
         Assert.IsFalse(trend.CanBeRoot);
