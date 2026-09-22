@@ -8,7 +8,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const lanes = [
   {
     name: 'The data lane',
-    what: 'Record create, update and delete; bounded paste and import.',
+    what: 'Record create, update and delete; CSV import.',
     how: 'Written straight to the file in a validated transaction, with per-record version checks and idempotency keys. Everyday data entry never waits for a copy and a preview.',
   },
   {
@@ -26,21 +26,21 @@ const operations = [
   ['schema.setFieldRequired', 'data.backfillRetiredField', ''],
   ['schema.setRetired', 'data.convertLegacyReference', 'behaviour.setDefinition'],
   ['schema.setChoiceMetadata', 'identity.transition *', 'behaviour.removeDefinition'],
-  ['schema.configureReference', '', ''],
+  ['schema.configureReference', '', 'application.setPurpose'],
 ];
 
 const reversibility = [
   { name: 'reversible', body: 'It has a proven inverse, and applying it lost nothing.' },
-  { name: 'reversible-with-retained-state', body: 'Undoing it needs data the file kept on purpose, and the file records that it did.' },
-  { name: 'irreversible-declared', body: 'Something cannot be recovered, and you are told before you accept.' },
+  { name: 'reversibleWithRetainedState', body: 'Undoing it needs data the file kept on purpose, and the file records that it did.' },
+  { name: 'irreversibleDeclared', body: 'Something cannot be recovered, and you are told before you accept.' },
 ];
 
 const accessLevels = [
-  { name: 'Disabled', body: 'Nothing can connect. This is the default, and the right setting whenever no agent is working.' },
-  { name: 'Read-only inspection', body: 'An agent can read the schema, the screens and the records, and change nothing.' },
-  { name: 'Data mutation', body: 'An agent can create, change and delete records, but not the schema or the screens.' },
-  { name: 'Application authoring', body: 'An agent can propose changes to the application. A person accepts each one.' },
-  { name: 'Unattended authoring', body: 'The agent accepts its own proposals, and nobody reviews them first. It is off by default, must be confirmed before it takes effect, is never saved, and ends when the file closes.' },
+  { name: 'Off', body: 'Nothing can connect. This is the default, and the right setting whenever no agent is working.' },
+  { name: 'Inspect', body: 'An agent can read the schema, the screens and the records, and change nothing.' },
+  { name: 'Edit data', body: 'An agent can create, change and delete records, but not the schema or the screens.' },
+  { name: 'Shape app', body: 'An agent can propose changes to the application. A person accepts each one.' },
+  { name: 'Unattended', body: 'The agent accepts its own proposals, and nobody reviews them first. It is off by default, must be confirmed before it takes effect, is never saved, and ends when the file closes.' },
 ];
 
 const screens = [
@@ -105,7 +105,7 @@ const screens = [
 
   <section class="page section">
     <p class="eyebrow">The vocabulary</p>
-    <h2>Twenty-one operations, nineteen of them open to agents.</h2>
+    <h2>Twenty-two operations, twenty of them open to agents.</h2>
     <p class="lede">
       These are the only ways the file can change. There is no raw SQL and no
       general-purpose escape hatch. The two marked <code>*</code> are available only in
@@ -114,7 +114,7 @@ const screens = [
     <div class="table-scroll operations">
       <table>
         <thead>
-          <tr><th>Schema</th><th>Data</th><th>Screens and behaviour</th></tr>
+          <tr><th>Schema</th><th>Data</th><th>Screens, behaviour and purpose</th></tr>
         </thead>
         <tbody>
           {operations.map(row => (
@@ -154,8 +154,9 @@ const screens = [
     </ol>
     <div class="note">
       <p>
-        Agents have <strong>no MCP tool for accepting changes</strong>. Acceptance happens
-        in the Nendo app, and at every access level except Unattended a person does it.
+        Below Unattended, agents have <strong>no MCP tool for accepting changes</strong>.
+        A person accepts them in the Nendo app. At Unattended, the tool
+        <code>nendo.change_set.accept</code> lets an agent accept its own validated changes.
       </p>
     </div>
   </section>
@@ -209,8 +210,8 @@ const screens = [
     <p class="lede">
       Agents talk to a stateless MCP server that listens only on this computer, at
       <code>http://127.0.0.1:41763/mcp</code>. Fourteen resources are read-only and need
-      no lease; nineteen tools write and need one. The test suite checks both lists by
-      name.
+      no lease. There are nineteen tools, and the ones that write need the lease. The test
+      suite checks both lists by name.
     </p>
     <ol class="levels">
       {accessLevels.map((level, index) => (
@@ -228,8 +229,9 @@ const screens = [
         The edit lease is an opaque <code>applicationHandle</code> and a
         <code>leaseId</code>, and every write needs both. Whoever holds the handle holds
         the lease, whatever name the client gives and whichever HTTP connection it uses.
-        The lease never expires: the client releases it, and the person can revoke it at
-        any time.
+        By default the lease never expires: the client releases it, and the person can
+        revoke it at any time. The person can turn on a lease expiry under Agent →
+        Connection.
       </p>
       <p>
         You can see an agent working from any screen. The status indicator names the

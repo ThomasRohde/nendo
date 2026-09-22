@@ -34,12 +34,12 @@ The minimum Studio destinations are:
 
 ## 3. Empty database experience
 
-A new Nendo file contains only kernel metadata and a genesis revision. Studio opens on Data and offers:
+A new Nendo file contains only kernel metadata and a genesis revision. Studio opens on Data and offers **Create record type**. When a known application recipe applies, Data also offers a button that starts it. The navigation also reaches:
 
-- **Create entity**;
-- **Import CSV**;
-- **Attach agent** and copy connection guidance;
-- **Inspect file** identity, versions and health.
+- **Agent**, for agent access and connection guidance;
+- **Health**, for file identity, versions and health.
+
+File → **Import CSV** becomes available when the file has a record type that is not retired.
 
 Studio does not add a sample entity, record or custom surface implicitly.
 
@@ -111,13 +111,15 @@ It receives no:
 It calls named, validated operations such as:
 
 ```text
-queryRows
-createRecord
-editField
-removeRecords
-applyBoundedPaste
-saveTableView
+data.queryRecords
+data.createRecord
+data.setField
+data.setFields
+data.deleteRecord
+data.executeCommand
 ```
+
+The bridge has no bulk-paste or saved-table-view method.
 
 Every mutation includes an active application/session identifier, stable semantic IDs, optimistic version preconditions and an idempotency key. A value is authoritative only after the host commits it and returns the resulting version.
 
@@ -155,7 +157,7 @@ structure, and it does not waive the host/service boundary.
 ## 9. Prototype gates
 
 ADR-0015 was accepted after the following evidence and the explicit owner risk
-disposition were recorded under `docs/experiments/results/` and in the ADR. The
+disposition were recorded. The ADR is now the only record of them. The
 gates below are the record of what the acceptance required. They are not open
 work. The one obligation that remains is the real 200% Windows scale in DS2, as
 section 8 states.

@@ -102,7 +102,7 @@ function. That is the ordinary behaviour of a host that lacks a catalogue entry.
 
 **Evidence obligations before this entry is marked Accepted.**
 
-*Note, 2026-09-22: the owner accepted this amendment on 2026-09-20. The list below is the record of what the acceptance required. `BehaviourScalarTests` D1_18 to D1_21 carry the automated obligations.*
+*Note, 2026-09-22: the owner accepted this amendment on 2026-09-20. The list below is the record of what the acceptance required. `BehaviourScalarTests` D1_18 to D1_22 carry the automated obligations.*
 
 - `BehaviourScalarTests`:
   - an empty operand under a nullable result is a typed empty;
@@ -199,6 +199,8 @@ Retain existing commands for compatibility. Do not treat them as the permanent l
 Option A is accepted for the restricted vocabulary and host-owned action model. The experimental adapter uses NCalc 7.1.0's parser and evaluator, a typed allow-list, decimal division interception and shared resource accounting. It is not an arbitrary-code sandbox.
 
 The decision evidence below supports production implementation under this ADR. Only disposable experiments were delivered. After their transfer into the [standalone implementation plan](../design/adr-0008-implementation-plan.md), the owner requested their removal. Acceptance introduces no production scripting dependency, public API, storage contract, MCP authoring capability or installer. The [preserved execution semantics](../design/adr-0008-semantics.md) record tested rules and limits. Stable production contracts and P1–P8 checks remain required. [R5]
+
+*Note, 2026-09-22: the paragraph above records the state at acceptance. Production delivery followed. The [implementation plan](../design/adr-0008-implementation-plan.md) records stages S0–S9 as carried out. NCalc 7.1.0 is now a production dependency of `Nendo.Engine` only, behind the typed adapter in `Nendo.Engine/Behaviour/`. [calculations-and-actions.md](../contracts/calculations-and-actions.md) is the stable contract, and it maps each obligation P1–P8 to its tests. The human half of P7 is owner-reported.*
 
 The initial implementation includes calculated fields, reusable expression functions, explicit commands and automatic record triggers. It includes the local approval and failure rules in this ADR.
 
@@ -381,6 +383,8 @@ Accepting a proposal can also approve its exact behaviour definitions. This must
 
 Store approval in local host state. Bind it to application identity, instance identity, a behaviour digest and the granted capabilities. Include the execution-contract version in that binding.
 
+*Note, 2026-09-22: the production grant (`NendoBehaviourGrant`) also binds the definition revision. Thus any definition change asks the owner again, including a change that alters no rule.*
+
 The behaviour digest covers actions, triggers, and the functions, formulas and schema bindings that affect their meaning. An ordinary record edit does not change the grant. A behaviour change requires review.
 
 A copied file does not carry local approval to another device or person. Duplicate and Fork produce identities that require their own grant. A matching previously approved restore need not prompt again.
@@ -450,6 +454,8 @@ The [historical D1–D4 report](../design/adr-0008-evidence.md), the cases execu
 D1 passed typed scalar, arithmetic, function and rejection cases. D2 passed bounded parsing/evaluation, cache, allocation, related-scan/action and cancellation checks. The real isolated host remained responsive and reached native recovery. D3 used real SQLite/coordinator transactions, causal receipts and a real multi-field editor rollback. D4 used physical clones, exact replay, read-record/membership preconditions and local grants, including process interruption after definition promotion.
 
 The host experiment required a disposable Workbench fix to retain the form after a validation refusal. Production must port and test that behaviour. The fixture's protected definition storage, read-set carrier and grant JSON are experimental. Acceptance does not make them stable formats. All production release checks below remain pending.
+
+*Note, 2026-09-22: this paragraph records the state at acceptance. [calculations-and-actions.md](../contracts/calculations-and-actions.md) records the current evidence for P1–P8.*
 
 ### Decision evidence required before acceptance
 

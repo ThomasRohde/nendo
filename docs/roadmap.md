@@ -164,8 +164,10 @@ replays exactly that.
 
 An agent authors all of it through ordinary proposals. The agent uses a
 catalogue that is published at `nendo://application/vocabulary` and generated
-from the tables that the Engine enforces. Acceptance and consent stay host
-actions with no MCP equivalent. Every write route fires the same triggers under
+from the tables that the Engine enforces. Below the Unattended access level,
+acceptance and consent stay host actions with no MCP equivalent. At Unattended,
+`nendo.change_set.accept` accepts a validated proposal and records this
+device's consent for the actions that it installs (see below). Every write route fires the same triggers under
 one budget: field edit, form, create, command, delete, bounded paste and
 proposal. Compensation of a causal revision reverses the edit and everything
 its actions wrote. It does not run the actions again.
@@ -504,8 +506,9 @@ item.** `Test-NendoInstaller.ps1` is the only lane that covers the bootstrapper,
 payload extraction, HKCU uninstall registration and the real `Uninstall.exe`.
 It also checks the Start Menu shortcut in the real per-user location. The setup
 script writes that shortcut, so the setup lane below checks it too. The
-installer lane is also the only lane that asserts that uninstall
-leaves a person's `.nendo` files untouched. It runs only under a clean Windows
+installer lane is also the only lane that asserts that the real `Uninstall.exe`
+leaves a person's `.nendo` files untouched. The setup lane asserts only that
+setup's own uninstall keeps an unowned file in the install folder. The installer lane runs only under a clean Windows
 user, because its last step uninstalls from the real per-user location.
 `Test-NendoSetupIsolated.ps1` covers the setup logic against a task-owned root
 and runs on every build. It never invokes the wrapper.

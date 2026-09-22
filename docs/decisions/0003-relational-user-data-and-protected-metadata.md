@@ -110,7 +110,10 @@ reserved protected metadata namespace for Nendo state.
   or recovery-required open classification. The host does not guess a repair.
 - MVP scalar storage kinds are text, integer, decimal, boolean, date, datetime,
   UUID and reference. Long text, single choice, email, URL, color and Markdown
-  are presentation/validation semantics over those kinds.
+  are presentation/validation semantics over those kinds. (Note, 2026-09-22:
+  the schema service accepts the presentations `singleLine`, `longText`,
+  `singleChoice`, `date` and `rating`. Email, URL, color and Markdown
+  presentations are not implemented.)
 - Scalar multi-choice, JSON-as-a-user-type and binary/assets are deferred.
 - Relationships use explicit relational metadata and foreign-key/join
   structures. They do not use encoded scalar lists.

@@ -16,14 +16,14 @@ const openWays = [
 const journey = [
   { letter: 'A', title: 'An empty file, edited by hand', body: 'Create a file; it works while empty. Add a record type and a few records by hand in Studio, with no agent involved.' },
   { letter: 'B', title: 'An agent builds the first shape', body: 'Turn on agent access, describe what you want in your own words, read the diff and accept it.' },
-  { letter: 'C', title: 'Load data', body: 'Import a CSV. It is saved fifty rows per revision rather than all at once, and the rows that succeeded are recorded.' },
+  { letter: 'C', title: 'Load data', body: 'Import a CSV. It is saved in batches of up to a hundred rows rather than all at once, and History records each accepted batch.' },
   { letter: 'D', title: 'Add focused screens', body: 'Ask for a board, a calendar, a record page or a front page. Each arrives as a proposal you review before it exists.' },
   { letter: 'E', title: 'Offline and recovery', body: 'Close everything, disconnect from the network and reopen. Your data is still there in Studio, whether or not the custom screens still work.' },
 ];
 
 const demo = [
   'Open the file. It starts on Station status: nine systems, twelve crew, and which systems are nominal.',
-  'Open a system record page. The header is coloured by condition, and four tabs hold its components, incidents, maintenance and readings.',
+  'Open a system record page. The header is coloured by condition, and four tabs hold its capacity, components, incidents and telemetry readings.',
   'Open Systems Lens beside it and press Fit. This custom view draws the schematic from the same records.',
   'Take a component offline with its command, and watch the things that depend on it change.',
   'Try the structural change the file refuses, and read why.',
@@ -85,8 +85,9 @@ pwsh ./tools/Build-NendoInstaller.ps1</code></pre>
     <ul class="ways">{openWays.map(way => <li>{way}</li>)}</ul>
     <p class="aside">
       A new file is empty, and an empty file is a working application. Studio offers
-      Create record type, Import CSV, Attach agent and Inspect file, and never adds sample
-      data or screens on its own.
+      Create record type, and the Agent and Health pages are one click away. Import CSV
+      becomes available once a record type exists. Studio never adds sample data or
+      screens on its own.
     </p>
   </section>
 
@@ -190,8 +191,9 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
       <article class="panel">
         <h3>CSV import and export</h3>
         <p>
-          Both follow a documented format. An import is saved fifty rows per revision
-          rather than all at once, and the result is recorded.
+          Both follow a documented format. The app saves an import in batches of up to a
+          hundred rows, and an agent import saves fifty rows per revision. Each accepted
+          batch is recorded.
         </p>
         <p><a href={`${base}/docs/contracts/csv`}>The CSV contract →</a></p>
       </article>

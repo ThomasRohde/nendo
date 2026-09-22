@@ -95,7 +95,7 @@ One protected table holds all four kinds. The key is the stable definition ID.
 | Calculation | Owning entity and derived field ID, display name, result scalar and nullability, expression source, ordered bindings, called function aliases |
 | Function | Display name, ordered typed parameters, result scalar and nullability, expression body, called function aliases |
 | Action | Display name, ordered typed steps |
-| Trigger | Entity ID, subscribed events, optional relevant stored-field IDs, optional Boolean condition with its own bindings, and the action it runs |
+| Trigger | Entity ID, display name, subscribed events, optional relevant stored-field IDs, optional Boolean condition with its own bindings, and the action it runs |
 
 Stable IDs use letters, digits, hyphen, underscore and dot, and are at most 128
 characters. Display names are 1–200 characters. An expression never binds to a
@@ -127,9 +127,9 @@ A key that is published is accepted, and a key that is accepted is published.
 | `SameRecordField` | A stored field on the record being calculated | `fieldId`, `resultType`, `nullable` |
 | `SameRecordCalculation` | Another calculated field on the same record | `calculationId`, `resultType`, `nullable` |
 | `ReferenceTraversal` | One declared hop along a reference field, then a stored field on the target | `referenceFieldId`, `relatedEntityId`, `fieldId`, `resultType`, `nullable` |
-| `RelatedAggregate` · `Count` | How many records reference this one | `aggregate`, `relatedEntityId`, `relatedReferenceFieldId` |
-| `RelatedAggregate` · `FilteredCount` | How many of them have a Boolean field true | … and `predicateFieldId` |
-| `RelatedAggregate` · `Sum` | The exact total of a numeric field over them | … and `valueFieldId`, `resultType` |
+| `RelatedAggregate` · `Count` | How many records reference this one | `aggregate`, `relatedEntityId`, `relatedReferenceFieldId`; optional `resultType`, `nullable` |
+| `RelatedAggregate` · `FilteredCount` | How many of them have a Boolean field true | … and `predicateFieldId`; optional `resultType`, `nullable` |
+| `RelatedAggregate` · `Sum` | The exact total of a numeric field over them | … and `valueFieldId`, `resultType`; optional `nullable` |
 
 The initial aggregate catalogue is closed:
 
@@ -143,7 +143,7 @@ The initial aggregate catalogue is closed:
 
 If a key is outside the list of a shape, the refusal names the key and gives
 the list. If a required key is missing, the refusal names the key and states its
-purpose: `Binding 'seeds'
+purpose: `Binding 'hours' of 'projects.totalHours'
 (RelatedAggregate Sum) needs valueFieldId — the Integer or Decimal field it
 totals.` Previously, the codec dropped an unknown key silently. Because of this,
 a reviewer sent a sum three ways and got no information each time.
@@ -467,9 +467,12 @@ It may not drive a bounded query. These all refuse a calculated field with code
 
 - `orderByFieldId`;
 - `filterClause`;
-- `groupByFieldId`;
-- the `dateFieldId` of a calendar;
-- the field of a `summaryTile`;
+- the `groupByFieldId` of a board or a `breakdownChart`;
+- the `rowByFieldId` and `columnByFieldId` of a `matrixSurface`;
+- the `rankByFieldId` of a `rankedList`;
+- the `dateFieldId` of a calendar, a `trendChart` or an `activityGrid`;
+- the `dateFieldId` and `endDateFieldId` of a timeline;
+- the field of a `summaryTile`, `breakdownChart`, `trendChart` or `rangeTile`;
 - a command step.
 
 The database decides these over every matching record, and a calculated field
@@ -497,9 +500,14 @@ off for that reason.
 Without this, a person who accepted on the Agent page saw "no changes waiting"
 and had to find the consent under Health. Approving and withdrawing are shell
 routes that write device state. They are not mutations, they never enter the
-history of the file, and they have no MCP equivalent. The production gate
-asserts that the local MCP surface cannot name them. They stay usable when
-editing is off, because they exist to get out of that state.
+history of the file, and below the Unattended access level they have no MCP
+equivalent. The production gate asserts that the local MCP surface cannot name
+the grant store or the approval service. At Unattended, `nendo.change_set.accept`
+also records this device's consent for the automatic actions that the accepted
+change installs, through a host delegate that takes no arguments
+([mcp-interface.md](mcp-interface.md)). The person can withdraw that consent under
+Agent and under Health. Approving and withdrawing stay usable when editing is off, because
+they exist to get out of that state.
 
 **The formula is an authoring detail.** The Studio editor and grid show it beside
 the value, because a formula is written and read there. A finished screen in the
@@ -508,7 +516,7 @@ binding aliases of the author, for example `SeedsPerGram(gpt)`. These aliases
 mean something to the author and nothing to a person who uses the screen.
 
 **A total the host cannot hold exactly stays unavailable.** If the sum of a
-summary tile passes int64, or 28 significant digits for a decimal, the tile reads
+summary tile passes int64, or the .NET decimal range for a decimal, the tile reads
 *Unavailable* with the reason and offers no Retry. The refusal is deterministic,
 and a retry would only compute it again. The read of the tile keeps the code of
 the host (`aggregate-not-representable`, `aggregate-not-exact`). A transient
@@ -596,6 +604,7 @@ contains:
 - the four binding kinds;
 - what each aggregate does with an empty collection and with a value that it
   cannot read;
+- the trigger events;
 - the action step kinds;
 - the action target kinds, each of which states what it selects at the edges,
   including that an empty reference selects no record;
@@ -635,8 +644,10 @@ only at stored columns.
 
 Authoring is not consent. If the actions of a file run automatically, the file is
 not editable until the person at this device approves it. An ordinary write by an
-agent is refused with the same message that an edit by a person gets. No tool,
-resource or payload field reaches that approval.
+agent is refused with the same message that an edit by a person gets. Below the
+Unattended access level, no tool, resource or payload field reaches that
+approval. At Unattended, `nendo.change_set.accept` records it for the actions
+that the accepted change installs, and its `behaviourApproved` result says so.
 
 ## Canonical operations and digests
 
@@ -808,7 +819,7 @@ raises them.
 | Tree nodes / depth | 128 / 24 | During the typed walk |
 | Parse nesting | 24 | Preflight, before a recursive parse |
 | Definition graph depth | 8 | Over the whole candidate set, cache or not |
-| Functions per file | 32 | Before the lookup table is built |
+| Functions per file, or call aliases per formula | 32 | Before the lookup table is built |
 | Definitions per file, of every kind | 256 | Over the whole candidate set, before the graph is walked |
 | Bindings or parameters | 16 | Before binding |
 | Stable ID or alias length | 128 | Before compilation |
@@ -818,7 +829,7 @@ raises them.
 | Cached expressions | 16 | Cleared on reaching the cap |
 | Related rows per chain | 256 | SQL LIMIT plus a charge per row read |
 | Generated changes per chain | 64 | Before each generated write |
-| Exact total | int64, or 28 significant decimal digits | On the fold; refused as `aggregate-not-representable`, never wrapped or rounded |
+| Exact total | int64, or the .NET decimal range (96-bit coefficient, scale 0–28) | On the fold; refused as `aggregate-not-representable`, never wrapped or rounded |
 
 One budget spans an entire evaluation, every nested call and a whole causal
 transaction. A deep call chain or a chain of triggers therefore gets no extra
@@ -1105,7 +1116,7 @@ stage S5:
 - Unreadable, oversized or edited grant documents approve nothing.
 
 `tests/Nendo.Engine.Tests/BehaviourScalarTests.cs` covers ADR-0008 lane D1, with
-26 cases:
+31 test methods:
 
 - integer division that stays in the decimal domain over a 48-pair cross
   product;
@@ -1113,6 +1124,8 @@ stage S5:
 - decimal scale and boundaries;
 - checked overflow on every arithmetic operator;
 - empty-versus-zero and empty-versus-false;
+- empty results under an optional or a required declaration;
+- `Refuse` in one outcome of a choice, and refused anywhere else;
 - no text or Boolean coercion;
 - laziness;
 - dates;

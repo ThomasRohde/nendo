@@ -62,8 +62,8 @@ order.
 **Unattended**. This decision said "MCP has no promotion tool; final acceptance is
 a visible host-owned user action". It now says: MCP has no promotion tool below
 Unattended. At Unattended, one tool, `nendo.change_set.accept`, promotes a
-proposal that the same session validated. The tool takes the reviewed operation
-digest. It goes through the same `PromoteProposalAsync` that the person's own
+proposal that the same session validated. The tool pins the proposal's reviewed
+operation digest; the caller does not supply it. It goes through the same `PromoteProposalAsync` that the person's own
 Accept button calls, so every staleness, digest and replay check stays. Validation
 still happens on a physical clone. Promotion still replays validated operations
 against the active file. The proposal is still visible in Pending changes and in
@@ -177,7 +177,8 @@ services, at a static loopback address, with no credential.
   http://127.0.0.1:41763/mcp`, `codex mcp add nendo --url http://127.0.0.1:41763/mcp`.
 - The host writes one discovery entry per open file under
   `%LOCALAPPDATA%\Nendo\Mcp\active`, under a user-scoped DACL. The entry holds the
-  endpoint, run ID, process ID, access mode and the file's display name. It never
+  endpoint, run ID, process ID, access mode, application and instance IDs, and
+  the file's display name. It never
   holds a path. It exists for the fallback-port case and to tell two windows
   apart. A client on the standard port never reads it.
 

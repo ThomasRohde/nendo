@@ -125,7 +125,7 @@ those cases.
 
 ## Workbench and verification scope
 
-The current renderer opts into `boundedRead` on its existing version-5 envelope.
+The current renderer opts into `boundedRead` on its version-7 envelope.
 This is a projection preference and grants no authority: the opaque
 file-generation checks still run under the controller gate. Native/compatibility
 full inspection stays available explicitly. An ordinary renderer snapshot or

@@ -16,7 +16,7 @@ const axioms = [
   { title: 'Agents never receive raw SQL or filesystem authority', body: 'No SQL, no SQLite handle, no database path, no generic host invocation.' },
   { title: 'Preview is physically separate from active state', body: 'Validation happens on a clone with no authority over the active file.' },
   { title: 'History and reversibility claims are explicit', body: 'Every operation declares its reversibility class. There is no universal undo.' },
-  { title: 'Local and offline use never depends on an agent or a Nendo service', body: 'The file opens, and the application works, with nothing connected.' },
+  { title: 'Local and offline use never depends on an agent or a Nendo service', body: '' },
 ];
 
 const references = [
@@ -92,7 +92,7 @@ const outOfScope = [
           <span class="axiom-number">{String(index + 1).padStart(2, '0')}</span>
           <div>
             <h3>{axiom.title}</h3>
-            <p>{axiom.body}</p>
+            {axiom.body && <p>{axiom.body}</p>}
           </div>
         </li>
       ))}

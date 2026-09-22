@@ -117,15 +117,16 @@ Nendo.Workbench  --closed typed bridge-->  Nendo.Desktop  -->  Nendo.Engine
 
 | Project | Role | Size |
 | --- | --- | --- |
-| `src/Nendo.Engine` | Storage, typed operations, revisions, proposals, the semantic compiler. The only code that opens SQLite. | ~12.8k lines |
-| `src/Nendo.Desktop` | Thin WinUI 3 host: file lifecycle, native dialogs, recovery, window and appearance policy, the notification area and Windows notifications, the Workbench bridge. | ~5.8k lines |
-| `src/Nendo.Workbench` | Local web UI in a WebView2: Studio, custom surfaces, Help (how-to guides, how Nendo works, and an agent reference that the production gate ties to the MCP surface). Vite builds it, and the host bundles it. | ~9.5k lines |
-| `src/Nendo.LocalMcp` | MCP adapter over the same application services. Not an authority model. | ~3.9k lines |
+| `src/Nendo.Engine` | Storage, typed operations, revisions, proposals, the semantic compiler. The only code that opens SQLite. | ~25.1k lines |
+| `src/Nendo.Desktop` | Thin WinUI 3 host: file lifecycle, native dialogs, recovery, window and appearance policy, the notification area and Windows notifications, the Workbench bridge. | ~9.7k lines |
+| `src/Nendo.Workbench` | Local web UI in a WebView2: Studio, custom surfaces, Help (how-to guides, how Nendo works, and an agent reference that the production gate ties to the MCP surface). Vite builds it, and the host bundles it. | ~15.1k lines of TypeScript |
+| `src/Nendo.LocalMcp` | MCP adapter over the same application services. Not an authority model. | ~7.6k lines |
+| `src/Nendo.ExtensionHost` | The custom-view helper. It runs one WebView2 window in an AppContainer and Job Object. It references no application assembly, and it shares only the bounded frame codec with the Engine. | ~0.2k lines |
 
 A gate enforces the dependency arrows. `Test-Production.ps1` fails the build if
 `Microsoft.Data.Sqlite`, a SQLite connection type or `SQLitePCL` appears anywhere
-in Desktop or LocalMcp. It also fails the build if any project under `src/` or
-`tests/` references `prototypes/`.
+in Desktop, LocalMcp or the custom-view helper. It also fails the build if any
+project under `src/` or `tests/` references `prototypes/`.
 
 No UI or MCP adapter receives SQL, a SQLite handle, physical identifiers, the
 database path, arbitrary filesystem/network/process capability, or a generic
@@ -215,7 +216,7 @@ An edit to an unrelated record does not invalidate a UI-only proposal
 
 ### Typed operations
 
-Twenty-one canonical operations are the primitive. Semantic diff, undo evidence
+Twenty-two canonical operations are the primitive. Semantic diff, undo evidence
 and replay all derive from the same operation stream.
 
 ```text
@@ -226,10 +227,10 @@ schema.renameField       data.restoreDeletedRecord *    ui.removeNode
 schema.setFieldRequired  data.backfillRetiredField
 schema.setRetired        data.convertLegacyReference    behaviour.setDefinition
 schema.setChoiceMetadata identity.transition *          behaviour.removeDefinition
-schema.configureReference
+schema.configureReference                               application.setPurpose
 ```
 
-`*` marks a native-only operation. The other nineteen are the closed union that an
+`*` marks a native-only operation. The other twenty are the closed union that an
 MCP client may author (see `NendoAuthoringOperations.cs`). Whole-definition
 convenience APIs must expand into typed operations before the host records, diffs
 or promotes anything.
@@ -246,8 +247,10 @@ history.
 Draft → Validating → Invalid | Previewable
                    → Rejected | Stale | Applying
                    → Active | Failed
-                   → Compensated, where the accepted operations support it
 ```
+
+Compensation is not a proposal state. Where the accepted operations support it,
+compensation applies their inverse as a new revision.
 
 A proposal binds application and instance identity, required definition revision,
 touched record versions, canonical operations, validation evidence and the
@@ -274,7 +277,9 @@ tree that one vocabulary table governs. It covers `recordForm`, `recordList`,
 `detailSurface`, `overviewSurface`, `recordCommand`, `section`, `tabGroup`,
 `relatedList`, `fieldBinding`, `recentList`, `filterClause`, `commandStep`, a
 bounded `summaryTile` and the three tiles that draw a number: `breakdownChart`,
-`progressTile` and `rangeTile`.
+`progressTile` and `rangeTile`. It also covers `matrixSurface`, `rankedList`,
+`trendChart` and `activityGrid` (see [Studio and safe mode](#studio-and-safe-mode)),
+and `extensionGraphSurface`, the reference to a custom view.
 
 `relatedList` is the one kind that does something the vocabulary does not
 describe. It adds a record of the related type with the reference back already
@@ -369,8 +374,9 @@ or minimised:
 - the open file stopped being writable;
 - the workspace failed.
 
-A notification carries a view name and nothing else: no path, no digest and no
-proposal id. Notifications **route; they do not grant**. A click on a notification
+The activation argument of a notification carries a view name and nothing else.
+The text names the open file, but it carries no path, no digest and no proposal
+id. Notifications **route; they do not grant**. A click on a notification
 opens the page where the person answers. No notification carries the answer,
 because promotion verifies the reviewed digest, and a grant binds an exact digest,
 revision and capability set. `Test-Production.ps1` keeps the notification types
@@ -386,6 +392,8 @@ Setup writes five items into the per-user class store, and one shortcut:
   Explorer picks the name and Nendo makes a real empty file. Thus the project does
   not ship a template and keep it in step with what *New file* already produces.
 - `OpenWithProgids` puts Nendo in *Open with*.
+- An `Applications\Nendo.Desktop.exe` key lets *Open with* reach Nendo also for a
+  file whose extension another program owns.
 - An `AppUserModelId` key carries the display name and icon that the notification
   centre reads.
 
@@ -545,8 +553,12 @@ records, and one cold open at that size takes about 6.6 seconds.
 A separate bound of 100,000 rows applies to each audit and definition table.
 `__nendo_operation` carries one row for each record write and one for each later
 edit. Thus a file reaches that bound at approximately 100,000 writes, whatever
-their size. The host enforces neither bound at write. A file can still be written
-past the size at which it will open. A warning at write time is open work (W-038).
+their size. The host also enforces both bounds at write. Before it stages a
+mutation or a promotion, it refuses the write when the file has reached a write
+ceiling: 4 MiB below the size bound, or 1,000 rows below the row bound. The
+refusal states that nothing changed and that the file still opens. The host gives
+no warning as a file approaches a ceiling
+([ADR-0012](decisions/0012-safe-mode-compatibility-and-migration.md), 2026-09-17).
 
 ## Agent surface
 
@@ -569,8 +581,10 @@ neither hold nor grant authority. `Test-Production.ps1` asserts both surfaces by
 name. Thus a new resource or tool fails the gate until somebody updates the
 contract. Full map: [contracts/mcp-interface.md](contracts/mcp-interface.md).
 
-Visible access modes: `Disabled`, `Read-only inspection`, `Data mutation`,
-`Application authoring`, `Unattended authoring`.
+Visible access modes, as the Agent page names them: *Off*, *Inspect*, *Edit data*,
+*Shape app* and *Unattended*. The tray menu names the same levels *Off*,
+*Read-only inspection*, *Data mutation*, *Application authoring* and *Unattended
+authoring*.
 
 **In the fifth mode, an agent decides for itself.** At Unattended, and at no lower
 level, `nendo.change_set.accept` promotes a proposal that the same session
@@ -589,7 +603,7 @@ persists it
 **Bulk data crosses the same boundary as a single record.**
 `nendo://application/entity/{entityId}/export` is a page of faithful Nendo CSV, in
 the profile that the person's own Export writes. `nendo.data.import_records` takes
-CSV text or typed JSON at *Data mutation*. It commits the rows through the same
+CSV text or typed JSON at *Edit data*. It commits the rows through the same
 `CreateRecordsAsync` that a single create uses: fifty rows to a revision, and up to
 five hundred rows in a call. Export is a resource and not a tool, so that Inspect
 keeps an empty tool list. Neither export nor import carries a path, in either
@@ -658,11 +672,11 @@ This table gives the current locations, so that you do not need to search.
 | SQLite (only here) | `Engine/Storage/SqliteNendoStore*.cs` |
 | Bounded reads and cursors | `Engine/ReadQueries.cs`, `NendoQueryCursor.cs` |
 | Bridge | `Desktop/DesktopShellContract.cs`, `WorkbenchProtocol.cs` |
-| Notification area | `Desktop/DesktopTrayIcon.cs`: the only interop in the tree. One hidden top-level window, `Shell_NotifyIcon`, one popup menu |
+| Notification area | `Desktop/DesktopTrayIcon.cs`: one hidden top-level window, `Shell_NotifyIcon`, one popup menu |
 | Notifications | `Desktop/DesktopNotifier.cs` (the OS side), `DesktopNotificationContent.cs` (the wording and routes, pure), `DesktopNotificationTrigger.cs` (transition, never condition) |
 | Close behaviour | `Desktop/DesktopShellStore.cs` (device state), `DesktopCloseAction.cs` (the decision, pure), `MainWindow.xaml.cs` |
 | Renderer entry point | `Workbench/src/main.ts`: the router and the frame. It gives `render` and `updateChrome` to `shell.ts`, so that a view never imports it back |
-| One view per file | `Workbench/src/view-*.ts` (Use surfaces are hand-rolled DOM; AG Grid stays in `view-data.ts`) |
+| One view per file | `Workbench/src/view-*.ts` (Use surfaces are hand-rolled DOM; AG Grid stays in `view-data.ts`, and `main.ts` registers its modules) |
 | Renderer state | `Workbench/src/app-state.ts`: one `state` object and the caches. It imports no view, so nothing cycles through it |
 | Markup | `Workbench/src/record-markup.ts` (the pieces), `page-markup.ts` (a record page), `surface-markup.ts` (the selected surface): pure string builders, under test |
 | Reads and writes | `Workbench/src/reads.ts`, `panels.ts` (tiles and charts), `actions.ts` (the one write path and the coherent-snapshot refresh) |
@@ -676,7 +690,7 @@ This table gives the current locations, so that you do not need to search.
 | Ratings | `Workbench/src/rating.ts`: the dots, their accessible name and the radio control. `Engine/Storage/SqliteNendoStore.Scales.cs` stores the scale itself, one rung below the last |
 | View failures | `Desktop/DesktopViewFailureLog.cs`: the kind, how long the view was up, whether the window was out of sight and what Windows said about memory. Capped at 50 and switched from the tray. Device state, never in the file |
 | What the file is for | `Engine/Storage/SqliteNendoStore.Application.cs`: a singleton row in the layout ladder's last rung, read onto the manifest. `nendo://application/describe` leads with it. `Workbench/src/file-actions.ts` shows it on its own page, from About this file in the File menu |
-| Agent tools and allow-list | `LocalMcp/NendoAuthoringTools.cs`, `NendoAgentAuthoringService.cs` |
+| Agent tools and allow-list | `LocalMcp/NendoAuthoringTools.cs`, `NendoAgentAuthoringService.cs`, `NendoAuthoringOperations.cs`; the other tools are in `NendoLeaseTools.cs`, `NendoDataTools.cs`, `NendoHealthTools.cs` and `NendoUnattendedTools.cs` |
 | Resources | `LocalMcp/NendoMcpResources.cs`, `NendoResourceProjection.cs` |
 
 ## Running it
@@ -701,7 +715,7 @@ The preview is visual only and proves nothing about storage or the bridge.
 ## Building and verifying
 
 ```powershell
-pwsh ./tools/Test-Repository.ps1      # fast: invariants, line endings, binary assets, ADR structure, vendored skills
+pwsh ./tools/Test-Repository.ps1      # fast: vendored skills, tracked files, binary assets, line endings, ADR structure, blackbox coverage, shell identity
 pwsh ./tools/Test-Production.ps1      # full gate; includes the repository check
 ```
 
@@ -723,7 +737,7 @@ build or test a .NET project, and it runs neither gate script. Thus it cannot pa
 or fail on anything that the gate covers. `tools/Test-Site.ps1` is the local
 equivalent, and the project keeps it out of `Test-Production.ps1`.
 
-Four native lanes exist outside the gate, because they drive a real Desktop window
+These native lanes exist outside the gate, because they drive a real Desktop window
 and need a desktop session:
 
 ```powershell
@@ -731,11 +745,18 @@ pwsh ./tools/Review-OutcomeRuntime.ps1      # real file-action outcomes and reco
 pwsh ./tools/Review-NeutralityRuntime.ps1   # application-neutral surfaces through MCP
 pwsh ./tools/Review-DesktopPerformance.ps1  # startup, edit, memory against the four datasets
 pwsh ./tools/Review-ShellRuntime.ps1        # closing hides the window and keeps the file open
+pwsh ./tools/Test-JourneyPilot.ps1 -Executable <Nendo.Desktop.exe>  # pilot and behaviour journeys, create and reopen
+pwsh ./tools/Test-JourneyDrag.ps1  -Executable <Nendo.Desktop.exe>  # drag journey, create and reopen
 ```
 
-`Review-ShellRuntime.ps1` covers the close behaviour and nothing more. No script
-can enumerate the tray icon of another process or observe a shell notification.
-Thus the icon, its menu and the notifications stay owner-reported. The lane prints
+`Test-NendoInstaller.ps1` runs one of the two journey lanes against the installed
+copy.
+
+`Review-ShellRuntime.ps1` covers the close behaviour, the shell identity of the
+window and the Jump List that Windows stores. No script can enumerate the tray icon
+of another process or observe a shell notification. Thus the icon, its menu, the
+notifications and the taskbar drawing of the Jump List and the overlay badge stay
+owner-reported. The lane prints
 this limit together with its pass, so that nobody assumes more coverage.
 
 If you add CI again, set `DOTNET_INSTALL_DIR` to a runner-local path. Then install
@@ -792,7 +813,7 @@ The agent-authoring gate builds a complete application from an empty file throug
 the MCP interface only. Then it reopens the file offline:
 
 ```powershell
-pwsh ./tools/Test-AgentAuthoringGate.ps1
+pwsh ./tools/Test-AgentAuthoringGate.ps1 -Executable <Nendo.Desktop.exe>
 ```
 
 The unattended gate does the same at the fifth access level. At that level, the
@@ -803,7 +824,7 @@ names the client and the call, and goes away when the agent is quiet. The gate
 reads the DOM to measure this, and does not look at a screenshot:
 
 ```powershell
-pwsh ./tools/Test-UnattendedBuildGate.ps1
+pwsh ./tools/Test-UnattendedBuildGate.ps1 -Executable <Nendo.Desktop.exe>
 ```
 
 The behaviour gate does the same for calculations and automatic actions. It then
@@ -829,5 +850,6 @@ has never seen this repository.
 [`docs/reviews/README.md`](reviews/README.md) tells how to run a round and which
 contract each phase reaches. It is a manual lane, because it needs a person at the
 keyboard and a fresh reviewer. Thus it runs before a release and not in the gate.
-The repository gate does check that the prompt still covers every published
-contract.
+The repository gate checks that the coverage table in `docs/reviews/README.md`
+names every published contract, and that the prompt contains each phase that the
+table names.

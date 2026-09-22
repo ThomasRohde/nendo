@@ -65,6 +65,16 @@ reserved 0014 scope is dropped. It is not deferred.
   propose → validate → accept gate. The owner accepts it before it touches the
   file.
 
+**Note, 2026-09-22.** Two statements above no longer describe the host. The
+Agent screen shows the access level, the connection address, the lease, pending
+changes and recent activity. The transport has no credential since the ADR-0009
+amendment of 2026-09-13. Record writes at Edit data go through the MCP data
+tools on the data lane, without a change set. At the Unattended level (ADR-0009
+amendment of 2026-09-22), `nendo.change_set.accept` promotes a proposal that the
+same session validated, so the owner does not accept it first.
+[ADR-0009](0009-local-mcp-transport-authority-and-change-sets.md) describes the
+current access levels.
+
 This decision is about scope. It makes no capability claim about any particular
 client. Broad client parity remains outside the MVP promise, as ADR-0009
 records.

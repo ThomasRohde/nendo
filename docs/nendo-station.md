@@ -13,7 +13,7 @@ claim.
 
 `workspace/Nendo Station.nendo`. It has nine record types (Modules, Systems,
 Components, Feeds, Readings, Incidents, Maintenance, Experiments, Crew), about
-600 records, and every kind of screen this host compiles.
+500 records, and every kind of screen this host compiles.
 
 **The file is an output.** `tools/Build-NendoStation.mjs` is the source. It
 authors the whole application over local MCP in stages. Each stage is a change
@@ -123,7 +123,7 @@ The step is what the demonstration shows. The specific field is not important.
    would invent the answer that the field exists to record.
 
 9. **Read the semantic diff and accept.** The screen exists. There is no build, no
-   regeneration and no migration, and the 600 records do not change.
+   regeneration and no migration, and the 500 records do not change.
 
 Step 9 performs the falsification criterion of the vision for an observer. An
 agent built a shape that nobody anticipated, and a person understood it before

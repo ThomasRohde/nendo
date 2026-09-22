@@ -68,14 +68,14 @@ physical mappings or arbitrary host invocation.
 | Resource | Current adapter and shared application service | Projection / outstanding cost |
 | --- | --- | --- |
 | `nendo://application/describe` | `GetDescriptionAsync` → the projections below | What the file is for, then the manifest, authoring limits, every record type with its fields, every compiled screen, health, and `reads`: every resource URI this host serves, generated from the declared resources. It answers the reconnaissance phase without 1 + N round trips. `resources/list` returns only the parameterless resources, so the read path for records was reachable only through `resources/templates/list`. A review concluded from the seven listed entries that the data API was write-only, and it opened the SQLite file directly to check its own writes. |
-| `nendo://application/examples` | `NendoAuthoringExamples.Description` | Eleven complete contract version 3 change sets that can be sent without change: `create-entity-with-required-fields`, `configure-a-reference`, `a-breakdown-and-a-ring`, `build-a-detail-surface`, `define-a-command`, `two-commands-and-a-filtered-list`, `several-views-tabs-and-a-calendar`, `a-timeline-of-spans`, `a-gallery-and-a-rating`, `a-front-page-for-the-file`, `calculate-and-act-automatically`. Each example carries the authoring rule that it conveys. Static for a host build. [The example tests](../../tests/Nendo.LocalMcp.Tests/AuthoringExampleTests.cs) replay every example through the real authoring boundary, so an example that stops validating fails the build. |
+| `nendo://application/examples` | `NendoAuthoringExamples.Description` | Sixteen complete contract version 3 change sets that can be sent without change: `create-entity-with-required-fields`, `configure-a-reference`, `a-breakdown-and-a-ring`, `a-trend-and-an-activity-grid`, `a-matrix-and-a-ranking`, `a-board-with-a-lane-per-project`, `build-a-detail-surface`, `define-a-command`, `two-commands-and-a-filtered-list`, `several-views-tabs-and-a-calendar`, `a-timeline-of-spans`, `a-gallery-and-a-rating`, `a-front-page-for-the-file`, `say-what-the-file-is-for`, `calculate-and-act-automatically`, `pin-an-offline-custom-graph`. Each example carries the authoring rule that it conveys. Static for a host build. [The example tests](../../tests/Nendo.LocalMcp.Tests/AuthoringExampleTests.cs) replay every example through the real authoring boundary, so an example that stops validating fails the build. |
 | `nendo://application/manifest` | `NendoResourceProjection.GetManifestAsync` → `GetDefinitionSnapshotAsync` | What the file is for, plus identity and revision counters, without record/history reads. |
 | `nendo://application/vocabulary` | `NendoSemanticVocabulary.Description` + `NendoAuthoringOperations.All` | Every contract version 3 node kind with its permitted properties, required properties, permitted children and root ceiling: `maxRootsPerEntity`, or `maxRootsPerFile` for a root that belongs to the file and not to a record type. The closed filter operators, value kinds, ordering directions and aggregates. The `and` combinator that joins sibling `filterClause` children, and the note that version 3 has no OR and no grouping. The closed `choiceTones` that a choice option may carry. The `charts` rule with its closed groupings and its ceiling on groups. The `overview` rule with the one front page that a file may own and the ceiling on a recent list. The authoring limits. `operations`: every canonical operation with the payload fields that it requires and accepts. It is generated from the tables that the compiler and the authoring boundary validate against. `NendoAgentAuthoringService` builds its accepted field sets from the published table, so a documented field is an accepted field. Static for a host build: it describes the host, not the open file. |
 | `nendo://application/entities` | `GetEntitiesAsync` → `GetDefinitionSnapshotAsync` | Stable entity IDs and display labels; no record projection. |
 | `nendo://host/instances` | `NendoDiscoveryStore.ReadLiveEntries` | Every Nendo that runs on this device and the file that each one has open. `isThisOne` marks the host that answers the read. This is the only resource here that is not about the open file. The host has written this directory since discovery existed, but nothing read it. An agent therefore could not tell a person which file it was about to write to, and a second Nendo was unreachable in practice (F-064). An entry is admitted on the same terms that the stale sweep uses to keep one, so a dead host is never offered as a place to work. Each entry carries the name of the file and never a path. The resource does not make another endpoint reachable. A client reaches the address that it was registered with and cannot redirect itself. Switching therefore stays the action of the person, and the resource states this in its own `note`. |
 | `nendo://application/entity/{entityId}/schema` | `GetSchemaAsync` → `GetDefinitionSnapshotAsync` | Semantic fields, storage kinds, required/presentation/options, and a rating field's `scale` with its `min` and `max`. |
 | `nendo://application/entity/{entityId}/records{?cursor,limit}` | `GetRecordsAsync` → `QueryRecordsAsync` | Storage keyset page in stable record-ID order; revision-bound continuation. |
-| `nendo://application/surfaces` | `GetSurfacesAsync` → `CompileSemanticDefinitionAsync` | Cached verified definition, with no records. Surface roots appear under `applications[].surfaces` as an ordered node tree with `nodeId`, `kind`, `properties`, `children` and, on a command root, the `commandId` that `nendo.data.execute_command` takes. The removed contract version 1 and 2 `form`/`list`/`board`/`command` slots are gone from this resource as of 2026-09-12. `state` is `valid`, `invalid` or `noCustomSurfaces`. A stored `surfaceId` is intentionally absent, because it is not part of the compiled plan. The definition digest is taken over the plan. |
+| `nendo://application/surfaces` | `GetSurfacesAsync` → `CompileSemanticDefinitionAsync` | Cached verified definition, with no records. Surface roots appear under `applications[].surfaces` as an ordered node tree with `nodeId`, `kind`, `properties`, `children` and, on a command root, the `commandId` that `nendo.data.execute_command` takes. The removed contract version 1 and 2 `form`/`list`/`board`/`command` slots are gone from this resource as of 2026-09-12. The front page of the file, if it has one, is under `overview` and not among the record types. `state` is `valid`, `invalid` or `noCustomSurfaces`. A stored `surfaceId` is intentionally absent, because it is not part of the compiled plan. The definition digest is taken over the plan. |
 | `nendo://application/history{?cursor,limit}` | `GetHistoryAsync` → `QueryHistoryAsync` | Bounded revision summaries in ascending sequence order. `operationCount` and `operationsUri` replace the unbounded nested `operations` array. |
 | `nendo://application/revision/{revisionId}/operations{?cursor,limit}` | `GetRevisionOperationsAsync` → `QueryRevisionOperationsAsync` | Bounded sanitized operation descriptors in ordinal order. No canonical payload, raw inverse or physical mapping escapes. |
 | `nendo://application/entity/{entityId}/export{?cursor,limit}` | `GetCsvExportAsync` → `ExportCsvPageAsync` → `QueryRecordsAsync` | One page of the record type as faithful Nendo CSV. This is the profile that the person's own Export writes, so the output can go directly back to `nendo.data.import_records`. The header row carries display names and appears on the first page only, so the pages concatenate into one document. `fieldIds` gives the stable ID behind each column, and an import maps by that ID. The same 1–100 limit and the same revision-bound cursor apply as on every other page here. It is a resource and not a tool, because reading is a resource in this product and because Inspect keeps an empty tool list. |
@@ -93,6 +93,11 @@ If a data or definition change occurs between pages, the read returns
 `NENDO_STALE_CURSOR`. Restart the query. Foreign, tampered, reopened-file or
 earlier agent-access cursors fail. Follow the declared URI template parameter
 order (`cursor,limit`). See the [read and authority contract](reads-and-authority.md).
+
+The resources are served at every level from Inspect upward, and Inspect lists no
+tools. The lease, data and health tools are registered from Edit data upward. The
+change-set tools other than `nendo.change_set.accept` are registered from Shape app
+upward.
 
 | Tool | Authority / current implementation | Shared semantic boundary |
 | --- | --- | --- |
@@ -192,9 +197,12 @@ remedy, under one rule: **an engine message passes through when its template car
 stable IDs, definition display names, declared choice IDs and integers — never a
 path and never a stored value.** Every `NendoValidationException` meets that rule
 and passes through whole. A precondition passes through when its code is on the
-audited list in `NendoToolErrors` (`record-referenced`, `behaviour-not-approved`,
-`record-version-conflict`, `target-*`, `choice-retired`, `aggregate-not-representable`
-and the earlier three). `aggregate-not-exact` echoes a stored float, and it stays
+audited list in `NendoToolErrors`: `definition-version-conflict`,
+`required-field-needs-migration`, `required-backfill-needed`, `record-referenced`,
+`entity-referenced`, `behaviour-not-approved`, `choice-retired`, `reference-unbound`,
+`target-version-required`, `target-not-found`, `target-version-conflict`,
+`record-version-conflict`, `record-not-found`, `field-not-found`, `field-calculated`
+and `aggregate-not-representable`. `aggregate-not-exact` echoes a stored float, and it stays
 withheld. A calculation failure passes through as `NENDO_CALCULATION_*`.
 
 An outside review measured the cost of the alternative. One uninformative
@@ -255,12 +263,12 @@ that table serves two purposes. It is published at
 `nendo://application/vocabulary`, and `NendoAgentAuthoringService` builds its
 enforcement from it. Before, the payload specification was prose inside the
 `add_operations` tool description. That prose grew so long that a real client's
-tool listing truncated it mid-token. The union permits nineteen of the Engine's
-twenty-one canonical operations. `data.restoreDeletedRecord` and
+tool listing truncated it mid-token. The union permits twenty of the Engine's
+twenty-two canonical operations. `data.restoreDeletedRecord` and
 `identity.transition` are native-only: lifecycle identity operations remain host
 services and are not MCP authoring primitives.
 
-`behaviour.setDefinition` and `behaviour.removeDefinition` are among the nineteen,
+`behaviour.setDefinition` and `behaviour.removeDefinition` are among the twenty,
 so an agent authors calculations, reusable functions, actions and triggers through
 ordinary proposals. The vocabulary's `behaviour.bindings` publishes every binding
 shape with the keys that it takes, from the same table that the codec refuses

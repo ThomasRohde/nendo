@@ -80,6 +80,13 @@ Create projects and test projects only when the active milestone uses them.
 Add `src/Nendo.LocalMcp/` and `tests/Nendo.LocalMcp.Tests/` in the MCP milestone.
 Do not add them earlier as empty scaffolding.
 
+Note (2026-09-22): the MCP milestone added `src/Nendo.LocalMcp/` and
+`tests/Nendo.LocalMcp.Tests/`. The ADR-0013 amendment of 2026-09-20 added
+`src/Nendo.ExtensionHost/`, the contained custom-view helper executable. It
+references no other project. Desktop builds it but does not reference its
+assembly. `Nendo.slnx` lists these seven projects. `prototypes/` stays in the
+repository, outside the solution.
+
 ### Responsibilities
 
 - **Nendo.Engine** is a headless .NET library. It contains the typed models,

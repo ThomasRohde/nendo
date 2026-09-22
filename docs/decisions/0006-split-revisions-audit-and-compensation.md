@@ -60,7 +60,10 @@ Nendo uses separate revision lineages with one ordered semantic audit stream.
   of only the records that it reads or transforms. Unrelated record changes do
   not make UI-only work stale.
 - Every operation type is classified `reversible`,
-  `reversible-with-retained-state` or `irreversible-declared`.
+  `reversible-with-retained-state` or `irreversible-declared`. (Note,
+  2026-09-22: the code names these classes `Reversible`,
+  `ReversibleWithRetainedState` and `IrreversibleDeclared`. MCP payloads carry
+  them in camelCase.)
 - Compensation is a new typed transaction linked to the original revision. It
   advances history and current versions. It never deletes or rewinds audit
   evidence.

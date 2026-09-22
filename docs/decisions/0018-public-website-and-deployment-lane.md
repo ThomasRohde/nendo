@@ -61,7 +61,9 @@ lane exists: it builds and deploys that website and nothing else.**
    them to GitHub.
 
 4. **One CI lane, with a named scope.** `.github/workflows/pages.yml` runs on a
-   push to `main` that touches `site/`, `docs/` or the workflow itself. It builds
+   push to `main` that touches `site/`, `docs/`, the application icon
+   (`src/Nendo.Desktop/Assets/AppIcon.ico`) or the workflow itself. It also runs
+   when somebody starts it by hand. It builds
    the Astro project and deploys it to GitHub Pages. It does not restore, build or
    test any .NET project. It does not run `Test-Repository.ps1` or
    `Test-Production.ps1`. It cannot pass or fail on anything that the product gate

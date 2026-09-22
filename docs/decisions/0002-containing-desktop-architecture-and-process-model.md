@@ -289,6 +289,16 @@ unsolicited-event set. The renderer re-reads through the bounded chase of the
 2026-09-16 amendment. The full record, with its limits and its recorded outcomes,
 is the entry for this date in the [decision index](README.md#amendments-in-force).
 
+## 2026-09-22 note — custom views run in a second, contained WebView2
+
+The Decision above gives every normal surface to one WebView2 workbench. Since the
+[ADR-0013 amendment of 2026-09-20](0013-defer-general-extension-model.md#amendments-to-earlier-decisions),
+a custom view runs in a separate host-owned helper, `Nendo.ExtensionHost`, with
+its own WebView2. The helper runs in a zero-capability AppContainer and a Job
+Object. It is not a second normal Studio and not a storage authority. The
+[custom-view contract](../contracts/custom-views.md) describes the current
+behaviour.
+
 ## Consequences
 
 ### Positive

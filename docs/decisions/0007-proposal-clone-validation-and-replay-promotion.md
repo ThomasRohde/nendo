@@ -69,6 +69,14 @@ reach the active file only by exact operation replay.
   explicit cleanup. The MVP does not promise cross-process proposal resume.
   Abandoned work may be listed for recovery and safely rejected/recreated.
 
+**Note, 2026-09-22.** The ADR-0009 amendment of 2026-09-22 adds the Unattended
+access level. At that level, MCP has one tool, `nendo.change_set.accept`, that
+promotes a proposal that the same session validated. It calls the same promotion
+service as the person's Accept, with the same rechecks and replay. Below
+Unattended, acceptance stays a host-owned user action.
+[ADR-0009](0009-local-mcp-transport-authority-and-change-sets.md) records the
+change.
+
 ## Evidence and validation obligations
 
 - EX-0001 proved clone isolation, semantic diff, exact digest replay, preservation

@@ -30,7 +30,7 @@ a scalar: no formula DTO crosses this boundary.
   bound what may be written. A value outside the scale is stored, read back
   exactly, and reported as a data warning. It is not refused or clamped, because
   a scale may be declared over values that already exist.
-- Workbench bridge revision 6 represents numbers inside `JsonElement` scalar
+- Workbench bridge revision 6 and later represent numbers inside `JsonElement` scalar
   payloads as `{ "$nendoNumber": "<JSON numeric lexeme>" }`. This is a transport
   envelope. It is decoded before the typed application service sees the
   value. It does not persist as a user object. Metadata counts and record

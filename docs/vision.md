@@ -111,7 +111,7 @@ effects still require additional accepted authority.
 
 **Charts and dashboards came into scope on 2026-09-14**, and the slices S0 to S7
 are delivered. A chart in Nendo is an exact aggregate over a closed grouping: a
-choice field's options, a Boolean, or a Date field's months. Nendo draws the
+choice field's options, a Boolean, or a Date field's weeks or months. Nendo draws the
 chart as a proportion and shows its numbers beside it. A dashboard is a page of
 such tiles and charts over one file. Neither one stores layout, an expression or
 a sample. The ideas and their order are in

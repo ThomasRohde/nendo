@@ -17,8 +17,9 @@ Arbitrary HTML/code and custom controls remain outside that authority.
 **Contract version 3 is the only shape this host compiles.** Versions 1 and 2
 were removed on 2026-09-12, before the format had users. Their fixed
 form/list/board/command slots were removed with them. There is one compile path,
-one plan shape and one digest projection. If a stored root declares
-`definitionVersion` 1 or 2, `NUI003` refuses it and names the supported version.
+one plan shape and one digest projection. If the stored roots declare
+`definitionVersion` 1 or 2, `NUI003` refuses them and names the supported version.
+Roots that declare different versions are `NUI002`.
 Every custom plan is then suppressed; Studio, the data and recovery are
 unaffected.
 
@@ -42,7 +43,8 @@ ceiling at all on the front page, so the vocabulary publishes both.
 Under the ADR-0004 2026-09-12 amendment, `recordList`, `boardSurface`,
 `calendarSurface` and `recordCommand` each declare **eight**. `timelineSurface`
 (the 2026-09-14 amendment, S3) and `gallerySurface` (S2) declare the same.
-`detailSurface` and `recordForm` keep one, with their existing page precedence:
+`matrixSurface` (the 2026-09-17 amendment, S6) and `extensionGraphSurface`
+(ADR-0013) also declare eight. `detailSurface` and `recordForm` keep one, with their existing page precedence:
 detail first, otherwise form. Eight is a bounded initial product choice. It is
 not a measured optimum.
 
@@ -77,8 +79,9 @@ return a partial app.
 
 ## Selecting a surface, not a kind
 
-Use offers every `recordList`, `boardSurface`, `gallerySurface`, `calendarSurface`
-and `timelineSurface` root of the selected record type, in compiled order, each by
+Use offers every `recordList`, `boardSurface`, `gallerySurface`, `calendarSurface`,
+`timelineSurface`, `matrixSurface` and `extensionGraphSurface` root of the selected
+record type, in compiled order, each by
 its own title. The file's `overviewSurface` is not among them. It belongs to the
 file, so Use offers it beside the record types and not among the surfaces of one
 type. When the file has an overview, Use opens it first. The selection is a
@@ -107,8 +110,9 @@ default. Studio keeps its own independent browsing and query state.
 
 ## Totals on a list or board
 
-`summaryTile` is a child of `recordList` and `boardSurface`, and also of a record
-page, a section and a related list. On a list or board, the tile states one exact
+`summaryTile` is a child of `recordList`, `boardSurface`, `gallerySurface` and
+`matrixSurface`, and also of a record page, the front page, a section and a
+related list. On a list or board, the tile states one exact
 number over the records that the surface shows. That set is the root filters AND
 the tile's own clauses, independent of which page is loaded. The renderer labels
 the tile with what it covers, because a total over a filtered set otherwise reads
@@ -177,7 +181,7 @@ wrap the value.
 `tabGroup` is non-root, takes an optional `title`, and contains one or more
 `section` children and nothing else. So a tab is always a titled section, and its
 name is the title that a section already requires. `tabGroup` is accepted beneath
-`detailSurface`, `recordForm` and `section`. An empty group is `NUI310`. A nested
+`detailSurface`, `recordForm`, `overviewSurface` and `section`. An empty group is `NUI310`. A nested
 group is `NUI311`, also through an intervening section: because `section` is
 shared, the compiler tracks the ancestor and does not infer it from the parent.
 Tabs organise named record information. They are not a generic layout API, and
@@ -283,11 +287,12 @@ civil-date bounds, and the same undated view. It draws them as a spine.
 | `titleFieldId` | an active stored Text field that is not a single choice, as on a record page | `NUI373` |
 | `accentFieldId` | an active single-choice field, as on a record page | `NUI374` |
 
-A calculated field in any of the four is `NUI214`, as everywhere a bounded query
-would read one. The date rule is the calendar's rule, and the title and accent
-rules are the record page's rules. The compiler shares these rules and does not
-copy them, so the same field is refused with the same sentence wherever it is
-misused. A timeline with no `fieldBinding` is `NUI211`.
+A calculated field in `dateFieldId` or `endDateFieldId` is `NUI214`, as
+everywhere a bounded query would read one. A calculated field in `titleFieldId` or
+`accentFieldId` is refused by that property's own code. The date rule is the
+calendar's rule, and the title and accent rules are the record page's rules. The
+compiler shares these rules and does not copy them, so the same field is refused
+by the same rule wherever it is misused, in words that name the surface. A timeline with no `fieldBinding` is `NUI211`.
 
 **One civil year at a time.** The year query is the timeline's own clauses plus
 `date >= 1 January AND date < 1 January next`. So, like a month, a year is two
@@ -424,7 +429,7 @@ editor never reads `visibleWhen`; it is a rule for the Use view's record page.
 `gallerySurface` (ADR-0004, 2026-09-14 amendment, S2) is a root with
 `definitionVersion`, `entityId`, an optional `title`, the existing ordering
 properties and two optional field roles. Its children are `fieldBinding`,
-`filterClause` and the three tile kinds that a list takes. It owns eight roots per
+`filterClause` and the tiles and charts that a list takes. It owns eight roots per
 entity.
 
 | Property | Accepts | Refused by |
@@ -432,7 +437,8 @@ entity.
 | `titleFieldId` | an active stored Text field that is not a single choice | `NUI380` |
 | `accentFieldId` | an active single-choice field | `NUI381` |
 
-A calculated field in either is `NUI214`. Both are optional. If a card has no
+A calculated field in either is refused by that property's own code. Both are
+optional. If a card has no
 declared title, it leads with its **first bound field**, as a timeline entry does.
 So one rule titles a gallery card and a board card, and one function draws the
 card itself. A gallery with no `fieldBinding` is `NUI211`.
@@ -440,8 +446,7 @@ card itself. A gallery with no `fieldBinding` is `NUI211`.
 **It is a list's window drawn as cards.** The read is the surface's own
 `filterClause` children and nothing else. A gallery adds no implicit predicate, so
 it carries the full eight. It pages with the same Previous and Next that a list
-has, against the same cached window. Its `summaryTile`, `breakdownChart` and
-`progressTile` children sit in the same row above the grid, scoped and composed
+has, against the same cached window. Its tile and chart children sit in the same row above the grid, scoped and composed
 exactly as a list's are. `scope: group` is refused, because a gallery has no
 columns. Drill-through still opens the record type's first `recordList`, so a
 gallery's charts navigate away and do not narrow the cards.
@@ -482,9 +487,10 @@ its own record type:
 
 | Kind | Properties | Children | What it states |
 | --- | --- | --- | --- |
-| `summaryTile`, `breakdownChart`, `progressTile` | their existing properties plus `entityId` | unchanged | what they state elsewhere, over the record type they name |
+| `summaryTile`, `breakdownChart`, `progressTile`, `trendChart`, `activityGrid` | their existing properties plus `entityId` | unchanged | what they state elsewhere, over the record type they name |
 | `rangeTile` | `entityId`, `fieldId` (required), `title`, `scope` | `filterClause` | the smallest and largest value of one field, as two exact aggregates |
 | `recentList` | `entityId` (required), `title`, `limit`, `orderByFieldId`, `orderDirection` | `fieldBinding`, `filterClause` | a list's ordered window, bounded to at most ten records |
+| `rankedList` | `entityId` and `rankByFieldId` (required), `orderDirection`, `limit`, `title` | `fieldBinding`, `filterClause` | the few records at the top of one stored number (see [Grids](#grids)) |
 
 `entityId` on a tile or a chart is **required under an overview and refused
 anywhere else** (`NUI394`). On a surface, a tile takes its record type from the
@@ -509,8 +515,9 @@ does not read zero to zero.
 
 A `fieldBinding` and a `relatedList` need a current record, and the front page has
 none, so both are `NUI398`. A `visibleWhen` calculation answers per record and is
-`NUI399` for the same reason. An overview with nothing that reads records is
-`NUI400`. A heading over an empty space is not a front page. A description is not
+`NUI399` for the same reason. An overview with no `summaryTile`,
+`breakdownChart`, `progressTile`, `rangeTile`, `recentList` or `rankedList` is
+`NUI400`. A `trendChart` or an `activityGrid` alone does not satisfy this check. A heading over an empty space is not a front page. A description is not
 a substitute for one, because a statement of what the file is for does not show
 any of the file.
 
@@ -522,7 +529,8 @@ The MCP interface contract describes it.
 
 The overview composes **nothing** across record types. Each child reads the one
 type it names, and the overview adds no predicate of its own, so a child carries
-the full eight declared clauses. There is no join, no number made from two record
+the full eight declared clauses, less any predicates that its own kind adds (two
+for a `trendChart` or an `activityGrid`, one for a `rankedList`). There is no join, no number made from two record
 types, and no expression over a result.
 
 Use opens the overview first when one exists. Use offers it beside the record
@@ -554,8 +562,8 @@ plain Integer presentation already shows numbers. Like every presentation, a
 scale is set when the field is created and does not change afterwards.
 
 The scale is stored in its own protected table, `__nendo_field_scale`. This table
-is now the last rung of the layout ladder, after the choice-tone table, for the
-same reason that table gives. The protected layout is a fingerprint of verbatim
+is a rung of the layout ladder after the choice-tone table, for the same reason
+that table gives. The application-purpose table is the rung after it. The protected layout is a fingerprint of verbatim
 DDL, so a column on the field table would move every known layout and need an
 `ALTER TABLE` on files that already exist. A row exists only for a rating field.
 The first row creates the whole prefix, and a file that rates nothing keeps the
@@ -625,8 +633,8 @@ Where an option has a tone, everything that shows the option draws with it:
 An option without a tone keeps the renderer's older behaviour: a hue derived from
 its stored ID. So a file authored before tones existed looks as it did.
 
-A tone is stored in its own protected table, `__nendo_choice_tone`, at the end of
-the layout ladder. The first tone a file takes creates the whole prefix, as a
+A tone is stored in its own protected table, `__nendo_choice_tone`, on the layout
+ladder after the behaviour table. The first tone a file takes creates the whole prefix, as a
 first choice edit or a first behaviour definition does. A file that never colours
 anything keeps the layout it had. A file that carries a tone records a minimum
 host of 1.19. A host that does not know the table would draw the option grey and,
@@ -667,15 +675,16 @@ its numbers beside it (ADR-0004, 2026-09-14 amendment, S1). Two kinds exist. Bot
 are tiles in the same sense as a `summaryTile`:
 
 - They are accepted where a `summaryTile` is accepted: `recordList`,
-  `boardSurface`, `detailSurface` and `section`. They are not yet accepted inside
+  `boardSurface`, `gallerySurface`, `matrixSurface`, `overviewSurface`,
+  `detailSurface` and `section`. They are not yet accepted inside
   a `relatedList`, where they are refused and not drawn empty.
 - They are scoped as a `summaryTile` is scoped.
 - They refuse the numbers it refuses, by the same codes.
 
 | Kind | Properties | Children | What it states |
 | --- | --- | --- | --- |
-| `breakdownChart` | `groupByFieldId` and `aggregate` (required), `fieldId`, `title`, `scope` | `filterClause` | one exact number per group, over the records its scope covers |
-| `progressTile` | `title` | `filterClause` (at least one) | the records matching its own clauses over everything its scope covers, as two exact counts |
+| `breakdownChart` | `groupByFieldId` and `aggregate` (required), `fieldId`, `title`, `scope`, `entityId` | `filterClause` | one exact number per group, over the records its scope covers |
+| `progressTile` | `title`, `entityId` | `filterClause` (at least one) | the records matching its own clauses over everything its scope covers, as two exact counts |
 
 The closed groupings are a single-choice field's options, in their configured
 order, and `false` then `true` for a Boolean. The unset group comes last. A
@@ -743,8 +752,9 @@ the square. A `trendChart` takes the same exact aggregates as a `summaryTile`,
 and `avg` stays refused by name.
 
 **The range spends two of the filter budget.** The two bounds are predicates that
-the host adds to the query. So a `trendChart` carries at most six authored
-`filterClause` children, where a tile elsewhere carries eight. The `NUI300`
+the host adds to the query. So a `trendChart` or an `activityGrid` carries at
+most six authored `filterClause` children, where a tile elsewhere carries eight.
+At `group` scope on a board, the column predicate is a third. The `NUI300`
 refusal names the two predicates that the host adds, so the author does not have
 to work out why the number is six. Because the bounds are in the query, a record
 with no date, or one outside the range, never reaches the fold. So the result has
@@ -834,8 +844,8 @@ nobody configured.
 **The cross product spends the group ceiling.** `MaximumAggregateGroups` is 366,
 and the two option sets plus their unset lanes must multiply to a value inside it.
 So the widest grid that fits is about nineteen by nineteen. A definition that is
-already over the ceiling is refused when it is authored (`NUI413`, which names
-both fields and their counts). A definition that grows over the ceiling later is
+already over the ceiling is refused when it is authored (`NUI413`, which states
+the rows, the columns and the cells, unset lanes included). A definition that grows over the ceiling later is
 refused **when it is read**, and the surface states that it cannot draw the grid.
 Option sets change without any change to the screen, so both checks are
 necessary. To draw only the cells that fit is the one wrong answer, because a
@@ -1034,6 +1044,7 @@ refuses. Composition spends the budget as follows:
 | Overview tile, chart or recent list | its own clauses, over the whole record type it names; an overview adds no predicate of its own |
 | Chart on a surface | the surface's clauses plus the chart's own; the grouping is not a filter |
 | Board column chart | the board's clauses, the chart's own, and one column predicate |
+| Trend chart or activity grid | its context's clauses, its own, and the two date bounds of its range; at `group` scope, also one column predicate |
 | Progress ring | its own clauses over its scope, and the scope alone, as two counts |
 
 An over-budget definition is `NUI300`. The refusal names the node, the property
@@ -1053,7 +1064,7 @@ the shape cannot show (below). The ladder is:
 | --- | --- |
 | Any custom surface | 1.1 |
 | Composable semantic surfaces (`definitionVersion` 3) | 1.11 |
-| A summary tile on a list or board, or any `scope` | 1.12 |
+| A summary tile on a list, board or gallery, or any `scope` | 1.12 |
 | More than one `recordCommand` root on one record type | 1.13 |
 | More than one `recordList` or `boardSurface` root on one record type | 1.14 |
 | Named tabs (`tabGroup`) | 1.15 |

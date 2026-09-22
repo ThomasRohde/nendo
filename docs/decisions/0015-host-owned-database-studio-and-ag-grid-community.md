@@ -144,6 +144,9 @@ The gates that discriminate the decision have the following disposition:
 
 Record evidence under `docs/experiments/results/` with exact versions, commands, measurements and limitations.
 
+Note (2026-09-22): `docs/experiments/` is no longer in the repository. This ADR
+is now the only record of the EX-0002, EX-0003, DS1 and DS2 results.
+
 ## Owner decision and deferred obligation
 
 On 2026-09-02, repository owner Thomas Klok Rohde explicitly directed: “Skip

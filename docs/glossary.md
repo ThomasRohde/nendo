@@ -45,7 +45,7 @@ A versioned form, list, board, gallery, calendar, timeline, record page, command
 Prose that a `.nendo` file carries about itself to say what the file is for.
 `application.setPurpose` sets it. It is read first from
 `nendo://application/describe`, and Nendo shows it to a person under the file's
-name. It belongs to the file and not to a record type or a node. Thus a file with
+name in About this file, in the File menu. It belongs to the file and not to a record type or a node. Thus a file with
 no front page also has one. The `description` of a front page is a separate
 sentence about that page. If the author of a file has said nothing, the file
 carries nothing. Nendo does not derive a value from the file name.
@@ -88,7 +88,7 @@ The monotonic audit order across data and definition changes.
 
 ## Reversibility class
 
-A declared operation property: `reversible`, `reversible-with-retained-state`, or `irreversible-declared`.
+A declared operation property: `Reversible`, `ReversibleWithRetainedState`, or `IrreversibleDeclared`. MCP payloads carry these names in camelCase.
 
 ## Compensation
 

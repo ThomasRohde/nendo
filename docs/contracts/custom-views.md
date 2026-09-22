@@ -132,9 +132,9 @@ exact archive digest, and the byte length and SHA-256 of every listed asset. It
 reads all entries within bounds. It extracts nothing and executes nothing. Asset
 getters return copies. Validation does not grant installation or device consent.
 
-The manifest has a closed version-1 shape. It allows only the `projection.read`
+The manifest has a closed version-1 shape. It requires exactly the `projection.read`
 and `record.select` capabilities. It declares a namespaced package ID, a version,
-an HTML entry point, a license and an exact asset inventory. HTML/CSS/JavaScript
+a protocol version, an HTML entry point, a license and an exact asset inventory. HTML/CSS/JavaScript
 assets and text license assets are allowed. The following are refused: unknown
 entries/properties, native payloads, invalid UTF-8, duplicate/case-colliding
 paths, traversal, absolute paths, alternate streams, reserved Windows names, links
@@ -211,12 +211,13 @@ column because both halves are child windows drawn over the page, and an element
 under either of them would never receive a click.
 
 If the person drags the splitter, or presses Left and Right while it has focus,
-the boundary moves within [480 DIPs, window − 420]. The 420 is the width that the
-Workbench keeps. When the window shrinks, the host applies the same clamp again,
+the boundary moves within [480 DIPs, window − 428]. The 420 is the width that the
+Workbench keeps, and the splitter takes the other 8. When the window shrinks, the host applies the same clamp again,
 so the Workbench does not lose that width. A double-click restores the half at
 which the view opened. The width is not remembered: every opened view starts at
-half again. `Place()` already re-positions the contained HWND on `LayoutUpdated`,
-so the HWND follows the drag.
+half again. `Place()` re-positions the contained HWND on `LayoutUpdated`, at most
+once every 60 ms, so the HWND follows a keyboard move. A pointer drag does not move
+the HWND until release, as described below.
 
 The first splitter could be focused and moved with the keyboard, but it could not
 be dragged. It was a lookless `ContentControl` with no content, so WinUI gave it no
@@ -328,8 +329,9 @@ When the rule was restored, the gate passed. The rule changes the package digest
 For this reason, a file pinned to the earlier archive reports the package as
 changed until the package is reinstalled and allowed again.
 
-Both first-party packages keep their own palette, separate from the palette of the
-app. The host sends a theme word and no colours, so the palette is the choice of
+The dependency graph and the work-dependency view keep their own palette, separate
+from the palette of the app. The Systems Lens package (below) copies the tokens of
+the app instead. The host sends a theme word and no colours, so the palette is the choice of
 the package. On 2026-09-21 the owner left it unchanged.
 [Authoring a custom view](../custom-view-authoring.md) carries the values of the
 app for an author who wants to match them.
@@ -366,8 +368,14 @@ layering was removed, the lane failed with
 `a does not sit left of b: {"a":40,"b":40,"c":40,"d":40,"x":40,"y":40,"z":40,"w":40}`.
 When everything behind a cycle was marked as cyclic, as a settle-based pass does,
 the lane failed with `The summary is wrong: 8 work items · 7 links · 2 unblocked · 4 in a
-dependency cycle`. The source was restored and the lane passed. Both packages now
-come from one packer. That refactor did not change the digest of the graph
+dependency cycle`. The source was restored and the lane passed.
+
+A third package, `extensions/systems-lens/`, is the schematic view of Nendo
+Station: `org.nendo.systems-lens` version `0.1.0`, built through
+`Build-NendoSystemsLensPackage.ps1`. `Review-SystemsLens.ps1` measures it in the
+production gate.
+
+All three packages now come from one packer, `Build-NendoViewPackage.ps1`. That refactor did not change the digest of the graph
 (`e40a32c53352455481d56b5e883a26178a74f4ec51c20b2ec8b19507eacc6a86`).
 
 The graph fits itself into view when it opens, again on the next two animation

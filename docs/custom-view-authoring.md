@@ -7,15 +7,17 @@ and the code disagree, the code is current. Then fix the contract and this guide
 to match the code. The authority is
 [ADR-0013](decisions/0013-defer-general-extension-model.md), accepted 2026-09-20.
 
-This repository ships two worked examples. Both are MIT-licensed and have no
+This repository ships three worked examples. All are MIT-licensed and have no
 dependencies:
 
 - [`extensions/dependency-graph/`](../extensions/dependency-graph/README.md), the
   general record graph;
 - [`extensions/work-dependencies/`](../extensions/work-dependencies/README.md), the
-  planner's own dependency view.
+  planner's own dependency view;
+- [`extensions/systems-lens/`](../extensions/systems-lens/README.md), the
+  Nendo Station schematic view.
 
-You can read all of this guide against either example.
+You can read all of this guide against any of the examples.
 
 ## What you can build today
 
@@ -124,12 +126,13 @@ your page.
 | `selectRecord` | `recordId` | The ID must be a node in the **current** projection |
 | `reportError` | `code`, `message` | `code` is `render-failed` or `unsupported-projection`; `message` is at most 1024 characters of plain text |
 
-The host shows `reportError` text as prose. The text is never a command, a
-navigation target or telemetry. A `reportError` clears the host's selection.
+The host does not show the `reportError` text. It clears the host's selection,
+stops the view and shows its own sentence in the pane, which points to Studio. The text is
+never a command, a navigation target or telemetry.
 
 Hard limits:
 
-- **64 KiB** per frame (refused before parsing);
+- **64 KiB** per frame (a larger frame closes the view before parsing);
 - **60 messages per rolling second** (flooding closes the session);
 - maximum JSON depth 8;
 - strict UTF-8.
@@ -251,8 +254,8 @@ gate:
   Every control must stay in bounds there.
 - **Both themes**, driven by `initialize` and `setTheme`.
 - **Stay inside the budget.** The whole contained tree shares 512 MiB and 20% CPU.
-  If the tree exceeds the memory cap, the view stops with `memory-pressure`, and
-  the file stays editable in Studio.
+  If the tree reaches 480 MiB, 32 MiB below the cap, the view stops with
+  `memory-pressure`, and the file stays editable in Studio.
 
 ### Choosing the colours
 
@@ -363,13 +366,13 @@ The digest of the archive **is** the identity. So an unchanged source tree must
 produce an unchanged digest.
 [`tools/Build-NendoViewPackage.ps1`](../tools/Build-NendoViewPackage.ps1) packs any
 package. Give it the source directory, the package ID, the version, the entry
-point and the ordered asset list, as the two one-line wrappers beside it do.
+point and the ordered asset list, as the three one-line wrappers beside it do.
 These properties make the build reproducible:
 
 - a fixed ZIP entry timestamp (`1980-01-01T00:00:00Z`) and `ExternalAttributes = 0`;
 - a fixed entry order, `manifest.json` first;
 - an ordered, compact manifest, so key order does not drift;
-- the file hashes read from the same bytes that are written.
+- the asset hashes computed from the same source files that are written.
 
 Build the package, then read the pin:
 
@@ -462,8 +465,8 @@ where they are:
    toolbar (Open record, Focus graph, Refresh, Studio, Disable view, Close).
 
 File → Custom views manages packages directly. It can install a package, export
-the exact original bytes for offline transfer, remove, disable, or open a view
-after review.
+the exact original bytes for offline transfer, or remove a package. For a view in
+the file, it can review permission, disable the view, or open it after review.
 
 While the view runs, Nendo re-reads the bounded typed view every 500 ms:
 
@@ -492,12 +495,18 @@ changed.
 `ready-timeout`, `message-rate-exceeded`, `message-too-large`, `invalid-message`,
 `invalid-session`, `stale-generation`, `unknown-method`, `invalid-properties`,
 `duplicate-property`, `already-ready`, `not-ready`, `record-outside-projection`,
-`invalid-error`. These three causes are the most frequent:
+`invalid-error`. Three refusals close the session: `not-approved`,
+`ready-timeout` and `message-rate-exceeded`. The first message must be an
+accepted `ready` within five seconds, or the view does not open. After `ready`,
+the host drops any other refused message and the view stays open. An accepted
+`reportError` also stops the view. These three causes are the most frequent:
 
 - the page never sent `ready` (often because an inline script was blocked and the
-  page never ran);
-- a message echoes an old `generation` after a `replaceProjection`;
-- a `selectRecord` names a node that is no longer in the projection.
+  page never ran), so the view does not open;
+- a message echoes an old `generation` after a `replaceProjection`, so the host
+  drops it;
+- a `selectRecord` names a node that is no longer in the projection, so the
+  selection does not change.
 
 **The page is blank.** Check the fit-before-layout case above first.
 

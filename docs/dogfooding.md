@@ -46,7 +46,9 @@ closes**.
 
 **Horizon on a closed item says nothing.** The field is required and has no
 empty value, so delivered and dropped work stays at Later. The completion date
-of that work is its history, and every board except All work filters it out.
+of that work is its history. The views that plan open work (Roadmap, Now,
+Open work by initiative and Horizon against status) filter it out. All work
+keeps it.
 **Decision standing on a closed item is its standing at the time it closed**.
 For example, the S4-S7 items read *Within accepted scope* because their
 amendments were accepted, not because the gate was waived.
@@ -109,8 +111,10 @@ host **1.23.0**. Use opens on it. It shows:
 - a Delivered ring;
 - breakdowns by status and horizon;
 - a Date range over the completion dates;
-- an Evidence section (checks by outcome and **by method**, findings by
-  disposition);
+- a Delivery over time section (delivered by month, and the days anything was
+  delivered this year);
+- an Evidence section (check count, checks by outcome and **by method**,
+  findings by disposition);
 - a Lately section with the last five delivered items and the last five
   observations.
 
@@ -243,7 +247,7 @@ cards keep their concise fields. To see the reference, open the record.
 
 **The ledger is the file, not this document.** There is no ordered or filtered
 read resource. `nendo://application/entity/{id}/records` returns the records of
-a type, fifty to a page, with a `nextCursor` that the same URI takes as
+a type, fifty to a page by default (`?limit=` takes 1 to 100), with a `nextCursor` that the same URI takes as
 `?cursor=`. To find the highest code issued, you must therefore scan that type,
 every page of it. If you read a first page as the whole type, you allocate a
 code that is already taken. This happened on 2026-09-19, when findings ran to
@@ -265,7 +269,7 @@ claims to state what is true now, and only the live file can do that.
 
 ### Reading the file without paying for it twice
 
-- `nendo://application/describe` is ~58 KB, and it answers the reconnaissance
+- `nendo://application/describe` is ~69 KB (measured 2026-09-22), and it answers the reconnaissance
   phase in one call. Read it **once**. The client saves large results to a
   file. After that, query that file; do not read the resource again.
 - For one narrow question, prefer the narrow resource: `manifest` for revisions
@@ -277,7 +281,8 @@ claims to state what is true now, and only the live file can do that.
   `commandId`. It never takes a button label.
 - **Record versions**: a command advances the record once *per step*. For
   example, *Plan now* moves v3 to v5, and *Complete* moves v9 to v11. Every write
-  returns the `recordVersion` that it produced. Carry that value into the next
+  returns the `recordVersion` that it produced. A delete and an idempotent replay
+  return null. Carry that value into the next
   write, and do not compute one. Otherwise the next write is refused as stale.
 - The front page is not one of the applications. It is `surfaces.overview`, and
   each tile under it names the record type that it reads.
@@ -333,6 +338,7 @@ acceptance remains the person's action, also after a reconnect.
 | `nd.work` | Brief, acceptance criteria, horizon, execution, decision standing and dates | `nd.work.initiative` -> initiative |
 | `nd.finding` | Observation, context, severity, disposition and source | Optional `nd.finding.work` -> work |
 | `nd.check` | Expected/actual result, method, outcome, procedure and environment | Required `nd.check.work` -> work |
+| `nd.link` | One dependency between two work items, with an optional note | Required `nd.link.from` (blocker) and `nd.link.to` (blocked item) -> work |
 
 Fields carry the same prefix, for example `nd.work.title`, `nd.work.status` and
 `nd.check.actual`. Record IDs are global. Initial records have names such as
@@ -405,7 +411,10 @@ label.
 ## Screens, calculations and action
 
 The work screens are All work, Roadmap, Now, Review queue, Delivery progress,
-Target dates and Delivery history, with a shared tabbed work page. Initiatives
+Open work by target date, Open work by initiative, Delivered by initiative,
+Horizon against status, Target dates, Delivery history and Work dependencies (a
+custom view over `nd.link`), with a shared tabbed work page. Dependencies have a
+list. Initiatives
 use a gallery and related-work page. Findings have a triage list and
 disposition board. Checks have a list and full evidence form. All required
 create fields appear on the corresponding detail page. No unadvertised defaults

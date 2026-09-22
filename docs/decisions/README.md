@@ -38,6 +38,15 @@ existed. For this reason the numbering is contiguous by intent.
   (ADR-0002/0017), protected view references (0003), typed view bindings (0004)
   and supported-envelope preservation (0012). Pending security/lifecycle checks
   remain release gates.
+- **ADR-0004, 2026-09-20 — a section can be folded away**: every `section` folds.
+  An author can store how a section starts, as the `opens` property with the
+  closed words `open` and `closed`. A person's own fold is renderer state for the
+  file session and is never stored in the file.
+- **ADR-0008, 2026-09-20 — an optional result is quietly empty, and a formula can
+  refuse by name**: a calculation or function with `resultNullable: true` reports
+  an empty result when an empty input stops its formula. A definition declared
+  never to be empty reports `calculation-missing-input`. The catalogue adds
+  `Refuse(text)`, which reports `calculation-refused` with the author's sentence.
 
 - **ADR-0004, 2026-09-18 — a related list is a way in, not only a view**: a
   related list offers two actions. Add opens a new record of the related type,
@@ -262,6 +271,11 @@ existed. For this reason the numbering is contiguous by intent.
   new last rung, with minimum host 1.24.0. If nobody has stated a purpose, it is
   absent; the host does not invent one. The front page's `description` stays the
   front page's.
+- **ADR-0004, 2026-09-14 — colour, charts and the overview page**: a choice option
+  may carry a `tone` from a closed set of named hues. A chart is an exact
+  aggregate over one closed grouping. An `overviewSurface` is one file-level root
+  of sections, tiles, charts and short recent lists. The ADR records each slice
+  of the surfaces and charts plan under this heading as it lands.
 - **ADR-0004, 2026-09-12 — vocabulary widening**: delivered. It adds list/board
   tiles with explicit scope, eight roots per eligible kind/entity, named section
   tabs and Date-only calendars. It includes effective-filter bounds, per-surface
@@ -280,6 +294,10 @@ existed. For this reason the numbering is contiguous by intent.
   node tree, a per-kind child allow-list, and the `detailSurface`, `section`,
   `relatedList`, `commandStep`, `summaryTile` and `filterClause` kinds. (The
   2026-09-12 amendment supersedes its version 1 and 2 compatibility clause.)
+- **ADR-0003, 2026-09-09 — covering index on configured reference columns**: an
+  accepted note. The operation that configures a reference also creates one
+  covering index on its column, so a `relatedList` read of the inverse relation
+  does not walk the table. The host never adds the index on open or as a repair.
 - **ADR-0004, 2026-09-10**: exact `sum`, `min` and `max` on `summaryTile` over an
   Integer or Decimal field. The host refuses `avg`, the refusal names it, and the
   host publishes the reason. This corrected a recorded premise: a Decimal column

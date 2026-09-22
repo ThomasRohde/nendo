@@ -116,6 +116,14 @@ second is a stored default that the renderer ignores; the initial state catches 
 - Animation.
 - A fold on the proposal review itself.
 
+*(Note 2026-09-22: no outcomes were recorded in this entry. The property is in the code.
+The rung is `FoldedSectionMinimumHostVersion` (1.28.0) in `src/Nendo.Engine/NendoFormat.cs`.
+The compiler refusals are `NUI312` (a word outside the set) and `NUI313` (a tab's body).
+Any other kind refuses `opens` as an unsupported property (`NUI090`). The Engine tests are in
+`tests/Nendo.Engine.Tests/FoldedSectionTests.cs`, and the gate step is the folded
+sections in `tools/Gate-AgentAuthoring.mjs`. The contract section "Folding a section
+away" describes the delivered behaviour.)*
+
 ### Accepted amendment — 2026-09-18 (a related list is a way in)
 
 The owner accepted this amendment on 2026-09-18. It is the first entry under this ADR that
@@ -632,6 +640,8 @@ Every slice is recorded below when it lands.
   that is accepted where nothing draws it compiles and then silently disappears. The
   surfaces and charts plan lists `relatedList` among the parents. The plan is a proposal
   and the code is current, and this entry follows the code.
+  *(Note 2026-09-22: S6 later added `matrixSurface`, which accepts the same tiles and
+  charts. See `src/Nendo.Engine/SemanticVocabulary.cs`.)*
 
   The kinds take `filterClause` children. Under an overview they name their own
   `entityId`, and anywhere else they refuse one. `trendChart` takes `aggregate` and
@@ -738,7 +748,7 @@ Every slice is recorded below when it lands.
 
   **A ceiling that already exists bounds the size of a grid.** `MaximumAggregateGroups` is
   366. The cross product of the two axes, unset lanes included, must fit inside it. At
-  nineteen options each, a matrix is at the limit. If the cross product of a definition is
+  eighteen options each (nineteen lanes with the unset lane), a matrix is at the limit. If the cross product of a definition is
   already over the limit, the definition is refused when it is authored. The diagnostic
   names both fields and their counts. If a definition grows over the limit later, it is
   refused **when it is read**. The surface then states that it cannot draw the grid and
@@ -1485,6 +1495,8 @@ host-neutral render plan.
   JavaScript, arbitrary controls, SQL, paths or generic host calls.
 - Render adapters derive stable accessibility/automation targets from semantic IDs. React
   and AG Grid configuration remains transient adapter state.
+  *(Note 2026-09-22: the Workbench does not use React. Its one runtime dependency is
+  `ag-grid-community`, in `src/Nendo.Workbench/package.json`.)*
 - Declarative commands may invoke only a small named effect vocabulary through typed
   application services. General scripting is outside the MVP.
 - Agent-authored definition changes use the application proposal lane in ADR-0007.
