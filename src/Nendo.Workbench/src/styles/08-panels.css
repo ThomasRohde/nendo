@@ -1,0 +1,574 @@
+/* Page headings, the record form card, the field list, history, surface cards
+   and the proposal preview.
+   Slice 08 of styles.css; see that file for why the order matters. */
+
+.page-heading,
+.proposal-heading,
+.use-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.proposal-heading h2 {
+  margin: 0;
+  font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  font-size: 1.65rem;
+  letter-spacing: -0.03em;
+}
+
+.page-heading p,
+.proposal-heading p,
+.data-toolbar p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.health-chip,
+.lane-chip,
+.proposal-state,
+.record-total {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 0.73rem;
+  font-weight: 680;
+}
+
+.health-chip.healthy {
+  color: var(--healthy);
+  border-color: color-mix(in srgb, var(--healthy) 35%, var(--line));
+  background: color-mix(in srgb, var(--healthy) 7%, var(--surface));
+}
+
+.health-chip.warning {
+  color: var(--warning);
+}
+
+.definition-card,
+.surface-command,
+.rename-form,
+.context-note,
+.record-form-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.definition-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.definition-title > div {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.definition-title h2,
+.surface-card h3 {
+  margin: 0 0 5px;
+  font-size: 1.05rem;
+}
+
+.definition-title > strong {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.entity-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  color: #fff;
+  background: var(--cobalt);
+  font-weight: 760;
+}
+
+.field-list {
+  display: grid;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: minmax(250px, 1.6fr) repeat(3, minmax(100px, 0.65fr));
+  align-items: center;
+  gap: 18px;
+  min-height: 66px;
+  padding: 11px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.field-row:last-child {
+  border-bottom: 0;
+}
+
+.field-row > div {
+  display: grid;
+  gap: 5px;
+}
+
+.field-row > span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.field-row > .field-kind { overflow-wrap: anywhere; }
+
+.field-row code,
+.definition-title code,
+.surface-card code,
+.surface-command code,
+.history-entry code {
+  width: fit-content;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.72rem;
+}
+
+.context-note {
+  max-width: 680px;
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-left: 3px solid var(--violet);
+}
+
+.context-note p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.surface-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.surface-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.surface-card > div:last-child {
+  padding: 16px;
+}
+
+.surface-card h3 {
+  margin-top: 12px;
+}
+
+.surface-card p {
+  min-height: 40px;
+  margin: 6px 0 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.surface-preview {
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+  height: 104px;
+  padding: 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.surface-preview span {
+  display: block;
+  flex: 1;
+  border: 1px solid color-mix(in srgb, var(--cobalt) 30%, var(--line));
+  border-radius: 6px;
+  background: var(--surface-raised);
+}
+
+.surface-preview.form span {
+  height: 18px;
+}
+
+.surface-preview.list {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.surface-preview.list span {
+  width: 100%;
+}
+
+.surface-preview.board span:nth-child(1) { height: 72%; }
+.surface-preview.board span:nth-child(2) { height: 100%; }
+.surface-preview.board span:nth-child(3) { height: 48%; }
+
+.surface-command,
+.rename-form {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.surface-command > div {
+  display: grid;
+  gap: 5px;
+}
+
+.rename-form {
+  justify-content: flex-start;
+}
+
+.rename-form label {
+  font-weight: 650;
+}
+
+.rename-form input {
+  width: min(360px, 50%);
+}
+
+.diagnostics,
+.empty-inline {
+  max-width: 780px;
+  padding: 26px;
+  border: 1px solid color-mix(in srgb, var(--warning) 34%, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--warning) 5%, var(--surface));
+}
+
+.diagnostics > h3,
+.empty-inline h3 {
+  margin-top: 0;
+}
+
+.diagnostics > p,
+.empty-inline p,
+.diagnostics article p {
+  color: var(--muted);
+}
+
+.diagnostics article {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.proposal-heading {
+  display: block;
+  max-width: 760px;
+}
+
+.proposal-heading .text-button {
+  margin-bottom: 22px;
+}
+
+.proposal-heading .proposal-state {
+  margin-left: 12px;
+  color: var(--cobalt);
+}
+
+.proposal-heading h2 {
+  margin-top: 14px;
+  font-size: 2rem;
+}
+
+.proposal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(290px, 0.75fr);
+  gap: 20px;
+}
+
+.proposal-changes,
+.proposal-summary {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.proposal-changes h3,
+.proposal-summary h3 {
+  margin: 0;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.proposal-changes article {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.proposal-changes article:last-child {
+  border-bottom: 0;
+}
+
+.proposal-changes p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.change-mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--cobalt);
+  background: var(--cobalt-soft);
+  font-weight: 800;
+}
+
+.proposal-summary {
+  align-self: start;
+}
+
+.proposal-summary dl {
+  margin: 0;
+  padding: 8px 20px;
+}
+
+.proposal-summary dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.proposal-summary dt {
+  color: var(--muted);
+}
+
+.proposal-summary dd {
+  margin: 0;
+  font-weight: 650;
+}
+
+/* Every screen a proposal builds, named. A contract version 3 application has no
+   fixed slots, so the review lists what it holds rather than four labelled rows. */
+.proposal-surfaces {
+  margin: 0;
+  padding: 4px 20px 12px;
+  list-style: none;
+}
+
+.proposal-surfaces li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.proposal-surfaces li:last-child {
+  border-bottom: 0;
+}
+
+.proposal-surfaces .surface-kind {
+  grid-row: 1;
+  grid-column: 2;
+  align-self: center;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.proposal-surfaces strong {
+  grid-row: 1;
+  grid-column: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.proposal-surfaces li > span:not(.surface-kind) {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* The size goes under the record type rather than beside it. A board grouped by a
+   reference says a whole sentence about why it would draw nothing, and that does not
+   fit on a line it shares with anything else. */
+.proposal-surfaces li > span.surface-shape {
+  grid-row: 3;
+}
+
+.proposal-summary > p {
+  margin: 0;
+  padding: 4px 20px 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+/* A frozen preview cannot compute a rollup or fetch related rows, so it says what
+   the surface will do instead of showing a number that is not real. */
+.preview-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.preview-filter {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.command-steps {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.digest {
+  margin: 14px 20px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+/* Accepting is the most consequential thing a person does in this product, and the
+   button for it used to sit at the end of the summary column -- below "What this builds",
+   which on a real file lists every record type and every screen. A proposal against the
+   planner put it a screen and a half down, so the answer to "will you accept this?" had to
+   be hunted for. It stays on screen now while the review above it is read. */
+.proposal-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  padding: 16px 20px 20px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 13px 13px;
+}
+
+.use-page {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.use-toolbar {
+  min-height: 70px;
+  margin: 0;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.use-toolbar > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.view-switcher,
+.theme-control {
+  display: flex;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+/* The selected view remains visible with any supported number of surfaces. */
+.surface-picker { position: relative; min-width: 0; }
+.surface-picker summary {
+  display: flex; align-items: center; gap: 12px;
+  min-height: 38px; padding: 6px 12px;
+  border: 1px solid var(--line); border-radius: var(--radius-control);
+  background: var(--surface-raised); cursor: pointer; list-style: none;
+}
+.surface-picker summary::-webkit-details-marker { display: none; }
+.surface-picker summary strong { font-size: 0.82rem; overflow-wrap: anywhere; }
+.surface-picker-label { color: var(--muted); font-size: 0.82rem; }
+.surface-picker-chevron { display: flex; align-items: center; flex: 0 0 auto; margin-left: auto; color: var(--muted); }
+.surface-picker-chevron .outline-icon { width: 16px; height: 16px; }
+.surface-picker[open] .surface-picker-chevron { transform: rotate(180deg); }
+.surface-picker[open] summary { border-color: var(--cobalt); }
+.surface-picker-options {
+  position: absolute; z-index: 20; top: calc(100% + 8px); left: 0;
+  width: max(100%, 280px); max-width: min(420px, 75vw);
+  max-height: min(420px, 60vh); overflow: auto;
+  display: grid; gap: 4px; padding: 6px;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface-raised); box-shadow: 0 12px 32px #0003;
+}
+.surface-picker-options button {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  width: 100%; min-height: 42px; padding: 9px 12px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--ink);
+  text-align: left; overflow-wrap: anywhere;
+}
+.surface-picker-options button small { color: var(--muted); font-weight: 400; }
+.surface-picker-options button:hover { background: var(--surface-soft); }
+.surface-picker-options button[aria-pressed="true"] { background: var(--cobalt-soft); color: var(--cobalt); }
+.use-toolbar > .toolbar-group { flex-wrap: wrap; }
+
+.view-switcher button {
+  min-width: 72px;
+  min-height: 32px;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+  white-space: nowrap;
+}
+
+.view-switcher button[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--surface-raised);
+  box-shadow: 0 1px 5px rgba(35, 45, 68, 0.12);
+  font-weight: 670;
+}
+
+.use-message {
+  width: auto;
+  margin: 10px 16px 0;
+}
+
+.use-layout {
+  --record-inspector-width: 330px;
+  display: grid;
+  min-height: 0;
+}
+
+.use-layout.has-inspector {
+  grid-template-columns: minmax(0, 1fr) var(--record-inspector-width);
+}
+
+.use-surface {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--surface-soft);
+}

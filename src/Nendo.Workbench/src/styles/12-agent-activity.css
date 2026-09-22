@@ -1,0 +1,405 @@
+/* The Agent page's live pane: presence, pending changes and the activity list.
+   Slice 12 of styles.css; see that file for why the order matters. */
+
+/* The live pane. */
+.agent-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.agent-heading h2 {
+  margin: 0;
+  font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  font-size: 1.45rem;
+  font-weight: 680;
+  letter-spacing: -0.03em;
+}
+
+.agent-heading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.agent-ready {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 7px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 0.8rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.agent-ready > span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.agent-ready.ready {
+  color: var(--healthy);
+  border-color: color-mix(in srgb, var(--healthy) 35%, var(--line));
+  background: color-mix(in srgb, var(--healthy) 7%, var(--surface));
+}
+
+.agent-ready.ready > span {
+  background: var(--healthy);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--healthy) 13%, transparent);
+}
+
+.agent-presence {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.agent-presence > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.presence-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 690;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.agent-presence strong,
+.agent-presence small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-presence small {
+  color: var(--muted);
+}
+
+.pending-changes > header,
+.agent-activity > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.pending-changes > header span,
+.agent-activity > header span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.pending-changes > header .pending-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--violet) 35%, var(--line));
+  border-radius: 999px;
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 8%, var(--surface));
+  font-size: 0.73rem;
+  font-weight: 680;
+}
+
+.pending-changes article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border: 1px solid color-mix(in srgb, var(--violet) 30%, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--violet) 5%, var(--surface));
+}
+
+.pending-changes article + article {
+  margin-top: 10px;
+}
+
+.pending-changes article p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.proposal-spark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 12%, var(--surface));
+}
+
+.activity-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activity-list li {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+}
+
+.activity-list strong,
+.activity-list p {
+  display: block;
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-list p,
+.activity-list time {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.activity-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--healthy);
+}
+
+.activity-mark.rejected {
+  background: var(--danger);
+}
+
+.quiet-state {
+  padding: 6px 0 4px;
+  color: var(--muted);
+}
+
+.quiet-state strong {
+  color: var(--ink);
+}
+
+.quiet-state p {
+  margin: 4px 0 0;
+  font-size: 0.86rem;
+}
+
+.proposal-diagnostic .change-mark {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+}
+
+@media (max-width: 1020px) {
+  .agent-page {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-controls {
+    padding: 26px 28px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .agent-live {
+    padding: 26px 28px 32px;
+  }
+
+  .agent-help-entry {
+    margin-top: 4px;
+  }
+}
+
+@media (max-height: 800px) and (min-width: 651px) {
+  .agent-controls {
+    gap: 20px;
+    padding: 22px 24px 22px 26px;
+  }
+
+  .agent-live {
+    gap: 18px;
+    padding: 22px 30px 26px;
+  }
+
+  .permission-intro {
+    margin-bottom: 10px;
+  }
+
+  .permission-step {
+    min-height: 46px;
+    padding-block: 4px;
+  }
+
+  .step-marker {
+    width: 32px;
+    height: 32px;
+  }
+
+  .permission-track::before {
+    top: 22px;
+    bottom: 22px;
+  }
+
+  .agent-presence {
+    gap: 18px;
+    padding: 14px 18px;
+  }
+
+  .activity-list li {
+    padding: 9px 0;
+  }
+
+  .pending-changes article {
+    padding: 11px 16px;
+  }
+}
+
+@media (max-width: 650px) {
+  .agent-controls,
+  .agent-live {
+    padding: 22px 18px;
+  }
+
+  .agent-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .agent-presence {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .agent-presence .secondary-button {
+    justify-self: start;
+  }
+
+  .connection-setting {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-list li {
+    grid-template-columns: 12px minmax(0, 1fr);
+  }
+
+  .activity-list time {
+    grid-column: 2;
+  }
+
+  .pending-changes article {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .pending-changes article .secondary-button {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+@media (forced-colors: active) {
+  .permission-step[aria-pressed="true"] .step-marker,
+  .connection-toggle[aria-pressed="true"] .switch-glyph,
+  .agent-ready.ready > span,
+  .activity-mark {
+    background: Highlight;
+  }
+
+  .switch-glyph {
+    border: 1px solid CanvasText;
+  }
+}
+
+/* A small physical window at the device's scale still needs reachable file
+   controls. Keep the permanent routes in a compact rail, with accessible names. */
+@media (max-width: 840px) and (max-height: 600px) {
+  .app-shell { grid-template-columns: 56px minmax(0, 1fr); grid-template-rows: 1fr; }
+  .rail { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 6px; border-right: 1px solid var(--line); border-bottom: 0; }
+  .brand { height: 32px; margin: 0 0 4px; }
+  .brand img { width: 40px; max-height: 32px; object-fit: contain; }
+  .primary-nav, .studio-nav { display: flex; flex-direction: column; gap: 3px; overflow: visible; margin: 0; }
+  .rail .nav-item { display: flex; justify-content: center; width: 42px; min-width: 0; min-height: 30px; padding: 5px; }
+  .rail .nav-symbol { display: inline; }
+  .rail .nav-item > span:not(.nav-symbol) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .workspace { padding: 0 10px 8px; }
+  .status-bar { min-height: 20px; padding: 4px 2px 0; font-size: .7rem; }
+  .status-bar .status-pill { height: 18px; padding: 0 7px; font-size: .68rem; }
+  .workspace-header { min-height: 65px; padding: 10px 0; gap: 10px; flex-direction: row; align-items: center; }
+  .workspace-header h1 { font-size: 1.2rem; }
+  .header-controls { width: auto; flex-direction: row; flex-wrap: nowrap; gap: 6px; }
+  .theme-control button, .history-control button { padding: 0; width: 30px; min-width: 30px; min-height: 30px; }
+  .file-menu summary { padding: 8px 10px; }
+  .file-menu-panel { max-height: calc(100dvh - 90px); }
+  .file-menu-panel button { padding: 7px 10px; }
+  .file-notice { margin-bottom: 6px; padding: 6px 10px; font-size: .8rem; }
+  .no-file-empty { width: 94%; padding: 12px 0; gap: 8px; }
+  .no-file-empty .empty-brand-mark { width: 42px; height: 42px; margin: 0; }
+  .no-file-empty h2 { margin: 0; font-size: 1.5rem; }
+  .no-file-empty > p { margin: 0; font-size: .88rem; line-height: 1.4; }
+  .no-file-empty .action-row { margin-top: 4px; gap: 10px; }
+  .no-file-empty .action-row button { padding: 9px 12px; }
+  .recent-files { margin-top: 4px; }
+  .recent-file { padding: 5px 0; }
+  .file-health-page { padding: 12px; }
+  .file-health-page .page-heading { flex-direction: row; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .file-health-page .health-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .file-health-page .health-grid section { padding: 9px; }
+  .file-health-page .health-grid h2 { margin: 0 0 4px; font-size: .85rem; }
+  .file-health-page .health-grid p { font-size: .78rem; }
+  .recovery-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 10px; }
+  .recovery-findings, .recovery-action-list { padding: 10px; }
+  .recovery-layout h2 { margin: 0 0 8px; font-size: .9rem; }
+  .recovery-findings p, .recovery-findings summary { font-size: .8rem; line-height: 1.4; }
+  .recovery-action-list { display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: 6px; }
+  .recovery-action-list h3 { grid-column: 1 / -1; }
+  .recovery-action-list button { padding: 7px; font-size: .8rem; line-height: 1.25; }
+}
+.page-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: .85rem; }
+.page-controls button:disabled { opacity: .45; cursor: default; }
+.record-window-controls { padding: 12px 20px; border-bottom: 1px solid var(--line); }
+.operation-details { margin: 8px 0; padding-left: 18px; font-size: .85rem; line-height: 1.7; }
+/* Bounded reference selection keeps record IDs separate from readable labels. */
+.reference-control { display: grid; gap: 8px; min-width: 0; }
+.reference-selected { overflow-wrap: anywhere; }
+.reference-picker { border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.reference-picker[hidden] { display: none; }
+.reference-results { display: grid; max-height: 220px; overflow-y: auto; margin-top: 10px; }
+.reference-result { text-align: left; padding: 10px; border: 0; border-bottom: 1px solid var(--line); color: inherit; background: transparent; overflow-wrap: anywhere; cursor: pointer; }
+.reference-result:hover, .reference-result:focus-visible { background: var(--surface); outline: 2px solid var(--cobalt); outline-offset: -2px; }
+ .record-delete-dialog { max-width: 32rem; padding: 2rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); color: var(--ink); }
+ .record-delete-dialog::backdrop { background: rgb(10 20 40 / 45%); }
+ .record-delete-dialog p { overflow-wrap: anywhere; }
+.field-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.proposal-live-preview { margin-top: 24px; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); min-width: 0; }
+.preview-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.preview-controls label { display: grid; gap: 6px; max-width: 100%; }
+.preview-controls select { max-width: 22rem; }
+.preview-count { color: var(--muted); }
+.preview-content { max-height: 560px; overflow: auto; }
+.preview-content .record-board { min-height: 180px; }
+.preview-content .record-card { overflow-wrap: anywhere; }
+.preview-content textarea { resize: vertical; }

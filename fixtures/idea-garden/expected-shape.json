@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Evaluator-facing intent for the Idea Garden journey; not a storage or API contract",
+  "entity": {
+    "stableId": "idea",
+    "displayName": "Idea",
+    "fields": [
+      { "stableId": "title", "storage": "text", "required": true },
+      { "stableId": "notes", "storage": "text", "presentation": "longText" },
+      {
+        "stableId": "status",
+        "storage": "text",
+        "presentation": "singleChoice",
+        "options": ["Idea", "Exploring", "Trying", "Paused", "Done"]
+      },
+      {
+        "stableId": "energy",
+        "storage": "text",
+        "presentation": "singleChoice",
+        "options": ["Low", "Medium", "High"]
+      },
+      { "stableId": "createdDate", "storage": "date" },
+      { "stableId": "nextAction", "storage": "text" }
+    ]
+  },
+  "surfaces": [
+    {
+      "stableId": "idea.edit",
+      "kind": "recordForm",
+      "intent": "Focused editing of one idea with clear validation"
+    },
+    {
+      "stableId": "idea.board",
+      "kind": "board",
+      "groupBy": "status",
+      "cardFields": ["title", "energy", "nextAction"],
+      "intent": "See portfolio shape and move an idea between status groups"
+    }
+  ],
+  "commands": [
+    {
+      "stableId": "idea.moveToTrying",
+      "kind": "declarative",
+      "effect": { "set": { "status": "Trying" } }
+    }
+  ],
+  "validation": [
+    {
+      "field": "title",
+      "rule": "notBlank"
+    }
+  ]
+}

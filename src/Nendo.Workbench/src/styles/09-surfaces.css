@@ -1,0 +1,1091 @@
+/* Boards and their columns, record cards, summary tiles, the calendar, record
+   page tabs and related lists.
+   Slice 09 of styles.css; see that file for why the order matters. */
+
+.record-board {
+  display: grid;
+  grid-template-columns: repeat(var(--group-count, 1), minmax(180px, 1fr));
+  gap: 12px;
+  min-width: max(100%, calc(var(--group-count, 1) * 192px));
+  min-height: 100%;
+  padding: 16px;
+}
+
+.board-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+}
+
+.board-column > header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.board-column > header > h3:first-child { grid-column: 1 / span 2; }
+
+.board-column h3 {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.board-column header strong {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-color, var(--muted));
+}
+
+/* A rating (ADR-0004, 2026-09-14, S2): dots for the scale, filled to the value. The
+   dots are decoration — the accessible name carries the number — and a value outside
+   the scale is shown as itself rather than as a count nobody chose. */
+.rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.rating-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+}
+
+.rating-dot.is-filled {
+  border-color: var(--cobalt);
+  background: var(--cobalt);
+}
+
+.rating.is-outside {
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rating-issue {
+  color: var(--warning);
+  font-size: 0.78rem;
+}
+
+.card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-height: 140px;
+  padding: 9px;
+}
+
+.record-card {
+  display: grid;
+  gap: 9px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--surface-raised);
+  text-align: left;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.record-card:hover {
+  border-color: color-mix(in srgb, var(--cobalt) 45%, var(--line));
+}
+
+.record-card.can-drag { cursor: grab; touch-action: none; user-select: none; }
+.record-card.is-dragging { opacity: 0.5; cursor: grabbing; }
+.board-column.drop-target { outline: 3px solid Highlight; outline-offset: -3px; }
+
+.record-card > strong {
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.card-values {
+  display: grid;
+  gap: 7px;
+}
+
+.card-values > span {
+  display: grid;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.card-values small {
+  color: color-mix(in srgb, var(--muted) 78%, transparent);
+  font-size: 0.66rem;
+  font-weight: 650;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.record-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.record-card em {
+  color: var(--violet);
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 650;
+}
+
+.record-card small {
+  color: var(--muted);
+}
+
+.muted-card,
+.empty-column {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.empty-column {
+  margin: 22px 0;
+  text-align: center;
+  font-size: 0.75rem;
+}
+
+.record-inspector {
+  min-height: 0;
+  overflow: auto;
+  border-left: 1px solid var(--line);
+  background: var(--surface-raised);
+}
+
+.record-inspector > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 53px;
+  padding: 10px 15px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 700;
+}
+
+.record-form {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.record-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+/* A contract version 3 summary tile: one exact count over a filtered set. */
+.summary-tile {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+
+.summary-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.summary-title {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* What the number covers. Without it a total over the whole filtered set reads
+   as a count of the cards on screen, which is the one thing it is not. */
+.summary-context {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.summary-failed {
+  color: var(--danger-text, var(--muted));
+  font-size: 1rem;
+}
+
+/* Surface totals sit above the record window, and a column's totals sit under
+   its header. Both wrap rather than pushing the records off screen. */
+.summary-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.use-surface > .summary-tiles {
+  margin: 20px 16px 4px;
+}
+
+.board-column > header,
+.board-column > .summary-tiles { flex: 0 0 auto; }
+.board-column > .card-stack { flex: 1 0 auto; }
+
+.board-column .summary-tiles {
+  margin: 0 12px 8px;
+}
+
+.board-column .summary-tile {
+  flex: 1 1 auto;
+  padding: 8px 10px;
+}
+
+.board-column .summary-value {
+  font-size: 1.1rem;
+}
+
+/* A stored choice outside the board's configured options is a data issue, not a
+   missing value: the Ungrouped total asks for an absent value, so such a record
+   is not in it. */
+.column-data-issue {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* A Date calendar: one month, Monday first. The grid scrolls rather than
+   shrinking the cells past readability on a narrow frame. */
+.calendar-surface { padding: 16px; }
+/* A gallery (ADR-0004, 2026-09-14, S2): the same cards a board stacks in columns, laid
+   out as a grid over one page of records. The column count follows the frame rather than
+   a stored number, because a card grid has no groups to keep in step. The cards stretch
+   to the tallest in their row, so a value drawn as dots does not leave a short card
+   beside a tall one. These rules sit after .use-surface > .summary-tiles deliberately:
+   they carry the same specificity, so the later one is the one that wins, and a tile
+   indented past the grid it describes is what happens when they sit before it. */
+.gallery-surface { padding: 16px; }
+.gallery-surface > .summary-tiles { margin: 4px 0 16px; }
+
+.record-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+/* A stretched card lays its content out as a column so the version footer sits on the
+   card's own bottom edge rather than floating under the last value it happens to have.
+   A board card keeps its grid: it is sized by its content in a stack, not by a row. */
+.record-gallery .record-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.record-gallery .record-card footer { margin-top: auto; }
+
+/* Opening a card adds the sibling inspector. Retain the grid's previous width so the
+   cards do not narrow and slide left under the pointer that opened one; the surface
+   already owns horizontal scrolling for the space the inspector takes. This is the
+   calendar's rule for the same reason: a column count that recomputes while a person is
+   reading is a layout that moves out from under them. */
+@media (min-width: 651px) {
+  .use-layout.has-inspector .gallery-surface .record-gallery {
+    min-width: calc(100% + var(--record-inspector-width));
+  }
+}
+
+.calendar-surface > .summary-tiles { margin: 4px 0 16px; }
+.calendar-surface > .record-list { padding: 0; }
+.calendar-surface > [data-calendar-more] { margin-top: 12px; }
+
+.calendar-toolbar,
+.timeline-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.calendar-month,
+.timeline-year {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.calendar-state,
+.timeline-state {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0 0 8px;
+}
+
+.record-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(96px, 1fr));
+  gap: 1px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--line);
+}
+
+/* Opening a calendar entry adds the sibling inspector. Retain the calendar's
+   previous width so its seven day tracks do not reflow under the pointer; the
+   surface already owns horizontal scrolling for the space the inspector takes. */
+@media (min-width: 651px) {
+  .use-layout.has-inspector .calendar-surface .record-calendar {
+    min-width: calc(100% + var(--record-inspector-width));
+  }
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.calendar-weekdays span {
+  padding: 6px 8px;
+}
+
+.calendar-cell {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+  min-height: 86px;
+  padding: 6px;
+  background: var(--surface-raised);
+}
+
+.calendar-cell.is-padding {
+  background: var(--surface);
+}
+
+.calendar-cell.is-today {
+  box-shadow: inset 0 0 0 2px var(--cobalt);
+}
+
+.calendar-day {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+/* A day with nothing loaded is not a day with nothing in it, so the wording
+   differs by whether the month has been read to the end. */
+.calendar-empty {
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin: 0;
+}
+
+.calendar-entry {
+  overflow: hidden;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--surface);
+  font-size: 0.78rem;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-entry:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 1px;
+}
+
+/* A timeline: one year of a Date field as a spine of month headings, with an
+   optional end date drawn as a bar to scale over the year. The dot on the rail
+   takes the entry's tone; the bar is decoration beside its own sentence, which
+   carries both dates and the day count. */
+.timeline-surface { padding: 16px; }
+.timeline-surface > .summary-tiles { margin: 4px 0 16px; }
+.timeline-surface > .record-list { padding: 0; }
+.timeline-surface > [data-timeline-more] { margin-top: 12px; }
+
+.timeline-note {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0 0 12px;
+}
+
+.record-timeline {
+  display: grid;
+  gap: 18px;
+  margin-left: 6px;
+  padding-left: 18px;
+  border-left: 2px solid var(--line-strong);
+}
+
+.timeline-month {
+  display: grid;
+  gap: 6px;
+}
+
+.timeline-month h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* A month with nothing loaded is not a month with nothing in it, so the wording
+   differs by whether the year has been read to the end. */
+.timeline-empty {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.timeline-entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 4px 10px;
+  align-items: start;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* The dot sits on the rail: back across the entry's border and the spine's
+   padding to the centre of the 2px line, less half its own width. */
+.timeline-entry > .status-dot {
+  position: absolute;
+  top: 14px;
+  left: calc(-20px - 4px);
+}
+
+.timeline-date {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.timeline-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.timeline-title {
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.timeline-span {
+  display: block;
+  width: var(--span, 0%);
+  min-width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--status-color, var(--muted));
+}
+
+.timeline-span.is-clipped {
+  -webkit-mask-image: linear-gradient(to right, #000 70%, transparent);
+  mask-image: linear-gradient(to right, #000 70%, transparent);
+}
+
+.timeline-span-text,
+.timeline-issue {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.timeline-issue { color: var(--warning); }
+
+.timeline-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 0.8rem;
+}
+
+.timeline-values span { display: inline-grid; gap: 1px; }
+.timeline-values small { color: var(--muted); font-size: 0.7rem; }
+
+.timeline-entry:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 1px;
+}
+
+/* Named tabs on a record page. Every panel is in the form, so a tab change is a
+   visibility change: an unsaved value in a closed tab is still there to save. */
+.tab-group {
+  display: grid;
+  gap: 10px;
+}
+
+.tablist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.tablist [role="tab"] {
+  min-height: 30px;
+  max-width: 20ch;
+  padding: 4px 11px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  background: transparent;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tablist [role="tab"][aria-selected="true"] {
+  color: var(--ink);
+  background: var(--surface-raised);
+  box-shadow: 0 1px 5px rgba(35, 45, 68, 0.12);
+  font-weight: 670;
+}
+
+/* Roving focus means one tab stop for the strip, so the focused tab has to be
+   visible in both themes rather than relying on the selected background. */
+.tablist [role="tab"]:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 1px;
+}
+
+[role="tabpanel"] {
+  display: grid;
+  gap: 10px;
+}
+
+/* A field bound twice on one page has one editor, at its first position. The
+   repeat says where that is rather than offering a second draft value. */
+.field-repeat {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+/* A contract version 3 related list: the inverse of a reference, shown on a
+   record page. */
+.related-list {
+  display: grid;
+  gap: 8px;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+/* The heading and the one action that belongs beside it: Add, which makes a record of
+   the related type already pointing at this one. */
+.related-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.related-list h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.related-head .related-add {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+
+/* Why there is no Add, where the related type has no screen of its own to add it on. */
+.related-no-screen {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.related-rows {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.related-rows li {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+
+/* A row that opens the record it names. It is a button inside the row rather than around
+   it so the row keeps its own border and spacing in both states, and it carries no colour
+   of its own: the tokens above already answer Light and Dark. */
+.related-rows li:has(.related-row) {
+  padding: 0;
+}
+
+.related-rows .related-row {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.related-rows .related-row:hover {
+  background: var(--surface-soft);
+}
+
+.related-rows .related-row:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: -2px;
+}
+
+.related-rows li span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* The way back to the record a related row was opened from. */
+.related-back {
+  white-space: nowrap;
+}
+
+/* What a record added from a related list will point at, on a create form whose record
+   page does not bind the field itself. It leads the form because it is the reason the
+   form is open. */
+.related-parent {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+.related-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* A contract version 3 section: a titled group of fields inside one form. It is a
+   details element, so its own display stays block: a flex or grid display on the
+   details itself keeps its content drawn when it is closed. The grid is on the body. */
+.record-form .form-section {
+  display: block;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+/* A node a calculation says is not worth showing. `display: grid` above would
+   otherwise win over the browser's default for [hidden], leaving a "hidden" section
+   perfectly visible. The value is still in the form either way; this decides what is
+   on screen and nothing else. */
+.record-form [hidden],
+.record-form .form-section[hidden],
+.conditional-node[hidden] {
+  display: none !important;
+}
+
+/* A section is a disclosure (ADR-0004 2026-09-20 amendment): its heading is the
+   control, drawn as the legend was, with the browser's own marker kept so it reads as
+   something that opens. Closed, the browser draws nothing but the heading. */
+.record-form .form-section > summary {
+  cursor: pointer;
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.record-form .form-section > summary:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.record-form .form-section-body {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+/* The front page (ADR-0004 2026-09-14 amendment, S4). Every colour is a token, so
+   Dark is the same markup under the other palette. */
+/* The surface supplies the inset, as it does for a gallery: every Use surface is
+   flush with the toolbar's controls above it, and a front page that set its own
+   horizontal padding would be the one screen that is not. */
+.overview-surface { padding: 16px; }
+
+.overview-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.overview-header h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+
+/* What the file is for, in the author's words. It reads as prose rather than as a
+   label, and it is bounded so a long one does not push the first tile off screen. */
+.overview-description {
+  margin: 0.35rem 0 0;
+  max-width: 62ch;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.overview-section {
+  display: block;
+}
+
+.overview-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.overview-section > summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.overview-section > summary:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.overview-section > summary > h3 {
+  display: inline;
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.overview-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.overview-recent > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recent-row:hover { background: var(--surface-soft); }
+.recent-row:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+
+.recent-values {
+  display: flex;
+  gap: 0.9rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.recent-values small {
+  margin-right: 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.68rem;
+}
+
+/* The matrix (ADR-0004, 2026-09-17, S6): two crossed choice fields as a grid of cells.
+   One column of row headings plus one per lane, so a heading and its row cannot drift
+   apart when a cell is taller than its neighbours. A cell states its exact number in its
+   header and holds the loaded window's cards under it. */
+.record-matrix {
+  display: grid;
+  /* A column is capped rather than given a share of the window. 1fr divides whatever is
+     there, so on a wide screen five columns of cards became five columns 650 pixels wide,
+     each holding a card that wanted 300. The floor still makes a narrow window scroll. */
+  grid-template-columns: minmax(88px, auto) repeat(var(--matrix-columns, 1), minmax(150px, 300px));
+  justify-content: start;
+  gap: 8px;
+  min-width: calc(var(--matrix-columns, 1) * 158px + 96px);
+  padding: 16px;
+  align-items: stretch;
+}
+
+.matrix-corner {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 6px 8px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.matrix-corner small:first-child::after { content: " ↓"; }
+.matrix-corner small:last-child::after { content: " →"; }
+
+.matrix-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.matrix-row-heading {
+  border-bottom: none;
+  border-right: 1px solid var(--line);
+}
+
+.matrix-heading h3 {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.matrix-cell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+}
+
+/* A cell with nothing in it is still a cell, so it is drawn rather than left out —
+   its emptiness is the answer. It is quieter than the rest and no less present. */
+.matrix-cell.is-empty { background: none; border-style: dashed; }
+
+.matrix-cell > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.matrix-cell.is-empty > header { border-bottom-color: transparent; }
+
+/* A cell's cards scroll inside it. Every cell of a row is as tall as the fullest one, so
+   without this a cell holding twenty-nine cards makes its whole row twenty-nine cards
+   tall and the four beside it are drawn as empty boxes that high. The cap is what keeps a
+   grid readable as a grid; the cell's own number already says how many are in there. */
+.matrix-cell > .card-stack {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 288px;
+  overflow-y: auto;
+}
+
+/* A card in a cell takes the width it is given rather than the width of its longest
+   line, which is what let the tracks grow in the first place. */
+.matrix-cell .record-card { min-width: 0; }
+.matrix-cell .record-card strong { overflow-wrap: anywhere; }
+
+.matrix-cell header small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.matrix-total {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.matrix-total:disabled { cursor: default; color: var(--muted); }
+.matrix-total:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+.matrix-total strong { font-size: 0.95rem; }
+
+/* A ranking (ADR-0004, 2026-09-17, S6): rank numerals, a bar against the exact largest,
+   and the number itself. The bar is decoration; the number is the claim, so it is always
+   present and the bar is absent whenever a proportion would be dishonest. */
+.overview-ranked {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.overview-ranked > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.ranked-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+
+.ranked-row {
+  display: grid;
+  grid-template-columns: 2ch 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ranked-row:hover { background: var(--surface-soft); }
+.ranked-row:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+
+.ranked-numeral {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ranked-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.ranked-body > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ranked-bar {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+}
+
+.ranked-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--cobalt);
+}
+
+.ranked-value {
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}

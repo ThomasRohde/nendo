@@ -1,0 +1,344 @@
+/* Agent access (2026-09-14): the permission ladder and the connection card.
+   Slice 11 of styles.css; see that file for why the order matters. */
+
+/* Agent access (2026-09-14): two panes. The left pane is what the owner sets — the access
+   ladder and the connection — and the right pane is what agents are doing: state, owner,
+   pending changes and activity. Shared tokens throughout, so both themes follow; the panes
+   stack under 1020px. */
+.agent-page {
+  display: grid;
+  grid-template-columns: minmax(330px, 400px) minmax(0, 1fr);
+  min-height: 100%;
+}
+
+.agent-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  min-width: 0;
+  padding: 30px 28px 28px 32px;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.agent-live {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+  padding: 30px 38px 36px;
+}
+
+.agent-live > .message-slot {
+  width: 100%;
+  margin: 0;
+}
+
+.agent-live > .behaviour-approval {
+  margin: 0;
+}
+
+.permission-intro {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.permission-intro h2,
+.agent-connection h2,
+.pending-changes h3,
+.agent-activity h3 {
+  margin: 0;
+  font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  font-size: 1.05rem;
+  font-weight: 680;
+  letter-spacing: -0.015em;
+}
+
+.permission-intro p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+/* The ladder: four steps down one rail. Only the marker and the title carry the selection, so
+   the rail reads as a single line. */
+.permission-track {
+  position: relative;
+  display: grid;
+  gap: 2px;
+}
+
+.permission-track::before {
+  position: absolute;
+  top: 24px;
+  bottom: 24px;
+  left: 17px;
+  width: 2px;
+  background: var(--line);
+  content: "";
+}
+
+.permission-step {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  min-height: 52px;
+  padding: 6px 8px 6px 0;
+  border: 0;
+  border-radius: 10px;
+  color: var(--muted);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.permission-step:disabled {
+  cursor: default;
+}
+
+.permission-step:not(:disabled):hover .step-marker {
+  border-color: var(--cobalt);
+}
+
+.permission-step:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+.step-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.permission-step strong {
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.permission-step small {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.step-marker {
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  width: 36px;
+  height: 36px;
+  border: 2px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--muted);
+  background: var(--surface-raised);
+  font-size: 0.75rem;
+  font-weight: 720;
+}
+
+.permission-step[aria-pressed="true"] .step-marker {
+  border-color: var(--cobalt);
+  color: #ffffff;
+  background: var(--cobalt);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--cobalt) 13%, transparent);
+}
+
+:root[data-theme="dark"] .permission-step[aria-pressed="true"] .step-marker {
+  color: #071725;
+}
+
+.permission-step[aria-pressed="true"] strong {
+  color: var(--cobalt);
+}
+
+/* Connection: the address card, then both switches in one bordered list. */
+.agent-connection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agent-connection .permission-intro {
+  margin-bottom: 0;
+}
+
+.connection-endpoint {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+  background: var(--surface-raised);
+}
+
+.connection-endpoint code {
+  font-size: 12px;
+  word-break: break-all;
+  user-select: all;
+}
+
+.connection-endpoint small,
+.connection-toggle small,
+.connection-note,
+.connection-warning {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.connection-note,
+.connection-warning {
+  margin: 0;
+}
+
+.connection-warning {
+  color: var(--warning);
+}
+
+.connection-copy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.connection-copy .secondary-button {
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  font-size: 0.82rem;
+}
+
+.connection-settings {
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+
+.connection-setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px 8px 10px;
+}
+
+.connection-setting + .connection-setting {
+  border-top: 1px solid var(--line);
+}
+
+.connection-toggle {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.connection-toggle:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+.connection-toggle[disabled] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.toggle-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.connection-toggle strong {
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.switch-glyph {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  transition: background 120ms ease;
+}
+
+.switch-glyph::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: left 120ms ease;
+  content: "";
+}
+
+.connection-toggle[aria-pressed="true"] .switch-glyph {
+  background: var(--cobalt);
+}
+
+.connection-toggle[aria-pressed="true"] .switch-glyph::after {
+  left: 19px;
+}
+
+.connection-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.connection-field input {
+  width: 8ch;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.connection-field input:disabled {
+  opacity: 0.55;
+}
+
+.agent-help-entry {
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+  margin: auto 0 0;
+  padding-top: 6px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.agent-help-entry .text-button {
+  min-height: auto;
+  padding: 0;
+  border-radius: 0;
+}
+
+.agent-help-entry .text-button:hover {
+  color: var(--cobalt);
+  background: transparent;
+  text-decoration-thickness: 2px;
+}

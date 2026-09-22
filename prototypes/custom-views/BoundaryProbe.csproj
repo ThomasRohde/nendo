@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3719.77" />
+  </ItemGroup>
+  <!-- The loopback receiver and its observers are a test fixture the Desktop tests own; this disposable
+       prototype reuses the same bytes so the two cannot drift. The production/test boundary forbids the
+       reverse (a shipped or test project referencing prototypes/), which is why the file lives under tests/. -->
+  <ItemGroup>
+    <Compile Include="..\..\tests\Nendo.Desktop.Tests\TestFixtures\HttpCanary.cs" Link="HttpCanary.cs" />
+  </ItemGroup>
+  <!-- WebView2's package adds WPF even for a WinForms-only probe. -->
+  <Target Name="RemoveUnusedWpfReference" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="$([System.String]::Copy('%(Reference.Identity)').EndsWith('Microsoft.Web.WebView2.Wpf.dll'))" />
+    </ItemGroup>
+  </Target>
+</Project>

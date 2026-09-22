@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" />
+    <!-- Deliberate, and only here: the scalar lane keeps a control that evaluates
+         the same expressions without the adapter, to prove the library alone still
+         produces the wrong answers the interception exists to prevent. -->
+    <PackageReference Include="NCalc" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Nendo.Engine\Nendo.Engine.csproj" />
+  </ItemGroup>
+
+</Project>

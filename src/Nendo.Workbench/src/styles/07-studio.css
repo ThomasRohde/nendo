@@ -1,0 +1,534 @@
+/* The workspace header, the theme control, empty states, buttons, the entity
+   panel, the Studio query row and the AG Grid record grid.
+   Slice 07 of styles.css; see that file for why the order matters. */
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 44px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.status-pill[hidden] {
+  display: none;
+}
+
+.status-pill > span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cobalt);
+}
+
+.status-pill[data-state="healthy"] > span {
+  background: var(--healthy);
+}
+
+.status-pill[data-state="warning"] {
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--line));
+}
+
+.status-pill[data-state="warning"] > span {
+  background: var(--warning);
+}
+
+/* An agent working is not a warning and not a fault: it is somebody else using the file
+   the way the person asked them to. It reads in the accent rather than the warning
+   colour, and its dot pulses because the one thing it has to say is that this is still
+   happening. */
+.status-pill[data-state="agent"] {
+  color: var(--cobalt);
+  border-color: color-mix(in srgb, var(--cobalt) 45%, var(--line));
+}
+
+.status-pill[data-state="agent"] > span:first-child {
+  background: var(--cobalt);
+  animation: agent-working-pulse 1.4s ease-in-out infinite;
+}
+
+/* The text span must not be drawn as a second dot. */
+.status-pill[data-state="agent"] > span + span {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+}
+
+@keyframes agent-working-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* Somebody who has asked for less motion still needs to know an agent is writing; the
+   pill says so in words either way, so only the pulse goes. */
+@media (prefers-reduced-motion: reduce) {
+  .status-pill[data-state="agent"] > span:first-child { animation: none; }
+}
+
+/* The way back and the way forward sit beside the theme control and are dressed as one
+   segment with it, sharing these rules rather than copying them: two pill groups a
+   centimetre apart that disagreed about their own border would read as two applications.
+   The pair leads the group, because it is navigation and File is not. */
+.theme-control,
+.history-control {
+  display: flex;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.history-control button:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.history-control .outline-icon {
+  width: 18px;
+  height: 18px;
+  flex-basis: 18px;
+}
+
+.theme-control button,
+.history-control button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+}
+
+.history-control button:not(:disabled):hover {
+  color: var(--ink);
+  background: var(--surface-raised);
+}
+
+.theme-control button[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--surface-raised);
+  box-shadow: 0 1px 5px rgba(35, 45, 68, 0.12);
+  font-weight: 620;
+}
+
+.workbench {
+  display: grid;
+  grid-template-rows: 1fr;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+}
+
+.studio-content {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.studio-content[aria-busy="true"] {
+  cursor: progress;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: min(770px, 88%);
+  margin: 0 auto;
+  padding: 54px 0 42px;
+  text-align: center;
+}
+
+.compact-empty {
+  max-width: 680px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--cobalt);
+  font-size: 0.75rem;
+  font-weight: 720;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+.empty-brand-mark {
+  width: 92px;
+  height: 76px;
+  margin-bottom: 25px;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 18px color-mix(in srgb, var(--violet) 18%, transparent));
+  /* The mark is moulded clay: it drops in, squashes, settles, then keeps breathing.
+     Transform only, so the loop stays on the compositor. */
+  transform-origin: 50% 88%;
+  animation:
+    brand-mark-settle 900ms cubic-bezier(0.22, 1.35, 0.36, 1) both,
+    brand-mark-breathe 6s 900ms ease-in-out infinite;
+}
+
+@keyframes brand-mark-settle {
+  0% {
+    opacity: 0;
+    transform: translateY(-15px) scale(0.86, 1.13) rotate(-5deg);
+  }
+
+  55% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.07, 0.9) rotate(1.5deg);
+  }
+
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes brand-mark-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+
+  35% {
+    transform: translateY(-5px) scale(0.985, 1.02);
+  }
+
+  70% {
+    transform: translateY(1px) scale(1.015, 0.985);
+  }
+}
+
+.empty-state h2 {
+  margin: 0;
+  font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  font-weight: 690;
+  letter-spacing: -0.045em;
+}
+
+.empty-state > p {
+  max-width: 610px;
+  margin: 17px auto 42px;
+  color: var(--muted);
+  font-size: clamp(1rem, 1.5vw, 1.15rem);
+  line-height: 1.65;
+}
+
+.empty-state > .eyebrow {
+  margin: 0 0 10px;
+  color: var(--cobalt);
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 11px;
+  margin: -10px 0 36px;
+}
+
+.primary-button,
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 680;
+}
+
+.primary-button .outline-icon,
+.secondary-button .outline-icon {
+  width: 17px;
+  height: 17px;
+  flex-basis: 17px;
+}
+
+.primary-button {
+  border: 1px solid var(--cobalt);
+  color: #ffffff;
+  background: var(--cobalt);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--cobalt) 23%, transparent);
+}
+
+:root[data-theme="dark"] .primary-button {
+  color: #071725;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cobalt) 86%, var(--ink));
+}
+
+.secondary-button {
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  background: var(--surface-raised);
+}
+
+.secondary-button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--cobalt) 45%, var(--line));
+  background: var(--cobalt-soft);
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  opacity: 0.62;
+}
+
+.message-slot,
+.inline-alert {
+  width: min(620px, 100%);
+  margin: 16px auto 24px;
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line));
+  border-radius: 9px;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.message-slot[hidden] {
+  display: none;
+}
+
+/* The same slot, for something that worked. A finished action drawn in the colour of a
+   failure reads as one, which is what the outcome notice looked like before this. */
+.message-slot.is-done {
+  border-color: color-mix(in srgb, var(--healthy) 45%, var(--line));
+  color: var(--ink);
+  background: color-mix(in srgb, var(--healthy) 8%, var(--surface));
+}
+
+.file-empty {
+  width: min(840px, 91%);
+}
+
+.file-empty > p:not(.eyebrow) {
+  margin-bottom: 28px;
+}
+
+.data-workspace {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 100%;
+}
+
+.entity-selector {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.entity-selector select {
+  max-width: 100%;
+  min-width: 180px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+}
+
+.entity-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 19px 14px 16px;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 13px;
+  color: var(--muted);
+  font-size: 0.77rem;
+  font-weight: 690;
+  text-transform: uppercase;
+  letter-spacing: 0.055em;
+}
+
+.entity-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+}
+
+.entity-row.is-active {
+  border-color: color-mix(in srgb, var(--cobalt) 30%, var(--line));
+  color: color-mix(in srgb, var(--cobalt) 80%, var(--ink));
+  background: var(--cobalt-soft);
+}
+
+.entity-row strong {
+  color: var(--muted);
+  font-size: 0.77rem;
+}
+
+.data-panel {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(200px, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.data-panel > .data-toolbar { grid-row: 1; }
+.data-panel > .studio-query { grid-row: 2; }
+.data-panel > .data-message { grid-row: 3; }
+.data-panel > .record-grid, .data-panel > .first-record-state { grid-row: 4; }
+.data-panel > .data-footer { grid-row: 5; }
+
+.studio-query { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+.studio-query label { display: grid; gap: 4px; font-size: 12px; min-width: 90px; flex: 1 1 110px; }
+.studio-query select, .studio-query input { min-width: 0; width: 100%; padding: 7px; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; }
+.studio-query button { padding: 8px 12px; }
+.query-status { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--muted); }
+
+.data-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 88px;
+  padding: 16px 19px;
+  border-bottom: 1px solid var(--line);
+}
+
+.data-message {
+  width: auto;
+  margin: 10px 18px 0;
+}
+
+.first-record-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: min(560px, 84%);
+  margin: auto;
+  padding: 38px 0;
+  text-align: center;
+}
+
+.record-glyph {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 18px;
+  border: 1px solid color-mix(in srgb, var(--cobalt) 36%, var(--line));
+  border-radius: 17px;
+  color: var(--cobalt);
+  background: var(--cobalt-soft);
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.88rem;
+  font-weight: 740;
+}
+
+.first-record-state h3 {
+  margin: 0 0 8px;
+  font-size: 1.4rem;
+}
+
+.first-record-state p {
+  max-width: 470px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.record-grid {
+  min-width: 0;
+  min-height: 280px;
+  height: 100%;
+}
+
+.record-grid .ag-root-wrapper {
+  border: 0;
+  border-radius: 0;
+}
+
+.record-grid .ag-cell-inline-editing {
+  box-shadow: inset 0 0 0 2px var(--cobalt);
+}
+
+.data-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 45px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 0.75rem;
+}
+
+.data-footer strong {
+  color: var(--ink);
+}
+
+.nav-item.is-current {
+  color: var(--cobalt);
+  background: color-mix(in srgb, var(--cobalt-soft) 62%, transparent);
+}
+
+.studio-page,
+.proposal-page {
+  min-height: 100%;
+  padding: 28px;
+}

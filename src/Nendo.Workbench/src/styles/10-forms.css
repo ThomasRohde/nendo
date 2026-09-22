@@ -1,0 +1,539 @@
+/* Form controls, command buttons, the record list, the full-page record dialog
+   and the reduced-motion and forced-colors blocks.
+   Slice 10 of styles.css; see that file for why the order matters. */
+
+input,
+select,
+textarea {
+  min-height: 39px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  outline: 0;
+  color: var(--ink);
+  background: var(--surface-raised);
+  font: inherit;
+}
+
+textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--cobalt);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cobalt) 18%, transparent);
+}
+
+.form-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.command-button {
+  width: calc(100% - 32px);
+  min-height: 40px;
+  margin: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--violet) 45%, var(--line));
+  border-radius: 10px;
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 8%, var(--surface));
+  font-weight: 680;
+}
+
+/* A command whose fixed values the record already holds is spent, and must not
+   look like one that is still available to run. */
+.command-button:disabled {
+  border-color: var(--line);
+  color: var(--muted);
+  background: transparent;
+  cursor: default;
+}
+
+/* The record's commands sit under the header, where a person looks for the action. */
+.record-actions {
+  display: grid;
+  gap: 8px;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.version-note {
+  margin: 12px 16px 20px;
+  color: var(--muted);
+  font-size: 0.71rem;
+  text-align: right;
+}
+
+.icon-button,
+.text-button {
+  min-height: 34px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  padding: 5px;
+}
+
+.icon-button .outline-icon {
+  width: 18px;
+  height: 18px;
+  flex-basis: 18px;
+}
+
+.text-button:hover,
+.icon-button:hover {
+  color: var(--ink);
+  background: var(--surface-soft);
+}
+
+.record-list {
+  display: grid;
+  padding: 16px;
+}
+
+.record-list button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  color: var(--ink);
+  background: var(--surface-raised);
+  text-align: left;
+}
+
+.record-list button:first-child { border-radius: 10px 10px 0 0; }
+.record-list button:last-child { border-bottom: 1px solid var(--line); border-radius: 0 0 10px 10px; }
+.record-list button:only-child { border-radius: 10px; }
+.record-list button > span,
+.record-list button small { color: var(--muted); }
+.record-list button > strong,
+.record-list button > span:not(.status-dot) {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.record-list button > .status-dot,
+.record-list button > small { flex: 0 0 auto; }
+
+.history-list {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--line);
+}
+
+.history-entry {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) minmax(170px, auto);
+  gap: 18px;
+  padding: 18px;
+  background: var(--surface);
+}
+
+.history-sequence {
+  display: grid;
+  place-items: center;
+  align-self: start;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  background: var(--surface-raised);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.lane-chip.definition { color: var(--violet); }
+.lane-chip.data { color: var(--cobalt); }
+
+.history-entry h3 {
+  margin: 8px 0 5px;
+  font-size: 0.95rem;
+}
+
+.history-entry p {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.history-action {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  justify-content: center;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-align: right;
+}
+
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.health-grid section {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.health-symbol {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--healthy);
+  background: color-mix(in srgb, var(--healthy) 9%, var(--surface));
+  font-weight: 800;
+}
+
+.health-grid h2 {
+  margin: 16px 0 6px;
+}
+
+.health-grid p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.dialog-page {
+  display: grid;
+  place-items: start center;
+  min-height: 100%;
+  padding: 28px;
+  background: var(--surface-soft);
+}
+
+.record-form-card {
+  width: min(640px, 100%);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+}
+
+.record-form-card > header {
+  padding: 20px 20px 4px;
+}
+
+.record-form-card h2 {
+  margin: 12px 0 4px;
+}
+
+.record-form-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (max-width: 840px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .rail {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    min-height: auto;
+    padding: 10px 14px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .brand {
+    height: 38px;
+  }
+
+  .brand img {
+    width: 96px;
+  }
+
+  .primary-nav {
+    display: flex;
+    justify-content: center;
+    margin: 0;
+  }
+
+  .primary-nav .nav-item {
+    width: auto;
+    min-height: 38px;
+  }
+
+  .studio-nav {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    margin: 0;
+  }
+
+  .studio-nav > p,
+  .studio-nav .nav-symbol {
+    display: none;
+  }
+
+  .studio-nav .nav-item {
+    display: block;
+    width: auto;
+    min-width: max-content;
+    padding-inline: 10px;
+  }
+
+  .rail-footer {
+    margin: 0;
+    padding: 8px;
+  }
+
+  .workspace {
+    min-height: 0;
+    padding: 0 16px 16px;
+  }
+
+  .data-workspace {
+    grid-template-columns: 150px minmax(0, 1fr);
+  }
+
+  .header-controls {
+    gap: 8px;
+  }
+
+  .status-pill {
+    display: none;
+  }
+
+  .rail-footer {
+    display: none;
+  }
+
+  .surface-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .proposal-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .use-layout.has-inspector {
+    --record-inspector-width: 300px;
+  }
+
+  .health-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .workspace-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px 2px;
+  }
+
+  .header-controls {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .theme-control,
+  .history-control {
+    width: 100%;
+  }
+
+  .theme-control button,
+  .history-control button {
+    flex: 1;
+  }
+
+  .workbench {
+    border-radius: 14px;
+  }
+
+  .empty-state {
+    width: 88%;
+    padding: 42px 0 32px;
+  }
+
+  .data-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .entity-panel {
+    display: grid;
+    grid-template-columns: auto minmax(120px, 1fr);
+    align-items: center;
+    gap: 12px;
+    min-height: auto;
+    padding: 10px 14px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .panel-heading {
+    padding: 0;
+  }
+
+  .data-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 13px;
+  }
+
+  .data-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .studio-page,
+  .proposal-page {
+    padding: 18px;
+  }
+
+  .page-heading {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+
+  .field-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .use-layout.has-inspector {
+    grid-template-columns: 1fr;
+  }
+
+  .record-inspector {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-left: 0;
+  }
+
+  .use-layout {
+    position: relative;
+  }
+
+  .history-entry {
+    grid-template-columns: 34px 1fr;
+  }
+
+  .history-action {
+    grid-column: 2;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+}
+
+@media (max-height: 720px) {
+  .workspace {
+    padding-bottom: 12px;
+  }
+
+  .status-bar {
+    min-height: 24px;
+    padding-top: var(--space-1);
+  }
+
+  .workspace-header {
+    min-height: 82px;
+    padding-block: 10px;
+  }
+
+  .empty-state {
+    padding: 24px 0;
+  }
+
+  .empty-brand-mark {
+    margin-bottom: 16px;
+  }
+
+  .empty-state > p {
+    margin: 12px auto 24px;
+    line-height: 1.5;
+  }
+
+  .action-row {
+    margin: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .workbench,
+  .theme-control,
+  .history-control,
+  .nav-item.is-selected {
+    border: 1px solid CanvasText;
+  }
+
+  .connection-dot,
+  .healthy-dot {
+    background: Highlight;
+  }
+}
+.record-form .checkbox-field {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.checkbox-field input {
+  min-height: auto;
+}

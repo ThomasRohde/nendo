@@ -1,0 +1,133 @@
+/* The app shell: the rail, the brand mark and the primary navigation.
+   Slice 04 of styles.css; see that file for why the order matters. */
+
+.primary-nav,
+.studio-nav {
+  display: grid;
+  gap: 7px;
+}
+
+.primary-nav {
+  margin-top: 34px;
+}
+
+.studio-nav {
+  margin-top: 20px;
+}
+
+.studio-nav > p {
+  margin: 0 12px 3px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.nav-item {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 7px 11px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+}
+
+.nav-item:disabled {
+  color: color-mix(in srgb, var(--ink) 74%, var(--surface));
+  cursor: default;
+  opacity: 1;
+}
+
+.nav-item.is-selected {
+  border-color: color-mix(in srgb, var(--cobalt) 24%, var(--line));
+  background: var(--cobalt-soft);
+  color: color-mix(in srgb, var(--cobalt) 85%, var(--ink));
+  font-weight: 650;
+}
+
+.nav-item.is-subtle {
+  min-height: 39px;
+}
+
+.nav-symbol {
+  color: currentColor;
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+.rail-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+  padding: 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* The window while a file is being dragged onto it.
+   Over everything including the title bar, because the drop lands there too and a
+   hint that stopped short of the edge would be saying the edge does not count.
+   Both themes share the shape and differ only in the tokens; the refusal state is
+   the one place a colour carries meaning, so it also changes the words. */
+.file-drop-target {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--canvas) 82%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.file-drop-target[hidden] {
+  display: none;
+}
+
+.file-drop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: min(420px, 90vw);
+  padding: 32px 36px;
+  border: 2px dashed var(--cobalt);
+  border-radius: 18px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.file-drop-target[data-possible="false"] .file-drop-card {
+  border-color: var(--danger);
+}
+
+.file-drop-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--cobalt);
+}
+
+.file-drop-target[data-possible="false"] .file-drop-icon {
+  color: var(--danger);
+}
+
+.file-drop-message {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+@media (forced-colors: active) {
+  .file-drop-card {
+    border-color: Highlight;
+  }
+}

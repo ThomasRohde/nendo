@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "selection": "curated",
+  "source": {
+    "repository": "https://github.com/dotnet/skills",
+    "commit": "34950f875e1db782ab97417bfb6e44d1c4a9acf9",
+    "retrievedOn": "2026-09-01",
+    "license": "MIT"
+  },
+  "skills": [
+    {
+      "name": "setup-local-sdk",
+      "files": [
+        {
+          "sourcePath": "plugins/dotnet/skills/setup-local-sdk/SKILL.md",
+          "sourceBlobSha": "60f585d7776cac9084a8aa6985d314c6efd03999",
+          "localPath": ".agents/skills/setup-local-sdk/SKILL.md"
+        }
+      ]
+    },
+    {
+      "name": "template-discovery",
+      "files": [
+        {
+          "sourcePath": "plugins/dotnet-template-engine/skills/template-discovery/SKILL.md",
+          "sourceBlobSha": "7f4787431e41dff186af803c42411c7e821f62f8",
+          "localPath": ".agents/skills/template-discovery/SKILL.md"
+        }
+      ]
+    },
+    {
+      "name": "template-instantiation",
+      "files": [
+        {
+          "sourcePath": "plugins/dotnet-template-engine/skills/template-instantiation/SKILL.md",
+          "sourceBlobSha": "b5d3f71345c542e4e45421aecbf6dc406efe3e05",
+          "localPath": ".agents/skills/template-instantiation/SKILL.md"
+        }
+      ]
+    },
+    {
+      "name": "template-smart-defaults",
+      "files": [
+        {
+          "sourcePath": "plugins/dotnet-template-engine/skills/template-smart-defaults/SKILL.md",
+          "sourceBlobSha": "afac839416b8846a6ee944686a4ec4e72961ed9c",
+          "localPath": ".agents/skills/template-smart-defaults/SKILL.md"
+        }
+      ]
+    },
+    {
+      "name": "directory-build-organization",
+      "files": [
+        {
+          "sourcePath": "plugins/dotnet-msbuild/skills/directory-build-organization/SKILL.md",
+          "sourceBlobSha": "5d6284bd3275cc986695c3a4b06f92e70213db18",
+          "localPath": ".agents/skills/directory-build-organization/SKILL.md"
+        },
+        {
+          "sourcePath": "plugins/dotnet-msbuild/skills/directory-build-organization/references/common-patterns.md",
+          "sourceBlobSha": "1b86b4cfe826abc48d19bae1490d4d77a1c70a4a",
+          "localPath": ".agents/skills/directory-build-organization/references/common-patterns.md"
+        },
+        {
+          "sourcePath": "plugins/dotnet-msbuild/skills/directory-build-organization/references/multi-level-examples.md",
+          "sourceBlobSha": "db80d20cb7c2fca981d75afb81fa6fa62264a156",
+          "localPath": ".agents/skills/directory-build-organization/references/multi-level-examples.md"
+        },
+        {
+          "sourcePath": "plugins/dotnet-msbuild/skills/directory-build-organization/references/targetframework-props-pitfall.md",
+          "sourceBlobSha": "c9eeabc25252ddedf2f054454c57ea799adcd7ac",
+          "localPath": ".agents/skills/directory-build-organization/references/targetframework-props-pitfall.md"
+        }
+      ]
+    },
+    {
+      "name": "scaffold-dotnet-test-project",
+      "files": [
+        {
+          "sourcePath": "plugins/dotnet-test/skills/scaffold-dotnet-test-project/SKILL.md",
+          "sourceBlobSha": "d981595e5128d33c0225523accc219d1619fa52b",
+          "localPath": ".agents/skills/scaffold-dotnet-test-project/SKILL.md"
+        }
+      ]
+    },
+    {
+      "name": "platform-detection",
+      "files": [
+        {
+          "sourcePath": "plugins/dotnet-test/skills/platform-detection/SKILL.md",
+          "sourceBlobSha": "8f71fe2259887626b030a8a489af051f9fc8a3e7",
+          "localPath": ".agents/skills/platform-detection/SKILL.md"
+        },
+        {
+          "sourcePath": "plugins/dotnet-test/skills/platform-detection/references/command-mode.md",
+          "sourceBlobSha": "9a3eed04c0c7c9895d7211a5d964d4ef65f440ba",
+          "localPath": ".agents/skills/platform-detection/references/command-mode.md"
+        }
+      ]
+    },
+    {
+      "name": "run-tests",
+      "files": [
+        {
+          "sourcePath": "plugins/dotnet-test/skills/run-tests/SKILL.md",
+          "sourceBlobSha": "0dcb1d26ad939a66eb31350db5e13a82a290311b",
+          "localPath": ".agents/skills/run-tests/SKILL.md"
+        }
+      ]
+    },
+    {
+      "name": "filter-syntax",
+      "files": [
+        {
+          "sourcePath": "plugins/dotnet-test/skills/filter-syntax/SKILL.md",
+          "sourceBlobSha": "130e9b11021ba285910d891cef163665990bc419",
+          "localPath": ".agents/skills/filter-syntax/SKILL.md"
+        }
+      ]
+    }
+  ],
+  "supportFiles": [
+    {
+      "name": "upstream-license",
+      "sourcePath": "LICENSE",
+      "sourceBlobSha": "984713a49622a96da110443c15477613bc12656b",
+      "localPath": ".agents/skills/LICENSE.dotnet-skills"
+    }
+  ]
+}

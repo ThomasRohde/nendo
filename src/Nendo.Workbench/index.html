@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-theme-preference="system">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="/nendo.png" type="image/png" />
+    <title>Nendo Studio</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside id="app-rail" class="rail" aria-label="Nendo workspace">
+        <div class="brand" aria-label="Nendo">
+          <img src="/nendo.png" alt="Nendo" />
+          <!-- Collapses the rail to icons. Its width is the person's, kept for the
+               device like the theme, so it is chrome rather than anything in the file. -->
+          <button id="rail-toggle" class="icon-button rail-toggle" type="button" aria-expanded="true" aria-controls="app-rail"></button>
+        </div>
+
+        <nav class="primary-nav" aria-label="Primary">
+          <button id="nav-use" class="nav-item" type="button" disabled>
+            <span class="nav-symbol" aria-hidden="true">✣</span>
+            <span>Use</span>
+          </button>
+          <button id="nav-studio" class="nav-item is-selected" type="button" aria-current="page">
+            <span class="nav-symbol" aria-hidden="true">⌁</span>
+            <span>Studio</span>
+          </button>
+          <button id="nav-agent" class="nav-item" type="button" disabled>
+            <span class="nav-symbol" aria-hidden="true">✦</span>
+            <span>Agent</span>
+          </button>
+        </nav>
+
+        <div class="studio-nav" aria-label="Studio sections">
+          <p>Studio</p>
+          <button id="nav-data" class="nav-item is-subtle" type="button" disabled>
+            <span class="nav-symbol" aria-hidden="true">▤</span>
+            <span>Data</span>
+          </button>
+          <button id="nav-structure" class="nav-item is-subtle" type="button" disabled>
+            <span class="nav-symbol" aria-hidden="true">⌘</span>
+            <span>Structure</span>
+          </button>
+          <button id="nav-surfaces" class="nav-item is-subtle" type="button" disabled>
+            <span class="nav-symbol" aria-hidden="true">▱</span>
+            <span>Surfaces</span>
+          </button>
+          <button id="nav-history" class="nav-item is-subtle" type="button" disabled>
+            <span class="nav-symbol" aria-hidden="true">◷</span>
+            <span>History</span>
+          </button>
+          <button id="nav-health" class="nav-item is-subtle" type="button" disabled>
+            <span class="nav-symbol" aria-hidden="true">◇</span>
+            <span>Health</span>
+          </button>
+        </div>
+
+        <button id="nav-help" class="nav-item help-nav" type="button"><span class="nav-symbol" aria-hidden="true"></span><span>Help</span></button>
+      </aside>
+
+      <main class="workspace">
+        <header class="workspace-header">
+          <div class="workspace-identity">
+            <p id="session-context" class="location">Studio</p>
+            <h1 id="workspace-title">No file open</h1>
+          </div>
+
+          <div class="header-controls">
+            <div class="history-control" role="group" aria-label="History">
+              <button id="nav-back" type="button" aria-label="Back" title="Back" disabled></button>
+              <button id="nav-forward" type="button" aria-label="Forward" title="Forward" disabled></button>
+            </div>
+            <details id="file-menu" class="file-menu">
+              <summary aria-label="File"><span id="file-icon" aria-hidden="true"></span>File<span class="file-chevron" aria-hidden="true"></span></summary>
+              <div id="file-actions" class="file-menu-panel" aria-label="File actions"></div>
+            </details>
+            <div class="theme-control" role="group" aria-label="Appearance">
+              <button type="button" data-theme-option="system" aria-label="System" title="System theme" aria-pressed="true"></button>
+              <button type="button" data-theme-option="light" aria-label="Light" title="Light theme" aria-pressed="false"></button>
+              <button type="button" data-theme-option="dark" aria-label="Dark" title="Dark theme" aria-pressed="false"></button>
+            </div>
+          </div>
+        </header>
+
+        <p id="file-notice" class="file-notice" role="status" hidden></p>
+
+        <!-- Only for work that is actually taking a while. Appearing for every
+             request would make a fast host look busy; never appearing would leave a
+             long calculation with no way out but closing the window. -->
+        <div id="busy-bar" class="busy-bar" role="status" hidden>
+          <span class="busy-spinner" aria-hidden="true"></span>
+          <span id="busy-message">Still working…</span>
+          <button id="stop-request" class="text-button" type="button">Stop</button>
+        </div>
+
+        <section class="workbench" aria-label="Nendo Studio workbench">
+          <div id="studio-content" class="studio-content" aria-busy="true"></div>
+        </section>
+
+        <footer id="session-status" class="status-bar" aria-label="Session status" hidden>
+          <span class="status-file">
+            <span id="status-file-icon" aria-hidden="true"></span>
+            <span id="session-file"></span>
+          </span>
+          <span class="status-end">
+            <!-- On every screen, not only the Agent page. While an agent holds the file's
+                 one gate the window cannot answer anything, and until this existed no
+                 screen said why. Shown only after the same delay the busy bar uses. -->
+            <span id="agent-working" class="status-pill" data-state="agent" hidden>
+              <span aria-hidden="true"></span>
+              <span id="agent-working-text">An agent is working</span>
+            </span>
+            <span id="session-health" class="status-pill" data-state="healthy" hidden>
+              <span aria-hidden="true"></span>
+              Saved locally
+            </span>
+            <span id="session-version" class="status-version"></span>
+          </span>
+        </footer>
+      </main>
+    </div>
+
+    <!-- Shown only while a file is being dragged over the window. Outside the shell
+         so it covers everything, including the title bar area the drop also lands on. -->
+    <div id="file-drop-target" class="file-drop-target" hidden>
+      <div class="file-drop-card">
+        <span id="file-drop-icon" class="file-drop-icon" aria-hidden="true"></span>
+        <p id="file-drop-message" class="file-drop-message"></p>
+      </div>
+    </div>
+
+    <div id="announcement" class="visually-hidden" role="status" aria-live="polite"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

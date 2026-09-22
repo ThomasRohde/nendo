@@ -1,0 +1,857 @@
+/* The refinement layer's controls, inspector, dialogs, grid and the later
+   single-rule patches appended after them.
+   Slice 14 of styles.css; see that file for why the order matters. */
+
+/* --- Controls -------------------------------------------------------------- */
+
+.primary-button { box-shadow: 0 1px 2px color-mix(in srgb, var(--cobalt) 30%, transparent), 0 6px 16px color-mix(in srgb, var(--cobalt) 22%, transparent); }
+.primary-button:active:not(:disabled), .secondary-button:active:not(:disabled) { transform: translateY(1px); }
+.text-button { font-weight: 620; }
+
+.workbench { border-radius: var(--radius-shell); box-shadow: var(--shadow-raised); }
+
+@media (prefers-reduced-motion: reduce) {
+  .primary-button:active:not(:disabled), .secondary-button:active:not(:disabled) { transform: none; }
+}
+
+@media (max-width: 650px) {
+  .page-toolbar { align-items: stretch; flex-direction: column; }
+  .toolbar-spacer { display: none; }
+  .surface-card { grid-template-columns: auto minmax(0, 1fr); }
+  .surface-card .health-chip { grid-column: 2; }
+  .field-row-head { display: none; }
+}
+
+/* The message slot is hidden most of the time, so a fixed three-row grid left
+   the surface parked in an auto row. Flex keeps the surface filling whatever
+   space the toolbar and any visible alert leave behind. */
+.use-page {
+  display: flex;
+  flex-direction: column;
+}
+
+.use-page > .use-toolbar,
+.use-page > .use-message { flex: 0 0 auto; }
+.use-page > .use-layout { flex: 1 1 auto; min-height: 0; }
+
+/* The legacy ghost-button rule outranks the row treatment, so restate it at the
+   same weight. A disabled recovery action should read as unavailable, not as an
+   empty input. */
+.recovery-action-list .recovery-action:disabled {
+  opacity: 1;
+  color: var(--muted);
+  background: var(--surface-soft);
+  cursor: not-allowed;
+}
+
+.recovery-action-list .recovery-action:disabled .recovery-text strong { color: var(--muted); }
+
+/* Findings and actions are different lengths. Let each card end where its own
+   content ends instead of stretching one into a tall empty panel. */
+.recovery-layout {
+  align-items: start;
+  grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1fr);
+}
+
+.recovery-findings > details { margin-top: var(--space-4); }
+.recovery-findings > details summary { cursor: pointer; }
+
+/* Surfaces: label, field and action belong on one aligned baseline. The label
+   is a sibling of the input here, so place all three explicitly. */
+.rename-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  column-gap: var(--space-3);
+  row-gap: 5px;
+}
+
+.rename-form label {
+  grid-area: 1 / 1;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.rename-form input { grid-area: 2 / 1; width: 100%; }
+.rename-form button { grid-area: 2 / 2; }
+
+/* Several components set `display` on a class that also carries `hidden`, which
+   beats the user-agent rule and leaves an empty framed box on screen. */
+[hidden] { display: none !important; }
+
+/* --- Record inspector ------------------------------------------------------ */
+
+.record-inspector > header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-raised);
+}
+
+.record-inspector > header > span { font-size: 0.95rem; }
+
+/* Long forms scroll, so keep the commit action in reach instead of below the
+   fold with the destructive action stacked under it. */
+.record-inspector .form-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: var(--space-2) calc(var(--space-4) * -1) 0;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+  background: var(--surface-raised);
+}
+
+.record-inspector .record-form { padding-bottom: 0; }
+
+.record-inspector #delete-record {
+  justify-content: flex-start;
+  min-height: 34px;
+  margin-top: var(--space-2);
+  padding-inline: 0;
+  border: 0;
+  color: var(--danger);
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 620;
+}
+
+.record-inspector #delete-record:hover:not(:disabled) {
+  border: 0;
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.command-button { margin-top: var(--space-3); }
+.command-button:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 16%, var(--surface)); }
+
+/* --- Agent connection ------------------------------------------------------ */
+
+/* A port is five digits and a lease is a number of seconds. Eight characters of
+   box clipped both. */
+.connection-field {
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.connection-field input {
+  width: auto;
+  min-width: 7ch;
+  max-width: 12ch;
+  min-height: 32px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-heading h2 { margin-top: 0; }
+.agent-page .permission-intro p { max-width: 52ch; }
+
+/* --- Full-page record dialogs ---------------------------------------------- */
+
+.dialog-page { padding: clamp(16px, 4vh, 32px) var(--space-5); }
+
+.record-form-card {
+  overflow: hidden;
+  border-radius: var(--radius-shell);
+}
+
+.record-form-card > header {
+  padding: var(--space-4) var(--space-5) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.record-form-card > header > .text-button {
+  margin-left: -9px;
+  color: var(--cobalt);
+}
+
+.record-form-card h2 { margin: var(--space-2) 0 4px; font-size: 1.45rem; }
+.record-form-card > header > p { margin-bottom: var(--space-4); font-size: 0.86rem; }
+
+.record-form-card .record-form {
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) 0;
+}
+
+/* Keep the commit action visible when the field list is taller than the window. */
+.record-form-card .form-actions {
+  position: sticky;
+  bottom: 0;
+  margin: var(--space-3) calc(var(--space-5) * -1) 0;
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--line);
+  background: var(--surface-raised);
+}
+
+/* --- Data grid ------------------------------------------------------------- */
+
+.record-grid .ag-header {
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.record-grid .ag-header-cell-text {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.record-grid .ag-row { border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+.record-grid .ag-row:hover { background: color-mix(in srgb, var(--cobalt) 4%, transparent); }
+
+/* --- Entity panel ---------------------------------------------------------- */
+
+.entity-panel { padding-top: var(--space-4); }
+.entity-row { font-size: 0.88rem; font-weight: 600; }
+.entity-row:not(.is-active):hover { background: var(--surface-soft); }
+
+/* --- Proposal review -------------------------------------------------------- */
+
+/* A one-line change list should not be stretched to the height of the summary
+   column beside it. */
+.proposal-layout { align-items: start; }
+
+.proposal-heading { max-width: none; }
+
+.proposal-heading > .text-button {
+  margin-bottom: var(--space-4);
+  margin-left: -9px;
+  color: var(--cobalt);
+}
+
+.proposal-heading h2 { margin-top: 0; }
+.proposal-heading > p { margin-top: 6px; color: var(--muted); }
+
+.change-mark {
+  width: 26px;
+  height: 26px;
+  border: 1px solid color-mix(in srgb, var(--cobalt) 25%, var(--line));
+  font-size: 0.85rem;
+}
+
+.proposal-changes article { gap: var(--space-3); align-items: start; }
+.proposal-changes article strong { font-size: 0.92rem; }
+
+.proposal-summary dl > div:last-child { border-bottom: 0; }
+.proposal-summary > p { margin: 0 20px; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
+
+.proposal-live-preview { border-radius: var(--radius-panel); }
+.proposal-live-preview > h3 { margin: 0 0 var(--space-4); font-size: 1.05rem; }
+
+.preview-controls label {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.preview-controls select { min-height: 36px; color: var(--ink); font-size: 0.85rem; }
+.preview-count { margin: var(--space-3) 0; font-size: 0.8rem; }
+.preview-content > h4 { margin: 0 0 var(--space-3); font-size: 0.95rem; }
+
+/* --- Diagnostics and quiet states ------------------------------------------- */
+
+.diagnostics,
+.empty-inline {
+  max-width: 640px;
+  border-radius: var(--radius-panel);
+}
+
+.empty-inline {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.empty-inline h3 { font-size: 1.05rem; }
+.empty-inline p { margin-bottom: 0; line-height: 1.55; }
+.diagnostics article code { display: block; margin-top: 6px; }
+
+/* A hero empty state should sit in the middle of the panel it owns, not pinned
+   to the top of a tall blank card. */
+.studio-content > .empty-state {
+  min-height: 100%;
+  justify-content: center;
+}
+
+.studio-content > .dialog-page,
+.studio-content > .help-page { min-height: 100%; }
+
+.empty-state .action-row { justify-content: center; }
+
+/* Most Studio dialogs put the title and blurb straight into the card rather
+   than into a <header>. Give both shapes the same masthead. */
+.record-form-card > h2 {
+  margin: 0;
+  padding: var(--space-4) var(--space-5) 0;
+  font-size: 1.45rem;
+}
+
+.record-form-card > p {
+  margin: 6px 0 0;
+  padding: 0 var(--space-5) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.record-form-card > .message-slot { margin: var(--space-4) var(--space-5) 0; width: auto; }
+
+/* A lone submit action still belongs on the action shelf, right-aligned like
+   every other dialog, not stretched across the card. */
+.record-form-card .form-actions > .primary-button,
+.record-form-card .form-actions > .secondary-button { flex: 0 0 auto; }
+
+.record-form-card .record-form > .message-slot { width: auto; margin: 0; }
+
+/* Choice editor and conversion tables sit inside the same card. */
+.conversion-record,
+.backfill-record {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+}
+
+.conversion-record:first-of-type,
+.backfill-record:first-of-type { border-top: 0; }
+
+.conversion-record > strong,
+.backfill-record > strong { font-size: 0.88rem; }
+
+/* --- Destructive action, both form shells ---------------------------------- */
+
+/* Delete is not a peer of Save. It shares the action shelf so it stays with the
+   commit action when a long form scrolls, but sits on the opposite edge in a
+   quiet danger treatment rather than as a second filled button. */
+#delete-record {
+  margin-right: auto;
+  min-height: 32px;
+  padding-inline: 0;
+  border: 0;
+  color: var(--danger);
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 620;
+}
+
+#delete-record:hover:not(:disabled) {
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.form-actions { align-items: center; }
+
+/* --- Record inspector alignment -------------------------------------------- */
+
+/* The inspector is a sibling of the scrolling surface, so its own header has to
+   sit on the same line as the board column headers rather than floating above
+   whatever the surface happens to have scrolled to. */
+.use-layout.has-inspector .record-inspector { border-top: 0; }
+
+.record-inspector > header {
+  min-height: 52px;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.record-inspector .record-form { padding-top: var(--space-4); }
+
+/* --- Page headings without a subtitle --------------------------------------- */
+
+/* Several headings lost an explanatory line; the chip beside them should still
+   centre on the title rather than on a phantom second row. */
+.page-heading { align-items: center; justify-content: flex-end; }
+
+/* --- Data footer ------------------------------------------------------------ */
+
+/* With the static "saved locally" line gone the pager is the only child left. */
+.data-footer { justify-content: flex-start; }
+
+/* --- Query row -------------------------------------------------------------- */
+
+.query-status:empty { display: none; }
+
+/* --- Rail ------------------------------------------------------------------- */
+
+/* Help was pushed to the bottom by the removed footer; keep it anchored there. */
+.rail { padding-bottom: var(--space-4); }
+
+/* The inspector is a sibling of the scrolling surface, so it starts flush at the
+   layout's top edge while the board and list inset their content by --space-4.
+   Match that inset so the panel title sits on the same line as the column
+   headings beside it instead of floating 16px proud of them. */
+.use-layout.has-inspector .record-inspector > header {
+  padding-top: calc(var(--space-3) + var(--space-4));
+}
+
+.use-layout.has-inspector .record-inspector > header > span { line-height: 1.2; }
+
+/* A board title is a short label; let the field stop at a readable measure
+   rather than stretching the full width of the panel. */
+.rename-form { grid-template-columns: minmax(0, 26rem) auto; justify-content: start; }
+
+/* A row action has its own compact control, centered independently of the
+   grid's text baseline and inherited cell line height. */
+.record-grid .record-open-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.record-open-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.record-open-button:hover { border-color: var(--cobalt); background: var(--cobalt-soft); }
+.record-open-button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+
+/* A calculated field. Deliberately not styled as a disabled input: a disabled
+   control says "not right now", where this is never something anyone edits. The
+   formula sits beneath the value so the number can be understood rather than
+   merely read, and the four result states stay visibly distinct — an empty or
+   failed calculation must never read as a blank the way an unset stored value
+   does. Both themes inherit their colours from the shared tokens. */
+.derived-field {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--violet);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.derived-label {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.derived-value {
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.derived-field[data-state="empty"] .derived-value,
+.derived-field[data-state="pending"] .derived-value {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.derived-field[data-state="error"] {
+  border-left-color: var(--danger);
+}
+
+.derived-field[data-state="error"] .derived-value {
+  color: var(--danger);
+  font-weight: 650;
+}
+
+.derived-detail {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.derived-formula {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.derived-formula abbr {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 650;
+  text-decoration: none;
+  border-bottom: 1px dotted var(--line-strong);
+}
+
+.derived-formula code {
+  font-size: 0.72rem;
+  color: var(--ink);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* A calculated column in the Studio table. It carries the same accent the record
+   page uses, so the two read as one feature, and it is deliberately not greyed out
+   like a locked cell: nothing about it is temporarily unavailable. */
+.calculated-cell {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--violet) 6%, transparent);
+  box-shadow: inset 3px 0 0 -1px var(--violet);
+}
+
+/* The approval panel in File status. Not an alert: a file asking whether its rules
+   may run is a normal question, and dressing it as a warning would teach people to
+   dismiss it. It uses the accent that marks calculated things elsewhere, so the
+   two read as one feature. */
+.behaviour-approval {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--violet);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.behaviour-approval h3 { margin: 0; font-size: 0.85rem; }
+.behaviour-approval p { margin: 0; line-height: 1.45; }
+.behaviour-approval[data-approved="false"] { border-left-color: var(--warning); }
+.behaviour-approval code {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.72rem;
+}
+.behaviour-approval-actions { margin-top: 4px; }
+
+/* The record-page header (ADR-0004, 2026-09-14): a band above the form carrying the
+   title field, the subtitle field and the accent choice's chip, in the accent's tone. */
+.record-hero {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--line);
+  border-left: 4px solid var(--status-color, var(--line-strong));
+  background: color-mix(in srgb, var(--status-color, var(--surface-soft)) 9%, var(--surface-raised));
+}
+
+.record-hero h2 {
+  margin: 0;
+  font-size: 1.12rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.record-hero p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.record-hero .card-chip { justify-self: start; }
+
+.calendar-entry .status-dot { margin-right: 5px; vertical-align: middle; }
+.studio-choice-cell { display: inline-flex; align-items: center; gap: 6px; }
+
+.choice-tone-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--status-color, var(--muted));
+  vertical-align: middle;
+}
+
+.tone-field { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
+.tone-field legend { padding: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
+.tone-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.tone-picker label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.tone-picker label:has(input:checked) { border-color: var(--cobalt); background: var(--cobalt-soft); }
+.tone-picker label:focus-within { outline: 2px solid var(--cobalt); outline-offset: 1px; }
+.tone-picker input { margin: 0; }
+
+/* The rating control: native radios, one per value of the scale, each drawn as the dot
+   for its number. Radios carry the field's name, so the form reads them back, the
+   draft tracks them and a failed validation can focus them.
+
+   The radio is drawn as the dot rather than sitting beside one: a browser's own radio
+   and a dot of the same shape in the same pill read as two selections for one value.
+   Choosing a rating means clicking among pills, and a second click of that pair used to
+   select the label's text and a third the whole form, so a pill holds no selectable
+   text: the dots are chrome, and the number is read from the control, not copied. */
+.rating-field { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
+.rating-field legend { padding: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
+.rating-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.rating-picker label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.rating-picker input {
+  appearance: none;
+  flex: none;
+  box-sizing: border-box;
+  width: 11px;
+  height: 11px;
+  /* Every field control is sized for typing by the base rule, which a dot is not:
+     without these three the radio comes out a 29 by 39 oval with the number beside it. */
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: transparent;
+}
+.rating-picker input:checked { border-color: var(--cobalt); background: var(--cobalt); }
+/* The pill carries the focus ring, so the dot does not need one of its own. */
+.rating-picker input:focus { box-shadow: none; }
+.rating-picker label:has(input:checked) { border-color: var(--cobalt); background: var(--cobalt-soft); }
+.rating-picker label:focus-within { outline: 2px solid var(--cobalt); outline-offset: 1px; }
+.rating-cell { display: inline-flex; align-items: center; gap: 6px; }
+
+/* A form's field names are chrome, not content: a press that lands on one and slides a
+   few pixels used to sweep a selection across the whole form, which is what a form full
+   of controls looks like being dragged through. A press on a name now starts nothing.
+   The values stay selectable — an ancestor's `none` reaches into a control, so each one
+   restates `text` — because copying a record out of the page is a thing people do. */
+.record-form label,
+.record-form legend,
+.record-form .field-label { user-select: none; }
+
+.record-form input,
+.record-form textarea,
+.record-form select { user-select: text; }
+
+/* Charts (ADR-0004, 2026-09-14): a proportion bar and a progress ring, drawn from exact
+   numbers that are shown beside the shape. A segment is a button so a screen reader
+   reads the chart as its numbers, and a drill opens the list narrowed to the group. */
+.chart-tile {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 12px 14px;
+  min-width: 220px;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+
+.chart-tile figcaption { display: grid; gap: 2px; }
+
+.chart-track {
+  display: flex;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-soft);
+}
+
+.chart-track.is-empty { align-items: center; justify-content: center; height: auto; min-height: 14px; }
+.chart-empty { padding: 0 8px; color: var(--muted); font-size: 0.72rem; }
+
+.chart-segment {
+  flex: 0 0 auto;
+  min-width: 2px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--status-color, var(--muted));
+  cursor: pointer;
+}
+
+.chart-segment:disabled { cursor: default; }
+.chart-segment:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; }
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.78rem;
+}
+
+.chart-legend li { display: inline-flex; align-items: center; gap: 5px; }
+.chart-legend-label { color: var(--muted); }
+
+.chart-table { border-collapse: collapse; font-size: 0.78rem; }
+.chart-table th, .chart-table td { padding: 2px 10px 2px 0; text-align: left; border-bottom: 1px solid var(--line); }
+.chart-table-toggle { justify-self: start; padding: 0; }
+
+/* Over time, ADR-0004 2026-09-16 amendment (S5). A trend's columns and an activity
+   grid's squares. Both keep a slot for a period with nothing in it: an empty column is a
+   baseline tick and a quiet day is the lightest step, because a chart that omits them
+   looks exactly like a busy one and says something else. */
+
+.chart-columns {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 84px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.chart-column {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 6px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px 3px 0 0;
+  background: none;
+  cursor: pointer;
+}
+
+.chart-column-fill {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  border-radius: 3px 3px 0 0;
+  background: var(--cobalt);
+}
+
+/* A period with nothing in it keeps its slot and draws a tick on the baseline, so the
+   gap reads as a gap rather than as a period nobody recorded. */
+.chart-column.is-empty .chart-column-fill { min-height: 2px; background: var(--line); }
+
+.chart-column-label {
+  position: absolute;
+  top: 100%;
+  padding-top: 3px;
+  color: var(--muted);
+  font-size: 0.62rem;
+  white-space: nowrap;
+}
+
+/* Every other label, so twelve months fit without overlapping at a narrow width --
+   counted from the end, so the newest bucket always keeps its label. Counting from the
+   start hid it: in a twelve-month range the newest month is the twelfth column, which is
+   the one column anybody is looking at and the only one that had a number in it. */
+.chart-columns .chart-column:nth-last-child(even) .chart-column-label { visibility: hidden; }
+
+.chart-column:disabled { cursor: default; }
+.chart-column:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; }
+
+.chart-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 10px);
+  gap: 2px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.chart-day {
+  width: 10px;
+  height: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--surface-soft);
+  cursor: pointer;
+}
+
+.chart-day[data-level="1"] { background: color-mix(in srgb, var(--cobalt) 25%, var(--surface-soft)); }
+.chart-day[data-level="2"] { background: color-mix(in srgb, var(--cobalt) 50%, var(--surface-soft)); }
+.chart-day[data-level="3"] { background: color-mix(in srgb, var(--cobalt) 75%, var(--surface-soft)); }
+.chart-day[data-level="4"] { background: var(--cobalt); }
+
+/* A placeholder before the range's first day, so the column it sits in is a whole week.
+   It holds its cell and draws nothing. */
+.chart-day.is-blank { background: none; cursor: default; }
+
+.chart-day:disabled { cursor: default; }
+.chart-day:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; }
+.chart-day.is-key { cursor: default; }
+
+.chart-scale {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.chart-ring-body { display: flex; align-items: center; gap: 10px; }
+.chart-ring { width: 56px; height: 56px; transform: rotate(-90deg); }
+.chart-ring-track { fill: none; stroke: var(--surface-soft); stroke-width: 8; }
+.chart-ring-fill { fill: none; stroke: var(--cobalt); stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 240ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .chart-ring-fill { transition: none; } }
+.chart-ring-button { padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.chart-ring-button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+.chart-ring-text { display: grid; line-height: 1.1; }
+.chart-ring-text strong { font-size: 1.3rem; }
+.chart-ring-text span { color: var(--muted); font-size: 0.78rem; }
+
+.drill-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 12px;
+  border: 1px solid var(--cobalt);
+  border-radius: 999px;
+  background: var(--cobalt-soft);
+  color: var(--cobalt);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.drill-clear .outline-icon { width: 14px; height: 14px; }
+
+/* The range strip (S4): both ends of one field, with a rule between them. It is
+   not a chart — nothing here is proportional, because two numbers state a span
+   and a drawn proportion of one would imply a distribution nothing read. */
+.range-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0;
+}
+
+.range-end {
+  font-variant-numeric: tabular-nums;
+  font-weight: 640;
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+
+.range-rule {
+  flex: 1 1 auto;
+  height: 3px;
+  min-width: 1.5rem;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--cobalt), var(--surface-soft));
+}

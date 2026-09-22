@@ -1,0 +1,101 @@
+[CmdletBinding()]
+param()
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$evidence = Join-Path ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../artifacts/evidence/runs'))) ('setup-tests-' + [Guid]::NewGuid().ToString('N'))
+[void][IO.Directory]::CreateDirectory($evidence)
+$setup = Join-Path $PSScriptRoot 'Invoke-NendoSetup.ps1'
+$powershell = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
+function Assert([bool] $Condition, [string] $Message) { if (-not $Condition) { throw $Message } }
+function New-Payload([string] $Name, [hashtable] $Files) {
+    $dir = Join-Path $evidence $Name
+    [void][IO.Directory]::CreateDirectory($dir)
+    $entries = foreach ($name in $Files.Keys) {
+        $file = Join-Path $dir $name
+        [void][IO.Directory]::CreateDirectory((Split-Path $file))
+        [IO.File]::WriteAllText($file, $Files[$name])
+        @{path=$name; sha256=(Get-FileHash -LiteralPath $file).Hash}
+    }
+    @{schemaVersion=1; product='Nendo'; buildId=$Name; files=@($entries)} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $dir 'nendo-install.json')
+    return $dir
+}
+function Run-Setup([string] $Mode, [string] $Root, [string] $Payload, [bool] $Success=$true) {
+    $arguments = @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$setup,'-Mode',$Mode,'-InstallRoot',$Root)
+    if ($Payload) { $arguments += @('-PayloadRoot',$Payload) }
+    $result = & $powershell @arguments 2>&1
+    $exit = $LASTEXITCODE
+    $result | Out-File -LiteralPath (Join-Path $evidence 'tests.log') -Append
+    Assert (($exit -eq 0) -eq $Success) "Unexpected exit $exit for $Mode at $Root. See $evidence/tests.log"
+}
+$v1 = New-Payload 'v1' @{'app.txt'='version one'; 'stale/old.txt'='obsolete'}
+$v2 = New-Payload 'v2' @{'app.txt'='version two'; 'new.txt'='new file'}
+$root = Join-Path $evidence 'Nendo'
+Run-Setup Install $root $v1
+[IO.File]::WriteAllText((Join-Path $root 'user.nendo'),'user data stays exactly here')
+$userHash = (Get-FileHash -LiteralPath (Join-Path $root 'user.nendo')).Hash
+Run-Setup Install $root $v2
+Assert ((Get-Content -LiteralPath (Join-Path $root 'app.txt') -Raw) -eq 'version two') 'Upgrade did not replace payload.'
+Assert (-not (Test-Path -LiteralPath (Join-Path $root 'stale/old.txt'))) 'Stale owned file survived.'
+Assert ((Get-Content -LiteralPath (Join-Path "$root.previous" 'app.txt') -Raw) -eq 'version one') 'Previous payload not retained.'
+Assert ((Get-FileHash -LiteralPath (Join-Path $root 'user.nendo')).Hash -eq $userHash) 'Upgrade changed user file.'
+Run-Setup Install $root $v2
+Assert (@(Get-ChildItem -LiteralPath $evidence -Directory -Filter 'Nendo.previous*').Count -eq 1) 'Backup growth.'
+Assert ((Get-Content -LiteralPath (Join-Path "$root.previous" 'app.txt') -Raw) -eq 'version one') 'Reinstall discarded previous version.'
+# Explicit application rollback uses the same validated install path and preserves user files.
+Run-Setup Install $root $v1
+Assert ((Get-Content -LiteralPath (Join-Path $root 'app.txt') -Raw) -eq 'version one') 'Application rollback did not restore the previous payload.'
+Assert ((Get-FileHash -LiteralPath (Join-Path $root 'user.nendo')).Hash -eq $userHash) 'Application rollback changed user data.'
+Assert ((Get-Content -LiteralPath (Join-Path "$root.previous" 'app.txt') -Raw) -eq 'version two') 'Rollback discarded the newer recovery payload.'
+Run-Setup Install $root $v2
+# Execute the production capacity predicate with boundary measurements. This is
+# injected capacity evidence, not a claim that the physical disk was exhausted.
+$tokens = $null; $parseErrors = $null
+$setupAst = [Management.Automation.Language.Parser]::ParseFile($setup, [ref]$tokens, [ref]$parseErrors)
+if ($parseErrors.Count) { throw 'Setup script does not parse.' }
+$capacityFunction = $setupAst.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Assert-NendoSetupCapacity' }, $true)
+if ($null -eq $capacityFunction) { throw 'Production capacity predicate was not found.' }
+. ([scriptblock]::Create($capacityFunction.Extent.Text))
+$beforeCapacity = (Get-FileHash -LiteralPath (Join-Path $root 'app.txt')).Hash
+foreach ($available in @(0, (16MB + 299))) {
+    $refused = $false
+    try { Assert-NendoSetupCapacity $available 200 100 } catch { $refused = $_.Exception.Message -like 'Insufficient staging space:*' }
+    Assert $refused 'Insufficient staging space was not refused.'
+}
+Assert-NendoSetupCapacity (16MB + 300) 200 100
+Assert ((Get-FileHash -LiteralPath (Join-Path $root 'app.txt')).Hash -eq $beforeCapacity) 'Capacity refusal changed installed bytes.'
+# Locked payload is refused without disturbing the installed version.
+$handle = [IO.File]::Open((Join-Path $root 'app.txt'),'Open','ReadWrite','None')
+try { Run-Setup Install $root $v1 $false } finally { $handle.Dispose() }
+Assert ((Get-Content -LiteralPath (Join-Path $root 'app.txt') -Raw) -eq 'version two') 'Locked upgrade changed payload.'
+# Pre-existing unowned path cannot be overwritten by a new release.
+$conflict = New-Payload 'conflict' @{'app.txt'='version three'; 'user.nendo'='overwrite forbidden'}
+Run-Setup Install $root $conflict $false
+Assert ((Get-FileHash -LiteralPath (Join-Path $root 'user.nendo')).Hash -eq $userHash) 'Collision changed user data.'
+# Corrupt extraction is refused before active bytes change.
+[IO.File]::WriteAllText((Join-Path $v1 'app.txt'),'corrupt')
+Run-Setup Install $root $v1 $false
+# Model interruption after one replacement: previous is complete, journal is durable.
+# Back up the active payload as an updater would do before touching any files.
+Copy-Item -LiteralPath (Join-Path $root 'app.txt') -Destination (Join-Path "$root.previous" 'app.txt') -Force
+Copy-Item -LiteralPath (Join-Path $root 'new.txt') -Destination (Join-Path "$root.previous" 'new.txt') -Force
+Copy-Item -LiteralPath (Join-Path $root 'nendo-install.json') -Destination (Join-Path "$root.previous" 'nendo-install.json') -Force
+Remove-Item -LiteralPath (Join-Path "$root.previous" 'stale/old.txt')
+$next = Get-Content -LiteralPath (Join-Path $conflict 'nendo-install.json') -Raw | ConvertFrom-Json
+$next.files = @($next.files | Where-Object path -ne 'user.nendo')
+@{schemaVersion=1; product='Nendo'; hadPrevious=$true; files=$next.files} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $root 'nendo-update.json')
+[IO.File]::WriteAllText((Join-Path $root 'app.txt'),'version three')
+Run-Setup Recover $root ''
+Assert ((Get-Content -LiteralPath (Join-Path $root 'app.txt') -Raw) -eq 'version two') 'Interrupted update recovery failed.'
+Assert (-not (Test-Path -LiteralPath (Join-Path $root 'nendo-update.json'))) 'Recovery journal remained.'
+Run-Setup Uninstall $root ''
+Assert ((Get-FileHash -LiteralPath (Join-Path $root 'user.nendo')).Hash -eq $userHash) 'Uninstall changed user data.'
+Assert (-not (Test-Path -LiteralPath (Join-Path $root 'app.txt'))) 'Uninstall left payload.'
+Assert (-not (Test-Path -LiteralPath "$root.previous")) 'Uninstall left previous payload.'
+# A traversal in even an unsigned local inventory must never escape the fixture.
+$bad = New-Payload 'bad' @{'ok.txt'='okay'}
+$inventory = Get-Content -LiteralPath (Join-Path $bad 'nendo-install.json') -Raw | ConvertFrom-Json
+$inventory.files[0].path = '..\outside.txt'
+$inventory | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $bad 'nendo-install.json')
+Run-Setup Install (Join-Path $evidence 'bad-install') $bad $false
+@{result='passed'; checks=@('fresh install','changed-version upgrade','same-version reinstall','application rollback/user-file retention','injected staging-capacity boundaries','one previous payload','stale owned removal','locked-file refusal','unowned collision refusal','corrupt extraction refusal','interrupted update recovery','uninstall/user-file retention','path traversal refusal'); shell='Windows PowerShell 5.1'; capacityLimitation='Injected measurements at the production predicate; no physical disk exhaustion.'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidence 'results.json')
+Write-Output "Nendo setup checks passed: $evidence"

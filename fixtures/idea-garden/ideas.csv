@@ -1,0 +1,13 @@
+external_id,title,notes,status,energy,created_date,next_action
+idea-001,Visual meal planner,Arrange weekly meals as movable cards and reuse ingredients,Idea,Medium,2026-07-02,Sketch the card information
+idea-002,Offline bird fieldbook,Record sightings with place weather and sketches,Exploring,High,2026-07-05,Define the minimum sighting fields
+idea-003,Generative tile instrument,Explore repeating geometric tiles with live parameters,Trying,High,2026-07-11,Implement one parameterised tiling rule
+idea-004,Repair history for household objects,Keep parts repairs photos and warranty notes together,Idea,Low,2026-07-18,Choose three objects for a trial
+idea-005,Walk annotation map,Attach observations and questions to favourite walks,Paused,Medium,2026-07-24,Decide whether maps are required for version one
+idea-006,Prompt experiment notebook,Compare prompts models settings and outcomes,Trying,High,2026-08-01,Create a repeatable comparison rubric
+idea-007,Family recipe lineage,Track recipe variants and why each change was made,Exploring,Medium,2026-08-04,Enter three versions of potato salad
+idea-008,Small physics language,Describe constraints such as snap and let a physics engine resolve them,Paused,High,2026-08-07,Reduce the first language to five statements
+idea-009,Audiobook decision shelf,Track candidates mood length and why a book was rejected,Idea,Low,2026-08-13,Add the current Audible shortlist
+idea-010,Local research dossier,Collect claims sources annotations and open questions in one file,Trying,Medium,2026-08-18,Import one completed research topic
+idea-011,Interactive maths gallery,Make mathematical ideas explorable through direct manipulation,Exploring,High,2026-08-22,Choose one concept with a visible invariant
+idea-012,Workshop experiment log,Record materials settings outcomes and next trials,Done,Medium,2026-08-25,Write a short retrospective

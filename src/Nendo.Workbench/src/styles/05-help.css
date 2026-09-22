@@ -1,0 +1,63 @@
+/* Help, which owns two scroll regions so the index and the article scroll
+   independently of one another.
+   Slice 05 of styles.css; see that file for why the order matters. */
+
+.help-nav { margin-top: auto; }
+.agent-help-entry { color: var(--muted); margin: 0 0 20px; }
+.agent-help-entry .text-button { color: var(--cobalt); text-decoration: underline; text-underline-offset: 3px; }
+/* Help owns two scroll regions: the index stays put while the article scrolls, and vice versa.
+   The content pane stops scrolling while Help is shown (.is-help) so the page can fill it. */
+.studio-content.is-help { overflow: hidden; }
+.studio-content.is-help > .help-page { height: 100%; min-height: 0; }
+.help-page { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100%; }
+.help-index { min-height: 0; overflow-y: auto; padding: 24px 18px; background: var(--surface-soft); border-right: 1px solid var(--line); }
+.help-index > label { display: block; font-weight: 650; margin-bottom: 10px; }
+.help-index input { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-raised); color: var(--ink); font: inherit; font-size: .8rem; }
+.help-topics { display: grid; gap: 6px; margin-top: 18px; }
+.help-group { display: grid; gap: 4px; }
+.help-group + .help-group { margin-top: 14px; }
+.help-group[hidden] { display: none; }
+.help-group-label { margin: 0 0 4px 12px; font-size: .68rem; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.help-topics button { display: grid; gap: 5px; text-align: left; padding: 10px 12px; background: transparent; color: var(--ink); border: 1px solid transparent; border-radius: 10px; font: inherit; }
+.help-topics button strong { font-size: .85rem; font-weight: 600; }
+.help-topics button:hover { background: var(--surface-raised); }
+.help-topics button[aria-current] { background: var(--cobalt-soft); border-color: var(--line); color: var(--cobalt); }
+.help-topics button[hidden] { display: none; }
+.help-article { padding: 32px clamp(20px, 4vw, 60px); min-width: 0; min-height: 0; overflow-y: auto; overflow-wrap: anywhere; }
+.help-article h2:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 4px; border-radius: 4px; }
+.help-terms { margin: 0; }
+.help-terms > div { display: grid; grid-template-columns: minmax(150px, 240px) minmax(0, 1fr); gap: 4px 16px; padding: 8px 0; border-top: 1px solid var(--line); }
+.help-terms > div:first-child { border-top: 0; }
+.help-terms dt { font-weight: 620; font-size: .85rem; line-height: 1.5; overflow-wrap: anywhere; }
+.help-terms dt code { font-family: ui-monospace, Consolas, monospace; font-size: .8rem; }
+.help-terms dd { margin: 0; font-size: .9rem; line-height: 1.6; }
+.help-related { max-width: 72ch; margin-top: 30px; }
+.help-related h3 { font-size: 1.05rem; margin-bottom: 12px; }
+.help-link { display: inline-block; margin: 0 8px 8px 0; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-soft); color: var(--cobalt); font: inherit; font-size: .85rem; }
+.help-link:hover { background: var(--surface-raised); }
+.empty-help-entry { color: var(--muted); margin: 8px 0 0; }
+.empty-help-entry .text-button { color: var(--cobalt); text-decoration: underline; text-underline-offset: 3px; }
+.help-article h2 { font-size: 1.9rem; margin: 6px 0 12px; }
+.help-summary { color: var(--muted); font-size: 1.05rem; }
+.help-article section { max-width: 72ch; margin-top: 30px; }
+.help-article h3 { font-size: 1.05rem; margin-bottom: 12px; }
+.help-article p, .help-article li { line-height: 1.7; font-size: .9rem; }
+.help-article ol { padding-left: 24px; }
+.help-article li + li { margin-top: 12px; }
+.connection-request { padding: 20px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 14px; }
+.connection-request textarea { display: block; width: 100%; resize: vertical; color: var(--ink); background: var(--surface-raised); border: 1px solid var(--line); border-radius: 8px; padding: 12px; font: inherit; font-size: .8rem; line-height: 1.6; margin-bottom: 12px; }
+.help-footnote { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); }
+.record-form [hidden] { display: none; }
+@media (max-width: 850px) {
+  .help-page { grid-template-columns: 200px minmax(0, 1fr); }
+  .help-index { padding: 18px 12px; }
+  .help-article { padding: 24px 18px; }
+}
+@media (max-width: 620px) {
+  .help-page { display: flex; flex-direction: column; }
+  .help-index { flex: none; overflow-y: visible; border-right: 0; border-bottom: 1px solid var(--line); }
+  .help-topics { max-height: 240px; overflow-y: auto; }
+  .help-article { flex: 1; }
+  .help-terms > div { grid-template-columns: 1fr; gap: 2px; }
+  .help-terms dd { margin-left: 12px; }
+}

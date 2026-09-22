@@ -1,0 +1,98 @@
+/* Folding the rail down to its icons, and the control that does it.
+   Slice 15 of styles.css; see that file for why the order matters.
+
+   This slice loads last on purpose. Two earlier ones already restyle .rail under
+   their own media queries -- 10 turns it into a top bar below 840px, 12 gives it a
+   compact icon layout on a small screen -- so a collapsed rule written up beside
+   .rail in 03 or 04 would be overridden and the toggle would look broken rather
+   than absent. */
+
+/* Room for the toggle beside the mark, without moving the mark or shrinking it. */
+.brand {
+  justify-content: space-between;
+  gap: 6px;
+  padding-right: 4px;
+}
+
+.rail-toggle {
+  flex: 0 0 30px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+}
+
+.rail-toggle .outline-icon {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+}
+
+@media (min-width: 841px) {
+  :root[data-rail="collapsed"] .app-shell {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  :root[data-rail="collapsed"] .rail {
+    gap: 6px;
+    padding: 12px 6px 12px;
+  }
+
+  /* The mark stays in the upper-left corner it belongs in; the toggle moves below it,
+     because 56px has no room for the two side by side. */
+  :root[data-rail="collapsed"] .brand {
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    height: auto;
+    padding: 0;
+  }
+
+  :root[data-rail="collapsed"] .brand img {
+    width: 40px;
+    max-height: 32px;
+  }
+
+  :root[data-rail="collapsed"] .primary-nav,
+  :root[data-rail="collapsed"] .studio-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin: 0;
+  }
+
+  :root[data-rail="collapsed"] .studio-nav > p {
+    display: none;
+  }
+
+  :root[data-rail="collapsed"] .rail .nav-item {
+    display: flex;
+    justify-content: center;
+    width: 42px;
+    min-width: 0;
+    min-height: 34px;
+    padding: 5px;
+  }
+
+  :root[data-rail="collapsed"] .rail .nav-symbol {
+    display: inline;
+  }
+
+  /* The label is still there for a screen reader, and the button's title still names
+     the route on hover; a collapsed rail is navigable, not decorative. */
+  :root[data-rail="collapsed"] .rail .nav-item > span:not(.nav-symbol) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* Below 841px the rail is already a top bar or already compact, so the toggle would
+   change nothing. A control that does nothing is worse than no control. */
+@media (max-width: 840px) {
+  .rail-toggle {
+    display: none;
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "profiles": {
+    "Nendo.Desktop": {
+      "commandName": "Project"
+    }
+  }
+}

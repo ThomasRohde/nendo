@@ -1,0 +1,76 @@
+# .NET
+**/bin/
+**/obj/
+artifacts/
+.dotnet/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+TestResults/
+coverage/
+*.trx
+*.binlog
+.playwright-cli/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/*.local.json
+_ReSharper*/
+*.DotSettings.user
+
+# Node / web tooling
+node_modules/
+**/dist/
+**/.vite/
+.npm/
+.pnpm-store/
+*.tsbuildinfo
+
+# The live planner: real owner data, and a 5 MB SQLite file that git would store
+# whole on every write. It lives in workspace/ beside the tracked demo files and
+# is deliberately not one of them; workspace/README.md says how it is kept.
+workspace/Nendo.nendo
+
+# Nendo/SQLite operational derivatives
+*.nendo-journal
+*.nendo-wal
+*.nendo-shm
+*.nendo.write-owner
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.nendo.backup
+*.nendo.tmp
+
+# Logs, temporary files and OS metadata
+*.log
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local environment and secrets. Signing material and key files are named
+# explicitly: code signing is not started yet (docs/roadmap.md), and the first
+# .pfx to land in this tree would otherwise be one `git add -A` from public.
+.env
+.env.*
+!.env.example
+secrets.json
+appsettings.*.local.json
+*.pfx
+*.p12
+*.snk
+*.pem
+*.key
+*.keystore
+
+# Per-machine agent settings. Claude Code writes this beside the shared
+# .claude/commands; it holds one person's enabled servers and output style.
+.claude/settings.local.json
+
+# Crash dumps
+*.stackdump
+*.dmp

@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <!-- ADR-0008. The Engine is the only consumer, and that is enforced rather
+         than agreed: withholding the compile assets means Desktop, the MCP host and
+         their tests cannot name an NCalc type even by accident, so every expression
+         has to arrive through the typed adapter in Behaviour/.
+         The build assets are withheld too. Parlot, which NCalc brings with it, ships
+         props that add `global using static Parlot.Fluent.Parsers` to any project
+         with ImplicitUsings enabled — which is every project here. An evaluator
+         dependency should not quietly change what names are in scope across the
+         solution. Runtime assets still flow, so deployment is unaffected. -->
+    <PackageReference Include="NCalc" PrivateAssets="compile;build;buildTransitive;analyzers" />
+  </ItemGroup>
+
+</Project>

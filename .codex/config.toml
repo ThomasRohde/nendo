@@ -1,0 +1,6 @@
+# Trusted-project defaults; explicit task/CLI settings take precedence.
+
+# The running Nendo window, while a file is open with Agent access on. The address is the whole
+# configuration; there is no credential.
+[mcp_servers.nendo]
+url = "http://127.0.0.1:41763/mcp"

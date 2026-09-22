@@ -1,0 +1,48 @@
+/* The File menu, recent files and the recovery layout. This block sits above
+   the reset because that is where it was written; moving it would change which
+   of its declarations the reset then overrides.
+   Slice 01 of styles.css; see that file for why the order matters. */
+
+.file-menu { position: relative; }
+.file-menu summary { display: flex; align-items: center; gap: 9px; height: 44px; list-style: none; cursor: pointer; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); font-weight: 600; }
+.file-menu summary::-webkit-details-marker { display: none; }
+.file-chevron { color: var(--muted); }
+.file-chevron .outline-icon { width: 16px; height: 16px; }
+.file-menu[open] .file-chevron { transform: rotate(180deg); }
+.file-menu-panel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 10; width: min(340px, 80vw); max-height: calc(100dvh - 150px); overflow-y: auto; padding: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-raised); box-shadow: 0 12px 30px #07172524; }
+.file-menu-panel button { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: transparent; text-align: left; padding: 10px 12px; border-radius: 7px; }
+.file-menu-panel button strong, .file-menu-panel button small { display: block; }
+.file-menu-panel button strong { font-size: .9rem; font-weight: 600; }
+.file-menu-panel button small { font-size: .75rem; color: var(--muted); line-height: 1.4; margin-top: 3px; }
+.file-menu-heading { padding: 10px 12px; font-weight: 650; overflow-wrap: anywhere; }
+.file-menu-label { margin: 8px 12px 3px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; font-size: .65rem; font-weight: 650; }
+/* What the file is for, on its own. Dressed as the delete dialog is, because two modal
+   panels in one app that disagree about their own border read as two applications. */
+.about-file-dialog { max-width: 34rem; padding: 2rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); color: var(--ink); }
+.about-file-dialog::backdrop { background: rgb(10 20 40 / 45%); }
+.about-file-dialog h2 { margin: 0 0 14px; overflow-wrap: anywhere; }
+/* Prose, so it wraps and keeps the breaks the author typed. */
+.about-file-purpose { margin: 0 0 20px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.about-file-empty { margin: 0 0 20px; color: var(--muted); line-height: 1.55; }
+.outline-icon { display: block; width: 21px; height: 21px; flex: 0 0 21px; }
+.file-menu-panel button:not(:disabled):hover { background: var(--surface-soft); }
+.file-menu-divider { height: 1px; margin: 5px; background: var(--line); }
+.file-notice { margin: 0 0 12px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); overflow-wrap: anywhere; }
+.recent-files { width: min(460px, 100%); text-align: left; margin-top: 24px; }
+.recent-files h3 { font-size: 14px; color: var(--muted); margin: 0 0 6px; }
+.recent-file { display: flex; gap: 20px; justify-content: space-between; width: 100%; padding: 8px 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; }
+.recent-file span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent-file span:last-child { color: var(--muted); font-size: 12px; }
+.recent-notice { font-size: 12px; }
+.recovery-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .8fr); gap: 24px; margin-top: 24px; }
+.recovery-findings, .recovery-action-list { border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+.recovery-layout h2 { margin: 0 0 16px; }
+.recovery-findings p { max-width: 68ch; overflow-wrap: anywhere; line-height: 1.55; }
+.subtle-note { color: var(--muted); }
+.recovery-action-list { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.recovery-action-list button { padding: 10px 14px; text-align: left; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-raised); }
+.recovery-action-list button:not(:disabled):hover { border-color: var(--cobalt); }
+.file-menu-panel button, .recovery-action-list button, .recent-file { color: var(--ink); }
+.file-menu-panel button:disabled, .recovery-action-list button:disabled, .recent-file:disabled { opacity: .45; cursor: not-allowed; }
+.file-menu summary:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; }
+@media (max-width: 900px) { .recovery-layout { grid-template-columns: 1fr; } .header-controls { flex-wrap: wrap; justify-content: flex-end; } }

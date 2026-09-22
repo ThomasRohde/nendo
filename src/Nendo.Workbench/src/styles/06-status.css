@@ -1,0 +1,158 @@
+/* The status bar, the health pill and the busy bar with its Stop control.
+   Slice 06 of styles.css; see that file for why the order matters. */
+
+.connection-dot,
+.healthy-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--healthy);
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 28px 22px;
+}
+
+.workspace-header { grid-row: 1; }
+.file-notice { grid-row: 2; }
+.busy-bar { grid-row: 3; }
+.workbench { grid-row: 4; }
+.status-bar { grid-row: 5; }
+
+/* Shown only once work has been running long enough that a person is waiting on
+   it. It is not an error and does not use the error colours: waiting is normal,
+   having no way out of it is not. */
+.busy-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--violet);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  font-size: 0.85rem;
+}
+
+.busy-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--violet);
+  border-radius: 50%;
+  animation: busy-spin 900ms linear infinite;
+}
+
+/* Respect a reader who has asked for less motion: the bar still says what it
+   says, it just stops turning. */
+@media (prefers-reduced-motion: reduce) {
+  .busy-spinner { animation: none; }
+}
+
+@keyframes busy-spin {
+  to { transform: rotate(360deg); }
+}
+
+.busy-bar button { margin-left: auto; }
+
+/* The file name is fixed for the whole session, so it reports rather than
+   announces: one quiet line under the workbench, out of the reading path. */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 30px;
+  padding: var(--space-2) var(--space-1) 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.status-bar[hidden] {
+  display: none;
+}
+
+/* The build, always present. It reports rather than announces, so it sits at the
+   quiet end of the bar next to the health pill and never competes with it. */
+.status-end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+.status-version {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.status-file[hidden] {
+  display: none;
+}
+
+.status-file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+#session-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-file .outline-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  opacity: 0.75;
+}
+
+/* The pill was sized to stand beside the File menu; here it sits on one text line. */
+.status-bar .status-pill {
+  height: 22px;
+  padding: 0 9px;
+  font-size: 0.72rem;
+}
+
+.workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 102px;
+  padding: 16px 3px;
+}
+
+.workspace-header h1 {
+  margin: 2px 0 0;
+  font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  font-size: clamp(1.55rem, 2.5vw, 2.15rem);
+  font-weight: 680;
+  letter-spacing: -0.035em;
+}
+
+.workspace-identity {
+  min-width: 0;
+}
+
+.workspace-identity h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.location {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.83rem;
+}

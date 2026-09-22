@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="Nendo.Desktop.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:Nendo.Desktop"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Loaded="Page_Loaded"
+    Unloaded="Page_Unloaded"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <!-- A dialog that offers a list of things to do draws them as rows, not as a stack of
+             centred default buttons: the label starts at the leading edge and a chevron sits at
+             the trailing one, which is how Windows itself presents a list of choices. -->
+        <Style x:Key="ExtensionActionStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <!-- Compact enough that every action still fits the enforced 1024x720 minimum window:
+                 taller rows pushed the sixth one out of the dialog and the lane refused it. -->
+            <Setter Property="Padding" Value="16,6,12,6" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        </Style>
+    </Page.Resources>
+
+    <Grid x:Name="ShellGrid" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <!-- The boundary the person drags. A column of its own, because both halves are
+                 child windows drawn over the page and nothing underneath one is clickable. -->
+            <ColumnDefinition x:Name="ExtensionSplitterColumn" Width="0" />
+            <!-- A custom view opens here, beside the Workbench, and the column closes with it. -->
+            <ColumnDefinition x:Name="ExtensionColumn" Width="0" />
+        </Grid.ColumnDefinitions>
+        <Grid x:Name="WebHost" />
+        <local:ExtensionSplitter
+            x:Name="ExtensionSplitter"
+            Grid.Column="1"
+            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+        <!-- Stays visible: the zero-width column hides it. A container that starts collapsed did not
+             expose a subtree added at runtime to UI Automation. -->
+        <Grid x:Name="ExtensionHost" Grid.Column="2" />
+
+        <Border
+            x:Name="RecoveryPanel"
+            Padding="32"
+            Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+            Visibility="Collapsed">
+            <StackPanel
+                MaxWidth="840"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="16">
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <Image Source="ms-appx:///Assets/NendoMark.png" Width="48" Height="48"
+                           AutomationProperties.Name="Nendo" />
+                    <TextBlock FontFamily="Segoe UI Variable Display" FontSize="32" FontWeight="SemiBold"
+                               VerticalAlignment="Center" Text="Studio recovery" />
+                </StackPanel>
+                <ScrollViewer MaxHeight="96" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="12">
+                <TextBlock
+                    x:Name="RecoveryReason"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    FontSize="15"
+                    LineHeight="23"
+                    Text="The app view could not start."
+                    TextWrapping="Wrap" />
+                <TextBlock
+                    x:Name="RecoverySession"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    FontSize="13"
+                    Text="No Nendo file is open."
+                    TextWrapping="Wrap" />
+                <InfoBar x:Name="RecoveryActivity" IsOpen="False" IsClosable="True" />
+                </StackPanel>
+                </ScrollViewer>
+                <ContentControl x:Name="RecoveryActions" HorizontalContentAlignment="Stretch" IsTabStop="False">
+                <Grid ColumnSpacing="12" RowSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Button Content="Open file or backup" HorizontalAlignment="Stretch" Height="44"
+                            AutomationProperties.AutomationId="recovery.open" Click="RecoveryOpen_Click" />
+                    <Button x:Name="RecoveryBackup" Grid.Column="1" Content="Create backup" HorizontalAlignment="Stretch" Height="44"
+                            AutomationProperties.AutomationId="recovery.backup" Click="RecoveryBackup_Click" />
+                    <Button x:Name="RecoveryRestore" Grid.Column="2" Content="Restore backup" HorizontalAlignment="Stretch" Height="44"
+                            AutomationProperties.AutomationId="recovery.restore" Click="RecoveryRestore_Click" />
+                    <Button x:Name="RecoveryInspect" Grid.Row="1" Content="Inspect again" HorizontalAlignment="Stretch" Height="44"
+                            AutomationProperties.AutomationId="recovery.inspect" Click="RecoveryInspect_Click" />
+                    <Button x:Name="RecoveryUpgrade" Grid.Row="1" Grid.Column="1" Content="Upgrade file" HorizontalAlignment="Stretch" Height="44"
+                            AutomationProperties.AutomationId="recovery.upgrade" Click="RecoveryUpgrade_Click" />
+                    <Button Grid.Row="1" Grid.Column="2" Content="Save diagnostics" HorizontalAlignment="Stretch" Height="44"
+                            AutomationProperties.AutomationId="recovery.diagnostics" Click="RecoveryDiagnostics_Click" />
+                    <Button x:Name="RecoveryClose" Grid.Row="2" Content="Close file" HorizontalAlignment="Stretch" Height="44"
+                            AutomationProperties.AutomationId="recovery.close" Click="RecoveryClose_Click" />
+                    <Button x:Name="RecoveryExport" Grid.Row="2" Grid.Column="1" Content="Export readable data" HorizontalAlignment="Stretch" Height="44"
+                            AutomationProperties.AutomationId="recovery.export" Click="RecoveryExport_Click" />
+                    <Button Grid.Row="2" Grid.Column="2" Content="Review recovery" HorizontalAlignment="Stretch" Height="44"
+                            AutomationProperties.AutomationId="recovery.resolve" Click="RecoveryResolve_Click" />
+                </Grid>
+                </ContentControl>
+                <Button
+                    x:Name="RecoveryRestart"
+                    HorizontalAlignment="Left"
+                    Style="{StaticResource AccentButtonStyle}"
+                    AutomationProperties.AutomationId="renderer.restart"
+                    Click="RestartWorkbench_Click"
+                    Content="Restart view" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>

@@ -1,0 +1,79 @@
+/* The reset, base typography and the focus ring.
+   Slice 03 of styles.css; see that file for why the order matters. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-width: 320px;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+button {
+  font: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease,
+    color 120ms ease;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: wait;
+}
+
+button:focus-visible {
+  outline: 3px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 196px minmax(0, 1fr);
+  height: 100vh;
+  min-height: 0;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 28px 14px 20px;
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  height: 46px;
+  padding: 0 10px;
+}
+
+.brand img {
+  width: 112px;
+  height: auto;
+  object-fit: contain;
+}
+
+:root[data-theme="dark"] .brand img {
+  filter: drop-shadow(0 2px 10px rgba(101, 151, 255, 0.25));
+}

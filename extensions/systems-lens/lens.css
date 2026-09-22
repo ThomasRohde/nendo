@@ -1,0 +1,82 @@
+/* Nendo's own tokens, copied from src/Nendo.Workbench/src/styles/02-tokens.css so the
+   schematic sits with the app rather than beside it. Nothing crosses the extension
+   boundary — the host sends one word, light or dark — so these are a copy and can drift
+   if the app's change. Keep them in step when they do. */
+:root{
+  color-scheme:light;
+  font:16px/1.5 "Segoe UI Variable Text","Segoe UI",sans-serif;
+  --canvas:#f4f5f7;--surface:#fbfbfc;--surface-raised:#fff;--surface-soft:#f0f1f6;
+  --ink:#13213d;--muted:#667085;--line:#d9dde6;--line-strong:#c9cfdb;
+  --cobalt:#2458e6;--cobalt-soft:#e9edff;--violet:#7256d9;
+  --healthy:#2c9a50;--warning:#b56a13;--danger:#c5364f;
+  --tone-red:#d3384f;--tone-orange:#d9651c;--tone-amber:#b8860b;--tone-green:#2f9e5b;
+  --tone-teal:#1f9a94;--tone-blue:#2f6fe4;--tone-violet:#7a55d6;--tone-grey:#6b7385;
+}
+:root[data-theme=dark]{
+  color-scheme:dark;
+  --canvas:#071725;--surface:#0a1c2b;--surface-raised:#0e2435;--surface-soft:#10283a;
+  --ink:#edf3ff;--muted:#a8b5c8;--line:#263e50;--line-strong:#355469;
+  --cobalt:#6597ff;--cobalt-soft:#142f5e;--violet:#ad97ff;
+  --healthy:#59d584;--warning:#f0b15f;--danger:#ff8298;
+  --tone-red:#ff7b8c;--tone-orange:#ff9a5c;--tone-amber:#f2c14e;--tone-green:#5ed48a;
+  --tone-teal:#4dd0c8;--tone-blue:#7ba6ff;--tone-violet:#b39dff;--tone-grey:#a3adc0;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);height:100vh;display:flex;flex-direction:column;padding:20px;gap:10px}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+h1{font-size:1.3rem;margin:0;font-weight:650}
+p{margin:2px 0;color:var(--muted);font-size:.9rem}
+.tools{display:flex;gap:6px;flex-wrap:wrap}
+button{font:inherit;font-size:.9rem;font-weight:600;color:var(--ink);background:var(--surface-raised);border:1px solid var(--line);border-radius:12px;padding:8px 14px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--line-strong)}
+button:disabled{opacity:.45;cursor:default}
+button[aria-pressed=true]{border-color:var(--cobalt);background:var(--cobalt-soft);color:var(--cobalt)}
+:focus-visible{outline:3px solid var(--cobalt);outline-offset:3px}
+.hint{font-size:.8rem}
+/* The one sentence this view must never lose. It is not dismissible, because the
+   distinction it draws is the difference between a reading of the file and a claim
+   about the machine. */
+#caveat{font-size:.8rem;color:var(--ink);background:var(--cobalt-soft);border:1px solid var(--cobalt);border-radius:12px;padding:9px 13px}
+main{flex:1;min-height:140px;display:flex}
+#canvas{position:relative;min-height:140px;width:100%;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:var(--surface-raised);touch-action:none}
+svg{display:block;width:100%;height:100%}
+.edge{stroke:var(--muted);stroke-width:1.7;fill:none;marker-end:url(#arrow)}
+.edge.loop{stroke:var(--tone-orange);stroke-dasharray:6 4;marker-end:url(#arrow-loop)}
+marker#arrow path{fill:var(--muted)}marker#arrow-loop path{fill:var(--tone-orange)}
+.edge.related{stroke:var(--cobalt);stroke-width:2.6}
+.edge.cut{stroke:var(--danger);stroke-dasharray:3 5}
+.node rect{fill:var(--surface-raised);stroke:var(--line);stroke-width:1.5}
+.node text{fill:var(--ink);font-size:13px;pointer-events:none}
+.node .status,.node .band{font-size:11px;fill:var(--muted)}
+.node .tone{stroke-width:0}
+.node{cursor:pointer}
+.node.selected rect{fill:var(--cobalt-soft);stroke:var(--cobalt);stroke-width:3}
+.node:focus rect{stroke:var(--cobalt);stroke-width:3}
+.node.upstream rect{stroke:var(--tone-teal);stroke-width:2.4}
+.node.downstream rect{stroke:var(--violet);stroke-width:2.4}
+/* The three verdicts of a take-out, drawn as three different things rather than as
+   degrees of red: exposed loses every path, reduced keeps one, removed is the
+   component the question is about. */
+.node.exposed rect{stroke:var(--danger);stroke-width:3;stroke-dasharray:none}
+.node.reduced rect{stroke:var(--warning);stroke-width:2.4;stroke-dasharray:7 4}
+.node.removed rect{stroke:var(--danger);stroke-width:3;stroke-dasharray:2 4;fill:var(--surface-soft)}
+.node .verdict{font-size:11px;font-weight:600}
+.node.exposed .verdict{fill:var(--danger)}.node.reduced .verdict{fill:var(--warning)}
+/* A component whose stored state is already Offline is outlined so it can be seen,
+   and is not treated as taken out: colour is what the file says, take-out is what
+   somebody asked. */
+.node.offline rect{stroke-dasharray:5 3}
+#drawing.focused .node.faded,#drawing.focused .edge.faded{opacity:.14}
+.tone-grey{fill:var(--tone-grey)}.tone-blue{fill:var(--tone-blue)}.tone-red{fill:var(--tone-red)}.tone-green{fill:var(--tone-green)}
+#empty{position:absolute;inset:40% 20px auto;text-align:center}
+#text-view{overflow:auto;width:100%;border:1px solid var(--line);border-radius:14px;background:var(--surface-raised);padding:16px}
+#records{list-style:none;margin:0;padding:0}
+#records>li{padding:12px 0;border-bottom:1px solid var(--line)}#records>li:last-child{border:0}
+#records p{margin:6px 0 0}
+#records button[aria-pressed=true]{border-color:var(--cobalt);background:var(--cobalt-soft)}
+#records .verdict-exposed{color:var(--danger);font-weight:600}
+#records .verdict-reduced{color:var(--warning);font-weight:600}
+footer{min-height:24px;color:var(--muted);font-size:.9rem;overflow-wrap:anywhere}
+[hidden]{display:none!important}
+@media(max-width:560px){body{padding:12px}.hint{display:none}h1{font-size:1.1rem}.tools button{padding:6px 10px;font-size:.82rem}}
+header,.tools,.hint,#caveat,footer,#canvas,#summary,#empty{user-select:none}#text-view{user-select:text}

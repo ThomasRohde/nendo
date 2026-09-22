@@ -1,0 +1,37 @@
+[CmdletBinding()]
+param([Parameter(Mandatory)][string] $Executable)
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$exe = (Resolve-Path -LiteralPath $Executable).Path
+$repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$evidenceRoot = Join-Path $repoRoot ('artifacts/evidence/runs/p6-axiom-gate-' + [Guid]::NewGuid().ToString('N'))
+[void](New-Item -ItemType Directory -Path $evidenceRoot)
+$reservation = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+$reservation.Start()
+$port = $reservation.LocalEndpoint.Port
+$reservation.Stop()
+$frozen = @(Get-ChildItem -LiteralPath (Split-Path $exe) -Recurse -File | ForEach-Object { @{ path = $_.FullName; sha256 = (Get-FileHash -LiteralPath $_.FullName).Hash } })
+foreach ($phase in @('build', 'reopen')) {
+    $target = $null
+    try {
+        $target = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden -PassThru -Environment @{
+            NENDO_STARTUP_CREATE = $(if ($phase -eq 'build') { Join-Path $evidenceRoot 'axiom-register.nendo' } else { '' })
+            NENDO_STARTUP_OPEN = $(if ($phase -eq 'reopen') { Join-Path $evidenceRoot 'axiom-register.nendo' } else { '' })
+            WEBVIEW2_USER_DATA_FOLDER = (Join-Path $evidenceRoot 'webview-profile')
+            NENDO_DEVICE_STATE_ROOT = (Join-Path $evidenceRoot 'device-state')
+            WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$port"
+            # The close button minimises to the notification area by default, and no
+            # script can click a tray menu. Pin the exit this lane's teardown relies on.
+            NENDO_DESKTOP_CLOSE_ACTION = 'exit'
+        }
+        & node (Join-Path $PSScriptRoot 'Gate-AgentAuthoring.mjs') $port $target.Id $evidenceRoot $phase
+        if ($LASTEXITCODE -ne 0) { throw "Axiom register gate $phase failed. Evidence: $evidenceRoot" }
+    } finally {
+        if ($null -ne $target -and -not $target.HasExited) {
+            if (-not $target.CloseMainWindow() -or -not $target.WaitForExit(15000)) { throw "Owned pilot PID $($target.Id) did not close normally." }
+        }
+    }
+}
+foreach ($file in $frozen) { if ((Get-FileHash -LiteralPath $file.path).Hash -ne $file.sha256) { throw "Payload changed: $($file.path)" } }
+@{ executable = $exe; files = $frozen; result = 'passed'; limitation = 'Current Windows user with existing WebView2; not a clean-machine or human test.' } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $evidenceRoot 'runtime.json')
+Write-Output "P6-F axiom register gate evidence: $evidenceRoot"

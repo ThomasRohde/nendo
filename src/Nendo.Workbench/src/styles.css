@@ -1,0 +1,26 @@
+/* The Workbench stylesheet, in load order.
+ *
+ * These are slices of one cascade, not independent sheets. The refinement layer
+ * at the end deliberately restates selectors the sections above it style, so
+ * reordering these imports — or adding one in the wrong place — changes what the
+ * page looks like. That is why they are numbered.
+ *
+ * Vite inlines every @import at build time, so the bundle is a single file and
+ * the page's style-src 'self' policy is unaffected.
+ */
+
+@import './styles/01-file-menu.css';
+@import './styles/02-tokens.css';
+@import './styles/03-base.css';
+@import './styles/04-shell.css';
+@import './styles/05-help.css';
+@import './styles/06-status.css';
+@import './styles/07-studio.css';
+@import './styles/08-panels.css';
+@import './styles/09-surfaces.css';
+@import './styles/10-forms.css';
+@import './styles/11-agent-access.css';
+@import './styles/12-agent-activity.css';
+@import './styles/13-refinements-pages.css';
+@import './styles/14-refinements-controls.css';
+@import './styles/15-rail-collapse.css';

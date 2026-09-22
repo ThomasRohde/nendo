@@ -1,0 +1,151 @@
+{
+  "fixture": "decision-log",
+  "purpose": "P2.5 non-Idea malleability proof data; not a production mode or API contract",
+  "entity": {
+    "entityId": "entity.decision",
+    "displayName": "Decision",
+    "physicalTableName": "decision",
+    "fields": [
+      {
+        "fieldId": "field.decision.title",
+        "displayName": "Title",
+        "physicalColumnName": "title",
+        "storageKind": "Text",
+        "required": true,
+        "presentation": "singleLine",
+        "options": []
+      },
+      {
+        "fieldId": "field.decision.context",
+        "displayName": "Context",
+        "physicalColumnName": "context",
+        "storageKind": "Text",
+        "required": false,
+        "presentation": "longText",
+        "options": []
+      },
+      {
+        "fieldId": "field.decision.state",
+        "displayName": "State",
+        "physicalColumnName": "state",
+        "storageKind": "Text",
+        "required": true,
+        "presentation": "singleChoice",
+        "options": [
+          "Proposed",
+          "Accepted",
+          "Superseded"
+        ]
+      },
+      {
+        "fieldId": "field.decision.owner",
+        "displayName": "Owner",
+        "physicalColumnName": "owner",
+        "storageKind": "Text",
+        "required": false,
+        "presentation": "singleLine",
+        "options": []
+      },
+      {
+        "fieldId": "field.decision.reviewDate",
+        "displayName": "Review date",
+        "physicalColumnName": "review_date",
+        "storageKind": "Date",
+        "required": false,
+        "presentation": "date",
+        "options": []
+      },
+      {
+        "fieldId": "field.decision.decidedDate",
+        "displayName": "Decided",
+        "physicalColumnName": "decided_date",
+        "storageKind": "Date",
+        "required": false,
+        "presentation": "date",
+        "options": []
+      }
+    ]
+  },
+  "form": {
+    "surfaceId": "surface.decision.form",
+    "rootNodeId": "node.decision.form.root",
+    "title": "Decision record",
+    "fieldIds": [
+      "field.decision.title",
+      "field.decision.context",
+      "field.decision.state",
+      "field.decision.owner",
+      "field.decision.reviewDate",
+      "field.decision.decidedDate"
+    ]
+  },
+  "list": {
+    "surfaceId": "surface.decision.list",
+    "rootNodeId": "node.decision.list.root",
+    "title": "Decision register",
+    "fieldIds": [
+      "field.decision.title",
+      "field.decision.state",
+      "field.decision.owner",
+      "field.decision.reviewDate"
+    ]
+  },
+  "board": {
+    "surfaceId": "surface.decision.board",
+    "rootNodeId": "node.decision.board.root",
+    "title": "Decision board",
+    "groupByFieldId": "field.decision.state",
+    "cardFieldIds": [
+      "field.decision.title",
+      "field.decision.owner",
+      "field.decision.reviewDate"
+    ]
+  },
+  "gallery": {
+    "surfaceId": "surface.decision.gallery",
+    "rootNodeId": "node.decision.gallery.root",
+    "title": "Decision cards",
+    "titleFieldId": "field.decision.title",
+    "accentFieldId": "field.decision.state",
+    "fieldIds": [
+      "field.decision.owner",
+      "field.decision.reviewDate"
+    ]
+  },
+  "timeline": {
+    "surfaceId": "surface.decision.timeline",
+    "rootNodeId": "node.decision.timeline.root",
+    "title": "Decisions over time",
+    "dateFieldId": "field.decision.decidedDate",
+    "endDateFieldId": "field.decision.reviewDate",
+    "titleFieldId": "field.decision.title",
+    "accentFieldId": "field.decision.state",
+    "fieldIds": [
+      "field.decision.owner"
+    ]
+  },
+  "overview": {
+    "surfaceId": "surface.decision.overview",
+    "rootNodeId": "node.decision.overview.root",
+    "title": "Decisions at a glance",
+    "description": "Every decision this project has taken, when it was taken, and what is still open.",
+    "countTitle": "Decisions",
+    "rangeFieldId": "field.decision.decidedDate",
+    "rangeTitle": "Decided between",
+    "recentTitle": "Lately",
+    "recentLimit": 5,
+    "recentOrderByFieldId": "field.decision.decidedDate",
+    "recentFieldIds": [
+      "field.decision.title",
+      "field.decision.owner"
+    ]
+  },
+  "command": {
+    "surfaceId": "surface.decision.commands",
+    "nodeId": "command.decision.accept",
+    "label": "Accept decision",
+    "effectKind": "setField",
+    "fieldId": "field.decision.state",
+    "value": "Accepted"
+  }
+}

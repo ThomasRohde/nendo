@@ -1,0 +1,24 @@
+[
+  {
+    "recordId": "decision-001",
+    "values": {
+      "field.decision.title": "Keep one portable file",
+      "field.decision.context": "The application and its records must travel together without a service dependency.",
+      "field.decision.state": "Proposed",
+      "field.decision.owner": "Thomas",
+      "field.decision.reviewDate": "2026-09-10",
+      "field.decision.decidedDate": "2026-09-01"
+    }
+  },
+  {
+    "recordId": "decision-002",
+    "values": {
+      "field.decision.title": "Use declarative commands",
+      "field.decision.context": "The MVP needs bounded behavior without general scripting.",
+      "field.decision.state": "Proposed",
+      "field.decision.owner": "Nendo team",
+      "field.decision.reviewDate": "2026-09-17",
+      "field.decision.decidedDate": "2026-09-03"
+    }
+  }
+]

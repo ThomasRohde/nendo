@@ -1,0 +1,65 @@
+/* The colours, tones and surfaces both themes are built from.
+   Slice 02 of styles.css; see that file for why the order matters. */
+
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  color: #13213d;
+  background: #f4f5f7;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --canvas: #f4f5f7;
+  --surface: #fbfbfc;
+  --surface-raised: #ffffff;
+  --surface-soft: #f0f1f6;
+  --ink: #13213d;
+  --muted: #667085;
+  --line: #d9dde6;
+  --line-strong: #c9cfdb;
+  --cobalt: #2458e6;
+  --cobalt-soft: #e9edff;
+  --violet: #7256d9;
+  --healthy: #2c9a50;
+  --warning: #b56a13;
+  --danger: #c5364f;
+  --shadow: 0 18px 55px rgba(44, 55, 83, 0.08);
+  /* Choice tones: the eight named hues a choice option may carry. The file stores
+     the name; each theme owns the colour behind it. */
+  --tone-red: #d3384f;
+  --tone-orange: #d9651c;
+  --tone-amber: #b8860b;
+  --tone-green: #2f9e5b;
+  --tone-teal: #1f9a94;
+  --tone-blue: #2f6fe4;
+  --tone-violet: #7a55d6;
+  --tone-grey: #6b7385;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  color: #edf3ff;
+  background: #071725;
+  --canvas: #071725;
+  --surface: #0a1c2b;
+  --surface-raised: #0e2435;
+  --surface-soft: #10283a;
+  --ink: #edf3ff;
+  --muted: #a8b5c8;
+  --line: #263e50;
+  --line-strong: #355469;
+  --cobalt: #6597ff;
+  --cobalt-soft: #142f5e;
+  --violet: #ad97ff;
+  --healthy: #59d584;
+  --warning: #f0b15f;
+  --danger: #ff8298;
+  --shadow: 0 20px 65px rgba(0, 0, 0, 0.3);
+  --tone-red: #ff7b8c;
+  --tone-orange: #ff9a5c;
+  --tone-amber: #f2c14e;
+  --tone-green: #5ed48a;
+  --tone-teal: #4dd0c8;
+  --tone-blue: #7ba6ff;
+  --tone-violet: #b39dff;
+  --tone-grey: #a3adc0;
+}

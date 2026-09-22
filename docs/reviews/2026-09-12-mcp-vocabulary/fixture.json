@@ -1,0 +1,1368 @@
+{
+  "title": "Studio commissions — widened vocabulary demo",
+  "mutations": [
+    {
+      "description": "Clients for the Studio commissions demo",
+      "operations": [
+        {
+          "operationType": "schema.createEntity",
+          "payload": {
+            "entityId": "vr_client",
+            "displayName": "Studio clients"
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_client",
+            "fieldId": "vr_clientName",
+            "displayName": "Client",
+            "storageKind": "text",
+            "required": true
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_client",
+            "fieldId": "vr_email",
+            "displayName": "Email",
+            "storageKind": "text",
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "description": "Commissions with every supported scalar kind",
+      "operations": [
+        {
+          "operationType": "schema.createEntity",
+          "payload": {
+            "entityId": "vr_job",
+            "displayName": "Studio commissions"
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_title",
+            "displayName": "Commission",
+            "storageKind": "text",
+            "required": true
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_stage",
+            "displayName": "Stage",
+            "storageKind": "text",
+            "required": false,
+            "presentation": "singleChoice",
+            "options": [
+              "Inbox",
+              "Making",
+              "Ready",
+              "Delivered"
+            ]
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_priority",
+            "displayName": "Priority",
+            "storageKind": "text",
+            "required": false,
+            "presentation": "singleChoice",
+            "options": [
+              "High",
+              "Normal",
+              "Low"
+            ]
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_fee",
+            "displayName": "Fee",
+            "storageKind": "decimal",
+            "required": false
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_quantity",
+            "displayName": "Quantity",
+            "storageKind": "integer",
+            "required": false
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_due",
+            "displayName": "Delivery date",
+            "storageKind": "date",
+            "required": false
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_updated",
+            "displayName": "Updated",
+            "storageKind": "dateTime",
+            "required": false
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_approved",
+            "displayName": "Approved",
+            "storageKind": "boolean",
+            "required": false
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_tracking",
+            "displayName": "Tracking ID",
+            "storageKind": "uuid",
+            "required": false
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_notes",
+            "displayName": "Brief",
+            "storageKind": "text",
+            "required": false,
+            "presentation": "longText"
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_customer",
+            "displayName": "Client",
+            "storageKind": "reference",
+            "required": false
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_legacy",
+            "displayName": "Legacy client label",
+            "storageKind": "text",
+            "required": false
+          }
+        },
+        {
+          "operationType": "schema.addField",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_archive",
+            "displayName": "Archived note",
+            "storageKind": "text",
+            "required": false
+          }
+        }
+      ]
+    },
+    {
+      "description": "Client relation and named production stages",
+      "operations": [
+        {
+          "operationType": "schema.configureReference",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_customer",
+            "targetEntityId": "vr_client",
+            "labelFieldId": "vr_clientName"
+          }
+        },
+        {
+          "operationType": "schema.setChoiceMetadata",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_stage",
+            "choiceId": "Inbox",
+            "displayName": "Inbox",
+            "retired": false
+          }
+        },
+        {
+          "operationType": "schema.setChoiceMetadata",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_stage",
+            "choiceId": "Making",
+            "displayName": "Making",
+            "retired": false
+          }
+        },
+        {
+          "operationType": "schema.setChoiceMetadata",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_stage",
+            "choiceId": "Ready",
+            "displayName": "Ready",
+            "retired": false
+          }
+        },
+        {
+          "operationType": "schema.setChoiceMetadata",
+          "payload": {
+            "entityId": "vr_job",
+            "fieldId": "vr_stage",
+            "choiceId": "Delivered",
+            "displayName": "Delivered",
+            "retired": false
+          }
+        }
+      ]
+    },
+    {
+      "description": "Studio views 1",
+      "operations": [
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_all",
+            "kind": "recordList",
+            "parentNodeId": null,
+            "position": 0,
+            "properties": {
+              "definitionVersion": 3,
+              "entityId": "vr_job",
+              "title": "All commissions",
+              "orderByFieldId": "vr_due",
+              "orderDirection": "ascending"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_all_vr_title",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_all",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_title"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_all_vr_stage",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_all",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_stage"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_all_vr_fee",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_all",
+            "position": 2,
+            "properties": {
+              "fieldId": "vr_fee"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_all_vr_due",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_all",
+            "position": 3,
+            "properties": {
+              "fieldId": "vr_due"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_all_vr_customer",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_all",
+            "position": 4,
+            "properties": {
+              "fieldId": "vr_customer"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_all_count",
+            "kind": "summaryTile",
+            "parentNodeId": "vr_all",
+            "position": 5,
+            "properties": {
+              "title": "Commissions",
+              "aggregate": "count"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_all_sum",
+            "kind": "summaryTile",
+            "parentNodeId": "vr_all",
+            "position": 6,
+            "properties": {
+              "title": "Total fees",
+              "aggregate": "sum",
+              "fieldId": "vr_fee"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_all_min",
+            "kind": "summaryTile",
+            "parentNodeId": "vr_all",
+            "position": 7,
+            "properties": {
+              "title": "Smallest fee",
+              "aggregate": "min",
+              "fieldId": "vr_fee"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_all_max",
+            "kind": "summaryTile",
+            "parentNodeId": "vr_all",
+            "position": 8,
+            "properties": {
+              "title": "Largest fee",
+              "aggregate": "max",
+              "fieldId": "vr_fee"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_ready",
+            "kind": "recordList",
+            "parentNodeId": null,
+            "position": 1,
+            "properties": {
+              "definitionVersion": 3,
+              "entityId": "vr_job",
+              "title": "Ready to deliver"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_ready_vr_title",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_ready",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_title"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_ready_vr_fee",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_ready",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_fee"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_ready_vr_due",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_ready",
+            "position": 2,
+            "properties": {
+              "fieldId": "vr_due"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_ready_filter",
+            "kind": "filterClause",
+            "parentNodeId": "vr_ready",
+            "position": 3,
+            "properties": {
+              "fieldId": "vr_stage",
+              "operator": "eq",
+              "value": "Ready"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_ready_sum",
+            "kind": "summaryTile",
+            "parentNodeId": "vr_ready",
+            "position": 4,
+            "properties": {
+              "title": "Ready fees",
+              "aggregate": "sum",
+              "fieldId": "vr_fee"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "description": "Studio views 2",
+      "operations": [
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_ready_count",
+            "kind": "summaryTile",
+            "parentNodeId": "vr_ready",
+            "position": 5,
+            "properties": {
+              "title": "Ready commissions",
+              "aggregate": "count"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_production",
+            "kind": "boardSurface",
+            "parentNodeId": null,
+            "position": 2,
+            "properties": {
+              "definitionVersion": 3,
+              "entityId": "vr_job",
+              "title": "Production board",
+              "groupByFieldId": "vr_stage"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_production_vr_title",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_production",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_title"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_production_vr_due",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_production",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_due"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_production_vr_fee",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_production",
+            "position": 2,
+            "properties": {
+              "fieldId": "vr_fee"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_production_vr_priority",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_production",
+            "position": 3,
+            "properties": {
+              "fieldId": "vr_priority"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_production_total",
+            "kind": "summaryTile",
+            "parentNodeId": "vr_production",
+            "position": 4,
+            "properties": {
+              "title": "All production fees",
+              "aggregate": "sum",
+              "fieldId": "vr_fee",
+              "scope": "surface"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_production_column",
+            "kind": "summaryTile",
+            "parentNodeId": "vr_production",
+            "position": 5,
+            "properties": {
+              "title": "Column fees",
+              "aggregate": "sum",
+              "fieldId": "vr_fee",
+              "scope": "group"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_priorities",
+            "kind": "boardSurface",
+            "parentNodeId": null,
+            "position": 3,
+            "properties": {
+              "definitionVersion": 3,
+              "entityId": "vr_job",
+              "title": "Open work by priority",
+              "groupByFieldId": "vr_priority"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_priorities_vr_title",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_priorities",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_title"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_priorities_vr_stage",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_priorities",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_stage"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_priorities_vr_fee",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_priorities",
+            "position": 2,
+            "properties": {
+              "fieldId": "vr_fee"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_priorities_filter",
+            "kind": "filterClause",
+            "parentNodeId": "vr_priorities",
+            "position": 3,
+            "properties": {
+              "fieldId": "vr_stage",
+              "operator": "ne",
+              "value": "Delivered"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_priorities_column",
+            "kind": "summaryTile",
+            "parentNodeId": "vr_priorities",
+            "position": 4,
+            "properties": {
+              "title": "Priority fees",
+              "aggregate": "sum",
+              "fieldId": "vr_fee",
+              "scope": "group"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_calendar",
+            "kind": "calendarSurface",
+            "parentNodeId": null,
+            "position": 4,
+            "properties": {
+              "definitionVersion": 3,
+              "entityId": "vr_job",
+              "title": "Delivery calendar",
+              "dateFieldId": "vr_due"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_calendar_vr_title",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_calendar",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_title"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "description": "Studio views 3",
+      "operations": [
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_calendar_vr_stage",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_calendar",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_stage"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_calendar_filter",
+            "kind": "filterClause",
+            "parentNodeId": "vr_calendar",
+            "position": 2,
+            "properties": {
+              "fieldId": "vr_stage",
+              "operator": "ne",
+              "value": "Delivered"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_allDates",
+            "kind": "calendarSurface",
+            "parentNodeId": null,
+            "position": 5,
+            "properties": {
+              "definitionVersion": 3,
+              "entityId": "vr_job",
+              "title": "All delivery dates",
+              "dateFieldId": "vr_due"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_allDates_vr_title",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_allDates",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_title"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_allDates_vr_fee",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_allDates",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_fee"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_details",
+            "kind": "detailSurface",
+            "parentNodeId": null,
+            "position": 6,
+            "properties": {
+              "definitionVersion": 3,
+              "entityId": "vr_job",
+              "title": "Commission details"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_tabs",
+            "kind": "tabGroup",
+            "parentNodeId": "vr_details",
+            "position": 0,
+            "properties": {
+              "title": "Commission details"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_overview",
+            "kind": "section",
+            "parentNodeId": "vr_tabs",
+            "position": 0,
+            "properties": {
+              "title": "Overview"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_overview_vr_title",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_overview",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_title"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_overview_vr_customer",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_overview",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_customer"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_overview_vr_stage",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_overview",
+            "position": 2,
+            "properties": {
+              "fieldId": "vr_stage"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_overview_vr_priority",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_overview",
+            "position": 3,
+            "properties": {
+              "fieldId": "vr_priority"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_overview_vr_notes",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_overview",
+            "position": 4,
+            "properties": {
+              "fieldId": "vr_notes"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_money",
+            "kind": "section",
+            "parentNodeId": "vr_tabs",
+            "position": 1,
+            "properties": {
+              "title": "Money"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_money_vr_fee",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_money",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_fee"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_money_vr_quantity",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_money",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_quantity"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "description": "Studio views 4",
+      "operations": [
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_money_vr_approved",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_money",
+            "position": 2,
+            "properties": {
+              "fieldId": "vr_approved"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_schedule",
+            "kind": "section",
+            "parentNodeId": "vr_tabs",
+            "position": 2,
+            "properties": {
+              "title": "Schedule"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_schedule_vr_due",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_schedule",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_due"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_schedule_vr_updated",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_schedule",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_updated"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_schedule_vr_tracking",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_schedule",
+            "position": 2,
+            "properties": {
+              "fieldId": "vr_tracking"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_schedule_vr_legacy",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_schedule",
+            "position": 3,
+            "properties": {
+              "fieldId": "vr_legacy"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_schedule_vr_archive",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_schedule",
+            "position": 4,
+            "properties": {
+              "fieldId": "vr_archive"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_form",
+            "kind": "recordForm",
+            "parentNodeId": null,
+            "position": 7,
+            "properties": {
+              "definitionVersion": 3,
+              "entityId": "vr_job",
+              "title": "New commission"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_form_vr_title",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_form",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_title"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_form_vr_stage",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_form",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_stage"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_form_vr_due",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_form",
+            "position": 2,
+            "properties": {
+              "fieldId": "vr_due"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_markReady",
+            "kind": "recordCommand",
+            "parentNodeId": null,
+            "position": 8,
+            "properties": {
+              "definitionVersion": 3,
+              "entityId": "vr_job",
+              "label": "Mark ready"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_markReady_stage",
+            "kind": "commandStep",
+            "parentNodeId": "vr_markReady",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_stage",
+              "valueKind": "literal",
+              "value": "Ready"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_markReady_approved",
+            "kind": "commandStep",
+            "parentNodeId": "vr_markReady",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_approved",
+              "valueKind": "literal",
+              "value": true
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_markReady_updated",
+            "kind": "commandStep",
+            "parentNodeId": "vr_markReady",
+            "position": 2,
+            "properties": {
+              "fieldId": "vr_updated",
+              "valueKind": "now"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_reopen",
+            "kind": "recordCommand",
+            "parentNodeId": null,
+            "position": 9,
+            "properties": {
+              "definitionVersion": 3,
+              "entityId": "vr_job",
+              "label": "Reopen for today"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "description": "Studio views 5",
+      "operations": [
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_reopen_stage",
+            "kind": "commandStep",
+            "parentNodeId": "vr_reopen",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_stage",
+              "valueKind": "literal",
+              "value": "Making"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_reopen_due",
+            "kind": "commandStep",
+            "parentNodeId": "vr_reopen",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_due",
+              "valueKind": "today"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_reopen_updated",
+            "kind": "commandStep",
+            "parentNodeId": "vr_reopen",
+            "position": 2,
+            "properties": {
+              "fieldId": "vr_updated",
+              "valueKind": "null"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_clients",
+            "kind": "recordList",
+            "parentNodeId": null,
+            "position": 10,
+            "properties": {
+              "definitionVersion": 3,
+              "entityId": "vr_client",
+              "title": "Clients"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_clients_vr_clientName",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_clients",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_clientName"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_clients_vr_email",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_clients",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_email"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_clientDetails",
+            "kind": "detailSurface",
+            "parentNodeId": null,
+            "position": 11,
+            "properties": {
+              "definitionVersion": 3,
+              "entityId": "vr_client",
+              "title": "Client commissions"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_clientDetails_vr_clientName",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_clientDetails",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_clientName"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_clientDetails_vr_email",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_clientDetails",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_email"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_related",
+            "kind": "relatedList",
+            "parentNodeId": "vr_clientDetails",
+            "position": 2,
+            "properties": {
+              "targetEntityId": "vr_job",
+              "viaFieldId": "vr_customer",
+              "title": "Commissions"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_related_vr_title",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_related",
+            "position": 0,
+            "properties": {
+              "fieldId": "vr_title"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_related_vr_stage",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_related",
+            "position": 1,
+            "properties": {
+              "fieldId": "vr_stage"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_related_vr_fee",
+            "kind": "fieldBinding",
+            "parentNodeId": "vr_related",
+            "position": 2,
+            "properties": {
+              "fieldId": "vr_fee"
+            }
+          }
+        },
+        {
+          "operationType": "ui.addNode",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_related_sum",
+            "kind": "summaryTile",
+            "parentNodeId": "vr_related",
+            "position": 3,
+            "properties": {
+              "title": "Client fees",
+              "aggregate": "sum",
+              "fieldId": "vr_fee"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "description": "Correct Date calendar binding",
+      "operations": [
+        {
+          "operationType": "ui.setProperty",
+          "payload": {
+            "surfaceId": "vr_studio",
+            "nodeId": "vr_calendar",
+            "propertyName": "dateFieldId",
+            "value": "vr_due"
+          }
+        }
+      ]
+    }
+  ]
+}
