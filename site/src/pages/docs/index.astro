@@ -12,8 +12,8 @@ const repository = 'https://github.com/ThomasRohde/nendo';
   title="Documentation — Nendo"
   description="The Nendo repository documentation, rendered as a site: the vision, the architecture, the roadmap, the behavioural contracts and the accepted architecture decisions."
   eyebrow="Documentation"
-  heading="The repository documentation, rendered."
-  lede={`${total} documents, rendered from the Markdown in the repository rather than copied from it. Where a document and the code disagree, the code is current — so each page links to its source.`}
+  heading="The repository documentation."
+  lede={`${total} documents, built straight from the Markdown in the repository. Where a document and the code disagree, the code wins, so every page links to its source.`}
 >
   <section class="page section">
     <div class="doc-search-wrap">
@@ -39,11 +39,10 @@ const repository = 'https://github.com/ThomasRohde/nendo';
 
     <div class="note">
       <p>
-        <strong>Not rendered here:</strong> <code>docs/design/</code> and
-        <code>docs/reviews/</code>. Those are the project's own working material —
-        implementation plans it has moved past, and review records that are evidence
-        rather than documentation. They are on
-        <a href={`${repository}/tree/main/docs`} rel="noopener">GitHub</a>, and links into
+        <strong>Not included:</strong> <code>docs/design/</code> and
+        <code>docs/reviews/</code>. These are working files: old implementation plans and
+        review records. They are on
+        <a href={`${repository}/tree/main/docs`} rel="noopener">GitHub</a>, and links to
         them from these pages go there.
       </p>
     </div>

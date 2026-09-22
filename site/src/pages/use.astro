@@ -7,46 +7,45 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const repository = 'https://github.com/ThomasRohde/nendo';
 
 const openWays = [
-  'Double-click a .nendo file — setup registers the file association and its icon',
-  'Explorer, right-click, New, Nendo application',
-  'File, New or File, Open inside the app',
-  'Drag a .nendo file onto the window or onto the taskbar button',
+  'Double-click a .nendo file (the installer registers the file type and its icon)',
+  'In Explorer, right-click and choose New › Nendo application',
+  'Use File › New or File › Open in the app',
+  'Drag a .nendo file onto the window or its taskbar button',
 ];
 
 const journey = [
-  { letter: 'A', title: 'Empty file and human fallback', body: 'Create a file. It is valid while empty. Add a record type and some records by hand in Studio, with no agent involved at all.' },
-  { letter: 'B', title: 'Agent creates the initial shape', body: 'Turn agent access on, ask for the shape you want in your own words, read the semantic diff, accept it.' },
-  { letter: 'C', title: 'Load data', body: 'Import a CSV. The import is not atomic and says so — fifty rows a revision, with what succeeded recorded.' },
-  { letter: 'D', title: 'Create focused experiences', body: 'Ask for a board, a calendar, a record page, a front page. Each arrives as a proposal to read before it exists.' },
-  { letter: 'E', title: 'Offline and recovery', body: 'Close everything, turn the network off, reopen. The data is there through Studio whether or not any custom screen still compiles.' },
+  { letter: 'A', title: 'An empty file, edited by hand', body: 'Create a file; it works while empty. Add a record type and a few records by hand in Studio, with no agent involved.' },
+  { letter: 'B', title: 'An agent builds the first shape', body: 'Turn on agent access, describe what you want in your own words, read the diff and accept it.' },
+  { letter: 'C', title: 'Load data', body: 'Import a CSV. It is saved fifty rows per revision rather than all at once, and the rows that succeeded are recorded.' },
+  { letter: 'D', title: 'Add focused screens', body: 'Ask for a board, a calendar, a record page or a front page. Each arrives as a proposal you review before it exists.' },
+  { letter: 'E', title: 'Offline and recovery', body: 'Close everything, disconnect from the network and reopen. Your data is still there in Studio, whether or not the custom screens still work.' },
 ];
 
 const demo = [
-  'Open the file. Use opens on Station status: nine systems, twelve crew, what is nominal and what is not.',
-  'Open a system record page. The header is toned by condition; four tabs carry its components, incidents, maintenance and readings.',
-  'Open Systems Lens beside it and press Fit — a contained custom view drawing the schematic from the same records.',
-  'Take a component offline with its own command, and watch what depends on it change.',
-  'Try the structural what-if the file refuses, and read the refusal.',
-  'Raise an incident and watch an automatic action fire as part of the same commit.',
+  'Open the file. It starts on Station status: nine systems, twelve crew, and which systems are nominal.',
+  'Open a system record page. The header is coloured by condition, and four tabs hold its components, incidents, maintenance and readings.',
+  'Open Systems Lens beside it and press Fit. This custom view draws the schematic from the same records.',
+  'Take a component offline with its command, and watch the things that depend on it change.',
+  'Try the structural change the file refuses, and read why.',
+  'Raise an incident and watch an automatic action run in the same save.',
   'Ask the agent, in your own words, for something the file does not have yet.',
-  'The agent authors one proposal. Read the semantic diff.',
-  'Accept. The screen exists. No build, no restart, no regeneration.',
+  'The agent writes one proposal. Read the diff.',
+  'Accept it. The new screen is there, with no build and no restart.',
 ];
 ---
 
 <Page
   title="Using Nendo — Nendo"
-  description="What you need, how to build it, how to open a .nendo file, what Studio gives you on day one, how to connect a coding agent over MCP, and the two journeys worth walking."
+  description="What you need, how to build Nendo, how to open a .nendo file, what Studio gives you, how to connect a coding agent, and two walkthroughs to try."
   eyebrow="Using Nendo"
-  heading="There is no download. You build it, then you open a file."
-  lede="Nendo is an unsigned per-user Windows x64 install with no release channel, no update mechanism and no support commitment. That is a deliberate stage, not an oversight — and it is the honest starting point for anything below."
+  heading="Build it from source, then open a file."
+  lede="There is no download yet. Nendo installs per user on Windows x64, unsigned, with no releases, no updates and no support. That is where the project is today, and everything below assumes it."
 >
   <section class="page section">
     <div class="note note-warning">
       <p>
-        <strong>Experimental.</strong> Nendo is a research prototype exploring whether
-        malleable software works, not a product. Read
-        <a href={`${base}/status`}>Status</a> before relying on anything here.
+        <strong>Experimental.</strong> Nendo is a research prototype, not a product. Read
+        <a href={`${base}/status`}>Status</a> before you rely on it for anything.
       </p>
     </div>
   </section>
@@ -55,10 +54,10 @@ const demo = [
     <p class="eyebrow">Step one</p>
     <h2>Build it.</h2>
     <p class="lede">
-      You need the .NET SDK pinned in <code>global.json</code>, the Node version
-      <code>src/Nendo.Workbench/package.json</code> declares under <code>engines</code>
-      (22.12 or later), Windows x64, and the WebView2 Evergreen runtime. The Workbench is
-      built before the host, because it is bundled into the Desktop output.
+      You need Windows x64, the WebView2 Evergreen runtime, the .NET SDK version pinned in
+      <code>global.json</code>, and Node 22.12 or later (declared under
+      <code>engines</code> in <code>src/Nendo.Workbench/package.json</code>). The
+      Workbench is built first, because the desktop app bundles it.
     </p>
     <div class="steps">
       <article>
@@ -66,15 +65,15 @@ const demo = [
         <pre><code>git clone https://github.com/ThomasRohde/nendo
 cd nendo
 pwsh ./tools/Test-Production.ps1</code></pre>
-        <p>The full gate runs in about a minute and includes the repository check.</p>
+        <p>The full test gate takes about a minute.</p>
       </article>
       <article>
         <h3>Package an installer</h3>
         <pre><code>pwsh ./tools/Publish-NendoPayload.ps1
 pwsh ./tools/Build-NendoInstaller.ps1</code></pre>
         <p>
-          Produces <code>artifacts/installer/Nendo-Setup.exe</code>: per-user, unsigned,
-          Windows x64, installing into <code>Programs/Nendo</code>. Needs NSIS.
+          Needs NSIS. Produces <code>artifacts/installer/Nendo-Setup.exe</code>, an
+          unsigned per-user installer that installs into <code>Programs/Nendo</code>.
         </p>
       </article>
     </div>
@@ -82,23 +81,23 @@ pwsh ./tools/Build-NendoInstaller.ps1</code></pre>
 
   <section class="page section">
     <p class="eyebrow">Step two</p>
-    <h2>Open a file — four ways, all of them ordinary.</h2>
+    <h2>Open a file.</h2>
     <ul class="ways">{openWays.map(way => <li>{way}</li>)}</ul>
     <p class="aside">
-      An empty file is a working application. Studio offers Create record type, Import CSV,
-      Attach agent and Inspect file, and adds no sample record type, record or screen
-      implicitly.
+      A new file is empty, and an empty file is a working application. Studio offers
+      Create record type, Import CSV, Attach agent and Inspect file, and never adds sample
+      data or screens on its own.
     </p>
   </section>
 
   <section class="page section">
     <p class="eyebrow">Step three</p>
-    <h2>Studio is what you get before you ask for anything.</h2>
+    <h2>Studio works from the start.</h2>
     <p class="lede">
-      Every record type automatically gets an <em>All records</em> table, a generated
-      record inspector, create, read, update and delete, sorting, filtering, search,
-      history and CSV import and export. The target is closer to a modern database table
-      in a note-taking app than to a raw SQLite browser.
+      Every record type automatically gets an <em>All records</em> table and a record
+      editor, with create, edit and delete, sorting, filtering, search, history, and CSV
+      import and export. It aims to feel like a database table in a modern notes app, not
+      a raw SQLite browser.
     </p>
     <Shot
       name="studio-data"
@@ -106,11 +105,11 @@ pwsh ./tools/Build-NendoInstaller.ps1</code></pre>
       caption="Studio, Data. Edit a cell to save a change; the sort, filter and match controls are above the grid."
     />
     <div class="grid studio-areas">
-      <article><h3>Data</h3><p>The table and the record editor. This is the route that cannot be removed.</p></article>
-      <article><h3>Structure</h3><p>Record types, fields, relationships. Changes here become proposals to review.</p></article>
-      <article><h3>Surfaces</h3><p>The screens the file carries, and what each one is bound to.</p></article>
-      <article><h3>History</h3><p>Every revision in total order, with the reversibility class it declared.</p></article>
-      <article><h3>Health</h3><p>Compatibility, integrity, trust findings, and the device approval for automatic actions.</p></article>
+      <article><h3>Data</h3><p>The table and the record editor. This part can never be removed.</p></article>
+      <article><h3>Structure</h3><p>Record types, fields and relationships. Changes here become proposals to review.</p></article>
+      <article><h3>Surfaces</h3><p>The screens in the file, and what each one is bound to.</p></article>
+      <article><h3>History</h3><p>Every revision in order, and whether it can be undone.</p></article>
+      <article><h3>Health</h3><p>Compatibility, integrity and trust checks, and this computer's approval for automatic actions.</p></article>
     </div>
   </section>
 
@@ -119,38 +118,39 @@ pwsh ./tools/Build-NendoInstaller.ps1</code></pre>
     <h2>Connect an agent.</h2>
     <p class="lede">
       While a file is open with agent access on, Nendo listens at
-      <code>http://127.0.0.1:41763/mcp</code>. That address is the whole client
-      configuration — there is no credential to find or paste.
+      <code>http://127.0.0.1:41763/mcp</code>. That address is all a client needs; there
+      is no key or password.
     </p>
     <pre><code>claude mcp add --transport http nendo http://127.0.0.1:41763/mcp
 codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
     <Prose class="agent-notes">
       <p>
-        A checkout of the repository already carries both registrations
-        (<code>.mcp.json</code> and <code>.codex/config.toml</code>), so an agent started
-        there is connected the moment a file is open. If port 41763 was busy, Agent →
-        Connection shows the address in use and copies either command.
+        The repository already includes both registrations (<code>.mcp.json</code> and
+        <code>.codex/config.toml</code>), so an agent started in a clone connects as soon
+        as a file is open. If port 41763 was taken, Agent › Connection shows the address
+        Nendo is using and can copy either command.
       </p>
       <p>
-        <strong>The other half of "no credential":</strong> anything running on this
-        computer can connect at the access level you chose. Leave access
-        <strong>Off</strong> when no agent is working. This is a boundary around one
-        computer at one chosen level, not an anti-malware boundary.
+        <strong>No password also means</strong> any program on this computer can connect
+        at the access level you chose, so turn access <strong>Off</strong> when no agent is
+        working. This keeps other computers out. It does not protect you from malware on
+        this one.
       </p>
       <p>
-        Claude Code and Codex are the two clients checked. That is not a general MCP
-        parity claim.
+        Claude Code and Codex are the only clients that have been tested. Other MCP
+        clients may work, but nobody has checked.
       </p>
     </Prose>
   </section>
 
   <section class="page section">
     <p class="eyebrow">The journey</p>
-    <h2>Five parts, each with the literal prompt to hand an agent.</h2>
+    <h2>A walkthrough in five parts.</h2>
     <p class="lede">
       <a href={`${repository}/blob/main/fixtures/idea-garden/journey.md`} rel="noopener">The
-      Idea Garden journey</a> is the canonical walk-through, and the right thing to hand
-      somebody who has never opened a <code>.nendo</code> file.
+      Idea Garden journey</a> is the standard walkthrough, with the exact prompt to give
+      the agent at each step. Start here if you have never opened a <code>.nendo</code>
+      file.
     </p>
     <ol class="journey">
       {journey.map(part => (
@@ -169,14 +169,14 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
     <p class="eyebrow">The demonstration</p>
     <h2>Nendo Station, in about four minutes.</h2>
     <p class="lede">
-      The fourth reference application, and the fastest way to show somebody what the
-      claim actually means. The screenshots on this site are captured from it. The last
-      step is the vision's falsification criterion performed in front of someone.
+      The fourth reference application, and the quickest way to show someone what Nendo
+      does. The screenshots on this site come from it. The last three steps are the test
+      the vision sets for the whole project, done live.
     </p>
     <ol class="demo">{demo.map(step => <li>{step}</li>)}</ol>
     <div class="demo-shots">
       <Shot name="record-page" alt="A component record page with a toned header, Take offline and Return to service commands, and the record form" caption="A record page with its own commands." />
-      <Shot name="matrix" alt="A matrix surface: one grouped read laid out as a grid, with empty cells shown as cells" caption="A matrix — one grouped read, whatever its size. Empty cells are cells." />
+      <Shot name="matrix" alt="A matrix surface: one grouped read laid out as a grid, with empty cells shown as cells" caption="A matrix, with an exact count in every cell, including the empty ones." />
     </div>
     <p class="aside">
       <a href={`${base}/docs/nendo-station`}>The full demo script →</a>
@@ -185,39 +185,40 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
 
   <section class="page section">
     <p class="eyebrow">What comes with it</p>
-    <h2>The parts worth knowing before you need them.</h2>
+    <h2>Worth knowing early.</h2>
     <div class="grid grid-2 extras">
       <article class="panel">
-        <h3>CSV, faithfully</h3>
+        <h3>CSV import and export</h3>
         <p>
-          Import and export follow a stated profile. An import is not atomic and says so:
-          fifty rows a revision, with the outcome recorded rather than implied.
+          Both follow a documented format. An import is saved fifty rows per revision
+          rather than all at once, and the result is recorded.
         </p>
         <p><a href={`${base}/docs/contracts/csv`}>The CSV contract →</a></p>
       </article>
       <article class="panel">
         <h3>Custom views</h3>
         <p>
-          A package identified by the hash of its exact archive bytes, a view definition
-          in the file pinning that digest, and device consent keyed to the physical file.
-          Three separate acts; none implies the next, and a copy inherits nothing.
+          A custom view needs three separate things: a package identified by the hash of
+          its archive, a view definition in the file that names that hash, and your consent
+          on this computer for that particular file. None implies the others, and a copy of
+          the file has to be approved again.
         </p>
         <p><a href={`${base}/docs/custom-view-authoring`}>Authoring a custom view →</a></p>
       </article>
       <article class="panel">
-        <h3>It stays running</h3>
+        <h3>It keeps running</h3>
         <p>
-          Closing the window hides Nendo to the notification area with its file open and
-          MCP listening. Four things raise a Windows notification while it is hidden, and
-          each carries a view name and nothing else — they route rather than grant.
+          Closing the window hides Nendo in the notification area, with its file still open
+          and MCP still listening. While it is hidden, four kinds of event raise a Windows
+          notification. Clicking one only opens a view; it can't approve anything.
         </p>
       </article>
       <article class="panel">
-        <h3>Help is in the product</h3>
+        <h3>Help is built in</h3>
         <p>
-          Five categories — Getting started, How Nendo works, Everyday work, Agents, About
-          this app — available with no file open, in read-only mode and in recovery. The
-          last one is generated from the live typed snapshot of the open file.
+          Five sections: Getting started, How Nendo works, Everyday work, Agents, and About
+          this app. Help works with no file open, in read-only mode and in recovery. About
+          this app is generated from the file that is currently open.
         </p>
       </article>
     </div>

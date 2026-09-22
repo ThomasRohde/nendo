@@ -91,12 +91,12 @@ export async function docGroups(): Promise<DocGroup[]> {
   return [
     {
       title: 'Start here',
-      blurb: 'What Nendo is for, how it is built, and what is honestly not yet true.',
+      blurb: 'What Nendo is for, how it is built, and what it cannot do yet.',
       items: start,
     },
     {
       title: 'Contracts',
-      blurb: 'Behaviour in detail: what each surface, read and refusal actually does.',
+      blurb: 'Exactly how each part behaves, including what it refuses.',
       items: inDirectory('contracts'),
     },
     {

@@ -9,12 +9,12 @@ const lanes = [
   {
     name: 'The data lane',
     what: 'Record create, update and delete; bounded paste and import.',
-    how: 'A direct validated transaction against the active file, with optimistic record-version checks and idempotency keys. Ordinary record entry never pays the clone-and-preview cost.',
+    how: 'Written straight to the file in a validated transaction, with per-record version checks and idempotency keys. Everyday data entry never waits for a copy and a preview.',
   },
   {
     name: 'The application lane',
-    what: 'Schema, semantic screens, constraints and declarative commands.',
-    how: 'Agent work happens in a proposal clone. Validation and a semantic diff come before promotion, and acceptance is an explicit host-owned action.',
+    what: 'Schema, screens, constraints and commands.',
+    how: 'Changes are made on a copy of the file. Nendo validates them and shows a diff first, and accepting them is a separate step that happens in the Nendo app itself.',
   },
 ];
 
@@ -30,17 +30,17 @@ const operations = [
 ];
 
 const reversibility = [
-  { name: 'reversible', body: 'The operation has a proven inverse and nothing was lost applying it.' },
-  { name: 'reversible-with-retained-state', body: 'The inverse needs state the file kept on purpose, and the file says it kept it.' },
-  { name: 'irreversible-declared', body: 'Something cannot be recovered, and the operation says so before you accept it.' },
+  { name: 'reversible', body: 'It has a proven inverse, and applying it lost nothing.' },
+  { name: 'reversible-with-retained-state', body: 'Undoing it needs data the file kept on purpose, and the file records that it did.' },
+  { name: 'irreversible-declared', body: 'Something cannot be recovered, and you are told before you accept.' },
 ];
 
 const accessLevels = [
-  { name: 'Disabled', body: 'Nothing connects. This is the default, and where access belongs when no agent is working.' },
-  { name: 'Read-only inspection', body: 'An agent may read the schema, the screens and the records. It may write nothing.' },
-  { name: 'Data mutation', body: 'Records may be created, changed and deleted. Schema and screens are untouchable.' },
-  { name: 'Application authoring', body: 'The agent may author change sets. Each one becomes a proposal a person accepts.' },
-  { name: 'Unattended authoring', body: 'The agent accepts its own proposals. Off by default, confirmed before it takes effect, ends when the file closes, never persisted — and nobody reads the change before the file takes it.' },
+  { name: 'Disabled', body: 'Nothing can connect. This is the default, and the right setting whenever no agent is working.' },
+  { name: 'Read-only inspection', body: 'An agent can read the schema, the screens and the records, and change nothing.' },
+  { name: 'Data mutation', body: 'An agent can create, change and delete records, but not the schema or the screens.' },
+  { name: 'Application authoring', body: 'An agent can propose changes to the application. A person accepts each one.' },
+  { name: 'Unattended authoring', body: 'The agent accepts its own proposals, and nobody reviews them first. It is off by default, must be confirmed before it takes effect, is never saved, and ends when the file closes.' },
 ];
 
 const screens = [
@@ -54,39 +54,39 @@ const screens = [
 
 <Page
   title="How Nendo works — Nendo"
-  description="The file, the two mutation lanes, the closed set of typed operations, reversibility classes, the proposal clone and replay promotion, the screens the host compiles, and the local MCP agent surface."
+  description="The file format, the two ways a file changes, the complete list of operations, how changes are reviewed and applied, how screens are built, and how agents connect."
   eyebrow="How it works"
-  heading="One file, two lanes, a closed set of operations."
-  lede="Nothing here is generated code. A Nendo application is data in a SQLite file that the installed host compiles into screens, and every change to it is one of a small number of named operations."
+  heading="One file, two lanes, a fixed set of operations."
+  lede="A Nendo application is data in a SQLite file. The installed app builds the screens from that data, and every change is one of a small number of named operations."
 >
   <section class="page section">
     <Prose>
       <h2>The file</h2>
       <p>
-        One SQLite file at rest, extension <code>.nendo</code>, application id
-        <code>0x4E454E44</code>. Rollback DELETE journal, <code>synchronous=FULL</code>, a
-        two-second busy timeout. Write-ahead logging was measured and deliberately not
-        taken.
+        An application is a single SQLite file with the extension <code>.nendo</code> and
+        application id <code>0x4E454E44</code>. It uses a rollback (DELETE) journal,
+        <code>synchronous=FULL</code> and a two-second busy timeout. Write-ahead logging
+        was measured and rejected.
       </p>
       <p>
-        Each file records a <code>minimumHostVersion</code>. An older host refuses a newer
-        file explicitly rather than opening it partially, and opening an older file never
-        upgrades or rewrites it. The size bound is 256&nbsp;MiB — roughly 75,500
-        text-heavy records; one cold open at that size measured about 6.6 seconds.
+        Each file records a <code>minimumHostVersion</code>. An older version of Nendo
+        refuses to open a newer file instead of opening part of it, and opening an older
+        file never upgrades or rewrites it. A file can grow to 256&nbsp;MiB, roughly 75,500
+        text-heavy records; a cold open at that size took about 6.6 seconds.
       </p>
       <p>
-        User record types materialise as ordinary relational tables. Stable semantic IDs
-        map record types and fields to physical names, so a display name changes without
-        breaking a binding. Numeric exactness is a contract rather than a convention:
-        <code>decimal</code> is the .NET decimal domain stored as exact text, and no
-        numeric value passes through a JavaScript number anywhere in the product.
+        Each record type is an ordinary relational table. Stable IDs map record types and
+        fields to their physical names, so renaming something doesn't break the screens
+        that use it. Numbers are exact by contract: <code>decimal</code> values use the
+        .NET decimal range, are stored as exact text, and never pass through a JavaScript
+        number anywhere in the product.
       </p>
     </Prose>
   </section>
 
   <section class="page section">
     <p class="eyebrow">Two lanes</p>
-    <h2>Typing a value is not the same act as changing the application.</h2>
+    <h2>Entering data and changing the application are handled differently.</h2>
     <div class="grid grid-2 lanes">
       {lanes.map(lane => (
         <article class="panel">
@@ -97,18 +97,19 @@ const screens = [
       ))}
     </div>
     <p class="aside">
-      Three revision lineages keep the two apart — a definition lineage, a data lineage
-      and a total change sequence, plus per-record optimistic versions. An edit to an
-      unrelated record does not invalidate a screen-only proposal.
+      Separate revision histories for definitions and for data, one overall change
+      sequence, and a version number on every record keep the two apart. Editing a
+      record doesn't invalidate a pending proposal that only touches screens.
     </p>
   </section>
 
   <section class="page section">
     <p class="eyebrow">The vocabulary</p>
-    <h2>Twenty-one canonical operations. Nineteen an agent may author.</h2>
+    <h2>Twenty-one operations, nineteen of them open to agents.</h2>
     <p class="lede">
-      This is the whole surface. There is no escape hatch, no raw statement, no generic
-      invoke. Two operations marked <code>*</code> are native-only.
+      These are the only ways the file can change. There is no raw SQL and no
+      general-purpose escape hatch. The two marked <code>*</code> are available only in
+      the Nendo app itself.
     </p>
     <div class="table-scroll operations">
       <table>
@@ -123,7 +124,7 @@ const screens = [
       </table>
     </div>
 
-    <h3 class="sub">Every operation declares what it can take back</h3>
+    <h3 class="sub">Every operation says whether it can be undone</h3>
     <div class="grid reversibility">
       {reversibility.map(item => (
         <article>
@@ -134,82 +135,82 @@ const screens = [
     </div>
     <div class="note">
       <p>
-        A lossy conversion is never labelled reversible just because a backup exists.
-        There is <strong>no universal undo</strong>: compensation applies a proven inverse
-        as a <em>new</em> revision, and never rewinds history.
+        A change that loses data is never called reversible just because a backup
+        exists. There is <strong>no universal undo</strong>. Reversing a change applies its
+        inverse as a <em>new</em> revision; history is never rewound.
       </p>
     </div>
   </section>
 
   <section class="page section">
-    <p class="eyebrow">Review and promotion</p>
-    <h2>Promotion never replaces your file with the clone.</h2>
+    <p class="eyebrow">Review and acceptance</p>
+    <h2>Your file is never swapped for the copy.</h2>
     <ol class="lifecycle">
-      <li><strong>Draft</strong><span>An agent assembles a change set: ordered operations sharing one intent.</span></li>
-      <li><strong>Validating</strong><span>The host clones the file physically. The clone has no authority over the active file.</span></li>
-      <li><strong>Previewable</strong><span>The change set compiled and applied cleanly on the clone. You read a semantic diff.</span></li>
-      <li><strong>Applying</strong><span>You accept. The host checks every precondition, then replays the exact validated operations against your file.</span></li>
-      <li><strong>Active</strong><span>The change is a revision in your file's history, with its reversibility class recorded.</span></li>
+      <li><strong>Draft</strong><span>An agent puts together a change set: an ordered list of operations with one purpose.</span></li>
+      <li><strong>Validating</strong><span>Nendo makes a physical copy of the file and applies the changes there. The copy cannot affect your file.</span></li>
+      <li><strong>Previewable</strong><span>The changes applied cleanly to the copy. You read a diff that describes them in plain terms.</span></li>
+      <li><strong>Applying</strong><span>You accept. Nendo rechecks every precondition, then applies exactly the operations it validated to your file.</span></li>
+      <li><strong>Active</strong><span>The change is now a revision in your file's history, labelled with whether it can be undone.</span></li>
     </ol>
     <div class="note">
       <p>
-        There is <strong>no MCP accept or promote tool</strong>. Acceptance is
-        native-owned, and at every level but Unattended a person performs it.
+        Agents have <strong>no MCP tool for accepting changes</strong>. Acceptance happens
+        in the Nendo app, and at every access level except Unattended a person does it.
       </p>
     </div>
   </section>
 
   <section class="page section">
     <p class="eyebrow">Screens</p>
-    <h2>A composable tree from one closed vocabulary.</h2>
+    <h2>Screens are built from a fixed set of parts.</h2>
     <p class="lede">
-      Contract version 3 is the only shape this host compiles. A screen is an ordered tree
-      of nodes drawn from one vocabulary table — the same table the host validates
-      against, so a client can never be told about a kind the host will refuse.
+      A screen is an ordered tree of nodes, each one of the kinds below. Agents read that
+      list from the same table Nendo validates against, so they are never offered a kind
+      that will then be refused. The format is contract version 3, the only one this
+      version of Nendo accepts.
     </p>
     <ul class="kinds">{screens.map(kind => <li><code>{kind}</code></li>)}</ul>
     <div class="kind-notes">
       <p>
-        A summary tile computes exact <code>count</code>, <code>sum</code>,
-        <code>min</code> and <code>max</code>. <strong><code>avg</code> is refused by
-        name</strong>, and publishes its reason: the mean of exact decimals is not
-        generally an exact decimal.
+        A summary tile computes an exact <code>count</code>, <code>sum</code>,
+        <code>min</code> or <code>max</code>. <strong>It refuses <code>avg</code></strong>
+        and says why: the average of exact decimals is usually not an exact decimal.
       </p>
       <p>
-        A chart is an exact aggregate over a closed grouping — a choice field's options, a
-        Boolean, a Date field's months — drawn as proportion with its numbers beside it. A
-        dashboard is a page of such tiles and charts over one file. Neither stores a
-        layout, an expression or a sample.
+        A chart shows exact totals over a fixed set of groups, such as a choice field's
+        options, a yes/no field or the months of a Date field, drawn to scale with the
+        numbers beside them. A dashboard is a page of these tiles and charts. Neither
+        stores a layout, a formula or sampled data.
       </p>
       <p>
-        Any compilation error suppresses every custom screen rather than rendering a
-        partial application. Zero custom nodes still leaves permanent Studio.
+        If any screen fails to compile, Nendo shows none of the custom screens rather than
+        half an application. Studio is there either way.
       </p>
     </div>
   </section>
 
   <section class="page section">
     <p class="eyebrow">Studio</p>
-    <h2>The route back to the data cannot be removed.</h2>
+    <h2>Studio is always there.</h2>
     <p class="lede">
-      Every valid file opens with Nendo Studio: Data, Structure, Surfaces, History and
-      Health. It is there with no record types, no agent connected, no custom screen, an
-      invalid definition, or a file in restricted safe mode.
+      Every valid file opens with Nendo Studio and its five areas: Data, Structure,
+      Surfaces, History and Health. It works with no record types, no agent, no custom
+      screens, a broken definition, or a file opened in safe mode.
     </p>
     <div class="studio-shots">
-      <Shot name="studio-structure" alt="The Studio Structure area showing record types, their fields and relationships" caption="Structure — record types, fields and relationships." />
-      <Shot name="studio-history" alt="The Studio History area listing revisions in order with what each one changed" caption="History — every revision, in total order, with what it changed." />
+      <Shot name="studio-structure" alt="The Studio Structure area showing record types, their fields and relationships" caption="Structure: record types, fields and relationships." />
+      <Shot name="studio-history" alt="The Studio History area listing revisions in order with what each one changed" caption="History: every revision in order, and what it changed." />
     </div>
   </section>
 
   <section class="page section">
     <p class="eyebrow">Agents</p>
-    <h2>Five visible access levels, one lease, no credential.</h2>
+    <h2>Five access levels, one lease, no password.</h2>
     <p class="lede">
-      The agent surface is a loopback, stateless MCP server at
-      <code>http://127.0.0.1:41763/mcp</code>. Fourteen resources are reads and need no
-      lease; nineteen tools are writes and require one. Both sets are asserted by name in
-      the production gate.
+      Agents talk to a stateless MCP server that listens only on this computer, at
+      <code>http://127.0.0.1:41763/mcp</code>. Fourteen resources are read-only and need
+      no lease; nineteen tools write and need one. The test suite checks both lists by
+      name.
     </p>
     <ol class="levels">
       {accessLevels.map((level, index) => (
@@ -224,16 +225,16 @@ const screens = [
     </ol>
     <Prose class="agent-prose">
       <p>
-        The edit lease is an opaque <code>applicationHandle</code> plus a
-        <code>leaseId</code>, both required on every owned operation. Possession of the
-        handle governs ownership — not a claimed client name, and not HTTP connection
-        identity. The lease has no expiry; a client releases it explicitly, and the person
-        may revoke it at any time.
+        The edit lease is an opaque <code>applicationHandle</code> and a
+        <code>leaseId</code>, and every write needs both. Whoever holds the handle holds
+        the lease, whatever name the client gives and whichever HTTP connection it uses.
+        The lease never expires: the client releases it, and the person can revoke it at
+        any time.
       </p>
       <p>
-        An agent working is visible from every screen. The status pill names the client
-        and the call — <em>Claude Code is writing to this file…</em> rather than
-        <em>Still working…</em>
+        You can see an agent working from any screen. The status indicator names the
+        client and what it is doing, as in <em>Claude Code is writing to this file…</em>,
+        instead of a bare <em>Still working…</em>
       </p>
       <p>
         <a href={`${base}/docs/contracts/mcp-interface`}>The MCP interface contract</a>
@@ -244,33 +245,32 @@ const screens = [
 
   <section class="page section">
     <p class="eyebrow">Behaviour</p>
-    <h2>Calculations and actions, with consent kept on the device.</h2>
+    <h2>Calculations and automatic actions.</h2>
     <Prose>
       <p>
-        Calculated fields are stored as definitions, never as editable columns. What a
-        person sees is a value, <em>Not set</em>, <em>Calculating…</em>, or
-        <em>Cannot calculate</em> with the reason. A screen may not sort, filter, group or
-        total by a calculated field — each refuses by name rather than quietly ordering
-        the page it happens to have loaded.
+        A calculated field is stored as a definition, not as a column you can edit. It
+        shows a value, <em>Not set</em>, <em>Calculating…</em>, or <em>Cannot
+        calculate</em> with the reason. Screens can't sort, filter, group or total by a
+        calculated field; they refuse and explain why, rather than quietly sorting only the
+        rows already loaded.
       </p>
       <p>
-        Expressions run through a bounded evaluator with a closed function set and finite
-        ceilings. A file that holds no calculations never loads the evaluator at all. An
-        edit and every automatic action it triggers commit together, or leave the file
-        unchanged.
+        Formulas run in a restricted evaluator with a fixed set of functions and hard
+        limits. A file with no calculations never loads the evaluator. An edit and every
+        automatic action it triggers are saved together or not at all.
       </p>
       <p>
-        A file that carries a trigger cannot be edited until this device has approved that
-        exact behaviour. Approvals are device state under the per-user root, never inside
-        a <code>.nendo</code> file — so a file can never carry its own permission, and a
-        copy always asks again.
+        A file with a trigger can't be edited until you approve that exact behaviour on
+        this computer. Approvals are stored in your user profile, never in the
+        <code>.nendo</code> file, so a file can't grant itself permission and a copy asks
+        again.
       </p>
       <p>
-        Custom views go further: a separate contained helper process with no host objects,
-        no network, no downloads, no clipboard and no path outside its own asset root, and
-        a package verified by digest before it is installed. What you can build with it
-        today is one thing — a renderer for a bounded graph projection. It is not a plugin
-        model, and it is not a step toward one.
+        Custom views are more tightly contained still. Each one runs in a separate helper
+        process with no access to the app's objects, the network, downloads, the clipboard
+        or any path outside its own folder, and its package is checked against a hash
+        before it is installed. Today a custom view can do one thing: draw a bounded graph
+        of records. It is not a plugin system and is not meant to become one.
       </p>
     </Prose>
   </section>

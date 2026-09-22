@@ -25,30 +25,30 @@ const proposal = [
 ];
 
 const showcase = [
-  { name: 'board', label: 'A board', alt: 'A board surface grouping crew records into columns by role, with per-column counts', blurb: 'Columns from a choice field or a bound reference, with the count on each. Drag a card and the record changes.' },
-  { name: 'record-page', label: 'A record page', alt: 'A component record page with a toned header, two commands and a form', blurb: 'A toned header, related lists, folding sections and declarative commands like Take offline and Return to service.' },
-  { name: 'calendar', label: 'A calendar', alt: 'A calendar surface placing maintenance records on a month', blurb: 'A Date field on a month. No DateTime, no recurrence, and the product says so rather than half-doing it.' },
-  { name: 'timeline', label: 'A timeline', alt: 'A timeline surface laying incidents along one civil year', blurb: 'One civil year at a time, records placed by their start date.' },
-  { name: 'gallery', label: 'A gallery', alt: 'A gallery surface: experiment records as cards with a rating drawn on a closed scale', blurb: 'Cards over a list window, with a rating drawn as dots on a scale set once.' },
-  { name: 'matrix', label: 'A matrix', alt: 'A matrix surface: two crossed choice fields answered by one grouped read', blurb: 'Two crossed choice fields answered by one read. An empty cell is a cell, and each one states its exact number.' },
-  { name: 'overview', label: 'A front page', alt: 'The Nendo Station front page, with count tiles, a progress ring and a breakdown chart', blurb: 'One root belongs to the file rather than to a record type: exact counts, a progress ring and a breakdown chart.' },
-  { name: 'studio-data', label: 'Studio, always', alt: 'The Studio Data area showing the Components table with sort and filter controls', blurb: 'Every valid file opens here. No application content and no agent can remove it.' },
+  { name: 'board', label: 'A board', alt: 'A board surface grouping crew records into columns by role, with per-column counts', blurb: 'Columns come from a choice field or a reference, each with a count. Drag a card to another column and the record changes with it.' },
+  { name: 'record-page', label: 'A record page', alt: 'A component record page with a toned header, two commands and a form', blurb: 'A coloured header, related lists, collapsible sections, and commands such as Take offline and Return to service.' },
+  { name: 'calendar', label: 'A calendar', alt: 'A calendar surface placing maintenance records on a month', blurb: 'Records placed on a month by a Date field. Times of day and recurring events are not supported.' },
+  { name: 'timeline', label: 'A timeline', alt: 'A timeline surface laying incidents along one civil year', blurb: 'Records laid out by start date, one calendar year at a time.' },
+  { name: 'gallery', label: 'A gallery', alt: 'A gallery surface: experiment records as cards with a rating drawn on a closed scale', blurb: 'Records as cards, with a rating shown as dots on a fixed scale.' },
+  { name: 'matrix', label: 'A matrix', alt: 'A matrix surface: two crossed choice fields answered by one grouped read', blurb: 'Two choice fields crossed into a grid, with an exact count in every cell, including the empty ones.' },
+  { name: 'overview', label: 'A front page', alt: 'The Nendo Station front page, with count tiles, a progress ring and a breakdown chart', blurb: 'A page for the whole file rather than one record type: counts, a progress ring and a breakdown chart.' },
+  { name: 'studio-data', label: 'Studio, always', alt: 'The Studio Data area showing the Components table with sort and filter controls', blurb: 'Every valid file opens here, and nothing an application or an agent adds can remove it.' },
 ];
 ---
 
 <Base
   title="Nendo — malleable software in a single file"
-  description="One portable SQLite file starts empty and is shaped, by people and by coding agents, into a working application: schema, data, screens and revision history. No generated project, no build step."
+  description="Nendo turns a single SQLite file into a working application that people and coding agents shape together: schema, data, screens and history, with no generated code and no build step."
 >
   <section class="page hero">
     <div class="hero-text">
       <p class="tag"><span class="dot"></span>Experimental research prototype, v0.12.0 for Windows x64</p>
       <h1>Malleable software in a single file.</h1>
       <p class="hero-lede">
-        One portable SQLite file starts empty and is shaped, by people and by coding
-        agents, into a working application: schema, data, forms, boards, record pages
-        and revision history. No generated project. No build step. No regeneration when
-        you want a change.
+        A Nendo application is one SQLite file. It starts empty, and you and your coding
+        agents shape it into a working application with its own schema, data, forms,
+        boards, record pages and history. Nothing is generated or built, and changing it
+        never means starting over.
       </p>
       <p class="clay"><em>Nendo</em> (粘土) is Japanese for clay.</p>
       <div class="hero-actions">
@@ -75,30 +75,29 @@ const showcase = [
     <div class="split">
       <div class="panel">
         <p class="eyebrow">The problem</p>
-        <h2>A generated application is a silo with a countdown on it.</h2>
+        <h2>Generated apps are easy to make and hard to keep.</h2>
         <p>
-          AI can generate a small application in minutes. Each one becomes another silo:
-          the data is coupled to disposable code, every change means regeneration, and
-          nobody can see the schema migration, the history or the way back. When the
-          generated code stops working, the data goes with it.
+          An AI can write a small application in minutes, but the result is another silo.
+          The data is tied to code nobody intends to maintain, every change means
+          generating it again, and there is no visible history or way back. When the code
+          breaks, the data is stuck inside it.
         </p>
         <p>
-          Low-code platforms answer with a hosted platform and proprietary storage. That
-          is not a durable local file you can copy, inspect and reopen offline in ten
-          years.
+          Low-code tools fix some of this, but your application then lives on someone
+          else's platform, in their format. You can't keep it as a file to copy, inspect
+          and open offline ten years from now.
         </p>
       </div>
       <div class="panel panel-violet">
-        <p class="eyebrow">The proposition</p>
-        <h2>Software should behave like structured clay.</h2>
+        <p class="eyebrow">The idea</p>
+        <h2>Software you reshape instead of regenerate.</h2>
         <p>
-          One <code>.nendo</code> file holds durable identity, schema, data, application
-          meaning and history. People and coding agents reshape it in place through typed
-          semantic operations — the same operations, through the same validation, whether
-          the change comes from the native UI, the local web Workbench or an agent over
-          MCP.
+          A <code>.nendo</code> file holds the schema, the data, the screens and the
+          history. People and agents change it in place with a small set of typed
+          operations. The desktop app, the web Workbench and an agent connected over MCP
+          all use the same operations and the same validation.
         </p>
-        <p><a href={`${base}/how-it-works`}>How that works, in detail</a></p>
+        <p><a href={`${base}/how-it-works`}>How it works</a></p>
       </div>
     </div>
   </section>
@@ -119,21 +118,21 @@ const showcase = [
     <div class="panel agents">
       <div class="agents-text">
         <p class="eyebrow">Agents</p>
-        <h2>Nothing an agent gets wrong can reach your data before you say yes.</h2>
+        <h2>An agent's changes wait for you to accept them.</h2>
         <p>
-          Agents connect over a local MCP interface on loopback. They never get SQL, a
-          database path or filesystem access — only typed semantic operations from a closed
-          set. Their changes are validated on a physical clone that has no authority over
-          your file, and previewed as a readable diff. Accepting replays the exact validated
-          operations against your file; it never swaps the clone in.
+          Agents connect over MCP, and only from this computer. They get no SQL, no
+          database path and no file access, just a fixed set of typed operations. Nendo
+          tries each change on a separate copy of your file and shows you the result as a
+          readable diff. When you accept, it applies the same operations to your file. The
+          copy is never swapped in.
         </p>
         <pre><code>claude mcp add --transport http nendo http://127.0.0.1:41763/mcp
 codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
         <p class="quiet">
-          That address is the whole client configuration — there is no credential to find or
-          paste. Which also means anything running on this computer can connect at the
-          access level you chose, so leave agent access <strong>Off</strong> when no agent is
-          working.
+          That address is all the configuration a client needs; there is no key or
+          password. The flip side is that any program on this computer can connect at the
+          access level you have set, so turn agent access <strong>Off</strong> when no agent
+          is working.
         </p>
       </div>
 
@@ -156,22 +155,23 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
         </div>
         <div class="proposal-result" data-proposal-result aria-live="polite">
           <div data-proposal-accepted hidden>
-            <p>Accepted. The same 4 operations were replayed against Nendo Station.nendo.</p>
+            <p>Accepted. The same 4 operations were applied to Nendo Station.nendo.</p>
             <Shot name="board" alt="The new board: crew records in columns by role, with a count on each column" />
           </div>
           <p data-proposal-rejected hidden>Rejected. Your file did not change.</p>
           <button type="button" class="again" data-proposal-reset hidden>Show the proposal again</button>
         </div>
-        <p class="proposal-note">An example. A real proposal lists the typed operations the agent sent.</p>
+        <p class="proposal-note">An illustration. A real proposal lists the exact operations the agent sent.</p>
       </div>
     </div>
   </section>
 
   <section class="page section">
-    <h2>Screens the host compiles, not code it generates.</h2>
+    <h2>Screens are data in the file.</h2>
     <p class="lede">
-      Every screen below is a tree of typed nodes stored in the file and compiled by the
-      host. There is no generated project to lose, and no expression language to audit.
+      Each screen below is stored in the file as a tree of typed parts, and Nendo builds
+      the screen from it when the file opens. Nothing is generated, so there is no code
+      to lose or review.
     </p>
     <div class="showcase">
       {showcase.map(item => (
@@ -188,18 +188,18 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
     <div class="split brand-split">
       <div>
         <p class="eyebrow">The name</p>
-        <h2>Clay, and what it implies.</h2>
+        <h2>Why clay</h2>
         <p>
-          Clay keeps its shape and takes a new one without being thrown away and remade.
-          That is the whole claim: the file you started with is the file you keep, through
-          every change either you or an agent makes to it.
+          Clay holds its shape, and you can reshape it without starting over. That is the
+          idea: the file you start with is the file you keep, however many changes you or
+          an agent make to it.
         </p>
         <p>
-          It is also why the axioms are worded as refusals. An empty file is valid. Studio
-          cannot be removed. Preview is physically separate from your data. Every operation
-          declares what it can and cannot take back.
+          A few fixed rules protect that. An empty file is valid. Studio, the built-in
+          table view, can't be removed. Changes are previewed on a copy, never on your
+          data. Every operation states whether it can be undone.
         </p>
-        <p><a href={`${base}/concept`}>Read the eight axioms</a></p>
+        <p><a href={`${base}/concept`}>Read all eight axioms</a></p>
       </div>
       <div class="brand-video">
         <video
@@ -232,20 +232,19 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
   <section class="page section">
     <div class="panel status-band">
       <p class="eyebrow">Status</p>
-      <h2>What is true, and what is only reported.</h2>
+      <h2>Where it stands</h2>
       <p>
-        The MVP loop works end to end. Four reference applications falsify the hypothesis
-        from different shapes, and two of them were built from an empty file through the
-        MCP interface alone. Nendo plans its own development in a Nendo file, used daily
-        by two different coding agents.
+        The core loop works end to end. Four reference applications, each shaped
+        differently, put the idea to the test, and two of them were built from an empty
+        file by an agent working only through MCP. Nendo's own development is planned in
+        a Nendo file that two coding agents use every day.
       </p>
       <p>
-        Public distribution, code signing, ARM64, cloud sync and cross-platform support
-        are <strong>not</strong> qualified. Every usability, scaling and accessibility
-        result on record is owner-reported, and the independent human evaluation has not
-        been run.
+        Public releases, code signing, ARM64, cloud sync and other platforms are
+        <strong>not</strong> supported. Every usability, scaling and accessibility result
+        so far comes from the author's own testing; nobody else has evaluated it yet.
       </p>
-      <p><a href={`${base}/status`}>The full status page, including what is not checked</a></p>
+      <p><a href={`${base}/status`}>Full status, including what hasn't been tested</a></p>
     </div>
   </section>
 </Base>
