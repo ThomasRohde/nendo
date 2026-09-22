@@ -178,6 +178,15 @@ It bites heredocs hardest, since they carry a whole file in one command — a
 - For full validation use `pwsh ./tools/Test-Production.ps1`, which already
   includes the repository gate — do not run it twice. Use `-SkipRestore` only
   with unchanged dependencies.
+- The public website in `site/` is outside the product boundary and outside the
+  gate ([ADR-0018](docs/decisions/0018-public-website-and-deployment-lane.md)).
+  Build it with `pwsh ./tools/Test-Site.ps1`; `.github/workflows/pages.yml`
+  deploys it and is the repository's only CI lane. It renders `docs/` from the
+  Markdown, so a documentation change can change the site without anyone editing
+  it. Its screenshots come from `pwsh ./tools/Capture-SiteScreenshots.ps1`, which
+  drives a real host against a copy of `workspace/Nendo Station.nendo`. Never
+  commit a `.webp`, `.jpg` or `.woff2` under `site/` — `Test-BinaryAssets.ps1`
+  has a structural reader for `.png`, `.ico`, `.mp4` and `.nendo` only.
 - When rebuilding the app, rebuild the installer in the same task:
   `Publish-NendoPayload.ps1` → `Build-NendoInstaller.ps1` → `Test-NendoInstaller.ps1`.
   Deliver `artifacts/installer/Nendo-Setup.exe`, upgrading the per-user

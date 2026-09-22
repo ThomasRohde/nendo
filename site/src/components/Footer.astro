@@ -1,0 +1,100 @@
+---
+import { Image } from 'astro:assets';
+import lockup from '../assets/brand/nendo.png';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const repository = 'https://github.com/ThomasRohde/nendo';
+---
+
+<footer class="site-footer">
+  <div class="page footer-inner">
+    <div class="footer-brand">
+      <Image src={lockup} alt="Nendo" width={150} densities={[1, 2]} />
+      <p><em>nendo</em> (粘土) is Japanese for clay. Malleable software in a single file.</p>
+    </div>
+    <div class="footer-columns">
+      <div>
+        <h2>This site</h2>
+        <ul>
+          <li><a href={`${base}/concept`}>Concept &amp; philosophy</a></li>
+          <li><a href={`${base}/how-it-works`}>How it works</a></li>
+          <li><a href={`${base}/use`}>Using Nendo</a></li>
+          <li><a href={`${base}/status`}>Status &amp; what is not checked</a></li>
+          <li><a href={`${base}/docs`}>Repository documentation</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Repository</h2>
+        <ul>
+          <li><a href={repository}>ThomasRohde/nendo</a></li>
+          <li><a href={`${base}/docs/vision`}>Vision</a></li>
+          <li><a href={`${base}/docs/architecture`}>Architecture</a></li>
+          <li><a href={`${base}/docs/decisions`}>Architecture decisions</a></li>
+          <li><a href={`${repository}/blob/main/LICENSE`}>MIT licence</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page footer-legal">
+    <p>Nendo is a research prototype, not a product. Windows x64, unsigned, per-user, built by the person running it.</p>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    margin-top: clamp(56px, 8vw, 96px);
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+    padding-block: clamp(36px, 5vw, 56px) 28px;
+  }
+
+  .footer-inner {
+    display: grid;
+    gap: 36px;
+    grid-template-columns: minmax(240px, 1fr) minmax(280px, 1.2fr);
+    align-items: start;
+  }
+
+  .footer-brand p {
+    margin-top: 14px;
+    max-width: 38ch;
+    color: var(--muted);
+    font-size: 0.93rem;
+  }
+
+  .footer-columns {
+    display: grid;
+    gap: 28px;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  }
+
+  h2 {
+    font-size: 0.75rem;
+    font-weight: 720;
+    letter-spacing: 0.075em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  ul { margin: 0; padding: 0; list-style: none; }
+  li + li { margin-top: 7px; }
+  li a { font-size: 0.93rem; text-decoration: none; }
+  li a:hover { text-decoration: underline; }
+
+  .footer-legal {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+
+  .footer-legal p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 720px) {
+    .footer-inner { grid-template-columns: 1fr; }
+  }
+</style>

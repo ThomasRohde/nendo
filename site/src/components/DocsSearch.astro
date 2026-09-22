@@ -1,0 +1,131 @@
+---
+// Pagefind indexes dist/ after the build and is loaded only when somebody types, so
+// a reader who never searches downloads none of it.
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<div class="docs-search">
+  <label class="visually-hidden" for="docs-search-input">Search the documentation</label>
+  <input
+    id="docs-search-input"
+    type="search"
+    placeholder="Search the documentation"
+    autocomplete="off"
+    data-pagefind-base={`${base}/pagefind/pagefind.js`}
+  />
+  <div class="docs-search-results" hidden></div>
+</div>
+
+<style>
+  .docs-search { position: relative; margin-bottom: 22px; }
+
+  .docs-search input {
+    width: 100%;
+    padding: 9px 13px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.9rem;
+  }
+
+  .docs-search input::placeholder { color: var(--muted); }
+
+  .docs-search-results {
+    position: absolute;
+    z-index: 20;
+    left: 0;
+    width: min(430px, 82vw);
+    margin-top: 6px;
+    max-height: 58vh;
+    overflow-y: auto;
+    padding: 6px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow);
+  }
+
+  .docs-search-results :global(a) {
+    display: block;
+    padding: 9px 11px;
+    border-radius: var(--radius-sm);
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .docs-search-results :global(a:hover) { background: var(--surface-soft); }
+  .docs-search-results :global(strong) { display: block; font-size: 0.9rem; margin-bottom: 2px; }
+  .docs-search-results :global(span) { color: var(--muted); font-size: 0.8rem; line-height: 1.45; }
+  .docs-search-results :global(mark) { background: var(--cobalt-soft); color: inherit; }
+  .docs-search-results :global(p.empty) { margin: 0; padding: 9px 11px; color: var(--muted); font-size: 0.85rem; }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+</style>
+
+<script>
+  const input = document.querySelector<HTMLInputElement>('#docs-search-input');
+  const results = document.querySelector<HTMLElement>('.docs-search-results');
+  if (input && results) {
+    let pagefind: { debouncedSearch: (term: string, options?: unknown, delay?: number) => Promise<{ results: { data: () => Promise<{ url: string; meta: { title?: string }; excerpt: string }> }[] } | null> } | null = null;
+    let loading: Promise<void> | null = null;
+
+    const load = () => {
+      loading ??= (async () => {
+        const source = input.dataset.pagefindBase;
+        if (!source) return;
+        try {
+          // Vite wraps a dynamic import in its preload helper even behind
+          // @vite-ignore, and the helper fails on a module it has no manifest
+          // entry for. This import is opaque to the bundler, so it is left alone.
+          const importModule = new Function('url', 'return import(url)') as (url: string) => Promise<typeof pagefind>;
+          pagefind = await importModule(source);
+        } catch {
+          // The index only exists after a production build; in dev there is nothing
+          // to load and the field simply finds nothing.
+          results.innerHTML = '<p class="empty">Search is available on the built site.</p>';
+          results.hidden = false;
+        }
+      })();
+      return loading;
+    };
+
+    input.addEventListener('focus', () => void load());
+
+    input.addEventListener('input', async () => {
+      const term = input.value.trim();
+      if (term.length < 2) { results.hidden = true; results.innerHTML = ''; return; }
+      await load();
+      if (!pagefind) return;
+      const search = await pagefind.debouncedSearch(term, undefined, 200);
+      if (search === null) return;
+      const top = await Promise.all(search.results.slice(0, 8).map(result => result.data()));
+      results.innerHTML = top.length === 0
+        ? '<p class="empty">Nothing matched.</p>'
+        : top.map(item => {
+          // Pagefind returns the excerpt with the source page's own markup in it, so a
+          // result could carry a link inside a link. Keep the match highlight, drop the rest.
+          const excerpt = item.excerpt.replace(/<(?!\/?mark)[^>]*>/g, '');
+          return `<a href="${item.url}"><strong>${item.meta.title ?? item.url}</strong><span>${excerpt}</span></a>`;
+        }).join('');
+      results.hidden = false;
+    });
+
+    document.addEventListener('click', event => {
+      if (!(event.target instanceof Node)) return;
+      if (!results.contains(event.target) && event.target !== input) results.hidden = true;
+    });
+
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { results.hidden = true; input.blur(); }
+    });
+  }
+</script>

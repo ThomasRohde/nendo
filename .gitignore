@@ -27,6 +27,15 @@ node_modules/
 .npm/
 .pnpm-store/
 *.tsbuildinfo
+site/.astro/
+
+# Website assets copied out of docs/ and src/ by site/scripts/sync-repo-assets.mjs.
+# docs/assets/brand/ stays the one place they are edited; committing a second copy
+# of a megabyte PNG is how a repository gets heavy for nothing.
+site/src/assets/brand/
+site/public/brand/
+site/public/repo-docs/
+site/public/favicon.ico
 
 # The live planner: real owner data, and a 5 MB SQLite file that git would store
 # whole on every write. It lives in workspace/ beside the tracked demo files and

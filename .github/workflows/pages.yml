@@ -1,0 +1,48 @@
+name: Website
+
+# The only workflow in this repository, and it builds and deploys site/ to GitHub
+# Pages. It does not run the product gate: that runs locally in about a minute and
+# stays the gate. See docs/decisions/0018-public-website-and-deployment-lane.md.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'docs/**'
+      - 'src/Nendo.Desktop/Assets/AppIcon.ico'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A queued deploy waits rather than cancelling the one in flight: the site should
+# not be left half-published because two pushes landed together.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+      - name: Build the site
+        uses: withastro/action@v6
+        with:
+          path: site
+          node-version: 22
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

@@ -1,0 +1,59 @@
+---
+// One place that owns reading measure and vertical rhythm, for both the authored
+// pages and the rendered repository documents.
+interface Props {
+  class?: string;
+}
+const { class: className = '' } = Astro.props;
+---
+
+<div class:list={['prose', className]}>
+  <slot />
+</div>
+
+<style is:global>
+  .prose > * { max-width: var(--measure); }
+
+  .prose > h2 {
+    margin-top: 2.1em;
+    padding-top: 0.2em;
+  }
+
+  .prose > h3 { margin-top: 1.7em; }
+  .prose > h4 { margin-top: 1.4em; }
+  .prose > :first-child { margin-top: 0; }
+
+  .prose ul,
+  .prose ol {
+    margin: 0 0 1.2em;
+    padding-left: 1.3em;
+  }
+
+  .prose li { margin-bottom: 0.45em; }
+  .prose li > ul,
+  .prose li > ol { margin-top: 0.45em; }
+
+  .prose table,
+  .prose pre,
+  .prose figure,
+  .prose .full-width { max-width: none; }
+
+  .prose .table-scroll {
+    max-width: none;
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+  }
+
+  .prose .table-scroll table { margin: 0; }
+  .prose .table-scroll th,
+  .prose .table-scroll td { white-space: normal; }
+  .prose .table-scroll tr:last-child td { border-bottom: 0; }
+
+  /* Headings in rendered documents carry their own anchor. */
+  .prose :is(h2, h3, h4) > a[href^='#'] {
+    color: inherit;
+    text-decoration: none;
+  }
+</style>

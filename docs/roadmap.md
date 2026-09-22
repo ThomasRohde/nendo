@@ -431,6 +431,42 @@ throwaway user first. It is also the only way `installer-status.json` gets its
 `nsisWrapper` entry filled in, so that field reading "not run for this build" is
 the honest steady state here and says nothing about the build.
 
+## The public website
+
+`site/` is an Astro project deployed to
+[thomasrohde.github.io/nendo](https://thomasrohde.github.io/nendo/) by the one CI
+lane this repository has ([ADR-0018](decisions/0018-public-website-and-deployment-lane.md)).
+It carries five authored pages -- concept, how it works, using Nendo, status --
+and renders `docs/` from the Markdown rather than copying it, so a rendered
+document cannot drift from its source. Screenshots are captured from a running
+host by `tools/Capture-SiteScreenshots.ps1` against
+`workspace/Nendo Station.nendo` and committed, because the deployment runs on
+Linux and cannot take them.
+
+`site/scripts/check-links.mjs` runs at the end of every build and fails it if any
+internal reference in the built site -- a page, a file beside it, or an anchor --
+does not resolve. It was written after the rewriter sent a link to
+`docs/design/adr-0008-dependencies.lock.json` at a copied asset that is never
+copied, and it was falsified against that defect on 2026-09-22:
+
+```text
+Checked 2810 internal reference(s) across 47 page(s).
+1 broken internal reference(s):
+  /docs/decisions/0008-general-scripting-and-capability-isolation/index.html ->
+  /nendo/repo-docs/design/adr-0008-dependencies.lock.json -- no such page or file in the build
+```
+
+Falsifying it took clearing both `site/.astro` and `site/node_modules/.astro`:
+the content layer caches a rendered document by its source digest, so with only
+the first cleared the build passed against the defect that was back in the code.
+A CI checkout has neither cache, so that trap is local only.
+
+What is not checked about it: nothing asserts that the five authored pages still
+match this roadmap or the vision after either changes, no external link is
+followed, and no accessibility or first-read evaluation has been run on it. The
+same standing risk below applies to it doubly -- the person who wrote the copy is
+the person who built the product.
+
 ## The standing risk
 
 Everyone who has used Nendo built it. Every usability, scaling and accessibility

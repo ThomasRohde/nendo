@@ -1,0 +1,109 @@
+---
+// The application's own three-state appearance control: System follows the device,
+// Light and Dark are explicit overrides. Same shape, same choices, same wording.
+---
+
+<div class="theme-control" role="group" aria-label="Appearance">
+  <button type="button" data-theme-option="system" aria-pressed="false" title="Follow the device">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.8" y="4.4" width="18.4" height="12.4" rx="2"></rect><path d="M8.4 20.2h7.2"></path></svg>
+    <span class="visually-hidden">System</span>
+  </button>
+  <button type="button" data-theme-option="light" aria-pressed="false" title="Light">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.1"></circle><path d="M12 2.6v2.4M12 19v2.4M3.4 12h2.4M18.2 12h2.4M5.9 5.9l1.7 1.7M16.4 16.4l1.7 1.7M18.1 5.9l-1.7 1.7M7.6 16.4l-1.7 1.7"></path></svg>
+    <span class="visually-hidden">Light</span>
+  </button>
+  <button type="button" data-theme-option="dark" aria-pressed="false" title="Dark">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.3A8.4 8.4 0 1 1 9.7 4a6.9 6.9 0 0 0 10.3 10.3Z"></path></svg>
+    <span class="visually-hidden">Dark</span>
+  </button>
+</div>
+
+<style>
+  .theme-control {
+    display: flex;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-raised);
+  }
+
+  .theme-control button {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .theme-control button:hover { color: var(--ink); }
+
+  .theme-control button[aria-pressed='true'] {
+    background: var(--cobalt-soft);
+    color: var(--cobalt);
+  }
+
+  .theme-control svg {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+</style>
+
+<script is:inline>
+  (() => {
+    const KEY = 'nendo.appearance';
+    const root = document.documentElement;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const stored = () => {
+      try {
+        const value = localStorage.getItem(KEY);
+        return value === 'light' || value === 'dark' || value === 'system' ? value : 'system';
+      } catch {
+        return 'system';
+      }
+    };
+
+    const apply = choice => {
+      const effective = choice === 'system' ? (media.matches ? 'dark' : 'light') : choice;
+      root.dataset.theme = effective;
+      root.dataset.appearance = choice;
+      for (const button of document.querySelectorAll('[data-theme-option]')) {
+        button.setAttribute('aria-pressed', String(button.dataset.themeOption === choice));
+      }
+    };
+
+    apply(stored());
+
+    for (const button of document.querySelectorAll('[data-theme-option]')) {
+      button.addEventListener('click', () => {
+        const choice = button.dataset.themeOption;
+        try { localStorage.setItem(KEY, choice); } catch { /* private browsing */ }
+        apply(choice);
+      });
+    }
+
+    media.addEventListener('change', () => {
+      if (root.dataset.appearance === 'system') apply('system');
+    });
+  })();
+</script>

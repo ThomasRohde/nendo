@@ -1,0 +1,93 @@
+---
+import Page from '../../layouts/Page.astro';
+import DocsSearch from '../../components/DocsSearch.astro';
+import { docGroups } from '../../docs-nav';
+
+const groups = await docGroups();
+const total = groups.reduce((count, group) => count + group.items.length, 0);
+const repository = 'https://github.com/ThomasRohde/nendo';
+---
+
+<Page
+  title="Documentation — Nendo"
+  description="The Nendo repository documentation, rendered as a site: the vision, the architecture, the roadmap, the behavioural contracts and the accepted architecture decisions."
+  eyebrow="Documentation"
+  heading="The repository documentation, rendered."
+  lede={`${total} documents, rendered from the Markdown in the repository rather than copied from it. Where a document and the code disagree, the code is current — so each page links to its source.`}
+>
+  <section class="page section">
+    <div class="doc-search-wrap">
+      <DocsSearch />
+    </div>
+
+    {groups.map(group => (
+      <section class="doc-group">
+        <header>
+          <h2>{group.title}</h2>
+          <p>{group.blurb}</p>
+        </header>
+        <div class="doc-cards">
+          {group.items.map(item => (
+            <a class="doc-card" href={item.href}>
+              <h3>{item.title}</h3>
+              {item.summary && <p>{item.summary}</p>}
+            </a>
+          ))}
+        </div>
+      </section>
+    ))}
+
+    <div class="note">
+      <p>
+        <strong>Not rendered here:</strong> <code>docs/design/</code> and
+        <code>docs/reviews/</code>. Those are the project's own working material —
+        implementation plans it has moved past, and review records that are evidence
+        rather than documentation. They are on
+        <a href={`${repository}/tree/main/docs`} rel="noopener">GitHub</a>, and links into
+        them from these pages go there.
+      </p>
+    </div>
+  </section>
+</Page>
+
+<style>
+  .doc-search-wrap { max-width: 420px; margin-bottom: 36px; }
+
+  .doc-group + .doc-group { margin-top: 46px; }
+
+  .doc-group header { margin-bottom: 18px; }
+  .doc-group header h2 { margin-bottom: 4px; }
+  .doc-group header p { color: var(--muted); margin: 0; }
+
+  .doc-cards {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+
+  .doc-card {
+    display: block;
+    padding: 18px 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+    text-decoration: none;
+    transition: border-color 120ms ease, transform 120ms ease;
+  }
+
+  .doc-card:hover {
+    border-color: var(--cobalt);
+    transform: translateY(-2px);
+  }
+
+  .doc-card h3 { margin-bottom: 6px; color: var(--ink); font-size: 1.02rem; }
+
+  .doc-card p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+
+  .note { margin-top: 48px; }
+</style>

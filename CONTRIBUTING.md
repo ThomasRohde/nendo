@@ -38,7 +38,7 @@ dotnet build Nendo.slnx
 
 ## Run the gate
 
-There is no CI, deliberately — see
+The product has no CI, deliberately — see
 [architecture.md](docs/architecture.md#building-and-verifying). The gate runs in
 about a minute locally, and it is the gate:
 
@@ -50,6 +50,11 @@ pwsh ./tools/Test-Production.ps1     # full gate; already includes the above
 Do not run `Test-Production.ps1` twice, and use `-SkipRestore` only when
 dependencies have not changed. Some lanes drive a real Desktop window and are
 not in the gate; `architecture.md` lists them.
+
+The public website in `site/` is the one thing with a CI lane
+([ADR-0018](docs/decisions/0018-public-website-and-deployment-lane.md)). It is
+outside the product boundary and outside the gate; build it locally with
+`pwsh ./tools/Test-Site.ps1`.
 
 ## House rules
 

@@ -1,0 +1,409 @@
+---
+import Page from '../layouts/Page.astro';
+import Prose from '../components/Prose.astro';
+import Shot from '../components/Shot.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const lanes = [
+  {
+    name: 'The data lane',
+    what: 'Record create, update and delete; bounded paste and import.',
+    how: 'A direct validated transaction against the active file, with optimistic record-version checks and idempotency keys. Ordinary record entry never pays the clone-and-preview cost.',
+  },
+  {
+    name: 'The application lane',
+    what: 'Schema, semantic screens, constraints and declarative commands.',
+    how: 'Agent work happens in a proposal clone. Validation and a semantic diff come before promotion, and acceptance is an explicit host-owned action.',
+  },
+];
+
+const operations = [
+  ['schema.createEntity', 'data.createRecord', 'ui.addNode'],
+  ['schema.addField', 'data.setField', 'ui.setProperty'],
+  ['schema.renameEntity', 'data.deleteRecord', 'ui.moveNode'],
+  ['schema.renameField', 'data.restoreDeletedRecord *', 'ui.removeNode'],
+  ['schema.setFieldRequired', 'data.backfillRetiredField', ''],
+  ['schema.setRetired', 'data.convertLegacyReference', 'behaviour.setDefinition'],
+  ['schema.setChoiceMetadata', 'identity.transition *', 'behaviour.removeDefinition'],
+  ['schema.configureReference', '', ''],
+];
+
+const reversibility = [
+  { name: 'reversible', body: 'The operation has a proven inverse and nothing was lost applying it.' },
+  { name: 'reversible-with-retained-state', body: 'The inverse needs state the file kept on purpose, and the file says it kept it.' },
+  { name: 'irreversible-declared', body: 'Something cannot be recovered, and the operation says so before you accept it.' },
+];
+
+const accessLevels = [
+  { name: 'Disabled', body: 'Nothing connects. This is the default, and where access belongs when no agent is working.' },
+  { name: 'Read-only inspection', body: 'An agent may read the schema, the screens and the records. It may write nothing.' },
+  { name: 'Data mutation', body: 'Records may be created, changed and deleted. Schema and screens are untouchable.' },
+  { name: 'Application authoring', body: 'The agent may author change sets. Each one becomes a proposal a person accepts.' },
+  { name: 'Unattended authoring', body: 'The agent accepts its own proposals. Off by default, confirmed before it takes effect, ends when the file closes, never persisted — and nobody reads the change before the file takes it.' },
+];
+
+const screens = [
+  'recordList', 'boardSurface', 'gallerySurface', 'calendarSurface', 'timelineSurface',
+  'matrixSurface', 'rankedList', 'detailSurface', 'overviewSurface', 'recordForm',
+  'recordCommand', 'relatedList', 'summaryTile', 'breakdownChart', 'trendChart',
+  'progressTile', 'rangeTile', 'activityGrid', 'recentList', 'filterClause',
+  'section', 'tabGroup', 'fieldBinding', 'commandStep', 'extensionGraphSurface',
+];
+---
+
+<Page
+  title="How Nendo works — Nendo"
+  description="The file, the two mutation lanes, the closed set of typed operations, reversibility classes, the proposal clone and replay promotion, the screens the host compiles, and the local MCP agent surface."
+  eyebrow="How it works"
+  heading="One file, two lanes, a closed set of operations."
+  lede="Nothing here is generated code. A Nendo application is data in a SQLite file that the installed host compiles into screens, and every change to it is one of a small number of named operations."
+>
+  <section class="page section">
+    <Prose>
+      <h2>The file</h2>
+      <p>
+        One SQLite file at rest, extension <code>.nendo</code>, application id
+        <code>0x4E454E44</code>. Rollback DELETE journal, <code>synchronous=FULL</code>, a
+        two-second busy timeout. Write-ahead logging was measured and deliberately not
+        taken.
+      </p>
+      <p>
+        Each file records a <code>minimumHostVersion</code>. An older host refuses a newer
+        file explicitly rather than opening it partially, and opening an older file never
+        upgrades or rewrites it. The size bound is 256&nbsp;MiB — roughly 75,500
+        text-heavy records; one cold open at that size measured about 6.6 seconds.
+      </p>
+      <p>
+        User record types materialise as ordinary relational tables. Stable semantic IDs
+        map record types and fields to physical names, so a display name changes without
+        breaking a binding. Numeric exactness is a contract rather than a convention:
+        <code>decimal</code> is the .NET decimal domain stored as exact text, and no
+        numeric value passes through a JavaScript number anywhere in the product.
+      </p>
+    </Prose>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Two lanes</p>
+    <h2>Typing a value is not the same act as changing the application.</h2>
+    <div class="grid grid-2 lanes">
+      {lanes.map(lane => (
+        <article class="panel">
+          <h3>{lane.name}</h3>
+          <p class="lane-what">{lane.what}</p>
+          <p>{lane.how}</p>
+        </article>
+      ))}
+    </div>
+    <p class="aside">
+      Three revision lineages keep the two apart — a definition lineage, a data lineage
+      and a total change sequence, plus per-record optimistic versions. An edit to an
+      unrelated record does not invalidate a screen-only proposal.
+    </p>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">The vocabulary</p>
+    <h2>Twenty-one canonical operations. Nineteen an agent may author.</h2>
+    <p class="lede">
+      This is the whole surface. There is no escape hatch, no raw statement, no generic
+      invoke. Two operations marked <code>*</code> are native-only.
+    </p>
+    <div class="table-scroll operations">
+      <table>
+        <thead>
+          <tr><th>Schema</th><th>Data</th><th>Screens and behaviour</th></tr>
+        </thead>
+        <tbody>
+          {operations.map(row => (
+            <tr>{row.map(cell => <td>{cell ? <code>{cell}</code> : ''}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="sub">Every operation declares what it can take back</h3>
+    <div class="grid reversibility">
+      {reversibility.map(item => (
+        <article>
+          <code>{item.name}</code>
+          <p>{item.body}</p>
+        </article>
+      ))}
+    </div>
+    <div class="note">
+      <p>
+        A lossy conversion is never labelled reversible just because a backup exists.
+        There is <strong>no universal undo</strong>: compensation applies a proven inverse
+        as a <em>new</em> revision, and never rewinds history.
+      </p>
+    </div>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Review and promotion</p>
+    <h2>Promotion never replaces your file with the clone.</h2>
+    <ol class="lifecycle">
+      <li><strong>Draft</strong><span>An agent assembles a change set: ordered operations sharing one intent.</span></li>
+      <li><strong>Validating</strong><span>The host clones the file physically. The clone has no authority over the active file.</span></li>
+      <li><strong>Previewable</strong><span>The change set compiled and applied cleanly on the clone. You read a semantic diff.</span></li>
+      <li><strong>Applying</strong><span>You accept. The host checks every precondition, then replays the exact validated operations against your file.</span></li>
+      <li><strong>Active</strong><span>The change is a revision in your file's history, with its reversibility class recorded.</span></li>
+    </ol>
+    <div class="note">
+      <p>
+        There is <strong>no MCP accept or promote tool</strong>. Acceptance is
+        native-owned, and at every level but Unattended a person performs it.
+      </p>
+    </div>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Screens</p>
+    <h2>A composable tree from one closed vocabulary.</h2>
+    <p class="lede">
+      Contract version 3 is the only shape this host compiles. A screen is an ordered tree
+      of nodes drawn from one vocabulary table — the same table the host validates
+      against, so a client can never be told about a kind the host will refuse.
+    </p>
+    <ul class="kinds">{screens.map(kind => <li><code>{kind}</code></li>)}</ul>
+    <div class="kind-notes">
+      <p>
+        A summary tile computes exact <code>count</code>, <code>sum</code>,
+        <code>min</code> and <code>max</code>. <strong><code>avg</code> is refused by
+        name</strong>, and publishes its reason: the mean of exact decimals is not
+        generally an exact decimal.
+      </p>
+      <p>
+        A chart is an exact aggregate over a closed grouping — a choice field's options, a
+        Boolean, a Date field's months — drawn as proportion with its numbers beside it. A
+        dashboard is a page of such tiles and charts over one file. Neither stores a
+        layout, an expression or a sample.
+      </p>
+      <p>
+        Any compilation error suppresses every custom screen rather than rendering a
+        partial application. Zero custom nodes still leaves permanent Studio.
+      </p>
+    </div>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Studio</p>
+    <h2>The route back to the data cannot be removed.</h2>
+    <p class="lede">
+      Every valid file opens with Nendo Studio: Data, Structure, Surfaces, History and
+      Health. It is there with no record types, no agent connected, no custom screen, an
+      invalid definition, or a file in restricted safe mode.
+    </p>
+    <div class="studio-shots">
+      <Shot name="studio-structure" alt="The Studio Structure area showing record types, their fields and relationships" caption="Structure — record types, fields and relationships." />
+      <Shot name="studio-history" alt="The Studio History area listing revisions in order with what each one changed" caption="History — every revision, in total order, with what it changed." />
+    </div>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Agents</p>
+    <h2>Five visible access levels, one lease, no credential.</h2>
+    <p class="lede">
+      The agent surface is a loopback, stateless MCP server at
+      <code>http://127.0.0.1:41763/mcp</code>. Fourteen resources are reads and need no
+      lease; nineteen tools are writes and require one. Both sets are asserted by name in
+      the production gate.
+    </p>
+    <ol class="levels">
+      {accessLevels.map((level, index) => (
+        <li>
+          <span class="level-index">{index}</span>
+          <div>
+            <h3>{level.name}</h3>
+            <p>{level.body}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
+    <Prose class="agent-prose">
+      <p>
+        The edit lease is an opaque <code>applicationHandle</code> plus a
+        <code>leaseId</code>, both required on every owned operation. Possession of the
+        handle governs ownership — not a claimed client name, and not HTTP connection
+        identity. The lease has no expiry; a client releases it explicitly, and the person
+        may revoke it at any time.
+      </p>
+      <p>
+        An agent working is visible from every screen. The status pill names the client
+        and the call — <em>Claude Code is writing to this file…</em> rather than
+        <em>Still working…</em>
+      </p>
+      <p>
+        <a href={`${base}/docs/contracts/mcp-interface`}>The MCP interface contract</a>
+        lists every resource and tool, and what each refusal means.
+      </p>
+    </Prose>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Behaviour</p>
+    <h2>Calculations and actions, with consent kept on the device.</h2>
+    <Prose>
+      <p>
+        Calculated fields are stored as definitions, never as editable columns. What a
+        person sees is a value, <em>Not set</em>, <em>Calculating…</em>, or
+        <em>Cannot calculate</em> with the reason. A screen may not sort, filter, group or
+        total by a calculated field — each refuses by name rather than quietly ordering
+        the page it happens to have loaded.
+      </p>
+      <p>
+        Expressions run through a bounded evaluator with a closed function set and finite
+        ceilings. A file that holds no calculations never loads the evaluator at all. An
+        edit and every automatic action it triggers commit together, or leave the file
+        unchanged.
+      </p>
+      <p>
+        A file that carries a trigger cannot be edited until this device has approved that
+        exact behaviour. Approvals are device state under the per-user root, never inside
+        a <code>.nendo</code> file — so a file can never carry its own permission, and a
+        copy always asks again.
+      </p>
+      <p>
+        Custom views go further: a separate contained helper process with no host objects,
+        no network, no downloads, no clipboard and no path outside its own asset root, and
+        a package verified by digest before it is installed. What you can build with it
+        today is one thing — a renderer for a bounded graph projection. It is not a plugin
+        model, and it is not a step toward one.
+      </p>
+    </Prose>
+  </section>
+</Page>
+
+<style>
+  .lanes { margin-top: 24px; }
+  .lanes h3 { margin-bottom: 8px; }
+  .lane-what { font-weight: 620; }
+  .lanes p:last-child { color: var(--muted); font-size: 0.94rem; margin: 0; }
+
+  .aside {
+    margin-top: 20px;
+    max-width: 64ch;
+    color: var(--muted);
+    font-size: 0.94rem;
+  }
+
+  .operations { margin-top: 24px; }
+  .operations code { background: none; border: 0; padding: 0; font-size: 0.85rem; }
+
+  .sub { margin-top: 44px; }
+
+  .reversibility { margin-top: 16px; }
+  .reversibility article {
+    padding: 16px 18px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--violet);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+  }
+  .reversibility code { font-size: 0.82rem; }
+  .reversibility p { margin: 8px 0 0; color: var(--muted); font-size: 0.9rem; }
+
+  .note { margin-top: 24px; max-width: 70ch; }
+
+  .lifecycle {
+    list-style: none;
+    counter-reset: step;
+    margin: 26px 0 0;
+    padding: 0;
+    border-left: 2px solid var(--line);
+  }
+
+  .lifecycle li {
+    position: relative;
+    padding: 0 0 22px 26px;
+  }
+
+  .lifecycle li::before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: 8px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--cobalt);
+  }
+
+  .lifecycle strong { display: block; font-family: var(--font-display); font-size: 1.02rem; }
+  .lifecycle span { display: block; color: var(--muted); font-size: 0.93rem; max-width: 62ch; }
+
+  .kinds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin: 24px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .kinds code {
+    font-size: 0.82rem;
+    background: var(--surface-raised);
+  }
+
+  .kind-notes {
+    margin-top: 26px;
+    display: grid;
+    gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  }
+
+  .kind-notes p { margin: 0; color: var(--muted); font-size: 0.94rem; }
+  .kind-notes strong { color: var(--ink); }
+
+  .studio-shots {
+    display: grid;
+    gap: 26px;
+    margin-top: 26px;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  }
+
+  .levels {
+    list-style: none;
+    margin: 26px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+  }
+
+  .levels li {
+    display: flex;
+    gap: 16px;
+    padding: 16px 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+  }
+
+  .levels li:last-child { border-color: color-mix(in srgb, var(--warning) 45%, var(--line)); }
+
+  .level-index {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--surface-soft);
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  .levels h3 { font-size: 0.98rem; margin-bottom: 4px; }
+  .levels p { margin: 0; color: var(--muted); font-size: 0.93rem; }
+
+  .agent-prose { margin-top: 26px; }
+
+  @media (max-width: 640px) {
+    .studio-shots { grid-template-columns: 1fr; }
+  }
+</style>

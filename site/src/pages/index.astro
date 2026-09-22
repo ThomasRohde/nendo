@@ -1,0 +1,341 @@
+---
+import Base from '../layouts/Base.astro';
+import BrandMark from '../components/BrandMark.astro';
+import Shot from '../components/Shot.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const repository = 'https://github.com/ThomasRohde/nendo';
+
+const loop = [
+  'Create an empty file',
+  'Add or import schema and data',
+  'Work in the default Studio table',
+  'Ask an agent for a form, board or record page',
+  'Read the semantic diff',
+  'Accept, observe, compensate',
+];
+
+const showcase = [
+  { name: 'overview', label: 'A front page', alt: 'The Nendo Station front page, with count tiles, a progress ring and a breakdown chart', blurb: 'One root belongs to the file rather than to a record type: exact counts, a progress ring and a breakdown chart over the whole file.' },
+  { name: 'board', label: 'A board', alt: 'A board surface grouping crew records into columns by role, with per-column counts', blurb: 'Columns from a choice field or a bound reference, with the count on each. Drag a card and the record changes.' },
+  { name: 'record-page', label: 'A record page', alt: 'A component record page with a toned header, two commands and a form', blurb: 'A toned header, related lists, folding sections and declarative commands — Take offline, Return to service.' },
+  { name: 'calendar', label: 'A calendar', alt: 'A calendar surface placing maintenance records on a month', blurb: 'A Date field on a month. No DateTime, no recurrence, and the product says so rather than half-doing it.' },
+  { name: 'timeline', label: 'A timeline', alt: 'A timeline surface laying incidents along one civil year', blurb: 'One civil year at a time, records placed by their start date.' },
+  { name: 'gallery', label: 'A gallery', alt: 'A gallery surface: experiment records as cards with a rating drawn on a closed scale', blurb: 'Cards over a list window, with a rating drawn as dots on a scale set once.' },
+  { name: 'matrix', label: 'A matrix', alt: 'A matrix surface: two crossed choice fields answered by one grouped read', blurb: 'Two crossed choice fields answered by one read. An empty cell is a cell, and each one states its exact number.' },
+  { name: 'studio-data', label: 'Studio, always', alt: 'The Studio Data area showing the Components table with sort and filter controls', blurb: 'Every valid file opens here. No application content and no agent can remove it.' },
+];
+---
+
+<Base
+  title="Nendo — malleable software in a single file"
+  description="One portable SQLite file starts empty and is shaped, by people and by coding agents, into a working application: schema, data, screens and revision history. No generated project, no build step."
+>
+  <section class="hero">
+    <div class="page hero-inner">
+      <BrandMark width={104} />
+      <p class="tag"><span class="dot"></span>Experimental research prototype · v0.12.0 · Windows x64</p>
+      <h1>Malleable software in a single file.</h1>
+      <p class="hero-lede">
+        One portable SQLite file starts empty and is shaped — by people and by coding
+        agents — into a working application: schema, data, forms, boards, record pages
+        and revision history. No generated project. No build step. No regeneration when
+        you want a change.
+      </p>
+      <p class="clay"><em>Nendo</em> (粘土) is Japanese for clay.</p>
+      <div class="hero-actions">
+        <a class="button button-primary" href={`${base}/concept`}>Why this exists</a>
+        <a class="button button-quiet" href={`${base}/use`}>Using Nendo</a>
+        <a class="button button-quiet" href={repository} rel="noopener">Source on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="page section hero-shot">
+    <Shot
+      name="overview"
+      priority
+      alt="Nendo showing the Station status front page: count tiles, a progress ring and a breakdown chart, with the Studio rail beside it"
+      caption="Nendo Station, the fourth reference application. Captured from a running host on 2026-09-22 by tools/Capture-SiteScreenshots.ps1."
+    />
+  </section>
+
+  <section class="page section">
+    <div class="split">
+      <div>
+        <p class="eyebrow">The problem</p>
+        <h2>A generated application is a silo with a countdown on it.</h2>
+        <p>
+          AI can generate a small application in minutes. Each one becomes another silo:
+          the data is coupled to disposable code, every change means regeneration, and
+          nobody can see the schema migration, the history or the way back. When the
+          generated code stops working, the data goes with it.
+        </p>
+        <p>
+          Low-code platforms answer with a hosted platform and proprietary storage. That
+          is not a durable local file you can copy, inspect and reopen offline in ten
+          years.
+        </p>
+      </div>
+      <div>
+        <p class="eyebrow">The proposition</p>
+        <h2>Software should behave like structured clay.</h2>
+        <p>
+          One <code>.nendo</code> file holds durable identity, schema, data, application
+          meaning and history. People and coding agents reshape it in place through typed
+          semantic operations — the same operations, through the same validation, whether
+          the change comes from the native UI, the local web Workbench or an agent over
+          MCP.
+        </p>
+        <p><a href={`${base}/how-it-works`}>How that works, in detail →</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">The loop</p>
+    <h2>Shape it, review it, accept it.</h2>
+    <ol class="loop">
+      {loop.map((step, index) => (
+        <li>
+          <span class="loop-index">{index + 1}</span>
+          <span>{step}</span>
+        </li>
+      ))}
+    </ol>
+  </section>
+
+  <section class="page section">
+    <div class="panel guarantee">
+      <p class="eyebrow">Agents</p>
+      <h2>Nothing an agent gets wrong can reach your data before you say yes.</h2>
+      <p>
+        Agents connect over a local MCP interface on loopback. They never get SQL, a
+        database path or filesystem access — only typed semantic operations from a closed
+        set. Their changes are validated on a physical clone that has no authority over
+        your file, and previewed as a readable diff. Accepting replays the exact validated
+        operations against your file; it never swaps the clone in.
+      </p>
+      <pre><code>claude mcp add --transport http nendo http://127.0.0.1:41763/mcp
+codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
+      <p class="quiet">
+        That address is the whole client configuration — there is no credential to find or
+        paste. Which also means anything running on this computer can connect at the
+        access level you chose, so leave agent access <strong>Off</strong> when no agent is
+        working.
+      </p>
+    </div>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">What it builds</p>
+    <h2>Screens the host compiles, not code it generates.</h2>
+    <p class="lede">
+      Every screen below is a tree of typed nodes stored in the file and compiled by the
+      host. There is no generated project to lose, and no expression language to audit.
+    </p>
+    <div class="showcase">
+      {showcase.map(item => (
+        <article>
+          <h3>{item.label}</h3>
+          <p>{item.blurb}</p>
+          <Shot name={item.name} alt={item.alt} />
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="page section">
+    <div class="split brand-split">
+      <div>
+        <p class="eyebrow">The name</p>
+        <h2>Clay, and what it implies.</h2>
+        <p>
+          Clay keeps its shape and takes a new one without being thrown away and remade.
+          That is the whole claim: the file you started with is the file you keep, through
+          every change either you or an agent makes to it.
+        </p>
+        <p>
+          It is also why the axioms are worded as refusals. An empty file is valid. Studio
+          cannot be removed. Preview is physically separate from your data. Every operation
+          declares what it can and cannot take back.
+        </p>
+        <p><a href={`${base}/concept`}>Read the eight axioms →</a></p>
+      </div>
+      <div class="brand-video">
+        <video
+          src={`${base}/brand/nendo.mp4`}
+          muted
+          loop
+          playsinline
+          autoplay
+          preload="metadata"
+          aria-label="The Nendo mark, animated"
+        ></video>
+      </div>
+    </div>
+    <script is:inline>
+      // autoplay is an attribute, so it cannot be withheld per reader. Stop it for
+      // anyone who asked for less motion, and leave the first frame on the card.
+      (() => {
+        const video = document.querySelector('.brand-video video');
+        if (!video) return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          video.removeAttribute('autoplay');
+          video.removeAttribute('loop');
+          video.controls = true;
+          video.pause();
+        }
+      })();
+    </script>
+  </section>
+
+  <section class="page section">
+    <div class="panel status-band">
+      <div>
+        <p class="eyebrow">Status</p>
+        <h2>What is true, and what is only reported.</h2>
+        <p>
+          The MVP loop works end to end. Four reference applications falsify the hypothesis
+          from different shapes, and two of them were built from an empty file through the
+          MCP interface alone. Nendo plans its own development in a Nendo file, used daily
+          by two different coding agents.
+        </p>
+        <p>
+          Public distribution, code signing, ARM64, cloud sync and cross-platform support
+          are <strong>not</strong> qualified. Every usability, scaling and accessibility
+          result on record is owner-reported, and the independent human evaluation has not
+          been run.
+        </p>
+        <p><a href={`${base}/status`}>The full status page, including what is not checked →</a></p>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero {
+    padding-block: clamp(44px, 7vw, 84px) clamp(8px, 2vw, 20px);
+    background: radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--cobalt-soft) 60%, var(--canvas)) 0%, var(--canvas) 62%);
+  }
+
+  .hero-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .hero .tag { margin: 22px 0 18px; }
+
+  .hero h1 {
+    max-width: 16ch;
+    font-size: clamp(2.3rem, 6.2vw, 4rem);
+  }
+
+  .hero-lede {
+    max-width: 60ch;
+    margin-top: 6px;
+    font-size: clamp(1.05rem, 1.9vw, 1.24rem);
+    color: var(--muted);
+  }
+
+  .clay {
+    color: var(--violet);
+    font-size: 0.97rem;
+    margin-bottom: 26px;
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+  }
+
+  .hero-shot { padding-top: clamp(24px, 4vw, 44px); }
+
+  .split {
+    display: grid;
+    gap: clamp(28px, 5vw, 56px);
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
+
+  .split h2 { font-size: clamp(1.4rem, 2.4vw, 1.75rem); }
+  .split p { max-width: 52ch; }
+
+  .loop {
+    counter-reset: none;
+    list-style: none;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+    margin: 24px 0 0;
+    padding: 0;
+  }
+
+  .loop li {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 15px 18px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+    font-weight: 600;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .loop-index {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 27px;
+    height: 27px;
+    border-radius: 999px;
+    background: var(--cobalt-soft);
+    color: var(--cobalt);
+    font-size: 0.82rem;
+    font-weight: 720;
+  }
+
+  .guarantee h2 { max-width: 28ch; font-size: clamp(1.45rem, 3vw, 2.1rem); }
+  .guarantee p { max-width: 62ch; }
+  .guarantee pre { margin: 22px 0; }
+  .quiet { color: var(--muted); font-size: 0.93rem; }
+
+  .showcase {
+    display: grid;
+    gap: 34px;
+    margin-top: 30px;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  }
+
+  .showcase article > p {
+    color: var(--muted);
+    max-width: 48ch;
+    font-size: 0.95rem;
+  }
+
+  .brand-split { align-items: center; }
+
+  .brand-video {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    /* The sting was authored on an opaque near-white backdrop, so it sits on a card
+       that matches it rather than bleeding into a dark page. */
+    background: #f6f6f4;
+    line-height: 0;
+  }
+
+  .brand-video video { display: block; width: 100%; height: auto; }
+
+  .status-band h2 { max-width: 20ch; }
+  .status-band p { max-width: 62ch; }
+
+  @media (max-width: 640px) {
+    .showcase { grid-template-columns: 1fr; }
+  }
+</style>

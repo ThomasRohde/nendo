@@ -1,0 +1,244 @@
+@import './tokens.css';
+
+/* The visual direction is docs/assets/mockups/molded-workbench/README.md: a calm
+   workspace, warm-white and deep blue-black surfaces, navy text, cobalt focus,
+   restrained violet, subtly sculpted rounded panels. Nothing decorative. */
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 88px;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-size: 1rem;
+  line-height: 1.65;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+  margin: 0 0 0.4em;
+  text-wrap: balance;
+}
+
+h1 { font-size: clamp(2.1rem, 5vw, 3.1rem); font-weight: 690; }
+h2 { font-size: clamp(1.5rem, 3vw, 2.05rem); font-weight: 680; }
+h3 { font-size: 1.2rem; font-weight: 660; letter-spacing: -0.02em; }
+h4 { font-size: 1rem; font-weight: 660; letter-spacing: -0.01em; }
+
+p { margin: 0 0 1.1em; }
+p:last-child { margin-bottom: 0; }
+
+a {
+  color: var(--cobalt);
+  text-decoration-color: color-mix(in srgb, var(--cobalt) 35%, transparent);
+  text-underline-offset: 0.2em;
+}
+a:hover { text-decoration-color: var(--cobalt); }
+
+:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+code, kbd, samp, pre { font-family: var(--font-mono); font-size: 0.9em; }
+
+code {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0.1em 0.35em;
+}
+
+pre {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  overflow-x: auto;
+  box-shadow: var(--shadow-soft);
+}
+pre code { background: none; border: 0; padding: 0; }
+
+/* Shiki carries two themes; the dark one is selected by the attribute rather than
+   by the media query, so the explicit Light and Dark choices reach code too. */
+:root[data-theme="dark"] .astro-code,
+:root[data-theme="dark"] .astro-code span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}
+
+img, video, svg { max-width: 100%; height: auto; }
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 40px 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.94rem;
+  margin: 0 0 1.4em;
+}
+th, td {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+th {
+  font-weight: 660;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+blockquote {
+  margin: 0 0 1.2em;
+  padding: 2px 0 2px 20px;
+  border-left: 3px solid var(--violet);
+  color: var(--muted);
+}
+
+/* ---- layout primitives ---- */
+
+.page {
+  width: min(var(--page), 100% - calc(var(--gutter) * 2));
+  margin-inline: auto;
+}
+
+.narrow { max-width: var(--measure); }
+
+.section {
+  padding-block: clamp(48px, 7vw, 88px);
+}
+
+.section + .section { padding-top: 0; }
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--cobalt);
+  font-size: 0.75rem;
+  font-weight: 720;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+.lede {
+  font-size: clamp(1.05rem, 1.8vw, 1.22rem);
+  color: var(--muted);
+  max-width: var(--measure);
+}
+
+.panel {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: clamp(20px, 3vw, 30px);
+  box-shadow: var(--shadow-soft);
+}
+
+.grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 20px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 640;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+.button:hover { transform: translateY(-1px); }
+.button-primary {
+  background: var(--cobalt);
+  color: #ffffff;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--cobalt) 26%, transparent);
+}
+:root[data-theme="dark"] .button-primary { color: #071725; }
+.button-quiet {
+  background: var(--surface-raised);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  font-size: 0.78rem;
+  font-weight: 640;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.tag .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
+.note {
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--violet);
+  background: var(--surface-soft);
+  padding: 16px 20px;
+  font-size: 0.95rem;
+}
+.note strong { color: var(--ink); }
+.note-warning { border-left-color: var(--warning); }
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  padding: 10px 16px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  z-index: 50;
+}
+.skip-link:focus { left: 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

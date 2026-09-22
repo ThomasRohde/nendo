@@ -1,0 +1,63 @@
+---
+import { Image } from 'astro:assets';
+
+// Every screenshot was captured in both themes in the same run, so the page can show
+// whichever one matches the reader's choice rather than showing a dark application
+// on a light page. Both are in the markup; CSS picks. Captured by
+// tools/Capture-SiteScreenshots.ps1 from workspace/Nendo Station.nendo.
+const shots = import.meta.glob<{ default: ImageMetadata }>('../assets/screenshots/*.png', { eager: true });
+
+interface Props {
+  name: string;
+  alt: string;
+  caption?: string;
+  priority?: boolean;
+}
+const { name, alt, caption, priority = false } = Astro.props;
+
+const pick = (theme: string) => {
+  const key = `../assets/screenshots/${name}-${theme}.png`;
+  const entry = shots[key];
+  if (!entry) throw new Error(`No ${theme} capture named ${name}. Run tools/Capture-SiteScreenshots.ps1.`);
+  return entry.default;
+};
+const light = pick('light');
+const dark = pick('dark');
+---
+
+<figure class="shot">
+  <div class="shot-frame">
+    <Image src={light} alt={alt} class="shot-light" loading={priority ? 'eager' : 'lazy'} widths={[760, 1140, 2280]} sizes="(max-width: 760px) 100vw, 1100px" />
+    <Image src={dark} alt={alt} class="shot-dark" loading={priority ? 'eager' : 'lazy'} widths={[760, 1140, 2280]} sizes="(max-width: 760px) 100vw, 1100px" />
+  </div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .shot { margin: 0; }
+
+  .shot-frame {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--surface-raised);
+    box-shadow: var(--shadow);
+    line-height: 0;
+  }
+
+  .shot-frame :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  :root[data-theme='light'] .shot-dark,
+  :root[data-theme='dark'] .shot-light { display: none; }
+
+  figcaption {
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 0.87rem;
+    text-align: center;
+  }
+</style>

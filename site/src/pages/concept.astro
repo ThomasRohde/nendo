@@ -1,0 +1,270 @@
+---
+import Page from '../layouts/Page.astro';
+import Prose from '../components/Prose.astro';
+import { Image } from 'astro:assets';
+import lockup from '../assets/brand/nendo.png';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+// Quoted from docs/vision.md. These are load-bearing: a change that violates one
+// needs an accepted ADR, so they are reproduced rather than paraphrased.
+const axioms = [
+  { title: 'Empty files are valid', body: 'A .nendo file with no user schema is a working application, not an error state.' },
+  { title: 'Studio is permanent and host-owned', body: 'No application content and no agent can remove the route back to the data.' },
+  { title: 'Data is usable before specialised presentation', body: 'The table works before the form exists, and after it breaks.' },
+  { title: 'All clients share one authority and validation path', body: 'Native UI, web Workbench and MCP adapter call the same typed application services.' },
+  { title: 'Agents never receive raw SQL or filesystem authority', body: 'No SQL, no SQLite handle, no database path, no generic host invocation.' },
+  { title: 'Preview is physically separate from active state', body: 'Validation happens on a clone with no authority over the active file.' },
+  { title: 'History and reversibility claims are explicit', body: 'Every operation declares its reversibility class. There is no universal undo.' },
+  { title: 'Local and offline use never depends on an agent or a Nendo service', body: 'The file opens, and the application works, with nothing connected.' },
+];
+
+const references = [
+  { name: 'Idea Garden', role: 'The original shape', body: 'The first form and board, and the journey a newcomer is handed: empty file, human fallback, agent-authored shape, CSV load, focused surfaces, offline recovery.' },
+  { name: 'Decision Log', role: 'The neutrality proof', body: 'Built to show the authoring path is not Idea-specific. The same vocabulary produces a different application.' },
+  { name: 'Axiom Register', role: 'Built over MCP alone', body: 'Record pages, related lists, declared filters, summary tiles and multi-step commands — authored from an empty file through the MCP interface, reading the vocabulary off the wire.' },
+  { name: 'Nendo Station', role: 'The demonstration', body: 'A fictional habitat run as an operations room: a front page, record pages with tabs, a pinned schematic custom view, commands, a trigger that fires, and an agent change reviewed in front of you.' },
+];
+
+const inScope = [
+  'Empty-file lifecycle', 'Scalar schema and relational data', 'Studio table and editor',
+  'CSV import and export', 'Semantic forms, lists, boards, record pages',
+  'Related lists, declared filters, summary tiles', 'Declarative commands',
+  'MCP inspection and authoring', 'Proposal preview and promotion',
+  'History and bounded compensation', 'Safe mode',
+  'Bounded calculations and local actions',
+];
+
+const outOfScope = [
+  'General scripting and expressions', 'Plug-ins and third-party controls',
+  'An embedded agent', 'Scalar multi-choice', 'Binary and asset fields',
+  'Collaboration and cloud sync', 'Background agents', 'Other database engines',
+  'Cross-platform parity',
+];
+---
+
+<Page
+  title="Concept and philosophy — Nendo"
+  description="Why Nendo exists: the problem with generated applications, the clay proposition, the eight product axioms, and the single result that would falsify the whole idea."
+  eyebrow="Concept and philosophy"
+  heading="Clay, not a build output."
+  lede="Nendo is a bet that an application can be a thing you reshape rather than a thing you regenerate — and it is written so that the bet can lose."
+>
+  <section class="page section">
+    <Prose>
+      <h2>The problem</h2>
+      <p>
+        AI can generate a small application in minutes. Each one becomes another silo:
+        the data is coupled to disposable code, every change means regeneration, and the
+        user has no visibility into schema migration, history or recovery. When the
+        generated code stops working, the data goes with it.
+      </p>
+      <p>
+        Low-code platforms solve part of this and introduce their own version of it. They
+        require a hosted platform and proprietary storage. They are not a durable local
+        file you can copy, inspect and reopen offline in ten years.
+      </p>
+
+      <h2>The proposition</h2>
+      <p>
+        Software should behave like structured clay. One portable SQLite file — the
+        <code>.nendo</code> file — holds durable identity, schema, data, application
+        meaning and history. People and coding agents reshape it in place through typed
+        semantic operations. No generated project, no build step, no regeneration.
+      </p>
+      <p>
+        <em>Nendo</em> (粘土) is Japanese for clay, and the name is the thesis rather than
+        a decoration. Clay keeps a shape and takes a new one without being thrown away.
+      </p>
+    </Prose>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">The axioms</p>
+    <h2>Eight load-bearing refusals.</h2>
+    <p class="lede">
+      These are quoted from <a href={`${base}/docs/vision`}>the vision document</a>
+      as written. A change that violates one needs an accepted decision record, not a
+      good reason — which is what makes them worth stating in public.
+    </p>
+    <ol class="axioms">
+      {axioms.map((axiom, index) => (
+        <li>
+          <span class="axiom-number">{String(index + 1).padStart(2, '0')}</span>
+          <div>
+            <h3>{axiom.title}</h3>
+            <p>{axiom.body}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
+  </section>
+
+  <section class="page section">
+    <div class="panel falsify">
+      <p class="eyebrow">What would falsify this</p>
+      <h2>An application whose shape nobody anticipated.</h2>
+      <p>
+        The proof is that an agent, given only the MCP interface, can build an application
+        whose shape nobody anticipated — and that a human can review that change and
+        understand what it does before accepting it.
+      </p>
+      <p>
+        The negative case is stated just as plainly. If Studio succeeds but semantic
+        surfaces cannot deliver value the table alone does not, Nendo has not passed its
+        hypothesis. That is a pivot-or-stop signal, not a backlog item.
+      </p>
+    </div>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">The evidence so far</p>
+    <h2>Four reference applications, shaped differently on purpose.</h2>
+    <p class="lede">
+      One application proves a path exists. Four differently shaped ones start to show the
+      path is not specific to the first thing built on it. The last two were built from an
+      empty file through the MCP interface alone.
+    </p>
+    <div class="grid grid-2 references">
+      {references.map(item => (
+        <article class="panel">
+          <p class="reference-role">{item.role}</p>
+          <h3>{item.name}</h3>
+          <p>{item.body}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Scope</p>
+    <h2>What is in, and what is deliberately out.</h2>
+    <p class="lede">
+      The out list is not a roadmap. Each entry is a decision, and several of them exist
+      so that the things on the in list can be small enough to reason about.
+    </p>
+    <div class="scope">
+      <div>
+        <h3>In</h3>
+        <ul class="chips">{inScope.map(item => <li>{item}</li>)}</ul>
+      </div>
+      <div>
+        <h3>Out, without an accepted decision record</h3>
+        <ul class="chips chips-out">{outOfScope.map(item => <li>{item}</li>)}</ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="page section">
+    <div class="closing">
+      <Image src={lockup} alt="Nendo" width={210} densities={[1, 2]} />
+      <div>
+        <h2>The success criterion, in one sentence.</h2>
+        <p>
+          A new user creates an empty file, shapes or imports a modest dataset, uses it
+          productively through Studio, has an external agent build a materially better
+          focused surface, reviews and accepts the semantic change, restarts offline, and
+          recovers the data without that surface.
+        </p>
+        <p><a href={`${base}/how-it-works`}>How the machinery behind that works →</a></p>
+      </div>
+    </div>
+  </section>
+</Page>
+
+<style>
+  .axioms {
+    list-style: none;
+    margin: 28px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  }
+
+  .axioms li {
+    display: flex;
+    gap: 16px;
+    padding: 20px 22px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .axiom-number {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--violet);
+    padding-top: 2px;
+  }
+
+  .axioms h3 { font-size: 1rem; margin-bottom: 5px; }
+  .axioms p { margin: 0; color: var(--muted); font-size: 0.93rem; }
+
+  .falsify h2 { max-width: 20ch; }
+  .falsify p { max-width: 62ch; }
+
+  .references { margin-top: 26px; }
+  .references p { color: var(--muted); font-size: 0.93rem; }
+  .references h3 { margin-bottom: 8px; }
+
+  .reference-role {
+    margin: 0 0 4px;
+    color: var(--cobalt);
+    font-size: 0.74rem;
+    font-weight: 720;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+
+  .scope {
+    display: grid;
+    gap: 30px;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    margin-top: 26px;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .chips li {
+    padding: 6px 13px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-raised);
+    font-size: 0.86rem;
+  }
+
+  .chips-out li {
+    color: var(--muted);
+    background: var(--surface-soft);
+    text-decoration: line-through;
+    text-decoration-color: color-mix(in srgb, var(--danger) 50%, transparent);
+  }
+
+  .closing {
+    display: grid;
+    gap: 30px;
+    grid-template-columns: auto minmax(280px, 1fr);
+    align-items: center;
+    padding: clamp(24px, 4vw, 40px);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+
+  .closing p { max-width: 58ch; }
+
+  @media (max-width: 720px) {
+    .closing { grid-template-columns: 1fr; }
+  }
+</style>

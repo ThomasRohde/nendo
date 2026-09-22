@@ -1,0 +1,337 @@
+---
+import Page from '../layouts/Page.astro';
+import Prose from '../components/Prose.astro';
+import Shot from '../components/Shot.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const repository = 'https://github.com/ThomasRohde/nendo';
+
+const openWays = [
+  'Double-click a .nendo file — setup registers the file association and its icon',
+  'Explorer, right-click, New, Nendo application',
+  'File, New or File, Open inside the app',
+  'Drag a .nendo file onto the window or onto the taskbar button',
+];
+
+const journey = [
+  { letter: 'A', title: 'Empty file and human fallback', body: 'Create a file. It is valid while empty. Add a record type and some records by hand in Studio, with no agent involved at all.' },
+  { letter: 'B', title: 'Agent creates the initial shape', body: 'Turn agent access on, ask for the shape you want in your own words, read the semantic diff, accept it.' },
+  { letter: 'C', title: 'Load data', body: 'Import a CSV. The import is not atomic and says so — fifty rows a revision, with what succeeded recorded.' },
+  { letter: 'D', title: 'Create focused experiences', body: 'Ask for a board, a calendar, a record page, a front page. Each arrives as a proposal to read before it exists.' },
+  { letter: 'E', title: 'Offline and recovery', body: 'Close everything, turn the network off, reopen. The data is there through Studio whether or not any custom screen still compiles.' },
+];
+
+const demo = [
+  'Open the file. Use opens on Station status: nine systems, twelve crew, what is nominal and what is not.',
+  'Open a system record page. The header is toned by condition; four tabs carry its components, incidents, maintenance and readings.',
+  'Open Systems Lens beside it and press Fit — a contained custom view drawing the schematic from the same records.',
+  'Take a component offline with its own command, and watch what depends on it change.',
+  'Try the structural what-if the file refuses, and read the refusal.',
+  'Raise an incident and watch an automatic action fire as part of the same commit.',
+  'Ask the agent, in your own words, for something the file does not have yet.',
+  'The agent authors one proposal. Read the semantic diff.',
+  'Accept. The screen exists. No build, no restart, no regeneration.',
+];
+---
+
+<Page
+  title="Using Nendo — Nendo"
+  description="What you need, how to build it, how to open a .nendo file, what Studio gives you on day one, how to connect a coding agent over MCP, and the two journeys worth walking."
+  eyebrow="Using Nendo"
+  heading="There is no download. You build it, then you open a file."
+  lede="Nendo is an unsigned per-user Windows x64 install with no release channel, no update mechanism and no support commitment. That is a deliberate stage, not an oversight — and it is the honest starting point for anything below."
+>
+  <section class="page section">
+    <div class="note note-warning">
+      <p>
+        <strong>Experimental.</strong> Nendo is a research prototype exploring whether
+        malleable software works, not a product. Read
+        <a href={`${base}/status`}>Status</a> before relying on anything here.
+      </p>
+    </div>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Step one</p>
+    <h2>Build it.</h2>
+    <p class="lede">
+      You need the .NET SDK pinned in <code>global.json</code>, the Node version
+      <code>src/Nendo.Workbench/package.json</code> declares under <code>engines</code>
+      (22.12 or later), Windows x64, and the WebView2 Evergreen runtime. The Workbench is
+      built before the host, because it is bundled into the Desktop output.
+    </p>
+    <div class="steps">
+      <article>
+        <h3>Clone and verify</h3>
+        <pre><code>git clone https://github.com/ThomasRohde/nendo
+cd nendo
+pwsh ./tools/Test-Production.ps1</code></pre>
+        <p>The full gate runs in about a minute and includes the repository check.</p>
+      </article>
+      <article>
+        <h3>Package an installer</h3>
+        <pre><code>pwsh ./tools/Publish-NendoPayload.ps1
+pwsh ./tools/Build-NendoInstaller.ps1</code></pre>
+        <p>
+          Produces <code>artifacts/installer/Nendo-Setup.exe</code>: per-user, unsigned,
+          Windows x64, installing into <code>Programs/Nendo</code>. Needs NSIS.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Step two</p>
+    <h2>Open a file — four ways, all of them ordinary.</h2>
+    <ul class="ways">{openWays.map(way => <li>{way}</li>)}</ul>
+    <p class="aside">
+      An empty file is a working application. Studio offers Create record type, Import CSV,
+      Attach agent and Inspect file, and adds no sample record type, record or screen
+      implicitly.
+    </p>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Step three</p>
+    <h2>Studio is what you get before you ask for anything.</h2>
+    <p class="lede">
+      Every record type automatically gets an <em>All records</em> table, a generated
+      record inspector, create, read, update and delete, sorting, filtering, search,
+      history and CSV import and export. The target is closer to a modern database table
+      in a note-taking app than to a raw SQLite browser.
+    </p>
+    <Shot
+      name="studio-data"
+      alt="The Studio Data area: a record type list, sort and filter controls, and an editable grid of component records"
+      caption="Studio, Data. Edit a cell to save a change; the sort, filter and match controls are above the grid."
+    />
+    <div class="grid studio-areas">
+      <article><h3>Data</h3><p>The table and the record editor. This is the route that cannot be removed.</p></article>
+      <article><h3>Structure</h3><p>Record types, fields, relationships. Changes here become proposals to review.</p></article>
+      <article><h3>Surfaces</h3><p>The screens the file carries, and what each one is bound to.</p></article>
+      <article><h3>History</h3><p>Every revision in total order, with the reversibility class it declared.</p></article>
+      <article><h3>Health</h3><p>Compatibility, integrity, trust findings, and the device approval for automatic actions.</p></article>
+    </div>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Step four</p>
+    <h2>Connect an agent.</h2>
+    <p class="lede">
+      While a file is open with agent access on, Nendo listens at
+      <code>http://127.0.0.1:41763/mcp</code>. That address is the whole client
+      configuration — there is no credential to find or paste.
+    </p>
+    <pre><code>claude mcp add --transport http nendo http://127.0.0.1:41763/mcp
+codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
+    <Prose class="agent-notes">
+      <p>
+        A checkout of the repository already carries both registrations
+        (<code>.mcp.json</code> and <code>.codex/config.toml</code>), so an agent started
+        there is connected the moment a file is open. If port 41763 was busy, Agent →
+        Connection shows the address in use and copies either command.
+      </p>
+      <p>
+        <strong>The other half of "no credential":</strong> anything running on this
+        computer can connect at the access level you chose. Leave access
+        <strong>Off</strong> when no agent is working. This is a boundary around one
+        computer at one chosen level, not an anti-malware boundary.
+      </p>
+      <p>
+        Claude Code and Codex are the two clients checked. That is not a general MCP
+        parity claim.
+      </p>
+    </Prose>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">The journey</p>
+    <h2>Five parts, each with the literal prompt to hand an agent.</h2>
+    <p class="lede">
+      <a href={`${repository}/blob/main/fixtures/idea-garden/journey.md`} rel="noopener">The
+      Idea Garden journey</a> is the canonical walk-through, and the right thing to hand
+      somebody who has never opened a <code>.nendo</code> file.
+    </p>
+    <ol class="journey">
+      {journey.map(part => (
+        <li>
+          <span class="journey-letter">{part.letter}</span>
+          <div>
+            <h3>{part.title}</h3>
+            <p>{part.body}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">The demonstration</p>
+    <h2>Nendo Station, in about four minutes.</h2>
+    <p class="lede">
+      The fourth reference application, and the fastest way to show somebody what the
+      claim actually means. The screenshots on this site are captured from it. The last
+      step is the vision's falsification criterion performed in front of someone.
+    </p>
+    <ol class="demo">{demo.map(step => <li>{step}</li>)}</ol>
+    <div class="demo-shots">
+      <Shot name="record-page" alt="A component record page with a toned header, Take offline and Return to service commands, and the record form" caption="A record page with its own commands." />
+      <Shot name="matrix" alt="A matrix surface: one grouped read laid out as a grid, with empty cells shown as cells" caption="A matrix — one grouped read, whatever its size. Empty cells are cells." />
+    </div>
+    <p class="aside">
+      <a href={`${base}/docs/nendo-station`}>The full demo script →</a>
+    </p>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">What comes with it</p>
+    <h2>The parts worth knowing before you need them.</h2>
+    <div class="grid grid-2 extras">
+      <article class="panel">
+        <h3>CSV, faithfully</h3>
+        <p>
+          Import and export follow a stated profile. An import is not atomic and says so:
+          fifty rows a revision, with the outcome recorded rather than implied.
+        </p>
+        <p><a href={`${base}/docs/contracts/csv`}>The CSV contract →</a></p>
+      </article>
+      <article class="panel">
+        <h3>Custom views</h3>
+        <p>
+          A package identified by the hash of its exact archive bytes, a view definition
+          in the file pinning that digest, and device consent keyed to the physical file.
+          Three separate acts; none implies the next, and a copy inherits nothing.
+        </p>
+        <p><a href={`${base}/docs/custom-view-authoring`}>Authoring a custom view →</a></p>
+      </article>
+      <article class="panel">
+        <h3>It stays running</h3>
+        <p>
+          Closing the window hides Nendo to the notification area with its file open and
+          MCP listening. Four things raise a Windows notification while it is hidden, and
+          each carries a view name and nothing else — they route rather than grant.
+        </p>
+      </article>
+      <article class="panel">
+        <h3>Help is in the product</h3>
+        <p>
+          Five categories — Getting started, How Nendo works, Everyday work, Agents, About
+          this app — available with no file open, in read-only mode and in recovery. The
+          last one is generated from the live typed snapshot of the open file.
+        </p>
+      </article>
+    </div>
+  </section>
+</Page>
+
+<style>
+  .steps {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+    margin-top: 24px;
+  }
+
+  .steps article {
+    padding: 22px 24px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface-raised);
+  }
+
+  .steps pre { margin: 14px 0; }
+  .steps p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+  .ways {
+    margin: 22px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 9px;
+    max-width: 70ch;
+  }
+
+  .ways li {
+    padding: 12px 18px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+    font-size: 0.95rem;
+  }
+
+  .aside {
+    margin-top: 22px;
+    max-width: 66ch;
+    color: var(--muted);
+    font-size: 0.94rem;
+  }
+
+  .studio-areas { margin-top: 26px; }
+  .studio-areas article {
+    padding: 16px 18px;
+    border-left: 2px solid var(--cobalt);
+    background: var(--surface-soft);
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+  .studio-areas h3 { font-size: 0.97rem; margin-bottom: 4px; }
+  .studio-areas p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+  .agent-notes { margin-top: 22px; }
+
+  .journey {
+    list-style: none;
+    margin: 26px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+  }
+
+  .journey li {
+    display: flex;
+    gap: 16px;
+    padding: 17px 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+  }
+
+  .journey-letter {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: var(--cobalt-soft);
+    color: var(--cobalt);
+    font-family: var(--font-display);
+    font-weight: 720;
+    font-size: 0.88rem;
+  }
+
+  .journey h3 { font-size: 0.99rem; margin-bottom: 3px; }
+  .journey p { margin: 0; color: var(--muted); font-size: 0.93rem; }
+
+  .demo {
+    margin: 24px 0 0;
+    padding-left: 1.3em;
+    max-width: 68ch;
+  }
+
+  .demo li { margin-bottom: 0.55em; color: var(--muted); }
+
+  .demo-shots {
+    display: grid;
+    gap: 26px;
+    margin-top: 30px;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  }
+
+  .extras { margin-top: 24px; }
+  .extras h3 { margin-bottom: 8px; }
+  .extras p { color: var(--muted); font-size: 0.93rem; }
+
+  @media (max-width: 640px) {
+    .demo-shots { grid-template-columns: 1fr; }
+  }
+</style>

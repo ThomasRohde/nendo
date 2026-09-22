@@ -1,0 +1,61 @@
+---
+import { Image } from 'astro:assets';
+import mark from '../assets/brand/nendo-mark.png';
+
+interface Props {
+  width?: number;
+  animate?: boolean;
+  class?: string;
+}
+const { width = 92, animate = true, class: className = '' } = Astro.props;
+---
+
+<Image
+  src={mark}
+  alt="The Nendo mark"
+  width={width}
+  densities={[1, 2]}
+  class:list={['brand-mark', animate && 'brand-mark-animated', className]}
+/>
+
+<style>
+  /* The same moulded-clay motion the application plays on an empty file, ported from
+     src/Nendo.Workbench/src/styles/07-studio.css. Transform only, so it stays on the
+     compositor, and the global reduced-motion rule collapses it to a still mark. */
+  .brand-mark {
+    display: block;
+    object-fit: contain;
+    filter: drop-shadow(0 12px 18px color-mix(in srgb, var(--violet) 18%, transparent));
+    transform-origin: 50% 88%;
+  }
+
+  .brand-mark-animated {
+    animation:
+      brand-mark-settle 900ms cubic-bezier(0.22, 1.35, 0.36, 1) both,
+      brand-mark-breathe 6s 900ms ease-in-out infinite;
+  }
+
+  @keyframes brand-mark-settle {
+    0% {
+      opacity: 0;
+      transform: translateY(-15px) scale(0.86, 1.13) rotate(-5deg);
+    }
+
+    55% {
+      opacity: 1;
+      transform: translateY(2px) scale(1.07, 0.9) rotate(1.5deg);
+    }
+
+    100% {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes brand-mark-breathe {
+    0%,
+    100% { transform: translateY(0) scale(1, 1); }
+    35% { transform: translateY(-5px) scale(0.985, 1.02); }
+    70% { transform: translateY(1px) scale(1.015, 0.985); }
+  }
+</style>

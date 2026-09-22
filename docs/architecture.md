@@ -618,10 +618,18 @@ pwsh ./tools/Test-Production.ps1      # full gate; includes the repository check
 Do not run `Test-Production.ps1` twice — it already includes `Test-Repository.ps1`.
 Use `-SkipRestore` only with unchanged dependencies.
 
-**There is no CI, deliberately.** The gate above is the gate: it runs in about a
-minute locally, and on a solo project with no pull requests a hosted copy of it
-earns nothing. Run it before you push. Add CI back when there is a reason —
-a second contributor, or approaching a real release.
+**The product has no CI, deliberately.** The gate above is the gate: it runs in
+about a minute locally, and on a solo project with no pull requests a hosted copy
+of it earns nothing. Run it before you push. Add CI for the product when there is
+a reason — a second contributor, or approaching a real release.
+
+One GitHub Actions workflow does exist, `.github/workflows/pages.yml`, and it
+builds and deploys the public website in `site/`
+([ADR-0018](decisions/0018-public-website-and-deployment-lane.md)). It runs only
+on a push that touches `site/`, `docs/` or the workflow itself; it restores,
+builds and tests no .NET project and runs neither gate script, so it can neither
+pass nor fail on anything the gate covers. `tools/Test-Site.ps1` is the local
+equivalent and is deliberately not part of `Test-Production.ps1`.
 
 Two native lanes exist and are not in the gate, because they drive a real
 Desktop window and need a desktop session:

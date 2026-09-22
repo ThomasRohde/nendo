@@ -1,0 +1,242 @@
+---
+import Page from '../layouts/Page.astro';
+import Prose from '../components/Prose.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+// Condensed from the "Not qualified" table in docs/roadmap.md. The wording is kept
+// close to the source on purpose: this project distinguishes what was measured from
+// what was reported, and softening it here would undo that.
+const notQualified = [
+  { area: 'Public distribution, code signing, ARM64', status: 'Not started.' },
+  { area: 'Clean-machine install', status: 'Owner-reported pass on a machine since used for everything else. No automated assertion, and none planned — accepted as a limitation on 2026-09-19.' },
+  { area: 'Installed startup on large datasets', status: 'An accepted measured exception, not a pass. One open inspects the file twice; the layout signature scan is the largest single cost.' },
+  { area: 'Human usability and accessibility', status: 'Owner-reported. Scaling, keyboard and focus, and screen-reader checks were run by the owner, not instrumented. Accepted as a limitation on 2026-09-20.' },
+  { area: 'Cloud sync and live-root writes', status: 'Unsupported. Known sync paths are warned about; there is no sync-safety claim.' },
+  { area: 'Physical power loss', status: 'Not qualified.' },
+  { area: 'Broad MCP client parity', status: 'Not promised. Claude Code and Codex both connect with only the address, checked by opt-in installed-client lanes. That is not a general parity claim.' },
+  { area: 'Account boundary on a shared machine', status: 'Removed along with the credential. Chosen for iteration speed on a single-user machine, not a gap being closed.' },
+  { area: 'Cross-platform', status: 'Windows only.' },
+  { area: 'The notification area and Windows notifications', status: 'Owner-reported. A lane checks that closing hides the window, that the process and its file survive, and that the exit pin exits. The icon, its menu and the notifications themselves are not observable from a script.' },
+  { area: 'What the Windows shell draws', status: 'Owner-reported, item by item. Registry writes, shell identity and the Jump List file are measured. Explorer drawing the document icon, the taskbar painting the overlay badge or progress, and a file dragged from Explorer arriving are not reachable from a script.' },
+];
+
+const delivered = [
+  { slice: 'S0', body: 'A colour tone on every choice option, and a record-page header.' },
+  { slice: 'S1', body: 'Exact grouped aggregates, a breakdown chart, a progress ring, and drill-through into a narrowed list.' },
+  { slice: 'S2', body: 'A gallery of cards over a list window, and a rating drawn on a closed scale.' },
+  { slice: 'S3', body: 'The timeline: records on a spine by a Date field, with an optional end date drawn as a span.' },
+  { slice: 'S4', body: 'The overview page — the one root that belongs to the file rather than to a record type.' },
+  { slice: 'S5', body: 'The trend chart and the activity grid, whose groups are generated from a resolved range.' },
+  { slice: 'S6', body: 'The matrix and the ranked list: two crossed choice fields answered by one read.' },
+  { slice: 'S7', body: 'A board grouped by a bound reference — columns that are records of another type.' },
+];
+
+const gaps = [
+  'Consent is shown where acceptance happens, but is not in the proposal queue.',
+  'Validation reports one error per pass.',
+  'Concurrent proposals are announced, not rebased.',
+  'A reconnecting agent can see a pending proposal but cannot act on it.',
+  'At Unattended authoring, nobody reads the change before the file takes it — and there is no record that a change went in unreviewed.',
+  'An import is not atomic and says so: fifty rows a revision.',
+  'Anything on this computer can reach an open file. There is no credential.',
+  'The calendar is a Date field on a month. No DateTime, time zones, week or day scheduling, duration, recurrence or drag-to-date.',
+  'A rating scale is set once. A timeline shows one civil year at a time.',
+  'Tab and screen selection are renderer state, not stored: a person returns to the first tab of every group on reopen.',
+  'A whole-file snapshot with calculations scales linearly — 49 ms to 474 ms cold between the 1,000 and 10,000-record fixtures.',
+];
+---
+
+<Page
+  title="Status — Nendo"
+  description="What works, what is delivered, what is measured, what is only owner-reported, and what is not qualified at all. Written to the project's own honest-reporting rule."
+  eyebrow="Status"
+  heading="What is measured, and what is only reported."
+  lede="This project treats the difference between a measurement and a report as load-bearing. This page is that rule applied to itself."
+>
+  <section class="page section">
+    <div class="panel rule">
+      <p class="eyebrow">The rule</p>
+      <p class="rule-quote">
+        Say what was checked, not whether something is “verified”. “Verified” and
+        “unverified” collapse several different questions into one word and read as a
+        verdict on quality, which is usually not what is meant. Name the lane and its
+        scope instead.
+      </p>
+      <p class="rule-source">
+        — the repository's contributor rules, which also govern this website.
+      </p>
+    </div>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Where it is</p>
+    <h2>The loop works end to end. Version 0.12.0.</h2>
+    <Prose>
+      <p>
+        The MVP loop works end to end, delivered as a local unsigned per-user Windows x64
+        install. Four reference applications falsify the hypothesis from different shapes
+        — Idea Garden, Decision Log, the Axiom Register and Nendo Station — and the last
+        two were built from an empty file through the MCP interface alone, reading the
+        vocabulary off the wire rather than from the repository.
+      </p>
+      <p>
+        Nendo plans its own development in a Nendo file. Four record types — initiatives,
+        work items, findings and checks — twenty-one screen and command roots, five
+        calculations, one reusable function, one action and one trigger, used daily by two
+        different coding agents handing work to each other. A check in it records its
+        method — automated, agent-observed or owner-reported — independently of its
+        outcome, and a passed check never completes work by itself.
+      </p>
+      <p>
+        There is <strong>no CI for the product</strong>, deliberately. The local gate
+        (<code>Test-Repository.ps1</code>, <code>Test-Production.ps1</code>) runs in about
+        a minute and is the gate. The one GitHub Actions workflow in the repository builds
+        and deploys this website, and touches nothing the gate covers.
+      </p>
+    </Prose>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Delivered</p>
+    <h2>Screen slices, in the order they shipped.</h2>
+    <ul class="slices">
+      {delivered.map(item => (
+        <li><code>{item.slice}</code><span>{item.body}</span></li>
+      ))}
+    </ul>
+    <p class="aside">
+      Bounded calculations, reusable functions, local actions and automatic triggers are
+      delivered. The bounded custom-view slice is accepted and its implementation is in
+      progress — acceptance does not erase the unrun checks below.
+    </p>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Not qualified</p>
+    <h2>Stated plainly so nobody reads a gap as a feature.</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width: 30%">Area</th><th>Status</th></tr></thead>
+        <tbody>
+          {notQualified.map(row => (
+            <tr><td><strong>{row.area}</strong></td><td>{row.status}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p class="aside">
+      The full table, with every measurement named, is in
+      <a href={`${base}/docs/roadmap`}>the roadmap</a>.
+    </p>
+  </section>
+
+  <section class="page section">
+    <p class="eyebrow">Known gaps</p>
+    <h2>Things that work, and the edge where each one stops.</h2>
+    <ul class="gaps">{gaps.map(gap => <li>{gap}</li>)}</ul>
+  </section>
+
+  <section class="page section">
+    <div class="panel risk">
+      <p class="eyebrow">The standing risk</p>
+      <h2>Everyone who has used Nendo built it.</h2>
+      <p>
+        Every usability, scaling and accessibility result on record is owner-reported,
+        which is honest evidence about the product but says nothing about whether it is
+        legible to someone arriving cold.
+      </p>
+      <p>
+        This is validated by using it, not by a study. The Idea Garden journey is the
+        end-to-end walk through the core loop and is the right thing to hand someone; what
+        it cannot tell you is whether they get there without being told. A confused first
+        run is a finding, not a support incident.
+      </p>
+      <p class="risk-cta">
+        <a class="button button-primary" href="https://github.com/ThomasRohde/nendo/issues" rel="noopener">Report what confused you</a>
+      </p>
+    </div>
+  </section>
+</Page>
+
+<style>
+  .rule { border-left: 3px solid var(--violet); }
+  .rule-quote {
+    font-family: var(--font-display);
+    font-size: clamp(1.1rem, 2.2vw, 1.4rem);
+    letter-spacing: -0.02em;
+    line-height: 1.45;
+    max-width: 58ch;
+  }
+  .rule-source { margin: 0; color: var(--muted); font-size: 0.88rem; }
+
+  .slices {
+    list-style: none;
+    margin: 24px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 9px;
+    max-width: 78ch;
+  }
+
+  .slices li {
+    display: flex;
+    gap: 14px;
+    align-items: baseline;
+    padding: 12px 18px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+  }
+
+  .slices code {
+    flex: none;
+    background: var(--cobalt-soft);
+    border-color: transparent;
+    color: var(--cobalt);
+    font-weight: 700;
+  }
+
+  .slices span { font-size: 0.94rem; }
+
+  .aside {
+    margin-top: 22px;
+    max-width: 68ch;
+    color: var(--muted);
+    font-size: 0.94rem;
+  }
+
+  .table-scroll {
+    margin-top: 24px;
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+  }
+
+  .table-scroll table { margin: 0; }
+  .table-scroll tr:last-child td { border-bottom: 0; }
+  .table-scroll td { font-size: 0.92rem; }
+
+  .gaps {
+    margin: 24px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  }
+
+  .gaps li {
+    padding: 13px 17px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--warning);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    background: var(--surface-soft);
+    font-size: 0.92rem;
+  }
+
+  .risk h2 { max-width: 22ch; }
+  .risk p { max-width: 62ch; }
+  .risk-cta { margin-top: 22px; }
+</style>

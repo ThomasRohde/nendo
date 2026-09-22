@@ -1,0 +1,27 @@
+{
+  "name": "nendo-site",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "sync": "node scripts/sync-repo-assets.mjs",
+    "dev": "npm run sync && astro dev",
+    "check": "npm run sync && astro check",
+    "build": "npm run sync && astro build && pagefind --site dist && npm run check:links",
+    "check:links": "node scripts/check-links.mjs",
+    "preview": "astro preview"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "astro": "7.3.3",
+    "pagefind": "1.5.2",
+    "typescript": "6.0.3"
+  },
+  "dependencies": {
+    "@astrojs/markdown-remark": "7.3.1",
+    "@astrojs/sitemap": "3.7.4",
+    "unist-util-visit": "5.1.0"
+  }
+}

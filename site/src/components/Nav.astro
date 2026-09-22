@@ -1,0 +1,142 @@
+---
+import { Image } from 'astro:assets';
+import mark from '../assets/brand/nendo-mark.png';
+import ThemeToggle from './ThemeToggle.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const here = Astro.url.pathname.replace(/\/$/, '') || base;
+
+const links = [
+  { href: `${base}/concept`, label: 'Concept' },
+  { href: `${base}/how-it-works`, label: 'How it works' },
+  { href: `${base}/use`, label: 'Using Nendo' },
+  { href: `${base}/status`, label: 'Status' },
+  { href: `${base}/docs`, label: 'Docs' },
+];
+---
+
+<header class="site-nav">
+  <div class="page nav-inner">
+    <a class="brand" href={`${base}/`}>
+      <Image src={mark} alt="" width={34} densities={[1, 2]} />
+      <span>nendo</span>
+    </a>
+    <nav aria-label="Primary">
+      <ul>
+        {links.map(link => (
+          <li>
+            <a href={link.href} aria-current={here === link.href || here.startsWith(`${link.href}/`) ? 'page' : undefined}>{link.label}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+    <div class="nav-end">
+      <ThemeToggle />
+      <a class="repo-link" href="https://github.com/ThomasRohde/nendo" rel="noopener">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"></path></svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<style>
+  .site-nav {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: color-mix(in srgb, var(--canvas) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    min-height: 62px;
+    padding-block: 8px;
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-family: var(--font-display);
+    font-size: 1.16rem;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  nav { margin-inline-end: auto; }
+
+  nav ul {
+    display: flex;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    flex-wrap: wrap;
+  }
+
+  nav a {
+    display: inline-block;
+    padding: 7px 12px;
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 0.93rem;
+    font-weight: 620;
+    text-decoration: none;
+  }
+
+  nav a:hover { color: var(--ink); background: var(--surface-soft); }
+
+  nav a[aria-current='page'] {
+    color: var(--cobalt);
+    background: var(--cobalt-soft);
+  }
+
+  .nav-end {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .repo-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-raised);
+    color: var(--ink);
+    font-size: 0.88rem;
+    font-weight: 620;
+    text-decoration: none;
+  }
+
+  .repo-link svg { width: 16px; height: 16px; fill: currentColor; }
+
+  @media (max-width: 720px) {
+    .nav-inner { min-height: 0; gap: 10px; padding-block: 6px; }
+    /* One scrolling row rather than two wrapped ones: a sticky header that takes a
+       fifth of a phone screen is a header nobody wants. */
+    nav {
+      order: 3;
+      width: 100%;
+      margin-inline-end: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    nav::-webkit-scrollbar { display: none; }
+    nav ul { flex-wrap: nowrap; justify-content: flex-start; }
+    nav a { padding: 5px 10px; font-size: 0.87rem; white-space: nowrap; }
+    .nav-end { margin-inline-start: auto; }
+    .repo-link span { display: none; }
+  }
+</style>

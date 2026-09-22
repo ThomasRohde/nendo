@@ -15,6 +15,10 @@ project. No build step. No regeneration when you want a change.
 > software works, not a product. It runs as an unsigned per-user Windows x64
 > install. Read [State](#state) before you rely on anything here.
 
+**[thomasrohde.github.io/nendo](https://thomasrohde.github.io/nendo/)** — the
+concept, how it works, how to use it, the honest status, and this repository's
+documentation rendered as a site.
+
 <p align="center">
   <img src="docs/reviews/2026-09-12-mcp-vocabulary/production-board-dark.png" alt="A Nendo board surface grouped by a choice field, with column totals, in the dark theme" width="860">
 </p>
@@ -133,6 +137,7 @@ guessing current SDK, template, MSBuild or test behaviour.
 | `fixtures/` | Reference-application seed data |
 | `workspace/` | Tracked `.nendo` demo files |
 | `docs/` | Vision, architecture, ADRs, contracts and reviews |
+| `site/` | The public website ([ADR-0018](docs/decisions/0018-public-website-and-deployment-lane.md)) — Astro, outside the product boundary |
 
 ## Contributing and security
 
