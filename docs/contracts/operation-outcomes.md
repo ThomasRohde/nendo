@@ -81,8 +81,9 @@ when no receipt exists. A not-applied outcome keeps its review/diagnostics, and
 the Workbench never announces it as accepted. If a proposal is unavailable after
 session retirement, the Workbench does not recreate it silently. The
 coordinator checks for a canonical receipt under its gate before it returns the
-unavailable error. A receipt for a different digest cannot acknowledge the
-retained request.
+unavailable error (`proposal-not-found`). If a receipt exists, the coordinator
+returns the committed outcome. A receipt for a different digest cannot
+acknowledge the retained request.
 
 ## MCP clients
 

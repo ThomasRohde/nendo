@@ -63,7 +63,7 @@ imported roadmap paragraphs that never moved and had no live question behind
 them. For three of those four, the file itself already argued against them in
 their own briefs.
 
-**Dropped is this file's way of keeping something without carrying it.** The
+**Dropped keeps a record in the file but takes it out of active work.** The
 record, its Reference and its Checks stay. Reopen restores it in one command.
 The code is never reused. A drop is not a decision that something is wrong. Read
 the description to find which reason applied. Do not delete a planner record to
@@ -72,8 +72,9 @@ tidy up.
 **An initiative's last review was an agent's, and the record cannot say so.**
 All six initiatives were cleared on 2026-09-17. Before each clear, every work
 item under the initiative was read, and its outcome statement was confirmed to
-still hold. `nd.initiative.reviewed` carries the date, and there is no reviewer
-field. This document therefore records the fact: Claude Code did that pass, not
+still hold. The flag is `nd.initiative.reviewNeeded` (Review needed). The
+*Initiative reviewed* command clears it and sets `nd.initiative.reviewed` (Last
+reviewed) to the date. There is no reviewer field. This document therefore records the fact: Claude Code did that pass, not
 the owner. In this schema, method belongs to a Check, and an initiative has no
 Check. Read the flag as "somebody looked", not as "the owner agreed".
 
@@ -145,8 +146,10 @@ open action. The supported type-specific Add route passed. **C-044 records the
 unmet setup requirement; F-031 and W-033 carried the improvement.** W-033
 delivered it on 2026-09-18: a related list now adds and opens.
 
-C-044 stays an Owner-reported Accepted exception, which preserves the original
-agent observation, and it must not be converted into a pass. It states what was
+C-044 has the method Owner-reported and the outcome Accepted exception. The
+owner accepted the workaround on 2026-09-15 and closed W-001. Its actual result
+still records the original agent observation: the related Checks list had no
+Add or open control. Do not convert C-044 into a pass. It states what was
 true on 2026-09-15, and the delivery of the improvement does not change that.
 The closing census contains 34 work items, six initiatives, 32 findings and 45
 checks. For later changes, read the live records.
@@ -219,8 +222,11 @@ over.
 Use **Reference + title** in conversation and handoffs, for example **W-001 —
 Build and qualify Nendo Development**. The required stored Reference field uses
 `W-` for work, `I-` for initiatives, `F-` for findings and `C-` for checks.
-The initial 108 records received distinct codes through an accepted proposal at
-definition revision 26. That proposal added four fields, for a total of 46
+The 108 records that the file held at definition revision 26 received distinct
+codes through an accepted proposal at that revision. This count is later than
+the 97 records of the 2026-09-15 import (see
+[Initial inventory and source reconciliation](#initial-inventory-and-source-reconciliation)),
+and it includes records created after the import. That proposal added four fields, for a total of 46
 stored fields. W-002 is S4 Overview, I-001 is Develop Nendo in Nendo, and F-001
 tracks this reference improvement. Numbers identify records. They do not
 indicate priority.
@@ -360,7 +366,8 @@ moves to that record's page and offers one step back to the work item.
 
 You still pick the Reference code. The host requires the field, but it does not
 allocate a code, enforce uniqueness or prevent changes to it. Before you save,
-allocate `C-0nn` or `F-0nn` by the ledger rules below. **C-044 remains an
+allocate `C-0nn` or `F-0nn` by the ledger rules in
+[The reference ledger, and what it costs to read](#the-reference-ledger-and-what-it-costs-to-read). **C-044 remains an
 Owner-reported Accepted exception and must not be converted into a pass**: it
 records what was true when W-001 closed.
 

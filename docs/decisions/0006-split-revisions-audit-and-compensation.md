@@ -75,10 +75,10 @@ Nendo uses separate revision lineages with one ordered semantic audit stream.
   response loss, concurrency and native SQLite rollback.
 - Production must test the lane, digest, conflict rules, reversibility class and
   inverse evidence of each operation.
-- Delayed mutation and compensation replay regressions
-- [One-revision form saves and retained-state form compensation](../contracts/operation-outcomes.md)
-  now verify original receipts after intervening changes without discarding the
-  current authority or bypassing outside-change refusal.
+- Regression tests for delayed mutation and compensation replay, and for
+  [one-revision form saves and retained-state form compensation](../contracts/operation-outcomes.md),
+  now verify original receipts after intervening changes. They do not discard the
+  current authority or bypass outside-change refusal.
 - Multi-operation compensation, deletion, field retirement, relationships and
   lossy conversion require explicit operation-specific tests before UI claims.
 

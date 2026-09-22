@@ -78,5 +78,7 @@ Required evidence:
 - legacy numeric read without modification;
 - old-host compatibility refusal.
 
-This file specifies implementation obligations. It does not claim that they
-passed.
+The implementation exists. `ScalarFidelityTests`, `ScalarProtocolTests`,
+`WorkbenchScalarJsonTests` and `BehaviourScalarTests` test it. This file does not
+map each item above to a test case, so it does not claim that every item has a
+test.

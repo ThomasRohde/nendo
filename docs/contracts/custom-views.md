@@ -472,7 +472,8 @@ through the real authoring tools. Its all-zero digest intentionally names a
 missing package. It is an authoring example and not an installable package. Tests
 exercise the contained desktop transport, the package cache and the native consent
 service. The native package/consent controls are now connected. File → Custom
-views also opens an explicitly selected, approved graph in a native host window.
+views also opens an explicitly selected, approved graph in a native pane of the
+main window.
 Opening a file alone never starts a package.
 
 The Desktop controller keeps the exact archive lease for a run. It caps concurrent
@@ -483,7 +484,7 @@ of the archive lease. A 500 ms monitor re-reads the bounded typed view. Changed
 bindings stop execution, and changed data replaces the projection and clears the
 selection. Pipe writes run outside the file gate with a five-second timeout.
 
-The native window owns Open record, Focus graph, Refresh, Studio, Disable and
+The native pane owns Open record, Focus graph, Refresh, Studio, Disable view and
 Close. A real Open record gesture rechecks the current grant, revision and node
 membership. Only the resulting file-scoped semantic IDs reach the trusted
 Workbench. The Workbench rejects another file session, respects unsaved edits and
@@ -496,9 +497,12 @@ Tests measure parent identity, visibility, opacity, exact viewport bounds and
 retained AppContainer identity. If a zero toolbar offset is restored, the test
 fails with `The renderer covers the native toolbar.`
 
-The configured Use surface shows the device availability and permission of the
-exact package through its single next-step control, package management and a
-permanent Studio route. It never queries a list as a substitute for a graph. F6
+In Use, a configured `extensionGraphSurface` shows a status line and three
+buttons. The status line states whether the exact package is on this device and
+whether this view has permission. The first button is the one next step, in this
+order: *Install package…*, *Allow this view*, then *Open graph*. The other two
+buttons are *Manage packages…* and *Open Studio*, which is always present. The
+surface never queries a list as a substitute for a graph. F6
 moves between the contained renderer and the native controls. The helper receives
 the native key event and emits a separate `focusHost` transport envelope. Page
 messages stay byte-wrapped and cannot impersonate it. A host-only `focus` message

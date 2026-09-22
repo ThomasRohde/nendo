@@ -53,4 +53,4 @@ Every prompt used the `ui-mockup` taxonomy and requested a high-fidelity, straig
 - avoid browser chrome, macOS controls, watermarks, decorative blobs, heavy gradients and excessive glass effects;
 - present credible accessible focus, validation, conflict, loading, recovery and offline states.
 
-The image-generation text is illustrative product copy. It is not a frozen implementation contract. Repository design documents and Accepted ADRs remain authoritative.
+The prompt text above and the interface text in the generated images are illustrative product copy. It is not a frozen implementation contract. Repository design documents and Accepted ADRs remain authoritative.

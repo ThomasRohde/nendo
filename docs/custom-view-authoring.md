@@ -2,8 +2,9 @@
 
 This guide tells how to write, package, pin and open a Nendo custom view. The
 behaviour that this guide depends on is in the
-[custom-view contract](contracts/custom-views.md). If the two disagree, the
-contract is the record and the code is current. The authority is
+[custom-view contract](contracts/custom-views.md). If this guide, the contract
+and the code disagree, the code is current. Then fix the contract and this guide
+to match the code. The authority is
 [ADR-0013](decisions/0013-defer-general-extension-model.md), accepted 2026-09-20.
 
 This repository ships two worked examples. Both are MIT-licensed and have no

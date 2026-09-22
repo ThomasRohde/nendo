@@ -69,7 +69,8 @@ The step is what the demonstration shows. The specific field is not important.
 
 1. **Open the file.** Use opens on **Station status**. It shows nine systems,
    twelve crew, a Nominal ring, systems by condition, incidents by severity, the
-   five hungriest experiments, the latest incidents, and a year of days of
+   five experiments with the highest power draw (the *Hungriest experiments*
+   list), the latest incidents, and a year of days of
    readings.
 
 2. **Open Thermal Control.** The condition sets the tone of the record page

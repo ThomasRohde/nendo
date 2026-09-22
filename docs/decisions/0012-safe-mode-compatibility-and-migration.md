@@ -120,6 +120,22 @@ The host classifies every open before it enables normal UI or integrations.
 - Human recovery usability, actual full-device behavior, physical power loss and
   hostile-file handling remain release/hardening evidence, not accepted claims.
 
+## 2026-09-16 amendment — how large a file may be before Nendo will not open it
+
+The owner accepted this amendment on 2026-09-16. The open-time size bound
+changes from 64 MiB to 256 MiB. The host derives the refusal sentence from the
+constant. The full record, with its measurements and limits, is the entry for
+this date in the [decision index](README.md#amendments-in-force).
+
+## 2026-09-17 amendment — a write that would make a file unopenable is refused
+
+The owner accepted this amendment on 2026-09-17. Before any operation is staged,
+the host refuses a mutation when the file has reached a write ceiling. There are
+two write ceilings, one for bytes and one for inspection rows. Each one sits a
+measured reserve below its open bound. The full record, with its recorded
+outcomes, is the entry for this date in the
+[decision index](README.md#amendments-in-force).
+
 ## Consequences
 
 ### Positive

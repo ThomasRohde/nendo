@@ -5,7 +5,7 @@
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** [ADR-0002](0002-containing-desktop-architecture-and-process-model.md), [ADR-0015](0015-host-owned-database-studio-and-ag-grid-community.md), EX-0001 result, EX-0002 result, EX-0003 result, DS1 result, DS2 result and repository build-layout inspection on 2026-09-02
-- **Depends on:** Accepted ADRs 0001–0012 and 0015; ADRs 0008, 0013 and 0014 remain Deferred
+- **Depends on:** Accepted ADRs 0001–0007, 0009–0012 and 0015. ADRs 0008, 0013 and 0014 were Deferred on 2026-09-02. Since then, ADR-0014 was accepted on 2026-09-10, ADR-0008 on 2026-09-12 and ADR-0013 for a bounded custom-view slice on 2026-09-20
 - **Related design:** [`../architecture.md`](../architecture.md)
 
 ## Context

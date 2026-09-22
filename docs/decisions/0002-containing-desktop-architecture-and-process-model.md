@@ -280,6 +280,15 @@ the survival of an unreadable line, the default and its persistence. The path
 from a live `ProcessFailed` to a written line is wired but not exercised. The
 next occurrence will exercise it.
 
+## 2026-09-17 amendment — a screen is told when the file moves
+
+The owner accepted this amendment on 2026-09-17. The coordinator raises
+`Committed` with the change sequence that it reached. The host forwards that
+number to the renderer as `fileChanged`, the second member of the closed
+unsolicited-event set. The renderer re-reads through the bounded chase of the
+2026-09-16 amendment. The full record, with its limits and its recorded outcomes,
+is the entry for this date in the [decision index](README.md#amendments-in-force).
+
 ## Consequences
 
 ### Positive

@@ -26,8 +26,9 @@ the author states a fact about the application, as `visibleWhen` states a fact a
 record. So it is stored as one property on `section`: `opens`, which takes the closed words
 `open` and `closed`. When the property is absent, the value is `open`. What a person does
 after that (folds this section, opens that one) is the person's own view of the page. It
-is renderer state in the same sense as a selected tab (F-027). It is file-scoped and
-cleared when the file is. It is never durable and never in the file.
+is renderer state in the same sense as a selected tab (F-027). It is file-scoped. It is
+cleared when the file session ends: when the person opens another file, or closes or
+reopens this one. It is never durable and never in the file.
 
 The project considered persisting the fold state and rejected it for two reasons. This
 ADR's decision keeps renderer state out of definitions. Also, a fold that followed a person
@@ -181,8 +182,8 @@ redraw, and this change does not touch it.
 **Back is one step and not a history.** A related record opened from a page offers a return
 to that page. If the person opens a third record, the new return replaces the first one and
 does not stack behind it. The return is transient renderer state, in the same sense as a
-drill-through or a selected surface. It never reaches the file, and it is cleared when the
-file is. A stack would be state that accumulates, and a trail that nobody asked to
+drill-through or a selected surface. It never reaches the file. It is cleared when the file
+session ends: when the person opens another file, or closes or reopens this one. A stack would be state that accumulates, and a trail that nobody asked to
 keep.
 
 **Where the related type has no screen, the list offers neither action** and states this.
@@ -839,8 +840,8 @@ Every slice is recorded below when it lands.
   corrected here.
 
   **Delivery obligations.** All twelve items of the F4 checklist apply, for each kind. This
-  entry is not closed until they are present. Recorded outcomes will be appended after
-  delivery. Until then, this entry authorises the work and asserts nothing about it.
+  entry is not closed until they are present. The recorded outcomes follow the acceptance
+  below.
 
   **The owner accepted these rules on 2026-09-17.** The acceptance includes all three
   departures from the plan. Each was put to the owner by name, with the alternative that it
@@ -1060,7 +1061,13 @@ Every slice is recorded below when it lands.
   Remit that no axiom points at, drawn empty, because this entry turns on that rule. The gate
   drives the drag with a real pointer: `element.click()` dispatches no `pointerdown`, and
   without a real pointer, four gate steps in three days passed against restored defects.
-  Recorded outcomes are appended after delivery.
+
+  *(Note 2026-09-22: no outcomes were recorded in this entry. The slice is in the code,
+  and later entries build on 1.27.0. The rung is `ReferenceBoardMinimumHostVersion` in
+  `src/Nendo.Engine/NendoFormat.cs`. The Engine tests are in
+  `tests/Nendo.Engine.Tests/ReferenceBoardTests.cs`, and the gate step is the reference
+  board in `tools/Gate-AgentAuthoring.mjs`. The contract section "A board grouped by a
+  reference" describes the delivered behaviour.)*
 
 ### Accepted amendment — 2026-09-12 (widening the semantic vocabulary)
 
@@ -1137,6 +1144,10 @@ increasing minimum host versions. The assigned ladder is:
 - `1.15.0` named tabs;
 - `1.16.0` the Date calendar;
 - `1.18.0` a `fieldBinding` or `section` that carries `visibleWhen`.
+
+*(Note 2026-09-22: this ladder has no `1.17.0` rung. `1.17.0` went to stored behaviour
+definitions under ADR-0008 (`BehaviourMinimumHostVersion` in
+`src/Nendo.Engine/NendoFormat.cs`). That rung is not a shape of the node tree.)*
 
 Intermediate hosts must not advertise later features.
 
@@ -1314,7 +1325,8 @@ The owner accepted this amendment on 2026-09-09. It authorizes the implementatio
 contract version 3. The evidence is
 EX-0010,
 which passed its three bounded lanes the same day. Governing plan:
-[P6 — Composable surfaces](../architecture.md).
+P6 — Composable surfaces. That plan was a disposable document and is retired. The
+delivered system is described in [Semantic surfaces](../architecture.md#semantic-surfaces).
 Confidence is Medium. Production compiler, adapter, renderer and qualification obligations
 remain, and acceptance of the contract is not a delivery claim. This amendment widens the
 closed vocabulary and the plan shape. It does not weaken any fail-closed rule below, and the
@@ -1365,6 +1377,8 @@ is isomorphic to the Idea Garden reference.
 - **Bounded aggregates.** `summaryTile` declares one of `count`, `sum`, `min`, `max`, `avg`
   over one field of a filtered set. `sum` and `avg` require Integer or Decimal and use exact
   decimal arithmetic. This is a number, not a chart.
+  *(Superseded in part by the 2026-09-10 amendment: the host refuses `avg` by name,
+  with `NUI292`.)*
 - **Digest rule.** Every contract version hashes an explicit payload projection, never the
   plan record itself. The version 1 projection stays byte-frozen. Version 2 moves to an
   explicit projection, which changes its digest value once. That is safe because the
@@ -1500,6 +1514,9 @@ optional surfaces checkpoint.
 Its explicit version-2 extension permits optional roots and multiple entity plans within
 this closed vocabulary. It does not authorize scripts or arbitrary renderer state. Recorded
 tests do not replace the remaining adapter/release gates.
+*(Note 2026-09-22: the 2026-09-12 amendment removed contract versions 1 and 2. Contract
+version 3 is the only shape that a host compiles. It keeps optional roots and several
+roots per record type.)*
 
 ### Positive
 

@@ -120,9 +120,10 @@ theme/reduced-motion, Community-only package inventory and installed
 crash/restart/reinstall/uninstall lifecycle. A bounded correction removed unsafe
 desktop input automation and fixed grid and host focus routing. It passed the
 human forward/reverse seam against both the self-contained payload and an
-isolated NSIS-installed copy. The real display/text scale is still 150%/100%.
-The required scale is 200%. This is not yet an architecture acceptance or a
-human usability result.
+isolated NSIS-installed copy. The real display/text scale of the run was
+150%/100%. The required scale is 200%. At that point, DS2 was not an
+architecture acceptance or a human usability result. The owner disposition below
+accepted the architecture.
 
 ## Evidence disposition
 

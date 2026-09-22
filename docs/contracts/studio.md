@@ -133,7 +133,9 @@ accepted AG Grid Community behind an adapter that Nendo owns. The real 200%
 Windows scale has no recorded pass. It is an explicit hardening obligation after
 selection and before release.
 
-The remaining decision must continue to price the full system, and not only the grid:
+The acceptance of ADR-0015 resolved the component decision. Before acceptance,
+the decision had to price the full system, and not only the grid. The ADR records
+these costs:
 
 - duplicate typed editors;
 - theming and high contrast;
@@ -153,7 +155,10 @@ structure, and it does not waive the host/service boundary.
 ## 9. Prototype gates
 
 ADR-0015 was accepted after the following evidence and the explicit owner risk
-disposition were recorded under `docs/experiments/results/` and in the ADR.
+disposition were recorded under `docs/experiments/results/` and in the ADR. The
+gates below are the record of what the acceptance required. They are not open
+work. The one obligation that remains is the real 200% Windows scale in DS2, as
+section 8 states.
 
 ### DS1 — functional grid spike — complete
 

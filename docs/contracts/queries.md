@@ -34,4 +34,7 @@ IDs must belong to the selected entity, and scalar types must match. Null checks
 are separate from scalar equality, so the query keeps null distinct from empty
 text.
 
-This contract is an implementation target. It is not passed acceptance evidence.
+The Engine implements this contract in `RecordQuerySemantics.cs` and
+`NendoQueryCursor.cs`. `TypedRecordQueryTests`, `BoundedQueryTests`,
+`CursorCodecTests` and `WorkbenchDeclaredQueryPagingTests` test it. This file does
+not map each rule to a test case.

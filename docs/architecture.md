@@ -81,6 +81,8 @@ The file format gained these rungs and operations:
 - A rung for the gallery and the rating scale (1.22.0): a `gallerySurface` of cards
   over a list's window, and an Integer field drawn on a closed scale. The scale is
   stored in the layout ladder's then-last rung.
+- A rung for the front page (1.23.0): an `overviewSurface` that belongs to the file
+  and not to a record type, with a `recentList` and a `rangeTile` under it.
 - A rung for what the file is for (1.24.0): prose that the file carries itself. The
   prose is in its own protected table, which is the layout ladder's new last rung.
   The describe resource leads with it, and it belongs to no record type and no
@@ -145,9 +147,9 @@ not select it
 
 A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
-what a file can contain. `1.11.0` is for composable surfaces. After it, there is
-one version for each widened semantic shape, up to `1.18.0` for a field that a
-calculation shows or hides.
+what a file can contain. `1.11.0` is for composable surfaces. After it, each
+version adds one capability, usually a widened semantic shape. The highest version
+is `1.29.0`, for a custom-view reference.
 
 `src/Nendo.Engine/SemanticCapability.cs` computes from its shape which of these
 versions a stored definition needs. It computes this over the tree that a mutation
@@ -256,9 +258,11 @@ precondition. Then it replays the exact validated operations against the active
 file. Preview and promotion must use the same interpreter and validation version
 ([ADR-0007](decisions/0007-proposal-clone-validation-and-replay-promotion.md)).
 
-There is no MCP accept or promote tool. Acceptance is native-owned. The Workbench
-review calls `PromoteProposalAsync` with the reviewed digest. The write gate
-verifies that digest before replay.
+Below the Unattended access level, there is no MCP accept or promote tool, and
+acceptance is native-owned. The Workbench review calls `PromoteProposalAsync` with
+the reviewed digest. The write gate verifies that digest before replay. At
+Unattended, `nendo.change_set.accept` calls the same service with the same digest
+(see [Agent surface](#agent-surface)).
 
 ## Semantic surfaces
 
@@ -346,8 +350,9 @@ The process stays resident with its file open and its MCP host listening. The tr
 menu contains the real exit. This behaviour is the 2026-09-15 amendment to
 [ADR-0002](decisions/0002-containing-desktop-architecture-and-process-model.md).
 
-An agent cannot do two things for itself: accept a proposal and consent to
-automatic actions. These two actions belong to the person. Before the amendment,
+Below the Unattended access level, an agent cannot do two things for itself:
+accept a proposal and consent to automatic actions. These two actions belong to
+the person. Before the amendment,
 the person had to keep a window open to receive the request.
 
 The close behaviour is device state (`shell.json`, beside the appearance and grant
@@ -497,6 +502,16 @@ holds. A drag between lanes writes the reference with the target's current
 version, which the board already holds. Minimum host 1.27.0
 ([ADR-0004](decisions/0004-versioned-semantic-ui-contract.md), 2026-09-17).
 
+**The reference-grouped board is the one capability the node tree cannot show.**
+For this reason, `NendoSemanticCapability.RequiredHostVersion` takes the stored
+fields in addition to the nodes. A board grouped by a reference and a board
+grouped by a choice are the same kind, with the same property and the same
+children. Only the storage kind of the grouping field makes them different. Every
+other rung of the node tree is a shape. The recompute still occurs only when a
+mutation touches UI nodes. This is sound because no conversion changes a choice
+field into a reference field: the storage kind of a field never changes under a
+board.
+
 **A section can be folded away.** Every section on a record page or the front page
 is a disclosure, and its heading is the control. A closed section reads none of
 its content. The walkers that decide what a page is still waiting for stop at a
@@ -505,15 +520,6 @@ stored word is the initial state: `opens` on `section`. What the person does wit
 the section is file-scoped renderer state, like a selected tab, and never reaches
 the file. Minimum host 1.28.0, only for a file that carries the property
 ([ADR-0004](decisions/0004-versioned-semantic-ui-contract.md), 2026-09-20).
-
-**This is the one capability the node tree cannot show.** For this reason,
-`NendoSemanticCapability.RequiredHostVersion` takes the stored fields in addition
-to the nodes. A board grouped by a reference and a board grouped by a choice are
-the same kind, with the same property and the same children. Only the storage
-kind of the grouping field makes them different. Every other rung is a shape. The
-recompute still occurs only when a mutation touches UI nodes. This is sound
-because no conversion changes a choice field into a reference field: the storage
-kind of a field never changes under a board.
 
 The host tells the renderer when the open file changes. For every writer that it
 serves, the coordinator raises `Committed` with the change sequence. The shell
@@ -571,7 +577,8 @@ level, `nendo.change_set.accept` promotes a proposal that the same session
 validated. It uses the same `PromoteProposalAsync` that the person's Accept button
 calls, with the reviewed digest, so every staleness and digest check still
 applies. The host also records this device's consent for the automatic actions
-that the acceptance installs. The mode gives up a real protection, and that is its
+that the acceptance installs. It records the same consent once before it retries
+a data write that was refused for lack of it. The mode gives up a real protection, and that is its
 purpose: a shape change and an action can reach the active file when nobody has
 read either. The mode is off by default, and the host confirms it before it takes
 effect. It ends when the level is lowered or the file closes, and the host never
@@ -710,12 +717,13 @@ near.
 One GitHub Actions workflow exists: `.github/workflows/pages.yml`. It builds and
 deploys the public website in `site/`
 ([ADR-0018](decisions/0018-public-website-and-deployment-lane.md)). It runs only on
-a push that touches `site/`, `docs/` or the workflow itself. It does not restore,
+a push to `main` that touches `site/`, `docs/`, the application icon or the
+workflow itself, or when somebody starts it by hand. It does not restore,
 build or test a .NET project, and it runs neither gate script. Thus it cannot pass
 or fail on anything that the gate covers. `tools/Test-Site.ps1` is the local
 equivalent, and the project keeps it out of `Test-Production.ps1`.
 
-Two native lanes exist outside the gate, because they drive a real Desktop window
+Four native lanes exist outside the gate, because they drive a real Desktop window
 and need a desktop session:
 
 ```powershell
@@ -813,8 +821,8 @@ assertions. It records whether an open window noticed the new rules without a
 refresh. It also records that a grant binds the whole definition revision, so even
 a change that alters no rule asks the owner again.
 
-Both gates were written by somebody who already knew where everything was. Thus
-neither gate can show whether a capable client could find it. The blackbox review
+The three gates above were written by somebody who already knew where everything
+was. Thus none of them can show whether a capable client could find it. The blackbox review
 lane covers this. The project gives
 [`docs/reviews/blackbox-prompt.md`](reviews/blackbox-prompt.md) to an agent that
 has never seen this repository.

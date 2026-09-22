@@ -84,7 +84,8 @@ The slices stand as follows:
   grid of two crossed choice fields, and one read answers it. An empty cell is
   therefore a cell, and each cell states an exact number beside the cards it
   holds.
-- S7, a board grouped by a reference, is next.
+- S7, a board grouped by a reference, is delivered at 1.27.0. Its columns are
+  records of another type.
 
 ## P7: scripting delivered, extensions still scheduled
 
@@ -145,8 +146,9 @@ editable column. It shows its own state wherever it appears: a value,
 `Not set`, `Calculating…` or `Cannot calculate` with the reason. It appears in
 Studio's record page, as a read-only column in its table, and on a custom
 surface wherever a stored field binds. A surface may not sort, filter, group or
-total by a calculated field. Each of these refuses by name; it does not silently
-order the loaded page. Expressions run through a bounded NCalc adapter: integer
+total by a calculated field. Each of these is refused at compile time with
+diagnostic `NUI214`, which names the field and states that it is calculated. The
+host does not silently order the loaded page. Expressions run through a bounded NCalc adapter: integer
 division stays in the decimal domain, the function set is closed, and finite
 ceilings bound parser input, recursion, work and generated changes, with one
 budget for a whole causal transaction.
@@ -181,7 +183,8 @@ scaling. [calculations-and-actions.md](contracts/calculations-and-actions.md)
 publishes it with its limits. Cancellation is observed and joined in about a
 millisecond.
 
-**P7 is delivered.** The owner ran the keyboard, focus and screen-reader lane on
+**The ADR-0008 part of P7 is delivered.** The ADR-0013 custom-view work above
+is still in progress. The owner ran the keyboard, focus and screen-reader lane on
 2026-09-13 and reported that all four checks passed. The owner also ran the
 clean-user installer lane, and it passed. (`Test-NendoInstaller.ps1` refuses
 that lane on a machine where Nendo is already installed.) The run covered the
@@ -195,8 +198,9 @@ The scripts to repeat them are in
 `tools/Test-NendoInstaller.ps1`.
 
 This was built from the [ADR-0008 plan](design/adr-0008-implementation-plan.md).
-The plan is kept as the transfer it was, beside the execution semantics and
-reconstructed regression cases. If the plan and the shipped code disagree, the
+The plan was the handoff to an implementer who did not take part in the
+experiments. It is kept unchanged as that handoff, beside the execution
+semantics and reconstructed regression cases. If the plan and the shipped code disagree, the
 contract is current.
 
 Keep declarative capabilities for the cases that they already cover.
@@ -270,8 +274,8 @@ are named here:
 
 - **The binder failed before Nendo could speak.** A page limit that was not an
   integer was rejected inside the SDK. It reached the client as a bare internal
-  error with no code, but `0` and `101` were refused by name one line further
-  in. Template variables now arrive as text, and every malformed limit gets the
+  error with no code. But `0` and `101` got the named refusal
+  `NENDO_INVALID_LIMIT` one line further in. Template variables now arrive as text, and every malformed limit gets the
   same refusal as an out-of-range limit.
 - **A calculated field was refused as one that did not exist.** The schema read
   listed it under `derivedFields`, and the records read carried its result. The
@@ -401,7 +405,9 @@ limitations by design.
   reads well at eight of each is owner-reported, not instrumented.
 - **A calendar is a Date field on a month.** DateTime, time zones, week and day
   scheduling, duration, recurrence and drag-to-date are all outside the
-  amendment. A DateTime is refused by name and is not guessed at. To place one
+  amendment. The host does not guess a time zone for a DateTime. It refuses the
+  binding, and the refusal names the field and states that it is a DateTime. To
+  place one
   on a month grid, the host must choose a time zone to group by.
 - **A calendar month is read a page at a time.** The grid states how much of the
   month is loaded, and it offers Load more until the cursor is exhausted. This
@@ -438,7 +444,7 @@ Three items carried forward. One is closed. The other two were never blocking.
 that the format declares about itself. The lane decodes nothing and writes no
 byte back.
 
-The three formats do not allow equal checks, and the lane states which is which
+The four formats (`.png`, `.ico`, `.mp4` and `.nendo`) do not allow equal checks, and the lane states which is which
 instead of implying parity. A PNG carries a CRC over every chunk, so the lane
 catches a single flipped byte anywhere. An ICO check is as strong, because every
 frame of every icon here is itself a PNG. The lane refuses a bitmap-framed icon
@@ -451,6 +457,12 @@ For an MP4, the lane checks these things:
 - The box tree tiles at every level.
 - `moov` and `mdat` are both present.
 - The sample-table offsets point inside the file.
+
+A `.nendo` file is a SQLite database, and SQLite has no checksum over the main
+database file. The lane therefore cannot catch a flipped byte inside a page. It
+checks the SQLite header, Nendo's application id, and that the page size and
+page count agree with the file length. This catches truncation and a
+half-written page tail.
 
 The lane reads the set to check from what git stores as binary. Separately, the
 lane requires `.gitattributes` to declare each one. A selection on the
@@ -475,19 +487,24 @@ trusted. If the carriage returns are removed from `nendo.png`, the lane reports
 *"does not begin with the PNG signature"*. If they are removed from
 `AppIcon.ico`, the lane reports a failing CRC inside an embedded image.
 
-**CI was removed deliberately**, and it was not lost. It failed 19 consecutive
+**The product has no CI. Its CI was removed deliberately**, and it was not
+lost. The repository has one CI lane, `.github/workflows/pages.yml`, and it
+builds and deploys the public website only (see below). The product CI failed
+19 consecutive
 runs at 0s, with zero jobs created. The most likely cause was an exhausted
 Actions allowance on a private repo, where Windows runners bill at 2×. This
 cause is unconfirmed, because the billing API needs a scope that the local token
 does not have (`gh auth refresh -s user`, then
-`gh api users/<user>/settings/billing/actions`). Settle that before you add CI
-again. See [architecture.md](architecture.md) for the `DOTNET_INSTALL_DIR` trap
+`gh api users/<user>/settings/billing/actions`). Settle that before you add
+product CI again. See [architecture.md](architecture.md) for the `DOTNET_INSTALL_DIR` trap
 that the old workflows encoded.
 
 **The NSIS wrapper is unchecked, and that is now a position and not a backlog
 item.** `Test-NendoInstaller.ps1` is the only lane that covers the bootstrapper,
-payload extraction, HKCU uninstall registration, the Start Menu shortcut and
-the real `Uninstall.exe`. It is also the only lane that asserts that uninstall
+payload extraction, HKCU uninstall registration and the real `Uninstall.exe`.
+It also checks the Start Menu shortcut in the real per-user location. The setup
+script writes that shortcut, so the setup lane below checks it too. The
+installer lane is also the only lane that asserts that uninstall
 leaves a person's `.nendo` files untouched. It runs only under a clean Windows
 user, because its last step uninstalls from the real per-user location.
 `Test-NendoSetupIsolated.ps1` covers the setup logic against a task-owned root
@@ -507,7 +524,7 @@ the build.
 `site/` is an Astro project. The one CI lane that this repository has deploys it
 to [thomasrohde.github.io/nendo](https://thomasrohde.github.io/nendo/)
 ([ADR-0018](decisions/0018-public-website-and-deployment-lane.md)). It carries
-five authored pages (concept, how it works, using Nendo, status). It renders
+five authored pages (home, concept, how it works, using Nendo, status). It renders
 `docs/` from the Markdown and does not copy it, so a rendered document cannot
 drift from its source. `tools/Capture-SiteScreenshots.ps1` captures the
 screenshots from a running host against `workspace/Nendo Station.nendo`. The

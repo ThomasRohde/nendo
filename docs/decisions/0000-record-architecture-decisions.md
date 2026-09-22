@@ -127,8 +127,10 @@ Rejected. When 0015/0016 keep their numbers, references and history stay intact.
 ## Validation
 
 - `docs/decisions/template.md` matches the required structure.
-- `docs/decisions/README.md` lists every number from 0000 through 0017.
-- CI checks the required front matter and duplicate top-level ADR numbers.
+- `docs/decisions/README.md` lists every ADR number, from 0000 to the most recent
+  ADR.
+- The repository gate (`tools/Test-Repository.ps1`) checks the required front
+  matter and duplicate top-level ADR numbers.
 - ADR-0015 remained Proposed until EX-0002, EX-0003, DS1 and DS2 evidence and an explicit owner risk disposition were recorded. Its deferred obligation for an actual 200% rollout remains named and unpassed.
 - Accepted decisions link to actual evidence, not to planned evidence.
 

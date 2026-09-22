@@ -55,6 +55,11 @@ this is usable, and nothing in this repository can replace that judgement.
   consumer of the calculation service. Both use the machinery that already
   existed.
 
+**Delivered: stage S9.** This stage is release qualification, and it adds no
+behaviour. The [implementation plan](../design/adr-0008-implementation-plan.md)
+records S9 as carried out. P7 asks for measurements on larger fixtures. The
+measurements at 1,000 and 10,000 records are in [what it costs](#what-it-costs).
+
 ## What each ADR obligation rests on
 
 | Obligation | Evidence |
@@ -611,8 +616,9 @@ field, not its definition ID.
 A body that does not fit its shape is refused at `add_operations`. The refusal
 names the mutation, the operation, the binding and the key, and nothing enters
 the draft. Previously, the error was found at validate. The exception there left
-the draft frozen, and the documented remedy, `amend`, refused. A draft of ninety
-operations was frozen by one guessed key.
+the draft frozen, and the documented remedy, `amend`, refused. Thus one wrong
+binding key made a whole draft unusable. In the case that caused this change, the
+draft held ninety operations.
 
 The calculated fields of a record type appear under `derivedFields` on its
 schema, never under `fields`. The results of each record travel beside its
@@ -714,8 +720,9 @@ They do not produce `"21"` or an exception on some record later.
 Division answers in the decimal domain, because the integer division of the
 evaluator converts to binary floating point first. That conversion would make
 `1/3` an approximation, and it would make two different 17-digit whole numbers
-compare equal. The conversion happens *before* the division. A conversion of the
-result afterwards is too late.
+compare equal. Thus the adapter converts the operands to decimal *before* the
+division. A conversion of the result afterwards is too late, because the division
+has already lost the precision.
 
 ### Function catalogue
 
@@ -869,8 +876,13 @@ A warm evaluation of `1/3 + 2.0` takes approximately 7 µs and allocates
 approximately 3.9 KB. 1,000 evaluations took 7.5 ms and 3.9 MB. Cancelling a
 running worker and joining it took between 0.03 ms and 0.3 ms, independent of
 how long the worker had run. The test lane records these values but does not
-assert them as thresholds. They are single-machine figures. The published
-budgets are set in S9, against larger fixtures.
+assert them as thresholds. They are single-machine figures.
+
+These two cancellation figures measure different work. The 0.03 ms to 0.3 ms
+comes from `BehaviourLimitTests` D2_23 to D2_25. It cancels one worker that
+evaluates one expression in the adapter. The 1.0 ms and 0.9 ms in the table above
+come from `Review-Performance.ps1`. It cancels a whole-file snapshot through the
+Engine service and waits for that task to end.
 
 ## Where the assertions live
 
@@ -889,7 +901,8 @@ budgets are set in S9, against larger fixtures.
   unchanged.
 - The shell says what the actions of a file do. Approving makes editing
   available, and withdrawing takes it back. The approval is remembered at the
-  next launch, and another device has never been asked.
+  next launch. On another device, the file is not approved, because the approval
+  is device state and not part of the file.
 
 `tests/Nendo.LocalMcp.Tests/BehaviourAuthoringProtocolTests.cs` covers stage S8
 over MCP:
@@ -1113,9 +1126,9 @@ adapter, still return Double `0.3333333333333333` and still collapse
 reason for the interception has changed.
 
 `tests/Nendo.Engine.Tests/BehaviourLimitTests.cs` covers ADR-0008 lane D2, with
-19 cases:
+21 test methods:
 
-- every ceiling below, at and above its boundary;
+- each ceiling with a value below it, a value at it and a value above it;
 - a warm cache that cannot answer a stricter request or hide a deep definition
   graph;
 - adversarial inputs under a 60-second watchdog, where a probe that must be
@@ -1123,7 +1136,7 @@ reason for the interception has changed.
 - cancellation that reaches the worker and is joined, and is not only no longer
   waited for.
 
-D2.01 and D2.02 need a real transaction and arrive with S4.
+D2.01 and D2.02 need a real transaction, so they are in `BehaviourActionTests.cs`.
 
 `tests/Nendo.Engine.Tests/BehaviourActionTests.cs` covers ADR-0008 lane D3 plus
 D2.01 and D2.02, against a real file through the ordinary coordinator:

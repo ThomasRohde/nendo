@@ -24,8 +24,9 @@ here would remove your working installation.
 
 To check setup logic now:      pwsh ./tools/Test-NendoSetupIsolated.ps1
 To check the NSIS wrapper:     run this lane under a clean Windows user. It is
-the only thing that covers the bootstrapper, payload extraction, HKCU uninstall
-registration and the Start Menu shortcut.
+the only thing that covers the bootstrapper, payload extraction and HKCU
+uninstall registration. The isolated lane above also checks the Start Menu
+shortcut.
 "@
 }
 $previousInstaller = Join-Path (Split-Path $installer.installer) 'Nendo-Setup.previous.exe'

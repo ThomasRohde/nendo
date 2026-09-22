@@ -14,7 +14,7 @@ param()
 # So this reads the structure each format declares about itself, and nothing else:
 # no decoding, no re-encoding, and never a byte written back.
 #
-# The three formats are not equally checkable, and saying so is the point:
+# The four formats are not equally checkable, and saying so is the point:
 #
 #   PNG  strong. Every chunk carries a CRC over its own bytes, so a single
 #        flipped byte anywhere in the file is caught.
@@ -26,6 +26,10 @@ param()
 #        tiles at every level, that the boxes a playable file needs are present,
 #        and that the sample-table offsets point inside the file -- which is what
 #        catches truncation, including a cut on a box boundary.
+#   NENDO moderate. The SQLite header, Nendo's application id, a whole number of
+#        pages, and (when the header's count is valid) the page count against
+#        the file length. Any change in length is caught; a flipped byte inside
+#        a page is not, because SQLite carries no checksum over the file.
 #
 # Run alone while working on assets: pwsh ./tools/Test-BinaryAssets.ps1
 # (Editing the C# below and re-running inside one interactive session throws

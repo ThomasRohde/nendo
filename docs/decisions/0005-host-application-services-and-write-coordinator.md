@@ -119,4 +119,4 @@ fragment semantic authority and leave the tested namespace race.
 
 ## 2026-09-05 R06 implementation evidence
 
-R06 keeps one coordinator and one connection. The [read and authority contract](../contracts/reads-and-authority.md) records these items: complete initial content verification, snapshot-bound connection-token checks, atomic local authority publication and permanent rejection of outside commits. Bounded typed pages and metadata projections do not transfer authority to adapters. See the measured result.
+R06 keeps one coordinator and one connection. The [read and authority contract](../contracts/reads-and-authority.md) records these items: complete initial content verification, snapshot-bound connection-token checks, atomic local authority publication and permanent rejection of outside commits. Bounded typed pages and metadata projections do not transfer authority to adapters. The R06 milestone review that held the measured result is removed. See [the note on evidence](README.md#a-note-on-evidence).

@@ -102,6 +102,8 @@ function. That is the ordinary behaviour of a host that lacks a catalogue entry.
 
 **Evidence obligations before this entry is marked Accepted.**
 
+*Note, 2026-09-22: the owner accepted this amendment on 2026-09-20. The list below is the record of what the acceptance required. `BehaviourScalarTests` D1_18 to D1_21 carry the automated obligations.*
+
 - `BehaviourScalarTests`:
   - an empty operand under a nullable result is a typed empty;
   - an empty operand under a non-nullable result is `calculation-missing-input`
@@ -359,7 +361,7 @@ The accepted design uses in-process evaluation of the restricted language. This 
 
 D2 establishes bounded cost for the tested restricted language and host functions. It does this through parser/visitor source inspection, finite ceilings, boundary workloads, allocations and joined cancellation. Keep evaluation off the UI thread. A wider vocabulary or wider limits require new evidence.
 
-If this integration stops meeting these bounds without a substantial replacement interpreter, stop and reopen the decision. Neither another evaluator nor a process boundary is an automatic fallback. Do not silently broaden production authority.
+The small adapter must keep this integration within these bounds. If only a substantial replacement interpreter can keep it within them, stop and reopen the decision. Neither another evaluator nor a process boundary is an automatic fallback. Do not silently broaden production authority.
 
 Studio's inspection and recovery routes must remain usable when calculations are disabled. Opening an unfamiliar file must not force the host to run uncontrolled logic.
 
@@ -374,6 +376,8 @@ If required automatic behaviour is not approved, normal edits remain unavailable
 The host presents the actions, trigger events, affected record types and requested local permissions. The person approves the reviewed behaviour once, not once for each execution.
 
 Accepting a proposal can also approve its exact behaviour definitions. This must be explicit in the host review. MCP cannot grant approval or promote its own proposal.
+
+*Note, 2026-09-22: the [ADR-0009 amendment](0009-local-mcp-transport-authority-and-change-sets.md) of this date adds a fifth access level, Unattended. At that level only, `nendo.change_set.accept` promotes a proposal that the same session validated, and the host records this device's approval for the actions that it installs. Below Unattended, the sentence above still applies.*
 
 Store approval in local host state. Bind it to application identity, instance identity, a behaviour digest and the granted capabilities. Include the execution-contract version in that binding.
 

@@ -17,8 +17,9 @@ inside a change set that the tools below already carry, so ADR-0008 does not
 change the tool list. The [acceptance experiment](../design/adr-0008-evidence.md)
 stays outside this interface and is history. The shared catalogue in
 `nendo://application/vocabulary` publishes typed definitions, their capabilities
-and their costs, and they are reviewed as part of a proposal. MCP never grants
-local approval and never bypasses trigger expansion.
+and their costs, and they are reviewed as part of a proposal. MCP never bypasses trigger
+expansion. Below Unattended, MCP never grants local approval. At Unattended, the
+host records that approval itself, as described at the end of this contract.
 
 All requests enter loopback stateless Streamable HTTP with no credential. Both MCP
 eras are served:
@@ -81,7 +82,8 @@ physical mappings or arbitrary host invocation.
 | `nendo://application/proposals` | `NendoAgentProposalStore.Snapshot` | Every validated proposal that waits for a person, with its title, captured revision, state, operation count, diagnostic count and the most severe reversibility class that it carries. This is the recovery path after a reconnect or a lost response. Before, a pending proposal was invisible, and each proposal captured a revision that the acceptance of any other proposal invalidates. |
 | `nendo://application/health` | `GetHealthAsync` → `GetDefinitionSnapshotAsync` | Lightweight status with the time of the last integrity check and the change sequence. A status read does not run integrity again. `changesSinceIntegrityCheck` and `integrityStale` state how far the file has moved since that result was measured. An `ok` taken thirty-two changes ago therefore cannot be read as `ok` now. `nendo.health.verify_integrity` requests a measurement. |
 
-All three page resources keep the MCP 1–100 limit. `limit` is a whole number in
+All four page resources (records, export, history and revision operations) keep
+the MCP 1–100 limit. `limit` is a whole number in
 that range. Any other value is `NENDO_INVALID_LIMIT`: letters, a fraction, a value
 larger than an integer holds, an empty value, `0` or `101`. The template variable
 arrives as text, and Nendo classifies it. Before, the SDK's binder refused a
@@ -108,7 +110,7 @@ order (`cursor,limit`). See the [read and authority contract](reads-and-authorit
 | `nendo.health.verify_integrity` | Current endpoint, no lease needed | `VerifyIntegrityAsync`. Scans the file and returns the health measured now. An unchanged file is not rescanned: `rescanned` is false, and the recorded result already describes the file. A call after every batch therefore costs nothing. A failed scan puts the host into recovery. That is the protection of the file, not a failure of this call. |
 | `nendo.change_set.begin` | Shape app + live lease; `NendoAgentAuthoringService` | Captures typed authority in a bounded transient draft. No active mutation. |
 | `nendo.change_set.add_operations` | Same owning handle/draft | Closed canonical DTOs: ≤16 operations per add and ≤128 submitted per change set, expanding to ≤512 canonical. The host supplies IDs, and every response echoes every limit. `ui.addNode` accepts an inline `properties` map. At the boundary, the map expands to one `ui.setProperty` per property, so a node and its configuration cost one operation instead of one plus one per property. If `expectedDefinitionRevision` is omitted, the host resolves it from the position of the operation in the change set, so the caller does not model the host's counter. A supplied value is honoured exactly. No active mutation. |
-| `nendo.change_set.amend` | Same owning handle/draft, not frozen | Drops every mutation from an ordinal onwards and appends replacements under the same per-call bounds. A correction of one bad operation costs one call, and the change set does not need to be rebuilt. A change set that validated is no longer a draft. Amend, `add_operations` and a fresh `validate` on it are `NENDO_CHANGE_SET_FROZEN`. The refusal names the proposal that the change set became and the remedy: reject the proposal, or ask the person to accept it. An ID that this session never had is `NENDO_CHANGE_SET_NOT_FOUND: The change set does not exist.` No active mutation. |
+| `nendo.change_set.amend` | Same owning handle/draft, not frozen | Drops every mutation from an ordinal onwards and appends replacements under the same per-call bounds. A correction of one bad operation costs one call, and the change set does not need to be rebuilt. A change set that validated is no longer a draft. Amend, `add_operations` and a fresh `validate` on it are `NENDO_CHANGE_SET_FROZEN`. The refusal names the proposal that the change set became and both remedies: reject the proposal and begin a new change set, or ask the person to accept it. An ID that this session never had is `NENDO_CHANGE_SET_NOT_FOUND: The change set does not exist.` No active mutation. |
 | `nendo.change_set.validate` | Same | `PrepareProposalAsync(NendoCanonicalProposalRequest)` → canonical compilation → physical clone validation. Schema-only proposals are valid for Studio. Custom trees that are present must compile fully. A failed validation discards its private clone and leaves the draft open and amendable. Validation is therefore a repeatable dry run and does not end the change set. |
 | `nendo.change_set.preview` | Same owning session | Reads the retained typed preview through `NendoAgentProposalStore.GetOwned`. No active mutation and no new acceptance authority. |
 | `nendo.change_set.reject` | Same owning session | Removes the owned draft/preview and calls generic `RejectProposalAsync` for its derivative workspace. |
@@ -266,10 +268,12 @@ against. It lists a `RelatedAggregate` once per aggregate, because `FilteredCoun
 takes `predicateFieldId` and `Sum` takes `valueFieldId`. `propertyNotes` says what
 `visibleWhen` and `fieldId` take.
 
-The agent cannot make these definitions run. A file whose actions run
-automatically is not editable until the person at this device approves it. No
-tool, resource or payload field reaches that approval. The production gate asserts
-that the local MCP surface cannot name it. The vocabulary resource carries the
+Below Unattended, the agent cannot make these definitions run. A file whose
+actions run automatically is not editable until the person at this device
+approves it. No tool, resource or payload field reaches that approval. The
+production gate asserts that the local MCP surface cannot name the grant store or
+the approval service. At Unattended, the host records the approval through a
+delegate that takes no arguments, as described below. The vocabulary resource carries the
 behaviour catalogue that those definitions must be written against: the closed
 function set with argument and result types, the operators, the scalar domain, the
 binding kinds, the aggregate rules and the ceilings. `nendo://application/examples`

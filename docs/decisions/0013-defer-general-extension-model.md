@@ -69,7 +69,9 @@ The general extension model is deferred beyond the MVP.
   arbitrary renderer properties and no executable escape hatches.
 - Production compatibility tests must prove that unknown core semantics fail
   closed and do not disappear silently from safe inspection.
-- No implementation work may create an extension API under this Deferred ADR.
+- No implementation work may create an extension API under this ADR, except
+  within the bounded custom-view slice that the accepted amendment of 2026-09-20
+  authorizes.
 
 ## Consequences
 
@@ -139,9 +141,10 @@ expression decision does not grant them.
 For W-007, the owner selected custom views over existing data as the first
 extension direction. The [custom-view extension plan](../design/custom-view-extensions-plan.md)
 uses a dependency graph to test the package, projection, isolation and recovery
-boundaries. Selection is not ADR acceptance. This decision stays Deferred.
-Production implementation waits for executable boundary evidence and an accepted
-extension decision.
+boundaries. Selection is not ADR acceptance. At that point this decision stayed
+Deferred. Production implementation waited for executable boundary evidence and
+an accepted extension decision. The accepted amendment below supplied both on the
+same day.
 
 ## Accepted amendment 2026-09-20 — isolated custom views
 
@@ -228,4 +231,5 @@ replay path. Host rung 1.29.0 marks the new semantic shape. Configuration is
 bounded JSON text in a scalar property. Thus it introduces no generic
 structured-property or scripting capability. Protocol 1 and configuration
 version 1 accept only an empty configuration object. A future positive version
-is kept with a disabled fallback. See the implemented contract.
+is kept with a disabled fallback. See the implemented
+[custom-view contract](../contracts/custom-views.md).

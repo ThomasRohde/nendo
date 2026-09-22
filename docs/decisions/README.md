@@ -19,7 +19,7 @@ existed. For this reason the numbering is contiguous by intent.
 | [0005](0005-host-application-services-and-write-coordinator.md) | Accepted | Host application services and one coordinator-owned writable authority |
 | [0006](0006-split-revisions-audit-and-compensation.md) | Accepted | Split revisions, total audit ordering, idempotency, explicit compensation |
 | [0007](0007-proposal-clone-validation-and-replay-promotion.md) | Accepted | Host-owned proposal clone, validation, preconditions, replay promotion |
-| [0008](0008-general-scripting-and-capability-isolation.md) | **Accepted** | Bounded calculations, reusable functions, local actions and automatic triggers; production delivery pending |
+| [0008](0008-general-scripting-and-capability-isolation.md) | **Accepted** | Bounded calculations, reusable functions, local actions and automatic triggers; delivered (stages S0–S9) |
 | [0009](0009-local-mcp-transport-authority-and-change-sets.md) | Accepted | Client-neutral local MCP transport, server-owned authority, modifying leases, explicit change sets |
 | [0010](0010-file-identity-duplicate-fork-backup-and-restore.md) | Accepted | Raw copy classification plus typed Duplicate, Fork, Backup and Restore |
 | [0011](0011-local-sqlite-journal-and-copy-discipline.md) | Accepted | Local rollback DELETE, FULL synchronous operation, bounded busy behaviour, host-owned copy discipline |
@@ -65,7 +65,9 @@ existed. For this reason the numbering is contiguous by intent.
   followed the third report. That report was about a board, which showed that the
   problem was never limited to the front page or an open inspector. It affected
   every Use surface: the renderer compares the whole view against the change
-  sequence that it holds, and only a person's action refreshed it.
+  sequence that it holds, and only a person's action refreshed it. This entry is
+  the full record of the amendment. ADR-0002 has a short section that points
+  here.
 
   **It is a nudge, not a refresh.** The renderer decides what to re-read and,
   more importantly, when a redraw is safe. The event goes through the same bounded
@@ -233,8 +235,9 @@ existed. For this reason the numbering is contiguous by intent.
   sight, Windows notifications announce a waiting proposal, outstanding consent,
   a file that stopped being writable and a failed workspace. They route and never
   grant: the production gate keeps them out of the MCP adapter, and a test
-  asserts that no payload carries an approve or promote argument. Bridge protocol
-  7 adds the first unsolicited host message, and 2–6 stay supported. The
+  asserts that no payload carries an approve, accept, promote or grant argument.
+  Bridge protocol 7 adds the first unsolicited host message, and 2–6 stay
+  supported. The
   amendment records the cost: closing the window no longer turns off the ADR-0009
   posture.
 - **ADR-0002, 2026-09-16 — a screen may not chase its reads without a bound**: a

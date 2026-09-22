@@ -90,8 +90,9 @@ lane exists: it builds and deploys that website and nothing else.**
 - The website can drift from the documents that it summarises. The rendered
   `docs/` section cannot drift, because it is the documents. The five authored
   pages can drift. Re-read those pages when the roadmap changes.
-- `site/node_modules` and `site/dist` are git-ignored, as
-  `Test-Repository.ps1` already requires of any tracked path. The committed
+- `.gitignore` excludes `site/node_modules` and `site/dist`.
+  `Test-Repository.ps1` refuses a tracked path under any `node_modules`
+  directory. It does not check `dist` directories. The committed
   screenshots are PNGs. `.gitattributes` declares PNGs binary, and
   `Test-BinaryAssets.ps1` checks them structurally. This decision introduces no
   new binary extension, and none may be introduced: a `.webp`, `.jpg` or `.woff2`

@@ -50,8 +50,8 @@ A number of roots over the ceiling is `NUI153`. Its message counts the roots fou
 and the number accepted. Its hint is generated from the same table: the hint
 states the ceiling in grammar that agrees with the number, and it names the kinds
 inside which a further root may be nested. A hint that reads "more than one"
-against a table that permits eight is worse than no hint. That is why both are
-generated and not written by hand.
+against a table that permits eight is worse than no hint. That is why the message
+and the hint are both generated from the table and not written by hand.
 
 A nested `recordCommand` remains supported and still carries the `commandId` that
 `nendo.data.execute_command` takes. It was previously the only way to have a
@@ -126,7 +126,9 @@ keeps its own line, because that is a change to something the person has.
 **A number may be as of a moment ago.** Every total, chart, ring and range is its
 own exact read at a stated revision. A surface asks again when the file moves on:
 at most once a second, one pass at a time, and never while somebody has hold of
-the page. If an answer arrives after the file has moved, the surface keeps it,
+the page. A person has hold of the page while a menu or a dialog is open, while a
+text field or a picker has focus, for a short time after an interaction, and while a
+record page has unsaved changes. If an answer arrives after the file has moved, the surface keeps it,
 because that answer is about the revision it names. If the surface discarded it,
 a file that receives continuous writes could never show a number at all. So while
 writing continues, two tiles on one page may show different revisions. Each is
@@ -409,8 +411,9 @@ of the bounded expression service, ADR-0008's P8.
 A file that uses it records a minimum host of 1.18, because a host that cannot
 evaluate the calculation has no way to know whether to show the node.
 
-The value is the calculated field's `fieldId`. It is not the field's definition
-ID, which a review sent first. `nendo://application/vocabulary` states this under
+The value is the calculated field's `fieldId`. It is not the calculation's
+`definitionId`. A review sent the `definitionId` first, and the refusal corrected
+it one round trip late. `nendo://application/vocabulary` states this under
 `propertyNotes`, beside the kinds. The review of a proposal that sets it reads
 *Show this only when Needs retest is yes*. A `fieldBinding` to a calculated field
 reads *Show the calculated field …* and not *Bind to unknown field*. Studio's
@@ -955,8 +958,8 @@ to delete a record that something points at, with the named refusal
 `record-referenced`. No promise is made that the state can occur.
 
 **Dragging a card between reference columns writes the grouping field with the
-target record's current version.** A reference write is refused without it (`target-version-
-required`), where a choice literal needs none. The board holds the versions
+target record's current version.** A reference write is refused without it
+(`target-version-required`), where a choice literal needs none. The board holds the versions
 because it read the target type to draw the columns. If the target moved under the
 board, the write is refused (`target-version-conflict`). The board then says so
 in its own words and reads its columns again. It does not pass on the host's
@@ -1067,8 +1070,15 @@ the shape cannot show (below). The ladder is:
 | A `section` with `opens` | 1.28 |
 | An `extensionGraphSurface` reference | 1.29 |
 
-Every row but the last is a shape of the node tree. The last is not. A board
-grouped by a reference and a board grouped by a choice carry the same kind, the
+The gaps at 1.17 and 1.24 are rungs that are not shapes of the node tree.
+`1.17.0` goes to a file that stores behaviour definitions (ADR-0008), and `1.24.0`
+goes to a file that carries a purpose (the ADR-0004 2026-09-15 amendment). Each
+operation declares that version on its own evidence.
+
+Every row except the 1.27 row is a shape of the node tree. At 1.19 and 1.22 a
+field operation also raises the rung through its own evidence: a choice tone and a
+rating scale. The 1.27 row is not a shape of the tree. A board grouped by a
+reference and a board grouped by a choice carry the same kind, the
 same `groupByFieldId` and the same children. Only the storage kind of the grouping
 field tells them apart. So the calculation reads the stored fields beside the
 tree. Without that, it would return 1.26 for a file that needs 1.27. One refused
