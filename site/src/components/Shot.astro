@@ -36,16 +36,17 @@ const dark = pick('dark');
 <style>
   .shot { margin: 0; }
 
+  /* A raised clay slab with the capture pressed into it. */
   .shot-frame {
-    border: 1px solid var(--line);
+    padding: clamp(8px, 1.2vw, 14px);
     border-radius: var(--radius-lg);
-    overflow: hidden;
     background: var(--surface-raised);
-    box-shadow: var(--shadow);
+    box-shadow: inset 0 -6px 0 var(--edge), var(--shadow);
     line-height: 0;
   }
 
   .shot-frame :global(img) {
+    border-radius: calc(var(--radius-lg) - 10px);
     display: block;
     width: 100%;
     height: auto;

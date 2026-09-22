@@ -1,8 +1,8 @@
 @import './tokens.css';
 
-/* The visual direction is docs/assets/mockups/molded-workbench/README.md: a calm
-   workspace, warm-white and deep blue-black surfaces, navy text, cobalt focus,
-   restrained violet, subtly sculpted rounded panels. Nothing decorative. */
+/* The clay direction: tinted grounds, raised slabs with a lip underneath, pressed
+   wells for code, and heavy Bricolage headings. The application's own look (the
+   Molded Workbench) is what the screenshots show; the site frames it. */
 
 *,
 *::before,
@@ -18,8 +18,8 @@ body {
   background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-text);
-  font-size: 1rem;
-  line-height: 1.65;
+  font-size: 1.0625rem;
+  line-height: 1.62;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -28,15 +28,15 @@ body {
 h1, h2, h3, h4 {
   font-family: var(--font-display);
   letter-spacing: -0.035em;
-  line-height: 1.15;
+  line-height: 1.05;
   margin: 0 0 0.4em;
   text-wrap: balance;
 }
 
-h1 { font-size: clamp(2.1rem, 5vw, 3.1rem); font-weight: 690; }
-h2 { font-size: clamp(1.5rem, 3vw, 2.05rem); font-weight: 680; }
-h3 { font-size: 1.2rem; font-weight: 660; letter-spacing: -0.02em; }
-h4 { font-size: 1rem; font-weight: 660; letter-spacing: -0.01em; }
+h1 { font-size: clamp(2.4rem, 6vw, 3.8rem); font-weight: 800; letter-spacing: -0.045em; }
+h2 { font-size: clamp(1.7rem, 3.6vw, 2.6rem); font-weight: 800; }
+h3 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+h4 { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.25; }
 
 p { margin: 0 0 1.1em; }
 p:last-child { margin-bottom: 0; }
@@ -64,12 +64,13 @@ code {
 }
 
 pre {
-  background: var(--surface-raised);
-  border: 1px solid var(--line);
+  background: var(--press);
+  border: 0;
   border-radius: var(--radius);
-  padding: 16px 18px;
+  padding: 18px 22px;
   overflow-x: auto;
-  box-shadow: var(--shadow-soft);
+  box-shadow: inset 0 4px 10px var(--edge);
+  line-height: 1.7;
 }
 pre code { background: none; border: 0; padding: 0; }
 
@@ -136,11 +137,9 @@ blockquote {
 
 .eyebrow {
   margin: 0 0 10px;
-  color: var(--cobalt);
-  font-size: 0.75rem;
-  font-weight: 720;
-  letter-spacing: 0.075em;
-  text-transform: uppercase;
+  color: var(--violet);
+  font-size: 0.95rem;
+  font-weight: 650;
 }
 
 .lede {
@@ -151,9 +150,8 @@ blockquote {
 
 .panel {
   background: var(--surface-raised);
-  border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  padding: clamp(20px, 3vw, 30px);
+  padding: clamp(22px, 4vw, 44px);
   box-shadow: var(--shadow-soft);
 }
 
@@ -169,11 +167,11 @@ blockquote {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 11px 20px;
+  padding: 14px 24px;
   border-radius: 999px;
-  border: 1px solid transparent;
+  border: 0;
   font: inherit;
-  font-weight: 640;
+  font-weight: 650;
   text-decoration: none;
   cursor: pointer;
   transition: transform 120ms ease, background-color 120ms ease, border-color 120ms ease;
@@ -182,14 +180,15 @@ blockquote {
 .button-primary {
   background: var(--cobalt);
   color: #ffffff;
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--cobalt) 26%, transparent);
+  box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.22), 0 14px 30px var(--glow);
 }
-:root[data-theme="dark"] .button-primary { color: #071725; }
+:root[data-theme="dark"] .button-primary { color: var(--press); }
 .button-quiet {
   background: var(--surface-raised);
-  border-color: var(--line-strong);
   color: var(--ink);
+  box-shadow: inset 0 -4px 0 var(--edge), 0 10px 24px var(--edge);
 }
+.button:active { transform: translateY(1px); }
 
 .tag {
   display: inline-flex;
@@ -197,11 +196,10 @@ blockquote {
   gap: 7px;
   padding: 5px 12px;
   border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--surface-soft);
-  font-size: 0.78rem;
-  font-weight: 640;
-  letter-spacing: 0.02em;
+  background: var(--surface-raised);
+  box-shadow: inset 0 -3px 0 var(--edge);
+  font-size: 0.85rem;
+  font-weight: 550;
   color: var(--muted);
 }
 .tag .dot {
@@ -213,9 +211,10 @@ blockquote {
 
 .note {
   border-radius: var(--radius);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--violet);
-  background: var(--surface-soft);
+  border: 0;
+  border-left: 4px solid var(--violet);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
   padding: 16px 20px;
   font-size: 0.95rem;
 }
@@ -242,3 +241,5 @@ blockquote {
     transition-duration: 0.01ms !important;
   }
 }
+
+[hidden] { display: none !important; }
