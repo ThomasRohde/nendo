@@ -130,6 +130,107 @@ public sealed class ImportExportProtocolTests
     }
 
     [TestMethod]
+    public async Task ARefusedLaterBatchReportsWhatCommittedAndAnExactRetryDoesNotDuplicateIt()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareAsync(workspace);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        var records = Enumerable.Range(1, 51).Select(index => new NendoRecordInput(
+            $"partial-{index:D3}", JsonSerializer.SerializeToElement(
+                new Dictionary<string, object?> { ["label"] = index == 51 ? null : $"Row {index}" }))).ToArray();
+        var arguments = new Dictionary<string, object?>(session)
+        {
+            ["entityId"] = "notes", ["format"] = "json", ["records"] = records,
+            ["idempotencyKey"] = "partial-import",
+        };
+
+        foreach (var attempt in Enumerable.Range(1, 2))
+        {
+            var response = await client.CallToolAsync("nendo.data.import_records", new Dictionary<string, object?>(arguments));
+            Assert.IsTrue(response.IsError);
+            var text = JsonSerializer.Serialize(response);
+            StringAssert.Contains(text, "NENDO_IMPORT_PARTIAL", StringComparison.Ordinal);
+            StringAssert.Contains(text, "committed=50", StringComparison.Ordinal);
+            StringAssert.Contains(text, "remaining=1", StringComparison.Ordinal);
+            StringAssert.Contains(text, "firstUncommittedRow=51", StringComparison.Ordinal);
+            StringAssert.Contains(text, "revision-", StringComparison.Ordinal);
+            Assert.HasCount(53, (await workspace.Service.QueryRecordsAsync(new("notes", 100))).Items,
+                $"Exact attempt {attempt} duplicated an earlier batch.");
+        }
+        var before = await workspace.Service.GetSnapshotAsync();
+        var optional = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest(
+            $"proposal-{Guid.NewGuid():N}", "Allow optional label", "test",
+            new([new("test", "optional-label", "test", "Allow optional label", [
+                new SetFieldRequiredOperation("optional-label", "notes", "label", false,
+                    before.Manifest.DefinitionRevision),
+            ])])));
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(optional.ProposalId)).Applied);
+        var resumed = await client.CallToolAsync("nendo.data.import_records", new Dictionary<string, object?>(arguments));
+        Assert.AreNotEqual(true, resumed.IsError, JsonSerializer.Serialize(resumed));
+        StringAssert.Contains(JsonSerializer.Serialize(resumed.StructuredContent), "\"committed\":51", StringComparison.Ordinal);
+        Assert.HasCount(54, (await workspace.Service.QueryRecordsAsync(new("notes", 100))).Items);
+    }
+
+    [TestMethod]
+    public async Task InvalidCsvMappingsAreTypedRefusalsBeforeAnyWrite()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareAsync(workspace);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        var cases = new (string Name, NendoCsvColumnMapping[] Mappings)[]
+        {
+            ("unknown", [new(0, "missing.field")]),
+            ("duplicate", [new(0, "label"), new(1, "label")]),
+            ("column", [new(2, "label")]),
+        };
+        foreach (var (name, mappings) in cases)
+        {
+            var response = await client.CallToolAsync("nendo.data.import_records", new Dictionary<string, object?>(session)
+            {
+                ["entityId"] = "notes", ["format"] = "csv", ["csv"] = "Label,Note\r\nValue,Text\r\n",
+                ["columnMappings"] = mappings, ["idempotencyKey"] = $"bad-mapping-{name}",
+            });
+            Assert.IsTrue(response.IsError, name);
+            StringAssert.Contains(JsonSerializer.Serialize(response), "NENDO_INVALID_REQUEST", StringComparison.Ordinal);
+            Assert.HasCount(3, (await workspace.Service.QueryRecordsAsync(new("notes", 100))).Items, name);
+        }
+    }
+
+    [TestMethod]
+    public async Task MixedFormatPayloadsAreRefusedBeforeAnyWrite()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareAsync(workspace);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        var records = new[] { new NendoRecordInput("json-intended", JsonSerializer.SerializeToElement(
+            new Dictionary<string, object?> { ["label"] = "JSON intended" })) };
+        foreach (var format in new[] { "csv", "json" })
+        {
+            var response = await client.CallToolAsync("nendo.data.import_records", new Dictionary<string, object?>(session)
+            {
+                ["entityId"] = "notes", ["format"] = format, ["csv"] = "Label\r\nCSV intended\r\n",
+                ["columnMappings"] = Mappings(["label"]), ["records"] = records,
+                ["idempotencyKey"] = $"mixed-{format}",
+            });
+            Assert.IsTrue(response.IsError, format);
+            StringAssert.Contains(JsonSerializer.Serialize(response), "NENDO_INVALID_REQUEST", StringComparison.Ordinal);
+            Assert.HasCount(3, (await workspace.Service.QueryRecordsAsync(new("notes", 100))).Items, format);
+        }
+    }
+
+    [TestMethod]
     public async Task TheBoundsAreStatedRatherThanMet()
     {
         await using var workspace = new LocalMcpTestWorkspace();

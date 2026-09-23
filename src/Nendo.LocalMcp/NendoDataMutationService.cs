@@ -177,6 +177,11 @@ internal sealed class NendoDataMutationService(
                 // Named rather than guessed from which argument arrived. A caller that
                 // sends csv text and a records array has made a mistake, and picking one
                 // for them would import half of what they meant.
+                if (format == "csv" && records is not null)
+                    throw new NendoValidationException("A csv import cannot also contain json records.");
+                if (format == "json" &&
+                    (csv is not null || columnMappings is not null || csvProfile is not null || emptyIsNull))
+                    throw new NendoValidationException("A json import cannot also contain csv options or text.");
                 return format switch
                 {
                     "csv" => imports.ImportCsvAsync(

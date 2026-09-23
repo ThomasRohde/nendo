@@ -439,9 +439,14 @@ that takes CSV or JSON back. Find both without being told their names. Then:
 - Find the ceiling on one import call by crossing it. Did the refusal give you both
   numbers — what the limit is and what you sent — so you could write the loop from it?
 - Send an import that fails partway: make one row invalid and put it past the fiftieth.
-  Record what committed, what the answer said committed, and whether those are the same
-  number. Then retry the identical call with the identical key and say whether you ended
+  Record what committed, what `NENDO_IMPORT_PARTIAL` said committed, the first
+  uncommitted row and the revision IDs; compare them with the stored records.
+  Then retry the identical call with the identical key and say whether you ended
   up with one copy of the data or two.
+- Send an unknown CSV field ID, a duplicate field mapping and an out-of-range
+  column. For each, record whether the refusal is `NENDO_INVALID_REQUEST` before
+  any write. Send both CSV text and JSON records in one call, once for each
+  declared format; neither may silently ignore the extra payload.
 - Try to make either of them name a file on disk, in any argument, in either direction.
 
 **The level that does not ask.** There are five access levels now. The fifth lets an agent

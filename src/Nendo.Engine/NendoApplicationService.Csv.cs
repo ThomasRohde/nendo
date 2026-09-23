@@ -60,9 +60,24 @@ public sealed partial class NendoApplicationService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(mappings);
         var definition = await GetDefinitionSnapshotAsync(cancellationToken);
         var entity = definition.Entities.SingleOrDefault(entity => entity.EntityId == entityId && !entity.Retired)
             ?? throw new NendoValidationException("Choose an active record type.");
+        var fields = entity.Fields.Where(field => !field.Retired).ToDictionary(field => field.FieldId, StringComparer.Ordinal);
+        if (mappings.Count == 0) throw new NendoValidationException("Map at least one CSV column to a field ID.");
+        var mappedFields = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var mapping in mappings)
+        {
+            if (mapping.Column < 0 || mapping.Column >= document.Headers.Count)
+                throw new NendoValidationException($"CSV column {mapping.Column} is outside the header.");
+            if (string.IsNullOrWhiteSpace(mapping.FieldId) || !fields.ContainsKey(mapping.FieldId))
+                throw new NendoValidationException($"CSV mapping field {mapping.FieldId} does not exist or is retired.");
+            if (!mappedFields.Add(mapping.FieldId))
+                throw new NendoValidationException($"CSV mapping repeats field {mapping.FieldId}.");
+        }
+        if (fields.Values.Any(field => field.Required && !mappedFields.Contains(field.FieldId)))
+            throw new NendoValidationException("Map each required field once to an existing CSV column.");
         return await DecodeRowsAsync(document, entity, mappings, options, offset, count, cancellationToken);
     }
 

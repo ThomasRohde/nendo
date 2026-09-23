@@ -246,6 +246,9 @@ services, at a static loopback address, with no credential.
     in bounded all-or-nothing revisions.
 
   Neither carries a path, and neither is a new persistence or validation route.
+  A later-batch refusal reports the batches already committed and their revisions;
+  an exact retry replays them. Invalid mappings and mixed-format input are refused
+  before writing.
 - Stable sanitized errors disclose semantic causes without paths, SQL or
   exception internals.
 - Nendo implements no client-specific semantic branch. Opt-in installed-client

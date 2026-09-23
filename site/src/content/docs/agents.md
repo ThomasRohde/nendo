@@ -82,7 +82,7 @@ At Edit data and above, the agent changes records with these tools:
 | --- | --- |
 | `nendo.data.create_record` | Creates one record. |
 | `nendo.data.create_records` | Creates 1 to 50 records of one type as one revision, all or nothing. |
-| `nendo.data.import_records` | Imports up to 500 rows from CSV text or JSON, committed 50 to a revision. A refused batch stops the run, and the result says how many records were committed. |
+| `nendo.data.import_records` | Imports up to 500 rows from CSV text or JSON, committed 50 to a revision. If a later batch is refused, `NENDO_IMPORT_PARTIAL` names the committed and remaining counts, the first uncommitted row and the committed revisions. Retry the identical call and key to replay earlier batches without duplicates. Invalid CSV mappings or a mixed CSV/JSON payload are refused before writing. |
 | `nendo.data.set_field` | Sets one field on one record. |
 | `nendo.data.delete_record` | Deletes one record. Refused while other records refer to it. |
 | `nendo.data.execute_command` | Runs a command that a screen defines. |

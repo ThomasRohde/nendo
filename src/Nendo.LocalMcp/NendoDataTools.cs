@@ -112,8 +112,11 @@ internal sealed class NendoDataTools(
         Bounds: 500 rows per call, echoed back as maximumRowsPerCall, and the usual 256 KiB request body, which is
         the limit you will meet first. It commits in batches of fifty, each one revision, each all or nothing, each
         with its own key derived from yours -- so a batch that is refused stops the run and leaves the batches
-        before it committed. committed says exactly how many landed and remaining how many did not; nothing here
-        claims the whole call is atomic. Retry the same call with the same idempotencyKey to finish it.
+        before it committed. On success, committed and remaining state the counts. If a later batch is refused,
+        NENDO_IMPORT_PARTIAL names the number committed, the number remaining, the first uncommitted data row,
+        the committed revision IDs and the refusal cause. Retry the identical call with the same idempotencyKey:
+        earlier batches replay without duplicates. Bad CSV mappings and mixed CSV/JSON payloads are refused before
+        any write. Nothing here claims the whole call is atomic.
         Create the record type first: a write into one an unaccepted proposal would create names that proposal.
         """)]
     public Task<NendoImportResult> ImportRecordsAsync(

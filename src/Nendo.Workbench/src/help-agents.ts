@@ -33,7 +33,7 @@ export const agentSurface: { resources: readonly SurfaceEntry[]; editDataTools: 
     { name: 'nendo.lease.release', meaning: 'Give the lease back. Closing the client does not.' },
     { name: 'nendo.data.create_record', meaning: 'One record from field values. Returns its ID and version 1, and names any other record an automatic action changed.' },
     { name: 'nendo.data.create_records', meaning: 'One to fifty records of one type as one revision, all or nothing.' },
-    { name: 'nendo.data.import_records', meaning: 'Up to five hundred records of one type from CSV text or typed JSON, committed fifty at a time. Each batch is one all-or-nothing revision, so a refusal stops the run and leaves the batches before it committed; the answer says exactly how many landed. This is how an agent fills a new application without your file picker.' },
+    { name: 'nendo.data.import_records', meaning: 'Up to five hundred records of one type from CSV text or typed JSON, committed fifty at a time. A later-batch refusal is NENDO_IMPORT_PARTIAL: it names committed and remaining rows, the first row not committed, the committed revision IDs and the cause. Retry the identical call and key to replay earlier batches. Bad CSV mappings and mixed CSV/JSON payloads are refused before writing.' },
     { name: 'nendo.data.set_field', meaning: 'One field on one record at an exact expected version.' },
     { name: 'nendo.data.delete_record', meaning: 'One record at its exact version. Refused while other records reference it; values are retained for restore through History.' },
     { name: 'nendo.data.execute_command', meaning: 'Run a stored command on one record: one field per step, the version advancing per step.' },
@@ -80,6 +80,7 @@ const refusalCodes: HelpTerm[] = [
   { term: 'NENDO_STALE_CURSOR', meaning: 'The file changed under a paged read. Restart from the first page.' },
   { term: 'NENDO_INVALID_CURSOR', meaning: 'A cursor from another query, another file or an earlier access session.' },
   { term: 'NENDO_INVALID_LIMIT', meaning: 'Page limits are whole numbers from 1 to 100. Letters, a fraction or an empty value are refused the same way, never as an internal error.' },
+  { term: 'NENDO_IMPORT_PARTIAL', meaning: 'Earlier import batches committed before a later one was refused. Read the counts, first uncommitted row and revision IDs; retry the identical call with the same key.' },
   { term: 'NENDO_RECOVERY_REQUIRED', meaning: 'The file is in recovery and cannot be read or written until the person resolves it.' },
   { term: 'NENDO_INTERNAL_ERROR', meaning: 'Something failed inside Nendo. The message names only the exception type.' },
 ];

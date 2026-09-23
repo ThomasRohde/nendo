@@ -37,6 +37,13 @@ internal static class NendoToolErrors
             DiagnosableAuthoringCodes.Contains(authoring.Code)
                 ? authoring.Message
                 : "The application change set could not be completed."),
+        NendoImportPartialException partial => Error(
+            "NENDO_IMPORT_PARTIAL",
+            $"committed={partial.Committed}; remaining={partial.Remaining}; " +
+            $"firstUncommittedRow={partial.FirstUncommittedRow}; " +
+            $"committedRevisions={string.Join(',', partial.RevisionIds)}; " +
+            $"cause={Translate(partial.Cause).Message} " +
+            "Retry the identical request with the same idempotency key; earlier batches replay without duplicates."),
         NendoIdempotencyConflictException => Error(
             "NENDO_IDEMPOTENCY_CONFLICT",
             "The idempotency key was already used for a different request."),

@@ -38,6 +38,19 @@ public sealed record NendoImportResult(
     long DataRevision,
     int MaximumRowsPerCall);
 
+internal sealed class NendoImportPartialException(
+    int committed,
+    int remaining,
+    IReadOnlyList<string> revisionIds,
+    NendoException cause) : Exception("A later import batch was refused.", cause)
+{
+    internal int Committed { get; } = committed;
+    internal int Remaining { get; } = remaining;
+    internal int FirstUncommittedRow { get; } = committed + 1;
+    internal IReadOnlyList<string> RevisionIds { get; } = revisionIds;
+    internal NendoException Cause { get; } = cause;
+}
+
 /// <summary>
 /// Bulk record import for an agent: faithful CSV or typed JSON in, ordinary canonical
 /// record operations out.
@@ -157,9 +170,9 @@ internal sealed class NendoImportService(NendoApplicationService application)
     /// <para>
     /// A batch that fails stops the run and takes its own rows with it; every batch before
     /// it stays committed, because they are separate revisions with separate receipts and
-    /// pretending otherwise would be the one thing an import must not say. The refusal
-    /// carries the engine's own sentence, and the caller reads how far it got from the
-    /// receipt of the last key it used.
+    /// pretending otherwise would be the one thing an import must not say. A refusal
+    /// after an acknowledged batch carries its exact row count and revision IDs. The
+    /// caller can retry the identical request and key; committed batches replay.
     /// </para>
     /// </summary>
     private async Task<NendoImportResult> CommitAsync(
@@ -172,15 +185,26 @@ internal sealed class NendoImportService(NendoApplicationService application)
         var revisions = 0;
         var dataRevision = 0L;
         var ids = new List<string>(entries.Count);
+        var revisionIds = new List<string>((entries.Count + BatchSize - 1) / BatchSize);
         while (committed < entries.Count)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var batch = entries.Skip(committed).Take(BatchSize).ToArray();
-            var result = await application.CreateRecordsAsync(
-                new NendoCreateRecordsRequest(entityId, batch, new NendoRequestContext(
-                    "agent.import", $"{idempotencyKey}#{revisions}", "agent")),
-                cancellationToken);
+            NendoApplyResult result;
+            try
+            {
+                result = await application.CreateRecordsAsync(
+                    new NendoCreateRecordsRequest(entityId, batch, new NendoRequestContext(
+                        "agent.import", $"{idempotencyKey}#{revisions}", "agent")),
+                    cancellationToken);
+            }
+            catch (NendoException exception) when (committed > 0)
+            {
+                throw new NendoImportPartialException(
+                    committed, entries.Count - committed, revisionIds.ToArray(), exception);
+            }
             dataRevision = result.DataRevision;
+            revisionIds.Add(result.RevisionId);
             committed += batch.Length;
             revisions++;
             ids.AddRange(batch.Select(entry => entry.RecordId));

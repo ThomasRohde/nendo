@@ -67,9 +67,13 @@ call reaches first. The response echoes that ceiling, what committed and what
 remains. Each internal batch derives its idempotency key from the key of the
 caller. The record ID of a CSV row derives from that key and the position of the
 row. Thus an exact retry requests the same records and does not create a second
-copy. If a batch is refused, the run stops, and the batches before it stay
-committed. The response gives their number. It never implies that the whole call
-was atomic.
+copy. If a later batch is refused, the run stops, and the batches before it stay
+committed. `NENDO_IMPORT_PARTIAL` names the committed and remaining counts, the
+first uncommitted data row (one-based, excluding the header), the committed
+revision IDs and the refusal cause. Retry the identical call with the identical
+key; earlier batches replay without duplicates. Invalid CSV mappings and a call
+that supplies both CSV and JSON payloads are refused before any write. No
+response implies that the whole call was atomic.
 
 ## Batches and file authority
 
