@@ -4,16 +4,15 @@ import DocsSearch from '../../components/DocsSearch.astro';
 import { docGroups } from '../../docs-nav';
 
 const groups = await docGroups();
-const total = groups.reduce((count, group) => count + group.items.length, 0);
 const repository = 'https://github.com/ThomasRohde/nendo';
 ---
 
 <Page
   title="Documentation — Nendo"
-  description="The Nendo repository documentation, rendered as a site: the vision, the architecture, the roadmap, the behavioural contracts and the accepted architecture decisions."
+  description="Guides to Nendo as it is today: getting started, the concepts, screens, calculations and actions, working with agents, custom views, your data, and where the project could go."
   eyebrow="Documentation"
-  heading="The repository documentation."
-  lede={`${total} documents, built straight from the Markdown in the repository. Where a document and the code disagree, the code wins, so every page links to its source.`}
+  heading="Guides."
+  lede="How Nendo works today and how to use it, written for somebody who has not seen it before."
 >
   <section class="page section">
     <div class="doc-search-wrap">
@@ -30,7 +29,7 @@ const repository = 'https://github.com/ThomasRohde/nendo';
           {group.items.map(item => (
             <a class="doc-card" href={item.href}>
               <h3>{item.title}</h3>
-              {item.summary && <p>{item.summary}</p>}
+              <p>{item.summary}</p>
             </a>
           ))}
         </div>
@@ -39,11 +38,11 @@ const repository = 'https://github.com/ThomasRohde/nendo';
 
     <div class="note">
       <p>
-        <strong>Not included:</strong> <code>docs/design/</code> and
-        <code>docs/reviews/</code>. These are working files: old implementation plans and
-        review records. They are on
-        <a href={`${repository}/tree/main/docs`} rel="noopener">GitHub</a>, and links to
-        them from these pages go there.
+        <strong>Contributing?</strong> The repository keeps its engineering record
+        under <a href={`${repository}/tree/main/docs`} rel="noopener">docs/</a>: the
+        architecture, the behavioural contracts, the architecture decisions and the
+        roadmap. Those documents describe how Nendo was built and are the authority for
+        changing it.
       </p>
     </div>
   </section>

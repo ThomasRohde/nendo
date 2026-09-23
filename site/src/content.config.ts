@@ -1,17 +1,17 @@
 import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
-import { DOCS_PATTERN } from '../scripts/docs-meta.mjs';
+import { z } from 'astro/zod';
 
-// The repository's own documents, rendered from ../docs rather than copied. The
-// documents stay the single source; the site is another way to read them.
+// The public guides. They are written for somebody who has never seen Nendo and
+// describe the product as it is now. The repository's own documents under ../docs
+// record how it was made; they stay on GitHub and are not rendered here.
 const docs = defineCollection({
-  // The loader lower-cases generated IDs, which turned contracts/README.md into
-  // contracts/readme — a route that is not the directory index and a GitHub link
-  // to a file that does not exist. Keep the path as it is written on disk.
-  loader: glob({
-    pattern: DOCS_PATTERN,
-    base: '../docs',
-    generateId: ({ entry }) => entry.split('\\').join('/').replace(/\.md$/, ''),
+  loader: glob({ pattern: '*.md', base: './src/content/docs' }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    group: z.enum(['Start', 'Use', 'Project']),
+    order: z.number(),
   }),
 });
 

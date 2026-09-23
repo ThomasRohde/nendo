@@ -2,16 +2,14 @@
 import Page from '../layouts/Page.astro';
 import Prose from '../components/Prose.astro';
 
-const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 // Condensed from the "Not qualified" table in docs/roadmap.md, in plainer words.
-// Keep its distinction between what a test measured and what a person reported:
-// that distinction is the point of the page.
+// Keep its distinction between what a test measured and what a person reported.
 const notQualified = [
   { area: 'Public distribution, code signing, ARM64', status: 'Not started.' },
-  { area: 'Clean-machine install', status: 'Reported as passing by the author, on a machine since used for everything else. There is no automated test and none is planned; accepted as a limitation on 2026-09-19.' },
+  { area: 'Clean-machine install', status: 'Reported as passing by the author, on a machine since used for everything else. There is no automated test, and none is planned.' },
   { area: 'Installed startup on large datasets', status: 'Measured, and accepted as an exception rather than a pass. Opening a file inspects it twice, and the layout signature scan is the largest single cost.' },
-  { area: 'Human usability and accessibility', status: 'Reported by the author. Scaling, keyboard and focus, and screen-reader checks were done by hand, not measured. Accepted as a limitation on 2026-09-20.' },
+  { area: 'Human usability and accessibility', status: 'Reported by the author. Scaling, keyboard and focus, and screen-reader checks were done by hand, not measured.' },
   { area: 'Cloud sync and live-root writes', status: 'Unsupported. Nendo warns about known sync folders but makes no claim that syncing is safe.' },
   { area: 'Physical power loss', status: 'Not tested.' },
   { area: 'Broad MCP client parity', status: 'Not promised. Claude Code and Codex both connect with just the address, checked by optional tests against installed clients. Other clients are untested.' },
@@ -21,16 +19,6 @@ const notQualified = [
   { area: 'What the Windows shell draws', status: 'Reported by the author, item by item. Registry writes, shell identity and the Jump List file are tested. Whether Explorer shows the file icon, the taskbar shows the badge or progress, or a file dragged from Explorer arrives cannot be checked from a script.' },
 ];
 
-const delivered = [
-  { slice: 'S0', body: 'A colour for every choice option, and a record-page header.' },
-  { slice: 'S1', body: 'Exact grouped totals, a breakdown chart, a progress ring, and click-through to a filtered list.' },
-  { slice: 'S2', body: 'A gallery of cards, and a rating shown on a fixed scale.' },
-  { slice: 'S3', body: 'The timeline: records placed by a Date field, with an optional end date drawn as a span.' },
-  { slice: 'S4', body: 'The overview page, which belongs to the whole file rather than to one record type.' },
-  { slice: 'S5', body: 'The trend chart and the activity grid, grouped over a date range.' },
-  { slice: 'S6', body: 'The matrix, which crosses two choice fields in a single query, and the ranked list.' },
-  { slice: 'S7', body: 'A board grouped by a reference field, so each column is a record of another type.' },
-];
 
 const gaps = [
   'Consent is shown where you accept a change, but not in the proposal queue.',
@@ -49,26 +37,11 @@ const gaps = [
 
 <Page
   title="Status — Nendo"
-  description="What works, what has shipped, what has been measured, what rests on the author's own testing, and what is not supported at all."
+  description="What works today, what has been measured, what rests on the author's own testing, and what is not supported at all."
   eyebrow="Status"
   heading="Where Nendo stands."
-  lede="This project keeps a strict line between what an automated test measured and what a person reported. This page follows the same rule."
+  lede="What works today, and where each claim comes from: an automated test, or the author's own use. Where nothing was checked, the page says so."
 >
-  <section class="page section">
-    <div class="panel rule">
-      <p class="eyebrow">The rule</p>
-      <p class="rule-quote">
-        Say what was checked, not whether something is “verified”. “Verified” and
-        “unverified” collapse several different questions into one word and read as a
-        verdict on quality, which is usually not what is meant. Name the lane and its
-        scope instead.
-      </p>
-      <p class="rule-source">
-        — from the repository's contributor guide, which this site follows too.
-      </p>
-    </div>
-  </section>
-
   <section class="page section">
     <p class="eyebrow">Where it is</p>
     <h2>Version 0.12.0: the core loop works.</h2>
@@ -80,36 +53,7 @@ const gaps = [
         built from an empty file by an agent working only through MCP, which learned what
         it could build from the interface rather than from the source.
       </p>
-      <p>
-        Nendo's own development is planned in a Nendo file, used every day by two coding
-        agents that hand work to each other. It has four record types (initiatives, work
-        items, findings and checks), twenty-one screens and commands, five calculations,
-        one reusable function, one action and one trigger. Each check records how it was
-        made (automated, observed by an agent, or reported by the author) separately from
-        its result, and a passing check never marks work done on its own.
-      </p>
-      <p>
-        The product has <strong>no CI</strong>, by choice. The local test gate
-        (<code>Test-Repository.ps1</code>, <code>Test-Production.ps1</code>) takes about a
-        minute and is the only gate. The repository's one GitHub Actions workflow builds
-        and deploys this website and nothing else.
-      </p>
     </Prose>
-  </section>
-
-  <section class="page section">
-    <p class="eyebrow">Delivered</p>
-    <h2>Screen features, in the order they shipped.</h2>
-    <ul class="slices">
-      {delivered.map(item => (
-        <li><code>{item.slice}</code><span>{item.body}</span></li>
-      ))}
-    </ul>
-    <p class="aside">
-      Calculations, reusable functions, local actions and automatic triggers have
-      shipped. Custom views are approved and being built; approval does not count as
-      passing the checks below that have not run yet.
-    </p>
   </section>
 
   <section class="page section">
@@ -126,7 +70,7 @@ const gaps = [
       </table>
     </div>
     <p class="aside">
-      <a href={`${base}/docs/roadmap`}>The roadmap</a> has the full table, with every
+      <a href="https://github.com/ThomasRohde/nendo/blob/main/docs/roadmap.md" rel="noopener">The repository roadmap</a> has the full table, with every
       measurement.
     </p>
   </section>
@@ -159,45 +103,6 @@ const gaps = [
 </Page>
 
 <style>
-  .rule { border-left: 3px solid var(--violet); }
-  .rule-quote {
-    font-family: var(--font-display);
-    font-size: clamp(1.1rem, 2.2vw, 1.4rem);
-    letter-spacing: -0.02em;
-    line-height: 1.45;
-    max-width: 58ch;
-  }
-  .rule-source { margin: 0; color: var(--muted); font-size: 0.88rem; }
-
-  .slices {
-    list-style: none;
-    margin: 24px 0 0;
-    padding: 0;
-    display: grid;
-    gap: 9px;
-    max-width: 78ch;
-  }
-
-  .slices li {
-    display: flex;
-    gap: 14px;
-    align-items: baseline;
-    padding: 12px 18px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--surface-raised);
-  }
-
-  .slices code {
-    flex: none;
-    background: var(--cobalt-soft);
-    border-color: transparent;
-    color: var(--cobalt);
-    font-weight: 700;
-  }
-
-  .slices span { font-size: 0.94rem; }
-
   .aside {
     margin-top: 22px;
     max-width: 68ch;

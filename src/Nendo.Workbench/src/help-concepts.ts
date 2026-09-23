@@ -126,7 +126,7 @@ export const conceptHelp: HelpProvider = () => [
       { term: 'Function', meaning: 'A reusable expression that calculations call by name.' },
       { term: 'Action', meaning: 'Ordered steps that set a field, create a record or delete a record.' },
       { term: 'Trigger', meaning: 'Runs an action when a record of a type is created, updated or deleted.' },
-    ], paragraphs: ['The vocabulary is closed: a small set of functions, arithmetic and comparisons, and today’s date and the current time. No formula can reach the network, a file or anything else on your computer. Numbers stay exact.'] },
+    ], paragraphs: ['The vocabulary is closed: a small set of functions, arithmetic and comparisons. A formula has no clock, so it cannot read today’s date or the current time. No formula can reach the network, a file or anything else on your computer. Numbers stay exact.'] },
     { heading: 'Reading a calculated field', paragraphs: [
       'A calculated field is shown, not offered for editing. It has four states and each looks different on screen: a value; “Not set” when an input somebody left blank stopped a formula that was declared to allow an empty result; “Calculating…” while Nendo works it out; and “Cannot calculate” with the reason beside it — a formula declared always to answer that met a blank, a zero divisor, or a refusal the author wrote in their own words — so a number nobody computed is never mistaken for one.',
       'A calculated field can appear on any screen, but it cannot sort, filter or group a list, place a record on a calendar or a timeline, feed a total, or be set by a command. A form made only of calculated fields is refused. In Use, a finished screen shows the value and a Calculated mark, not the formula.',
@@ -148,7 +148,7 @@ export const conceptHelp: HelpProvider = () => [
       'Creating, editing and deleting records, pasting and importing write straight to the file, one history entry per save. Every record carries a version. An edit made against an old version is refused rather than merged, so two edits never silently overwrite each other. A request repeated with the same key returns the original outcome instead of running again.',
     ] },
     { heading: 'The application lane', paragraphs: [
-      'Record types, fields, screens, calculations and commands change through a proposal. A proposal is a set of typed operations — nineteen kinds exist, and nothing else can change the shape of an app. Nendo applies them to a private physical copy of your file, validates the result there, and shows you a readable diff.',
+      'Record types, fields, screens, calculations and commands change through a proposal. A proposal is a set of typed operations — twenty kinds exist, and nothing else can change the shape of an app. Nendo applies them to a private physical copy of your file, validates the result there, and shows you a readable diff.',
       'When you accept, the same validated operations are replayed onto your real file after checking that nothing moved underneath them. The private copy never replaces your file, and rejecting leaves the file byte for byte as it was.',
     ] },
     { heading: 'What a review shows', paragraphs: [
@@ -182,7 +182,7 @@ export const conceptHelp: HelpProvider = () => [
 
   { id: 'limits', title: 'What Nendo deliberately leaves out', category: 'How Nendo works', summary: 'Boundaries, stated as boundaries.', related: ['overview', 'agent-surface'], sections: [
     { heading: 'Scope', paragraphs: [
-      'Nendo runs on Windows only, as an unsigned per-user install. It is for one person on one computer: there is no collaboration, no cloud sync and no accounts. Folders that sync to the cloud are warned about, not supported. There is no built-in agent; agents connect from their own app. There are no plug-ins, custom controls, scripts or HTML, and no file, image or multi-choice fields. A chart is an exact count or total per option of a choice field, or per yes and no, drawn as proportion with its numbers beside it; there is no free-form charting.',
+      'Nendo runs on Windows only, as an unsigned per-user install. It is for one person on one computer: there is no collaboration, no cloud sync and no accounts. Folders that sync to the cloud are warned about, not supported. There is no built-in agent; agents connect from their own app. There are no plug-ins, scripts or HTML in a file, and no file, image or multi-choice fields. The one exception to fixed screens is a custom view: a separately installed, contained package that draws a read-only graph of records, and only after you allow it on this computer. A chart is an exact count or total per option of a choice field, per yes and no, or per week or month of a date field, with its numbers beside it; there is no free-form charting.',
     ] },
     { heading: 'Safety', paragraphs: [
       'There is no universal undo. Nendo never guesses a repair. A newer file is refused by an older Nendo. Agent access is not an anti-malware boundary: while it is on, anything running on this computer can connect, so it is the wrong posture for a shared machine.',

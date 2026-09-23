@@ -181,9 +181,10 @@ It bites heredocs hardest, since they carry a whole file in one command — a
 - The public website in `site/` is outside the product boundary and outside the
   gate ([ADR-0018](docs/decisions/0018-public-website-and-deployment-lane.md)).
   Build it with `pwsh ./tools/Test-Site.ps1`; `.github/workflows/pages.yml`
-  deploys it and is the repository's only CI lane. It renders `docs/` from the
-  Markdown, so a documentation change can change the site without anyone editing
-  it. Its screenshots come from `pwsh ./tools/Capture-SiteScreenshots.ps1`, which
+  deploys it and is the repository's only CI lane. It does not render `docs/`: its
+  guides are hand-written for outsiders in `site/src/content/docs/` and describe
+  the product as it is now. When a change alters something a guide states, update
+  the guide in the same change. Its screenshots come from `pwsh ./tools/Capture-SiteScreenshots.ps1`, which
   drives a real host against a copy of `workspace/Nendo Station.nendo`. Never
   commit a `.webp`, `.jpg` or `.woff2` under `site/` — `Test-BinaryAssets.ps1`
   has a structural reader for `.png`, `.ico`, `.mp4` and `.nendo` only.

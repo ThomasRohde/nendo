@@ -29,7 +29,7 @@ existed. For this reason the numbering is contiguous by intent.
 | [0015](0015-host-owned-database-studio-and-ag-grid-community.md) | Accepted | Host-owned Studio, containing UI architecture, AG Grid Community as the grid substrate |
 | [0016](0016-vendor-pinned-dotnet-agent-skills.md) | Accepted | Pinned curated first-party .NET agent skills |
 | [0017](0017-production-composition-and-build-layout.md) | Accepted | Minimal Engine/Desktop/Workbench/LocalMcp composition and centralized build layout |
-| [0018](0018-public-website-and-deployment-lane.md) | Accepted | Public website at `site/`, outside the product boundary, with one CI lane that deploys only it |
+| [0018](0018-public-website-and-deployment-lane.md) | Accepted | Public website at `site/`, outside the product boundary, with one CI lane that deploys only it; since 2026-09-23 it carries its own guides and does not render `docs/` |
 
 ## Amendments in force
 

@@ -731,7 +731,7 @@ near.
 One GitHub Actions workflow exists: `.github/workflows/pages.yml`. It builds and
 deploys the public website in `site/`
 ([ADR-0018](decisions/0018-public-website-and-deployment-lane.md)). It runs only on
-a push to `main` that touches `site/`, `docs/`, the application icon or the
+a push to `main` that touches `site/`, `docs/assets/brand/`, the application icon or the
 workflow itself, or when somebody starts it by hand. It does not restore,
 build or test a .NET project, and it runs neither gate script. Thus it cannot pass
 or fail on anything that the gate covers. `tools/Test-Site.ps1` is the local

@@ -1,18 +1,13 @@
 // Every internal reference in the built site must resolve: a page, a file beside it,
 // or an anchor that exists on the page it points at.
 //
-// This exists because the repository documents link to each other as files, and the
-// rewriter that turns those into routes can be wrong in a way nothing else notices —
-// a rendered page is still a valid page when one link inside it goes nowhere. The
-// first run of this check found `docs/design/adr-0008-dependencies.lock.json`
-// rewritten to a copied asset that the sync step never copies, because it copies
-// images and the rewriter was sending any data file.
+// A rendered page is still a valid page when one link inside it goes nowhere, so
+// nothing else notices. The guides link to each other and into the site's own pages
+// by absolute path under the base, and this is what holds those links to the build.
 //
-// One caveat when changing the rewriter: the content layer caches a rendered document
-// by its source digest, so editing the plugin alone leaves the previous HTML in place
-// and this check reads it. Falsifying this guard needed BOTH `site/.astro` and
-// `site/node_modules/.astro` removed — with only the first cleared, the build passed
-// against the defect. A CI checkout has neither, so this only bites locally.
+// The content layer caches a rendered guide by its source digest. If a change seems
+// not to reach this check locally, clear both `site/.astro` and
+// `site/node_modules/.astro`; a CI checkout has neither.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 

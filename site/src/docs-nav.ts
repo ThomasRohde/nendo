@@ -1,9 +1,7 @@
-import { getCollection, type CollectionEntry } from 'astro:content';
-import { toSlug } from '../scripts/docs-meta.mjs';
+import { getCollection } from 'astro:content';
 
 export interface DocLink {
   id: string;
-  slug: string;
   href: string;
   title: string;
   summary: string;
@@ -17,94 +15,26 @@ export interface DocGroup {
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
-/** The document's own first heading. None of these files carry frontmatter. */
-function titleOf(entry: CollectionEntry<'docs'>): string {
-  const heading = entry.body?.match(/^#\s+(.+?)\s*$/m);
-  if (heading) return heading[1].replace(/`/g, '');
-  return entry.id;
-}
-
-/** The first real sentence after the heading, for the index cards. */
-function summaryOf(entry: CollectionEntry<'docs'>): string {
-  const body = entry.body ?? '';
-  const afterHeading = body.replace(/^[\s\S]*?^#\s+.+?$/m, '');
-  for (const block of afterHeading.split(/\n{2,}/)) {
-    const line = block.trim();
-    if (line === '' || line.startsWith('#') || line.startsWith('|') || line.startsWith('```')) continue;
-    if (line.startsWith('- ') || line.startsWith('> ') || line.startsWith('*')) continue;
-    const flat = line
-      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-      .replace(/[*_`]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (flat.length < 30) continue;
-    return flat.length > 190 ? `${flat.slice(0, 187).replace(/[\s,;:]+\S*$/, '')}…` : flat;
-  }
-  return '';
-}
-
-function toLink(entry: CollectionEntry<'docs'>): DocLink {
-  const slug = toSlug(entry.id);
-  return {
-    id: entry.id,
-    slug,
-    href: `${base}/docs${slug === '' ? '' : `/${slug}`}`,
-    title: titleOf(entry),
-    summary: summaryOf(entry),
-  };
-}
-
-// Reading order, not alphabetical order: somebody arriving cold should meet the
-// vision before the contracts, and the contracts before the decisions.
-const START_ORDER = [
-  'vision',
-  'architecture',
-  'roadmap',
-  'glossary',
-  'nendo-station',
-  'dogfooding',
-  'custom-view-authoring',
-];
+// Reading order: start, then everyday use, then where the project is going.
+const GROUPS = [
+  { key: 'Start', title: 'Start', blurb: 'What Nendo is and how to open your first file.' },
+  { key: 'Use', title: 'Use', blurb: 'Screens, calculations, agents, custom views and your data.' },
+  { key: 'Project', title: 'Project', blurb: 'Where Nendo is now and where it could go.' },
+] as const;
 
 export async function docGroups(): Promise<DocGroup[]> {
   const entries = await getCollection('docs');
-  const links = entries.map(toLink);
-
-  const start = links
-    .filter(link => !link.id.includes('/'))
-    .sort((a, b) => {
-      const left = START_ORDER.indexOf(a.id);
-      const right = START_ORDER.indexOf(b.id);
-      return (left === -1 ? 99 : left) - (right === -1 ? 99 : right);
-    });
-
-  const inDirectory = (directory: string) =>
-    links
-      .filter(link => link.id.startsWith(`${directory}/`))
-      .sort((a, b) => {
-        // A directory's README is its index and leads.
-        if (a.id.endsWith('/README')) return -1;
-        if (b.id.endsWith('/README')) return 1;
-        return a.id.localeCompare(b.id);
-      });
-
-  return [
-    {
-      title: 'Start here',
-      blurb: 'What Nendo is for, how it is built, and what it cannot do yet.',
-      items: start,
-    },
-    {
-      title: 'Contracts',
-      blurb: 'Exactly how each part behaves, including what it refuses.',
-      items: inDirectory('contracts'),
-    },
-    {
-      title: 'Decisions',
-      blurb: 'The accepted ADRs, which are the architecture authority.',
-      items: inDirectory('decisions'),
-    },
-  ];
+  return GROUPS.map(group => ({
+    title: group.title,
+    blurb: group.blurb,
+    items: entries
+      .filter(entry => entry.data.group === group.key)
+      .sort((a, b) => a.data.order - b.data.order)
+      .map(entry => ({
+        id: entry.id,
+        href: `${base}/docs/${entry.id}`,
+        title: entry.data.title,
+        summary: entry.data.description,
+      })),
+  })).filter(group => group.items.length > 0);
 }
-
-export { toSlug, titleOf };

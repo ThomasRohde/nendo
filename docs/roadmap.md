@@ -527,9 +527,10 @@ the build.
 `site/` is an Astro project. The one CI lane that this repository has deploys it
 to [thomasrohde.github.io/nendo](https://thomasrohde.github.io/nendo/)
 ([ADR-0018](decisions/0018-public-website-and-deployment-lane.md)). It carries
-five authored pages (home, concept, how it works, using Nendo, status). It renders
-`docs/` from the Markdown and does not copy it, so a rendered document cannot
-drift from its source. `tools/Capture-SiteScreenshots.ps1` captures the
+five authored pages (home, concept, how it works, using Nendo, status) and a small
+set of hand-written guides in `site/src/content/docs/`. Since 2026-09-23 it does
+not render `docs/`: the guides describe the product for outsiders, and `docs/`
+stays the engineering record on GitHub. `tools/Capture-SiteScreenshots.ps1` captures the
 screenshots from a running host against `workspace/Nendo Station.nendo`. The
 screenshots are committed, because the deployment runs on Linux and cannot take
 them.
@@ -555,8 +556,8 @@ code. A CI checkout has neither cache, so that trap is local only.
 
 These things about the site are not checked:
 
-- Nothing asserts that the five authored pages still match this roadmap or the
-  vision after either one changes.
+- Nothing asserts that the authored pages and the guides still match the code,
+  this roadmap or the vision after any of them changes.
 - No check follows an external link.
 - No accessibility or first-read evaluation was run on it.
 

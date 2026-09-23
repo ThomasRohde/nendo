@@ -124,3 +124,26 @@ than the documents that it claims to render, and nothing would show it.
 runner for the Desktop host and take minutes instead of one minute. It would also
 make the website deployment depend on the test suite of the product. This
 decision exists to keep those two things apart.
+
+## 2026-09-23 amendment — the site carries its own guides, not `docs/`
+
+The owner accepted this amendment on 2026-09-23. It replaces items 2 and 3 of the
+Decision and the drift consequence.
+
+**The site no longer renders `docs/`.** The repository documents record how
+Nendo was made: amendments, findings, review rounds and dated decisions. For a
+reader who has never seen Nendo, that reads as process, and there is too much of
+it. The site now carries a small set of hand-written guides in
+`site/src/content/docs/`. They describe the product as it is now, and possible
+future directions on a roadmap page. They carry no ADR numbers, work codes or
+amendment history.
+
+- `docs/` stays the engineering record and the authority for changing the
+  product. It is read on GitHub. The site links there for contributors.
+- The guides are a second description of the product, so they can drift from the
+  code. The code is the ground truth. When a change alters something a guide
+  states, update the guide in the same change.
+- The build still copies the brand assets and the application icon. It no longer
+  copies document images or rewrites repository links.
+- The Pages workflow now runs on changes under `docs/assets/brand/`, not on every
+  change under `docs/`.

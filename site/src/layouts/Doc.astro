@@ -7,15 +7,14 @@ import type { MarkdownHeading } from 'astro';
 
 interface Props {
   title: string;
+  description: string;
   current: string;
-  sourcePath: string;
   headings: MarkdownHeading[];
 }
-const { title, current, sourcePath, headings } = Astro.props;
+const { title, description, current, headings } = Astro.props;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const groups = await docGroups();
 const onPage = headings.filter(heading => heading.depth === 2 || heading.depth === 3);
-const blob = `https://github.com/ThomasRohde/nendo/blob/main/${sourcePath}`;
 
 const flat: DocLink[] = groups.flatMap(group => group.items);
 const index = flat.findIndex(item => item.id === current);
@@ -23,7 +22,7 @@ const previous = index > 0 ? flat[index - 1] : null;
 const next = index !== -1 && index < flat.length - 1 ? flat[index + 1] : null;
 ---
 
-<Base title={`${title} — Nendo documentation`} description={`${title}. From the Nendo repository documentation.`}>
+<Base title={`${title} — Nendo documentation`} description={description}>
   <div class="page docs-shell">
     <aside class="docs-rail" aria-label="Documentation">
       <DocsSearch />
@@ -42,10 +41,8 @@ const next = index !== -1 && index < flat.length - 1 ? flat[index + 1] : null;
     </aside>
 
     <article class="docs-body" data-pagefind-body>
-      <p class="docs-source">
-        <span>Rendered from <code>{sourcePath}</code></span>
-        <a href={blob} rel="noopener">View on GitHub</a>
-      </p>
+      <h1 class="docs-title">{title}</h1>
+      <p class="docs-lede">{description}</p>
       <Prose>
         <slot />
       </Prose>
@@ -68,7 +65,7 @@ const next = index !== -1 && index < flat.length - 1 ? flat[index + 1] : null;
           </ul>
         </>
       )}
-      <a class="toc-top" href={`${base}/docs`}>All documents</a>
+      <a class="toc-top" href={`${base}/docs`}>All guides</a>
     </aside>
   </div>
 </Base>
@@ -139,20 +136,19 @@ const next = index !== -1 && index < flat.length - 1 ? flat[index + 1] : null;
 
   .docs-body { min-width: 0; }
 
-  .docs-source {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin: 0 0 22px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--line);
-    color: var(--muted);
-    font-size: 0.83rem;
+  .docs-title {
+    font-size: clamp(2rem, 4.5vw, 2.8rem);
+    margin: 0 0 10px;
   }
 
-  .docs-source code { font-size: 0.85em; }
+  .docs-lede {
+    margin: 0 0 26px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 1.08rem;
+    max-width: 62ch;
+  }
 
   .docs-pager {
     display: grid;

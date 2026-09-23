@@ -14,7 +14,7 @@ export const agentSurface: { resources: readonly SurfaceEntry[]; editDataTools: 
     { name: 'nendo://application/describe', meaning: 'The whole open application in one read: identity, authoring limits, every record type with its fields and references, every compiled screen, health, and every read path this server serves. Read it first.' },
     { name: 'nendo://application/manifest', meaning: 'Identity and the revision counters, without reading records or history.' },
     { name: 'nendo://application/vocabulary', meaning: 'Everything this Nendo build accepts from an author: node kinds with their properties and children, filter operators and value kinds, aggregates, the behaviour catalogue, the authoring limits, and every operation with the payload fields it takes. It describes the host, not the open file.' },
-    { name: 'nendo://application/examples', meaning: 'Seven complete change sets that can be sent as they stand, each carrying one authoring rule. Every one is replayed by the test suite, so an example that stopped validating fails the build.' },
+    { name: 'nendo://application/examples', meaning: 'Sixteen complete change sets that can be sent as they stand, each carrying one authoring rule. Every one is replayed by the test suite, so an example that stopped validating fails the build.' },
     { name: 'nendo://application/entities', meaning: 'Stable record type IDs and display names.' },
     { name: 'nendo://application/entity/{entityId}/schema', meaning: 'One record type’s fields — storage kind, required, presentation, choice IDs, a rating’s scale, reference target — and its calculated fields.' },
     { name: 'nendo://application/entity/{entityId}/records{?cursor,limit}', meaning: 'A page of records in stable ID order, with exact numeric lexemes and reference labels.' },
@@ -69,7 +69,7 @@ const refusalCodes: HelpTerm[] = [
   { term: 'NENDO_BEHAVIOUR_NOT_APPROVED', meaning: 'The file carries automatic actions this device has not approved, so writes wait for the person.' },
   { term: 'NENDO_ENTITY_NOT_FOUND', meaning: 'No such record type in the file. When a waiting proposal would create it, the message names that proposal.' },
   { term: 'NENDO_FIELD_CALCULATED', meaning: 'The field is calculated, not stored, and cannot be written; the message names the calculation. Write the stored fields its formula reads.' },
-  { term: 'NENDO_UNKNOWN_OPERATION', meaning: 'Not one of the nineteen operation types. There is no escape hatch: the refusal is the same for SQL as for a typo.' },
+  { term: 'NENDO_UNKNOWN_OPERATION', meaning: 'Not one of the twenty operation types. There is no escape hatch: the refusal is the same for SQL as for a typo.' },
   { term: 'NENDO_INVALID_REQUEST', meaning: 'A payload the host cannot bind. The message names the operation, the key, and what the key is for.' },
   { term: 'NENDO_CHANGE_SET_LIMIT', meaning: 'A per-call or per-change-set ceiling was reached; the message names which, and the current usage.' },
   { term: 'NENDO_CHANGE_SET_STALE', meaning: 'The file’s definition moved since the draft began. Begin again on the new revision.' },
@@ -133,7 +133,7 @@ export const agentHelp: HelpProvider = () => [
       'Per call: one to eight mutations and up to sixteen operations. Per change set: thirty-two mutations, 128 submitted operations, 512 after inline node properties expand. Eight open drafts per session, and up to sixteen inline properties on one node. A request body may be at most 256 KiB. Every limit is echoed in every response. ' + noAcceptTool,
     ] },
     { heading: 'What a change set may contain', paragraphs: [
-      'Nineteen operation types, and nothing else: schema.createEntity, schema.addField, schema.renameEntity, schema.renameField, schema.configureReference, schema.setFieldRequired, schema.setRetired, schema.setChoiceMetadata; behaviour.setDefinition and behaviour.removeDefinition for calculations, functions, actions and triggers; ui.addNode, ui.setProperty, ui.moveNode, ui.removeNode for screens; data.createRecord, data.setField, data.deleteRecord, data.backfillRetiredField and data.convertLegacyReference for data carried in the same proposal. Restoring a deleted record and changing a file’s identity are Nendo’s only. An unknown type is refused by name.',
+      'Twenty operation types, and nothing else: application.setPurpose to say what the file is for; schema.createEntity, schema.addField, schema.renameEntity, schema.renameField, schema.configureReference, schema.setFieldRequired, schema.setRetired, schema.setChoiceMetadata; behaviour.setDefinition and behaviour.removeDefinition for calculations, functions, actions and triggers; ui.addNode, ui.setProperty, ui.moveNode, ui.removeNode for screens; data.createRecord, data.setField, data.deleteRecord, data.backfillRetiredField and data.convertLegacyReference for data carried in the same proposal. Restoring a deleted record and changing a file’s identity are Nendo’s only. An unknown type is refused by name.',
     ] },
     { heading: 'How a refusal reads', paragraphs: ['A refusal is CODE: message. The code is stable; the message names the thing refused and the remedy, and never contains a path or a stored value.'], terms: refusalCodes },
     { heading: 'After a lost answer', paragraphs: [
