@@ -19,9 +19,27 @@ function New-Payload([string] $Name, [hashtable] $Files) {
     @{schemaVersion=1; product='Nendo'; buildId=$Name; files=@($entries)} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $dir 'nendo-install.json')
     return $dir
 }
-function Run-Setup([string] $Mode, [string] $Root, [string] $Payload, [bool] $Success=$true) {
-    $arguments = @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$setup,'-Mode',$Mode,'-InstallRoot',$Root)
+# Setup registers .nendo, New > Nendo application, the application identity and the
+# Start Menu shortcut. Every run here passes a class store and a Start Menu of its own:
+# without them each fixture install took over what this account opens .nendo with and
+# pointed the real shortcut at a folder that is deleted afterwards.
+$classesRoot = "HKCU:\Software\Nendo-Setup-Tests\$([Guid]::NewGuid().ToString('N'))\Classes"
+$startMenuRoot = Join-Path $evidence 'start-menu'
+function Get-OwnerRegistrations {
+    $classes = 'HKCU:\Software\Classes'
+    $values = foreach ($key in @('.nendo', 'Nendo.Document\shell\open\command', 'Nendo.Document\DefaultIcon', 'Applications\Nendo.Desktop.exe\shell\open\command', '.nendo\ShellNew', 'AppUserModelId\Nendo.Desktop')) {
+        $path = Join-Path $classes $key
+        if (Test-Path -LiteralPath $path) { "$key=" + ((Get-ItemProperty -LiteralPath $path).PSObject.Properties | Where-Object Name -notlike 'PS*' | ForEach-Object { "$($_.Name):$($_.Value)" }) -join ';' } else { "$key=missing" }
+    }
+    $link = Join-Path ([Environment]::GetFolderPath('Programs')) 'Nendo.lnk'
+    $values += if (Test-Path -LiteralPath $link) { "shortcut=$((Get-FileHash -LiteralPath $link).Hash)" } else { 'shortcut=missing' }
+    return $values -join "`n"
+}
+$ownerBefore = Get-OwnerRegistrations
+function Run-Setup([string] $Mode, [string] $Root, [string] $Payload, [bool] $Success=$true, [string[]] $Extra=@()) {
+    $arguments = @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$setup,'-Mode',$Mode,'-InstallRoot',$Root,'-ClassesRoot',$classesRoot,'-StartMenuRoot',$startMenuRoot)
     if ($Payload) { $arguments += @('-PayloadRoot',$Payload) }
+    $arguments += $Extra
     $result = & $powershell @arguments 2>&1
     $exit = $LASTEXITCODE
     $result | Out-File -LiteralPath (Join-Path $evidence 'tests.log') -Append
@@ -91,11 +109,56 @@ Run-Setup Uninstall $root ''
 Assert ((Get-FileHash -LiteralPath (Join-Path $root 'user.nendo')).Hash -eq $userHash) 'Uninstall changed user data.'
 Assert (-not (Test-Path -LiteralPath (Join-Path $root 'app.txt'))) 'Uninstall left payload.'
 Assert (-not (Test-Path -LiteralPath "$root.previous")) 'Uninstall left previous payload.'
+# The installer moves its extracted payload into place and keeps the backup as hard
+# links, so an upgrade writes no payload bytes a second time. Measured by file
+# identity rather than by time: the backup is the very file that was installed, and
+# the installed file is the very file that was extracted.
+function Get-FileId([string] $Path) {
+    $id = [regex]::Match((& fsutil file queryfileid $Path | Out-String), '0x[0-9a-fA-F]+').Value
+    Assert ([bool]$id) "No file ID for $Path"
+    return $id
+}
+$moved = Join-Path $evidence 'moved\Nendo'
+$m1 = New-Payload 'm1' @{'app.txt'='moved one'; 'lib/core.dll'='core one'}
+$m2 = New-Payload 'm2' @{'app.txt'='moved two'; 'lib/core.dll'='core two'}
+Run-Setup Install $moved $m1 $true @('-MovePayload')
+Assert (-not (Test-Path -LiteralPath (Join-Path $m1 'app.txt'))) 'A moved payload was left where it was extracted.'
+$installedId = Get-FileId (Join-Path $moved 'lib/core.dll')
+$extractedId = Get-FileId (Join-Path $m2 'lib/core.dll')
+Run-Setup Install $moved $m2 $true @('-MovePayload')
+Assert ((Get-FileId (Join-Path "$moved.previous" 'lib/core.dll')) -eq $installedId) 'The backup was copied rather than linked.'
+Assert ((Get-FileId (Join-Path $moved 'lib/core.dll')) -eq $extractedId) 'The new payload was copied rather than moved.'
+Assert ((Get-Content -LiteralPath (Join-Path "$moved.previous" 'lib/core.dll') -Raw) -eq 'core one') 'A linked backup lost the previous bytes.'
+Assert ((Get-Content -LiteralPath (Join-Path $moved 'lib/core.dll') -Raw) -eq 'core two') 'A moved upgrade did not install the new payload.'
+# Interrupted halfway through a linked update: one file replaced, the other still a
+# hard link shared with its backup. Recovery copies the backup over that link, which
+# must not truncate the backup it is reading from.
+$m3 = New-Payload 'm3' @{'app.txt'='moved three'; 'lib/core.dll'='core three'}
+Remove-Item -LiteralPath "$moved.previous" -Recurse -Force
+foreach ($name in @('app.txt', 'lib/core.dll')) {
+    $link = Join-Path "$moved.previous" $name
+    [void][IO.Directory]::CreateDirectory((Split-Path $link))
+    $null = New-Item -ItemType HardLink -Path $link -Value (Join-Path $moved $name)
+}
+Copy-Item -LiteralPath (Join-Path $moved 'nendo-install.json') -Destination (Join-Path "$moved.previous" 'nendo-install.json')
+$journal = Get-Content -LiteralPath (Join-Path $m3 'nendo-install.json') -Raw | ConvertFrom-Json
+@{schemaVersion=1; product='Nendo'; hadPrevious=$true; files=$journal.files} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $moved 'nendo-update.json')
+Remove-Item -LiteralPath (Join-Path $moved 'app.txt')
+[IO.File]::WriteAllText((Join-Path $moved 'app.txt'), 'moved three')
+Run-Setup Recover $moved ''
+Assert ((Get-Content -LiteralPath (Join-Path $moved 'app.txt') -Raw) -eq 'moved two') 'Recovery over a linked backup did not restore the replaced file.'
+Assert ((Get-Content -LiteralPath (Join-Path $moved 'lib/core.dll') -Raw) -eq 'core two') 'Recovery over a linked backup lost the file it shared.'
+Assert ((Get-Content -LiteralPath (Join-Path "$moved.previous" 'lib/core.dll') -Raw) -eq 'core two') 'Recovery truncated the backup it was restoring from.'
 # A traversal in even an unsigned local inventory must never escape the fixture.
 $bad = New-Payload 'bad' @{'ok.txt'='okay'}
 $inventory = Get-Content -LiteralPath (Join-Path $bad 'nendo-install.json') -Raw | ConvertFrom-Json
 $inventory.files[0].path = '..\outside.txt'
 $inventory | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $bad 'nendo-install.json')
 Run-Setup Install (Join-Path $evidence 'bad-install') $bad $false
-@{result='passed'; checks=@('fresh install','changed-version upgrade','same-version reinstall','application rollback/user-file retention','injected staging-capacity boundaries','one previous payload','stale owned removal','locked-file refusal','unowned collision refusal','corrupt extraction refusal','interrupted update recovery','uninstall/user-file retention','path traversal refusal'); shell='Windows PowerShell 5.1'; capacityLimitation='Injected measurements at the production predicate; no physical disk exhaustion.'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidence 'results.json')
+# The registrations landed in this run's own class store, and the account's did not move.
+Assert (Test-Path -LiteralPath (Join-Path $classesRoot '.nendo')) 'Setup wrote no association to the run class store.'
+$ownerAfter = Get-OwnerRegistrations
+Assert ($ownerAfter -eq $ownerBefore) "The setup tests changed this account's .nendo registration or Start Menu shortcut.`nBefore:`n$ownerBefore`nAfter:`n$ownerAfter"
+Remove-Item -LiteralPath (Split-Path -Parent $classesRoot) -Recurse -Force
+@{result='passed'; checks=@('fresh install','changed-version upgrade','same-version reinstall','application rollback/user-file retention','injected staging-capacity boundaries','one previous payload','stale owned removal','locked-file refusal','unowned collision refusal','corrupt extraction refusal','interrupted update recovery','uninstall/user-file retention','moved payload and linked backup by file identity','recovery over a linked backup','path traversal refusal','account registrations untouched'); shell='Windows PowerShell 5.1'; capacityLimitation='Injected measurements at the production predicate; no physical disk exhaustion.'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidence 'results.json')
 Write-Output "Nendo setup checks passed: $evidence"

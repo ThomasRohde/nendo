@@ -24,6 +24,10 @@ RequestExecutionLevel user
 !include "FileFunc.nsh"
 Name "Nendo"
 SetCompressor /SOLID zlib
+; The setup script does most of the work after the progress bar is full. Its steps
+; stream into the details list, which is open so the window does not look stuck.
+ShowInstDetails show
+ShowUninstDetails show
 InstallDir "$LOCALAPPDATA\Programs\Nendo"
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -66,12 +70,13 @@ $lines.Add(('  File /oname=Nendo.Setup.ps1 "{0}"' -f $helper))
 $lines.Add(('  File "{0}"' -f (Join-Path $pilot 'nendo-install.json')))
 $lines.Add(@'
   WriteUninstaller "$PLUGINSDIR\payload\Uninstall.exe"
-  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\payload\Nendo.Setup.ps1" -Mode Install -InstallRoot "$INSTDIR" -PayloadRoot "$PLUGINSDIR\payload"'
+  DetailPrint "Installing Nendo. This can take a minute."
+  ; -MovePayload: the extracted files are moved into place rather than copied, which
+  ; also moves the setup script. Anything after this runs the installed copy.
+  nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\payload\Nendo.Setup.ps1" -Mode Install -InstallRoot "$INSTDIR" -PayloadRoot "$PLUGINSDIR\payload" -MovePayload -LogPath "$TEMP\Nendo-Setup.log"'
   Pop $SetupResult
-  Pop $0
-  DetailPrint "$0"
   FileOpen $1 "$TEMP\Nendo-Setup.log" a
-  FileWrite $1 "$SetupResult: $0$\r$\n"
+  FileWrite $1 "Install exit code: $SetupResult$\r$\n"
   FileClose $1
   StrCmp $SetupResult "0" installed
     IfSilent +2
@@ -93,12 +98,10 @@ $lines.Add(('  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Unins
 $lines.Add(('  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Nendo" "BuildId" "{0}"' -f $buildId))
 $lines.Add(@'
   StrCmp $KeepPilots "true" finished
-  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\payload\Nendo.Setup.ps1" -Mode RetirePilots -InstallRoot "$INSTDIR"'
+  nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\Nendo.Setup.ps1" -Mode RetirePilots -InstallRoot "$INSTDIR" -LogPath "$TEMP\Nendo-Setup.log"'
   Pop $SetupResult
-  Pop $0
-  DetailPrint "$0"
   FileOpen $1 "$TEMP\Nendo-Setup.log" a
-  FileWrite $1 "$SetupResult: $0$\r$\n"
+  FileWrite $1 "RetirePilots exit code: $SetupResult$\r$\n"
   FileClose $1
   StrCmp $SetupResult "0" finished
     IfSilent +2
@@ -115,12 +118,11 @@ Section "Uninstall"
   InitPluginsDir
   CopyFiles /SILENT "$INSTDIR\Nendo.Setup.ps1" "$PLUGINSDIR\Nendo.Setup.ps1"
   SetOutPath "$PLUGINSDIR"
-  nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\Nendo.Setup.ps1" -Mode Uninstall -InstallRoot "$INSTDIR"'
+  DetailPrint "Removing Nendo."
+  nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\Nendo.Setup.ps1" -Mode Uninstall -InstallRoot "$INSTDIR" -LogPath "$TEMP\Nendo-Setup.log"'
   Pop $SetupResult
-  Pop $0
-  DetailPrint "$0"
   FileOpen $1 "$TEMP\Nendo-Setup.log" a
-  FileWrite $1 "$SetupResult: $0$\r$\n"
+  FileWrite $1 "Uninstall exit code: $SetupResult$\r$\n"
   FileClose $1
   StrCmp $SetupResult "0" removed
     IfSilent +2

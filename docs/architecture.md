@@ -776,6 +776,13 @@ pwsh ./tools/Test-NendoInstaller.ps1      -PilotRoot '<printed payload directory
 pwsh ./tools/Test-NendoSetupIsolated.ps1  # install/upgrade/uninstall against a task-owned root
 ```
 
+NSIS only extracts the payload to a temporary folder. `Invoke-NendoSetup.ps1` does
+the install after the progress bar is full. It checks every file by hash, keeps the
+installed version in `Nendo.previous` as one hard link per file, and moves the
+extracted files into place (`-MovePayload`). No payload byte is written twice. Each
+step appears in the installer's details list as it starts, and in
+`%TEMP%\Nendo-Setup.log`.
+
 You must install NSIS to build the installer. When you rebuild the app, rebuild the
 installer in the same task. Prune old payloads only through
 `Remove-NendoBuildPayload.ps1`, which verifies hashes first.
@@ -803,8 +810,10 @@ payload and no NSIS, and each takes seconds. Run them when you change
 `Invoke-NendoSetup.ps1`:
 
 ```powershell
-pwsh ./tools/Test-NendoSetup.ps1          # 13 cases: fresh install, upgrade, rollback,
-                                          # locked files, corrupt extraction, path traversal
+pwsh ./tools/Test-NendoSetup.ps1          # 16 cases: fresh install, upgrade, rollback,
+                                          # locked files, corrupt extraction, path traversal,
+                                          # moved payload and linked backup, and this
+                                          # account's .nendo registration left untouched
 pwsh ./tools/Test-NendoLegacyUpgrade.ps1  # upgrade over a legacy owned payload
 pwsh ./tools/Test-NendoBuildPruning.ps1   # Remove-NendoBuildPayload safety
 ```

@@ -320,8 +320,15 @@ if ($shortcutIdentity -ne 'Nendo.Desktop') {
     throw "The Start Menu shortcut carries the application identity '$shortcutIdentity', not 'Nendo.Desktop'."
 }
 
-# 4. Reinstall in place: an upgrade over an existing installation.
-Invoke-Setup 'Install' @('-PayloadRoot', $staged, '-ClassesRoot', $classesRoot, '-StartMenuRoot', $startMenuRoot)
+# 4. Reinstall in place: an upgrade over an existing installation, run the way the
+# installer runs it -- from an extraction of its own, moved into place.
+$extracted = Join-Path $evidenceRoot 'extracted-payload'
+Copy-Item -LiteralPath $staged -Destination $extracted -Recurse
+$upgradeClock = [Diagnostics.Stopwatch]::StartNew()
+Invoke-Setup 'Install' @('-PayloadRoot', $extracted, '-ClassesRoot', $classesRoot, '-StartMenuRoot', $startMenuRoot, '-MovePayload')
+$upgradeSeconds = [math]::Round($upgradeClock.Elapsed.TotalSeconds, 1)
+if (Test-Path -LiteralPath (Join-Path $extracted 'Nendo.Desktop.exe')) { throw 'The upgrade copied its payload instead of moving it.' }
+Remove-Item -LiteralPath $extracted -Recurse -Force
 if (Test-Path -LiteralPath $obsolete) { throw 'Upgrade retained an obsolete owned file.' }
 if ((Get-FileHash -LiteralPath $userFile).Hash -ne $userFileHash) { throw 'Upgrade changed an unowned user file.' }
 foreach ($entry in $manifest.files) {
@@ -446,7 +453,10 @@ $result = [ordered]@{
     ownerInstallationUntouched = $true
     ownerFileCount = $ownerAfter
     stagedPayloadRetained = $stagedRetained
-    verified = @('first install byte-for-byte', 'in-place upgrade', 'obsolete owned file removed',
+    # Wall time of the moved upgrade in step 4, including the backup. A measurement for
+    # comparison between builds on one machine, not a threshold.
+    upgradeSeconds = $upgradeSeconds
+    verified = @('first install byte-for-byte', 'in-place upgrade from a moved payload', 'obsolete owned file removed',
         'unowned user file preserved across upgrade and uninstall', 'uninstall removes owned files', 'no rollback payload left',
         '.nendo association written, pointing at this install and at an installed icon',
         'New > Nendo application registered with the -new command',

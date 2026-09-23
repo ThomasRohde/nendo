@@ -11,7 +11,14 @@ param(
     [string] $ClassesRoot = 'HKCU:\Software\Classes',
     # Where the Start Menu shortcut is written, for the same reason: a test passes a
     # folder of its own rather than putting an entry in the real Start Menu.
-    [string] $StartMenuRoot = [Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)
+    [string] $StartMenuRoot = [Environment]::GetFolderPath([Environment+SpecialFolder]::Programs),
+    # The installer extracts into a folder it deletes when it exits, so it asks for the
+    # files to be moved into place. On one volume a move is a rename; the copy it
+    # replaces wrote the whole payload a second time. Without it the payload is kept.
+    [switch] $MovePayload,
+    # Setup runs hidden under the installer. Each step it reports is also appended
+    # here, so a failure can still be read after the installer window has closed.
+    [string] $LogPath
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -23,6 +30,17 @@ $root = [IO.Path]::GetFullPath($InstallRoot).TrimEnd('\')
 $previous = "$root.previous"
 $inventoryName = 'nendo-install.json'
 $pendingName = 'nendo-update.json'
+
+function Add-SetupLog([string] $Text) {
+    if (-not $LogPath) { return }
+    # A log that cannot be written is not a failed install.
+    try { Add-Content -LiteralPath $LogPath -Value ('{0:yyyy-MM-dd HH:mm:ss} {1}' -f (Get-Date), $Text) -Encoding UTF8 } catch { }
+}
+# The installer shows these lines as they arrive, so a long step says what it is doing.
+function Write-Step([string] $Text) {
+    Write-Output $Text
+    Add-SetupLog $Text
+}
 
 function Assert-NendoSetupCapacity([long] $AvailableBytes, [long] $PayloadBytes, [long] $PreviousBytes) {
     if ($AvailableBytes -lt 0 -or $PayloadBytes -lt 0 -or $PreviousBytes -lt 0) { throw 'Invalid setup capacity measurement.' }
@@ -55,6 +73,13 @@ function Assert-Tree([string] $Directory) {
         }
     }
 }
+# Get-FileHash is a script function in Windows PowerShell 5.1 and costs about three
+# times the hashing itself per file, and an upgrade hashes every file three times.
+$sha256 = [Security.Cryptography.SHA256]::Create()
+function Get-NendoFileHash([string] $Path) {
+    $stream = [IO.File]::Open($Path, 'Open', 'Read', 'Read')
+    try { return [BitConverter]::ToString($sha256.ComputeHash($stream)).Replace('-', '') } finally { $stream.Dispose() }
+}
 function Resolve-Owned([string] $Directory, [string] $Relative) {
     if (-not $Relative -or $Relative -match '(^[\\/]|[:*?"<>|]|(^|[\\/])\.{1,2}([\\/]|$)|[ .]($|[\\/]))') { throw "Unsafe payload path: $Relative" }
     $full = [IO.Path]::GetFullPath((Join-Path $Directory $Relative))
@@ -77,16 +102,45 @@ function Read-Inventory([string] $Directory) {
 function Assert-Bytes([string] $Directory, $Inventory) {
     foreach ($entry in $Inventory.files) {
         $file = Resolve-Owned $Directory $entry.path
-        if (-not (Test-Path -LiteralPath $file -PathType Leaf) -or (Get-FileHash -LiteralPath $file).Hash -ne $entry.sha256) { throw "Payload differs; retained for recovery: $file" }
+        if (-not (Test-Path -LiteralPath $file -PathType Leaf) -or (Get-NendoFileHash $file) -ne $entry.sha256) { throw "Payload differs; retained for recovery: $file" }
     }
 }
 function Copy-Owned([string] $From, [string] $To, $Inventory) {
     foreach ($entry in $Inventory.files) {
         $target = Resolve-Owned $To $entry.path
         [void][IO.Directory]::CreateDirectory((Split-Path -Parent $target))
+        # The target can share its bytes with the backup (see Save-Backup). Copying
+        # over it would write into the backup too, so the old name goes first.
+        if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Force }
         Copy-Item -LiteralPath (Resolve-Owned $From $entry.path) -Destination $target -Force
     }
     Assert-Bytes $To $Inventory
+}
+# The backup is a hard link per file, not a copy: the bytes were checked a moment ago
+# and are not written again. Setup never writes into an installed file -- it removes
+# the name and puts the new file in its place -- so the backup keeps the old bytes. A
+# volume without hard links gets a checked copy instead.
+function Save-Backup([string] $From, [string] $To, $Inventory) {
+    $copied = $false
+    foreach ($entry in $Inventory.files) {
+        $source = Resolve-Owned $From $entry.path
+        $target = Resolve-Owned $To $entry.path
+        [void][IO.Directory]::CreateDirectory((Split-Path -Parent $target))
+        try { $null = New-Item -ItemType HardLink -Path $target -Value $source -ErrorAction Stop }
+        catch { Copy-Item -LiteralPath $source -Destination $target -Force; $copied = $true }
+    }
+    if ($copied) { Assert-Bytes $To $Inventory }
+}
+# Moved files are not hashed again: a move does not rewrite them, and the payload was
+# checked in this run before anything changed.
+function Install-Owned([string] $From, [string] $To, $Inventory) {
+    if (-not $MovePayload) { Copy-Owned $From $To $Inventory; return }
+    foreach ($entry in $Inventory.files) {
+        $target = Resolve-Owned $To $entry.path
+        [void][IO.Directory]::CreateDirectory((Split-Path -Parent $target))
+        if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Force }
+        [IO.File]::Move((Resolve-Owned $From $entry.path), $target)
+    }
 }
 function Remove-EmptyDirectories([string] $Directory) {
     if (-not (Test-Path -LiteralPath $Directory)) { return }
@@ -181,7 +235,7 @@ function Set-NendoFileAssociation([string] $Classes, [string] $InstallDirectory)
     [void](New-ItemProperty -LiteralPath $supported -Name $extension -Value '' -PropertyType String -Force)
 
     Publish-NendoAssociationChange
-    Write-Output "Registered $extension with Windows for this user."
+    Write-Step "Registered $extension with Windows for this user."
 }
 
 function Remove-NendoFileAssociation([string] $Classes, [string] $InstallDirectory) {
@@ -202,7 +256,7 @@ function Remove-NendoFileAssociation([string] $Classes, [string] $InstallDirecto
     $command = Get-NendoRegistryValue $shellNewKey 'Command'
     if (-not $command) { $shellNewKey = $null }
     elseif (-not $command.StartsWith('"' + $InstallDirectory, [StringComparison]::OrdinalIgnoreCase)) {
-        Write-Output "The New menu entry launches something else and was retained: $command"
+        Write-Step "The New menu entry launches something else and was retained: $command"
         $shellNewKey = $null
     }
     foreach ($key in @(
@@ -227,7 +281,7 @@ function Remove-NendoFileAssociation([string] $Classes, [string] $InstallDirecto
         }
     }
     Publish-NendoAssociationChange
-    Write-Output "Removed the $extension association for this user."
+    Write-Step "Removed the $extension association for this user."
 }
 
 # The Start Menu shortcut, and the one property on it that matters.
@@ -396,7 +450,7 @@ function Set-NendoStartMenuShortcut([string] $StartMenu, [string] $InstallDirect
         (Join-Path $InstallDirectory 'Assets\AppIcon.ico'),
         'Nendo',
         $appUserModelId)
-    Write-Output "Start Menu shortcut written: $link"
+    Write-Step "Start Menu shortcut written: $link"
 }
 
 function Remove-NendoStartMenuShortcut([string] $StartMenu, [string] $InstallDirectory) {
@@ -409,16 +463,16 @@ function Remove-NendoStartMenuShortcut([string] $StartMenu, [string] $InstallDir
         Get-NendoShortcutWriter
         $target = [NendoShortcut]::Target($link)
     } catch {
-        Write-Output "The Start Menu shortcut could not be read and was retained. $($_.Exception.Message)"
+        Write-Step "The Start Menu shortcut could not be read and was retained. $($_.Exception.Message)"
         return
     }
     $expected = Join-Path $InstallDirectory 'Nendo.Desktop.exe'
     if ($target -ne $expected) {
-        Write-Output "The Start Menu shortcut points elsewhere and was retained: $target"
+        Write-Step "The Start Menu shortcut points elsewhere and was retained: $target"
         return
     }
     Remove-Item -LiteralPath $link -Force
-    Write-Output "Removed the Start Menu shortcut."
+    Write-Step "Removed the Start Menu shortcut."
 }
 
 # Explorer caches what it knows about a file type. Without this the new icon
@@ -436,7 +490,7 @@ public static extern void SHChangeNotify(int eventId, uint flags, System.IntPtr 
     } catch {
         # A refused notification is a stale icon, not a failed install. Say so and
         # carry on rather than failing setup over a redraw.
-        Write-Output "Windows was not told the association changed; the icon may take a sign-out to appear. $($_.Exception.Message)"
+        Write-Step "Windows was not told the association changed; the icon may take a sign-out to appear. $($_.Exception.Message)"
     }
 }
 
@@ -468,14 +522,14 @@ function Restore-Pending {
     foreach ($entry in $journal.files) {
         $file = Resolve-Owned $root $entry.path
         if (Test-Path -LiteralPath $file) {
-            $hash = (Get-FileHash -LiteralPath $file).Hash
+            $hash = (Get-NendoFileHash $file)
             if ($hash -ne $entry.sha256 -and $hash -ne $oldPaths[$entry.path]) { throw "Update recovery found changed bytes: $file" }
         }
     }
     if ($null -ne $old) {
         foreach ($entry in $old.files) {
             $file = Resolve-Owned $root $entry.path
-            if ((Test-Path -LiteralPath $file) -and -not $newPaths.ContainsKey($entry.path) -and (Get-FileHash -LiteralPath $file).Hash -ne $entry.sha256) { throw "Recovery found an external edit: $file" }
+            if ((Test-Path -LiteralPath $file) -and -not $newPaths.ContainsKey($entry.path) -and (Get-NendoFileHash $file) -ne $entry.sha256) { throw "Recovery found an external edit: $file" }
         }
     }
     foreach ($entry in $journal.files) {
@@ -490,7 +544,7 @@ function Restore-Pending {
     }
     Remove-Item -LiteralPath $journalPath
     Remove-EmptyDirectories $root
-    Write-Output 'Recovered the previous application payload.'
+    Write-Step 'Recovered the previous application payload.'
 }
 
 $mutex = New-Object Threading.Mutex($false, 'Local\NendoSetup')
@@ -516,7 +570,7 @@ try {
             if ($process.ExitCode -ne 0 -or (Test-Path -LiteralPath $key.PSPath)) { throw 'A legacy pilot could not be retired; its remaining files were retained.' }
             if (Test-Path -LiteralPath $uninstaller) { Remove-Item -LiteralPath $uninstaller }
             Remove-EmptyDirectories $legacy
-            Write-Output "Retired pilot $id; unknown files retained."
+            Write-Step "Retired pilot $id; unknown files retained."
         }
         return
     }
@@ -525,13 +579,15 @@ try {
     $old = Read-Inventory $root
     if ($Mode -eq 'Uninstall') {
         if ($null -eq $old) { throw 'No recognized Nendo installation; nothing removed.' }
+        Write-Step 'Checking the installed files.'
         Assert-Bytes $root $old
         $backup = Read-Inventory $previous
         if ($null -ne $backup) { Assert-Bytes $previous $backup; Remove-Owned $previous $backup }
+        Write-Step 'Removing Nendo.'
         Remove-Owned $root $old
         Remove-NendoStartMenuShortcut $StartMenuRoot $root
         Remove-NendoFileAssociation $ClassesRoot $root
-        Write-Output 'Nendo payload removed; unknown files and device settings retained.'
+        Write-Step 'Nendo payload removed; unknown files and device settings retained.'
         return
     }
     $source = [IO.Path]::GetFullPath($PayloadRoot).TrimEnd('\')
@@ -541,17 +597,18 @@ try {
     # NSIS generates its uninstaller only at extraction time.
     $generatedUninstaller = Join-Path $source 'Uninstall.exe'
     if ((Test-Path -LiteralPath $generatedUninstaller) -and -not @($next.files | Where-Object { $_.path -eq 'Uninstall.exe' }).Count) {
-        $next.files = @($next.files) + @([pscustomobject]@{path='Uninstall.exe'; sha256=(Get-FileHash -LiteralPath $generatedUninstaller).Hash})
+        $next.files = @($next.files) + @([pscustomobject]@{path='Uninstall.exe'; sha256=(Get-NendoFileHash $generatedUninstaller)})
         $next | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $source $inventoryName) -Encoding UTF8
     }
+    Write-Step 'Checking the new files.'
     Assert-Bytes $source $next
-    if ($null -ne $old) { Assert-Bytes $root $old }
+    if ($null -ne $old) { Write-Step 'Checking the installed files.'; Assert-Bytes $root $old }
     if ($null -ne $old -and $old.files.Count -eq $next.files.Count) {
         $same = $true
         foreach ($entry in $next.files) {
             if (-not @($old.files | Where-Object { $_.path -eq $entry.path -and $_.sha256 -eq $entry.sha256 }).Count) { $same = $false; break }
         }
-        if ($same) { Write-Output 'This Nendo payload is already installed; retained the previous version.'; return }
+        if ($same) { Write-Step 'This Nendo payload is already installed; retained the previous version.'; return }
     }
     $oldPaths = @{}
     if ($null -ne $old) { foreach ($entry in $old.files) { $oldPaths[$entry.path] = $true } }
@@ -567,17 +624,19 @@ try {
     $availableBytes = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($root)).AvailableFreeSpace
     Assert-NendoSetupCapacity $availableBytes (Get-NendoPayloadBytes $source $next) (Get-NendoPayloadBytes $root $old)
     $backup = Read-Inventory $previous
-    if ($null -ne $backup) { Remove-Owned $previous $backup }
+    if ($null -ne $backup) { Write-Step 'Removing the older backup.'; Remove-Owned $previous $backup }
     if (Test-Path -LiteralPath $previous) { throw 'Previous payload contains unrecognized files; retained for review.' }
     if ($null -ne $old) {
+        Write-Step 'Keeping the installed version as a backup.'
         [void][IO.Directory]::CreateDirectory($previous)
-        Copy-Owned $root $previous $old
+        Save-Backup $root $previous $old
         Copy-Item -LiteralPath (Join-Path $root $inventoryName) -Destination (Join-Path $previous $inventoryName)
     }
     [void][IO.Directory]::CreateDirectory($root)
     @{schemaVersion=1; product='Nendo'; hadPrevious=($null -ne $old); files=@($next.files)} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $root $pendingName) -Encoding UTF8
     try {
-        Copy-Owned $source $root $next
+        Write-Step 'Putting the new files in place.'
+        Install-Owned $source $root $next
         $nextPaths = @{}
         foreach ($entry in $next.files) { $nextPaths[$entry.path] = $true }
         if ($null -ne $old) {
@@ -592,9 +651,14 @@ try {
     }
     # After the payload lands, so neither the association nor the shortcut points at
     # an executable that is not there yet.
+    Write-Step 'Registering Nendo with Windows.'
     Set-NendoFileAssociation $ClassesRoot $root
     Set-NendoStartMenuShortcut $StartMenuRoot $root
-    Write-Output "Nendo installed: $root"
+    Write-Step "Nendo installed: $root"
+} catch {
+    # Only the log: the error itself already reaches the installer through stderr.
+    Add-SetupLog "Setup failed: $($_.Exception.Message)"
+    throw
 } finally {
     if ($locked) { $mutex.ReleaseMutex() }
     $mutex.Dispose()
