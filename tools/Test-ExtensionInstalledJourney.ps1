@@ -80,12 +80,17 @@ try {
     $outcome = 'passed'
 }
 finally {
-    if ($installed) { Invoke-Setup 'Uninstall' }
-    $runClasses = Split-Path -Parent $classesRoot
-    if (Test-Path -LiteralPath $runClasses) { Remove-Item -LiteralPath $runClasses -Recurse -Force }
-    # And the lane's own parent key once no run is using it, so a pass leaves nothing in HKCU.
-    $laneKey = Split-Path -Parent $runClasses
-    if ((Test-Path -LiteralPath $laneKey) -and -not @(Get-ChildItem -LiteralPath $laneKey).Count) { Remove-Item -LiteralPath $laneKey -Force }
+    # The class store goes even when the uninstall throws, which used to skip it.
+    try { if ($installed) { Invoke-Setup 'Uninstall' } }
+    finally {
+        $runClasses = Split-Path -Parent $classesRoot
+        Remove-Item -LiteralPath $runClasses -Recurse -Force -ErrorAction SilentlyContinue
+        # And the lane's own parent key once no run is using it, so a pass leaves nothing in HKCU.
+        $laneKey = Split-Path -Parent $runClasses
+        if ((Test-Path -LiteralPath $laneKey) -and -not @(Get-ChildItem -LiteralPath $laneKey).Count) {
+            Remove-Item -LiteralPath $laneKey -Force -ErrorAction SilentlyContinue
+        }
+    }
     # Pruned on a pass only, so a failure keeps what setup saw.
     if ($outcome -eq 'passed' -and -not $KeepInstall) {
         foreach ($path in @($staged, $installRoot)) { if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force } }

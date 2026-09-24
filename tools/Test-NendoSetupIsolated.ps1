@@ -213,218 +213,232 @@ function Invoke-Setup([string] $Mode, [string[]] $Extra = @()) {
     }
 }
 
-# Stage the payload the way the installer does: the published files plus the
-# inventory that tells setup which of them it owns.
-$staged = Join-Path $evidenceRoot 'staged-payload'
-Copy-Item -LiteralPath $payload -Destination $staged -Recurse
-Copy-Item -LiteralPath $inventorySource -Destination (Join-Path $staged 'nendo-install.json')
-# The installer packs the setup script into its own payload and inventories it.
-Copy-Item -LiteralPath $setup -Destination (Join-Path $staged 'Nendo.Setup.ps1')
+try {
+    # Stage the payload the way the installer does: the published files plus the
+    # inventory that tells setup which of them it owns.
+    $staged = Join-Path $evidenceRoot 'staged-payload'
+    Copy-Item -LiteralPath $payload -Destination $staged -Recurse
+    Copy-Item -LiteralPath $inventorySource -Destination (Join-Path $staged 'nendo-install.json')
+    # The installer packs the setup script into its own payload and inventories it.
+    Copy-Item -LiteralPath $setup -Destination (Join-Path $staged 'Nendo.Setup.ps1')
 
-# 1. First install, then verify every manifested byte landed.
-Invoke-Setup 'Install' @('-PayloadRoot', $staged, '-ClassesRoot', $classesRoot, '-StartMenuRoot', $startMenuRoot)
-foreach ($entry in $manifest.files) {
-    if ([IO.Path]::IsPathRooted($entry.path) -or $entry.path -match '(^|[\\/])\.\.([\\/]|$)') { throw 'Unsafe manifest path.' }
-    $installed = Join-Path $installRoot $entry.path
-    if (-not (Test-Path -LiteralPath $installed)) { throw "Missing installed file: $($entry.path)" }
-    if ((Get-FileHash -LiteralPath $installed).Hash -ne $entry.sha256) { throw "Installed bytes differ: $($entry.path)" }
-}
+    # 1. First install, then verify every manifested byte landed.
+    Invoke-Setup 'Install' @('-PayloadRoot', $staged, '-ClassesRoot', $classesRoot, '-StartMenuRoot', $startMenuRoot)
+    foreach ($entry in $manifest.files) {
+        if ([IO.Path]::IsPathRooted($entry.path) -or $entry.path -match '(^|[\\/])\.\.([\\/]|$)') { throw 'Unsafe manifest path.' }
+        $installed = Join-Path $installRoot $entry.path
+        if (-not (Test-Path -LiteralPath $installed)) { throw "Missing installed file: $($entry.path)" }
+        if ((Get-FileHash -LiteralPath $installed).Hash -ne $entry.sha256) { throw "Installed bytes differ: $($entry.path)" }
+    }
 
-# 2. A file the installer does not own must survive an upgrade and an uninstall.
-$userFile = Join-Path $installRoot 'owner-notes.nendo'
-[IO.File]::WriteAllText($userFile, 'Unknown user bytes must survive setup.')
-$userFileHash = (Get-FileHash -LiteralPath $userFile).Hash
+    # 2. A file the installer does not own must survive an upgrade and an uninstall.
+    $userFile = Join-Path $installRoot 'owner-notes.nendo'
+    [IO.File]::WriteAllText($userFile, 'Unknown user bytes must survive setup.')
+    $userFileHash = (Get-FileHash -LiteralPath $userFile).Hash
 
-# 3. An inventoried file that the next payload no longer owns must be removed.
-$obsolete = Join-Path $installRoot 'obsolete-upgrade-fixture.txt'
-[IO.File]::WriteAllText($obsolete, 'Old owned payload removed by the next version.')
-$inventoryPath = Join-Path $installRoot 'nendo-install.json'
-$inventory = Get-Content -LiteralPath $inventoryPath -Raw | ConvertFrom-Json
-$inventory.files = @($inventory.files) + @(@{ path = 'obsolete-upgrade-fixture.txt'; sha256 = (Get-FileHash -LiteralPath $obsolete).Hash })
-$inventory | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $inventoryPath
+    # 3. An inventoried file that the next payload no longer owns must be removed.
+    $obsolete = Join-Path $installRoot 'obsolete-upgrade-fixture.txt'
+    [IO.File]::WriteAllText($obsolete, 'Old owned payload removed by the next version.')
+    $inventoryPath = Join-Path $installRoot 'nendo-install.json'
+    $inventory = Get-Content -LiteralPath $inventoryPath -Raw | ConvertFrom-Json
+    $inventory.files = @($inventory.files) + @(@{ path = 'obsolete-upgrade-fixture.txt'; sha256 = (Get-FileHash -LiteralPath $obsolete).Hash })
+    $inventory | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $inventoryPath
 
-# 3b. Double-clicking a .nendo has to reach this install, with this icon. Every
-# value is read back rather than assumed written: a registration that silently
-# wrote nothing looks exactly like one that worked.
-function Get-RegistryDefault([string] $Key) {
-    if (-not (Test-Path -LiteralPath $Key)) { return $null }
-    return [string](Get-ItemProperty -LiteralPath $Key -ErrorAction SilentlyContinue).'(default)'
-}
-# A named value that may not be there. Written out rather than read inline because
-# under Set-StrictMode a missing value throws "The property 'X' cannot be found on
-# this object" — which fails the lane, but with a sentence about PowerShell instead of
-# a sentence about the registration that is missing. Falsification found both of them.
-function Get-RegistryValue([string] $Key, [string] $Name) {
-    if (-not (Test-Path -LiteralPath $Key)) { return $null }
-    $property = Get-ItemProperty -LiteralPath $Key -Name $Name -ErrorAction SilentlyContinue
-    if ($null -eq $property) { return $null }
-    return [string]$property.$Name
-}
-$expectedCommand = '"' + (Join-Path $installRoot 'Nendo.Desktop.exe') + '" "%1"'
-$expectedIcon = '"' + (Join-Path $installRoot 'Assets\DocumentIcon.ico') + '",0'
-$association = [ordered]@{
-    '.nendo'                                              = 'Nendo.Document'
-    'Nendo.Document\shell\open\command'                   = $expectedCommand
-    'Nendo.Document\DefaultIcon'                          = $expectedIcon
-    'Applications\Nendo.Desktop.exe\shell\open\command'   = $expectedCommand
-}
-foreach ($relative in $association.Keys) {
-    $actual = Get-RegistryDefault (Join-Path $classesRoot $relative)
-    if ($actual -ne $association[$relative]) {
-        throw "The file association is wrong at ${relative}: expected '$($association[$relative])', found '$actual'."
+    # 3b. Double-clicking a .nendo has to reach this install, with this icon. Every
+    # value is read back rather than assumed written: a registration that silently
+    # wrote nothing looks exactly like one that worked.
+    function Get-RegistryDefault([string] $Key) {
+        if (-not (Test-Path -LiteralPath $Key)) { return $null }
+        return [string](Get-ItemProperty -LiteralPath $Key -ErrorAction SilentlyContinue).'(default)'
+    }
+    # A named value that may not be there. Written out rather than read inline because
+    # under Set-StrictMode a missing value throws "The property 'X' cannot be found on
+    # this object" — which fails the lane, but with a sentence about PowerShell instead of
+    # a sentence about the registration that is missing. Falsification found both of them.
+    function Get-RegistryValue([string] $Key, [string] $Name) {
+        if (-not (Test-Path -LiteralPath $Key)) { return $null }
+        $property = Get-ItemProperty -LiteralPath $Key -Name $Name -ErrorAction SilentlyContinue
+        if ($null -eq $property) { return $null }
+        return [string]$property.$Name
+    }
+    $expectedCommand = '"' + (Join-Path $installRoot 'Nendo.Desktop.exe') + '" "%1"'
+    $expectedIcon = '"' + (Join-Path $installRoot 'Assets\DocumentIcon.ico') + '",0'
+    $association = [ordered]@{
+        '.nendo'                                              = 'Nendo.Document'
+        'Nendo.Document\shell\open\command'                   = $expectedCommand
+        'Nendo.Document\DefaultIcon'                          = $expectedIcon
+        'Applications\Nendo.Desktop.exe\shell\open\command'   = $expectedCommand
+    }
+    foreach ($relative in $association.Keys) {
+        $actual = Get-RegistryDefault (Join-Path $classesRoot $relative)
+        if ($actual -ne $association[$relative]) {
+            throw "The file association is wrong at ${relative}: expected '$($association[$relative])', found '$actual'."
+        }
+    }
+    $openWith = Join-Path $classesRoot '.nendo\OpenWithProgids'
+    if ($null -eq (Get-ItemProperty -LiteralPath $openWith -ErrorAction SilentlyContinue).'Nendo.Document') {
+        throw 'Nendo is not offered in Open with: .nendo\OpenWithProgids carries no Nendo.Document value.'
+    }
+    # The icon the association points at has to be a file that is there, or Explorer
+    # draws the generic blank page and says nothing about why.
+    $iconPath = Join-Path $installRoot 'Assets\DocumentIcon.ico'
+    if (-not (Test-Path -LiteralPath $iconPath -PathType Leaf)) { throw "The document icon is not installed at $iconPath." }
+
+    # 3c. New > Nendo application. The command has to name this install and carry the
+    # switch, because Explorer creates nothing itself: without -new the launch opens a
+    # file that is not there instead of making one.
+    $expectedShellNew = '"' + (Join-Path $installRoot 'Nendo.Desktop.exe') + '" -new "%1"'
+    $shellNew = Get-RegistryValue (Join-Path $classesRoot '.nendo\ShellNew') 'Command'
+    if ($shellNew -ne $expectedShellNew) {
+        throw "The New menu command is wrong: expected '$expectedShellNew', found '$shellNew'."
+    }
+
+    # 3d. What the notification centre calls Nendo. An unpackaged application has no
+    # manifest to say so, and without this a notification is attributed to whatever
+    # Windows made up from the executable path.
+    $identityKey = Join-Path $classesRoot 'AppUserModelId\Nendo.Desktop'
+    $identityName = Get-RegistryValue $identityKey 'DisplayName'
+    if ($identityName -ne 'Nendo') {
+        throw "The application identity at $identityKey carries the display name '$identityName', not 'Nendo'."
+    }
+    $identityIcon = Get-RegistryValue $identityKey 'IconUri'
+    if (-not $identityIcon -or -not (Test-Path -LiteralPath $identityIcon -PathType Leaf)) {
+        throw "The registered notification icon is not installed at '$identityIcon'."
+    }
+
+    # 3e. The Start Menu shortcut, and the property on it the taskbar reads. A shortcut
+    # whose identity does not match the one the process sets is worse than no shortcut:
+    # Windows then refuses to pin it and shows a second, menu-less taskbar button.
+    $shortcutPath = Join-Path $startMenuRoot 'Nendo.lnk'
+    if (-not (Test-Path -LiteralPath $shortcutPath -PathType Leaf)) { throw "Setup wrote no Start Menu shortcut at $shortcutPath." }
+    $shortcutTarget = [NendoShortcutReader]::Target($shortcutPath)
+    $expectedTarget = Join-Path $installRoot 'Nendo.Desktop.exe'
+    if ($shortcutTarget -ne $expectedTarget) {
+        throw "The Start Menu shortcut points at '$shortcutTarget', not at '$expectedTarget'."
+    }
+    $shortcutIdentity = [NendoShortcutReader]::AppUserModelId($shortcutPath)
+    if ($shortcutIdentity -ne 'Nendo.Desktop') {
+        throw "The Start Menu shortcut carries the application identity '$shortcutIdentity', not 'Nendo.Desktop'."
+    }
+
+    # 4. Reinstall in place: an upgrade over an existing installation, run the way the
+    # installer runs it -- from an extraction of its own, moved into place.
+    $extracted = Join-Path $evidenceRoot 'extracted-payload'
+    Copy-Item -LiteralPath $staged -Destination $extracted -Recurse
+    $upgradeClock = [Diagnostics.Stopwatch]::StartNew()
+    Invoke-Setup 'Install' @('-PayloadRoot', $extracted, '-ClassesRoot', $classesRoot, '-StartMenuRoot', $startMenuRoot, '-MovePayload')
+    $upgradeSeconds = [math]::Round($upgradeClock.Elapsed.TotalSeconds, 1)
+    if (Test-Path -LiteralPath (Join-Path $extracted 'Nendo.Desktop.exe')) { throw 'The upgrade copied its payload instead of moving it.' }
+    Remove-Item -LiteralPath $extracted -Recurse -Force
+    if (Test-Path -LiteralPath $obsolete) { throw 'Upgrade retained an obsolete owned file.' }
+    if ((Get-FileHash -LiteralPath $userFile).Hash -ne $userFileHash) { throw 'Upgrade changed an unowned user file.' }
+    foreach ($entry in $manifest.files) {
+        if ((Get-FileHash -LiteralPath (Join-Path $installRoot $entry.path)).Hash -ne $entry.sha256) { throw "Upgraded bytes differ: $($entry.path)" }
+    }
+
+    # 4b. Uninstall must keep what it does not own, and a registration can change hands.
+    # The New entry is repointed at something else first, so the removal has to notice
+    # that it no longer launches this install — the same rule the extension key follows,
+    # and a branch the happy path never reaches.
+    $foreignNewCommand = '"C:\Program Files\Another\Editor.exe" -new "%1"'
+    [void](New-ItemProperty -LiteralPath (Join-Path $classesRoot '.nendo\ShellNew') -Name 'Command' `
+        -Value $foreignNewCommand -PropertyType String -Force)
+
+    # 4c. And the identity key does not stay ours after the application has run: Windows
+    # adds a CustomActivator to it the first time notifications register, naming a CLSID
+    # elsewhere in the class store. Nothing in this lane starts Nendo, so that value is
+    # planted here — otherwise the branch that removes the activator is never reached and
+    # a guard over it would be guarding nothing. Falsification found exactly that.
+    # 4d. A shortcut at a name we do not use must survive, so the removal is by name and
+    # target rather than a sweep of the folder.
+    $foreignShortcut = Join-Path $startMenuRoot 'Another editor.lnk'
+    Copy-Item -LiteralPath $shortcutPath -Destination $foreignShortcut -Force
+
+    $plantedActivator = '{00000000-1111-2222-3333-444444444444}'
+    $plantedActivatorKey = Join-Path $classesRoot "CLSID\$plantedActivator"
+    [void](New-ItemProperty -LiteralPath (Join-Path $classesRoot 'AppUserModelId\Nendo.Desktop') `
+        -Name 'CustomActivator' -Value $plantedActivator -PropertyType String -Force)
+    [void](New-Item -Path (Join-Path $plantedActivatorKey 'LocalServer32') -Force)
+
+    # 5. Uninstall removes what it owns and keeps what it does not.
+    Invoke-Setup 'Uninstall' @('-ClassesRoot', $classesRoot, '-StartMenuRoot', $startMenuRoot)
+    foreach ($entry in $manifest.files) {
+        if (Test-Path -LiteralPath (Join-Path $installRoot $entry.path)) { throw "Uninstall left an owned file: $($entry.path)" }
+    }
+    if (Test-Path -LiteralPath (Join-Path $installRoot 'Nendo.Setup.ps1')) { throw 'Uninstall left the bundled setup script.' }
+    if (-not (Test-Path -LiteralPath $userFile)) { throw 'Uninstall removed an unowned user file.' }
+    if ((Get-FileHash -LiteralPath $userFile).Hash -ne $userFileHash) { throw 'Uninstall changed an unowned user file.' }
+    if (Test-Path -LiteralPath "$installRoot.previous") { throw 'Uninstall left its rollback payload.' }
+
+    # 5b. And it takes the association with it, so a .nendo file does not keep
+    # pointing at an executable that has been removed.
+    foreach ($relative in @('Nendo.Document', 'Applications\Nendo.Desktop.exe')) {
+        if (Test-Path -LiteralPath (Join-Path $classesRoot $relative)) { throw "Uninstall left the $relative registration." }
+    }
+    if ((Get-RegistryDefault (Join-Path $classesRoot '.nendo')) -eq 'Nendo.Document') {
+        throw 'Uninstall left .nendo pointing at Nendo.Document.'
+    }
+    if (Test-Path -LiteralPath (Join-Path $classesRoot 'AppUserModelId\Nendo.Desktop')) {
+        throw 'Uninstall left the application identity registration.'
+    }
+    # The activator with it. Left behind, it points at an executable that has just been
+    # removed, and the next install mints another one: an orphan per reinstall cycle.
+    if (Test-Path -LiteralPath $plantedActivatorKey) {
+        throw "Uninstall left the notification activator behind at $plantedActivatorKey."
+    }
+    if (Test-Path -LiteralPath $shortcutPath) { throw 'Uninstall left the Start Menu shortcut.' }
+    if (-not (Test-Path -LiteralPath $foreignShortcut)) {
+        throw 'Uninstall removed a Start Menu shortcut it did not write.'
+    }
+    # And the New entry that had changed hands is still there, still pointing where its
+    # new owner put it.
+    $survivingNew = Get-RegistryValue (Join-Path $classesRoot '.nendo\ShellNew') 'Command'
+    if ($survivingNew -ne $foreignNewCommand) {
+        throw "Uninstall took a New menu entry that belongs to somebody else: expected '$foreignNewCommand', found '$survivingNew'."
+    }
+
+    # 5c. And the other half of the same rule, which needs its own cycle because a run
+    # can only prove one outcome for one shortcut. Install again, point Nendo.lnk at
+    # something else, and uninstall: a shortcut that no longer launches this install
+    # belongs to whoever repointed it, exactly as the extension key and the New entry do.
+    Invoke-Setup 'Install' @('-PayloadRoot', $staged, '-ClassesRoot', $classesRoot, '-StartMenuRoot', $startMenuRoot)
+    $strangerTarget = Join-Path $installRoot 'Uninstall.exe'
+    if (-not (Test-Path -LiteralPath $strangerTarget -PathType Leaf)) { $strangerTarget = Join-Path $installRoot 'Nendo.Setup.ps1' }
+    [NendoShortcutReader]::Repoint($shortcutPath, $strangerTarget)
+    Invoke-Setup 'Uninstall' @('-ClassesRoot', $classesRoot, '-StartMenuRoot', $startMenuRoot)
+    if (-not (Test-Path -LiteralPath $shortcutPath)) {
+        throw 'Uninstall removed a Start Menu shortcut that points somewhere else.'
+    }
+    Remove-Item -LiteralPath $shortcutPath -Force
+
+    # 6. The owner installation must be untouched throughout.
+    $ownerAfter = Get-OwnedSnapshot
+    if ($ownerAfter -ne $ownerBefore) { throw "The owner installation's owned files changed during the isolated run." }
+    # Including what this account opens .nendo with, which is what a careless version
+    # of this lane would have taken over and then deleted.
+    if ((Get-OwnerAssociationSnapshot) -ne $ownerAssociationBefore) {
+        throw 'The isolated run changed the real .nendo association for this user.'
+    }
+    # And the person's real Start Menu, now that setup writes one.
+    if ((Get-OwnerShortcutSnapshot) -ne $ownerShortcutBefore) {
+        throw "The isolated run changed the real Start Menu shortcut for this user."
     }
 }
-$openWith = Join-Path $classesRoot '.nendo\OpenWithProgids'
-if ($null -eq (Get-ItemProperty -LiteralPath $openWith -ErrorAction SilentlyContinue).'Nendo.Document') {
-    throw 'Nendo is not offered in Open with: .nendo\OpenWithProgids carries no Nendo.Document value.'
+finally {
+    # The run's own class store goes on every path, a failure included: a run that
+    # threw between its first install and here used to leave it in HKCU for good.
+    # Best effort, so a cleanup that fails cannot replace the error that got here. The
+    # install root and staged payload stay on a failure, for diagnosis; they are files
+    # under artifacts/, not registrations in the person's hive.
+    $runClassesRoot = Split-Path -Parent $classesRoot
+    Remove-Item -LiteralPath $runClassesRoot -Recurse -Force -ErrorAction SilentlyContinue
+    # And the lane's own parent key once no run is using it, so a pass leaves nothing in HKCU.
+    $laneKey = Split-Path -Parent $runClassesRoot
+    if ((Test-Path -LiteralPath $laneKey) -and -not @(Get-ChildItem -LiteralPath $laneKey).Count) {
+        Remove-Item -LiteralPath $laneKey -Force -ErrorAction SilentlyContinue
+    }
 }
-# The icon the association points at has to be a file that is there, or Explorer
-# draws the generic blank page and says nothing about why.
-$iconPath = Join-Path $installRoot 'Assets\DocumentIcon.ico'
-if (-not (Test-Path -LiteralPath $iconPath -PathType Leaf)) { throw "The document icon is not installed at $iconPath." }
-
-# 3c. New > Nendo application. The command has to name this install and carry the
-# switch, because Explorer creates nothing itself: without -new the launch opens a
-# file that is not there instead of making one.
-$expectedShellNew = '"' + (Join-Path $installRoot 'Nendo.Desktop.exe') + '" -new "%1"'
-$shellNew = Get-RegistryValue (Join-Path $classesRoot '.nendo\ShellNew') 'Command'
-if ($shellNew -ne $expectedShellNew) {
-    throw "The New menu command is wrong: expected '$expectedShellNew', found '$shellNew'."
-}
-
-# 3d. What the notification centre calls Nendo. An unpackaged application has no
-# manifest to say so, and without this a notification is attributed to whatever
-# Windows made up from the executable path.
-$identityKey = Join-Path $classesRoot 'AppUserModelId\Nendo.Desktop'
-$identityName = Get-RegistryValue $identityKey 'DisplayName'
-if ($identityName -ne 'Nendo') {
-    throw "The application identity at $identityKey carries the display name '$identityName', not 'Nendo'."
-}
-$identityIcon = Get-RegistryValue $identityKey 'IconUri'
-if (-not $identityIcon -or -not (Test-Path -LiteralPath $identityIcon -PathType Leaf)) {
-    throw "The registered notification icon is not installed at '$identityIcon'."
-}
-
-# 3e. The Start Menu shortcut, and the property on it the taskbar reads. A shortcut
-# whose identity does not match the one the process sets is worse than no shortcut:
-# Windows then refuses to pin it and shows a second, menu-less taskbar button.
-$shortcutPath = Join-Path $startMenuRoot 'Nendo.lnk'
-if (-not (Test-Path -LiteralPath $shortcutPath -PathType Leaf)) { throw "Setup wrote no Start Menu shortcut at $shortcutPath." }
-$shortcutTarget = [NendoShortcutReader]::Target($shortcutPath)
-$expectedTarget = Join-Path $installRoot 'Nendo.Desktop.exe'
-if ($shortcutTarget -ne $expectedTarget) {
-    throw "The Start Menu shortcut points at '$shortcutTarget', not at '$expectedTarget'."
-}
-$shortcutIdentity = [NendoShortcutReader]::AppUserModelId($shortcutPath)
-if ($shortcutIdentity -ne 'Nendo.Desktop') {
-    throw "The Start Menu shortcut carries the application identity '$shortcutIdentity', not 'Nendo.Desktop'."
-}
-
-# 4. Reinstall in place: an upgrade over an existing installation, run the way the
-# installer runs it -- from an extraction of its own, moved into place.
-$extracted = Join-Path $evidenceRoot 'extracted-payload'
-Copy-Item -LiteralPath $staged -Destination $extracted -Recurse
-$upgradeClock = [Diagnostics.Stopwatch]::StartNew()
-Invoke-Setup 'Install' @('-PayloadRoot', $extracted, '-ClassesRoot', $classesRoot, '-StartMenuRoot', $startMenuRoot, '-MovePayload')
-$upgradeSeconds = [math]::Round($upgradeClock.Elapsed.TotalSeconds, 1)
-if (Test-Path -LiteralPath (Join-Path $extracted 'Nendo.Desktop.exe')) { throw 'The upgrade copied its payload instead of moving it.' }
-Remove-Item -LiteralPath $extracted -Recurse -Force
-if (Test-Path -LiteralPath $obsolete) { throw 'Upgrade retained an obsolete owned file.' }
-if ((Get-FileHash -LiteralPath $userFile).Hash -ne $userFileHash) { throw 'Upgrade changed an unowned user file.' }
-foreach ($entry in $manifest.files) {
-    if ((Get-FileHash -LiteralPath (Join-Path $installRoot $entry.path)).Hash -ne $entry.sha256) { throw "Upgraded bytes differ: $($entry.path)" }
-}
-
-# 4b. Uninstall must keep what it does not own, and a registration can change hands.
-# The New entry is repointed at something else first, so the removal has to notice
-# that it no longer launches this install — the same rule the extension key follows,
-# and a branch the happy path never reaches.
-$foreignNewCommand = '"C:\Program Files\Another\Editor.exe" -new "%1"'
-[void](New-ItemProperty -LiteralPath (Join-Path $classesRoot '.nendo\ShellNew') -Name 'Command' `
-    -Value $foreignNewCommand -PropertyType String -Force)
-
-# 4c. And the identity key does not stay ours after the application has run: Windows
-# adds a CustomActivator to it the first time notifications register, naming a CLSID
-# elsewhere in the class store. Nothing in this lane starts Nendo, so that value is
-# planted here — otherwise the branch that removes the activator is never reached and
-# a guard over it would be guarding nothing. Falsification found exactly that.
-# 4d. A shortcut at a name we do not use must survive, so the removal is by name and
-# target rather than a sweep of the folder.
-$foreignShortcut = Join-Path $startMenuRoot 'Another editor.lnk'
-Copy-Item -LiteralPath $shortcutPath -Destination $foreignShortcut -Force
-
-$plantedActivator = '{00000000-1111-2222-3333-444444444444}'
-$plantedActivatorKey = Join-Path $classesRoot "CLSID\$plantedActivator"
-[void](New-ItemProperty -LiteralPath (Join-Path $classesRoot 'AppUserModelId\Nendo.Desktop') `
-    -Name 'CustomActivator' -Value $plantedActivator -PropertyType String -Force)
-[void](New-Item -Path (Join-Path $plantedActivatorKey 'LocalServer32') -Force)
-
-# 5. Uninstall removes what it owns and keeps what it does not.
-Invoke-Setup 'Uninstall' @('-ClassesRoot', $classesRoot, '-StartMenuRoot', $startMenuRoot)
-foreach ($entry in $manifest.files) {
-    if (Test-Path -LiteralPath (Join-Path $installRoot $entry.path)) { throw "Uninstall left an owned file: $($entry.path)" }
-}
-if (Test-Path -LiteralPath (Join-Path $installRoot 'Nendo.Setup.ps1')) { throw 'Uninstall left the bundled setup script.' }
-if (-not (Test-Path -LiteralPath $userFile)) { throw 'Uninstall removed an unowned user file.' }
-if ((Get-FileHash -LiteralPath $userFile).Hash -ne $userFileHash) { throw 'Uninstall changed an unowned user file.' }
-if (Test-Path -LiteralPath "$installRoot.previous") { throw 'Uninstall left its rollback payload.' }
-
-# 5b. And it takes the association with it, so a .nendo file does not keep
-# pointing at an executable that has been removed.
-foreach ($relative in @('Nendo.Document', 'Applications\Nendo.Desktop.exe')) {
-    if (Test-Path -LiteralPath (Join-Path $classesRoot $relative)) { throw "Uninstall left the $relative registration." }
-}
-if ((Get-RegistryDefault (Join-Path $classesRoot '.nendo')) -eq 'Nendo.Document') {
-    throw 'Uninstall left .nendo pointing at Nendo.Document.'
-}
-if (Test-Path -LiteralPath (Join-Path $classesRoot 'AppUserModelId\Nendo.Desktop')) {
-    throw 'Uninstall left the application identity registration.'
-}
-# The activator with it. Left behind, it points at an executable that has just been
-# removed, and the next install mints another one: an orphan per reinstall cycle.
-if (Test-Path -LiteralPath $plantedActivatorKey) {
-    throw "Uninstall left the notification activator behind at $plantedActivatorKey."
-}
-if (Test-Path -LiteralPath $shortcutPath) { throw 'Uninstall left the Start Menu shortcut.' }
-if (-not (Test-Path -LiteralPath $foreignShortcut)) {
-    throw 'Uninstall removed a Start Menu shortcut it did not write.'
-}
-# And the New entry that had changed hands is still there, still pointing where its
-# new owner put it.
-$survivingNew = Get-RegistryValue (Join-Path $classesRoot '.nendo\ShellNew') 'Command'
-if ($survivingNew -ne $foreignNewCommand) {
-    throw "Uninstall took a New menu entry that belongs to somebody else: expected '$foreignNewCommand', found '$survivingNew'."
-}
-
-# 5c. And the other half of the same rule, which needs its own cycle because a run
-# can only prove one outcome for one shortcut. Install again, point Nendo.lnk at
-# something else, and uninstall: a shortcut that no longer launches this install
-# belongs to whoever repointed it, exactly as the extension key and the New entry do.
-Invoke-Setup 'Install' @('-PayloadRoot', $staged, '-ClassesRoot', $classesRoot, '-StartMenuRoot', $startMenuRoot)
-$strangerTarget = Join-Path $installRoot 'Uninstall.exe'
-if (-not (Test-Path -LiteralPath $strangerTarget -PathType Leaf)) { $strangerTarget = Join-Path $installRoot 'Nendo.Setup.ps1' }
-[NendoShortcutReader]::Repoint($shortcutPath, $strangerTarget)
-Invoke-Setup 'Uninstall' @('-ClassesRoot', $classesRoot, '-StartMenuRoot', $startMenuRoot)
-if (-not (Test-Path -LiteralPath $shortcutPath)) {
-    throw 'Uninstall removed a Start Menu shortcut that points somewhere else.'
-}
-Remove-Item -LiteralPath $shortcutPath -Force
-
-# 6. The owner installation must be untouched throughout.
-$ownerAfter = Get-OwnedSnapshot
-if ($ownerAfter -ne $ownerBefore) { throw "The owner installation's owned files changed during the isolated run." }
-# Including what this account opens .nendo with, which is what a careless version
-# of this lane would have taken over and then deleted.
-if ((Get-OwnerAssociationSnapshot) -ne $ownerAssociationBefore) {
-    throw 'The isolated run changed the real .nendo association for this user.'
-}
-# And the person's real Start Menu, now that setup writes one.
-if ((Get-OwnerShortcutSnapshot) -ne $ownerShortcutBefore) {
-    throw "The isolated run changed the real Start Menu shortcut for this user."
-}
-# And the run's own class store goes with it.
-$runClassesRoot = Split-Path -Parent $classesRoot
-if (Test-Path -LiteralPath $runClassesRoot) { Remove-Item -LiteralPath $runClassesRoot -Recurse -Force }
+if (Test-Path -LiteralPath $runClassesRoot) { throw "The run's class store survived its cleanup: $runClassesRoot" }
 
 # 7. The staged payload is a copy of an already hash-verified payload, not
 # evidence, and costs ~308 MB per run. Prune it now that the run has passed, so

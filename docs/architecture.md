@@ -800,6 +800,13 @@ file.
 | `Test-NendoInstaller.ps1` | The NSIS wrapper: bootstrapper, payload extraction, HKCU uninstall registration, real `Uninstall.exe` | Only on a clean Windows user |
 | `Test-ExtensionInstalledJourney.ps1` | The native custom-view journey (`DesktopExtensionJourneyTests`) against the app as setup installs it: the published payload installed by `Invoke-NendoSetup.ps1` into a task-owned root, checked byte for byte against the manifest, then uninstalled. It drives the desktop with a real pointer, so it needs an unlocked, otherwise idle session | On request, after a publish |
 
+The task-owned class store is a run key under a lane key of its own in HKCU
+(`Software\Nendo-Isolated-Setup`, `Software\Nendo-Installed-Journey`, and
+`Software\Nendo-Setup-Tests` for the fixture lane below). Each lane removes its
+run key in a `finally` block, so a failed run removes it as well, and then
+removes the lane key once no run is left under it. A failed run keeps its
+files under `artifacts/` for diagnosis. It does not keep its registrations.
+
 The second lane installs and then **uninstalls** from the real per-user location.
 Thus it refuses to start when Nendo is installed. That refusal is a safety
 interlock that protects your installation. It is not a failure, and it is not a
