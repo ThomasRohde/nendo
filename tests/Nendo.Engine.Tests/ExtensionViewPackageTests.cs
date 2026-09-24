@@ -84,10 +84,20 @@ public sealed class ExtensionViewPackageTests
             Package(extra: zip => zip.CreateEntry("hidden.js")),
             Package("index.exe"),
             Package(content: [0xff, 0xfe]),
-            Package(amend: m => m["protocolVersion"] = 2),
+            Package(amend: m => m["protocolVersion"] = 3),
             Package(amend: m => m["entryPoint"] = "missing.html"),
         };
         foreach (var bytes in samples) Assert.ThrowsExactly<InvalidDataException>(() => NendoExtensionViewPackage.Validate(bytes, Hash(bytes)));
+    }
+
+    [TestMethod]
+    public void APackageSaysWhichProtocolItSpeaks()
+    {
+        var first = Package();
+        Assert.AreEqual(1, NendoExtensionViewPackage.Validate(first, Hash(first)).ProtocolVersion);
+        // Protocol 2 (ADR-0013, 2026-09-24) is a package a protocol-2 view may run, and nothing more.
+        var second = Package(amend: m => m["protocolVersion"] = 2);
+        Assert.AreEqual(2, NendoExtensionViewPackage.Validate(second, Hash(second)).ProtocolVersion);
     }
 
     [TestMethod]

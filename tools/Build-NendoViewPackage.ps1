@@ -5,7 +5,9 @@ param(
     [Parameter(Mandatory = $true)][string] $PackageVersion,
     [Parameter(Mandatory = $true)][string[]] $Assets,
     [string] $EntryPoint = 'index.html',
-    [string] $License = 'MIT'
+    [string] $License = 'MIT',
+    # The protocol the page speaks (ADR-0013). A view runs a package only at its own protocol.
+    [ValidateSet(1, 2)][int] $ProtocolVersion = 1
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -23,7 +25,7 @@ $inventory = @($Assets | ForEach-Object {
     [ordered]@{ path = $_; bytes = (Get-Item -LiteralPath $path).Length; sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() }
 })
 $manifest = [ordered]@{
-    manifestVersion = 1; packageId = $PackageId; version = $PackageVersion; protocolVersion = 1
+    manifestVersion = 1; packageId = $PackageId; version = $PackageVersion; protocolVersion = $ProtocolVersion
     entryPoint = $EntryPoint; capabilities = @('projection.read', 'record.select'); license = $License; assets = $inventory
 }
 $target = Join-Path $output "$PackageId-$PackageVersion.nendoview"

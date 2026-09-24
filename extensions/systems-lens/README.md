@@ -5,8 +5,8 @@ nodes, the feeds between them as links. An arrow points **from the component tha
 to the one it supplies**, so reading left to right is reading the direction of supply.
 
 It is a separately versioned, unsigned package with no dependencies, downloads or write
-operations, implementing protocol 1. It reads only the bounded projection Nendo approves —
-a label and one state per component, plus the link endpoints. Opening a record and editing
+operations, implementing protocol 2. It reads only the bounded projection Nendo approves —
+a name, one state and the system per component, plus the link endpoints. Opening a record and editing
 it stay with the host.
 
 What it shows that a list cannot:
@@ -55,13 +55,19 @@ sensor — and they are read once from the whole graph. Recomputing them without
 component would turn a component fed only by it into a source of its own, and the one thing
 this view exists to say would be exactly the thing it got wrong.
 
-## The label convention
+## The system is a disclosed field
 
-The projection discloses a label and one status, and nothing else. So the system a
-component belongs to rides in its label: `THERM · Coolant pump A`. The renderer splits on
-that separator to band the schematic; a label without one is simply a name. **This is a
-convention between the file and this package, not a host feature** — Nendo is not
-disclosing a second field, and a package cannot ask for one.
+Version 0.2.0 speaks protocol 2 (ADR-0013, 2026-09-24). The view names the component's
+system as a disclosed field, and **the first node field the projection names is the system
+this schematic bands by** — for Nendo Station, `componentSystem`, a reference that arrives
+as the system's name. The label is the component's name alone. Where the schematic says
+something about a component it reads `THERM · Coolant pump A`, composed here from the two.
+A component without a system, or a view that discloses no node field, is simply unbanded.
+
+Version 0.1.0 had no second field to read, so the file packed the system into the label
+and this package split it on ` · `. That convention is gone: a label containing the
+separator is now just a name, and the consent review names the system field the view
+receives.
 
 The state tones are the station's own (Online, Standby, Offline, Removed), drawn in the
 same hues Nendo gives those choice tones. Any other value is drawn neutral rather than
@@ -82,7 +88,7 @@ product. [Authoring a custom view](../../docs/custom-view-authoring.md) carries 
 pwsh ./tools/Build-NendoSystemsLensPackage.ps1
 ```
 
-The output is `artifacts/extensions/org.nendo.systems-lens-0.1.0.nendoview` and the command
+The output is `artifacts/extensions/org.nendo.systems-lens-0.2.0.nendoview` and the command
 prints its exact SHA-256, which is what a file pins. Entry timestamps, entry order and
 manifest key order are fixed, so unchanged source produces the same digest; rebuilding after
 any edit produces a different package, which must be installed and allowed again.
@@ -99,7 +105,7 @@ whose two Reference fields both point at Components. Writing one is described in
 local server with a fixture carrying a reservoir feeding two pumps onto one manifold, a cold
 plate hanging off one pump alone, a three-component coolant circuit, an isolated sensor, a
 component stored Offline, a parallel feed and a markup-shaped label. It measures the
-layering, exact circuit membership and circuit legs, the band read off the label, the
+layering, exact circuit membership and circuit legs, the band read from the disclosed system field, the
 summary counts, selection and its message, **both take-out verdicts by name**, the text
 alternative, that the view sends nothing but a handshake and a selection, Focus dimming,
 keyboard traversal, non-selectable chrome, generation replacement clearing the what-if, the

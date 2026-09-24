@@ -22,7 +22,9 @@ You can read all of this guide against any of the examples.
 ## What you can build today
 
 You can build one thing: **a renderer for a bounded graph projection**. Protocol 1
-gives a package a read-only list of nodes and edges that the person approved. The
+gives a package a read-only list of nodes and edges that the person approved.
+Protocol 2 adds more fields of either record type, named by the view and listed in
+the consent review, and lets the view narrow what it reads with filters. The
 package can send one suggestion back: *this record is selected*. That is the
 whole surface.
 
@@ -31,8 +33,8 @@ open a file, reach the network, navigate the host, write a record, ask for a new
 permission or carry consent. It is not a plugin model, and it is not a step
 toward one. Anything outside the graph projection needs an accepted ADR first.
 
-You own the layout, the interaction, the accessibility, the presentation of
-labels and one optional status value per node.
+You own the layout, the interaction, the accessibility, and the presentation of
+the labels, the optional status value and, at protocol 2, the disclosed fields.
 
 ## The three separate things
 
@@ -101,7 +103,9 @@ routing that navigates, and anything that reloads the page, will not survive.
 ### The message contract
 
 Messages go in two directions over `window.chrome.webview`. Every message in both
-directions carries `version`, `session` and `generation`. Every page message must
+directions carries `version`, `session` and `generation`. `version` is the view's
+protocol, `1` or `2`, and a page message with any other `version` is refused. The
+methods and their keys are the same at both protocols. Every page message must
 carry the **exact** key set for its method. The host refuses an extra, missing or
 duplicate key, and a bad frame still uses part of your message budget.
 
@@ -166,6 +170,36 @@ cannot forge that gesture.
   them reach you. Lay them out deterministically.
 - Numbers arrive as exact text, and dates as ISO text. If a label is null, the
   record ID is used.
+
+At **protocol 2** the projection also names the disclosed fields, once, and every
+node and edge carries their values:
+
+```json
+{
+  "sourceChangeSequence": 41,
+  "fields": [
+    {"id": "owner", "name": "Owner", "type": "text", "of": "node"},
+    {"id": "system", "name": "System", "type": "reference", "of": "node"},
+    {"id": "kind", "name": "Kind", "type": "choice", "of": "edge"}
+  ],
+  "nodes": [{"id": "rec-a", "label": "Engine", "status": "Doing",
+             "values": {"owner": "Ada", "system": "THERM"}}],
+  "edges": [{"id": "rec-1", "sourceId": "rec-a", "targetId": "rec-b",
+             "values": {"kind": "blocks"}}],
+  "hiddenEdges": 0
+}
+```
+
+- `fields` is in the order the view names them. `of` is `node` or `edge`; `type` is
+  `text`, `choice`, `integer`, `decimal`, `boolean`, `date` or `reference`.
+- Every record carries exactly its type's disclosed fields, each as exact text or
+  `null`. A `reference` arrives as the **label of the record it points at**, never
+  as an ID. Nothing the view does not name is ever present.
+- `hiddenEdges` counts the links a node filter left without an endpoint. They are
+  not in `edges`; say so rather than drawing a graph that looks complete. Without a
+  node filter it is `0`, because an unavailable endpoint is refused as before.
+- The bounds above apply after filtering, and each value is at most 4,096
+  characters.
 
 ### A minimal renderer
 
@@ -332,7 +366,7 @@ All eight keys are required. The host refuses any unknown or duplicate key:
 | `manifestVersion` | Exactly `1` |
 | `packageId` | Lowercase reverse-domain, at least two dot-separated segments, each starting `a`–`z` and containing only `a`–`z`, `0`–`9` and `-`; at most 200 characters |
 | `version` | Exact SemVer, at most 64 characters; numeric prerelease identifiers may not have leading zeros |
-| `protocolVersion` | Exactly `1`. Negotiation is exact, with no wildcard compatibility |
+| `protocolVersion` | `1` or `2`, and it must equal the view's. Negotiation is exact, with no wildcard compatibility: a view at another protocol refuses to start the package |
 | `entryPoint` | A declared asset path ending `.html` |
 | `capabilities` | Exactly `projection.read` and `record.select`, in either order. It is a fixed pair. You cannot extend it as a permission list |
 | `license` | Non-empty text, at most 256 characters |
@@ -430,17 +464,29 @@ form to copy.
 | `entityId` | The **node** record type. The surface's own entity |
 | `title` | Presentation only. It is not part of the consent digest |
 | `packageId`, `packageVersion`, `packageDigest` | The exact pin. The digest is the archive's, never the manifest's |
-| `protocolVersion`, `configurationVersion` | `1` and `1` for this host |
+| `protocolVersion`, `configurationVersion` | `1` or `2`, and `1`, for this host |
 | `configuration` | JSON **text** holding an object, at most 8192 UTF-8 bytes, depth 8. Version 1 must be `"{}"` |
 | `labelFieldId` | An active stored **Text** field of the node type |
 | `statusFieldId` | Optional; an active stored non-reference scalar of the node type |
 | `edgeEntityId` | The edge record type |
 | `sourceFieldId`, `targetFieldId` | Two **distinct** active configured Reference fields of the edge type, both targeting the node type |
 
-The root has no children. The host refuses an invalid binding as `NUI450`. The
-host preserves a higher `configurationVersion` verbatim and warns `NUI451`, and
-execution then refuses with `extension-version-unsupported`. A file that uses this
-root requires host **1.29.0**. To retire a bound record type or field, remove or
+At protocol 1 the root has no children. At **protocol 2** it may have two kinds,
+added under the root with `ui.addNode` in the same change set:
+
+| Child | Properties | Rule |
+| --- | --- | --- |
+| `fieldBinding` | `fieldId` | One more active stored field of the node type or the edge type; the field's own record type decides which. Text, a single choice, Integer, Decimal, Boolean, Date, or a configured Reference (sent as its target's label). Not a calculated field, and not one the view already binds. At most eight per record type, in the order the page receives them |
+| `filterClause` | `fieldId`, `operator`, `value` | Narrows the node type or the edge type, by the field's record type. `eq`, `ne`, `lt`, `lte`, `gt`, `gte` with a literal `value`, or `isNull`/`isNotNull` with none. Not `today` or `now`: a running view's projection is replaced, and a filter that drifts with the clock would change what was allowed. At most eight, combined with AND |
+
+Disclosed fields and filters are part of the consent digest: adding, removing or
+reordering one asks the person again, and the review names each field.
+
+The host refuses an invalid binding as `NUI450`, and a child kind a view does not
+take as `NUI013`. The host preserves a higher `configurationVersion` verbatim and
+warns `NUI451`, and execution then refuses with `extension-version-unsupported`. A
+file that uses this root requires host **1.29.0**, and **1.30.0** once a view in it
+is at protocol 2. To retire a bound record type or field, remove or
 replace the view in the same proposal. Removal of the view never removes records.
 A single-operation removal can be compensated while the definition revision is
 unchanged. After that, it refuses with `definition-revision-conflict`.

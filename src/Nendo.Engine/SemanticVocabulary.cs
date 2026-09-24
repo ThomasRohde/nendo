@@ -66,7 +66,8 @@ public static class NendoSemanticVocabulary
                     Set("definitionVersion", "entityId", "title", "packageId", "packageVersion", "packageDigest",
                         "protocolVersion", "configurationVersion", "configuration", "edgeEntityId", "labelFieldId",
                         "sourceFieldId", "targetFieldId"),
-                    Set(), CanBeRoot: true, MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
+                    // Protocol 2 only (ADR-0013, 2026-09-24); a protocol-1 view with a child is NUI450.
+                    Set("fieldBinding", "filterClause"), CanBeRoot: true, MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
                 ["recordForm"] = new(
                     "recordForm",
                     Set("definitionVersion", "entityId", "title"),
@@ -381,7 +382,7 @@ public static class NendoSemanticVocabulary
         ["packageId"] = "On an extensionGraphSurface, the exact lowercase namespaced package ID. The file carries a reference, never package code or execution consent.",
         ["packageVersion"] = "The exact semantic version of the separately installed offline custom-view package. No ranges or automatic updates.",
         ["packageDigest"] = "Lowercase SHA-256 of the exact package archive. Changing this pin invalidates device execution consent.",
-        ["protocolVersion"] = "Positive custom-view protocol version. This host executes version 1; future versions are preserved with a disabled fallback.",
+        ["protocolVersion"] = "Positive custom-view protocol version. This host executes 1 and 2; later versions are preserved with a disabled fallback. At 2 the view may carry fieldBinding children (more stored fields of the node or the edge type, a reference as its target's label; at most eight per type) and filterClause children (a literal or presence comparison, at most eight), and the file needs host 1.30.0. The package must declare the same protocol.",
         ["configurationVersion"] = "Positive version of the bounded custom-view configuration. This host executes version 1 only.",
         ["configuration"] = "JSON text containing an object, at most 8192 UTF-8 bytes and depth 8. Version 1 requires an empty object. Future versions are retained without interpretation or execution.",
         ["edgeEntityId"] = "The active record type holding graph edges, with two distinct configured References to this surface's node entity.",

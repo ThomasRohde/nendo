@@ -20,7 +20,9 @@ The Engine now contains the [custom-view foundation](contracts/custom-views.md):
 immutable package validation, a closed consent-bound session protocol, bounded
 stream framing and a coherent graph projection through typed application services.
 Durable `extensionGraphSurface` definitions now use canonical UI operations, exact
-proposal replay and compatibility rung 1.29.0. An Engine-owned transaction resolves
+proposal replay and compatibility rung 1.29.0, or 1.30.0 for a view at protocol 2,
+which discloses more typed fields and narrows its record types with filters
+(ADR-0013, 2026-09-24). An Engine-owned transaction resolves
 the view and its graph together. The existing Engine lane tests these components,
 and the authoring example runs through MCP.
 
@@ -150,7 +152,8 @@ A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
 what a file can contain. `1.11.0` is for composable surfaces. After it, each
 version adds one capability, usually a widened semantic shape. The highest version
-is `1.29.0`, for a custom-view reference.
+is `1.30.0`, for a custom view at protocol 2 (disclosed fields and filters, ADR-0013
+2026-09-24); `1.29.0` is a custom-view reference at protocol 1.
 
 `src/Nendo.Engine/SemanticCapability.cs` computes from its shape which of these
 versions a stored definition needs. It computes this over the tree that a mutation

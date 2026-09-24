@@ -452,7 +452,7 @@ public sealed partial class NendoSemanticCompiler
         // may write.
         ValidateVisibility(node, derived, diagnostics);
         ValidateOpens(node, scope, diagnostics);
-        if (node.Kind == NendoExtensionViewDefinition.NodeKind) ValidateExtensionView(node, source, diagnostics);
+        if (node.Kind == NendoExtensionViewDefinition.NodeKind) ValidateExtensionView(node, nodes, source, diagnostics);
 
         if (node.Kind == "filterClause") ValidateFilterClause(node, fields, derived, diagnostics);
 
@@ -510,14 +510,21 @@ public sealed partial class NendoSemanticCompiler
         // a tile keeps paying for the surface it is actually inside.
         var childScope = SurfaceContextFor(node, nodes, scope, diagnostics);
 
-        var children = nodes
+        // A custom view's children name fields of two record types, the node type and the
+        // edge type, so the view validates them itself (ValidateExtensionView); compiled here
+        // against the surface's one type they would refuse every edge field. They are still
+        // in the plan, as they are, so a reader of the compiled surfaces sees the whole view.
+        var ordered = nodes
             .Where(value => value.ParentNodeId == node.NodeId && value.SurfaceId == node.SurfaceId)
             .OrderBy(value => value.Position)
-            .ThenBy(value => value.NodeId, StringComparer.Ordinal)
-            .Select(child => CompileNode(child, nodes, source, childEntity, childFields, childDerived, childScope, diagnostics))
-            .Where(child => child is not null)
-            .Select(child => child!)
-            .ToArray();
+            .ThenBy(value => value.NodeId, StringComparer.Ordinal);
+        var children = node.Kind == NendoExtensionViewDefinition.NodeKind
+            ? ordered.Select(child => new NendoSurfaceNodePlan(child.NodeId, AutomationTarget(child.NodeId), child.Kind, child.Properties, [])).ToArray()
+            : ordered
+                .Select(child => CompileNode(child, nodes, source, childEntity, childFields, childDerived, childScope, diagnostics))
+                .Where(child => child is not null)
+                .Select(child => child!)
+                .ToArray();
 
         if (node.Kind is "recordForm" or "recordList" or "boardSurface" or "calendarSurface" or "timelineSurface" or "gallerySurface" or "matrixSurface" &&
             !DescendantBindings(children).Any())

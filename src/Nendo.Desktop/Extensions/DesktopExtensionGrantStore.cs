@@ -159,7 +159,7 @@ internal sealed class DesktopExtensionGrantStore(string deviceRoot)
     private static bool Id(string? value) => value is { Length: > 0 and <= 256 } && !string.IsNullOrWhiteSpace(value);
     private static bool Digest(string? value) => value is { Length: 64 } && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
     private static bool Valid(Entry? entry) => entry is not null && Id(entry.PhysicalFileKey) && entry.Grant is { } grant &&
-        Id(grant.ApplicationId) && Id(grant.InstanceId) && Id(grant.ViewId) && Digest(grant.PackageDigest) && Digest(grant.BindingDigest) && grant.ProtocolVersion == 1;
+        Id(grant.ApplicationId) && Id(grant.InstanceId) && Id(grant.ViewId) && Digest(grant.PackageDigest) && Digest(grant.BindingDigest) && grant.ProtocolVersion is 1 or NendoExtensionViewDefinition.FieldsProtocolVersion;
     private static bool SameView(Entry first, Entry second) => first.PhysicalFileKey == second.PhysicalFileKey &&
         first.Grant.ApplicationId == second.Grant.ApplicationId && first.Grant.InstanceId == second.Grant.InstanceId && first.Grant.ViewId == second.Grant.ViewId;
     private static void RejectLink(string path)

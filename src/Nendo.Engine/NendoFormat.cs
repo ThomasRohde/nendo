@@ -185,7 +185,14 @@ public static class NendoFormat
     /// <summary>Bounded isolated custom-view references; packages and consent stay on the device.</summary>
     public const string ExtensionViewsMinimumHostVersion = "1.29.0";
 
-    public const string CurrentHostVersion = ExtensionViewsMinimumHostVersion;
+    /// <summary>
+    /// A custom view at protocol 2 (ADR-0013, 2026-09-24 amendment): disclosed fields and
+    /// authored filters as child nodes. A 1.29 host would refuse the children; a file whose
+    /// views are all protocol 1 stays at 1.29.0.
+    /// </summary>
+    public const string ExtensionProtocol2MinimumHostVersion = "1.30.0";
+
+    public const string CurrentHostVersion = ExtensionProtocol2MinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

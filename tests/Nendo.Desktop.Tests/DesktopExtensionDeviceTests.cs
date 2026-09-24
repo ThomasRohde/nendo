@@ -10,7 +10,7 @@ namespace Nendo.Desktop.Tests;
 public sealed class DesktopExtensionDeviceTests
 {
     private static NendoExtensionGrant Grant() => new("app", "instance", "view", new string('a', 64), new string('b', 64));
-    internal static byte[] Archive(string version = "1.0.0", string? script = null)
+    internal static byte[] Archive(string version = "1.0.0", string? script = null, int protocol = 1)
     {
         var html = Encoding.UTF8.GetBytes("<!doctype html><title>Offline graph</title><p>Version " + version + "</p>" +
             (script is null ? "" : "<script src='view.js'></script>"));
@@ -21,7 +21,7 @@ public sealed class DesktopExtensionDeviceTests
         {
             foreach (var pair in assets) { using var asset = zip.CreateEntry(pair.Key).Open(); asset.Write(pair.Value); }
             using var manifest = zip.CreateEntry("manifest.json").Open();
-            JsonSerializer.Serialize(manifest, new { manifestVersion = 1, packageId = "org.nendo.offline-test", version, protocolVersion = 1,
+            JsonSerializer.Serialize(manifest, new { manifestVersion = 1, packageId = "org.nendo.offline-test", version, protocolVersion = protocol,
                 entryPoint = "index.html", license = "MIT", capabilities = new[] { "projection.read", "record.select" },
                 assets = assets.Select(p => new { path = p.Key, bytes = p.Value.Length, sha256 = Convert.ToHexString(SHA256.HashData(p.Value)).ToLowerInvariant() }) });
         }

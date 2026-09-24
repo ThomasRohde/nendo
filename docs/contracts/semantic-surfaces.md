@@ -1088,6 +1088,7 @@ the shape cannot show (below). The ladder is:
 | A `boardSurface` grouped by a Reference field | 1.27 |
 | A `section` with `opens` | 1.28 |
 | An `extensionGraphSurface` reference | 1.29 |
+| An `extensionGraphSurface` at protocol 2 (disclosed fields, filters) | 1.30 |
 
 The gaps at 1.17 and 1.24 are rungs that are not shapes of the node tree.
 `1.17.0` goes to a file that stores behaviour definitions (ADR-0008), and `1.24.0`
@@ -1289,5 +1290,5 @@ package and a bounded graph projection. It uses the same canonical UI operations
 semantic review and replay as other roots. Required properties, preservation and
 execution limits are in [custom views](custom-views.md). The file stores no
 package and no consent. If a package is missing, the definition is preserved. The
-new shape requires host 1.29.0. Desktop rendering and device consent are not yet
-fully integrated.
+new shape requires host 1.29.0, and a view at protocol 2, which discloses more
+fields or filters, requires 1.30.0.

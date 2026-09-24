@@ -18,10 +18,12 @@ public sealed class NendoExtensionViewPackage
     public string Digest { get; }
     public string EntryPoint { get; }
     public string License { get; }
+    /// <summary>The protocol the package speaks; a view runs it only at the same protocol.</summary>
+    public int ProtocolVersion { get; }
     public IReadOnlyList<string> AssetPaths => Array.AsReadOnly(_assets.Keys.Order(StringComparer.Ordinal).ToArray());
 
-    private NendoExtensionViewPackage(string id, string version, string digest, string entry, string license, Dictionary<string, byte[]> assets)
-    { PackageId = id; Version = version; Digest = digest; EntryPoint = entry; License = license; _assets = assets; }
+    private NendoExtensionViewPackage(string id, string version, string digest, string entry, string license, int protocolVersion, Dictionary<string, byte[]> assets)
+    { PackageId = id; Version = version; Digest = digest; EntryPoint = entry; License = license; ProtocolVersion = protocolVersion; _assets = assets; }
 
     public byte[] ReadAsset(string path) => _assets.TryGetValue(path, out var bytes) ? bytes.ToArray() : throw new ArgumentException("The asset is not declared by the package.");
 
@@ -64,7 +66,7 @@ public sealed class NendoExtensionViewPackage
             if (!assets.Remove("manifest.json", out var manifest)) throw Invalid("manifest-missing");
             using var document = JsonDocument.Parse(manifest, new JsonDocumentOptions { MaxDepth = 8 });
             var root = Object(document.RootElement, ["manifestVersion", "packageId", "version", "protocolVersion", "entryPoint", "capabilities", "assets", "license"]);
-            if (!root["manifestVersion"].TryGetInt32(out var mv) || mv != 1 || !root["protocolVersion"].TryGetInt32(out var pv) || pv != 1) throw Invalid("manifest-version");
+            if (!root["manifestVersion"].TryGetInt32(out var mv) || mv != 1 || !root["protocolVersion"].TryGetInt32(out var pv) || pv is not (1 or NendoExtensionViewDefinition.FieldsProtocolVersion)) throw Invalid("manifest-version");
             var id = String(root["packageId"], 200);
             if (!NendoExtensionViewDefinition.ValidPackageId(id)) throw Invalid("package-id");
             var version = String(root["version"], 64);
@@ -88,7 +90,7 @@ public sealed class NendoExtensionViewPackage
             if (declared.Count != assets.Count) throw Invalid("asset-inventory");
             var entryPoint = String(root["entryPoint"], 240);
             if (!assets.ContainsKey(entryPoint) || !entryPoint.EndsWith(".html", StringComparison.Ordinal)) throw Invalid("entry-point");
-            return new(id, version, digest, entryPoint, license, assets);
+            return new(id, version, digest, entryPoint, license, pv, assets);
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException or DecoderFallbackException or EncoderFallbackException or OverflowException)
         { throw new InvalidDataException("Invalid extension package: malformed-content.", ex); }

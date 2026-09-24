@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 & (Join-Path $PSScriptRoot 'Build-NendoViewPackage.ps1') `
     -Source 'extensions/systems-lens' `
     -PackageId 'org.nendo.systems-lens' `
-    -PackageVersion '0.1.0' `
+    -PackageVersion '0.2.0' `
+    -ProtocolVersion 2 `
     -EntryPoint 'index.html' `
     -Assets @('index.html', 'lens.css', 'lens.js', 'LICENSE.txt')

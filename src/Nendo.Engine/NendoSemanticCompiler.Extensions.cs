@@ -2,29 +2,35 @@ namespace Nendo.Engine;
 
 public sealed partial class NendoSemanticCompiler
 {
-    private static void ValidateExtensionView(NendoUiNodeSnapshot node, NendoSessionSnapshot source,
-        ICollection<NendoCompilerDiagnostic> diagnostics)
+    private static void ValidateExtensionView(NendoUiNodeSnapshot node, IReadOnlyList<NendoUiNodeSnapshot> nodes,
+        NendoSessionSnapshot source, ICollection<NendoCompilerDiagnostic> diagnostics)
     {
+        var children = nodes
+            .Where(value => value.ParentNodeId == node.NodeId && value.SurfaceId == node.SurfaceId)
+            .OrderBy(value => value.Position).ThenBy(value => value.NodeId, StringComparer.Ordinal)
+            .ToArray();
         try
         {
-            var definition = NendoExtensionViewDefinition.Read(node.NodeId, node.Properties);
+            var definition = NendoExtensionViewDefinition.Read(node.NodeId, node.Properties, children);
             var b = definition.Binding;
-            var nodes = source.Entities.SingleOrDefault(e => e.EntityId == b.NodeEntityId && !e.Retired);
-            var edges = source.Entities.SingleOrDefault(e => e.EntityId == b.EdgeEntityId && !e.Retired);
-            var label = nodes?.Fields.SingleOrDefault(f => f.FieldId == b.LabelFieldId && !f.Retired);
-            var from = edges?.Fields.SingleOrDefault(f => f.FieldId == b.SourceFieldId && !f.Retired);
-            var to = edges?.Fields.SingleOrDefault(f => f.FieldId == b.TargetFieldId && !f.Retired);
-            var status = nodes?.Fields.SingleOrDefault(f => f.FieldId == b.StatusFieldId && !f.Retired);
+            var nodeType = source.Entities.SingleOrDefault(e => e.EntityId == b.NodeEntityId && !e.Retired);
+            var edgeType = source.Entities.SingleOrDefault(e => e.EntityId == b.EdgeEntityId && !e.Retired);
+            var label = nodeType?.Fields.SingleOrDefault(f => f.FieldId == b.LabelFieldId && !f.Retired);
+            var from = edgeType?.Fields.SingleOrDefault(f => f.FieldId == b.SourceFieldId && !f.Retired);
+            var to = edgeType?.Fields.SingleOrDefault(f => f.FieldId == b.TargetFieldId && !f.Retired);
+            var status = nodeType?.Fields.SingleOrDefault(f => f.FieldId == b.StatusFieldId && !f.Retired);
             if (label?.StorageKind != NendoStorageKind.Text || from?.StorageKind != NendoStorageKind.Reference ||
                 to?.StorageKind != NendoStorageKind.Reference || from.Reference?.TargetEntityId != b.NodeEntityId ||
                 to.Reference?.TargetEntityId != b.NodeEntityId ||
                 b.StatusFieldId is not null && (status is null || status.StorageKind == NendoStorageKind.Reference || status.UnsupportedStorageKind is not null))
                 throw new NendoPreconditionException("extension-binding-invalid",
                     "The graph needs an active stored Text label and two distinct active Reference fields targeting its node type; optional status must be a stored scalar.");
+            ValidateDisclosure(b, nodeType!, edgeType!);
+            ValidateFilters(b, children, nodeType!, edgeType!, diagnostics);
             if (!definition.IsSupported)
                 diagnostics.Add(new("NUI451", NendoDiagnosticSeverity.Warning,
                     "This view's protocol or configuration version is preserved but cannot execute on this host.",
-                    node.NodeId, "configurationVersion", "Use protocol 1 and configuration version 1, or a host that supports the declared versions. Studio remains available."));
+                    node.NodeId, "configurationVersion", "Use protocol 1 or 2 and configuration version 1, or a host that supports the declared versions. Studio remains available."));
         }
         catch (NendoPreconditionException error)
         {
@@ -32,4 +38,56 @@ public sealed partial class NendoSemanticCompiler
                 "Declare the exact package pin and valid graph bindings; installing a definition does not install a package or grant permission.");
         }
     }
+
+    /// <summary>Which of the two record types a projected field belongs to; field IDs are unique across the file.</summary>
+    internal static NendoFieldSnapshot? ProjectedField(NendoEntitySnapshot nodes, NendoEntitySnapshot edges, string fieldId) =>
+        nodes.Fields.SingleOrDefault(f => f.FieldId == fieldId && !f.Retired)
+        ?? edges.Fields.SingleOrDefault(f => f.FieldId == fieldId && !f.Retired);
+
+    /// <summary>
+    /// A disclosed field is one more stored field of either record type. A Reference is
+    /// disclosed as the label of the record it points at, the way every screen shows it --
+    /// never as the ID -- so it needs a configured label. A field the view already binds is
+    /// refused rather than sent twice under two names.
+    /// </summary>
+    private static void ValidateDisclosure(NendoGraphBinding binding, NendoEntitySnapshot nodes, NendoEntitySnapshot edges)
+    {
+        if (binding.FieldIds is not { } fieldIds) return;
+        string[] bound = [binding.LabelFieldId, binding.SourceFieldId, binding.TargetFieldId, .. binding.StatusFieldId is { } s ? [s] : Array.Empty<string>()];
+        var perType = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var fieldId in fieldIds)
+        {
+            var field = ProjectedField(nodes, edges, fieldId)
+                ?? throw Refused($"The disclosed field '{fieldId}' is not an active stored field of {nodes.DisplayName} or {edges.DisplayName}. A calculated field is not disclosed.");
+            if (bound.Contains(fieldId, StringComparer.Ordinal))
+                throw Refused($"The field '{field.DisplayName}' is already bound by the view; disclose it once.");
+            if (field.StorageKind == NendoStorageKind.Unsupported || field.UnsupportedStorageKind is not null ||
+                field.StorageKind == NendoStorageKind.Reference && field.Reference is null)
+                throw Refused($"The field '{field.DisplayName}' cannot be disclosed: a view receives Text, Integer, Decimal, Boolean or Date values, or the label of the record a configured reference points at.");
+            var type = nodes.Fields.Any(f => f.FieldId == fieldId) ? nodes.EntityId : edges.EntityId;
+            if ((perType[type] = perType.GetValueOrDefault(type) + 1) > NendoExtensionViewDefinition.MaximumDisclosedFieldsPerType)
+                throw Refused($"A custom view discloses at most {NendoExtensionViewDefinition.MaximumDisclosedFieldsPerType} fields of each record type.");
+        }
+    }
+
+    private static void ValidateFilters(NendoGraphBinding binding, IReadOnlyList<NendoUiNodeSnapshot> children,
+        NendoEntitySnapshot nodes, NendoEntitySnapshot edges, ICollection<NendoCompilerDiagnostic> diagnostics)
+    {
+        if (binding.Filters is null) return;
+        foreach (var clause in children.Where(child => child.Kind == "filterClause"))
+        {
+            var fieldId = clause.Properties["fieldId"].GetString()!;
+            var comparison = clause.Properties["operator"].GetString()!;
+            var field = ProjectedField(nodes, edges, fieldId)
+                ?? throw Refused($"The filter field '{fieldId}' is not an active stored field of {nodes.DisplayName} or {edges.DisplayName}.");
+            if (field.StorageKind == NendoStorageKind.Unsupported || field.UnsupportedStorageKind is not null)
+                throw Refused($"The filter field '{field.DisplayName}' has a type this host cannot compare.");
+            if (!NendoSemanticVocabulary.FilterOperators.Contains(comparison))
+                throw Refused($"Filter operator '{comparison}' is not supported. Use one of: {string.Join(", ", NendoSemanticVocabulary.FilterOperators.Order(StringComparer.Ordinal))}.");
+            // The literal is checked the way every other surface's filter is, with its own codes.
+            if (clause.Properties.TryGetValue("value", out var value)) ValidateLiteral(clause, field, value, diagnostics);
+        }
+    }
+
+    private static NendoPreconditionException Refused(string message) => new("extension-binding-invalid", message);
 }

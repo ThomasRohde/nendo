@@ -309,8 +309,13 @@ public sealed partial class MainPage
         var body = new StackPanel { Spacing = 12, MaxWidth = 540 };
         body.Children.Add(ExtensionText(view.Definition.Title + " · " + view.Definition.PackageId + " " + view.Definition.PackageVersion));
         body.Children.Add(ExtensionText("Unsigned package. Allow only if you trust the source of these exact bytes."));
-        body.Children.Add(ExtensionText("Reads: " + fields.NodeType + " — record IDs, " + fields.NodeLabel +
-            (fields.StatusField is { } status ? ", " + status : "") + ".\nRelationships: " + fields.EdgeType + " — record IDs, " + fields.SourceField + " → " + fields.TargetField + "."));
+        // Every field the page will receive, by name, for each record type; and what the
+        // view is narrowed by, because which records are present says something too.
+        body.Children.Add(ExtensionText("Reads: " + fields.NodeType + " — record IDs, " + string.Join(", ",
+            new[] { fields.NodeLabel }.Concat(fields.StatusField is { } status ? [status] : []).Concat(fields.NodeFields)) +
+            ".\nRelationships: " + fields.EdgeType + " — record IDs, " + fields.SourceField + " → " + fields.TargetField +
+            string.Concat(fields.EdgeFields.Select(name => ", " + name)) + "." +
+            (fields.FilterFields.Count > 0 ? "\nOnly records that match its filters, on: " + string.Join(", ", fields.FilterFields) + "." : "")));
         body.Children.Add(ExtensionText("It can suggest a record selection. It cannot edit records. Open record and Studio remain controlled by Nendo. This permission applies only to this physical file, view, package and field bindings on this device."));
         body.Children.Add(ExtensionText("SHA-256: " + view.Definition.PackageDigest));
         if (view.Notice is { } notice) body.Children.Add(ExtensionText(notice));

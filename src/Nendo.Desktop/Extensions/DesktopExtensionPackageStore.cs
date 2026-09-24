@@ -54,7 +54,7 @@ internal sealed class DesktopExtensionPackageStore(string deviceRoot)
         finally { if (File.Exists(stage)) File.Delete(stage); }
     }
 
-    internal DesktopExtensionPackageLease Acquire(string digest, string packageId, string version)
+    internal DesktopExtensionPackageLease Acquire(string digest, string packageId, string version, int? protocolVersion = null)
     {
         RejectLink(_root);
         var path = ArchivePath(digest);
@@ -67,6 +67,13 @@ internal sealed class DesktopExtensionPackageStore(string deviceRoot)
             var package = NendoExtensionViewPackage.Validate(bytes, digest);
             if (package.PackageId != packageId || package.Version != version)
                 throw new InvalidDataException("The installed package does not match this view's exact ID and version.");
+            // A digest pins bytes, and the bytes say which protocol they speak. A view at
+            // another protocol would send the page a projection it was not written for.
+            if (protocolVersion is { } expected && package.ProtocolVersion != expected)
+                // Not a corrupt package, so not reported as one: installing the same bytes
+                // again cannot help, and only a change to the view's pin can.
+                throw new NendoPreconditionException("extension-protocol-mismatch",
+                    $"The installed package speaks protocol {package.ProtocolVersion}, and this view declares protocol {expected}.");
             return new(stream, package, bytes);
         }
         catch { stream.Dispose(); throw; }

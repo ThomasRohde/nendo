@@ -290,7 +290,11 @@ function wireExtensionSurface(surface: SurfaceNodePlan): void {
         step = 'install'; next.textContent = 'Install package…';
         status.textContent = view.packageState === 'missing'
           ? packageName + ' is not on this device yet. Install it from its .nendoview file, then allow this view.'
-          : packageName + ' is ' + view.packageState + ' on this device. Install the exact package again from its .nendoview file.';
+          : view.packageState === 'incompatible'
+            // The bytes are intact; the view and the package disagree about the protocol,
+            // which only a change to the view's pin can settle.
+            ? packageName + ' speaks a different protocol than this view. Pin a package built for this view in Studio; your records are unchanged.'
+            : packageName + ' is ' + view.packageState + ' on this device. Install the exact package again from its .nendoview file.';
       } else if (!view.isApproved) {
         step = 'allow'; next.textContent = 'Allow this view';
         status.textContent = packageName + ' is installed. Allow this view to read the fields it names, then open it.';

@@ -233,3 +233,73 @@ structured-property or scripting capability. Protocol 1 and configuration
 version 1 accept only an empty configuration object. A future positive version
 is kept with a disabled fallback. See the implemented
 [custom-view contract](../contracts/custom-views.md).
+
+## Accepted amendment 2026-09-24 — protocol 2: disclosed fields and authored filters
+
+Accepted under the owner's standing pre-acceptance of ADR changes, given on
+2026-09-24. It is W-060.
+
+**Why.** Protocol 1 gives a node a label and one status, and an edge nothing but
+its endpoints. A view that needs more cannot ask for it, so authors pack data into
+the label: Systems Lens writes `THERM · Coolant pump A` and splits the text again
+in the page. And a view always reads the whole of both record types, because the
+definition has no way to narrow them. Both are limits of the binding, not of the
+boundary, so this amendment widens the binding and leaves the boundary as it is.
+
+**What protocol 2 adds.** A view that declares `protocolVersion: 2` may carry two
+kinds of child node, both existing vocabulary, authored through the same canonical
+`ui.addNode` and `ui.removeNode`:
+
+- `fieldBinding` discloses one more stored field, on the node type or on the edge
+  type; the field's own record type decides which. The field must be active and
+  stored: Text (including a single choice), Integer, Decimal, Boolean, Date, or a
+  configured Reference. A Reference reaches the page as the label of the record it
+  points at, the way every screen shows it, and never as the ID; the review says
+  whose label that is. A calculated field, a retired field, an unconfigured
+  Reference and a field the view already binds (label, status, source, target) are
+  refused. At most eight per record type. The authored order is the order the page
+  receives.
+- `filterClause` narrows the node type or the edge type, again by the field's own
+  record type, with the existing operators and a literal or presence comparison.
+  The relative value kinds (`today`, `now`) are not accepted here: a projection is
+  read and replaced while the view runs, and a filter whose meaning drifts with the
+  clock would change what the person allowed without any definition change. At
+  most eight. Clauses combine with AND, as they do everywhere else.
+
+Any other child, or any child under a protocol-1 view, is `NUI450`.
+
+**What the page receives.** The projection names the disclosed fields once, with
+their display names and storage kinds, and each node and edge carries the values
+of its type's disclosed fields as exact text or null, the way status already does.
+A node filter can leave a link with an endpoint outside the node set. Such a link
+is dropped and counted in `hiddenEdges`, so the page can say so; without a node
+filter an unavailable endpoint is still refused, as in protocol 1. The existing
+bounds apply after filtering: 500 nodes, 1000 links, 1 MiB, 4096 characters a
+value. Messages keep the protocol-1 set and shapes; their `version` is the view's
+protocol.
+
+**Consent.** Disclosed fields and filters are part of the binding, so they are part
+of the binding digest: adding, removing or reordering one needs fresh consent, as a
+changed label does. The native review lists every disclosed field by name, with the
+record type it belongs to, and names the fields the view is narrowed by. A filter
+discloses something too: which records are present says something about the field
+it tests.
+
+**Compatibility.** A file that carries a protocol-2 view needs host 1.30.0
+(`ExtensionProtocol2MinimumHostVersion`). A file whose views are all protocol 1
+needs 1.29.0, as before. The package manifest declares the protocol it speaks, and
+the host refuses to run a package whose protocol differs from the view's. A 1.29
+host refuses writable open of a 1.30 file by the existing rung rule; there is no
+downgrade-in-place.
+
+**What does not change.** The process boundary, the Job limits, the network and
+clipboard policy, installation separate from consent, the device-scoped grant, the
+read-only authority and the host-owned Open record. Configuration stays version 1
+and `"{}"`: bindings are declared as typed nodes, never inside package
+configuration.
+
+**Evidence owed.** Compiler refusals for each rule above; a projection that carries
+exactly the disclosed fields and nothing else, guarded by a test that is seen to
+fail when an undisclosed column is added to the read; the binding digest moving
+when a disclosed field or filter changes; the review naming them; and Systems Lens
+reading its system from a disclosed field instead of the label.

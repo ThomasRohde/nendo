@@ -18,7 +18,20 @@ async (page) => {
   // those pumps alone, a three-component coolant circuit, an isolated sensor, a
   // component whose stored state is already Offline, a parallel feed and a label that
   // looks like markup. Every claim this view makes is about one of these shapes.
-  const projection = { sourceChangeSequence: 1, nodes: [
+  // Protocol 2 (ADR-0013, 2026-09-24): the system is a disclosed field, not part of the
+  // label. The fixtures are written as SYSTEM · name for reading, and split here into the
+  // shape the host sends: the name as the label, the system as the first node field.
+  const asProtocol2 = source => ({
+    ...source, hiddenEdges: 0, fields: [{ id: 'componentSystem', name: 'System', type: 'reference', of: 'node' }],
+    nodes: source.nodes.map(node => {
+      const at = node.label.indexOf(' · ');
+      return at === -1 ? { ...node, values: { componentSystem: null } }
+        : { ...node, label: node.label.slice(at + 3), values: { componentSystem: node.label.slice(0, at) } };
+    }),
+    edges: source.edges.map(edge => ({ ...edge, values: {} })),
+  });
+  await page.evaluate(source => { window.asProtocol2 = new Function('return ' + source)(); }, asProtocol2.toString());
+  const projection = asProtocol2({ sourceChangeSequence: 1, nodes: [
     { id: 'tank', label: 'THERM · Coolant reservoir', status: 'Online' },
     { id: 'pumpA', label: 'THERM · Coolant pump A', status: 'Online' },
     { id: 'pumpB', label: 'THERM · Coolant pump B', status: 'Standby' },
@@ -44,8 +57,8 @@ async (page) => {
     { id: 'e10', sourceId: 'valve', targetId: 'rad2' },
     { id: 'e11', sourceId: 'rad2', targetId: 'hx' },
     { id: 'e12', sourceId: 'hx', targetId: 'valve' },
-  ] };
-  await page.evaluate(p => window.deliverView({ version: 1, method: 'initialize', session: 'gate', generation: 1, theme: 'light', locale: 'en', projection: p }), projection);
+  ] });
+  await page.evaluate(p => window.deliverView({ version: 2, method: 'initialize', session: 'gate', generation: 1, theme: 'light', locale: 'en', projection: p }), projection);
 
   assert((await page.evaluate(() => window.viewMessages)).filter(m => m.method === 'ready').length === 1, 'Ready handshake was not emitted exactly once.');
   assert(await page.locator('.node').count() === 12, 'The schematic omitted a component.');
@@ -69,15 +82,15 @@ async (page) => {
   const loopEdges = await page.evaluate(() => [...document.querySelectorAll('.edge.loop')].map(edge => edge.dataset.edgeId).sort());
   assert(JSON.stringify(loopEdges) === JSON.stringify(['e10', 'e11', 'e12']), 'The circuit legs are drawn wrongly: ' + JSON.stringify(loopEdges));
 
-  // The label carries the system as a convention between the file and this package.
+  // The system is the disclosed field's value; the label is the name alone.
   const banded = await page.evaluate(() => {
     const node = document.querySelector('.node[data-id="tank"]');
     return { band: node.dataset.band, texts: [...node.querySelectorAll('text')].map(t => t.textContent) };
   });
-  assert(banded.band === 'THERM', 'The system band was not read off the label: ' + JSON.stringify(banded));
+  assert(banded.band === 'THERM', 'The system band was not read from the disclosed field: ' + JSON.stringify(banded));
   assert(banded.texts.includes('Coolant reservoir'), 'The component name still carries its band: ' + JSON.stringify(banded));
   assert(await page.evaluate(() => document.querySelector('.node[data-id="markup"]').dataset.band) === '',
-    'A label with no separator invented a band.');
+    'A component with no system invented a band.');
 
   // A component already Offline is drawn as it is.
   assert(await page.evaluate(() => document.querySelector('.node[data-id="rad2"]').classList.contains('offline')),
@@ -186,9 +199,9 @@ async (page) => {
   // clear a take-out: the graph may have changed under the question.
   await page.locator('.node[data-id="pumpA"]').click();
   await page.getByRole('button', { name: 'Take out', exact: true }).click();
-  await page.evaluate(() => window.deliverView({ version: 1, method: 'replaceProjection', session: 'gate', generation: 2,
-    projection: { sourceChangeSequence: 2, nodes: [{ id: 'p', label: 'PWR · Array port', status: 'Online' }, { id: 'q', label: 'PWR · Charge regulator', status: null }],
-      edges: [{ id: 'e1', sourceId: 'p', targetId: 'q' }] } }));
+  await page.evaluate(() => window.deliverView({ version: 2, method: 'replaceProjection', session: 'gate', generation: 2,
+    projection: window.asProtocol2({ sourceChangeSequence: 2, nodes: [{ id: 'p', label: 'PWR · Array port', status: 'Online' }, { id: 'q', label: 'PWR · Charge regulator', status: null }],
+      edges: [{ id: 'e1', sourceId: 'p', targetId: 'q' }] }) }));
   assert((await verdicts()).removed.length === 0, 'A new projection kept a stale what-if.');
   assert(!await page.locator('#caveat').isVisible(), 'A new projection kept the what-if caveat on screen.');
   assert(await page.locator('#summary').innerText() === '2 components · 1 feed · 1 declared source',
@@ -196,13 +209,13 @@ async (page) => {
   assert(await page.locator('#selection').innerText() === 'No component selected', 'Replacement kept a stale selection.');
   assert(await page.evaluate(() => document.getElementById('takeout-toggle').disabled), 'Take out stayed available with nothing selected.');
 
-  await page.evaluate(() => window.deliverView({ version: 1, method: 'setTheme', session: 'gate', generation: 2, theme: 'dark' }));
+  await page.evaluate(() => window.deliverView({ version: 2, method: 'setTheme', session: 'gate', generation: 2, theme: 'dark' }));
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/systems-lens-dark.png' });
   assert(await page.evaluate(() => document.documentElement.dataset.theme) === 'dark', 'The theme message was ignored.');
 
   // An empty file says so rather than drawing nothing.
-  await page.evaluate(() => window.deliverView({ version: 1, method: 'replaceProjection', session: 'gate', generation: 3,
-    projection: { sourceChangeSequence: 3, nodes: [], edges: [] } }));
+  await page.evaluate(() => window.deliverView({ version: 2, method: 'replaceProjection', session: 'gate', generation: 3,
+    projection: window.asProtocol2({ sourceChangeSequence: 3, nodes: [], edges: [] }) }));
   assert(await page.locator('#empty').isVisible(), 'An empty projection drew nothing and said nothing.');
   assert(await page.locator('#summary').innerText() === '0 components · 0 feeds', 'The empty summary is wrong: ' + await page.locator('#summary').innerText());
 
@@ -211,13 +224,13 @@ async (page) => {
     const nodes = [], edges = [];
     for (let at = 0; at < 500; at += 1) nodes.push({ id: 'n' + at, label: 'PWR · Cell ' + at, status: at % 3 === 0 ? 'Online' : 'Standby' });
     for (let at = 0; at < 999; at += 1) edges.push({ id: 'g' + at, sourceId: 'n' + (at % 499), targetId: 'n' + ((at % 499) + 1) });
-    window.deliverView({ version: 1, method: 'replaceProjection', session: 'gate', generation: 4,
-      projection: { sourceChangeSequence: 4, nodes, edges } });
+    window.deliverView({ version: 2, method: 'replaceProjection', session: 'gate', generation: 4,
+      projection: window.asProtocol2({ sourceChangeSequence: 4, nodes, edges }) });
   });
   assert(await page.locator('.node').count() === 500, 'The schematic did not draw the full projection bound.');
 
   // The pane is half a window and can be small: 512x384 is a 1024x768 window at 200%.
-  await page.evaluate(p => window.deliverView({ version: 1, method: 'replaceProjection', session: 'gate', generation: 5, projection: { ...p, sourceChangeSequence: 5 } }), projection);
+  await page.evaluate(p => window.deliverView({ version: 2, method: 'replaceProjection', session: 'gate', generation: 5, projection: { ...p, sourceChangeSequence: 5 } }), projection);
   await page.setViewportSize({ width: 512, height: 384 });
   await page.waitForTimeout(150);
   const compact = await page.evaluate(() => {

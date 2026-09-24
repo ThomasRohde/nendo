@@ -88,7 +88,7 @@ These limits measure what the helper can reach on this machine. Nendo does not s
 | A view can | A view cannot |
 | --- | --- |
 | Draw the nodes and edges it is given | Read a field that the definition does not name |
-| Show one status value per node | Read calculated fields or any other record type |
+| Show one status value per node, and more fields the view names (protocol 2) | Read a calculated field, or any field the view does not name |
 | Lay out, pan, zoom and filter in its own page | Write, create or delete a record |
 | Suggest one selected record | Open a record, navigate Nendo or start a command |
 | Follow Nendo's Light or Dark theme | Reach the network, files, clipboard or other programs |

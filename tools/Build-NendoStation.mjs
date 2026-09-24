@@ -895,7 +895,7 @@ STAGES['surfaces-d'] = {
   appliedWhen: async client => hasNode(client, 'componentList'),
 };
 
-const LENS_PACKAGE = path.join('artifacts', 'extensions', 'org.nendo.systems-lens-0.1.0.nendoview');
+const LENS_PACKAGE = path.join('artifacts', 'extensions', 'org.nendo.systems-lens-0.2.0.nendoview');
 
 // The pin is the digest of the exact archive bytes, so it is read off the file that
 // exists rather than copied into this script and left to go stale. Rebuilding the
@@ -917,13 +917,16 @@ STAGES.pin = {
   makes: [],
   mutations: async () => {
     const t = tree(SURFACE);
+    // Protocol 2 (ADR-0013, 2026-09-24): the system is disclosed as a field of its own,
+    // so the label is the component's name and nothing is packed into it.
     t.add('systemsLens', 'extensionGraphSurface', null, {
       definitionVersion: 3, entityId: 'component', title: 'Systems Lens',
-      packageId: 'org.nendo.systems-lens', packageVersion: '0.1.0', packageDigest: await lensDigest(),
-      protocolVersion: 1, configurationVersion: 1, configuration: '{}',
-      labelFieldId: 'componentSchematicLabel', statusFieldId: 'componentState',
+      packageId: 'org.nendo.systems-lens', packageVersion: '0.2.0', packageDigest: await lensDigest(),
+      protocolVersion: 2, configurationVersion: 1, configuration: '{}',
+      labelFieldId: 'componentName', statusFieldId: 'componentState',
       edgeEntityId: 'feed', sourceFieldId: 'feedFrom', targetFieldId: 'feedTo',
     });
+    t.add('systemsLens.componentSystem', 'fieldBinding', 'systemsLens', { fieldId: 'componentSystem' });
     return t.asMutations('Pin the schematic view to the components and their feeds');
   },
   appliedWhen: async client => hasNode(client, 'systemsLens'),
@@ -986,6 +989,30 @@ STAGES.workarounds = {
   appliedWhen: async client => hasNode(client, 'incidentWorkarounds'),
 };
 
+// A station pinned before protocol 2 carried the system inside its label. This moves the
+// pin to the 0.2.0 package in one proposal: protocol 2, the name as the label, and the
+// system disclosed as a field. It is a new consent, and the review names the field.
+STAGES['lens-fields'] = {
+  title: 'Nendo Station: disclose the system to the schematic instead of packing it into the label',
+  needs: ['component', 'feed'],
+  makes: [],
+  mutations: async () => {
+    const set = (propertyName, value) => op('ui.setProperty', { surfaceId: SURFACE, nodeId: 'systemsLens', propertyName, value });
+    return [{
+      description: "Move the schematic to protocol 2 and disclose each component's system",
+      operations: [
+        set('protocolVersion', 2),
+        set('packageVersion', '0.2.0'),
+        set('packageDigest', await lensDigest()),
+        set('labelFieldId', 'componentName'),
+        op('ui.addNode', { surfaceId: SURFACE, nodeId: 'systemsLens.componentSystem', parentNodeId: 'systemsLens',
+          kind: 'fieldBinding', position: 0, properties: { fieldId: 'componentSystem' } }),
+      ],
+    }];
+  },
+  appliedWhen: async client => hasNode(client, 'systemsLens.componentSystem'),
+};
+
 // Rebuilding the package is a different package, so the pin has to move with it. The
 // digest is consent, not a version number: the file reports the package as changed and
 // the view stays shut until it is installed and allowed again.
@@ -1045,7 +1072,7 @@ const CSV_PATH = path.join('artifacts', 'station', 'readings.csv');
 const STAGE_ORDER = [
   'schema-a', 'schema-b', 'schema-c', 'behaviour',
   'data-a', 'data-b', 'data-c', 'readings-csv',
-  'surfaces-a', 'surfaces-b', 'surfaces-c', 'surfaces-d', 'pin', 'repin', 'workarounds',
+  'surfaces-a', 'surfaces-b', 'surfaces-c', 'surfaces-d', 'pin', 'lens-fields', 'repin', 'workarounds',
 ];
 
 function fail(message) {

@@ -22,7 +22,8 @@ digest, binding digest and protocol version. The host checks revocation
 generations before and after the grant query. If the authority is denied, changed
 or unreadable, the session closes. Reapproval cannot reopen an old closed session.
 
-Version 1 accepts only `ready`, `selectRecord` and `reportError`. It accepts them
+Protocols 1 and 2 accept only `ready`, `selectRecord` and `reportError`, with a
+`version` equal to the view's protocol. They accept them
 only with exact keys and types, no duplicate keys, a maximum JSON depth of 8 and
 strict UTF-8. Frames above 64 KiB are refused before parsing. All attempts count
 toward a rolling limit of 60 messages/second. Flooding closes the session.
@@ -165,8 +166,11 @@ keys the JSON by the native physical file identity and the exact Engine grant. F
 this reason, a raw copy that keeps the application/instance IDs receives no
 approval. No permission follows from package installation or definition
 acceptance. A changed package, binding or protocol requires a new grant. Approval
-of another pin for a view removes the previous grant of that view. Protocol 1 fixes
-the two capabilities. They are not an expandable permission list.
+of another pin for a view removes the previous grant of that view. Both protocols
+fix the two capabilities. They are not an expandable permission list. At protocol
+2 the disclosed fields and the filters are part of the binding digest, so any
+change to them needs a new grant. A protocol-1 view's digest is computed exactly as
+before protocol 2 existed, so its saved permission still holds.
 
 Readers refresh device state, so a revocation from another host reaches an
 authority that is already running. Writers serialize with a file lock, reread
@@ -188,7 +192,9 @@ withdraw a grant even if its view definition was removed or broken.
 
 None of these calls starts a renderer. Before the native dialog allows the view,
 it shows the exact package, the unsigned status, the digest and the disclosed
-field names. A separate Disable action remains reachable when its package is
+field names: the label, the status, and at protocol 2 every disclosed field of
+each record type, a reference named as the label of the record it points at, and
+the fields the view is narrowed by. A separate Disable action remains reachable when its package is
 missing or corrupt. MCP has no installation or approval operation.
 
 ## Graph package and visible controls
@@ -371,8 +377,10 @@ the lane failed with `The summary is wrong: 8 work items · 7 links · 2 unblock
 dependency cycle`. The source was restored and the lane passed.
 
 A third package, `extensions/systems-lens/`, is the schematic view of Nendo
-Station: `org.nendo.systems-lens` version `0.1.0`, built through
-`Build-NendoSystemsLensPackage.ps1`. `Review-SystemsLens.ps1` measures it in the
+Station: `org.nendo.systems-lens` version `0.2.0`, built through
+`Build-NendoSystemsLensPackage.ps1`. It is the first protocol-2 package: each
+component's system arrives as a disclosed field, not packed into the label as
+version `0.1.0` required. `Review-SystemsLens.ps1` measures it in the
 production gate.
 
 All three packages now come from one packer, `Build-NendoViewPackage.ps1`. That refactor did not change the digest of the graph
@@ -418,13 +426,21 @@ tests below cover those, including editing in Studio after a renderer crash.
 `NendoApplicationService.ReadGraphProjectionAsync` uses the coordinator gate and
 one storage-owned deferred read transaction for authority, manifest, mappings,
 nodes and edges. It reads only the stored Text label, the optional stored scalar
-status, the node IDs and the edge IDs/endpoints. It discloses no unselected fields
-or calculations. Both distinct edge Reference fields must target the node entity.
-All physical identifiers remain inside Engine storage.
+status, the node IDs, the edge IDs/endpoints and, at protocol 2, the fields the
+view discloses. It discloses no unselected fields or calculations. A disclosed
+reference is read as its target's label through a correlated subquery on the
+target type, never as the ID. Both distinct edge Reference fields must target the
+node entity. All physical identifiers remain inside Engine storage.
 
-The first read implementation covers an entire bounded pair of types. It has no
-authored filters yet. It reads at most 501 node rows or 1001 edge rows to detect
-overflow, and it returns at most 500/1000. It refuses the whole projection above
+At protocol 1 the read covers the whole bounded pair of types. At protocol 2 the
+view's filters narrow the node type, the edge type or both, through the same
+per-query comparison functions every other surface's filters use. A link whose
+endpoint a node filter left out is dropped and counted as `hiddenEdges`; without a
+node filter an unavailable endpoint is still refused. With a node filter, the read
+scans at most 10,000 links to find the ones it keeps, and refuses beyond that. It
+reads at most 501 node rows or 1001 kept edge rows to detect overflow, and it
+returns at most 500/1000. The session refuses a projection that carries a value for
+a field it does not name, and a protocol-1 projection that carries any. It refuses the whole projection above
 1 MiB. Each label/status string is bounded to 4096 characters. Integer/Decimal
 status values become exact text through the existing storage decoder. They do not
 become floating point or internal storage encodings.
@@ -453,7 +469,11 @@ Required properties are `definitionVersion: 3`, `entityId`, `title`, `packageId`
 `targetFieldId`. `statusFieldId` is optional. The surface entity is the node type.
 Both edge fields must be distinct, active, configured References to it. The label
 is active stored Text, and the status is an active stored non-reference scalar.
-The root has no children. Invalid bindings produce NUI450. To retire a bound
+At protocol 1 the root has no children. At protocol 2 (ADR-0013, 2026-09-24) it may
+carry `fieldBinding` children, at most eight per record type, and `filterClause`
+children with a literal or presence comparison, at most eight; a file with such a
+view needs host **1.30.0**. Invalid bindings produce NUI450, and another child kind
+NUI013. The package must declare the view's protocol, or it is refused at start. To retire a bound
 type/field, the same proposal must remove or replace the view.
 
 Configuration is **JSON text in a scalar string property**. It is bounded to 8192

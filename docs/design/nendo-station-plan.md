@@ -542,7 +542,10 @@ forms. Proposals 8–10.
 
 **M5 — Systems Lens. Delivered 2026-09-22.** `extensions/systems-lens/`, package
 `org.nendo.systems-lens` 0.1.0, pinned by the `pin` stage which reads the digest
-off the built archive rather than carrying a copy. `Review-SystemsLens.ps1` runs
+off the built archive rather than carrying a copy. Since 2026-09-24 (W-060) it is
+0.2.0 at protocol 2: the `pin` stage binds the component's name as the label and
+discloses `componentSystem` as a field, and the `lens-fields` stage moves a file
+pinned earlier to that shape in one proposal. `Review-SystemsLens.ps1` runs
 inside `Test-Production.ps1`, and the exposed-versus-reduced guard was falsified
 before it was trusted — see below. The palette was rebuilt on Nendo's own tokens
 after the first version opened in a warm grey of its own beside the app's chrome;

@@ -17,9 +17,10 @@
   // another file's scalar.
   const TONES = { online: 'green', standby: 'blue', offline: 'red', removed: 'grey' };
   const SEPARATOR = ' · ';
+  const PROTOCOL = 2;
 
   function send(method, values = {}) {
-    if (session !== null) window.chrome.webview.postMessage({ version: 1, session, generation, method, ...values });
+    if (session !== null) window.chrome.webview.postMessage({ version: PROTOCOL, session, generation, method, ...values });
   }
   function shape(name, attributes, text) {
     const item = document.createElementNS('http://www.w3.org/2000/svg', name);
@@ -27,12 +28,17 @@
     if (text !== undefined) item.textContent = text;
     return item;
   }
-  // A label may carry the system it belongs to, as SYSTEM followed by the name. That
-  // is a convention between the file and this package: the host discloses a label and
-  // one status, and a label without the separator is simply a name.
-  function band(label) {
-    const at = label.indexOf(SEPARATOR);
-    return at === -1 ? { band: null, name: label } : { band: label.slice(0, at), name: label.slice(at + SEPARATOR.length) };
+  // Protocol 2: the view discloses the system as a field of its own, and the first node
+  // field the projection names is the system this schematic bands by. A node without a
+  // value, or a view that discloses nothing, is simply unbanded.
+  function band(node) { return { band: node.system, name: node.name }; }
+  function withSystems(projection) {
+    const field = (projection.fields ?? []).find(candidate => candidate.of === 'node');
+    return projection.nodes.map(node => {
+      const system = field === undefined ? null : node.values?.[field.id] ?? null;
+      // What the schematic says about a component reads SYSTEM · name, as it always has.
+      return { ...node, name: node.label, system, label: system === null ? node.label : `${system}${SEPARATOR}${node.label}` };
+    });
   }
   function transform() { drawing.setAttribute('transform', `translate(${offsetX} ${offsetY}) scale(${scale})`); }
   function fit() {
@@ -125,7 +131,7 @@
     // Within a column, components of the same system stay together, so a schematic
     // reads by system as well as by direction of supply.
     const ordered = [...nodes].sort((left, right) => {
-      const a = band(left.label), b = band(right.label);
+      const a = band(left), b = band(right);
       return (a.band ?? '').localeCompare(b.band ?? '') || a.name.localeCompare(b.name);
     });
     for (const node of ordered) {
@@ -281,7 +287,7 @@
   }
 
   function render(projection) {
-    nodes = projection.nodes; edges = projection.edges; selected = null; removed = null;
+    nodes = withSystems(projection); edges = projection.edges; selected = null; removed = null;
     drawing.replaceChildren();
     element('takeout-toggle').disabled = true;
     element('takeout-toggle').setAttribute('aria-pressed', 'false');
@@ -321,7 +327,7 @@
     }
     nodes.forEach((node, index) => {
       const point = positions.get(node.id);
-      const parts = band(node.label);
+      const parts = band(node);
       const status = node.status === null || node.status === undefined ? null : String(node.status);
       const group = shape('g', {
         transform: `translate(${point.x} ${point.y})`, class: 'node', tabindex: 0, role: 'button',
@@ -410,7 +416,7 @@
   new ResizeObserver(() => { if (session !== null && !canvas.hidden) fit(); }).observe(canvas);
   window.chrome.webview.addEventListener('message', event => {
     const message = event.data;
-    if (message.version !== 1) return;
+    if (message.version !== PROTOCOL) return;
     try {
       if (message.method === 'initialize' && session === null) {
         session = message.session; generation = message.generation;

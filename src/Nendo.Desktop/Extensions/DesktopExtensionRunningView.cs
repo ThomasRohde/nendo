@@ -73,7 +73,7 @@ internal sealed partial class DesktopSessionController
             authority = ExtensionGrants.ForFile(RequireExtensionFileKey());
             if (!authority.IsGranted(GrantFor(view)))
                 throw new NendoPreconditionException("extension-not-approved", "Review permission for this exact view before opening it.");
-            package = ExtensionPackages.Acquire(view.Definition.PackageDigest, view.Definition.PackageId, view.Definition.PackageVersion);
+            package = ExtensionPackages.Acquire(view.Definition.PackageDigest, view.Definition.PackageId, view.Definition.PackageVersion, view.Definition.ProtocolVersion);
             fileSession = _fileSessionId;
             _extensionStarts.Add(lifetime);
         }

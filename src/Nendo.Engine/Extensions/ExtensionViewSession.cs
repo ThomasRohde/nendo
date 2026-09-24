@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Nendo.Engine;
 
@@ -14,10 +15,36 @@ public interface INendoExtensionAuthority
     bool IsGranted(NendoExtensionGrant grant);
 }
 
-public sealed record NendoGraphNode(string Id, string Label, string? Status = null);
-public sealed record NendoGraphEdge(string Id, string SourceId, string TargetId);
+/// <summary>
+/// <see cref="Values"/> is protocol 2's: the node type's disclosed fields by ID, each as
+/// exact text or null. Null on protocol 1, and then absent from what the page receives.
+/// </summary>
+public sealed record NendoGraphNode(string Id, string Label, string? Status = null)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyDictionary<string, string?>? Values { get; init; }
+}
+public sealed record NendoGraphEdge(string Id, string SourceId, string TargetId)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyDictionary<string, string?>? Values { get; init; }
+}
+/// <summary>A disclosed field, named once: <paramref name="Of"/> is <c>node</c> or <c>edge</c>.</summary>
+public sealed record NendoGraphField(string Id, string Name, string Type, string Of);
+/// <summary>
+/// Protocol 2 adds <see cref="Fields"/>, the disclosed fields in authored order, and
+/// <see cref="HiddenEdges"/>, the links a node filter left without an endpoint. Both stay
+/// null on protocol 1, so its projection is byte-for-byte what it was.
+/// </summary>
 public sealed record NendoGraphProjection(long SourceChangeSequence,
-    IReadOnlyList<NendoGraphNode> Nodes, IReadOnlyList<NendoGraphEdge> Edges);
+    IReadOnlyList<NendoGraphNode> Nodes, IReadOnlyList<NendoGraphEdge> Edges)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<NendoGraphField>? Fields { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? HiddenEdges { get; init; }
+}
 public sealed record NendoExtensionMessageResult(bool Accepted, string Code);
 public sealed record NendoExtensionSelection(string RecordId, long Generation, long SourceChangeSequence);
 
@@ -41,6 +68,7 @@ public sealed class NendoExtensionViewSession : IDisposable
     private readonly TimeProvider _clock;
     private readonly Queue<long> _messageTimes = new();
     private readonly long _started;
+    private readonly int _protocol;
     private HashSet<string> _recordIds = [];
     private byte[] _projection = [];
     private long _generation = 1;
@@ -58,10 +86,11 @@ public sealed class NendoExtensionViewSession : IDisposable
     {
         ArgumentNullException.ThrowIfNull(grant);
         ArgumentNullException.ThrowIfNull(authority);
-        if (grant.ProtocolVersion != 1 || !Id(grant.ApplicationId) || !Id(grant.InstanceId) || !Id(grant.ViewId)
+        if (grant.ProtocolVersion is not (1 or NendoExtensionViewDefinition.FieldsProtocolVersion) || !Id(grant.ApplicationId) || !Id(grant.InstanceId) || !Id(grant.ViewId)
             || !Digest(grant.PackageDigest) || !Digest(grant.BindingDigest))
             throw new ArgumentException("The extension grant is invalid.", nameof(grant));
         _grant = grant;
+        _protocol = grant.ProtocolVersion;
         _authority = authority;
         _revocationGeneration = authority.RevocationGeneration;
         _clock = clock ?? TimeProvider.System;
@@ -80,7 +109,7 @@ public sealed class NendoExtensionViewSession : IDisposable
             using var projection = JsonDocument.Parse(_projection);
             return JsonSerializer.SerializeToUtf8Bytes(new
             {
-                version = 1, method = "initialize", session = SessionId, generation = _generation,
+                version = _protocol, method = "initialize", session = SessionId, generation = _generation,
                 theme, locale, projection = projection.RootElement,
             }, JsonOptions);
         }
@@ -99,7 +128,7 @@ public sealed class NendoExtensionViewSession : IDisposable
             using var document = JsonDocument.Parse(_projection);
             return JsonSerializer.SerializeToUtf8Bytes(new
             {
-                version = 1, method = "replaceProjection", session = SessionId,
+                version = _protocol, method = "replaceProjection", session = SessionId,
                 generation = _generation, projection = document.RootElement,
             }, JsonOptions);
         }
@@ -126,7 +155,7 @@ public sealed class NendoExtensionViewSession : IDisposable
                 var properties = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
                 foreach (var property in root.EnumerateObject())
                     if (!properties.TryAdd(property.Name, property.Value)) return Refuse("duplicate-property");
-                if (!Integer(properties, "version", out var version) || version != 1
+                if (!Integer(properties, "version", out var version) || version != _protocol
                     || !String(properties, "session", out var session) || session != SessionId
                     || !Integer(properties, "generation", out var generation)) return Refuse("invalid-session");
                 if (generation != _generation) return Refuse("stale-generation");
@@ -193,9 +222,42 @@ public sealed class NendoExtensionViewSession : IDisposable
             if (edge is null || !Id(edge.Id) || !edgeIds.Add(edge.Id)
                 || !ids.Contains(edge.SourceId) || !ids.Contains(edge.TargetId))
                 throw new ArgumentException("The graph contains a duplicate edge or an endpoint outside its projection.");
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(new NendoGraphProjection(projection.SourceChangeSequence, nodes, edges), JsonOptions);
+        CheckDisclosure(projection, nodes, edges);
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(projection with { Nodes = nodes, Edges = edges }, JsonOptions);
         if (bytes.Length > MaximumProjectionBytes) throw new ArgumentException("The serialized graph exceeds the projection limit.");
         _recordIds = ids; _projection = bytes; _sourceChangeSequence = projection.SourceChangeSequence;
+    }
+
+    /// <summary>
+    /// Nothing reaches the page that the projection does not name. On protocol 1 no
+    /// field list and no values at all; on protocol 2 every value belongs to a field the
+    /// projection lists, for the record type it lists it under, and nothing else.
+    /// </summary>
+    private void CheckDisclosure(NendoGraphProjection projection, NendoGraphNode[] nodes, NendoGraphEdge[] edges)
+    {
+        if (_protocol == 1)
+        {
+            if (projection.Fields is not null || projection.HiddenEdges is not null ||
+                nodes.Any(n => n.Values is not null) || edges.Any(e => e.Values is not null))
+                throw new ArgumentException("A protocol-1 projection discloses no further fields.");
+            return;
+        }
+        var fields = projection.Fields ?? throw new ArgumentException("A protocol-2 projection names its disclosed fields.");
+        if (projection.HiddenEdges is not >= 0) throw new ArgumentException("A protocol-2 projection states how many links it hid.");
+        var byOwner = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal) { ["node"] = [], ["edge"] = [] };
+        foreach (var field in fields)
+            if (field is null || !Id(field.Id) || !Text(field.Name, 256) || !Text(field.Type, 32) ||
+                !byOwner.TryGetValue(field.Of, out var owned) || !owned.Add(field.Id) ||
+                owned.Count > NendoExtensionViewDefinition.MaximumDisclosedFieldsPerType)
+                throw new ArgumentException("The projection names an invalid or duplicate disclosed field.");
+        void Values(IReadOnlyDictionary<string, string?>? values, string owner)
+        {
+            if (values is null || values.Count != byOwner[owner].Count ||
+                values.Any(pair => !byOwner[owner].Contains(pair.Key) || pair.Value is not null && !Text(pair.Value, 4096)))
+                throw new ArgumentException("A record carries a value for a field the projection does not disclose.");
+        }
+        foreach (var node in nodes) Values(node.Values, "node");
+        foreach (var edge in edges) Values(edge.Values, "edge");
     }
 
     private bool Authorized()

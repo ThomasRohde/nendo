@@ -210,6 +210,12 @@ internal static class NendoSemanticCapability
         new(NendoFormat.ExtensionViewsMinimumHostVersion,
             "an isolated custom view",
             tree => tree.HasKind(NendoExtensionViewDefinition.NodeKind)),
+        new(NendoFormat.ExtensionProtocol2MinimumHostVersion,
+            "a custom view that discloses more fields or filters",
+            tree => tree.OfKind(NendoExtensionViewDefinition.NodeKind).Any(view =>
+                view.Properties.TryGetValue("protocolVersion", out var protocol) &&
+                protocol.ValueKind == System.Text.Json.JsonValueKind.Number &&
+                protocol.TryGetInt32(out var number) && number >= NendoExtensionViewDefinition.FieldsProtocolVersion)),
     ];
 
     /// <summary>

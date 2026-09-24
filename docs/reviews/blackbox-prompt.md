@@ -666,6 +666,17 @@ accept and reopen without the package installed, and confirm the records remain 
 Studio. Remove the view and confirm the records survive. A future configuration
 version must be retained but refused execution. Do not invent draft operation names.
 
+At protocol 2 a view may carry `fieldBinding` and `filterClause` children. Author one
+that discloses a text field of the node type, a reference field and a field of the
+edge type, and narrows the node type with a filter. Before accepting, say whether the
+review tells you which fields a package would receive. Then try, and say how each is
+refused: a calculated field, a field of a third record type, a filter comparing to
+`today`, a ninth field of one type, and the same children under a protocol-1 view. In
+the native consent review, say whether every disclosed field is named with its record
+type, whether a reference says whose label it sends, and whether the fields the view
+is narrowed by are named. Change one disclosed field and say whether permission is
+asked for again. Say what minimum host the file now states.
+
 Desktop execution is still being integrated. When the installed host exposes that
 path, check separate installation/consent, missing-package fallback, and permanent
 Studio access after renderer failure. Record unavailable runtime journeys as Not run.
