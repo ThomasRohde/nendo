@@ -1427,7 +1427,7 @@ async function assertARelatedRecordIsAddedAndOpenedWithoutLeavingThePage(label) 
  * Use toolbar, and the two agree about where they go, because the trail records the parent
  * record as a place of its own.
  *
- * The trail's own rules are asserted in the node lane (C-091), which can reach them
+ * The trail's own rules are asserted in the node lane (C-195), which can reach them
  * because they are a ring and nothing else. What can only be asserted here is that the
  * places it was built from are the places the application actually drew, and that one of
  * them can be put back. Every step is measured -- the record type in the picker, the

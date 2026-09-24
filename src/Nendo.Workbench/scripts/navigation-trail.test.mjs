@@ -11,7 +11,7 @@ import { build } from 'vite';
 //
 // The other half — reading a place out of the session and putting one back — reads the
 // shared `state`, which this bundle owns a private copy of, so it belongs to the gate
-// (C-092, C-093), exactly as the related-row journey does.
+// (C-196, C-197), exactly as the related-row journey does.
 const bundleOf = async (entry) => {
   const bundle = await build({ configFile: false, logLevel: 'error', build: { ssr: entry, write: false, rollupOptions: { output: { codeSplitting: false } } } });
   return import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
