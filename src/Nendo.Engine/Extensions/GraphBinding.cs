@@ -6,13 +6,14 @@ namespace Nendo.Engine;
 
 /// <summary>
 /// Only stored fields; definition names and arbitrary query text are never bindings.
+/// A record-set view (extensionRecordsSurface) has no edge type, so its edge members are null.
 /// Protocol 2 adds the disclosed fields and the filters, both in authored order and each
 /// resolved to the node or the edge type by the field's own record type. Both stay null
 /// on a protocol-1 view, and are left out of the serialized form then, so a protocol-1
 /// view keeps the exact binding digest its device permission was granted against.
 /// </summary>
-public sealed record NendoGraphBinding(string NodeEntityId, string LabelFieldId, string EdgeEntityId,
-    string SourceFieldId, string TargetFieldId, string? StatusFieldId = null)
+public sealed record NendoGraphBinding(string NodeEntityId, string LabelFieldId, string? EdgeEntityId,
+    string? SourceFieldId, string? TargetFieldId, string? StatusFieldId = null)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<string>? FieldIds { get; init; }

@@ -201,6 +201,23 @@ node and edge carries their values:
 - The bounds above apply after filtering, and each value is at most 4,096
   characters.
 
+A **record-set view** (`extensionRecordsSurface`, below) receives no graph. Its
+projection is one record type as typed columns:
+
+```json
+{
+  "sourceChangeSequence": 41,
+  "fields": [{"id": "starts", "name": "Starts", "type": "date", "of": "node"},
+             {"id": "ends", "name": "Ends", "type": "date", "of": "node"}],
+  "records": [{"id": "rec-a", "label": "Engine", "status": null,
+               "values": {"starts": "2026-10-01", "ends": "2026-10-21"}}]
+}
+```
+
+There is no `nodes`, `edges` or `hiddenEdges`, every field is `of: "node"`, and a
+record set holds at most **1,000** records. `extensions/gantt/` is a complete
+example.
+
 ### A minimal renderer
 
 `index.html`:
@@ -489,7 +506,16 @@ file that uses this root requires host **1.29.0**, and **1.30.0** once a view in
 is at protocol 2. To retire a bound record type or field, remove or
 replace the view in the same proposal. Removal of the view never removes records.
 A single-operation removal can be compensated while the definition revision is
-unchanged. After that, it refuses with `definition-revision-conflict`.
+unchanged, for a view with no children. After that, or for a view that carried
+disclosed fields or filters, it is not offered.
+
+**A record-set view** is the root `extensionRecordsSurface`. It takes the same
+package, protocol, configuration, `entityId`, `title`, `labelFieldId` and optional
+`statusFieldId` properties as a graph, and no edge type: `edgeEntityId`,
+`sourceFieldId` and `targetFieldId` are refused. It is protocol 2 only. Its columns
+are its `fieldBinding` children and its filters its `filterClause` children, all on
+its one record type. A file with one requires host **1.31.0**, and the package must
+declare protocol 2.
 
 A definition is portable. A person can review, accept, copy and reopen it on a
 machine where the package does not exist. It carries no consent anywhere.

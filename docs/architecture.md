@@ -152,8 +152,9 @@ A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
 what a file can contain. `1.11.0` is for composable surfaces. After it, each
 version adds one capability, usually a widened semantic shape. The highest version
-is `1.30.0`, for a custom view at protocol 2 (disclosed fields and filters, ADR-0013
-2026-09-24); `1.29.0` is a custom-view reference at protocol 1.
+is `1.31.0`, for a custom view of one record type as typed columns
+(`extensionRecordsSurface`, ADR-0013 2026-09-24); `1.30.0` is a graph view at
+protocol 2 and `1.29.0` a custom-view reference at protocol 1.
 
 `src/Nendo.Engine/SemanticCapability.cs` computes from its shape which of these
 versions a stored definition needs. It computes this over the tree that a mutation

@@ -498,8 +498,13 @@ internal sealed partial class SqliteNendoStore
                             'behaviour.setDefinition', 'behaviour.removeDefinition',
                             'ui.setProperty', 'application.setPurpose')
                             OR (o.operation_type = 'ui.removeNode'
-                                AND json_extract(o.inverse_evidence_json, '$.retainedSubtree[0].kind') = 'extensionGraphSurface'
-                                AND json_array_length(o.inverse_evidence_json, '$.retainedSubtree') BETWEEN 1 AND 16)
+                                AND json_extract(o.inverse_evidence_json, '$.retainedSubtree[0].kind') IN ('extensionGraphSurface', 'extensionRecordsSurface')
+                                AND json_array_length(o.inverse_evidence_json, '$.retainedSubtree') BETWEEN 1 AND 16
+                                -- The inverse restores a childless root only, so a view that
+                                -- carried disclosed fields or filters is not offered it. Every
+                                -- retained child row names its parent; evidence escapes a quote
+                                -- inside a value as \u0022, so this text occurs only as a key.
+                                AND instr(o.inverse_evidence_json, '"parentNodeId":"') = 0)
                             THEN 1 ELSE 0 END) = 1
                         AND MIN(CASE WHEN o.reversibility = 'IrreversibleDeclared' THEN 1 ELSE 0 END) = 0
                         AND MIN(CASE WHEN o.operation_type = 'ui.setProperty'

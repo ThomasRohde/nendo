@@ -68,6 +68,15 @@ public static class NendoSemanticVocabulary
                         "sourceFieldId", "targetFieldId"),
                     // Protocol 2 only (ADR-0013, 2026-09-24); a protocol-1 view with a child is NUI450.
                     Set("fieldBinding", "filterClause"), CanBeRoot: true, MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
+                // One record type as typed columns (ADR-0013, 2026-09-24 record-set amendment):
+                // no edge type, protocol 2 only, its columns the disclosed fieldBinding children.
+                [NendoExtensionViewDefinition.RecordsKind] = new(
+                    NendoExtensionViewDefinition.RecordsKind,
+                    Set("definitionVersion", "entityId", "title", "packageId", "packageVersion", "packageDigest",
+                        "protocolVersion", "configurationVersion", "configuration", "labelFieldId", "statusFieldId"),
+                    Set("definitionVersion", "entityId", "title", "packageId", "packageVersion", "packageDigest",
+                        "protocolVersion", "configurationVersion", "configuration", "labelFieldId"),
+                    Set("fieldBinding", "filterClause"), CanBeRoot: true, MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
                 ["recordForm"] = new(
                     "recordForm",
                     Set("definitionVersion", "entityId", "title"),
@@ -379,7 +388,7 @@ public static class NendoSemanticVocabulary
             "summaryTile, breakdownChart, progressTile, rangeTile, trendChart, activityGrid, recentList and rankedList under it names its own record type instead, and that " +
             "property is required there. Anywhere else a tile takes its record type from the surface it sits on, and declaring one is " +
             "refused rather than resolved, because a tile that disagreed with its surface would have two answers.",
-        ["packageId"] = "On an extensionGraphSurface, the exact lowercase namespaced package ID. The file carries a reference, never package code or execution consent.",
+        ["packageId"] = "On an extensionGraphSurface or extensionRecordsSurface, the exact lowercase namespaced package ID. The file carries a reference, never package code or execution consent.",
         ["packageVersion"] = "The exact semantic version of the separately installed offline custom-view package. No ranges or automatic updates.",
         ["packageDigest"] = "Lowercase SHA-256 of the exact package archive. Changing this pin invalidates device execution consent.",
         ["protocolVersion"] = "Positive custom-view protocol version. This host executes 1 and 2; later versions are preserved with a disabled fallback. At 2 the view may carry fieldBinding children (more stored fields of the node or the edge type, a reference as its target's label; at most eight per type) and filterClause children (a literal or presence comparison, at most eight), and the file needs host 1.30.0. The package must declare the same protocol.",

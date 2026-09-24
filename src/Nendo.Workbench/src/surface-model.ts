@@ -9,7 +9,15 @@ export function surfaceRoot(plan: ApplicationPlan, kind: string): SurfaceNodePla
 }
 
 /** Every root kind Use can show as a whole surface, in the order they appear. */
-const useKinds = ['recordList', 'boardSurface', 'calendarSurface', 'timelineSurface', 'gallerySurface', 'matrixSurface', 'extensionGraphSurface'];
+const useKinds = ['recordList', 'boardSurface', 'calendarSurface', 'timelineSurface', 'gallerySurface', 'matrixSurface', 'extensionGraphSurface', 'extensionRecordsSurface'];
+
+/**
+ * A custom view of either shape (ADR-0013): a graph, or one record type as typed columns.
+ * The native host reads and runs both; the Workbench only shows the next step.
+ */
+export function isCustomViewKind(kind: string | undefined): boolean {
+  return kind === 'extensionGraphSurface' || kind === 'extensionRecordsSurface';
+}
 
 /**
  * A calendar and a timeline read their own bounded pages, keyed by the range
@@ -328,6 +336,7 @@ export function kindLabel(kind: string): string {
     case 'gallerySurface': return 'Gallery';
     case 'matrixSurface': return 'Matrix';
     case 'extensionGraphSurface': return 'Custom graph';
+    case 'extensionRecordsSurface': return 'Custom view';
     case 'rankedList': return 'Ranking';
     case 'overviewSurface': return 'Front page';
     case 'recentList': return 'Recent records';

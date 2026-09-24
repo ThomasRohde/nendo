@@ -16,11 +16,11 @@ internal sealed partial class SqliteNendoStore
         using var transaction = _connection.BeginTransaction(deferred: true);
         _ = await ReadAuthoritySnapshotAsync(transaction, cancellationToken);
         var nodes = await ReadUiNodesAsync(transaction, cancellationToken);
-        var node = nodes.SingleOrDefault(n => n.NodeId == viewId && n.ParentNodeId is null && n.Kind == NendoExtensionViewDefinition.NodeKind)
+        var node = nodes.SingleOrDefault(n => n.NodeId == viewId && n.ParentNodeId is null && NendoExtensionViewDefinition.IsViewKind(n.Kind))
             ?? throw new NendoPreconditionException("extension-view-missing", "The custom view is no longer defined. Use Studio to inspect the records.");
         var children = nodes.Where(n => n.ParentNodeId == node.NodeId && n.SurfaceId == node.SurfaceId)
             .OrderBy(n => n.Position).ThenBy(n => n.NodeId, StringComparer.Ordinal).ToArray();
-        var definition = NendoExtensionViewDefinition.Read(node.NodeId, node.Properties, children);
+        var definition = NendoExtensionViewDefinition.Read(node.NodeId, node.Properties, children, node.Kind);
         if (!definition.IsSupported)
             throw new NendoPreconditionException("extension-version-unsupported", "This host preserves this view's configuration but cannot execute its version.");
         var manifest = await ReadManifestAsync(transaction, cancellationToken);
@@ -37,16 +37,20 @@ internal sealed partial class SqliteNendoStore
             ?? throw new NendoPreconditionException("graph-binding-invalid", "A graph record type is missing or retired.");
         FieldMapping Field(EntityMapping entity, string id) => entity.Fields.SingleOrDefault(f => f.FieldId == id && !f.Retired)
             ?? throw new NendoPreconditionException("graph-binding-invalid", "A graph field is missing, calculated or retired.");
+        // A record set (ADR-0013, 2026-09-24) reads its one record type and no links.
+        var recordSet = binding.EdgeEntityId is null;
         var nodeEntity = Entity(binding.NodeEntityId);
-        var edgeEntity = Entity(binding.EdgeEntityId);
         var label = Field(nodeEntity, binding.LabelFieldId);
-        var source = Field(edgeEntity, binding.SourceFieldId);
-        var target = Field(edgeEntity, binding.TargetFieldId);
         var status = binding.StatusFieldId is null ? null : Field(nodeEntity, binding.StatusFieldId);
-        if (label.StorageKind != NendoStorageKind.Text || source.FieldId == target.FieldId
+        if (label.StorageKind != NendoStorageKind.Text || status?.StorageKind == NendoStorageKind.Reference)
+            throw new NendoPreconditionException("graph-binding-invalid", "A custom view needs a stored Text label and, optionally, a stored scalar status.");
+        // A record set has no edge type; these stand for nothing and are never read.
+        var edgeEntity = recordSet ? nodeEntity with { Fields = [] } : Entity(binding.EdgeEntityId!);
+        var source = recordSet ? label : Field(edgeEntity, binding.SourceFieldId!);
+        var target = recordSet ? label : Field(edgeEntity, binding.TargetFieldId!);
+        if (!recordSet && (source.FieldId == target.FieldId
             || source.StorageKind != NendoStorageKind.Reference || target.StorageKind != NendoStorageKind.Reference
-            || source.Reference?.TargetEntityId != nodeEntity.EntityId || target.Reference?.TargetEntityId != nodeEntity.EntityId
-            || status?.StorageKind == NendoStorageKind.Reference)
+            || source.Reference?.TargetEntityId != nodeEntity.EntityId || target.Reference?.TargetEntityId != nodeEntity.EntityId))
             throw new NendoPreconditionException("graph-binding-invalid", "Graph edges need two distinct references to the node type and a stored Text label.");
 
         // Protocol 2 (ADR-0013, 2026-09-24). Each disclosed field and each filter belongs to
@@ -124,12 +128,13 @@ internal sealed partial class SqliteNendoStore
         var nodeColumns = string.Concat(nodeFields.Select(f => ", " + Column(f, nodeEntity)));
         await using (var command = Command($"SELECT {Quote("__nendo_record_id")}, substr({Quote(label.PhysicalColumnName)},1,4097), {statusSql}{nodeColumns} FROM {Quote(nodeEntity.PhysicalTableName)}{Where(nodePredicates)} ORDER BY {Quote("__nendo_record_id")} COLLATE BINARY LIMIT @limit;", transaction))
         {
-            command.Parameters.AddWithValue("@limit", NendoExtensionViewSession.MaximumNodes + 1);
+            var maximum = recordSet ? NendoExtensionViewDefinition.MaximumRecords : NendoExtensionViewSession.MaximumNodes;
+            command.Parameters.AddWithValue("@limit", maximum + 1);
             Bind(command);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
-                if (nodes.Count == NendoExtensionViewSession.MaximumNodes) throw TooLarge();
+                if (nodes.Count == maximum) throw TooLarge();
                 var id = reader.GetString(0);
                 var text = reader.IsDBNull(1) ? id : reader.GetString(1);
                 var value = status is null ? null : Scalar(reader, 2, status);
@@ -143,6 +148,7 @@ internal sealed partial class SqliteNendoStore
         // say so. An unset endpoint is refused either way: that is incomplete data, not a filter.
         var edgeColumns = string.Concat(edgeFields.Select(f => ", " + Column(f, edgeEntity)));
         var hidden = 0;
+        if (recordSet) return Finish();
         // Bounded either way: the links kept are capped as before, and with a node filter the
         // links read to find them are capped too, refusing rather than returning part of a graph.
         var scanLimit = nodePredicates.Count == 0 ? NendoExtensionViewSession.MaximumEdges + 1 : MaximumScannedEdges + 1;
@@ -168,13 +174,19 @@ internal sealed partial class SqliteNendoStore
                 edges.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2)) { Values = protocol2 ? Values(reader, 3, edgeFields) : null });
             }
         }
-        var projection = new NendoGraphProjection(manifest.ChangeSequence, nodes.ToArray(), edges.ToArray())
+        return Finish();
+
+        NendoGraphProjection Finish()
         {
-            Fields = protocol2 ? disclosed.Select(d => new NendoGraphField(d.Field.FieldId, d.Field.DisplayName, TypeOf(d.Field), d.Of)).ToArray() : null,
-            HiddenEdges = protocol2 ? hidden : null,
-        };
-        if (JsonSerializer.SerializeToUtf8Bytes(projection).Length > NendoExtensionViewSession.MaximumProjectionBytes) throw TooLarge();
-        return projection;
+            var projection = new NendoGraphProjection(manifest.ChangeSequence, nodes.ToArray(), edges.ToArray())
+            {
+                Fields = protocol2 ? disclosed.Select(d => new NendoGraphField(d.Field.FieldId, d.Field.DisplayName, TypeOf(d.Field), d.Of)).ToArray() : null,
+                HiddenEdges = protocol2 && !recordSet ? hidden : null,
+                IsRecordSet = recordSet,
+            };
+            if (JsonSerializer.SerializeToUtf8Bytes(projection).Length > NendoExtensionViewSession.MaximumProjectionBytes) throw TooLarge();
+            return projection;
+        }
     }
 
     /// <summary>How many links a filtered graph may read to find the ones it keeps.</summary>

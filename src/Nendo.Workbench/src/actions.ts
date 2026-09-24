@@ -12,7 +12,7 @@ import {
   summaryCounts, surfaceErrors, surfaceWindows,
 } from './app-state';
 import { recordPlanOf, recordsForEntity, selectedSurfaceNode, sessionEntity } from './plan-selection';
-import { accumulatesPages } from './surface-model';
+import { accumulatesPages, isCustomViewKind } from './surface-model';
 import {
   WorkbenchHostError, type AgentStatus, type CompileResult, type DesktopMutationView, type DesktopPromotionView,
   type DesktopSessionView, type ProposalPreview, type ReadPage, type RecordSnapshot, type RevisionSummary,
@@ -198,7 +198,7 @@ export async function refreshDerived(attempt = 0): Promise<void> {
   const surfaceNode = surfacePlan === null ? null : selectedSurfaceNode(surfacePlan);
   // A calendar or a timeline reads its own bounded pages when it renders, so
   // the shared refresh must not open an unbounded window for one.
-  const declared = surfaceNode === null || accumulatesPages(surfaceNode.kind) || surfaceNode.kind === 'extensionGraphSurface'
+  const declared = surfaceNode === null || accumulatesPages(surfaceNode.kind) || isCustomViewKind(surfaceNode.kind)
     ? null
     : declaredQuery(surfaceNode);
   const surfacePage = surfaceNode === null || declared === null || applicationEntity === undefined ? null

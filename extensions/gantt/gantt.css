@@ -1,0 +1,41 @@
+/* Nendo's own tokens, copied from src/Nendo.Workbench/src/styles/02-tokens.css so the
+   chart sits with the app. The host sends one word, light or dark, and no colours, so
+   these are a copy and can drift if the app's change. */
+:root{
+  color-scheme:light;
+  font:16px/1.5 "Segoe UI Variable Text","Segoe UI",sans-serif;
+  --canvas:#f4f5f7;--surface-raised:#fff;--surface-soft:#f0f1f6;
+  --ink:#13213d;--muted:#667085;--line:#d9dde6;--line-strong:#c9cfdb;
+  --cobalt:#2458e6;--cobalt-soft:#e9edff;--violet:#7256d9;
+}
+:root[data-theme=dark]{
+  color-scheme:dark;
+  --canvas:#071725;--surface-raised:#0e2435;--surface-soft:#10283a;
+  --ink:#edf3ff;--muted:#a8b5c8;--line:#263e50;--line-strong:#355469;
+  --cobalt:#6597ff;--cobalt-soft:#142f5e;--violet:#ad97ff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);height:100vh;display:flex;flex-direction:column;padding:20px;gap:10px}
+/* Chrome is not text: a drag across it must not highlight prose. */
+header,.hint,#axis,footer{user-select:none}
+h1{font-size:1.3rem;margin:0;font-weight:650}
+p{margin:2px 0;color:var(--muted);font-size:.9rem}
+.hint{font-size:.8rem}
+main{flex:1;min-height:120px;overflow:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface-raised);padding:10px 12px}
+#axis{position:relative;height:22px;margin-left:var(--label-width,38%);border-bottom:1px solid var(--line)}
+#axis span{position:absolute;top:0;font-size:.72rem;color:var(--muted);white-space:nowrap;transform:translateX(-50%)}
+#axis span::after{content:"";position:absolute;left:50%;top:18px;height:4px;border-left:1px solid var(--line-strong)}
+#rows{list-style:none;margin:0;padding:0}
+.row{display:flex;align-items:center;width:100%;min-height:30px;border:0;border-radius:8px;background:none;color:inherit;font:inherit;text-align:left;padding:2px 0;cursor:pointer}
+.row:hover{background:var(--surface-soft)}
+.row[aria-pressed=true]{background:var(--cobalt-soft)}
+.row:focus-visible{outline:3px solid var(--cobalt);outline-offset:1px}
+.label{flex:0 0 var(--label-width,38%);padding:0 10px 0 6px;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.label small{display:block;color:var(--muted);font-size:.72rem}
+.track{position:relative;flex:1;height:18px}
+.bar{position:absolute;top:3px;height:12px;min-width:3px;border-radius:6px;background:var(--cobalt)}
+.row[aria-pressed=true] .bar{background:var(--violet)}
+.milestone{position:absolute;top:2px;width:13px;height:13px;margin-left:-6.5px;transform:rotate(45deg);border-radius:2px;background:var(--cobalt)}
+.row[aria-pressed=true] .milestone{background:var(--violet)}
+#empty{padding:18px 6px}
+footer{font-size:.85rem;color:var(--muted)}

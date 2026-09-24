@@ -10,6 +10,17 @@ public sealed record NendoExtensionViewDefinition(string ViewId, string Title, s
     string Configuration, NendoGraphBinding Binding)
 {
     public const string NodeKind = "extensionGraphSurface";
+    /// <summary>
+    /// One record type as typed columns (ADR-0013, 2026-09-24 record-set amendment): no edge
+    /// type, protocol 2 only, and the page receives records rather than nodes and links.
+    /// </summary>
+    public const string RecordsKind = "extensionRecordsSurface";
+    public const int MaximumRecords = 1000;
+    /// <summary>Whether a node is a custom view of either shape.</summary>
+    public static bool IsViewKind(string? kind) => kind is NodeKind or RecordsKind;
+    /// <summary>Which shape this view is; a graph unless it was read as a record set.</summary>
+    public string Kind { get; init; } = NodeKind;
+    public bool IsRecordSet => Kind == RecordsKind;
     /// <summary>Protocol 2 (ADR-0013, 2026-09-24): disclosed fields and authored filters as child nodes.</summary>
     public const int FieldsProtocolVersion = 2;
     public const int MaximumDisclosedFieldsPerType = 8;
@@ -30,8 +41,9 @@ public sealed record NendoExtensionViewDefinition(string ViewId, string Title, s
     /// protocol's children are preserved in the file and not interpreted here.
     /// </summary>
     public static NendoExtensionViewDefinition Read(string viewId, IReadOnlyDictionary<string, JsonElement> properties,
-        IReadOnlyList<NendoUiNodeSnapshot> children)
+        IReadOnlyList<NendoUiNodeSnapshot> children, string kind = NodeKind)
     {
+        if (!IsViewKind(kind)) throw Invalid($"'{kind}' is not a custom view.");
         string Text(string key, int maximum = 256)
         {
             if (!properties.TryGetValue(key, out var value) || value.ValueKind != JsonValueKind.String ||
@@ -67,13 +79,21 @@ public sealed record NendoExtensionViewDefinition(string ViewId, string Title, s
                 throw Invalid("Configuration version 1 is an empty object; graph bindings are declared separately.");
         }
         catch (JsonException) { throw Invalid("configuration must be valid JSON text with maximum depth 8."); }
-        var binding = new NendoGraphBinding(Text("entityId"), Text("labelFieldId"), Text("edgeEntityId"),
-            Text("sourceFieldId"), Text("targetFieldId"), properties.ContainsKey("statusFieldId") ? Text("statusFieldId") : null);
-        if (binding.SourceFieldId == binding.TargetFieldId) throw Invalid("The two edge reference fields must differ.");
+        // A record set has one record type and no links, so it names no edge type and no
+        // endpoints; the binding's edge members stay null, which also keeps its digest apart
+        // from any graph's.
+        var records = kind == RecordsKind;
+        if (records && (properties.ContainsKey("edgeEntityId") || properties.ContainsKey("sourceFieldId") || properties.ContainsKey("targetFieldId")))
+            throw Invalid("A record-set view has no edge type: remove edgeEntityId, sourceFieldId and targetFieldId.");
+        if (records && protocol != FieldsProtocolVersion && protocol <= FieldsProtocolVersion)
+            throw Invalid("A record-set view speaks protocol 2: its columns are disclosed fields.");
+        var binding = new NendoGraphBinding(Text("entityId"), Text("labelFieldId"), records ? null : Text("edgeEntityId"),
+            records ? null : Text("sourceFieldId"), records ? null : Text("targetFieldId"), properties.ContainsKey("statusFieldId") ? Text("statusFieldId") : null);
+        if (!records && binding.SourceFieldId == binding.TargetFieldId) throw Invalid("The two edge reference fields must differ.");
         if (protocol == 1 && children.Count > 0)
             throw Invalid("A protocol-1 view has no children. Declare protocolVersion 2 to disclose more fields or to filter.");
         if (protocol == FieldsProtocolVersion) binding = ReadChildren(binding, children);
-        return new(viewId, Text("title"), package, version, digest, protocol, configurationVersion, config, binding);
+        return new(viewId, Text("title"), package, version, digest, protocol, configurationVersion, config, binding) { Kind = kind };
     }
 
     private static NendoGraphBinding ReadChildren(NendoGraphBinding binding, IReadOnlyList<NendoUiNodeSnapshot> children)

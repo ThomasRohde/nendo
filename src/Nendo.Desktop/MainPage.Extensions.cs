@@ -149,7 +149,7 @@ public sealed partial class MainPage
     {
         var session = await _session.GetViewAsync();
         var actions = new List<string> { "Install an offline package", "Export an installed package", "Remove an installed package" };
-        if (session.UiNodes.Any(n => n.Kind == NendoExtensionViewDefinition.NodeKind))
+        if (session.UiNodes.Any(n => NendoExtensionViewDefinition.IsViewKind(n.Kind)))
         { actions.Add("Review permission for a view"); actions.Add("Disable a view"); actions.Add("Open a custom view"); }
         // Plain buttons, one per action: a choice hidden in a combo box behind a Continue button lost the owner.
         var body = new StackPanel { Spacing = 8, MaxWidth = 540 };
@@ -261,7 +261,7 @@ public sealed partial class MainPage
     private async Task ReviewExtensionNativeAsync(bool disable = false, bool open = false, string? requestedViewId = null)
     {
         var session = await _session.GetViewAsync();
-        var choices = session.UiNodes.Where(n => n.Kind == NendoExtensionViewDefinition.NodeKind)
+        var choices = session.UiNodes.Where(n => NendoExtensionViewDefinition.IsViewKind(n.Kind))
             .Select(n => new ViewChoice(n.NodeId, n.Properties.TryGetValue("title", out var title) ? title.GetString() ?? n.NodeId : n.NodeId)).ToArray();
         if (choices.Length == 0) return;
         var selector = new ComboBox { Header = "View in this file", ItemsSource = choices, DisplayMemberPath = "Title", SelectedIndex = 0,
@@ -313,8 +313,10 @@ public sealed partial class MainPage
         // view is narrowed by, because which records are present says something too.
         body.Children.Add(ExtensionText("Reads: " + fields.NodeType + " — record IDs, " + string.Join(", ",
             new[] { fields.NodeLabel }.Concat(fields.StatusField is { } status ? [status] : []).Concat(fields.NodeFields)) +
-            ".\nRelationships: " + fields.EdgeType + " — record IDs, " + fields.SourceField + " → " + fields.TargetField +
-            string.Concat(fields.EdgeFields.Select(name => ", " + name)) + "." +
+            "." +
+            // A record set has no links, so its review names no relationship at all.
+            (fields.EdgeType is null ? "" : "\nRelationships: " + fields.EdgeType + " — record IDs, " + fields.SourceField + " → " + fields.TargetField +
+                string.Concat(fields.EdgeFields.Select(name => ", " + name)) + ".") +
             (fields.FilterFields.Count > 0 ? "\nOnly records that match its filters, on: " + string.Join(", ", fields.FilterFields) + "." : "")));
         body.Children.Add(ExtensionText("It can suggest a record selection. It cannot edit records. Open record and Studio remain controlled by Nendo. This permission applies only to this physical file, view, package and field bindings on this device."));
         body.Children.Add(ExtensionText("SHA-256: " + view.Definition.PackageDigest));

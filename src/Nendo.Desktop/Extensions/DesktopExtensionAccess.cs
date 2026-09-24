@@ -6,8 +6,8 @@ namespace Nendo.Desktop;
 /// What the review names. Protocol 2 adds the disclosed fields of each record type and
 /// the fields the view is narrowed by, each by its display name.
 /// </summary>
-internal sealed record DesktopExtensionDisclosure(string NodeType, string NodeLabel, string EdgeType,
-    string SourceField, string TargetField, string? StatusField)
+internal sealed record DesktopExtensionDisclosure(string NodeType, string NodeLabel, string? EdgeType,
+    string? SourceField, string? TargetField, string? StatusField)
 {
     internal IReadOnlyList<string> NodeFields { get; init; } = [];
     internal IReadOnlyList<string> EdgeFields { get; init; } = [];
@@ -113,7 +113,8 @@ internal sealed partial class DesktopSessionController
             throw new NendoPreconditionException("extension-view-changed", "The file changed while preparing this view. Refresh to continue.");
         var binding = view.Definition.Binding;
         var nodes = schema.Entities.Single(e => e.EntityId == binding.NodeEntityId);
-        var edges = schema.Entities.Single(e => e.EntityId == binding.EdgeEntityId);
+        // A record set has no edge type, and its review names none.
+        var edges = binding.EdgeEntityId is null ? null : schema.Entities.Single(e => e.EntityId == binding.EdgeEntityId);
         string Label(NendoEntitySnapshot entity, string id) => entity.Fields.Single(f => f.FieldId == id).DisplayName;
         // A disclosed reference reaches the page as the label of the record it points at,
         // so the review says whose label that is.
@@ -128,12 +129,13 @@ internal sealed partial class DesktopSessionController
             ids.Where(id => entity.Fields.Any(f => f.FieldId == id)).Select(id => Disclosed(entity, id)).ToArray();
         string[] Plain(NendoEntitySnapshot entity, IEnumerable<string> ids) =>
             ids.Where(id => entity.Fields.Any(f => f.FieldId == id)).Select(id => Label(entity, id)).ToArray();
-        var disclosure = new DesktopExtensionDisclosure(nodes.DisplayName, Label(nodes, binding.LabelFieldId), edges.DisplayName,
-            Label(edges, binding.SourceFieldId), Label(edges, binding.TargetFieldId), binding.StatusFieldId is { } status ? Label(nodes, status) : null)
+        var disclosure = new DesktopExtensionDisclosure(nodes.DisplayName, Label(nodes, binding.LabelFieldId), edges?.DisplayName,
+            edges is null ? null : Label(edges, binding.SourceFieldId!), edges is null ? null : Label(edges, binding.TargetFieldId!),
+            binding.StatusFieldId is { } status ? Label(nodes, status) : null)
         {
             NodeFields = Names(nodes, binding.FieldIds ?? []),
-            EdgeFields = Names(edges, binding.FieldIds ?? []),
-            FilterFields = Plain(nodes, (binding.Filters ?? []).Select(f => f.FieldId)).Concat(Plain(edges, (binding.Filters ?? []).Select(f => f.FieldId)))
+            EdgeFields = edges is null ? [] : Names(edges, binding.FieldIds ?? []),
+            FilterFields = Plain(nodes, (binding.Filters ?? []).Select(f => f.FieldId)).Concat(edges is null ? [] : Plain(edges, (binding.Filters ?? []).Select(f => f.FieldId)))
                 .Distinct(StringComparer.Ordinal).ToArray(),
         };
         var packageState = "available";

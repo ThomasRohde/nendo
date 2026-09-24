@@ -452,7 +452,7 @@ public sealed partial class NendoSemanticCompiler
         // may write.
         ValidateVisibility(node, derived, diagnostics);
         ValidateOpens(node, scope, diagnostics);
-        if (node.Kind == NendoExtensionViewDefinition.NodeKind) ValidateExtensionView(node, nodes, source, diagnostics);
+        if (NendoExtensionViewDefinition.IsViewKind(node.Kind)) ValidateExtensionView(node, nodes, source, diagnostics);
 
         if (node.Kind == "filterClause") ValidateFilterClause(node, fields, derived, diagnostics);
 
@@ -518,7 +518,7 @@ public sealed partial class NendoSemanticCompiler
             .Where(value => value.ParentNodeId == node.NodeId && value.SurfaceId == node.SurfaceId)
             .OrderBy(value => value.Position)
             .ThenBy(value => value.NodeId, StringComparer.Ordinal);
-        var children = node.Kind == NendoExtensionViewDefinition.NodeKind
+        var children = NendoExtensionViewDefinition.IsViewKind(node.Kind)
             ? ordered.Select(child => new NendoSurfaceNodePlan(child.NodeId, AutomationTarget(child.NodeId), child.Kind, child.Properties, [])).ToArray()
             : ordered
                 .Select(child => CompileNode(child, nodes, source, childEntity, childFields, childDerived, childScope, diagnostics))

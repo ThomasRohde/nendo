@@ -192,7 +192,13 @@ public static class NendoFormat
     /// </summary>
     public const string ExtensionProtocol2MinimumHostVersion = "1.30.0";
 
-    public const string CurrentHostVersion = ExtensionProtocol2MinimumHostVersion;
+    /// <summary>
+    /// A custom view of one record type as typed columns, extensionRecordsSurface (ADR-0013,
+    /// 2026-09-24 record-set amendment). A 1.30 host does not know the kind.
+    /// </summary>
+    public const string ExtensionRecordsMinimumHostVersion = "1.31.0";
+
+    public const string CurrentHostVersion = ExtensionRecordsMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

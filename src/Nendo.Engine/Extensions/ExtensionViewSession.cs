@@ -44,6 +44,10 @@ public sealed record NendoGraphProjection(long SourceChangeSequence,
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? HiddenEdges { get; init; }
+
+    /// <summary>A record set's projection: its nodes are the records, and it has no links.</summary>
+    [JsonIgnore]
+    public bool IsRecordSet { get; init; }
 }
 public sealed record NendoExtensionMessageResult(bool Accepted, string Code);
 public sealed record NendoExtensionSelection(string RecordId, long Generation, long SourceChangeSequence);
@@ -209,7 +213,8 @@ public sealed class NendoExtensionViewSession : IDisposable
     {
         ArgumentNullException.ThrowIfNull(projection);
         if (projection.SourceChangeSequence < 0 || projection.Nodes is null || projection.Edges is null
-            || projection.Nodes.Count > MaximumNodes || projection.Edges.Count > MaximumEdges)
+            || projection.Nodes.Count > (projection.IsRecordSet ? NendoExtensionViewDefinition.MaximumRecords : MaximumNodes)
+            || projection.Edges.Count > (projection.IsRecordSet ? 0 : MaximumEdges))
             throw new ArgumentException("The graph exceeds the projection limits.");
         var nodes = projection.Nodes.ToArray();
         var edges = projection.Edges.ToArray();
@@ -223,7 +228,11 @@ public sealed class NendoExtensionViewSession : IDisposable
                 || !ids.Contains(edge.SourceId) || !ids.Contains(edge.TargetId))
                 throw new ArgumentException("The graph contains a duplicate edge or an endpoint outside its projection.");
         CheckDisclosure(projection, nodes, edges);
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(projection with { Nodes = nodes, Edges = edges }, JsonOptions);
+        // A record set reaches the page as {sourceChangeSequence, fields, records}; a graph
+        // as it always has.
+        var bytes = projection.IsRecordSet
+            ? JsonSerializer.SerializeToUtf8Bytes(new { projection.SourceChangeSequence, projection.Fields, Records = nodes }, JsonOptions)
+            : JsonSerializer.SerializeToUtf8Bytes(projection with { Nodes = nodes, Edges = edges }, JsonOptions);
         if (bytes.Length > MaximumProjectionBytes) throw new ArgumentException("The serialized graph exceeds the projection limit.");
         _recordIds = ids; _projection = bytes; _sourceChangeSequence = projection.SourceChangeSequence;
     }
@@ -243,7 +252,8 @@ public sealed class NendoExtensionViewSession : IDisposable
             return;
         }
         var fields = projection.Fields ?? throw new ArgumentException("A protocol-2 projection names its disclosed fields.");
-        if (projection.HiddenEdges is not >= 0) throw new ArgumentException("A protocol-2 projection states how many links it hid.");
+        if (projection.IsRecordSet ? projection.HiddenEdges is not null : projection.HiddenEdges is not >= 0)
+            throw new ArgumentException("A protocol-2 graph states how many links it hid, and a record set has none to hide.");
         var byOwner = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal) { ["node"] = [], ["edge"] = [] };
         foreach (var field in fields)
             if (field is null || !Id(field.Id) || !Text(field.Name, 256) || !Text(field.Type, 32) ||

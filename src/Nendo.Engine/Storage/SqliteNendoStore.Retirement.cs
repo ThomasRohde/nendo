@@ -112,7 +112,7 @@ internal sealed partial class SqliteNendoStore
         {
             var retired = pair.Key is "entityId" or "edgeEntityId" ? entities : fields;
             if (pair.Key is not ("entityId" or "fieldId" or "groupByFieldId" or "cardFieldIds") &&
-                !(node.Kind == NendoExtensionViewDefinition.NodeKind && pair.Key is "edgeEntityId" or "labelFieldId" or "sourceFieldId" or "targetFieldId" or "statusFieldId")) continue;
+                !(NendoExtensionViewDefinition.IsViewKind(node.Kind) && pair.Key is "edgeEntityId" or "labelFieldId" or "sourceFieldId" or "targetFieldId" or "statusFieldId")) continue;
             if ((pair.Value.ValueKind == JsonValueKind.String && retired.Contains(pair.Value.GetString()!)) ||
                 (pair.Value.ValueKind == JsonValueKind.Array && pair.Value.EnumerateArray().Any(value => value.ValueKind == JsonValueKind.String && retired.Contains(value.GetString()!))))
                 throw new NendoPreconditionException("retired-binding", "Remove or replace surface bindings to the retired definition in the same proposal.");

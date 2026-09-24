@@ -20,7 +20,7 @@ import { closeInspector, executeTreeCommand, wireRecordForm, wireRelatedPager } 
 import { fieldMarkup, recordFormMarkup } from './record-markup';
 import { content, focusWithoutInteraction, requiredElement, rerender, setBusy, showError } from './shell';
 import { drillPillMarkup, recordPagerMarkup, surfaceBodyMarkup, surfaceSelectorMarkup, surfaceTileMarkup } from './surface-markup';
-import { type BoardView, accumulatesPages, surfaceById } from './surface-model';
+import { type BoardView, accumulatesPages, isCustomViewKind, surfaceById } from './surface-model';
 import { renderSurfaces } from './view-surfaces';
 /**
  * The Use view: one selected surface for one record type, the record opened
@@ -218,7 +218,7 @@ export function renderUse(): void {
         .finally(() => { state.actionInFlight = false; setBusy(false); rerender(); });
     });
   wireRecordPager();
-  if (surface?.kind === 'extensionGraphSurface') wireExtensionSurface(surface);
+  if (isCustomViewKind(surface?.kind)) wireExtensionSurface(surface!);
   content.querySelector<HTMLButtonElement>('#related-back')?.addEventListener('click', () => void returnFromRelatedRecord());
   // Adding a record of the type in view abandons whatever record context there was,
   // including a related record half filled in and the way back to somewhere else — so
@@ -299,8 +299,10 @@ function wireExtensionSurface(surface: SurfaceNodePlan): void {
         step = 'allow'; next.textContent = 'Allow this view';
         status.textContent = packageName + ' is installed. Allow this view to read the fields it names, then open it.';
       } else {
-        step = 'open'; next.textContent = 'Open graph';
-        status.textContent = packageName + ' is installed and allowed on this device. The graph opens beside your records.';
+        // A graph says graph; a record set is a view of records, whatever it draws them as.
+        const noun = surface.kind === 'extensionGraphSurface' ? 'graph' : 'view';
+        step = 'open'; next.textContent = 'Open ' + noun;
+        status.textContent = packageName + ' is installed and allowed on this device. The ' + noun + ' opens beside your records.';
       }
       if (view.notice) status.textContent += ' ' + view.notice;
       next.dataset.step = step; next.disabled = false;

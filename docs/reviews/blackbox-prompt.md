@@ -677,6 +677,14 @@ type, whether a reference says whose label it sends, and whether the fields the 
 is narrowed by are named. Change one disclosed field and say whether permission is
 asked for again. Say what minimum host the file now states.
 
+An `extensionRecordsSurface` shows one record type as typed columns instead of a graph.
+Author one over a record type with two date fields, disclosing both, and say what the
+review and the consent dialog tell you it will read, and whether either mentions a
+relationship it does not have. Try it with an edge type, at protocol 1, and with a field of
+another record type, and say how each is refused. If the `org.nendo.gantt` package is at
+hand, open the view and say whether the bars match the dates, what happens to a record with
+no start or no end, and what the file's minimum host is now.
+
 Desktop execution is still being integrated. When the installed host exposes that
 path, check separate installation/consent, missing-package fallback, and permanent
 Studio access after renderer failure. Record unavailable runtime journeys as Not run.

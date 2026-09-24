@@ -10,7 +10,8 @@ internal sealed partial class SqliteNendoStore
     {
         using var evidence = JsonDocument.Parse(evidenceJson);
         var rows = evidence.RootElement.GetProperty("retainedSubtree").EnumerateArray().ToArray();
-        if (rows.Length is 0 or > 16 || rows.Any(row => row.GetProperty("kind").GetString() != NendoExtensionViewDefinition.NodeKind ||
+        var kind = rows.Length == 0 ? null : rows[0].GetProperty("kind").GetString();
+        if (rows.Length is 0 or > 16 || !NendoExtensionViewDefinition.IsViewKind(kind) || rows.Any(row => row.GetProperty("kind").GetString() != kind ||
             row.GetProperty("parentNodeId").ValueKind != JsonValueKind.Null) ||
             rows.Select(row => row.GetProperty("nodeId").GetString()).Distinct(StringComparer.Ordinal).Count() != 1)
             throw new NendoCompensationNotSupportedException("Only a single removed custom-view root can be restored by this inverse.");
@@ -30,11 +31,11 @@ internal sealed partial class SqliteNendoStore
             using var value = JsonDocument.Parse(row.GetProperty("valueJson").GetString()!);
             properties.Add(row.GetProperty("propertyName").GetString()!, value.RootElement.Clone());
         }
-        _ = NendoExtensionViewDefinition.Read(nodeId, properties);
+        _ = NendoExtensionViewDefinition.Read(nodeId, properties, [], kind!);
         var operations = new List<NendoOperation>
         {
             new AddUiNodeOperation(NendoCanonical.DeterministicId("operation", "extension.restore", key, 0),
-                surfaceId, nodeId, null, NendoExtensionViewDefinition.NodeKind, rows[0].GetProperty("position").GetInt32()),
+                surfaceId, nodeId, null, kind!, rows[0].GetProperty("position").GetInt32()),
         };
         foreach (var property in properties.OrderBy(p => p.Key, StringComparer.Ordinal))
             operations.Add(new SetUiPropertyOperation(NendoCanonical.DeterministicId("operation", "extension.restore", key, operations.Count),

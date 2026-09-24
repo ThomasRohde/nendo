@@ -71,6 +71,48 @@ public sealed class DesktopExtensionProtocol2Tests
     }
 
     [TestMethod]
+    public async Task ARecordSetReviewNamesItsColumnsAndNoRelationship()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var bytes = DesktopExtensionDeviceTests.Archive(protocol: 2);
+        var package = new DesktopExtensionPackageStore(workspace.FileHistoryRoot).Inspect(bytes);
+        await using (var coordinator = await NendoWriteCoordinator.CreateAsync(workspace.FilePath, "extension-test"))
+        {
+            await coordinator.ApplyAsync(new("test", "schema", "test", "Tasks", [
+                new CreateEntityOperation("nodes", "nodes", "Tasks", "nodes"),
+                new AddFieldOperation("label", "nodes", "label", "Task title", "label", NendoStorageKind.Text, true),
+                new AddFieldOperation("starts", "nodes", "starts", "Starts", "starts", NendoStorageKind.Date, false),
+                new AddFieldOperation("owner", "nodes", "owner", "Owner", "owner", NendoStorageKind.Text, false),
+            ]));
+            var properties = new Dictionary<string, object?>
+            {
+                ["definitionVersion"] = 3, ["entityId"] = "nodes", ["title"] = "Schedule",
+                ["packageId"] = "org.nendo.offline-test", ["packageVersion"] = package.Version, ["packageDigest"] = package.Digest,
+                ["protocolVersion"] = 2, ["configurationVersion"] = 1, ["configuration"] = "{}", ["labelFieldId"] = "label",
+            };
+            await coordinator.ApplyAsync(new("test", "view", "test", "Record view", [
+                new AddUiNodeOperation("graph", "graph", "graph", null, NendoExtensionViewDefinition.RecordsKind, 0),
+                .. properties.Select(p => new SetUiPropertyOperation("set-" + p.Key, "graph", "graph", p.Key, p.Value)),
+                new AddUiNodeOperation("c0", "graph", "graph-0", "graph", "fieldBinding", 0),
+                new SetUiPropertyOperation("c0-f", "graph", "graph-0", "fieldId", "starts"),
+                new AddUiNodeOperation("c1", "graph", "graph-1", "graph", "filterClause", 1),
+                new SetUiPropertyOperation("c1-f", "graph", "graph-1", "fieldId", "owner"),
+                new SetUiPropertyOperation("c1-o", "graph", "graph-1", "operator", "isNotNull"),
+            ]));
+        }
+        await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot);
+        await session.OpenAsync(workspace.FilePath);
+        session.ExtensionPackages.Install(bytes);
+        var review = await session.PrepareExtensionConsentAsync("graph");
+        Assert.AreEqual(new DesktopExtensionDisclosure("Tasks", "Task title", null, null, null, null)
+        {
+            NodeFields = ["Starts"],
+            FilterFields = ["Owner"],
+        }, review.View.Disclosure);
+        Assert.IsTrue(review.View.Definition.IsRecordSet);
+    }
+
+    [TestMethod]
     public async Task APackageAtAnotherProtocolIsIncompatibleNotCorrupt()
     {
         await using var workspace = new DesktopTestWorkspace();

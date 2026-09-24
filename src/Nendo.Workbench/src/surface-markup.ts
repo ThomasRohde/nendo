@@ -1,6 +1,6 @@
 import {
   boardView, excludedLanesNote, kindLabel as surfaceKindLabel, matrixViewOf, nodeFieldIds, referenceColumnsEmpty,
-  referenceColumnsOverflow, surfaceLabel, useSurfaces, type BoardView, type MatrixView,
+  referenceColumnsOverflow, surfaceLabel, useSurfaces, type BoardView, type MatrixView, isCustomViewKind,
 } from './surface-model';
 import { civilDate, groupByDate, loadedStateLabel, monthGrid, monthLabel, sameMonth, weekdayNames } from './calendar-model';
 import {
@@ -76,10 +76,10 @@ export function surfaceBodyMarkup(plan: ApplicationPlan): string {
     return `<div class="first-record-state" role="alert"><div class="record-glyph" aria-hidden="true">!</div><h3>This view could not be loaded</h3><p>${escapeHtml(failure)}</p><button class="secondary-button" type="button" data-retry-surface="${escapeAttribute(node.semanticId)}">Try again</button></div>`;
   // A calendar or a timeline owns its own accumulated pages and loading states.
   if (node.kind === 'calendarSurface') return calendarMarkup(plan, node);
-  if (node.kind === 'extensionGraphSurface') return `<section class="empty-state" aria-labelledby="extension-title">
-    <h2 id="extension-title">${escapeHtml(typeof node.properties.title === 'string' ? node.properties.title : 'Custom graph')}</h2>
+  if (isCustomViewKind(node.kind)) return `<section class="empty-state" aria-labelledby="extension-title">
+    <h2 id="extension-title">${escapeHtml(typeof node.properties.title === 'string' ? node.properties.title : node.kind === 'extensionGraphSurface' ? 'Custom graph' : 'Custom view')}</h2>
     <p id="extension-status" role="status">Checking this device’s package and permission…</p>
-    <p>The graph opens beside your records, which stay editable in Studio.</p>
+    <p>The ${node.kind === 'extensionGraphSurface' ? 'graph' : 'view'} opens beside your records, which stay editable in Studio.</p>
     <div class="form-actions"><button id="extension-next" type="button" class="primary-button" disabled>Checking…</button>
     <button id="extension-studio" type="button" class="secondary-button">Open Studio</button>
     <button id="manage-extension" type="button" class="secondary-button">Manage packages…</button></div>

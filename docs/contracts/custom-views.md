@@ -383,6 +383,19 @@ component's system arrives as a disclosed field, not packed into the label as
 version `0.1.0` required. `Review-SystemsLens.ps1` measures it in the
 production gate.
 
+A fourth package, `extensions/gantt/`, is the first **record-set** view:
+`org.nendo.gantt` version `0.1.0`, protocol 2, built through
+`Build-NendoGanttPackage.ps1`. It draws one record type on a time line, taking the
+first disclosed date field as the start and the second as the end. A record with a
+start and no end is a milestone, and a record without a start is counted rather than
+drawn. `Review-Gantt.ps1` measures it in the production gate: equal starts share a
+left edge, a longer span is wider, a later start sits further right, milestones,
+the undated count, start order, the selection message's exact keys from the pointer
+and the keyboard, markup-shaped labels kept as text, generation replacement, the
+no-date empty state, refusal of a protocol-1 message, both themes and a 512x384
+window. With every bar drawn at one width, the lane failed with `A twenty-day span
+is not drawn about four times a five-day one: {"short":{"kind":"bar","left":408,"width":30},"long":{"kind":"bar","left":408,"width":30}}`.
+
 All three packages now come from one packer, `Build-NendoViewPackage.ps1`. That refactor did not change the digest of the graph
 (`e40a32c53352455481d56b5e883a26178a74f4ec51c20b2ec8b19507eacc6a86`).
 
@@ -469,6 +482,17 @@ Required properties are `definitionVersion: 3`, `entityId`, `title`, `packageId`
 `targetFieldId`. `statusFieldId` is optional. The surface entity is the node type.
 Both edge fields must be distinct, active, configured References to it. The label
 is active stored Text, and the status is an active stored non-reference scalar.
+**Record-set views.** `extensionRecordsSurface` (ADR-0013, 2026-09-24 record-set
+amendment) projects one record type as typed columns. It takes the same package,
+protocol, configuration, `entityId`, `labelFieldId` and optional `statusFieldId`
+properties, and no edge type: `edgeEntityId`, `sourceFieldId` and `targetFieldId`
+are refused. It is protocol 2 only; its columns are its `fieldBinding` children and
+it may be narrowed by `filterClause` children, on its one record type. The page
+receives `{sourceChangeSequence, fields, records}`: at most 1,000 records and
+1 MiB, refused whole above that, with exactly the disclosed values on each record.
+`selectRecord` names a projected record. It opens in the pane, and a file with one
+needs host **1.31.0**. Its review lists the columns and names no relationship.
+
 At protocol 1 the root has no children. At protocol 2 (ADR-0013, 2026-09-24) it may
 carry `fieldBinding` children, at most eight per record type, and `filterClause`
 children with a literal or presence comparison, at most eight; a file with such a

@@ -14,7 +14,7 @@ import {
   relatedLists, relationQuery, timelineKeyFor, timelineModeFor, timelineYearFor, visibleNodes,
 } from './plan-selection';
 import { relatedKey } from './record-markup';
-import { boardViewOf, maximumReferenceBoardColumns } from './surface-model';
+import { boardViewOf, isCustomViewKind, maximumReferenceBoardColumns } from './surface-model';
 import { WorkbenchHostError, type ApplicationPlan, type ReadPage, type RecordSnapshot, type SurfaceNodePlan } from './host';
 
 /**
@@ -55,7 +55,7 @@ export async function loadRecordWindow(entityId: string, direction: number, surf
 }
 
 export async function loadSurfaceWindow(entityId: string, node: SurfaceNodePlan): Promise<void> {
-  if (node.kind === 'extensionGraphSurface') return; // The native host owns its coherent bounded projection.
+  if (isCustomViewKind(node.kind)) return; // The native host owns its coherent bounded projection.
   const query = effectiveSurfaceQuery(entityId, node);
   const page = await client.request<ReadPage<RecordSnapshot>>('data.queryRecords', windowRequest(entityId, query));
   if (page.changeSequence !== state.session.manifest?.changeSequence)
