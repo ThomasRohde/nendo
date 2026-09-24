@@ -33,6 +33,9 @@ public static class ExtensionFocusProbe {
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr window, int cmd);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr window, int index);
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
     // Accessibility rectangles are physical pixels; the pane's own widths are DIPs. Without
     // this the two cannot be compared on a scaled display, which is most of them.
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
@@ -273,11 +276,25 @@ if ($Action -eq 'Drag pane') {
     # Before the press the strip itself must be what is there. After the moves the boundary
     # has left the press point, and the Workbench's webview under it belongs to another
     # process, so from then on the point need only still be inside Nendo's own window.
+    function Get-WindowText([IntPtr] $window) {
+        $rect = [ExtensionFocusProbe+Rect]::new()
+        [void][ExtensionFocusProbe]::GetWindowRect($window, [ref]$rect)
+        [int]$cloaked = 0
+        [void][ExtensionFocusProbe]::DwmGetWindowAttribute($window, 14, [ref]$cloaked, 4)   # DWMWA_CLOAKED
+        "$($rect.Left),$($rect.Top)-$($rect.Right),$($rect.Bottom), visible $([ExtensionFocusProbe]::IsWindowVisible($window)), cloaked $cloaked"
+    }
     function Assert-BoundaryOnTop([string] $when, [switch] $WindowOnly) {
-        $under = [ExtensionFocusProbe]::WindowAt($startX, $startY)
-        $inside = if ($WindowOnly) { [ExtensionFocusProbe]::GetAncestor($under, 2) -eq $handle } else { [ExtensionFocusProbe]::ProcessOf($under) -eq $TargetProcessId }
+        # A second to settle: hit-testing against another application's composited window
+        # was measured still answering with that window straight after the raise, and with
+        # Nendo a moment later (2026-09-24, the Claude desktop app maximized behind it).
+        $settle = [DateTimeOffset]::UtcNow.AddSeconds(1)
+        do {
+            $under = [ExtensionFocusProbe]::WindowAt($startX, $startY)
+            $inside = if ($WindowOnly) { [ExtensionFocusProbe]::GetAncestor($under, 2) -eq $handle } else { [ExtensionFocusProbe]::ProcessOf($under) -eq $TargetProcessId }
+            if (-not $inside) { Start-Sleep -Milliseconds 50 }
+        } while (-not $inside -and [DateTimeOffset]::UtcNow -lt $settle)
         if (-not $inside) {
-            throw "The boundary is covered $when by $([ExtensionFocusProbe]::ClassAt($startX, $startY)), not Nendo ($TargetProcessId, extended style 0x$('{0:x}' -f [ExtensionFocusProbe]::GetWindowLongPtr($handle, -20).ToInt64())); the drag would go to that window, so no width was measured."
+            throw "The boundary is covered $when by $([ExtensionFocusProbe]::ClassAt($startX, $startY)), not Nendo ($TargetProcessId, extended style 0x$('{0:x}' -f [ExtensionFocusProbe]::GetWindowLongPtr($handle, -20).ToInt64()), window $(Get-WindowText $handle)) at $startX,$startY; the drag would go to that window, so no width was measured."
         }
     }
     $before = [ExtensionFocusProbe+Point]::new()
