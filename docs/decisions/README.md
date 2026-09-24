@@ -38,6 +38,15 @@ existed. For this reason the numbering is contiguous by intent.
   (ADR-0002/0017), protected view references (0003), typed view bindings (0004)
   and supported-envelope preservation (0012). Pending security/lifecycle checks
   remain release gates.
+- **ADR-0013, 2026-09-24 — protocol 2**: a view may disclose more typed fields of
+  its node and edge types (a reference as its target's label) and narrow them with
+  literal filters, all named in the consent review and bound into its digest.
+  Host 1.30.0. Delivered by W-060.
+- **ADR-0013, 2026-09-24 — a record-set shape and a record-page placement**: an
+  `extensionRecordsSurface` projects one record type as typed columns, and an
+  `extensionRecordPanel` places a view on a record page scoped to its record.
+  Embedded views start only on request, one at a time per window, because a running
+  view measured 219–270 MiB, mostly its own browser engine. Host 1.31.0. W-061.
 - **ADR-0004, 2026-09-20 — a section can be folded away**: every `section` folds.
   An author can store how a section starts, as the `opens` property with the
   closed words `open` and `closed`. A person's own fold is never stored in the file.

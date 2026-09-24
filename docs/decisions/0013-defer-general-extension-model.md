@@ -303,3 +303,74 @@ exactly the disclosed fields and nothing else, guarded by a test that is seen to
 fail when an undisclosed column is added to the read; the binding digest moving
 when a disclosed field or filter changes; the review naming them; and Systems Lens
 reading its system from a disclosed field instead of the label.
+
+## Accepted amendment 2026-09-24 — a record-set shape, a record-page placement, and what a running view costs
+
+Accepted under the owner's standing pre-acceptance of ADR changes, given on
+2026-09-24. It is W-061.
+
+**Why.** Every view today is a graph, and every view opens as the pane beside the
+Workbench. A map, a Gantt chart, a heat map or a custom chart needs records with
+typed columns and no links. A view about one record belongs on that record's page.
+Both are placements the boundary can carry, but only if what a running view costs
+is known first, because a view per tile would be paid for per tile.
+
+**What a running view costs.** Measured 2026-09-24 on the real helper with the real
+dependency-graph package and a 41-node, 48-link graph, as private memory per
+process of the contained tree:
+
+| State | Total | GPU process | Browser | Page (renderer) | Helper | Network + storage | Crash handler |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Started, not shown | 219 MiB | 112 | 41 | 28 | 15 | 21 | 2 |
+| Shown at 720×540 px | 230 MiB | 122 | 41 | 29 | 15 | 21 | 2 |
+| Shown at 1900×1950 px | 265 MiB | 156 | 41 | 30 | 15 | 21 | 2 |
+| Back to 720×540 px | 270 MiB | 161 | 41 | 30 | 15 | 21 | 2 |
+
+The page is about 30 MiB of it. The rest is the browser engine a contained view
+needs of its own, and most of that is GPU compositing, which grows with the window
+and does not give memory back when the window shrinks. The same run with GPU
+compositing switched off measured 123, 125, 147 and 127 MiB.
+
+**Decision.**
+
+- **A record-set shape.** A new root, `extensionRecordsSurface`, projects one
+  record type as a flat record set: a label, the optional status and the disclosed
+  fields as typed columns, narrowed by the view's filters. It takes the protocol-2
+  `fieldBinding` and `filterClause` children of the 2026-09-24 amendment above, on
+  its one record type. The page receives `{fields, records: [{id, label, status,
+  values}]}`; at most 1,000 records and 1 MiB, refused whole above that. The
+  message set is protocol 2's, and `selectRecord` names a projected record. It
+  opens in the pane, like a graph.
+- **A record-page placement.** A new child of a record page, `extensionRecordPanel`,
+  places a view on that page, scoped to the page's one record: the page receives
+  `{fields, record: {id, label, status, values}}`. It names its package pin and
+  disclosed fields as a root does, and consent binds it the same way.
+- **Embedded views start on request, one at a time.** A panel is drawn by the host
+  as a placeholder, its title, its package and a *Show view* button, and nothing
+  runs until the person presses it. At most one embedded view runs per window;
+  showing another stops the first. Never a helper per tile: at 220 to 270 MiB each,
+  three would be most of a gigabyte.
+- **No shared helper across views.** One helper hosting several packages would save
+  the engine's cost once per extra view, but it would put different packages in one
+  AppContainer and one Job, where one package's memory, CPU or process exhaustion
+  stops the others, and their renderers in one browser process. Start-on-request
+  keeps one helper per running view and the isolation it was accepted for.
+- **Software compositing is not adopted here.** It nearly halves a view's memory,
+  but it moves drawing onto a CPU capped at 20% for the whole contained tree. It is
+  its own decision, taken only after a pan-and-zoom frame-time measurement under
+  that cap.
+- **A failed embedded view leaves the page.** It shows the host's reason in the
+  placeholder; the record page stays editable, and Studio and the page's Open
+  controls stay reachable.
+
+**Compatibility.** A file with either new kind needs host 1.31.0. The panel's
+contained window is composed over a scrolling Workbench page, which the pane never
+was: the Workbench reports the placeholder's rectangle, the host places and clips
+the child window to the content viewport, and hides it while the page scrolls or a
+boundary is dragged, as it already does for the pane's splitter.
+
+**Evidence owed.** The measurement above, kept in the check that records it; the
+records shape carrying exactly its disclosed columns (the protocol-2 guard, applied
+to the new shape); a panel that stays a placeholder until pressed; a second panel
+stopping the first; a failed panel leaving the page editable and Studio reachable;
+both themes.
