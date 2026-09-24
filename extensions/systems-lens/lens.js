@@ -11,7 +11,7 @@
   const incoming = new Map();      // node id -> [node id]
   let seeds = [];                  // components nothing declares a feed into
   let baseline = new Set();        // what the sources reach with everything present
-  const NODE_WIDTH = 218, NODE_HEIGHT = 66, COLUMN = 270, ROW = 98;
+  const NODE_WIDTH = 218, NODE_HEIGHT = 84, COLUMN = 270, ROW = 116;
   // The station's own component states, in the file's own tones. Any other value is
   // drawn neutral rather than guessed at, so this package stays usable against
   // another file's scalar.
@@ -338,14 +338,17 @@
       group.append(shape('title', {}, status === null ? node.label : `${node.label} — ${status}`),
         shape('rect', { width: NODE_WIDTH, height: NODE_HEIGHT, rx: 11 }),
         shape('text', { x: 14, y: 27 }, parts.name.length > 27 ? parts.name.slice(0, 26) + '…' : parts.name));
+      // The system has a line of its own. It arrives as the system's name, which is longer
+      // than the codes the old label convention carried, and a corner beside the component's
+      // name cut it to a stub ("CO2 Scrubb"). The full text is in the title as well.
       if (parts.band !== null) {
-        group.append(shape('text', { x: NODE_WIDTH - 14, y: 27, class: 'band', 'text-anchor': 'end' }, parts.band.slice(0, 10)));
+        group.append(shape('text', { x: 14, y: 47, class: 'band' }, parts.band.length > 30 ? parts.band.slice(0, 29) + '…' : parts.band));
       }
       if (status !== null) {
-        group.append(shape('circle', { cx: 19, cy: 46, r: 5, class: 'tone tone-' + (TONES[status.toLowerCase()] ?? 'grey') }),
-          shape('text', { x: 30, y: 50, class: 'status' }, status.slice(0, 22)));
+        group.append(shape('circle', { cx: 19, cy: 64, r: 5, class: 'tone tone-' + (TONES[status.toLowerCase()] ?? 'grey') }),
+          shape('text', { x: 30, y: 68, class: 'status' }, status.slice(0, 22)));
       }
-      group.append(shape('text', { x: NODE_WIDTH - 14, y: 50, class: 'verdict', 'text-anchor': 'end' },
+      group.append(shape('text', { x: NODE_WIDTH - 14, y: 68, class: 'verdict', 'text-anchor': 'end' },
         looping.has(node.id) ? 'loop' : ''));
       group.addEventListener('click', () => select(node.id));
       group.addEventListener('keydown', event => {

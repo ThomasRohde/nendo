@@ -200,13 +200,22 @@ async (page) => {
   await page.locator('.node[data-id="pumpA"]').click();
   await page.getByRole('button', { name: 'Take out', exact: true }).click();
   await page.evaluate(() => window.deliverView({ version: 2, method: 'replaceProjection', session: 'gate', generation: 2,
-    projection: window.asProtocol2({ sourceChangeSequence: 2, nodes: [{ id: 'p', label: 'PWR · Array port', status: 'Online' }, { id: 'q', label: 'PWR · Charge regulator', status: null }],
+    projection: window.asProtocol2({ sourceChangeSequence: 2, nodes: [{ id: 'p', label: 'Power Distribution · Array port', status: 'Online' }, { id: 'q', label: 'PWR · Charge regulator', status: null }],
       edges: [{ id: 'e1', sourceId: 'p', targetId: 'q' }] }) }));
   assert((await verdicts()).removed.length === 0, 'A new projection kept a stale what-if.');
   assert(!await page.locator('#caveat').isVisible(), 'A new projection kept the what-if caveat on screen.');
   assert(await page.locator('#summary').innerText() === '2 components · 1 feed · 1 declared source',
     'Replacement counts are wrong: ' + await page.locator('#summary').innerText());
   assert(await page.locator('#selection').innerText() === 'No component selected', 'Replacement kept a stale selection.');
+  // A disclosed reference arrives as the system's name, not a short code, and the node
+  // has to show it whole and inside its own box; it once cut this to "Power Dist".
+  const longBand = await page.evaluate(() => {
+    const node = document.querySelector('.node[data-id="p"]');
+    const band = node.querySelector('text.band'), box = node.querySelector('rect');
+    const b = band.getBoundingClientRect(), r = box.getBoundingClientRect();
+    return { text: band.textContent, inside: b.left >= r.left && b.right <= r.right + 0.5 && b.bottom <= r.bottom + 0.5 };
+  });
+  assert(longBand.text === 'Power Distribution' && longBand.inside, 'A long system name is cut or leaves its node: ' + JSON.stringify(longBand));
   assert(await page.evaluate(() => document.getElementById('takeout-toggle').disabled), 'Take out stayed available with nothing selected.');
 
   await page.evaluate(() => window.deliverView({ version: 2, method: 'setTheme', session: 'gate', generation: 2, theme: 'dark' }));
