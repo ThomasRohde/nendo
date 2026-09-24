@@ -202,7 +202,9 @@ export function wireFolds(plan: ApplicationPlan, record: RecordPlan | null): voi
     fold.addEventListener('toggle', () => {
       if (fold.open === drawn) return;
       drawn = fold.open;
-      foldSection(fold.dataset.section!, fold.open);
+      const byPerson = fold.dataset.revealed !== 'true';
+      delete fold.dataset.revealed;
+      foldSection(fold.dataset.section!, fold.open, byPerson);
       if (!fold.open || record === null) return;
       void (async () => {
         await loadRelatedWindows(plan, record.semanticId);
@@ -330,7 +332,9 @@ export function revealField(plan: ApplicationPlan, fieldId: string): void {
   // tab is: the section opens, and the person sees what is being asked for.
   for (let fold = control.closest<HTMLDetailsElement>('details[data-section]'); fold !== null;
     fold = fold.parentElement?.closest<HTMLDetailsElement>('details[data-section]') ?? null) {
-    if (!fold.open) { fold.open = true; foldSection(fold.dataset.section!, true); }
+    // Not remembered for the device: the page opened it, the person did not. The toggle
+    // this fires reads the mark and says the same.
+    if (!fold.open) { fold.dataset.revealed = 'true'; fold.open = true; foldSection(fold.dataset.section!, true, false); }
   }
   control.focus();
   control.scrollIntoView({ block: 'nearest' });

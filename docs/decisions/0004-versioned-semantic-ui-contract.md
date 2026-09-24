@@ -10,6 +10,45 @@
 
 ## Context
 
+### Accepted amendment — 2026-09-24 (a fold is remembered on this device)
+
+The owner asked for this on 2026-09-20, the day W-040 shipped ("remembering across
+reopens"), and took the shape below when it was put to them. It is accepted under the
+owner's standing pre-acceptance of ADR changes, given on 2026-09-24. It is W-053.
+
+**What it changes.** The 2026-09-20 entry kept a person's folds for the open file only and
+rejected persisting them. This entry reverses that one sentence and nothing else. What the
+person folds or opens is kept for the device, in the Workbench's local storage, under
+`nendo.sectionFolds.<applicationId>`: a map from section node ID to `open` or `closed`.
+It survives closing and reopening the file and restarting Nendo.
+
+**Why the first reason no longer holds.** That entry gave two reasons. The first, keeping
+renderer state out of definitions, is kept in full: the fold is never in the file, adds no
+property and no rung, and a file is byte-for-byte what it would be without it. The second,
+that a fold would be the only renderer state to follow a person across a reopen, stopped
+being true when the theme and then the rail were kept for the device in the same storage.
+The fold joins them.
+
+**The rules.**
+
+- A section the person never touched starts as `opens` says. After the person touches it,
+  their choice wins.
+- A section the page opened by itself, to reveal a required field, is not remembered: the
+  person did not choose it.
+- The key is the application ID, not the instance ID. A duplicate or fork of the file on
+  the same device opens with the same folds. The instance ID would forget them on every
+  copy, which reads as the feature not working.
+- The map is read synchronously before the first draw, so a page does not draw one way and
+  then another. Storage that is unavailable or unreadable leaves `opens` in charge, with no
+  error.
+- Selected tabs stay file-scoped (F-027). Nobody has asked for them.
+
+**Evidence.** `src/Nendo.Workbench/scripts/fold-state.test.mjs` drives the storage helpers
+with a fake store, including a store that throws. The reopen phase of
+`tools/Gate-AgentAuthoring.mjs` now asserts that Lately and the Data remit's More section,
+left open when the file closed, are drawn open when it reopens, and that folding moves the
+file's change sequence by nothing. Before this entry the same phase asserted the opposite.
+
 ### Accepted amendment — 2026-09-20 (a section can be folded away)
 
 The owner accepted this amendment on 2026-09-20, the same day it was proposed for W-040.
@@ -103,7 +142,8 @@ at it:
 - A real pointer press on the heading opens the section, the reads land and the numbers
   appear.
 - When the section is folded again, the reads stop on the next chase interval.
-- When the file is reopened, the section goes back to its stored default.
+- When the file is reopened, the section goes back to its stored default. *(Reversed by
+  the 2026-09-24 entry: it is now drawn as the person left it.)*
 
 The gate runs in Light and Dark. Two falsifications are owed, and each must be seen to
 fail. The first is a closed section that still reads; the bridge count catches it. The
@@ -111,7 +151,8 @@ second is a stored default that the renderer ignores; the initial state catches 
 
 **Not in this amendment.** These items are not in this amendment:
 
-- Remembering the folds of a person across a reopen (F-027 stands).
+- Remembering the folds of a person across a reopen (F-027 stands). *Delivered by the
+  2026-09-24 entry above, which keeps them for the device.*
 - Folding a tab, a related list or a whole surface.
 - Animation.
 - A fold on the proposal review itself.

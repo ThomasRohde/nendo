@@ -2831,6 +2831,36 @@ async function watchBridge() {
     b.postMessage=(m)=>{ try { window.__gateBridge.push({method:m.method, entityId:m.payload?.entityId ?? null, protocolVersion:m.protocolVersion ?? null}); } catch {} send(m); }; })()`);
 }
 
+// W-053: a section the person left open is still open after the file is closed and
+// reopened, and a fold writes nothing into the file. The built phase ends with Lately and
+// the Data remit's More section both open, and nobody touches either before this looks.
+async function assertFoldsAreKeptAcrossReopen() {
+  const lately = 'details[data-section="front-lately"]';
+  const more = 'details[data-section="remit-more"]';
+  const before = (await snapshot()).manifest.changeSequence;
+  await click('#nav-use'); await ready();
+  await evaluate(`(()=>{const s=document.querySelector('#use-entity'); if (s.value !== '') { s.value=''; s.dispatchEvent(new Event('change',{bubbles:true})); }})()`); await ready();
+  await waitFor(() => evaluate(`!!document.querySelector('${lately}')`), 'Lately on the reopened front page');
+  assert(await evaluate(`document.querySelector('${lately}').open === true`),
+    'Lately was left open before the file closed and is drawn closed after it reopened: the fold was forgotten.');
+  // Folded with a real pointer, as the person would, so what follows starts from closed.
+  await pointerClickInView(`${lately} > summary`);
+  await waitFor(() => evaluate(`document.querySelector('${lately}')?.open === false`), 'Lately folded on the reopened file');
+  await evaluate(`(()=>{const s=document.querySelector('#use-entity'); s.value='remit'; s.dispatchEvent(new Event('change',{bubbles:true}));})()`); await ready();
+  await clickFound(`[...document.querySelectorAll('.record-list [data-record-id]')].find(row=>row.textContent.includes('Data'))`, "the Data remit's row");
+  await waitFor(() => evaluate(`!!document.querySelector('.record-inspector ${more}')`), "the Data remit's page on the reopened file");
+  assert(await evaluate(`document.querySelector('${more}').open === true`),
+    "More was left open on the Data remit's page and is drawn closed after reopening: the fold was forgotten.");
+  await pointerClickInView(`${more} > summary`);
+  await waitFor(() => evaluate(`document.querySelector('${more}')?.open === false`), 'More folded on the reopened file');
+  await click('#close-inspector'); await ready();
+  await evaluate(`(()=>{const s=document.querySelector('#use-entity'); s.value=''; s.dispatchEvent(new Event('change',{bubbles:true}));})()`); await ready();
+  const after = (await snapshot()).manifest.changeSequence;
+  assert(after === before, `Folding sections wrote to the file: its change sequence moved from ${before} to ${after}.`);
+  // Everything drawn before the folds read Lately's tile; what comes next measures from here.
+  await evaluate(`void (window.__gateBridge.length = 0)`);
+}
+
 async function assertAFoldedSectionReadsNothingUntilOpened(label) {
   await watchBridge();
   const remitCounts = () => evaluate(`window.__gateBridge.filter(m=>m.protocolVersion===7&&m.method==='data.countRecords'&&m.entityId==='remit').length`);
@@ -2860,7 +2890,10 @@ async function assertAFoldedSectionReadsNothingUntilOpened(label) {
     `the remit count in the opened section (${label})`);
   assert(opened.value === expectedRemits && opened.tile === true,
     `The opened section shows ${JSON.stringify(opened)}, not ${expectedRemits} remits drawn (${label}).`);
-  assert(await remitCounts() >= 1, `Opening the section read nothing for its tile (${label}).`);
+  // Only where Lately has never been open. On the reopened file it is drawn open as the
+  // person left it (W-053), so its tile was read then, and a value once read stays until
+  // the file changes: opening it again rightly reads nothing new.
+  if (label === 'built') assert(await remitCounts() >= 1, `Opening the section read nothing for its tile (${label}).`);
 
   // Folded again: the value it has stays, and nothing more is read on the next chase.
   await pointerClickInView(`${lately} > summary`);
@@ -2952,8 +2985,10 @@ try {
     assert(await evaluate(`document.querySelector('#use-entity')?.value === ''`),
       'The front page is drawn but the picker does not say so.');
     await assertRegisterRuns('reopened');
-    // The fold left open on the built file is closed again here: the stored default
-    // outlives the session, and what the person did does not (F-027).
+    // The folds left open on the built file are still open here: what the person did
+    // outlives the session on this device (W-053). Folded again, the same measurements
+    // as the built phase then run from closed.
+    await assertFoldsAreKeptAcrossReopen();
     await assertAFoldedSectionReadsNothingUntilOpened('reopened');
     await screenshot('register-reopened.png');
     // Last, because it adds an axiom and every assertion that counts them has run.

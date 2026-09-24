@@ -382,9 +382,16 @@ record page, a closed section's fields stay in the form, hidden and not removed,
 exactly as `visibleWhen` keeps them. A required field left empty reveals its
 section in the same way it reveals its tab.
 
-What the person does with a fold is renderer state scoped to the open file, like a
-selected tab (F-027). It never reaches the file, and it is gone when the file is
-closed. The diff reads *Add the section "Lately", starting closed.* when the
+What the person does with a fold is their own view of the page, and it never reaches
+the file. It is kept for the device in the Workbench's local storage, the way the theme
+and the rail are, under `nendo.sectionFolds.<applicationId>` as a map from section node
+ID to `open` or `closed` (ADR-0004, 2026-09-24 entry). So a fold survives closing and
+reopening the file and restarting Nendo. The key is the application ID, not the
+instance ID, so a duplicate or fork of the file on the same device opens with the same
+folds. A section the person has never touched starts as `opens` says; after that their
+choice wins. A section the page opened by itself to reveal a required field is not
+remembered. Storage that is unavailable or unreadable leaves `opens` in charge, without
+an error. The diff reads *Add the section "Lately", starting closed.* when the
 property arrives with the section. It reads *Start the section closed.* or *Start
 the section open.* when the property changes on a section the file already has.
 The review preview draws a section as it starts. A `section` carrying `opens`

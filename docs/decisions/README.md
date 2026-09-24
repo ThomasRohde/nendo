@@ -40,8 +40,10 @@ existed. For this reason the numbering is contiguous by intent.
   remain release gates.
 - **ADR-0004, 2026-09-20 — a section can be folded away**: every `section` folds.
   An author can store how a section starts, as the `opens` property with the
-  closed words `open` and `closed`. A person's own fold is renderer state for the
-  file session and is never stored in the file.
+  closed words `open` and `closed`. A person's own fold is never stored in the file.
+- **ADR-0004, 2026-09-24 — a fold is remembered on this device**: a person's folds
+  are kept in the Workbench's local storage, keyed by the file's application ID and
+  the section's node ID, so they survive a reopen. The file is unchanged by them.
 - **ADR-0008, 2026-09-20 — an optional result is quietly empty, and a formula can
   refuse by name**: a calculation or function with `resultNullable: true` reports
   an empty result when an empty input stops its formula. A definition declared

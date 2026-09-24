@@ -219,9 +219,10 @@ what it is for without being told.
 Give one section on the front page and one on a record page `opens: closed`, and have the
 person read both pages. Does a closed section read as something that opens, from the
 keyboard as well as with the pointer? Does a number inside it appear only once it is
-opened, and stay when it is folded again? Does a fold survive moving around the file and
-not survive closing it? And on the record page, does opening a section keep what was
-typed elsewhere on the form?
+opened, and stay when it is folded again? Does a fold survive moving around the file, and
+closing and reopening it? Does a copy of the file on the same computer open with the same
+folds, and is the file itself unchanged by folding? And on the record page, does opening a
+section keep what was typed elsewhere on the form?
 
 The navigation down the left of the window folds. Find the control that folds it without
 being told where it is, and say whether you would have found it at all. With it folded,
