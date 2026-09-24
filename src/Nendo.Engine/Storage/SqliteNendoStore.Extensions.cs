@@ -11,24 +11,33 @@ internal sealed partial class SqliteNendoStore
         return await ReadGraphProjectionAsync(binding, transaction, cancellationToken);
     }
 
-    internal async Task<NendoExtensionViewSnapshot> ReadExtensionViewAsync(string viewId, CancellationToken cancellationToken)
+    /// <param name="recordId">
+    /// For a view on a record page, the page's record: the projection is that record and
+    /// nothing else. Without one a panel projects no record, which is what its review and
+    /// its status need. A view with a screen of its own takes none.
+    /// </param>
+    internal async Task<NendoExtensionViewSnapshot> ReadExtensionViewAsync(string viewId, string? recordId, CancellationToken cancellationToken)
     {
         using var transaction = _connection.BeginTransaction(deferred: true);
         _ = await ReadAuthoritySnapshotAsync(transaction, cancellationToken);
         var nodes = await ReadUiNodesAsync(transaction, cancellationToken);
-        var node = nodes.SingleOrDefault(n => n.NodeId == viewId && n.ParentNodeId is null && NendoExtensionViewDefinition.IsViewKind(n.Kind))
+        // A root view is a root and a panel is a child; a node of either kind in the other
+        // position is not a view this host runs.
+        var node = nodes.SingleOrDefault(n => n.NodeId == viewId && NendoExtensionViewDefinition.IsViewKind(n.Kind) &&
+                (n.ParentNodeId is null) == NendoExtensionViewDefinition.IsRootViewKind(n.Kind))
             ?? throw new NendoPreconditionException("extension-view-missing", "The custom view is no longer defined. Use Studio to inspect the records.");
-        var children = nodes.Where(n => n.ParentNodeId == node.NodeId && n.SurfaceId == node.SurfaceId)
-            .OrderBy(n => n.Position).ThenBy(n => n.NodeId, StringComparer.Ordinal).ToArray();
-        var definition = NendoExtensionViewDefinition.Read(node.NodeId, node.Properties, children, node.Kind);
+        var definition = NendoExtensionViewDefinition.ReadNode(node, nodes);
         if (!definition.IsSupported)
             throw new NendoPreconditionException("extension-version-unsupported", "This host preserves this view's configuration but cannot execute its version.");
+        if (recordId is not null && !definition.IsRecordPanel)
+            throw new NendoPreconditionException("extension-record-scope", "Only a custom view on a record page is scoped to one record.");
         var manifest = await ReadManifestAsync(transaction, cancellationToken);
-        var projection = await ReadGraphProjectionAsync(definition.Binding, transaction, cancellationToken);
+        var projection = await ReadGraphProjectionAsync(definition.Binding, transaction, cancellationToken, definition.IsRecordPanel, recordId);
         return new(manifest.ApplicationId, manifest.InstanceId, definition, projection);
     }
 
-    private async Task<NendoGraphProjection> ReadGraphProjectionAsync(NendoGraphBinding binding, SqliteTransaction transaction, CancellationToken cancellationToken)
+    private async Task<NendoGraphProjection> ReadGraphProjectionAsync(NendoGraphBinding binding, SqliteTransaction transaction,
+        CancellationToken cancellationToken, bool panel = false, string? recordId = null)
     {
         _ = await ReadAuthoritySnapshotAsync(transaction, cancellationToken);
         var manifest = await ReadManifestAsync(transaction, cancellationToken);
@@ -69,7 +78,13 @@ internal sealed partial class SqliteNendoStore
         var nodeFields = disclosed.Where(d => d.Of == "node").Select(d => d.Field).ToArray();
         var edgeFields = disclosed.Where(d => d.Of == "edge").Select(d => d.Field).ToArray();
         var parameters = new Dictionary<string, object>(StringComparer.Ordinal);
+        // A panel reads its one record, or none at all when it is only being described.
         var nodePredicates = new List<string>();
+        if (panel)
+        {
+            nodePredicates.Add(recordId is null ? "0" : $"{Quote("__nendo_record_id")} = @record");
+            if (recordId is not null) parameters["@record"] = recordId;
+        }
         var edgePredicates = new List<string>();
         var filters = binding.Filters ?? [];
         for (var index = 0; index < filters.Count; index++)
@@ -148,6 +163,8 @@ internal sealed partial class SqliteNendoStore
         // say so. An unset endpoint is refused either way: that is incomplete data, not a filter.
         var edgeColumns = string.Concat(edgeFields.Select(f => ", " + Column(f, edgeEntity)));
         var hidden = 0;
+        if (panel && recordId is not null && nodes.Count == 0)
+            throw new NendoPreconditionException("extension-record-missing", "This record is no longer in the file. Your other records are unchanged.");
         if (recordSet) return Finish();
         // Bounded either way: the links kept are capped as before, and with a node filter the
         // links read to find them are capped too, refusing rather than returning part of a graph.
@@ -183,6 +200,7 @@ internal sealed partial class SqliteNendoStore
                 Fields = protocol2 ? disclosed.Select(d => new NendoGraphField(d.Field.FieldId, d.Field.DisplayName, TypeOf(d.Field), d.Of)).ToArray() : null,
                 HiddenEdges = protocol2 && !recordSet ? hidden : null,
                 IsRecordSet = recordSet,
+                IsRecordPanel = panel,
             };
             if (JsonSerializer.SerializeToUtf8Bytes(projection).Length > NendoExtensionViewSession.MaximumProjectionBytes) throw TooLarge();
             return projection;

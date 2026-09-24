@@ -2,8 +2,9 @@
   'use strict';
   // A Gantt chart of one record type, protocol 2's record-set shape (ADR-0013,
   // 2026-09-24). The view discloses its dates as typed fields: the first date field is
-  // the start and the second the end. Nothing here reads, writes or opens anything; a
-  // selection is a suggestion, and Open record is the host's.
+  // the start and the second the end. On a record page the host sends that one record
+  // instead of a set, and it is drawn as a chart of one. Nothing here reads, writes or
+  // opens anything; a selection is a suggestion, and Open record is the host's.
   const PROTOCOL = 2;
   const DAY = 86400000;
   let session = null, generation = 0, selected = null, records = [];
@@ -26,7 +27,7 @@
     const dates = fields.filter(field => field.type === 'date');
     // The first field that is not a date is shown under the label, as the record's group.
     const detail = fields.find(field => field.type !== 'date') ?? null;
-    records = projection.records ?? [];
+    records = projection.records ?? (projection.record ? [projection.record] : []);
     element('rows').replaceChildren();
     element('axis').replaceChildren();
     element('selection').textContent = 'No record selected';

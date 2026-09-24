@@ -86,11 +86,19 @@ async (page) => {
     projection: { sourceChangeSequence: 3, fields: [], records: [{ id: 'a', label: 'A', status: null, values: {} }] } }));
   assert(await page.locator('#empty').isVisible() && (await page.locator('#empty').innerText()).includes('no date field'), 'A view without dates did not say why it is empty.');
 
+  // On a record page the host sends one record rather than a set, and it is a chart of one.
+  await page.evaluate(() => window.deliverView({ version: 2, method: 'replaceProjection', session: 'gate', generation: 4,
+    projection: { sourceChangeSequence: 3, fields: [{ id: 'starts', name: 'Starts', type: 'date', of: 'node' }, { id: 'ends', name: 'Ends', type: 'date', of: 'node' }],
+      record: { id: 'solo', label: 'Solo', status: null, values: { starts: '2026-12-01', ends: '2026-12-10' } } } }));
+  assert(await page.locator('#summary').innerText() === '1 record · 1 on the time line · 2026-12-01 to 2026-12-10',
+    'The one record a record page sends was not drawn: ' + await page.locator('#summary').innerText());
+  assert(await page.locator('.row[data-id="solo"] .bar').count() === 1, 'The one record on a record page is not drawn as a bar.');
+
   // A version-1 message is not this page's.
   await page.evaluate(() => window.deliverView({ version: 1, method: 'setTheme', session: 'gate', generation: 3, theme: 'dark' }));
   assert(await page.evaluate(() => document.documentElement.dataset.theme) === 'light', 'A protocol-1 message was acted on.');
-  await page.evaluate(p => window.deliverView({ version: 2, method: 'replaceProjection', session: 'gate', generation: 4, projection: { ...p, sourceChangeSequence: 4 } }), projection);
-  await page.evaluate(() => window.deliverView({ version: 2, method: 'setTheme', session: 'gate', generation: 4, theme: 'dark' }));
+  await page.evaluate(p => window.deliverView({ version: 2, method: 'replaceProjection', session: 'gate', generation: 5, projection: { ...p, sourceChangeSequence: 5 } }), projection);
+  await page.evaluate(() => window.deliverView({ version: 2, method: 'setTheme', session: 'gate', generation: 5, theme: 'dark' }));
   assert(await page.evaluate(() => document.documentElement.dataset.theme) === 'dark', 'The theme message was ignored.');
   const dark = await page.evaluate(() => { const bar = document.querySelector('.bar'); return getComputedStyle(bar).backgroundColor !== getComputedStyle(document.body).backgroundColor; });
   assert(dark, 'A bar is invisible against the dark background.');

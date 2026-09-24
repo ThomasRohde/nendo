@@ -17,6 +17,7 @@ import {
   closeRelatedCreate, recordInView, relatedTargetPlan, returnFromRelatedRecord, seedRelatedReference, wireRelatedActions,
 } from './related-actions';
 import { closeInspector, executeTreeCommand, wireRecordForm, wireRelatedPager } from './record-form';
+import { wireExtensionPanels } from './extension-panel';
 import { fieldMarkup, recordFormMarkup } from './record-markup';
 import { content, focusWithoutInteraction, requiredElement, rerender, setBusy, showError } from './shell';
 import { drillPillMarkup, recordPagerMarkup, surfaceBodyMarkup, surfaceSelectorMarkup, surfaceTileMarkup } from './surface-markup';
@@ -268,6 +269,7 @@ export function renderUse(): void {
     wireRecordForm(selected, plan.entity.semanticId, formFields(plan), closeInspector, plan);
     wireRelatedActions(plan, selected);
     wireRelatedPager(plan, selected);
+    wireExtensionPanels(content);
     for (const button of content.querySelectorAll<HTMLButtonElement>('[data-run-command]'))
       button.addEventListener('click', () => void executeTreeCommand(plan, selected, button.dataset.runCommand!, button.textContent ?? 'Command'));
   }

@@ -29,6 +29,8 @@ A graph over a limit is refused whole. There is no paging and no partial graph. 
 
 A **record view** uses one record type and no links. Nendo sends the named fields of up to 1,000 records, each value typed (text, number, date and so on), and refuses a larger set whole in the same way. A record view needs Nendo 1.31.0 or later.
 
+A view can also sit **on a record page**, where it shows that one record: a Gantt bar for one task, say. Nendo sends only that record's named fields. The page shows a placeholder with **Show view**, and nothing runs until you press it. Only one view on a record page runs at a time, so showing another stops the first. It follows the page as you scroll, steps aside while a dialog is open, and **Stop view** ends it. If it stops by itself, the placeholder says why, and you can keep editing the record. A view on a record page needs Nendo 1.32.0 or later.
+
 ## Three separate steps
 
 A view needs three things. Each is a separate act, and none of them implies the next.
@@ -105,7 +107,7 @@ The repository has four MIT-licensed example packages under [`extensions/`](http
 | [`dependency-graph`](https://github.com/ThomasRohde/nendo/tree/main/extensions/dependency-graph) | A general record graph with pan, zoom, keyboard selection and a text list of the relationships |
 | [`work-dependencies`](https://github.com/ThomasRohde/nendo/tree/main/extensions/work-dependencies) | Work items and what blocks what, laid out left to right in the order the work must happen. It marks cycles, counts items that nothing blocks, and dims everything not connected to the selection. |
 | [`systems-lens`](https://github.com/ThomasRohde/nendo/tree/main/extensions/systems-lens) | Components and the feeds between them, for the Nendo Station demo file. It marks loops, and a **Take out** mode shows which components lose every declared supply path when one is removed. It writes nothing. |
-| [`gantt`](https://github.com/ThomasRohde/nendo/tree/main/extensions/gantt) | One record type on a time line, from a start date to an end date, as bars; a record with only a start is a diamond. It is a record view rather than a graph, so it needs no links. |
+| [`gantt`](https://github.com/ThomasRohde/nendo/tree/main/extensions/gantt) | One record type on a time line, from a start date to an end date, as bars; a record with only a start is a diamond. It is a record view rather than a graph, so it needs no links, and it also works on a record page, for one record. |
 
 ## Build your own
 
@@ -115,7 +117,7 @@ The full guide is [Authoring a custom view](https://github.com/ThomasRohde/nendo
 2. **Handle the messages.** Nendo sends `initialize`, `replaceProjection` and `setTheme` through `window.chrome.webview`. The page sends `ready` within five seconds, then `selectRecord` or `reportError`. Every message carries exact keys.
 3. **Render with care.** Set labels with `textContent`. Support the keyboard and both themes, and give a text alternative. Fit the graph after the pane has its size.
 4. **Package it.** Write a `manifest.json` that lists every asset with its size and SHA-256, and zip it as a `.nendoview`. [`tools/Build-NendoViewPackage.ps1`](https://github.com/ThomasRohde/nendo/blob/main/tools/Build-NendoViewPackage.ps1) builds a reproducible archive and prints its digest.
-5. **Pin it in a file.** Add an `extensionGraphSurface` screen, or an `extensionRecordsSurface` screen for a record view, with the package ID, version and digest and the fields to read, through a change set that a person accepts. The MCP example `pin-an-offline-custom-graph` shows the shape. See [Agents](/nendo/docs/agents).
+5. **Pin it in a file.** Add an `extensionGraphSurface` screen, an `extensionRecordsSurface` screen for a record view, or an `extensionRecordPanel` on a record page, with the package ID, version and digest and the fields to read, through a change set that a person accepts. The MCP example `pin-an-offline-custom-graph` shows the shape. See [Agents](/nendo/docs/agents).
 6. **Install, allow, open.** Each rebuild changes the digest, so repeat all three steps after every build.
 
 A package is at most 10 MiB, 30 MiB expanded and 200 files. A file that uses a custom view needs Nendo 1.29.0 or later.
@@ -124,5 +126,5 @@ A package is at most 10 MiB, 30 MiB expanded and 200 files. A file that uses a c
 
 - Packages are not signed. There is no publisher identity and no revocation.
 - There is no marketplace, download or update channel. Packages move as files.
-- There are two kinds of view, a graph and a record view, and each opens only in the pane. A view cannot yet sit inside a record page.
+- There are two kinds of view, a graph and a record view. Each opens in the pane, and a record view can also sit on a record page, one running at a time.
 - A view cannot be given a new capability. Any wider access would need a new design, not a setting.

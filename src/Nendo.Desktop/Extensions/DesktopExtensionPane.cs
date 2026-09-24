@@ -256,8 +256,9 @@ internal sealed class DesktopExtensionPane : Grid
         if (_run.IsClosed || _closed.IsCancellationRequested) return;
         try
         {
+            // In the page's own protocol: a protocol-2 page ignores a version-1 message.
             var message = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new
-            { version = 1, method = "setTheme", session = _run.Renderer.Session.SessionId,
+            { version = _run.Grant.ProtocolVersion, method = "setTheme", session = _run.Renderer.Session.SessionId,
                 generation = _run.Renderer.Session.Generation, theme = ActualTheme == ElementTheme.Dark ? "dark" : "light" });
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_closed.Token);
             timeout.CancelAfter(TimeSpan.FromSeconds(5));

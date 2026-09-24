@@ -374,3 +374,19 @@ records shape carrying exactly its disclosed columns (the protocol-2 guard, appl
 to the new shape); a panel that stays a placeholder until pressed; a second panel
 stopping the first; a failed panel leaving the page editable and Studio reachable;
 both themes.
+
+**Implemented 2026-09-24 (W-061), with these particulars.** The record-set shape
+shipped first, as host 1.31.0, so the panel is its own rung, **1.32.0**, rather than
+sharing 1.31.0 with a host that does not know it. A panel is a child of a
+`detailSurface` or `recordForm`, directly or inside a `section` or a tab, and a page
+carries at most four. It names no record type and takes no filters. Its
+`fieldBinding` children stay out of the compiled page, so they are never taken for
+the form's fields, and its binding digest names its kind, so a record set's
+permission over the same fields does not cover it. The contained window is placed at
+the placeholder's whole size and cut by a window region to what the page shows,
+including the record page's sticky header and Save bar, so scrolling clips it rather
+than resizing it; it is hidden while the page scrolls and while a native dialog is
+open. The evidence is the record-panel journey
+(`DesktopExtensionPanelJourneyTests`), which measures the window through Windows
+rather than through the page, and drives the page over its debugging port, so it
+needs neither the pointer nor the foreground.

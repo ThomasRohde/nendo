@@ -77,11 +77,21 @@ public static class NendoSemanticVocabulary
                     Set("definitionVersion", "entityId", "title", "packageId", "packageVersion", "packageDigest",
                         "protocolVersion", "configurationVersion", "configuration", "labelFieldId"),
                     Set("fieldBinding", "filterClause"), CanBeRoot: true, MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
+                // A view on a record page, scoped to its one record (ADR-0013, 2026-09-24
+                // record-set amendment). Its record type is the page's, so it names none; its
+                // columns are its own fieldBinding children, never fields of the form around it.
+                [NendoExtensionViewDefinition.PanelKind] = new(
+                    NendoExtensionViewDefinition.PanelKind,
+                    Set("title", "packageId", "packageVersion", "packageDigest", "protocolVersion",
+                        "configurationVersion", "configuration", "labelFieldId", "statusFieldId"),
+                    Set("title", "packageId", "packageVersion", "packageDigest", "protocolVersion",
+                        "configurationVersion", "configuration", "labelFieldId"),
+                    Set("fieldBinding"), CanBeRoot: false),
                 ["recordForm"] = new(
                     "recordForm",
                     Set("definitionVersion", "entityId", "title"),
                     Set("definitionVersion", "entityId"),
-                    Set("section", "tabGroup", "fieldBinding", "recordCommand"),
+                    Set("section", "tabGroup", "fieldBinding", "recordCommand", NendoExtensionViewDefinition.PanelKind),
                     CanBeRoot: true,
                     MaxRootsPerEntity: 1),
                 ["recordList"] = new(
@@ -255,7 +265,7 @@ public static class NendoSemanticVocabulary
                     Set("definitionVersion", "entityId", "title", "titleFieldId", "subtitleFieldId", "accentFieldId"),
                     Set("definitionVersion", "entityId"),
                     Set("section", "tabGroup", "fieldBinding", "relatedList", "recordCommand", "summaryTile", "breakdownChart",
-                        "progressTile", "rangeTile", "trendChart", "activityGrid"),
+                        "progressTile", "rangeTile", "trendChart", "activityGrid", NendoExtensionViewDefinition.PanelKind),
                     CanBeRoot: true,
                     MaxRootsPerEntity: 1),
                 ["relatedList"] = new(
@@ -271,7 +281,7 @@ public static class NendoSemanticVocabulary
                     Set("title", "visibleWhen", "opens"),
                     Set("title"),
                     Set("section", "tabGroup", "fieldBinding", "relatedList", "summaryTile", "breakdownChart", "progressTile",
-                        "rangeTile", "trendChart", "activityGrid", "recentList", "rankedList"),
+                        "rangeTile", "trendChart", "activityGrid", "recentList", "rankedList", NendoExtensionViewDefinition.PanelKind),
                     CanBeRoot: false),
                 // Tabs organise named record information. They contain sections
                 // and nothing else, so a tab is always a titled section and the
@@ -388,14 +398,15 @@ public static class NendoSemanticVocabulary
             "summaryTile, breakdownChart, progressTile, rangeTile, trendChart, activityGrid, recentList and rankedList under it names its own record type instead, and that " +
             "property is required there. Anywhere else a tile takes its record type from the surface it sits on, and declaring one is " +
             "refused rather than resolved, because a tile that disagreed with its surface would have two answers.",
-        ["packageId"] = "On an extensionGraphSurface or extensionRecordsSurface, the exact lowercase namespaced package ID. The file carries a reference, never package code or execution consent.",
+        ["packageId"] = "On an extensionGraphSurface, extensionRecordsSurface or extensionRecordPanel, the exact lowercase namespaced package ID. The file carries a reference, never package code or execution consent.",
         ["packageVersion"] = "The exact semantic version of the separately installed offline custom-view package. No ranges or automatic updates.",
         ["packageDigest"] = "Lowercase SHA-256 of the exact package archive. Changing this pin invalidates device execution consent.",
         ["protocolVersion"] = "Positive custom-view protocol version. This host executes 1 and 2; later versions are preserved with a disabled fallback. At 2 the view may carry fieldBinding children (more stored fields of the node or the edge type, a reference as its target's label; at most eight per type) and filterClause children (a literal or presence comparison, at most eight), and the file needs host 1.30.0. The package must declare the same protocol.",
         ["configurationVersion"] = "Positive version of the bounded custom-view configuration. This host executes version 1 only.",
         ["configuration"] = "JSON text containing an object, at most 8192 UTF-8 bytes and depth 8. Version 1 requires an empty object. Future versions are retained without interpretation or execution.",
         ["edgeEntityId"] = "The active record type holding graph edges, with two distinct configured References to this surface's node entity.",
-        ["labelFieldId"] = "The active stored Text field disclosed as each graph node's label.",
+        ["labelFieldId"] = "The active stored Text field disclosed as each graph node's label, or as each record's label in a record view or record panel. " +
+            "An extensionRecordPanel takes its record type from the record page or record form it is on and names no entityId; it receives only that page's record, has no filters, and starts only when the person asks.",
         ["sourceFieldId"] = "The edge type's Reference to the source node. Must differ from targetFieldId.",
         ["targetFieldId"] = "The edge type's Reference to the target node. Both graph References must target entityId.",
         ["statusFieldId"] = "Optional active stored scalar disclosed as exact text on graph nodes. References and calculations are refused.",

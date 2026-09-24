@@ -12,17 +12,24 @@ internal sealed class DesktopExtensionRunningView : IAsyncDisposable
     private Task? _cleanup;
     internal string FileSessionId { get; }
     internal NendoExtensionGrant Grant { get; }
+    /// <summary>The record a view on a record page was started for; null for a view with a screen of its own.</summary>
+    internal string? RecordId { get; }
     internal DesktopExtensionProcess Renderer { get; }
     internal bool IsClosed => Volatile.Read(ref _closed) != 0 || Renderer.Session.IsClosed;
     internal long ChangeSequence { get; set; }
+    /// <summary>
+    /// Why the host stopped the view, when the host did: the record it was scoped to was
+    /// deleted, or the view's definition changed. Null when the view stopped by itself.
+    /// </summary>
+    internal string? StopMessage { get; set; }
     internal SemaphoreSlim UpdateGate { get; } = new(1, 1);
     internal CancellationToken Lifetime => _lifetime.Token;
 
     internal DesktopExtensionRunningView(string fileSessionId, NendoExtensionGrant grant,
         DesktopExtensionPackageLease package, DesktopExtensionProcess renderer, CancellationTokenSource lifetime,
-        long changeSequence)
+        long changeSequence, string? recordId = null)
     {
-        FileSessionId = fileSessionId; Grant = grant; _package = package;
+        FileSessionId = fileSessionId; Grant = grant; _package = package; RecordId = recordId;
         Renderer = renderer; _lifetime = lifetime; ChangeSequence = changeSequence;
     }
 
@@ -55,7 +62,7 @@ internal sealed partial class DesktopSessionController
     private readonly HashSet<CancellationTokenSource> _extensionStarts = [];
 
     internal async Task<DesktopExtensionRunningView> StartExtensionAsync(string viewId, string helperDirectory,
-        string scratchRoot, string theme, string locale, CancellationToken cancellationToken = default)
+        string scratchRoot, string theme, string locale, CancellationToken cancellationToken = default, string? recordId = null)
     {
         DesktopExtensionPackageLease package;
         NendoExtensionViewSnapshot view;
@@ -69,7 +76,11 @@ internal sealed partial class DesktopSessionController
             _extensionRuns.RemoveAll(r => r.IsClosed);
             if (_extensionRuns.Count + _extensionStarts.Count >= 4)
                 throw new NendoPreconditionException("extension-window-limit", "Close a custom view before opening another.");
-            view = await RequireService().ReadExtensionViewAsync(viewId, cancellationToken);
+            view = await RequireService().ReadExtensionViewAsync(viewId, recordId, cancellationToken);
+            // A view on a record page runs only for a record, and only such a view takes one.
+            if (view.Definition.IsRecordPanel != recordId is not null)
+                throw new NendoPreconditionException("extension-record-scope", view.Definition.IsRecordPanel
+                    ? "Open this view from the record page it belongs to." : "Only a custom view on a record page is scoped to one record.");
             authority = ExtensionGrants.ForFile(RequireExtensionFileKey());
             if (!authority.IsGranted(GrantFor(view)))
                 throw new NendoPreconditionException("extension-not-approved", "Review permission for this exact view before opening it.");
@@ -93,13 +104,13 @@ internal sealed partial class DesktopSessionController
                 lifetime.Token.ThrowIfCancellationRequested();
                 if (_disposed || fileSession != _fileSessionId)
                     throw new NendoPreconditionException("stale-file-session", "The custom view belongs to a file that has closed.");
-                var current = await RequireService().ReadExtensionViewAsync(viewId, cancellationToken);
+                var current = await RequireService().ReadExtensionViewAsync(viewId, recordId, cancellationToken);
                 if (GrantFor(current) != GrantFor(view))
                     throw new NendoPreconditionException("extension-review-stale", "The view changed during startup. Review permission again.");
                 if (current.Projection.SourceChangeSequence != view.Projection.SourceChangeSequence)
                     throw new NendoPreconditionException("extension-view-changed", "The data changed during startup. Open the view again.");
                 var run = new DesktopExtensionRunningView(fileSession, GrantFor(current), package, renderer, lifetime,
-                    current.Projection.SourceChangeSequence);
+                    current.Projection.SourceChangeSequence, recordId);
                 _extensionRuns.Add(run);
                 _extensionStarts.Remove(lifetime);
                 started = true;
@@ -130,6 +141,9 @@ internal sealed partial class DesktopSessionController
             while (!run.IsClosed && await timer.WaitForNextTickAsync(run.Lifetime))
                 await RefreshExtensionAsync(run, run.Lifetime);
         }
+        // A reason only when the host stopped it: a view that died first is found closed, and
+        // "this view has closed" is the host's own bookkeeping, not something to tell anyone.
+        catch (NendoPreconditionException error) when (error.Code != "stale-file-session") { run.StopMessage = error.Message; run.Stop(); }
         catch { run.Stop(); }
         finally { await run.DisposeAsync(); }
     }
@@ -144,7 +158,7 @@ internal sealed partial class DesktopSessionController
             try
             {
                 RequireExtensionRun(run);
-                var current = await RequireService().ReadExtensionViewAsync(run.Grant.ViewId, cancellationToken);
+                var current = await RequireService().ReadExtensionViewAsync(run.Grant.ViewId, run.RecordId, cancellationToken);
                 if (GrantFor(current) != run.Grant) throw new NendoPreconditionException("extension-review-stale", "The custom view changed. Review permission again.");
                 if (current.Projection.SourceChangeSequence != run.ChangeSequence)
                 {
@@ -170,7 +184,7 @@ internal sealed partial class DesktopSessionController
         try
         {
             RequireExtensionRun(run);
-            var current = await RequireService().ReadExtensionViewAsync(run.Grant.ViewId, cancellationToken);
+            var current = await RequireService().ReadExtensionViewAsync(run.Grant.ViewId, run.RecordId, cancellationToken);
             var selected = run.Renderer.Session.GetSelection(GrantFor(current), current.Projection.SourceChangeSequence);
             return selected is not null && current.Projection.Nodes.Any(n => n.Id == selected.RecordId)
                 ? (current.Definition.Binding.NodeEntityId, selected.RecordId) : null;

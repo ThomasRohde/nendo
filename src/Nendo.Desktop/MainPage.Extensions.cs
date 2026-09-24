@@ -150,7 +150,10 @@ public sealed partial class MainPage
         var session = await _session.GetViewAsync();
         var actions = new List<string> { "Install an offline package", "Export an installed package", "Remove an installed package" };
         if (session.UiNodes.Any(n => NendoExtensionViewDefinition.IsViewKind(n.Kind)))
-        { actions.Add("Review permission for a view"); actions.Add("Disable a view"); actions.Add("Open a custom view"); }
+        {
+            actions.Add("Review permission for a view"); actions.Add("Disable a view");
+            if (session.UiNodes.Any(n => NendoExtensionViewDefinition.IsRootViewKind(n.Kind) && n.ParentNodeId is null)) actions.Add("Open a custom view");
+        }
         // Plain buttons, one per action: a choice hidden in a combo box behind a Continue button lost the owner.
         var body = new StackPanel { Spacing = 8, MaxWidth = 540 };
         body.Children.Add(ExtensionText("Packages are installed on this device. Your Nendo file keeps its records and view definitions; installing a package does not allow it to run."));
@@ -261,7 +264,9 @@ public sealed partial class MainPage
     private async Task ReviewExtensionNativeAsync(bool disable = false, bool open = false, string? requestedViewId = null)
     {
         var session = await _session.GetViewAsync();
-        var choices = session.UiNodes.Where(n => NendoExtensionViewDefinition.IsViewKind(n.Kind))
+        // A view on a record page opens from its page, for that page's record, never in the pane.
+        var choices = session.UiNodes.Where(n => open ? NendoExtensionViewDefinition.IsRootViewKind(n.Kind) && n.ParentNodeId is null
+                : NendoExtensionViewDefinition.IsViewKind(n.Kind))
             .Select(n => new ViewChoice(n.NodeId, n.Properties.TryGetValue("title", out var title) ? title.GetString() ?? n.NodeId : n.NodeId)).ToArray();
         if (choices.Length == 0) return;
         var selector = new ComboBox { Header = "View in this file", ItemsSource = choices, DisplayMemberPath = "Title", SelectedIndex = 0,
@@ -277,12 +282,7 @@ public sealed partial class MainPage
         var viewId = selected.Id;
         if (open)
         {
-            var helper = Path.Combine(AppContext.BaseDirectory, "ExtensionHost");
-#if DEBUG
-            if (!Directory.Exists(helper)) helper = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "Nendo.ExtensionHost", "debug"));
-#endif
-            var run = await _session.StartExtensionAsync(viewId, helper,
-                Path.Combine(DesktopRuntimeConfiguration.DeviceStateRoot ?? DesktopAppearanceStore.DefaultRoot, "extension-runs"),
+            var run = await _session.StartExtensionAsync(viewId, ExtensionHelperDirectory(), ExtensionScratchRoot(),
                 ActualTheme == ElementTheme.Dark ? "dark" : "light", System.Globalization.CultureInfo.CurrentUICulture.Name);
             try
             {
@@ -311,7 +311,9 @@ public sealed partial class MainPage
         body.Children.Add(ExtensionText("Unsigned package. Allow only if you trust the source of these exact bytes."));
         // Every field the page will receive, by name, for each record type; and what the
         // view is narrowed by, because which records are present says something too.
-        body.Children.Add(ExtensionText("Reads: " + fields.NodeType + " — record IDs, " + string.Join(", ",
+        // A view on a record page reads the one record whose page it is on, and says so.
+        body.Children.Add(ExtensionText((view.Definition.IsRecordPanel ? "Reads: the one " + fields.NodeType + " record whose page it is on — its record ID, "
+            : "Reads: " + fields.NodeType + " — record IDs, ") + string.Join(", ",
             new[] { fields.NodeLabel }.Concat(fields.StatusField is { } status ? [status] : []).Concat(fields.NodeFields)) +
             "." +
             // A record set has no links, so its review names no relationship at all.

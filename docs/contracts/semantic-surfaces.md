@@ -1090,6 +1090,7 @@ the shape cannot show (below). The ladder is:
 | An `extensionGraphSurface` reference | 1.29 |
 | An `extensionGraphSurface` at protocol 2 (disclosed fields, filters) | 1.30 |
 | An `extensionRecordsSurface` (one record type as typed columns) | 1.31 |
+| An `extensionRecordPanel` (a custom view on a record page) | 1.32 |
 
 The gaps at 1.17 and 1.24 are rungs that are not shapes of the node tree.
 `1.17.0` goes to a file that stores behaviour definitions (ADR-0008), and `1.24.0`

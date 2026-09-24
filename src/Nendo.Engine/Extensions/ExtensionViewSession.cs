@@ -48,6 +48,10 @@ public sealed record NendoGraphProjection(long SourceChangeSequence,
     /// <summary>A record set's projection: its nodes are the records, and it has no links.</summary>
     [JsonIgnore]
     public bool IsRecordSet { get; init; }
+
+    /// <summary>A record panel's projection: one record set of at most the page's one record.</summary>
+    [JsonIgnore]
+    public bool IsRecordPanel { get; init; }
 }
 public sealed record NendoExtensionMessageResult(bool Accepted, string Code);
 public sealed record NendoExtensionSelection(string RecordId, long Generation, long SourceChangeSequence);
@@ -216,6 +220,9 @@ public sealed class NendoExtensionViewSession : IDisposable
             || projection.Nodes.Count > (projection.IsRecordSet ? NendoExtensionViewDefinition.MaximumRecords : MaximumNodes)
             || projection.Edges.Count > (projection.IsRecordSet ? 0 : MaximumEdges))
             throw new ArgumentException("The graph exceeds the projection limits.");
+        // A panel is started for its record, and reaches the page only with it.
+        if (projection.IsRecordPanel && (!projection.IsRecordSet || projection.Nodes.Count != 1))
+            throw new ArgumentException("A view on a record page receives exactly its one record.");
         var nodes = projection.Nodes.ToArray();
         var edges = projection.Edges.ToArray();
         var ids = new HashSet<string>(StringComparer.Ordinal);
@@ -228,9 +235,11 @@ public sealed class NendoExtensionViewSession : IDisposable
                 || !ids.Contains(edge.SourceId) || !ids.Contains(edge.TargetId))
                 throw new ArgumentException("The graph contains a duplicate edge or an endpoint outside its projection.");
         CheckDisclosure(projection, nodes, edges);
-        // A record set reaches the page as {sourceChangeSequence, fields, records}; a graph
-        // as it always has.
-        var bytes = projection.IsRecordSet
+        // A record set reaches the page as {sourceChangeSequence, fields, records}, a record
+        // panel as {sourceChangeSequence, fields, record}; a graph as it always has.
+        var bytes = projection.IsRecordPanel
+            ? JsonSerializer.SerializeToUtf8Bytes(new { projection.SourceChangeSequence, projection.Fields, Record = nodes[0] }, JsonOptions)
+            : projection.IsRecordSet
             ? JsonSerializer.SerializeToUtf8Bytes(new { projection.SourceChangeSequence, projection.Fields, Records = nodes }, JsonOptions)
             : JsonSerializer.SerializeToUtf8Bytes(projection with { Nodes = nodes, Edges = edges }, JsonOptions);
         if (bytes.Length > MaximumProjectionBytes) throw new ArgumentException("The serialized graph exceeds the projection limit.");

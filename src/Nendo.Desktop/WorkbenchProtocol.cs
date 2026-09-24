@@ -97,6 +97,13 @@ internal static class WorkbenchEvents
     /// file session still matches.
     /// </summary>
     internal const string OpenRecord = "openRecord";
+
+    /// <summary>
+    /// A view on a record page stopped without the page asking: it failed, ran out of what
+    /// it is allowed, or its record went away. Payload is the file session, the view and
+    /// record it was for, and one sentence, drawn as text in the placeholder.
+    /// </summary>
+    internal const string ExtensionPanelStopped = "extensionPanelStopped";
 }
 
 /// <summary>What the renderer draws while an agent is working. Bounded by the adapter.</summary>
@@ -190,6 +197,7 @@ internal sealed partial class WorkbenchProtocolHandler
     private readonly Action<AppearancePayload> _applyAppearance;
     private readonly Func<DesktopAppearanceView>? _getAppearance;
     private readonly Func<WorkbenchFileActionRequest, Task<DesktopFileActionView>>? _fileActions;
+    private readonly IWorkbenchExtensionPanels? _extensionPanels;
     private string? _legacyFileSessionId;
 
     internal WorkbenchProtocolHandler(
@@ -198,8 +206,10 @@ internal sealed partial class WorkbenchProtocolHandler
         Func<Task<string?>> pickOpenPath,
         Action<AppearancePayload> applyAppearance,
         Func<WorkbenchFileActionRequest, Task<DesktopFileActionView>>? fileActions = null,
-        Func<DesktopAppearanceView>? getAppearance = null)
+        Func<DesktopAppearanceView>? getAppearance = null,
+        IWorkbenchExtensionPanels? extensionPanels = null)
     {
+        _extensionPanels = extensionPanels;
         _session = session;
         _pickCreatePath = pickCreatePath;
         _pickOpenPath = pickOpenPath;
@@ -319,6 +329,11 @@ internal sealed partial class WorkbenchProtocolHandler
                 {
                     WorkbenchMethods.SessionGetSnapshot => await _session.GetViewAsync(cancellationToken),
                     "extension.status" => await _session.ReadExtensionStatusAsync(RequiredString(payload, "viewId", 256), cancellationToken),
+                    // A view on a record page: started only when the person asks, placed where
+                    // the page says it is, and stopped when the page lets go of it.
+                    "extension.panel.show" => await ExtensionPanels().ShowAsync(RequiredString(payload, "viewId", 256), RequiredString(payload, "recordId", 256)),
+                    "extension.panel.place" => ExtensionPanels().Place(RequiredString(payload, "viewId", 256), RequiredString(payload, "recordId", 256), RequiredPlacement(payload)),
+                    "extension.panel.close" => ExtensionPanels().Close(RequiredString(payload, "viewId", 256), RequiredString(payload, "recordId", 256)),
                     WorkbenchMethods.SessionGetRecentFiles => await _session.GetRecentFilesAsync(cancellationToken),
                     WorkbenchMethods.SessionCreateFile => protocolVersion == DesktopShellContract.BridgeProtocolVersion
                         ? await RunSessionFileActionAsync(WorkbenchFileAction.Create)
@@ -664,6 +679,28 @@ internal sealed partial class WorkbenchProtocolHandler
             throw new NendoValidationException($"Request property {name} has an invalid length.");
         }
         return result;
+    }
+
+    private IWorkbenchExtensionPanels ExtensionPanels() => _extensionPanels ?? throw new NendoPreconditionException(
+        "extension-panels-unavailable", "Custom views on a record page are unavailable in this host. Your records are unchanged.");
+
+    /// <summary>Where the page says a view is, in CSS pixels; bounded so a placement cannot name a window of any size.</summary>
+    internal static DesktopExtensionPanelPlacement RequiredPlacement(JsonElement payload)
+    {
+        if (!payload.TryGetProperty("visible", out var visible) || visible.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            throw new NendoValidationException("Request property visible is required.");
+        double Number(string name)
+        {
+            if (!payload.TryGetProperty(name, out var value) || value.ValueKind != JsonValueKind.Number ||
+                !value.TryGetDouble(out var number) || !double.IsFinite(number) || Math.Abs(number) > 100_000)
+                throw new NendoValidationException($"Request property {name} must be a finite number of pixels.");
+            return number;
+        }
+        var placement = new DesktopExtensionPanelPlacement(visible.GetBoolean(), Number("x"), Number("y"), Number("width"), Number("height"),
+            Number("clipX"), Number("clipY"), Number("clipWidth"), Number("clipHeight"));
+        if (placement.Width is < 1 or > 8192 || placement.Height is < 1 or > 8192 || placement.ClipWidth < 0 || placement.ClipHeight < 0)
+            throw new NendoValidationException("A custom view is between one and 8192 pixels on each side.");
+        return placement;
     }
 
     private static int RequiredInt32(JsonElement root, string name)

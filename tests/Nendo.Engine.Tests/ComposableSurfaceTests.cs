@@ -484,7 +484,8 @@ public sealed class ComposableSurfaceTests
         var form = document.RootElement.GetProperty("kinds").EnumerateArray()
             .Single(kind => kind.GetProperty("kind").GetString() == "recordForm");
         CollectionAssert.AreEqual(
-            new[] { "fieldBinding", "recordCommand", "section", "tabGroup" },
+            // A custom view on the record page is its child too (ADR-0013, 2026-09-24).
+            new[] { "extensionRecordPanel", "fieldBinding", "recordCommand", "section", "tabGroup" },
             form.GetProperty("children").EnumerateArray().Select(value => value.GetString()).ToArray());
         Assert.IsTrue(form.GetProperty("canBeRoot").GetBoolean());
 

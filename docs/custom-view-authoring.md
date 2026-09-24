@@ -218,6 +218,19 @@ There is no `nodes`, `edges` or `hiddenEdges`, every field is `of: "node"`, and 
 record set holds at most **1,000** records. `extensions/gantt/` is a complete
 example.
 
+A **view on a record page** (`extensionRecordPanel`, below) receives the page's one
+record in the same shape, as `record` rather than `records`:
+
+```json
+{
+  "sourceChangeSequence": 41,
+  "fields": [{"id": "starts", "name": "Starts", "type": "date", "of": "node"}],
+  "record": {"id": "rec-a", "label": "Engine", "status": null, "values": {"starts": "2026-10-01"}}
+}
+```
+
+A package that serves both shapes reads `projection.records ?? [projection.record]`.
+
 ### A minimal renderer
 
 `index.html`:
@@ -516,6 +529,15 @@ package, protocol, configuration, `entityId`, `title`, `labelFieldId` and option
 are its `fieldBinding` children and its filters its `filterClause` children, all on
 its one record type. A file with one requires host **1.31.0**, and the package must
 declare protocol 2.
+
+**A view on a record page** is `extensionRecordPanel`, a child of a `detailSurface`
+or `recordForm`, directly or inside a `section` or a tab. It takes `title`, the
+package pin, `protocolVersion` 2, `configurationVersion`, `configuration`,
+`labelFieldId` and optional `statusFieldId`, and `fieldBinding` children for its
+columns. It has no `entityId` (the page's record type is its own), no edge type and
+no filters, and a page carries at most four. It shows only a placeholder until the
+person presses Show view, and only one runs per window. A file with one requires
+host **1.32.0**.
 
 A definition is portable. A person can review, accept, copy and reopen it on a
 machine where the package does not exist. It carries no consent anywhere.

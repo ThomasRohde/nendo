@@ -26,6 +26,7 @@ public sealed partial class MainPage : Page
         ActualThemeChanged += (_, _) =>
         {
             _extensionPane?.ApplyTheme(ActualTheme);
+            _ = _extensionPanel?.SendThemeAsync(ActualTheme == ElementTheme.Dark);
         };
         DesktopStartupTiming.Mark("page.initialized");
         if (DesktopRuntimeConfiguration.NativeCaptureRoot is not null)
@@ -36,7 +37,8 @@ public sealed partial class MainPage : Page
             PickOpenPathAsync,
             ApplyAppearance,
             RunWorkbenchFileActionAsync,
-            () => App.CurrentWindow?.GetAppearance() ?? new("system", "light", false, "The native window is unavailable."));
+            () => App.CurrentWindow?.GetAppearance() ?? new("system", "light", false, "The native window is unavailable."),
+            this);
     }
 
     /// <summary>
@@ -339,6 +341,7 @@ public sealed partial class MainPage : Page
     {
         _unloaded = true;
         _extensionPane?.Close();
+        CloseExtensionPanel();
         DetachWorkbench();
         await _session.DisposeAsync();
     }
@@ -389,6 +392,8 @@ public sealed partial class MainPage : Page
 
     private void DetachWorkbench()
     {
+        // The view on a record page belongs to that page; a new Workbench has none.
+        CloseExtensionPanel();
         _workbenchGeneration = checked(_workbenchGeneration + 1);
         var webView = _webView;
         _webView = null;

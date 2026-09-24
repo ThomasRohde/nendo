@@ -212,13 +212,17 @@ internal static class NendoSemanticCapability
             tree => tree.HasKind(NendoExtensionViewDefinition.NodeKind)),
         new(NendoFormat.ExtensionProtocol2MinimumHostVersion,
             "a custom view that discloses more fields or filters",
-            tree => tree.OfKind(NendoExtensionViewDefinition.NodeKind).Concat(tree.OfKind(NendoExtensionViewDefinition.RecordsKind)).Any(view =>
+            tree => tree.OfKind(NendoExtensionViewDefinition.NodeKind).Concat(tree.OfKind(NendoExtensionViewDefinition.RecordsKind))
+                .Concat(tree.OfKind(NendoExtensionViewDefinition.PanelKind)).Any(view =>
                 view.Properties.TryGetValue("protocolVersion", out var protocol) &&
                 protocol.ValueKind == System.Text.Json.JsonValueKind.Number &&
                 protocol.TryGetInt32(out var number) && number >= NendoExtensionViewDefinition.FieldsProtocolVersion)),
         new(NendoFormat.ExtensionRecordsMinimumHostVersion,
             "a custom view of records as typed columns",
             tree => tree.HasKind(NendoExtensionViewDefinition.RecordsKind)),
+        new(NendoFormat.ExtensionRecordPanelMinimumHostVersion,
+            "a custom view on a record page",
+            tree => tree.HasKind(NendoExtensionViewDefinition.PanelKind)),
     ];
 
     /// <summary>

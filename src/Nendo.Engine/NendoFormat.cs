@@ -198,7 +198,14 @@ public static class NendoFormat
     /// </summary>
     public const string ExtensionRecordsMinimumHostVersion = "1.31.0";
 
-    public const string CurrentHostVersion = ExtensionRecordsMinimumHostVersion;
+    /// <summary>
+    /// A custom view on a record page, extensionRecordPanel (ADR-0013, 2026-09-24 record-set
+    /// amendment). The record-set shape shipped first, as 1.31.0, and that host does not know
+    /// the panel, so the panel is its own rung.
+    /// </summary>
+    public const string ExtensionRecordPanelMinimumHostVersion = "1.32.0";
+
+    public const string CurrentHostVersion = ExtensionRecordPanelMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

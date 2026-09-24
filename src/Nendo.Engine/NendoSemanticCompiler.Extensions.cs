@@ -11,7 +11,12 @@ public sealed partial class NendoSemanticCompiler
             .ToArray();
         try
         {
-            var definition = NendoExtensionViewDefinition.Read(node.NodeId, node.Properties, children, node.Kind);
+            var definition = NendoExtensionViewDefinition.ReadNode(node, nodes);
+            // Only one runs at a time, but each is a review and a placeholder on the page.
+            if (definition.IsRecordPanel && NendoExtensionViewDefinition.PageOf(node, nodes) is { } page &&
+                nodes.Count(n => n.SurfaceId == page.SurfaceId && n.Kind == NendoExtensionViewDefinition.PanelKind) > NendoExtensionViewDefinition.MaximumPanelsPerPage)
+                throw new NendoPreconditionException("extension-binding-invalid",
+                    $"A record page carries at most {NendoExtensionViewDefinition.MaximumPanelsPerPage} custom views.");
             var b = definition.Binding;
             var nodeType = source.Entities.SingleOrDefault(e => e.EntityId == b.NodeEntityId && !e.Retired);
             var label = nodeType?.Fields.SingleOrDefault(f => f.FieldId == b.LabelFieldId && !f.Retired);
@@ -21,7 +26,7 @@ public sealed partial class NendoSemanticCompiler
                 throw new NendoPreconditionException("extension-binding-invalid",
                     "A custom view needs an active stored Text label on its record type; optional status must be a stored scalar.");
             NendoEntitySnapshot? edgeType = null;
-            if (!definition.IsRecordSet)
+            if (b.EdgeEntityId is not null)
             {
                 edgeType = source.Entities.SingleOrDefault(e => e.EntityId == b.EdgeEntityId && !e.Retired);
                 var from = edgeType?.Fields.SingleOrDefault(f => f.FieldId == b.SourceFieldId && !f.Retired);

@@ -3,7 +3,7 @@ import { protocolVersion } from './host';
 import { PendingMutationJournal, isJournaledMutation, type PendingMutation } from './pending-mutations';
 import {
   WorkbenchHostError, isHostRoute,
-  type CancelledRequests, type DesktopOperationView, type HostRoute, type HostRecordTarget, type WorkbenchClient,
+  type CancelledRequests, type DesktopOperationView, type HostRoute, type HostRecordTarget, type HostPanelStopped, type WorkbenchClient,
 } from './host-types';
 
 /**
@@ -74,6 +74,7 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
   private fileIdentity: string | null = null;
   private readonly navigateListeners = new Set<(route: HostRoute) => void>();
   private readonly openRecordListeners = new Set<(target: HostRecordTarget) => void>();
+  private readonly panelStoppedListeners = new Set<(stopped: HostPanelStopped) => void>();
   private readonly fileChangedListeners = new Set<(changeSequence: number) => void>();
   private readonly agentActivityListeners = new Set<(work: AgentWork) => void>();
   private readonly journal = new PendingMutationJournal({
@@ -252,6 +253,11 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     return () => { this.openRecordListeners.delete(listener); };
   }
 
+  onExtensionPanelStopped(listener: (stopped: HostPanelStopped) => void): () => void {
+    this.panelStoppedListeners.add(listener);
+    return () => { this.panelStoppedListeners.delete(listener); };
+  }
+
   onFileChanged(listener: (changeSequence: number) => void): () => void {
     this.fileChangedListeners.add(listener);
     return () => { this.fileChangedListeners.delete(listener); };
@@ -272,6 +278,16 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
           typeof target.entityId !== 'string' || target.entityId.length === 0 || target.entityId.length > 256 ||
           typeof target.recordId !== 'string' || target.recordId.length === 0 || target.recordId.length > 256) return;
       for (const listener of this.openRecordListeners) listener(target as HostRecordTarget);
+      return;
+    }
+    if (message.event === 'extensionPanelStopped') {
+      const stopped = message.payload as Partial<HostPanelStopped> | null;
+      const text = (value: unknown, maximum: number): boolean => typeof value === 'string' && value.length > 0 && value.length <= maximum;
+      if (!stopped || stopped.fileSessionId !== this.fileSessionId || !text(stopped.viewId, 256) || !text(stopped.recordId, 256) ||
+          !text(stopped.message, 600)) return;
+      for (const listener of this.panelStoppedListeners) {
+        try { listener(stopped as HostPanelStopped); } catch { /* The placeholder redraws on its own next render. */ }
+      }
       return;
     }
     if (message.event === 'agentActivity') {

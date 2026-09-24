@@ -685,6 +685,14 @@ another record type, and say how each is refused. If the `org.nendo.gantt` packa
 hand, open the view and say whether the bars match the dates, what happens to a record with
 no start or no end, and what the file's minimum host is now.
 
+An `extensionRecordPanel` puts a custom view on a record page, for that record only.
+Author one inside a section of a record page, disclosing a date, and open a record. Say
+whether anything runs before you press Show view, what the permission review says it
+reads, and whether the view sits exactly over its placeholder. Scroll the page, open a
+native dialog, and show a second view on the same page, and say what happens to the view
+each time. Try one with its own `entityId`, with a filter, and as a root, and say how each
+is refused. Say what the file's minimum host is now.
+
 Desktop execution is still being integrated. When the installed host exposes that
 path, check separate installation/consent, missing-package fallback, and permanent
 Studio access after renderer failure. Record unavailable runtime journeys as Not run.

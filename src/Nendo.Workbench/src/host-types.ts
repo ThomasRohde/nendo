@@ -475,6 +475,8 @@ export interface RevisionSnapshot {
  */
 export type HostRoute = 'open' | 'agent' | 'health' | 'studio';
 export interface HostRecordTarget { fileSessionId: string; entityId: string; recordId: string }
+/** A view on a record page stopped without the page asking, and the sentence that says why. */
+export interface HostPanelStopped { fileSessionId: string; viewId: string; recordId: string; message: string }
 
 export function isHostRoute(value: unknown): value is HostRoute {
   return value === 'open' || value === 'agent' || value === 'health' || value === 'studio';
@@ -486,6 +488,7 @@ export interface WorkbenchClient {
   /** Listen for a view the host asked to show. Returns a function that stops listening. */
   onNavigate?(listener: (route: HostRoute) => void): () => void;
   onOpenRecord?(listener: (target: HostRecordTarget) => void): () => void;
+  onExtensionPanelStopped?(listener: (stopped: HostPanelStopped) => void): () => void;
   /**
    * Listen for the open file having moved, carrying the change sequence it reached.
    *

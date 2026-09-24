@@ -16,19 +16,36 @@ public sealed record NendoExtensionViewDefinition(string ViewId, string Title, s
     /// </summary>
     public const string RecordsKind = "extensionRecordsSurface";
     public const int MaximumRecords = 1000;
-    /// <summary>Whether a node is a custom view of either shape.</summary>
-    public static bool IsViewKind(string? kind) => kind is NodeKind or RecordsKind;
-    /// <summary>Which shape this view is; a graph unless it was read as a record set.</summary>
+    /// <summary>
+    /// A view on a record page, scoped to that page's one record (ADR-0013, 2026-09-24
+    /// record-set amendment). It is a child of the page rather than a root, takes its record
+    /// type from the page, and nothing runs until the person asks for it.
+    /// </summary>
+    public const string PanelKind = "extensionRecordPanel";
+    /// <summary>How many views one record page may carry; only one of them runs at a time.</summary>
+    public const int MaximumPanelsPerPage = 4;
+    /// <summary>Whether a node is a custom view of any shape or placement.</summary>
+    public static bool IsViewKind(string? kind) => kind is NodeKind or RecordsKind or PanelKind;
+    /// <summary>Whether a node is a custom view with a screen of its own, rather than a place on a record page.</summary>
+    public static bool IsRootViewKind(string? kind) => kind is NodeKind or RecordsKind;
+    /// <summary>Which shape this view is; a graph unless it was read as a record set or a record panel.</summary>
     public string Kind { get; init; } = NodeKind;
     public bool IsRecordSet => Kind == RecordsKind;
+    public bool IsRecordPanel => Kind == PanelKind;
     /// <summary>Protocol 2 (ADR-0013, 2026-09-24): disclosed fields and authored filters as child nodes.</summary>
     public const int FieldsProtocolVersion = 2;
     public const int MaximumDisclosedFieldsPerType = 8;
     public const int MaximumFilters = 8;
     public bool IsSupported => ProtocolVersion is 1 or FieldsProtocolVersion && ConfigurationVersion == 1;
 
-    public string ComputeBindingDigest() => Convert.ToHexString(SHA256.HashData(
-        JsonSerializer.SerializeToUtf8Bytes(new { Binding, ProtocolVersion, ConfigurationVersion, Configuration }))).ToLowerInvariant();
+    /// <summary>
+    /// A panel's digest also names its kind: it reads one record where a record set over the
+    /// same fields reads all of them, so the same permission must not cover both. The two
+    /// older shapes keep the digest they were approved under.
+    /// </summary>
+    public string ComputeBindingDigest() => Convert.ToHexString(SHA256.HashData(IsRecordPanel
+        ? JsonSerializer.SerializeToUtf8Bytes(new { Binding, ProtocolVersion, ConfigurationVersion, Configuration, Kind })
+        : JsonSerializer.SerializeToUtf8Bytes(new { Binding, ProtocolVersion, ConfigurationVersion, Configuration }))).ToLowerInvariant();
 
     public static NendoExtensionViewDefinition Read(string viewId, IReadOnlyDictionary<string, JsonElement> properties) =>
         Read(viewId, properties, []);
@@ -81,12 +98,15 @@ public sealed record NendoExtensionViewDefinition(string ViewId, string Title, s
         catch (JsonException) { throw Invalid("configuration must be valid JSON text with maximum depth 8."); }
         // A record set has one record type and no links, so it names no edge type and no
         // endpoints; the binding's edge members stay null, which also keeps its digest apart
-        // from any graph's.
-        var records = kind == RecordsKind;
+        // from any graph's. A record panel is the same with one record, and its record type
+        // is the page's: the store reads it from the page root and passes it in as entityId.
+        var records = kind is RecordsKind or PanelKind;
         if (records && (properties.ContainsKey("edgeEntityId") || properties.ContainsKey("sourceFieldId") || properties.ContainsKey("targetFieldId")))
             throw Invalid("A record-set view has no edge type: remove edgeEntityId, sourceFieldId and targetFieldId.");
         if (records && protocol != FieldsProtocolVersion && protocol <= FieldsProtocolVersion)
             throw Invalid("A record-set view speaks protocol 2: its columns are disclosed fields.");
+        if (kind == PanelKind && children.Any(child => child.Kind == "filterClause"))
+            throw Invalid("A view on a record page shows that one record, so it has no filters.");
         var binding = new NendoGraphBinding(Text("entityId"), Text("labelFieldId"), records ? null : Text("edgeEntityId"),
             records ? null : Text("sourceFieldId"), records ? null : Text("targetFieldId"), properties.ContainsKey("statusFieldId") ? Text("statusFieldId") : null);
         if (!records && binding.SourceFieldId == binding.TargetFieldId) throw Invalid("The two edge reference fields must differ.");
@@ -94,6 +114,39 @@ public sealed record NendoExtensionViewDefinition(string ViewId, string Title, s
             throw Invalid("A protocol-1 view has no children. Declare protocolVersion 2 to disclose more fields or to filter.");
         if (protocol == FieldsProtocolVersion) binding = ReadChildren(binding, children);
         return new(viewId, Text("title"), package, version, digest, protocol, configurationVersion, config, binding) { Kind = kind };
+    }
+
+    /// <summary>
+    /// Reads a view node where it stands in the file: its direct children in authored order
+    /// and, for a record panel, the record type of the page it is on. A panel names no
+    /// record type of its own, because a page that disagreed with it would have two answers.
+    /// </summary>
+    public static NendoExtensionViewDefinition ReadNode(NendoUiNodeSnapshot node, IReadOnlyList<NendoUiNodeSnapshot> nodes)
+    {
+        var children = nodes.Where(n => n.ParentNodeId == node.NodeId && n.SurfaceId == node.SurfaceId)
+            .OrderBy(n => n.Position).ThenBy(n => n.NodeId, StringComparer.Ordinal).ToArray();
+        if (node.Kind != PanelKind) return Read(node.NodeId, node.Properties, children, node.Kind);
+        if (node.Properties.ContainsKey("entityId"))
+            throw Invalid("A view on a record page takes its record type from the page; remove entityId.");
+        var page = PageOf(node, nodes) ?? throw Invalid("A view on a record page belongs inside a record page or a record form.");
+        if (!page.Properties.TryGetValue("entityId", out var entity))
+            throw Invalid("The record page this view is on names no record type.");
+        var properties = new Dictionary<string, JsonElement>(node.Properties, StringComparer.Ordinal) { ["entityId"] = entity };
+        return Read(node.NodeId, properties, children, node.Kind);
+    }
+
+    /// <summary>The record page or record form a node sits in, through any sections and tabs; null elsewhere.</summary>
+    public static NendoUiNodeSnapshot? PageOf(NendoUiNodeSnapshot node, IReadOnlyList<NendoUiNodeSnapshot> nodes)
+    {
+        var current = node;
+        for (var depth = 0; current.ParentNodeId is { } parentId && depth < 64; depth++)
+        {
+            current = nodes.SingleOrDefault(n => n.NodeId == parentId && n.SurfaceId == node.SurfaceId);
+            if (current is null) return null;
+            if (current.ParentNodeId is null) return current.Kind is "detailSurface" or "recordForm" ? current : null;
+            if (current.Kind is not ("section" or "tabGroup")) return null;
+        }
+        return null;
     }
 
     private static NendoGraphBinding ReadChildren(NendoGraphBinding binding, IReadOnlyList<NendoUiNodeSnapshot> children)

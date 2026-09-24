@@ -2,7 +2,11 @@ namespace Nendo.Engine;
 
 public sealed partial class NendoWriteCoordinator
 {
-    public async Task<NendoExtensionViewSnapshot> ReadExtensionViewAsync(string viewId, CancellationToken cancellationToken = default)
+    public Task<NendoExtensionViewSnapshot> ReadExtensionViewAsync(string viewId, CancellationToken cancellationToken = default) =>
+        ReadExtensionViewAsync(viewId, null, cancellationToken);
+
+    /// <param name="recordId">The record a view on a record page is scoped to; null for any other view.</param>
+    public async Task<NendoExtensionViewSnapshot> ReadExtensionViewAsync(string viewId, string? recordId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(viewId);
         await _gate.WaitAsync(cancellationToken);
@@ -11,7 +15,7 @@ public sealed partial class NendoWriteCoordinator
             ObjectDisposedException.ThrowIf(_disposed || _replacementRetired, this);
             if (_readOnlySnapshot is not null || !Capabilities.ReadData)
                 throw new NendoPreconditionException("extension-projection-unavailable", "This file's current state does not permit extension projection. Use Studio to inspect its data.");
-            return await GetStore().ReadExtensionViewAsync(viewId, cancellationToken);
+            return await GetStore().ReadExtensionViewAsync(viewId, recordId, cancellationToken);
         }
         catch (NendoRecoveryRequiredException) { EnterRecovery(); throw; }
         finally { _gate.Release(); }

@@ -396,6 +396,7 @@ public sealed partial class MainPage
             DefaultButton = ContentDialogButton.Close,
         };
         AutomationProperties.SetAutomationId(dialog, "file.confirmation");
+        TrackNativeDialog(dialog);
         if (DesktopRuntimeConfiguration.NativeCaptureRoot is not null)
             dialog.Opened += (_, _) => { _ = CaptureNativeDialogForTestAsync(dialog); };
         return dialog;

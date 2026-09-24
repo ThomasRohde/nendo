@@ -518,7 +518,11 @@ public sealed partial class NendoSemanticCompiler
             .Where(value => value.ParentNodeId == node.NodeId && value.SurfaceId == node.SurfaceId)
             .OrderBy(value => value.Position)
             .ThenBy(value => value.NodeId, StringComparer.Ordinal);
-        var children = NendoExtensionViewDefinition.IsViewKind(node.Kind)
+        // A view on a record page carries none into the plan at all: its fieldBinding children
+        // are what the view reads, not fields of the form around it, and every walk that
+        // collects a page's bindings would otherwise take them for the form's own.
+        var children = node.Kind == NendoExtensionViewDefinition.PanelKind ? []
+            : NendoExtensionViewDefinition.IsViewKind(node.Kind)
             ? ordered.Select(child => new NendoSurfaceNodePlan(child.NodeId, AutomationTarget(child.NodeId), child.Kind, child.Properties, [])).ToArray()
             : ordered
                 .Select(child => CompileNode(child, nodes, source, childEntity, childFields, childDerived, childScope, diagnostics))

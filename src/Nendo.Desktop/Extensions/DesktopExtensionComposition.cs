@@ -55,6 +55,28 @@ internal static class DesktopExtensionComposition
         ShowWindow(renderer.WindowHandle, 8); // SW_SHOWNA -- visible without taking activation
     }
 
+    /// <summary>
+    /// Show only part of the contained window, in its own coordinates. A view on a record
+    /// page is placed at its whole size and cut to what the page shows, so scrolling it half
+    /// out of sight clips it rather than squeezing it: a resize would hand the browser new
+    /// surfaces, which is the memory a dragged boundary was already measured to cost.
+    /// </summary>
+    internal static void Clip(DesktopExtensionProcess renderer, int x, int y, int width, int height)
+    {
+        if (renderer.Session.IsClosed) return;
+        var region = CreateRectRgn(x, y, x + Math.Max(0, width), y + Math.Max(0, height));
+        if (region == 0) throw new InvalidOperationException("The custom-view window could not be clipped.");
+        // On success the system owns the region; on failure it is still ours to delete.
+        if (SetWindowRgn(renderer.WindowHandle, region, true) == 0)
+        {
+            DeleteObject(region);
+            throw new InvalidOperationException("The custom-view window could not be clipped.");
+        }
+    }
+
+    [DllImport("gdi32.dll")] private static extern nint CreateRectRgn(int left, int top, int right, int bottom);
+    [DllImport("gdi32.dll")] private static extern bool DeleteObject(nint handle);
+    [DllImport("user32.dll")] private static extern int SetWindowRgn(nint window, nint region, bool redraw);
     [DllImport("user32.dll")] private static extern bool ShowWindow(nint window, int command);
 
     [DllImport("user32.dll", SetLastError = true)] private static extern nint SetParent(nint child, nint parent);

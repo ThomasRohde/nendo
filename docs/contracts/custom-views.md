@@ -384,8 +384,9 @@ version `0.1.0` required. `Review-SystemsLens.ps1` measures it in the
 production gate.
 
 A fourth package, `extensions/gantt/`, is the first **record-set** view:
-`org.nendo.gantt` version `0.1.0`, protocol 2, built through
-`Build-NendoGanttPackage.ps1`. It draws one record type on a time line, taking the
+`org.nendo.gantt` version `0.2.0`, protocol 2, built through
+`Build-NendoGanttPackage.ps1`. It draws one record type on a time line, or on a record
+page the page's one record (`{fields, record}`), taking the
 first disclosed date field as the start and the second as the end. A record with a
 start and no end is a milestone, and a record without a start is counted rather than
 drawn. `Review-Gantt.ps1` measures it in the production gate: equal starts share a
@@ -492,6 +493,36 @@ receives `{sourceChangeSequence, fields, records}`: at most 1,000 records and
 1 MiB, refused whole above that, with exactly the disclosed values on each record.
 `selectRecord` names a projected record. It opens in the pane, and a file with one
 needs host **1.31.0**. Its review lists the columns and names no relationship.
+
+**Views on a record page.** `extensionRecordPanel` places a view on a record page,
+scoped to that page's one record. It is a child of a `detailSurface` or a
+`recordForm`, directly or inside a `section` or a tab; anywhere else is NUI450. It
+takes `title`, the package pin, `protocolVersion` 2, `configurationVersion`,
+`configuration`, `labelFieldId` and optional `statusFieldId`, and its columns are its
+`fieldBinding` children. It names no `entityId`, because its record type is the
+page's, and it takes no edge type and no `filterClause`. A page carries at most four.
+Its `fieldBinding` children are the view's and never the form's: the compiled plan
+carries the panel with no children, so no walk of the page takes them for fields to
+edit. Its binding digest also names its kind, so permission for a record set over
+the same fields does not cover it. The page receives
+`{sourceChangeSequence, fields, record}` with exactly the disclosed values; a deleted
+record stops the view and says so. A file with one needs host **1.32.0**, because the
+record-set shape shipped first as 1.31.0 without it.
+
+The page draws a placeholder: the title, the package, one next step (Install,
+Allow, **Show view**) and, once running, **Stop view**. Nothing starts until the
+person presses Show view, and one view runs per window: showing another stops the
+first. The Workbench reports the placeholder's box and the part of it the page
+shows through `extension.panel.show`, `extension.panel.place` and
+`extension.panel.close`; the host places the contained window at the box's whole
+size, cuts it with a window region to what the page shows (the record page's
+scroller, its sticky header and its sticky Save bar), hides it while the page
+scrolls and while a native dialog is open, and stops it when the page lets go of it.
+A view that stops by itself is reported with `extensionPanelStopped`, and the
+placeholder says why; the record page stays editable and Studio stays reachable.
+`Review-ExtensionPanel.mjs`, run by
+`DesktopExtensionPanelJourneyTests.ARecordPanelStartsOnRequestFollowsThePageAndLeavesItEditable`,
+measures each of these on a real window.
 
 At protocol 1 the root has no children. At protocol 2 (ADR-0013, 2026-09-24) it may
 carry `fieldBinding` children, at most eight per record type, and `filterClause`

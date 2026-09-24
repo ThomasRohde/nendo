@@ -86,6 +86,10 @@ public sealed partial class NendoApplicationService
     public Task<NendoExtensionViewSnapshot> ReadExtensionViewAsync(string viewId, CancellationToken cancellationToken = default) =>
         _coordinator.ReadExtensionViewAsync(viewId, cancellationToken);
 
+    /// <summary>A view on a record page, scoped to <paramref name="recordId"/>.</summary>
+    public Task<NendoExtensionViewSnapshot> ReadExtensionViewAsync(string viewId, string? recordId, CancellationToken cancellationToken = default) =>
+        _coordinator.ReadExtensionViewAsync(viewId, recordId, cancellationToken);
+
     public Task<NendoRecordCount> CountRecordsAsync(
         NendoRecordCountQuery query,
         CancellationToken cancellationToken = default) =>
