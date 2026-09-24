@@ -76,7 +76,9 @@ if ($Action -eq 'Inspect') {
     $buttons = @($elements | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button })
     foreach ($item in $buttons) {
         $r = $item.Current.BoundingRectangle
-        if ($item.Current.IsOffscreen -or $r.Bottom -gt $bounds.Bottom -or $r.Top -lt $bounds.Top) { throw 'A native dialog action is clipped.' }
+        if ($item.Current.IsOffscreen -or $r.Bottom -gt $bounds.Bottom -or $r.Top -lt $bounds.Top) {
+            throw "A native dialog action is clipped: '$($item.Current.Name)' at $r (offscreen $($item.Current.IsOffscreen)) in a window at $bounds."
+        }
     }
     # A dialog that lists what it can do draws each one as a row. Where its label starts is the
     # difference between a list of choices and a stack of centred default buttons, and it is the

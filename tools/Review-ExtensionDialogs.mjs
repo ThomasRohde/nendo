@@ -205,7 +205,7 @@ try {
     graph('Drag pane', -Math.round(60 * narrowed.Dpi / 96));
     const pulled = graph('Inspect');
     assert(Math.abs(dip(pulled, pulled.Pane.Width) - dip(narrowed, narrowed.Pane.Width) - 60) <= 6,
-      `Dragging the boundary 60 DIPs left moved the pane from ${dip(narrowed, narrowed.Pane.Width)} to ${dip(pulled, pulled.Pane.Width)} DIPs.`);
+      `Dragging the boundary 60 DIPs left moved the pane from ${dip(narrowed, narrowed.Pane.Width)} to ${dip(pulled, pulled.Pane.Width)} DIPs. Boundary: ${JSON.stringify(pulled.Splitter)}`);
 
     // Dragging must not cost the view. Each move repositions the contained window, and the
     // owner met a boundary that worked and a graph that died under it on 2026-09-21, with

@@ -32,6 +32,7 @@ public static class ExtensionFocusProbe {
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr window, IntPtr dc, uint flags);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr window, int cmd);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr window, int index);
     // Accessibility rectangles are physical pixels; the pane's own widths are DIPs. Without
     // this the two cannot be compared on a scaled display, which is most of them.
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
@@ -55,14 +56,27 @@ public static class ExtensionFocusProbe {
     // before any XAML element sees it, and no layout measurement would show that.
     [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(Point point);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr window, System.Text.StringBuilder name, int count);
-    public static string ClassAt(int x, int y) {
-        Point p = new Point(); p.X = x; p.Y = y;
-        IntPtr w = WindowFromPoint(p);
+    // Per-monitor aware for the lookup, because the point is an accessibility rectangle's,
+    // which is physical pixels on every monitor whatever this thread was started as.
+    public static IntPtr WindowAt(int x, int y) {
+        IntPtr previous = SetThreadDpiAwarenessContext((IntPtr)(-4));
+        try { Point p = new Point(); p.X = x; p.Y = y; return WindowFromPoint(p); }
+        finally { SetThreadDpiAwarenessContext(previous); }
+    }
+    public static uint ProcessOf(IntPtr w) { uint owner = 0; if (w != IntPtr.Zero) GetWindowThreadProcessId(w, out owner); return owner; }
+    public static string Describe(IntPtr w) {
         if (w == IntPtr.Zero) { return "none"; }
         var name = new System.Text.StringBuilder(256);
         GetClassName(w, name, name.Capacity);
-        uint owner; GetWindowThreadProcessId(w, out owner);
-        return name.ToString() + "/" + owner;
+        return name.ToString() + "/" + ProcessOf(w);
+    }
+    // The window under the point and, when it is not a top-level window itself, the one it
+    // belongs to: "another application is in front" and "one of Nendo's own child windows
+    // overlaps the strip" are different defects in different places.
+    public static string ClassAt(int x, int y) {
+        IntPtr w = WindowAt(x, y);
+        IntPtr top = w == IntPtr.Zero ? IntPtr.Zero : GetAncestor(w, 2);
+        return top == w || top == IntPtr.Zero ? Describe(w) : Describe(w) + " in " + Describe(top);
     }
 }
 '@
@@ -247,6 +261,25 @@ if ($Action -eq 'Drag pane') {
     if ($bounds.Width -lt 1 -or $bounds.Height -lt 1) { throw "The boundary has no hit area: $($bounds.Width)x$($bounds.Height)." }
     $startX = [int]($bounds.Left + $bounds.Width / 2)
     $startY = [int]($bounds.Top + $bounds.Height / 2)
+    # Injected input goes to whatever window is on top at the point, not to the window the
+    # lane means. Every failed drag that recorded what was there had another window over the
+    # strip, and the lane reported a pane that had not moved -- which reads as a product
+    # defect (F-131). A window of another application launched in front reproduces it. So
+    # hold Nendo above other windows for the drag, and refuse by name when something is still
+    # in the way, rather than measuring a width nobody dragged.
+    $topmost = [IntPtr](-1); $notTopmost = [IntPtr](-2)
+    $keepPlace = 0x0001 -bor 0x0002 -bor 0x0010   # NOSIZE | NOMOVE | NOACTIVATE
+    [void][ExtensionFocusProbe]::SetWindowPos($handle, $topmost, 0, 0, 0, 0, $keepPlace)
+    # Before the press the strip itself must be what is there. After the moves the boundary
+    # has left the press point, and the Workbench's webview under it belongs to another
+    # process, so from then on the point need only still be inside Nendo's own window.
+    function Assert-BoundaryOnTop([string] $when, [switch] $WindowOnly) {
+        $under = [ExtensionFocusProbe]::WindowAt($startX, $startY)
+        $inside = if ($WindowOnly) { [ExtensionFocusProbe]::GetAncestor($under, 2) -eq $handle } else { [ExtensionFocusProbe]::ProcessOf($under) -eq $TargetProcessId }
+        if (-not $inside) {
+            throw "The boundary is covered $when by $([ExtensionFocusProbe]::ClassAt($startX, $startY)), not Nendo ($TargetProcessId, extended style 0x$('{0:x}' -f [ExtensionFocusProbe]::GetWindowLongPtr($handle, -20).ToInt64())); the drag would go to that window, so no width was measured."
+        }
+    }
     $before = [ExtensionFocusProbe+Point]::new()
     [void][ExtensionFocusProbe]::GetCursorPos([ref]$before)
     # Absolute injected input across the whole virtual desktop. SetCursorPos moves the
@@ -272,10 +305,13 @@ if ($Action -eq 'Drag pane') {
         }
     }
     $move = 0x0001 -bor 0x8000 -bor 0x4000   # MOVE | ABSOLUTE | VIRTUALDESK
+    $pressed = $false
     try {
+        Assert-BoundaryOnTop 'before the press'
         Send-Mouse $move $startX $startY
         Start-Sleep -Milliseconds 150
         Send-Mouse 0x0002  # left down
+        $pressed = $true
         Start-Sleep -Milliseconds 150
         # In steps, because a single jump is not a drag: a captured pointer needs moves
         # between the press and the release. Roughly one every six pixels, so a long drag
@@ -286,10 +322,13 @@ if ($Action -eq 'Drag pane') {
             Start-Sleep -Milliseconds 40
         }
         Start-Sleep -Milliseconds 150
+        # The press point again: a window that appeared along the drag took the moves too.
+        Assert-BoundaryOnTop 'during the drag' -WindowOnly
     }
     finally {
-        Send-Mouse 0x0004  # left up
+        if ($pressed) { Send-Mouse 0x0004 }  # left up
         Start-Sleep -Milliseconds 250
+        [void][ExtensionFocusProbe]::SetWindowPos($handle, $notTopmost, 0, 0, 0, 0, $keepPlace)
         [void][ExtensionFocusProbe]::SetCursorPos($before.X, $before.Y)
         [void][ExtensionFocusProbe]::SetThreadDpiAwarenessContext($previousDpi)
     }
