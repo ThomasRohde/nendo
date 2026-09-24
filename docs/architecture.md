@@ -789,7 +789,8 @@ installer in the same task. Prune old payloads only through
 
 ### What gets checked, and what doesn't
 
-Two different lanes cover an installer build. It is important which lane you mean.
+Two different lanes cover an installer build, and a third runs the custom-view
+journey against what the first one installs. It is important which lane you mean.
 `artifacts/installer/installer-status.json` records both lanes for the delivered
 file.
 
@@ -797,6 +798,7 @@ file.
 | --- | --- | --- |
 | `Test-NendoSetupIsolated.ps1` | The setup logic: install, in-place upgrade, obsolete owned file removal, unowned user file preservation, uninstall, and everything setup registers with Windows (the `.nendo` association, the *New* menu entry, the application identity and the Start Menu shortcut), against a task-owned root, class store and Start Menu folder | Always |
 | `Test-NendoInstaller.ps1` | The NSIS wrapper: bootstrapper, payload extraction, HKCU uninstall registration, real `Uninstall.exe` | Only on a clean Windows user |
+| `Test-ExtensionInstalledJourney.ps1` | The native custom-view journey (`DesktopExtensionJourneyTests`) against the app as setup installs it: the published payload installed by `Invoke-NendoSetup.ps1` into a task-owned root, checked byte for byte against the manifest, then uninstalled. It drives the desktop with a real pointer, so it needs an unlocked, otherwise idle session | On request, after a publish |
 
 The second lane installs and then **uninstalls** from the real per-user location.
 Thus it refuses to start when Nendo is installed. That refusal is a safety

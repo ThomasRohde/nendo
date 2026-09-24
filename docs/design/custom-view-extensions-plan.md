@@ -263,8 +263,11 @@ The isolated WinUI journey now measures native consent, Use entry, a two-record
 dependency, both themes at 1024×720, durable Studio editing and F6 focus return.
 The journey also covers native package import/export with byte equality,
 missing/disabled states, persistent revocation, helper termination and another
-Studio edit after failure. The next action is high-DPI layout, installed-host
-and offline journeys, plus the remaining P1 network/pressure matrix.
+Studio edit after failure. High-DPI layout and the P1 network/pressure matrix are
+measured. `Test-ExtensionInstalledJourney.ps1` runs the same journey against the app
+as setup installs it into a task-owned root. What remains is the offline copy,
+reopen and newer-host journeys in the native app: today those are covered by
+controller and Engine tests only.
 Source tests measure HWND placement and containment, file-close cancellation,
 revocation and package-lease cleanup; those are narrower than the full UI journey.
 Create implementation Work items only after the architecture gate, linked back to
