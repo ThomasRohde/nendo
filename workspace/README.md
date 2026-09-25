@@ -6,10 +6,10 @@ The demo files are tracked; the live planner is the owner's data and is ignored.
 | File | What it is | In git |
 | --- | --- | --- |
 | `Nendo.nendo` | The live [Nendo Development planner](../docs/dogfooding.md): work items, findings, checks and initiatives. Real work, not a fixture. | **No** — ignored |
-| `Work dependencies demo.nendo` | Fourteen test tasks and their dependencies, with the [work-dependency view](../extensions/work-dependencies/README.md) pinned: a chain, an isolated task, a three-task cycle and one task behind it. | Yes |
-| `Nendo graph demo (fitted).nendo` | A small record graph with the [dependency-graph package](../extensions/dependency-graph/README.md) pinned. | Yes |
+| `Work dependencies demo.nendo` | Fourteen test tasks and their dependencies, with the [work-dependency view](../extensions/work-dependencies/README.md): a chain, an isolated task, a three-task cycle and one task behind it. | Yes |
+| `Nendo graph demo (fitted).nendo` | A small record graph with a view of the [dependency-graph package](../extensions/dependency-graph/README.md). | Yes |
 | `Nendo custom-view demo.nendo` | The first custom-view demo, kept as the shape that slice produced. | Yes |
-| `Nendo Station.nendo` | [Nendo Station](../docs/nendo-station.md), the fourth reference application: a fictional habitat run as an operations room, with the [Systems Lens](../extensions/systems-lens/README.md) schematic pinned. Rebuilt by `tools/Build-NendoStation.mjs` rather than edited. | Yes |
+| `Nendo Station.nendo` | [Nendo Station](../docs/nendo-station.md), the fourth reference application: a fictional habitat run as an operations room, with the [Systems Lens](../extensions/systems-lens/README.md) schematic. Rebuilt by `tools/Build-NendoStation.mjs` rather than edited. | Yes |
 
 ## Rules
 
@@ -18,11 +18,12 @@ The demo files are tracked; the live planner is the owner's data and is ignored.
   the Nendo application, or the `nendo` MCP server against the file it has open.
 - Host-owned sidecars (`-wal`, `-shm`, journal, write-owner) belong to Nendo while
   it holds a file open. `.gitignore` keeps them out of git; leave them alone.
-- A demo file pins a package by the SHA-256 of its exact archive. Rebuild the
-  package and the pin no longer matches: install the new archive and allow the
-  view again, or the file reports the package as changed. The archives are built
-  by `tools/Build-NendoWorkDependenciesPackage.ps1` and
-  `tools/Build-NendoGraphPackage.ps1` into `artifacts/extensions/`.
+- The demo files were built before custom views ran from the file (ADR-0013,
+  2026-09-25). Each view names its package, and no demo file carries one yet, so
+  each view says that its package is not in this file and offers **Add package to
+  file…**. Importing the package from its folder under `extensions/` changes the
+  file through a proposal you accept; do it in a Duplicate to keep the tracked file
+  as it is. The package pins these files still hold are kept and ignored.
 
 ## What is in git, and what is not
 

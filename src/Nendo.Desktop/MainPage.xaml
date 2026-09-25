@@ -10,39 +10,8 @@
     Unloaded="Page_Unloaded"
     mc:Ignorable="d">
 
-    <Page.Resources>
-        <!-- A dialog that offers a list of things to do draws them as rows, not as a stack of
-             centred default buttons: the label starts at the leading edge and a chevron sits at
-             the trailing one, which is how Windows itself presents a list of choices. -->
-        <Style x:Key="ExtensionActionStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <!-- Compact enough that every action still fits the enforced 1024x720 minimum window:
-                 taller rows pushed the sixth one out of the dialog and the lane refused it. -->
-            <Setter Property="Padding" Value="16,6,12,6" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
-            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
-        </Style>
-    </Page.Resources>
-
     <Grid x:Name="ShellGrid" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <!-- The boundary the person drags. A column of its own, because both halves are
-                 child windows drawn over the page and nothing underneath one is clickable. -->
-            <ColumnDefinition x:Name="ExtensionSplitterColumn" Width="0" />
-            <!-- A custom view opens here, beside the Workbench, and the column closes with it. -->
-            <ColumnDefinition x:Name="ExtensionColumn" Width="0" />
-        </Grid.ColumnDefinitions>
         <Grid x:Name="WebHost" />
-        <local:ExtensionSplitter
-            x:Name="ExtensionSplitter"
-            Grid.Column="1"
-            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-        <!-- Stays visible: the zero-width column hides it. A container that starts collapsed did not
-             expose a subtree added at runtime to UI Automation. -->
-        <Grid x:Name="ExtensionHost" Grid.Column="2" />
 
         <Border
             x:Name="RecoveryPanel"
@@ -106,13 +75,20 @@
                             AutomationProperties.AutomationId="recovery.resolve" Click="RecoveryResolve_Click" />
                 </Grid>
                 </ContentControl>
-                <Button
-                    x:Name="RecoveryRestart"
-                    HorizontalAlignment="Left"
-                    Style="{StaticResource AccentButtonStyle}"
-                    AutomationProperties.AutomationId="renderer.restart"
-                    Click="RestartWorkbench_Click"
-                    Content="Restart view" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Button
+                        x:Name="RecoveryRestart"
+                        Style="{StaticResource AccentButtonStyle}"
+                        AutomationProperties.AutomationId="renderer.restart"
+                        Click="RestartWorkbench_Click"
+                        Content="Restart view" />
+                    <!-- For a custom view that takes the whole window down with it. -->
+                    <Button
+                        x:Name="RecoveryRestartWithoutViews"
+                        AutomationProperties.AutomationId="renderer.restartWithoutViews"
+                        Click="RestartWithoutViews_Click"
+                        Content="Restart without custom views" />
+                </StackPanel>
             </StackPanel>
         </Border>
     </Grid>

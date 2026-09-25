@@ -61,6 +61,8 @@ internal static partial class WorkbenchMethods
         HealthVerify,
         BehaviourApprove,
         BehaviourRevoke,
+        ExtensionSettingsSet,
+        ExtensionRemove,
     };
 }
 

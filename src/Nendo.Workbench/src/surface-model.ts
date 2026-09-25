@@ -13,7 +13,8 @@ const useKinds = ['recordList', 'boardSurface', 'calendarSurface', 'timelineSurf
 
 /**
  * A custom view of either shape (ADR-0013): a graph, or one record type as typed columns.
- * The native host reads and runs both; the Workbench only shows the next step.
+ * Either fills its Use screen with a frame running the view's code from the file, and reads
+ * its records itself, so the Workbench opens no record window for it.
  */
 export function isCustomViewKind(kind: string | undefined): boolean {
   return kind === 'extensionGraphSurface' || kind === 'extensionRecordsSurface';

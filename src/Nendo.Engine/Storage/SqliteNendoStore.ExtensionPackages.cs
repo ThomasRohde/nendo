@@ -380,7 +380,7 @@ internal sealed partial class SqliteNendoStore
         foreach (var package in packages)
         {
             if (!NendoExtensionContent.ValidPackageId(package.PackageId) || !NendoExtensionContent.ValidPath(package.EntryPoint) ||
-                package.Version is { } version && !NendoExtensionViewDefinition.ValidVersion(version))
+                package.Version is { } version && !NendoExtensionContent.ValidVersion(version))
                 return false;
             if (package.Files.Count > NendoExtensionLimits.PackageFiles || package.TotalBytes > NendoExtensionLimits.PackageBytes)
                 return false;

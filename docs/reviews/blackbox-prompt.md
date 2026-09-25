@@ -43,15 +43,15 @@ impression is a finding either way.
 
 ## Focus for this round
 
-Updated 2026-09-15, when the front page landed. Every phase below still gets a pass;
-spend your extra time on these, which changed most recently:
+Updated 2026-09-25, when custom views began to run from the file. Every phase below still
+gets a pass; spend your extra time on these, which changed most recently:
 
-- Code in the file (Custom-view rollout status), the newest thing a change set can
-  carry. A view's code can now live in the file as a package that the person reviews
-  as code before accepting, and nothing runs it yet. Record whether the wire told you,
-  before you tried, how to send a file larger than one operation may carry; whether
-  the review let the person read the code they were accepting; and whether every file
-  you read back hashed to what you sent.
+- A view that lives in the file (Phase 10), the newest thing a change set can carry. Its
+  code arrives as a package the person reviews line by line, and once accepted it runs
+  wherever its screen is shown, with nothing to install and nothing to allow. Record
+  whether the wire told you, before you tried, what that code can reach; whether the
+  review said so in words the person could weigh; and what the person could do when a
+  view misbehaved.
 - The board whose columns are records (Phase 3), the newest shape. Its columns are not in
   the definition at all: they are rows of another record type, read when the board opens,
   and there is a point past which the board stops drawing. Find that point rather than
@@ -647,9 +647,10 @@ Read nothing about it first.
 - Raise an incident against a system that has none. Something else changes as a
   result. Find it, say what it was, and say whether you could tell it was the
   file's doing rather than yours. Undo it and say how you knew you had.
-- The schematic view is a separately installed package. Get from the open file to
-  it without being told how. Once there: find a loop, and say how you know it is a
-  loop rather than a long line. Select a component and ask what would be lost
+- The schematic is a custom view whose code the file carries. Get from the open file
+  to it without being told how. If it says its package is not in this file, record
+  what it offered, and ask the person to add it. Once there: find a loop, and say how
+  you know it is a loop rather than a long line. Select a component and ask what would be lost
   without it. **It answers in two different ways for two different components:
   state both in your own words, and say whether you believe the distinction or
   think it is decoration.** Then say what the view claims about failure, in your
@@ -662,129 +663,58 @@ Read nothing about it first.
   whether you got what you asked for.
 - Close the file and reopen it offline with no agent. Say what still works.
 
-## Custom-view rollout status
+## Phase 10 — A view that lives in the file
 
-**Code in the file.** A custom view's code can now live in the file itself, as a
-package written through the same change sets as a screen. Nothing runs a package from
-the file yet, so this checks only that it is stored, reviewed and read back exactly.
-Use the empty review file, at Shape app.
+A custom view is a small web page whose code the file itself carries, as a package. A
+view that is shown runs, inline in the app, with nothing to install and no permission to
+give. Use the empty review file, at Shape app. Learn what you need from the wire — the
+vocabulary, the examples and the resources — and not from the person.
 
-- Before you write, record what the wire told you: the operations that write a
-  package, how large one operation's payload may be, how a larger file is sent, and
-  every bound on files, packages and change sets. Say where each came from.
-- Write a small package in one change set, with the package and its files in one
-  mutation: an HTML entry point, a script, and a file of a few hundred kilobytes of
-  arbitrary bytes, sent in two parts, the second with `append`. Keep your own SHA-256
-  of every file before you send it. Validate, and read what the preview says about
-  each file: the lines it shows for the script, what it says about the binary file,
-  and whether the file sent in two parts is reviewed as one. Ask the person to open
-  the review and say what its Code section shows them, and whether they could accept
-  code from it without trusting you.
-- After the person accepts, find the two reads that list the packages and return a
-  file's content, without being told their names. Read every file back, the one in a
-  folder with its path percent-encoded, and say whether the read told you to encode
-  it. Follow the pages to the end and compare each SHA-256 with your own. Record the
-  minimum host the file states now, and whether the review told you before you
-  accepted.
-- Change one line of the script in a new change set, say what the review shows, and
-  have the person accept it. Ask them to compensate the revision that added the
-  package, from History, and record what they are told. Then have them compensate
-  the change first and the package after it. Read the packages again: the files and
-  the package must be gone. Say what the file still states afterwards, the minimum
-  host included.
-- Try what must not work, and record whether each refusal named the rule and what to
-  do instead: a path under `_nendo/`; a file of 5 MiB, which you can only send in
-  parts; an `append` part whose file no earlier put in the change set began; and a
-  file put into a package that does not exist. For each, say whether it was refused
-  where you sent it or only at validation, and read the file afterwards to confirm
-  that nothing reached it.
-- Ask the person whether anything they can see runs the package. Nothing should, and
-  anything that suggests otherwise is a finding.
-
-[Custom views](../contracts/custom-views.md) now expose `extensionGraphSurface`
-through the canonical UI authoring vocabulary and the `pin-an-offline-custom-graph`
-example in development builds. In Phase 3, if the installed vocabulary includes it,
-create a disposable definition, inspect its package/field disclosure in review,
-accept and reopen without the package installed, and confirm the records remain in
-Studio. Remove the view and confirm the records survive. A future configuration
-version must be retained but refused execution. Do not invent draft operation names.
-
-At protocol 2 a view may carry `fieldBinding` and `filterClause` children. Author one
-that discloses a text field of the node type, a reference field and a field of the
-edge type, and narrows the node type with a filter. Before accepting, say whether the
-review tells you which fields a package would receive. Then try, and say how each is
-refused: a calculated field, a field of a third record type, a filter comparing to
-`today`, a ninth field of one type, and the same children under a protocol-1 view. In
-the native consent review, say whether every disclosed field is named with its record
-type, whether a reference says whose label it sends, and whether the fields the view
-is narrowed by are named. Change one disclosed field and say whether permission is
-asked for again. Say what minimum host the file now states.
-
-An `extensionRecordsSurface` shows one record type as typed columns instead of a graph.
-Author one over a record type with two date fields, disclosing both, and say what the
-review and the consent dialog tell you it will read, and whether either mentions a
-relationship it does not have. Try it with an edge type, at protocol 1, and with a field of
-another record type, and say how each is refused. If the `org.nendo.gantt` package is at
-hand, open the view and say whether the bars match the dates, what happens to a record with
-no start or no end, and what the file's minimum host is now.
-
-An `extensionRecordPanel` puts a custom view on a record page, for that record only.
-Author one inside a section of a record page, disclosing a date, and open a record. Say
-whether anything runs before you press Show view, what the permission review says it
-reads, and whether the view sits exactly over its placeholder. Scroll the page, open a
-native dialog, and show a second view on the same page, and say what happens to the view
-each time. Try one with its own `entityId`, with a filter, and as a root, and say how each
-is refused. Say what the file's minimum host is now.
-
-Desktop execution is still being integrated. When the installed host exposes that
-path, check separate installation/consent, missing-package fallback, and permanent
-Studio access after renderer failure. Record unavailable runtime journeys as Not run.
-Development builds now expose File → Custom views for native offline package
-installation/export/removal, consent review and explicit Open a custom view.
-Review the unsigned label, exact digest and disclosed field names.
-The custom view opens as a pane beside the Workbench in the main window, not as a
-separate window. In that pane, measure that the renderer stays below the host
-controls, including at changed display scaling, and that it tracks the pane when
-the window is resized. The boundary between the two is draggable: find it without
-being told where it is, move it both ways with the pointer and with Left and Right
-after tabbing to it, and say what stops it at each end — the graph must not go below
-its compact width and the Workbench must keep a column worth reading. Watch the graph
-itself while you drag: it is hidden for the length of the drag and placed once you let
-go, so that dragging does not resize the contained browser hundreds of times and exhaust
-its memory allowance. Say whether that reads as deliberate or as the view having broken.
-Maximize the window and drag it back and forth for a while; the view must still be
-running afterwards. Double-click it and say what happens. Then shrink the window and say whether either side is
-squeezed out. Reopen the view and say what width it starts at; it is not remembered
-between openings, so say whether that surprised you. Drag across the graph's heading, summary and canvas: nothing
-may highlight as text; the text alternative must still be selectable. Select a node and use the native Open record
-button; edit that record in Studio. Keep an unsaved edit open and check that a graph
-navigation request does not discard it. Switch files and confirm the old window
-cannot navigate into or disable a same-named view in the new file. Check Light,
-Dark, live theme changes, keyboard movement between renderer and host controls,
-window close, file close, application exit and shutdown during startup.
-The configured Use graph must show one next step at a time: Install package… while
-the package is absent, Allow this view once installed, Open graph once allowed,
-with the status sentence saying which; Studio must stay reachable at every step.
-A person who has never seen it should get from an open file to the graph by
-pressing that one button three times, choosing the package file once and
-allowing once. In the graph pane, use Focus graph and
-F6 in both directions; host controls must remain accessible without a mouse.
-Use a disposable pressure package to exceed the renderer's memory allowance;
-the native failure state must appear and Studio must still save a record.
-Check the graph summary with zero, one and multiple records and connections;
-the visible counts and singular/plural labels must match the projected graph.
-With a disposable package that tries to read or write the clipboard on a click,
-put known text on the clipboard first, click, and confirm the clipboard is
-unchanged afterwards; the package's own report of success or failure is not
-the evidence.
-The source helper tests also exercise silent revocation and a renderer stuck in a
-JavaScript loop. Once the visible route is available, use a disposable package to
-check that closing or revoking it leaves Studio responsive and no renderer running;
-do not treat the source tests as evidence for an installed build.
-When package management and consent appear, export and reinstall the exact offline
-archive, keep an older pinned version, attempt removal while it is running, and
-copy the file without carrying approval. Change bindings while a consent dialog is
-open: acceptance must require a fresh review. Installation alone must never run it.
+- Before you write, record what the wire told you, and where: the operations that write a
+  package, how large one operation's payload may be and how a larger file is sent, the
+  bounds on files, packages and change sets, the kinds of node that show a view and what
+  each requires, and how a view's own code reaches the file's records. Say whether
+  anything told you what that code will be able to do once it runs.
+- Author a small view in one change set: a package with an HTML entry point and a script,
+  and a screen that shows it over a record type that has a few records, one field
+  calculated and one a decimal with more digits than a JavaScript number keeps. Keep your
+  own SHA-256 of every file. Validate, and read what the preview says about each file and
+  about what the code can do. Ask the person to open the review and say whether they could
+  accept this code without trusting you.
+- After the person accepts, ask them to show the screen, without telling them where it is.
+  Record whether they found it, whether the view ran at once, and what it shows. Ask
+  whether its numbers match Studio's to the last digit.
+- While the view is on screen, ask the person to change one of its records in Studio and
+  come back. Say whether the view followed, and what told it to.
+- Change one line of the script in a new change set, have it accepted, and ask whether the
+  view now runs the new code, and what the person had to do for that.
+- Read every file back through the resources, one of them from a folder with its path
+  percent-encoded, and compare each SHA-256 with your own. Record the minimum host the file
+  states now, and whether the review told you before you accepted.
+- Ask the person to turn views off for this device, and then for this file only, and to
+  say each time what the screen showed instead and what it offered. Then both on again.
+- Ask the person to right-click inside the running view and choose Inspect. In the
+  Console, with the view's frame chosen as the context (the drop-down that starts at
+  `top`), ask them to run these one at a time: `parent.document`,
+  `top.location.href = 'https://example.com/'`,
+  `fetch('https://example.com/', { mode: 'no-cors' })`, and a query of a record type
+  through the view's own API. Record each answer as reported: the first two must fail
+  without moving the app, the fetch reaches the network, and the query is the one way
+  into the file.
+- Author a second version whose button starts a loop that never ends, have it accepted,
+  and ask the person to press it. Record how long before the app said the view was not
+  responding, what it offered, whether the rest of the app answered meanwhile, and what
+  Stop and then Reload did.
+- Try what must not work, and record whether each refusal named the rule and what to do
+  instead, and whether it came where you sent it or only at validation: a record-page
+  panel placed as a root, a panel with a record type of its own, a filter on a
+  calculated field, a configuration that is not a JSON object, a file under `_nendo/`,
+  and a file of 5 MiB. Read the file afterwards to confirm that nothing reached it.
+  Then define a view whose package the file does not carry, which is allowed, and
+  record what validation said about it and what the screen shows.
+- Ask the person to remove the package from the file, and to say what the screen shows
+  afterwards. Then have them compensate that removal from History, and say whether the
+  view came back.
 
 ## What to produce
 

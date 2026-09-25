@@ -1,9 +1,16 @@
 (() => {
   'use strict';
+  // Work items as nodes and what blocks what as links, laid out in the order the work has to
+  // happen in. Everything arrives through window.nendo (ADR-0013): the graph from
+  // nendo.view.loadGraph, the names of the status's choices from nendo.schema.describe, and the
+  // theme. Selecting an item asks Nendo to open it.
   const element = id => document.getElementById(id);
   const drawing = element('drawing'), canvas = element('canvas');
-  let session = null, generation = 0, nodes = [], edges = [], selected = null, focusing = false;
+  const nendo = window.nendo;
+  let loaded = false, nodes = [], edges = [], selected = null, focusing = false;
   let width = 800, height = 500, scale = 1, offsetX = 0, offsetY = 0, drag = null;
+  // Reads are numbered so an answer that arrives after a newer read has started is dropped.
+  let latest = 0, pending = null;
   const positions = new Map();     // node id -> {x, y}
   const component = new Map();     // node id -> strongly connected component index
   const cyclic = new Set();        // node ids that sit in a real cycle
@@ -14,27 +21,25 @@
   // rather than guessed at, so this package stays usable against another file's scalar.
   const TONES = { inbox: 'grey', ready: 'blue', doing: 'violet', blocked: 'red', review: 'amber', done: 'green', dropped: 'grey' };
 
-  function send(method, values = {}) {
-    if (session !== null) window.chrome.webview.postMessage({ version: 1, session, generation, method, ...values });
-  }
   function shape(name, attributes, text) {
     const item = document.createElementNS('http://www.w3.org/2000/svg', name);
     for (const [key, value] of Object.entries(attributes)) item.setAttribute(key, String(value));
     if (text !== undefined) item.textContent = text;
     return item;
   }
+  function describe(error) { return error instanceof Error && error.message ? error.message : String(error); }
   function transform() { drawing.setAttribute('transform', `translate(${offsetX} ${offsetY}) scale(${scale})`); }
   function fit() {
     const bounds = canvas.getBoundingClientRect();
-    // The host composes and sizes this pane after the page loads, so an early fit can measure
-    // zero and put every item off-screen. Skip until the canvas has a real size.
+    // The Workbench lays out and sizes this frame after the page loads, so an early fit can
+    // measure zero and put every item off-screen. Skip until the canvas has a real size.
     if (bounds.width < 1 || bounds.height < 1) return;
     scale = Math.min(1.1, Math.max(.08, Math.min(bounds.width / width, bounds.height / height) * .92));
     offsetX = (bounds.width - width * scale) / 2; offsetY = (bounds.height - height * scale) / 2;
     transform();
   }
-  function refit() { requestAnimationFrame(() => requestAnimationFrame(() => { if (session !== null && !canvas.hidden) fit(); })); }
-  window.addEventListener('resize', () => { if (session !== null && !canvas.hidden) fit(); });
+  function refit() { requestAnimationFrame(() => requestAnimationFrame(() => { if (loaded && !canvas.hidden) fit(); })); }
+  window.addEventListener('resize', () => { if (loaded && !canvas.hidden) fit(); });
   function zoom(factor, x = canvas.clientWidth / 2, y = canvas.clientHeight / 2) {
     const next = Math.min(4, Math.max(.08, scale * factor));
     offsetX = x - (x - offsetX) * next / scale; offsetY = y - (y - offsetY) * next / scale;
@@ -44,8 +49,8 @@
   /**
    * Tarjan's strongly connected components, so a cycle is named exactly rather than inferred
    * from "whatever the topological pass could not settle" -- which also catches everything
-   * merely standing behind a cycle. Iterative: a planner chain can be deep and this runs
-   * inside a contained renderer with no stack to spare.
+   * merely standing behind a cycle. Iterative: a planner chain can be deep and a frame has no
+   * stack to spare.
    */
   function components() {
     component.clear(); cyclic.clear();
@@ -157,8 +162,7 @@
     for (const button of element('records').querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.id === selected));
   }
 
-  function select(id) {
-    if (!positions.has(id)) return;
+  function highlight(id) {
     selected = id;
     const node = nodes.find(value => value.id === id);
     const blockers = incoming.get(id).length, blocks = outgoing.get(id).length;
@@ -167,7 +171,15 @@
       + (total > blocks ? ` (${total} in all downstream)` : '')
       + (cyclic.has(id) ? ' · in a dependency cycle' : blockers === 0 ? ' · nothing is blocking it' : '');
     paint();
-    send('selectRecord', { recordId: id });
+  }
+
+  function select(id) {
+    if (!positions.has(id)) return;
+    highlight(id);
+    const node = nodes.find(value => value.id === id);
+    nendo.ui.openRecord(node.entityId, id).catch(error => {
+      if (selected === id) element('selection').textContent = `${node.label} · Nendo could not open it: ${describe(error)}`;
+    });
   }
 
   function textView() {
@@ -196,6 +208,8 @@
   }
 
   function render(projection) {
+    // A re-read keeps the selection when its item is still there, without opening it again.
+    const keep = selected;
     nodes = projection.nodes; edges = projection.edges; selected = null; drawing.replaceChildren();
     outgoing.clear(); incoming.clear();
     // Adjacency is by distinct item, not by link record: two records both saying A blocks B are
@@ -264,6 +278,53 @@
       drawing.append(group);
     });
     summarize(); textView(); paint(); fit(); refit();
+    if (keep !== null && positions.has(keep)) highlight(keep);
+  }
+
+  // A field's value as a person reads it: a reference by its target's label, a choice by its
+  // name, a number by its exact digits. Null when the record has none.
+  function display(schema, record, fieldId) {
+    const label = record.labels?.[fieldId];
+    if (typeof label === 'string') return label;
+    const value = record.values?.[fieldId];
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string') {
+      const field = schema.entities.find(entity => entity.entityId === record.entityId)?.fields.find(candidate => candidate.fieldId === fieldId);
+      return field?.choices.find(choice => choice.id === value)?.displayName ?? value;
+    }
+    return record.exact?.[fieldId] ?? (typeof value === 'object' ? JSON.stringify(value) : String(value));
+  }
+  function project(graph, schema) {
+    const statusFieldId = nendo.context.bindings.statusFieldId;
+    return {
+      nodes: graph.nodes.map(node => ({ id: node.id, entityId: node.record.entityId, label: node.label,
+        status: statusFieldId === null ? null : display(schema, node.record, statusFieldId) })),
+      edges: graph.edges.map(edge => ({ id: edge.id, sourceId: edge.source, targetId: edge.target })),
+    };
+  }
+  async function read() {
+    const number = ++latest;
+    let graph, schema;
+    try {
+      [graph, schema] = await Promise.all([nendo.view.loadGraph(), nendo.schema.describe()]);
+    } catch (error) {
+      if (number === latest) element('summary').textContent = `Your work items could not be read. ${describe(error)}`;
+      return;
+    }
+    if (number !== latest) return;
+    loaded = true;
+    try { render(project(graph, schema)); } catch {
+      element('summary').textContent = 'These dependencies could not be displayed. Open your work items in Nendo.';
+    }
+  }
+  // Nendo says the file changed at most four times a second. A burst of changes is one read,
+  // a quarter of a second after the first of them.
+  function schedule() {
+    if (pending !== null) return;
+    pending = setTimeout(() => { pending = null; read(); }, 250);
+  }
+  function applyTheme(theme) {
+    if (theme?.mode === 'light' || theme?.mode === 'dark') document.documentElement.dataset.theme = theme.mode;
   }
 
   element('zoom-in').addEventListener('click', () => zoom(1.25));
@@ -301,22 +362,18 @@
     else return;
     event.preventDefault();
   });
-  new ResizeObserver(() => { if (session !== null && !canvas.hidden) fit(); }).observe(canvas);
-  window.chrome.webview.addEventListener('message', event => {
-    const message = event.data;
-    if (message.version !== 1) return;
-    try {
-      if (message.method === 'initialize' && session === null) {
-        session = message.session; generation = message.generation;
-        document.documentElement.dataset.theme = message.theme;
-        document.documentElement.lang = message.locale || 'en';
-        render(message.projection); send('ready');
-      } else if (message.session === session && message.method === 'replaceProjection' && message.generation > generation) {
-        generation = message.generation; render(message.projection);
-      } else if (message.session === session && message.method === 'setTheme') document.documentElement.dataset.theme = message.theme;
-    } catch {
-      element('summary').textContent = 'These dependencies could not be displayed. Open your work items in Nendo.';
-      send('reportError', { code: 'render-failed', message: 'The dependency view could not be displayed.' });
-    }
-  });
+  new ResizeObserver(() => { if (loaded && !canvas.hidden) fit(); }).observe(canvas);
+  if (nendo === undefined) {
+    element('summary').textContent = 'This view runs inside Nendo. Open the screen that shows it.';
+    return;
+  }
+  nendo.ready.then(context => {
+    document.documentElement.lang = context.locale || 'en';
+    applyTheme(nendo.ui.theme);
+    nendo.on('theme', applyTheme);
+    // A new context can name other fields or another record type: read again under it.
+    nendo.on('context', next => { applyTheme(next.theme); schedule(); });
+    nendo.on('changes', schedule);
+    return read();
+  }).catch(error => { element('summary').textContent = `This view could not start. ${describe(error)}`; });
 })();

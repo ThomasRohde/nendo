@@ -81,11 +81,15 @@ Add `src/Nendo.LocalMcp/` and `tests/Nendo.LocalMcp.Tests/` in the MCP milestone
 Do not add them earlier as empty scaffolding.
 
 Note (2026-09-22): the MCP milestone added `src/Nendo.LocalMcp/` and
-`tests/Nendo.LocalMcp.Tests/`. The ADR-0013 amendment of 2026-09-20 added
-`src/Nendo.ExtensionHost/`, the contained custom-view helper executable. It
-references no other project. Desktop builds it but does not reference its
-assembly. `Nendo.slnx` lists these seven projects. `prototypes/` stays in the
-repository, outside the solution.
+`tests/Nendo.LocalMcp.Tests/`. `prototypes/` stays in the repository, outside the
+solution.
+
+Note (2026-09-25): `src/Nendo.ExtensionHost/`, the contained custom-view helper
+added on 2026-09-20, is deleted, and the payload no longer carries an
+`ExtensionHost/` folder. Custom views run as frames of the Workbench
+([ADR-0013](0013-custom-views-with-code-in-the-file.md)). The one file they load
+from the installation is the view API the Workbench build writes to
+`Workbench/_nendo/api.js`. `Nendo.slnx` lists six projects.
 
 ### Responsibilities
 

@@ -7,6 +7,7 @@ internal static class DesktopRuntimeConfiguration
 {
     internal static string? DeviceStateRoot => ResolveDeviceStateRoot(Environment.GetEnvironmentVariable);
     internal static string? NativeCaptureRoot => ResolveNativeCaptureRoot(Environment.GetEnvironmentVariable);
+    internal static bool NativeDiagnostics => Environment.GetEnvironmentVariable("NENDO_NATIVE_DIAGNOSTICS") == "1";
     internal static string? CloseAction => ResolveCloseAction(Environment.GetEnvironmentVariable);
     internal static string? AppUserModelId => ResolveAppUserModelId(Environment.GetEnvironmentVariable);
 

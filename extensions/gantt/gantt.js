@@ -1,18 +1,19 @@
 (() => {
   'use strict';
-  // A Gantt chart of one record type, protocol 2's record-set shape (ADR-0013,
-  // 2026-09-24). The view discloses its dates as typed fields: the first date field is
-  // the start and the second the end. On a record page the host sends that one record
-  // instead of a set, and it is drawn as a chart of one. Nothing here reads, writes or
-  // opens anything; a selection is a suggestion, and Open record is the host's.
-  const PROTOCOL = 2;
+  // A Gantt chart of one record type (ADR-0013). The view binds its dates as fields: the first
+  // date field is the start and the second the end. On a record page it reads that page's one
+  // record and draws a chart of one. Everything arrives through window.nendo: the records from
+  // nendo.view.loadRecords, the fields' names and types from nendo.schema.describe, and the
+  // theme, whose colours api.js sets on this page as --nendo-* tokens. Selecting a record asks
+  // Nendo to open it.
   const DAY = 86400000;
-  let session = null, generation = 0, selected = null, records = [];
+  const nendo = window.nendo;
+  let selected = null, records = [];
+  // Reads are numbered so an answer that arrives after a newer read has started is dropped.
+  let latest = 0, pending = null;
   const element = id => document.getElementById(id);
 
-  function send(method, values = {}) {
-    if (session !== null) window.chrome.webview.postMessage({ version: PROTOCOL, session, generation, method, ...values });
-  }
+  function describe(error) { return error instanceof Error && error.message ? error.message : String(error); }
   // Dates arrive as exact ISO text; a civil date is placed at UTC midnight so a day is a day.
   function day(text) {
     if (typeof text !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
@@ -22,15 +23,18 @@
   function month(time) { return new Date(time).toLocaleDateString(document.documentElement.lang || 'en', { month: 'short', year: '2-digit', timeZone: 'UTC' }); }
 
   function render(projection) {
+    // A re-read keeps the selection when its record is still on the time line, without
+    // opening it again.
+    const keep = selected;
     selected = null;
-    const fields = (projection.fields ?? []).filter(field => field.of === 'node');
+    const fields = projection.fields;
     const dates = fields.filter(field => field.type === 'date');
     // The first field that is not a date is shown under the label, as the record's group.
     const detail = fields.find(field => field.type !== 'date') ?? null;
-    records = projection.records ?? (projection.record ? [projection.record] : []);
+    records = projection.records;
     // On a record page the box is small and the record is already the page's: no title,
     // no instructions about selecting, and the label above its bar rather than cut beside it.
-    const single = projection.records === undefined && projection.record !== undefined;
+    const single = projection.single;
     document.body.classList.toggle('single', single);
     element('rows').replaceChildren();
     element('axis').replaceChildren();
@@ -38,8 +42,8 @@
     const empty = element('empty');
     if (dates.length === 0) {
       empty.hidden = false;
-      empty.textContent = 'This view discloses no date field, so there is nothing to place on a time line. Disclose a start date, and an end date if there is one.';
-      element('summary').textContent = `${records.length} ${records.length === 1 ? 'record' : 'records'} · no dates disclosed`;
+      empty.textContent = 'This view has no date field, so there is nothing to place on a time line. Add a start date to its fields, and an end date if there is one.';
+      element('summary').textContent = `${records.length} ${records.length === 1 ? 'record' : 'records'} · no date field`;
       return;
     }
     const [start, end] = dates;
@@ -53,7 +57,9 @@
     }
     placed.sort((a, b) => a.from - b.from || String(a.record.label).localeCompare(String(b.record.label)));
     empty.hidden = placed.length > 0;
-    empty.textContent = placed.length > 0 ? '' : `No record has a ${start.name} yet.`;
+    empty.textContent = placed.length > 0 ? '' : records.length === 0
+      ? (single ? 'This record is not in the file any more.' : 'No records yet. Add one in Nendo and it appears here.')
+      : `No record has a ${start.name} yet.`;
     const first = Math.min(...placed.map(p => p.from));
     const last = Math.max(...placed.map(p => p.to ?? p.from));
     // A span of at least a week, so one dated record still reads as a moment, not a wall.
@@ -106,31 +112,98 @@
       item.append(row);
       element('rows').append(item);
     }
+    if (keep !== null && placed.some(p => p.record.id === keep)) highlight(keep);
   }
 
-  function select(id) {
+  function highlight(id) {
     selected = id;
     for (const row of document.querySelectorAll('.row')) row.setAttribute('aria-pressed', String(row.dataset.id === id));
     const record = records.find(r => r.id === id);
-    element('selection').textContent = record ? `${record.label} selected. Use Open record in Nendo to edit it.` : 'No record selected';
-    send('selectRecord', { recordId: id });
+    element('selection').textContent = record ? `${record.label} selected.` : 'No record selected';
   }
 
-  window.chrome.webview.addEventListener('message', event => {
-    const message = event.data;
-    if (message.version !== PROTOCOL) return;
-    try {
-      if (message.method === 'initialize' && session === null) {
-        session = message.session; generation = message.generation;
-        document.documentElement.dataset.theme = message.theme;
-        document.documentElement.lang = message.locale || 'en';
-        render(message.projection); send('ready');
-      } else if (message.session === session && message.method === 'replaceProjection' && message.generation > generation) {
-        generation = message.generation; render(message.projection);
-      } else if (message.session === session && message.method === 'setTheme') document.documentElement.dataset.theme = message.theme;
-    } catch {
-      element('summary').textContent = 'This chart could not be displayed. Open your records in Nendo.';
-      send('reportError', { code: 'render-failed', message: 'The chart could not be displayed.' });
+  function select(id) {
+    highlight(id);
+    const record = records.find(r => r.id === id);
+    // On a record page the record is the page's own, and it is open already.
+    if (record === undefined || id === nendo.context.recordId) return;
+    nendo.ui.openRecord(record.entityId, id).catch(error => {
+      if (selected === id) element('selection').textContent = `${record.label} selected. Nendo could not open it: ${describe(error)}`;
+    });
+  }
+
+  // A field's value as a person reads it: a reference by its target's label, a choice by its
+  // name, a number by its exact digits. Null when the record has none.
+  function display(schema, record, fieldId) {
+    const label = record.labels?.[fieldId];
+    if (typeof label === 'string') return label;
+    const value = record.values?.[fieldId];
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string') {
+      const field = schema.entities.find(entity => entity.entityId === record.entityId)?.fields.find(candidate => candidate.fieldId === fieldId);
+      return field?.choices.find(choice => choice.id === value)?.displayName ?? value;
     }
-  });
+    return record.exact?.[fieldId] ?? (typeof value === 'object' ? JSON.stringify(value) : String(value));
+  }
+  /**
+   * The chart's columns are the fields the view binds on its own record type, named and typed
+   * by the schema. Each record's label is its label field; a view that names none falls back to
+   * the record type's first plain text field, and then to the record's ID.
+   */
+  function project(list, schema) {
+    const context = nendo.context;
+    const entity = schema.entities.find(candidate => candidate.entityId === context.entityId);
+    const fields = context.bindings.fields.filter(binding => binding.entityId === context.entityId).map(binding => {
+      const field = entity?.fields.find(candidate => candidate.fieldId === binding.fieldId);
+      return { id: binding.fieldId, name: field?.displayName ?? binding.fieldId, type: field?.storageKind ?? 'text' };
+    });
+    const labelFieldId = context.bindings.labelFieldId
+      ?? entity?.fields.find(field => field.storageKind === 'text' && !field.calculated && field.choices.length === 0)?.fieldId ?? null;
+    return {
+      single: context.recordId !== null,
+      fields,
+      records: list.map(record => ({
+        id: record.recordId, entityId: record.entityId,
+        label: (labelFieldId === null ? null : display(schema, record, labelFieldId)) ?? record.recordId,
+        values: Object.fromEntries(fields.map(field => [field.id, display(schema, record, field.id)])),
+      })),
+    };
+  }
+  async function read() {
+    const number = ++latest;
+    let list, schema;
+    try {
+      [list, schema] = await Promise.all([nendo.view.loadRecords(), nendo.schema.describe()]);
+    } catch (error) {
+      if (number === latest) element('summary').textContent = `The records could not be read. ${describe(error)}`;
+      return;
+    }
+    if (number !== latest) return;
+    try { render(project(list, schema)); } catch {
+      element('summary').textContent = 'This chart could not be displayed. Open your records in Nendo.';
+    }
+  }
+  // Nendo says the file changed at most four times a second. A burst of changes is one read,
+  // a quarter of a second after the first of them.
+  function schedule() {
+    if (pending !== null) return;
+    pending = setTimeout(() => { pending = null; read(); }, 250);
+  }
+  function applyTheme(theme) {
+    if (theme?.mode === 'light' || theme?.mode === 'dark') document.documentElement.dataset.theme = theme.mode;
+  }
+
+  if (nendo === undefined) {
+    element('summary').textContent = 'This chart runs inside Nendo. Open the screen that shows it.';
+    return;
+  }
+  nendo.ready.then(context => {
+    document.documentElement.lang = context.locale || 'en';
+    applyTheme(nendo.ui.theme);
+    nendo.on('theme', applyTheme);
+    // A new context can name other fields or another record type: read again under it.
+    nendo.on('context', next => { applyTheme(next.theme); schedule(); });
+    nendo.on('changes', schedule);
+    return read();
+  }).catch(error => { element('summary').textContent = `This chart could not start. ${describe(error)}`; });
 })();

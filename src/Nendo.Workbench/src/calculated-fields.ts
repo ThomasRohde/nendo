@@ -21,6 +21,11 @@ function normalise(state: CalculationResult['state']): CalculatedDisplay['state'
   return states.includes(state as typeof states[number]) ? state as CalculatedDisplay['state'] : 'pending';
 }
 
+/** A result's state by name, from either wire shape; what a custom view is handed. */
+export function calculationState(state: CalculationResult['state']): CalculatedDisplay['state'] {
+  return normalise(state);
+}
+
 /**
  * Turns one result into what the reader should see.
  *

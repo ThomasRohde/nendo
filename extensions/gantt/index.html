@@ -3,12 +3,13 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gantt</title><link rel="stylesheet" href="gantt.css"></head>
 <body>
 <header><div><h1 id="title">Gantt</h1><p id="summary" role="status">Waiting for the records…</p></div></header>
-<p class="hint">Each bar runs from the first disclosed date to the second. A record with only a start is a diamond. Select a record, then use Open record in Nendo.</p>
+<p class="hint">Each bar runs from the first date field to the second. A record with only a start is a diamond. Select a record to open it in Nendo.</p>
 <main>
   <div id="axis" aria-hidden="true"></div>
   <ul id="rows" aria-label="Records on a time line"></ul>
   <p id="empty" hidden></p>
 </main>
 <footer id="selection" aria-live="polite">No record selected</footer>
+<script src="/_nendo/api.js"></script>
 <script src="gantt.js"></script>
 </body></html>

@@ -80,19 +80,9 @@ public sealed partial class NendoApplicationService
     public Task<NendoStorageHealthSnapshot> VerifyIntegrityAsync(CancellationToken cancellationToken = default) =>
         _coordinator.VerifyIntegrityAsync(cancellationToken);
 
-    public Task<NendoGraphProjection> ReadGraphProjectionAsync(NendoGraphBinding binding, CancellationToken cancellationToken = default) =>
-        _coordinator.ReadGraphProjectionAsync(binding, cancellationToken);
-
-    public Task<NendoExtensionViewSnapshot> ReadExtensionViewAsync(string viewId, CancellationToken cancellationToken = default) =>
-        _coordinator.ReadExtensionViewAsync(viewId, cancellationToken);
-
     /// <summary>One file of a custom-view package carried in the file, with its bytes; null when there is none.</summary>
     public Task<NendoExtensionFileContent?> ReadExtensionFileAsync(string packageId, string path, CancellationToken cancellationToken = default) =>
         _coordinator.ReadExtensionFileAsync(packageId, path, cancellationToken);
-
-    /// <summary>A view on a record page, scoped to <paramref name="recordId"/>.</summary>
-    public Task<NendoExtensionViewSnapshot> ReadExtensionViewAsync(string viewId, string? recordId, CancellationToken cancellationToken = default) =>
-        _coordinator.ReadExtensionViewAsync(viewId, recordId, cancellationToken);
 
     public Task<NendoRecordCount> CountRecordsAsync(
         NendoRecordCountQuery query,

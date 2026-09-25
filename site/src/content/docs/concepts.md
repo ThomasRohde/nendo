@@ -91,7 +91,9 @@ A screen is a stored description of how to show and edit records: a list, a
 board, a gallery, a calendar, a timeline, a matrix, a record page, a form, a
 command or the front page. Internal names call a screen a *surface*. The file
 stores only the description, never HTML, scripts or SQL. Nendo compiles the
-description and draws it. See [Screens](/nendo/docs/screens) for every kind.
+description and draws it. See [Screens](/nendo/docs/screens) for every kind. The
+one screen that runs code is a custom view, whose code the file carries as a
+package: see [Custom views](/nendo/docs/custom-views).
 
 ### Node tree
 

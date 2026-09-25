@@ -35,7 +35,9 @@ To rebuild from empty:
 2. Run the stages in order, and accept each proposal.
 3. When the CSV stage tells you to, import `artifacts/station/readings.csv` into
    Readings.
-4. Before the pin, build and allow the Systems Lens package.
+4. The `lens-in-file` stage puts the Systems Lens code into the file from
+   `extensions/systems-lens/`. Run again after an edit to that folder, it proposes
+   only the files that changed.
 
 **Dates move with the build.** The range of a trend chart and the range of an
 activity grid are closed words. The host resolves them against today every time
@@ -46,21 +48,32 @@ forward. The *now* of the station is the day of the build.
 ## Systems Lens
 
 `extensions/systems-lens/` is the schematic of what feeds what. It is the one
-thing in this file that is not a Nendo screen. Its
-[README](../extensions/systems-lens/README.md) describes what it draws, the
-take-out what-if, and the line that separates structural exposure from a
-prediction of failure.
+thing in this file that is not a Nendo screen: a custom view, whose code the file
+carries as the package `org.nendo.systems-lens` and which runs as a screen of
+Components in Use. Its [README](../extensions/systems-lens/README.md) describes
+what it draws, the take-out what-if, and the line that separates structural
+exposure from a prediction of failure.
+
+The tracked `workspace/Nendo Station.nendo` was built before views ran from the
+file, on 2026-09-24. It names the package and does not carry it, so the lens says
+that its package is not in this file and offers **Add package to file…**. Import
+`extensions/systems-lens/` there, or run the `lens-in-file` stage, and accept the
+proposal. Do it in a Duplicate to keep the tracked file as it is.
 
 ## The demonstration
 
 The demonstration takes about four minutes. It was performed on 2026-09-22, and
-the result of each step is recorded beside that step.
+the result of each step is recorded beside that step. On that date the lens ran in
+the contained helper, in a pane beside the Workbench. Since 2026-09-25 it runs
+inline from the file, and this page records no inline run of the demonstration
+yet.
 
 **Before you start:** steps 7 to 9 ask an agent for a change, and **the file in
 `workspace/` already has that change**. The owner accepted it on 2026-09-22, and
 that acceptance shows that the step works. Thus, do one of these two things:
 
-- Rebuild from empty as far as the `pin` stage.
+- Rebuild from empty as far as the `lens-in-file` stage, the one before
+  `workarounds`.
 - Ask the agent for a distinction of your own. For example: what waits on a part
   that has not arrived, which experiments a rotation ran, or which incidents have
   no written summary.
@@ -79,15 +92,15 @@ The step is what the demonstration shows. The specific field is not important.
    limits. The review note is not on the page, because nothing has flagged the
    system.*
 
-3. **Open Systems Lens** beside the components, and press Fit. Coolant pump A is
+3. **Show Systems Lens**, a screen of Components in Use, and press Fit. Coolant pump A is
    green. The loop isolation valve, Radiator 2 and the lab heat exchanger have
    the mark `loop`, because a coolant circuit is a cycle. Both pumps feed into the
    manifold.
 
 4. **Take Coolant pump A offline.** Use its *Take offline* command or the State
    field. *Observed: the command moved the record from version 3 to version 4.*
-   Within half a second, the lens receives a new projection and the pump turns
-   red. **Nothing else changes colour**, because the lens does not claim to know
+   The lens hears the change, reads again and turns the pump red. **Nothing else
+   changes colour**, because the lens does not claim to know
    the effect of that change.
 
 5. **Select the pump and press Take out.** *Expected result, which the gate also

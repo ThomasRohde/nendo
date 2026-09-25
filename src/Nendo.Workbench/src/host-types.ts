@@ -114,6 +114,42 @@ export interface DesktopSessionView {
   storage: StorageHealthSnapshot | null;
   /** The product version of the running host, present whether or not a file is open. */
   hostVersion?: string;
+  /** Whether this file's custom views may run here, and the packages it carries. Absent without a file. */
+  extensions?: ExtensionRuntimeView | null;
+}
+
+/** Why custom views may not run now (ADR-0013): each is one of the kill switches. */
+export type ExtensionOffReason = 'device' | 'file' | 'health' | 'recovery';
+
+/**
+ * Whether views may run, and the packages that carry their code. `run` is true only when this
+ * device's "Run custom views" is on, this file's own switch is on, the file is healthy and
+ * Nendo was not restarted without custom views; the host answers 403 on every view origin
+ * whenever it is false, so a frame the Workbench did not mount has nothing to show either.
+ */
+export interface ExtensionRuntimeView {
+  run: boolean;
+  offReason: ExtensionOffReason | null;
+  deviceEnabled: boolean;
+  fileEnabled: boolean;
+  /** A sentence from the host about the switches, such as a setting that could not be saved. */
+  notice?: string | null;
+  packages: ExtensionPackageView[];
+}
+
+/** One custom-view package in the open file, and the origin the host serves it from. */
+export interface ExtensionPackageView {
+  packageId: string;
+  title: string;
+  version: string | null;
+  entryPoint: string;
+  description: string | null;
+  /** Computed by the host alone, such as https://org-nendo-gantt-3f2a9c01be.example. */
+  origin: string;
+  fileCount: number;
+  totalBytes: number;
+  /** Changes whenever the package's content does, so a view restarts on accepted code. */
+  contentDigest?: string;
 }
 
 export interface FileCapabilities {
@@ -507,9 +543,12 @@ export interface RevisionSnapshot {
  * at something, never a carrier of state the renderer did not read for itself.
  */
 export type HostRoute = 'open' | 'agent' | 'health' | 'studio';
-export interface HostRecordTarget { fileSessionId: string; entityId: string; recordId: string }
-/** A view on a record page stopped without the page asking, and the sentence that says why. */
-export interface HostPanelStopped { fileSessionId: string; viewId: string; recordId: string; message: string }
+/**
+ * The renderer behind these custom-view frames ended (ADR-0013). Each name is an iframe's
+ * name, `nendo-view-` and its mount ID; the frames show "This view stopped" with Reload,
+ * and nothing else in the window is affected.
+ */
+export interface HostFramesFailed { fileSessionId: string; frames: string[] }
 
 export function isHostRoute(value: unknown): value is HostRoute {
   return value === 'open' || value === 'agent' || value === 'health' || value === 'studio';
@@ -520,8 +559,8 @@ export interface WorkbenchClient {
   request<T>(method: string, payload?: Record<string, unknown>): Promise<T>;
   /** Listen for a view the host asked to show. Returns a function that stops listening. */
   onNavigate?(listener: (route: HostRoute) => void): () => void;
-  onOpenRecord?(listener: (target: HostRecordTarget) => void): () => void;
-  onExtensionPanelStopped?(listener: (stopped: HostPanelStopped) => void): () => void;
+  /** Listen for custom-view frames whose renderer ended. */
+  onExtensionFramesFailed?(listener: (failed: HostFramesFailed) => void): () => void;
   /**
    * Listen for the open file having moved, carrying the change sequence it reached.
    *

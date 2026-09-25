@@ -206,8 +206,16 @@ function fixture(
     fieldIds.map((fieldId, position) =>
       child(surfaceId, nodeId, `${nodeId}.binding.${position}`, 'fieldBinding', position, { fieldId }));
 
-  root(surfaceIds[0], nodeIds[0], 'recordForm', surfaces.formTitle, {},
-    bindings(surfaceIds[0], nodeIds[0], surfaces.formFields));
+  // A custom view on the record page (ADR-0013), after the form's fields. The compiled page
+  // carries the panel without children; its field binding is in the stored nodes only, as
+  // the host's snapshot has it.
+  const panelNodeId = `${nodeIds[0]}.view`;
+  const formChildren = [...bindings(surfaceIds[0], nodeIds[0], surfaces.formFields),
+    child(surfaceIds[0], nodeIds[0], panelNodeId, 'extensionRecordPanel', surfaces.formFields.length,
+      { title: 'At a glance', packageId: 'org.example.board-glance' })];
+  uiNodes.push({ surfaceId: surfaceIds[0], nodeId: `${panelNodeId}.binding.0`, parentNodeId: panelNodeId, kind: 'fieldBinding',
+    position: 0, properties: { fieldId: surfaces.groupField } });
+  root(surfaceIds[0], nodeIds[0], 'recordForm', surfaces.formTitle, {}, formChildren);
   root(surfaceIds[1], nodeIds[1], 'recordList', surfaces.listTitle, {},
     bindings(surfaceIds[1], nodeIds[1], surfaces.listFields));
   // Version 3 takes card fields from ordered fieldBinding children only.
@@ -231,6 +239,13 @@ function fixture(
     root(gallery.surfaceId, gallery.nodeId, 'gallerySurface', gallery.title, extra,
       bindings(gallery.surfaceId, gallery.nodeId, gallery.fields));
   }
+
+  // Two custom-view screens: one whose package the preview file carries, and a graph whose
+  // package it lacks, so both placeholders can be seen. Frames do not load in the preview.
+  root(`${surfaceIds[2]}.glance`, `${nodeIds[2]}.glance`, 'extensionRecordsSurface', 'Glance',
+    { packageId: 'org.example.board-glance', labelFieldId: surfaces.listFields[0], statusFieldId: surfaces.groupField, configuration: '{"columns":2}' });
+  root(`${surfaceIds[2]}.links`, `${nodeIds[2]}.links`, 'extensionGraphSurface', 'Links',
+    { packageId: 'org.example.link-graph', labelFieldId: surfaces.listFields[0], edgeEntityId: entity.entityId });
 
   const commandSurfaceId = `${surfaceIds[2]}.commands`;
   const command = surfaces.command;

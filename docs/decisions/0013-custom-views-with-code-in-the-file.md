@@ -5,9 +5,10 @@
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** The measured cost of a contained view (2026-09-24, under *Context*);
-  the current code paths named under *Context*; the Phase 0 spike, whose findings
-  go to `prototypes/iframe-views/FINDINGS.md` and are pending; guards G1–G26, each
-  recorded as a planner Check when its phase lands
+  the code paths named under *Context*; the Phase 0 spike,
+  [`prototypes/iframe-views/FINDINGS.md`](../../prototypes/iframe-views/FINDINGS.md)
+  (2026-09-25, WebView2 runtime 153); guards G1–G26, each recorded as a planner
+  Check when its phase lands
 - **Depends on:** ADR-0001, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007,
   ADR-0008, ADR-0009 and ADR-0012
 - **Related design:** [custom-view contract](../contracts/custom-views.md),
@@ -122,33 +123,42 @@ step, no consent and no digest pin. A view that is shown runs.
   helper (`Nendo.ExtensionHost`), its child-window overlay, its Job limits and its
   own browser engine are deleted.
 - Each package in each file has its own origin, `https://{slug}-{key}.example`:
-  - `slug` is the package ID with `.` changed to `-`, at most 40 characters;
+  - `slug` is the package ID lowercased, with every character other than a letter
+    or digit changed to `-`, runs of `-` collapsed, cut to 40 characters and
+    trimmed of `-` at both ends;
   - `key` is 10 hex characters of SHA-256(`applicationId\npackageId`).
 - `.example` is a reserved top-level domain (RFC 2606). No real site shares a
   view's origin, and the host answers every request to it.
 - Each package in each file is therefore its own site. Chromium gives it its own
   renderer process, never the Workbench's (`app.nendo.local`), and its own browser
-  storage. If frames turn out to share a process, the host turns on
-  `--site-per-process`.
+  storage. The spike measured this without any flag: the Workbench and each
+  package ran in separate renderers, and two frames of one package shared one
+  (S1). Storage survived a restart and stayed with its origin (S16).
 - The frame's sandbox allows everything except top-level navigation
   (`allow-top-navigation*`).
 - The Workbench cannot be framed. The host cancels any frame navigation to
-  `app.nendo.local`, and the Workbench refuses to start when
-  `window.top !== window`.
+  `app.nendo.local`, nested frames included (S9b), and the Workbench refuses to
+  start when `window.top !== window`.
 - A redraw does not reload a running view. Before a redraw, the Workbench parks
-  each live frame and adopts it into its new placeholder by mount key
-  (`Element.moveBefore`). If that does not keep the frame's state, the fallback is
-  a reload, and a view keeps what it needs in `nendo.state`.
+  each live frame and adopts it into its new placeholder by mount key, with
+  `Element.moveBefore`, which keeps the frame's document (S12). Where a browser
+  lacks `moveBefore`, the frame reloads.
+- A frame starts when its placeholder comes into view. `loading="lazy"` alone
+  started frames about 2,400 pixels early (S17).
 
 ### The host serves each view from the file
 
 - The host answers `WebResourceRequested` for `https://*.example/*`, from every
-  source kind. It takes a deferral and reads the content with a typed Engine read.
-  A 64 MiB in-memory cache, keyed by package, path and SHA-256, is cleared
-  when the definition revision changes.
+  source kind, and checks the parsed host itself: the filter also matches other
+  addresses (S11). It takes a deferral and reads the content with a typed Engine
+  read off the UI thread. Which origin is which package comes from the last view
+  read, so serving never waits behind the Workbench's own requests. Content is
+  cached by its SHA-256, at most 64 MiB, so a cached file can never be stale. The
+  spike served 5 MiB in about 40 ms (S5).
 - The serving order is: views off → 403; `/_nendo/api.js`; a development folder
-  link; the file's content; 404. `/` serves the package's entry point. The path
-  `/_nendo/` is reserved on every view origin.
+  link (Phase 4); the file's content; 404. `/` serves the package's entry point.
+  The path `/_nendo/` is reserved on every view origin. Responses carry the stored
+  media type, `no-store` and `nosniff`, and honour a single byte range for media.
 - The catch-all `"*"` filter goes. The Workbench's own content-security policy
   keeps its document local and gains only `frame-src https://*.example`.
 
@@ -169,7 +179,7 @@ Replaced and removed content stays in the blob store. That is what lets
 compensation restore a put's exact bytes, so there is no separate table of
 retained content.
 
-Five canonical operations write them.
+Five canonical operations write them. `extension.setState` arrives with Phase 3.
 
 | Operation | Lane | Reversibility |
 | --- | --- | --- |
@@ -203,9 +213,10 @@ Five canonical operations write them.
 - The review shows a line diff for each text file of at most 1 MiB, with three
   lines of context: at most 400 changed lines per file and 2,000 per proposal, with
   a truncation flag. Any other file shows its sizes.
-- The review also carries a fixed sentence that says what view code can do
-  (network, clipboard, records). It arrives with Phase 2, when view code runs. In
-  Phase 1 nothing runs, so the review carries no such sentence.
+- A proposal that puts code into the file also carries one fixed sentence, once:
+  "This code runs when a view that uses its package is shown. It can read and
+  change this file's records through Nendo, reach the network and use the
+  clipboard." It arrived with Phase 2, when view code began to run.
 - MCP authors packages. The four definition operations are authoring operations.
   `extension.setState` is not exposed. A file larger than one operation's payload
   arrives in parts: a first `putFile`, then `putFile` operations with `append` for
@@ -225,7 +236,7 @@ vocabulary publishes them under `limits.extensions`.
 | Per package | 16 MiB, 512 files |
 | Per `.nendo` file | 64 MiB, 64 packages |
 | New content per change set | 4 MiB |
-| View configuration | 16 KiB. It arrives with Phase 2's open view definitions |
+| View configuration | 16 KiB, any JSON object |
 | MCP `putFile` payload | 96 KiB. The local MCP's 256 KiB request body limits a call to about two such parts |
 
 The write reserve below the open bound ([ADR-0012](0012-safe-mode-compatibility-and-migration.md))
@@ -264,21 +275,33 @@ about 4.3 MB, so 32 MiB is the smallest power of two that holds.
 
 ### The browser is open
 
-A view origin may use the network, loopback included. It may read and write the
-clipboard, make several downloads, show script dialogs and open DevTools, in every
-build. A user-initiated `http(s)` or `mailto` pop-up opens in the system browser.
-Context menus work inside frames. Any asset type is served. Other permission
-requests get WebView2's default prompt. The Workbench origin is denied every
-permission.
+A view origin may use the network, loopback included; runtime 153 has no
+local-network gate for it (S11). It may read and write the clipboard, make several
+downloads, show script dialogs and open DevTools, in every build. A user-initiated
+`http(s)` or `mailto` pop-up opens in the system browser, and a window a script
+opens by itself opens nowhere (S15). Context menus work inside frames; the host
+tells a view's menu from the Workbench's by the frame's address, because the
+browser's main-frame flag is false for both (S13). Any asset type is served.
+
+A permission request from a view carries the Workbench's origin, not the view's
+(S10). So the host answers each view on its own frame: clipboard reads and several
+downloads are allowed, anything else gets WebView2's default prompt, and no grant
+is saved, where it would cover every view. The Workbench's own requests are
+denied.
 
 ### A view's failure stays with the view
 
 - Only a main-frame or browser-process failure sends the app to recovery. A
-  frame's renderer exit becomes `extensionFramesFailed`, naming the frames. Each
-  of them shows an overlay with Reload. Other failure kinds are logged.
-- The broker pings each frame every 5 seconds. After 10 seconds without an answer,
-  the overlay says "not responding", with Stop and Reload. Stop ends the frame's
-  renderer.
+  frame's renderer exit becomes `extensionFramesFailed`, naming the frames: every
+  frame of that package, because they share the renderer (S4). Each shows an
+  overlay with Reload. The browser restarts a GPU or utility process by itself,
+  and the Workbench is not told.
+- Nothing in the browser reports a spinning frame (S2), so the broker pings each
+  frame every 5 seconds. After 10 seconds without an answer, the overlay says "not
+  responding", with Stop and Reload. Stop points every frame of the package at
+  `about:blank`, which ended a spinning renderer in about half a second, and then
+  removes them; removing a frame alone left its renderer running for 10 seconds
+  (S3).
 
 ### Views anywhere, many at once
 
@@ -306,7 +329,8 @@ device-local:
 - **Run custom views**, a device setting;
 - a switch for each file;
 - safe mode, recovery, and any file whose health is not `normal`;
-- **Restart without custom views**, in the recovery panel.
+- **Restart without custom views**, in the recovery panel. Views stay off until
+  the person turns **Run custom views** on again or starts Nendo again.
 
 Each switch is enforced twice: the Workbench mounts no frame, and the host answers
 403 on the view's origin.
@@ -376,23 +400,23 @@ The owner chose this over consent steps. The kill switches are the whole control
 - [ADR-0012](0012-safe-mode-compatibility-and-migration.md): safe mode and
   recovery never run view code.
 - [ADR-0002](0002-containing-desktop-architecture-and-process-model.md) and
-  [ADR-0017](0017-production-composition-and-build-layout.md) still describe the
-  contained helper. They are rewritten in the change that deletes it (Phase 2).
+  [ADR-0017](0017-production-composition-and-build-layout.md): the contained helper
+  process and its payload are gone; views are frames of the Workbench's browser.
 
 ## Delivery
 
 This ADR decides the whole design, and the design lands in phases. The
 [custom-view contract](../contracts/custom-views.md) states what is delivered at
-any moment. Until Phase 2 ships, the contained helper that the contract describes
-is what runs.
+any moment. Phases 0 to 2 are delivered: views run inline from the file, and the
+contained helper is deleted.
 
 | Phase | Delivers | Rung |
 | --- | --- | --- |
 | 0 | A disposable spike that answers the WebView2 questions below | — |
 | 1 | Code in the file: the tables, the operations, the review and MCP authoring. Nothing runs yet | 1.33.0 |
-| 2 | Views run inline from the file, and the helper is deleted: serving, the read API, the kill switches, open definitions and the four packages ported | 1.34.0 |
+| 2 | Views run inline from the file, and the helper is deleted: serving, the read API, the kill switches, open definitions, package import and export as folders, and the four packages ported | 1.34.0 |
 | 3 | Views that write: records, commands, proposals to prepare, and state | — |
-| 4 | Develop from a folder: a device-local link, reload on save, saving the folder as proposals, and export | — |
+| 4 | Develop from a folder: a device-local link, reload on save, and saving the folder as proposals | — |
 | 5 | Views anywhere: `extensionView` and `extensionTile` | 1.35.0 |
 
 ## Evidence and validation obligations
@@ -400,23 +424,26 @@ is what runs.
 **Measured.** The cost of a contained view, 2026-09-24, under *Context*. It is the
 reason the helper goes.
 
-**Pending: the Phase 0 spike.** It is a WebView2 harness in
-`prototypes/iframe-views/`, pinned to the Desktop's SDK, and it records its
-answers in `FINDINGS.md` there. It answers:
+**Measured: the Phase 0 spike** (2026-09-25; WebView2 runtime 153.0.4234.48,
+SDK 1.0.3179.45; a synthetic harness in `prototypes/iframe-views/`, not the
+Workbench). Its [findings](../../prototypes/iframe-views/FINDINGS.md) settled the
+particulars, each cited above by its number:
 
-- whether each package site gets its own renderer (the fallback is
-  `--site-per-process`);
-- whether a spinning frame leaves the Workbench responsive, whether removing a
-  hung frame ends its renderer, and whether the failure event names the frame;
-- whether `moveBefore` keeps a frame's state (the fallback is a reload);
-- the memory for 1, 5, 10 and 20 frames, which sets the budget for G15;
-- serving speed for a 5 MB file; clipboard, loopback fetch, downloads, storage
-  across restarts, workers and a secure context on `.example`; the sandbox;
-  navigation events for nested frames; and that `chrome.webview` is inert inside a
-  frame.
-
-The spike settles the named particulars, not the choice. Each particular has its
-fallback above.
+- Each package site gets its own renderer without a flag (S1).
+- A spinning frame raises no failure event and leaves the Workbench responsive
+  (S2). `about:blank` ends its renderer; removal alone does not (S3). A crash
+  names every frame of the package (S4).
+- `moveBefore` keeps a frame's document (S12).
+- Six panels from three packages plus a screen used 108–126 MiB of view renderers
+  and 310–335 MiB across all WebView2 processes (S14). G15's budget is one
+  renderer per package, view renderers at most 160 MiB and all WebView2 processes
+  at most 420 MiB, to be re-based on the real packages.
+- Serving is fast (S5); workers, modules, downloads, storage and a secure context
+  work on `.example` (S16, S18, S19, S21); the sandbox blocks top-level navigation
+  (S9); `chrome.webview` in a frame reaches no host handler (S8).
+- Three browser flags do not mean what their names say: the main-frame flag on a
+  context menu (S13), the origin on a permission request (S10), and the resource
+  filter's match (S11). The design above goes round each.
 
 **Guards.** Each phase lands with guards. Each guard measures its property, is
 falsified once, and has the failure text quoted in its planner Check.
@@ -513,3 +540,7 @@ falsified once, and has the failure text quoted in its planner Check.
   standing pre-acceptance of 2026-09-24.
 - 2026-09-25 — storage refined in implementation: a content-addressed blob store
   and a hash-only canonical form.
+- 2026-09-25 — Phase 2 delivered: views run as frames of the Workbench, served from
+  the file; the contained helper is deleted. The spike's findings refined the
+  permission, context-menu, hang and lazy-start particulars; no flag was needed
+  for isolation.

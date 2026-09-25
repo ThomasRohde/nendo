@@ -19,6 +19,7 @@ import {
   timelineYearFor, todayCivil,
 } from './plan-selection';
 import { accentDot, fieldValueMarkup, recordCardMarkup, recordFieldDisplay, summaryTileGroupMarkup } from './record-markup';
+import { viewPlaceholderMarkup, viewSpecFor } from './view-frame-markup';
 import type { ApplicationPlan, FieldPlan, RecordPlan, SurfaceNodePlan } from './host';
 
 /**
@@ -76,14 +77,9 @@ export function surfaceBodyMarkup(plan: ApplicationPlan): string {
     return `<div class="first-record-state" role="alert"><div class="record-glyph" aria-hidden="true">!</div><h3>This view could not be loaded</h3><p>${escapeHtml(failure)}</p><button class="secondary-button" type="button" data-retry-surface="${escapeAttribute(node.semanticId)}">Try again</button></div>`;
   // A calendar or a timeline owns its own accumulated pages and loading states.
   if (node.kind === 'calendarSurface') return calendarMarkup(plan, node);
-  if (isCustomViewKind(node.kind)) return `<section class="empty-state" aria-labelledby="extension-title">
-    <h2 id="extension-title">${escapeHtml(typeof node.properties.title === 'string' ? node.properties.title : node.kind === 'extensionGraphSurface' ? 'Custom graph' : 'Custom view')}</h2>
-    <p id="extension-status" role="status">Checking this device’s package and permission…</p>
-    <p>The ${node.kind === 'extensionGraphSurface' ? 'graph' : 'view'} opens beside your records, which stay editable in Studio.</p>
-    <div class="form-actions"><button id="extension-next" type="button" class="primary-button" disabled>Checking…</button>
-    <button id="extension-studio" type="button" class="secondary-button">Open Studio</button>
-    <button id="manage-extension" type="button" class="secondary-button">Manage packages…</button></div>
-  </section>`;
+  // A custom view fills the screen with its own frame (ADR-0013), run from its code in the file.
+  if (isCustomViewKind(node.kind)) return viewPlaceholderMarkup(viewSpecFor(node, 'screen',
+    typeof node.properties.entityId === 'string' ? node.properties.entityId : plan.entity.semanticId, null));
   if (node.kind === 'timelineSurface') return timelineMarkup(plan, node);
   if (surfaceWindows.get(node.semanticId)?.page.changeSequence !== state.session.manifest?.changeSequence)
     return '<div class="first-record-state" aria-busy="true"><div class="record-glyph" aria-hidden="true">…</div><h3>Loading this view</h3><p>Reading the records this view shows.</p></div>';

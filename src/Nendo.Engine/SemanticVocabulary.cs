@@ -63,29 +63,26 @@ public static class NendoSemanticVocabulary
                     Set("definitionVersion", "entityId", "title", "packageId", "packageVersion", "packageDigest",
                         "protocolVersion", "configurationVersion", "configuration", "edgeEntityId", "labelFieldId",
                         "sourceFieldId", "targetFieldId", "statusFieldId"),
-                    Set("definitionVersion", "entityId", "title", "packageId", "packageVersion", "packageDigest",
-                        "protocolVersion", "configurationVersion", "configuration", "edgeEntityId", "labelFieldId",
+                    Set("definitionVersion", "entityId", "title", "packageId", "edgeEntityId", "labelFieldId",
                         "sourceFieldId", "targetFieldId"),
-                    // Protocol 2 only (ADR-0013, 2026-09-24); a protocol-1 view with a child is NUI450.
+                    // The pins earlier hosts required are kept when present and read by nothing (ADR-0013).
                     Set("fieldBinding", "filterClause"), CanBeRoot: true, MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
-                // One record type as typed columns (ADR-0013, 2026-09-24 record-set amendment):
-                // no edge type, protocol 2 only, its columns the disclosed fieldBinding children.
+                // One record type as typed columns (ADR-0013): no edge type, its columns its
+                // fieldBinding children.
                 [NendoExtensionViewDefinition.RecordsKind] = new(
                     NendoExtensionViewDefinition.RecordsKind,
                     Set("definitionVersion", "entityId", "title", "packageId", "packageVersion", "packageDigest",
                         "protocolVersion", "configurationVersion", "configuration", "labelFieldId", "statusFieldId"),
-                    Set("definitionVersion", "entityId", "title", "packageId", "packageVersion", "packageDigest",
-                        "protocolVersion", "configurationVersion", "configuration", "labelFieldId"),
+                    Set("definitionVersion", "entityId", "title", "packageId", "labelFieldId"),
                     Set("fieldBinding", "filterClause"), CanBeRoot: true, MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
-                // A view on a record page, scoped to its one record (ADR-0013, 2026-09-24
-                // record-set amendment). Its record type is the page's, so it names none; its
-                // columns are its own fieldBinding children, never fields of the form around it.
+                // A view on a record page, scoped to its one record (ADR-0013). Its record type is
+                // the page's, so it names none; its columns are its own fieldBinding children,
+                // never fields of the form around it.
                 [NendoExtensionViewDefinition.PanelKind] = new(
                     NendoExtensionViewDefinition.PanelKind,
                     Set("title", "packageId", "packageVersion", "packageDigest", "protocolVersion",
                         "configurationVersion", "configuration", "labelFieldId", "statusFieldId"),
-                    Set("title", "packageId", "packageVersion", "packageDigest", "protocolVersion",
-                        "configurationVersion", "configuration", "labelFieldId"),
+                    Set("title", "packageId", "labelFieldId"),
                     Set("fieldBinding"), CanBeRoot: false),
                 ["recordForm"] = new(
                     "recordForm",
@@ -398,18 +395,18 @@ public static class NendoSemanticVocabulary
             "summaryTile, breakdownChart, progressTile, rangeTile, trendChart, activityGrid, recentList and rankedList under it names its own record type instead, and that " +
             "property is required there. Anywhere else a tile takes its record type from the surface it sits on, and declaring one is " +
             "refused rather than resolved, because a tile that disagreed with its surface would have two answers.",
-        ["packageId"] = "On an extensionGraphSurface, extensionRecordsSurface or extensionRecordPanel, the exact lowercase namespaced package ID. The file carries a reference, never package code or execution consent.",
-        ["packageVersion"] = "The exact semantic version of the separately installed offline custom-view package. No ranges or automatic updates.",
-        ["packageDigest"] = "Lowercase SHA-256 of the exact package archive. Changing this pin invalidates device execution consent.",
-        ["protocolVersion"] = "Positive custom-view protocol version. This host executes 1 and 2; later versions are preserved with a disabled fallback. At 2 the view may carry fieldBinding children (more stored fields of the node or the edge type, a reference as its target's label; at most eight per type) and filterClause children (a literal or presence comparison, at most eight), and the file needs host 1.30.0. The package must declare the same protocol.",
-        ["configurationVersion"] = "Positive version of the bounded custom-view configuration. This host executes version 1 only.",
-        ["configuration"] = "JSON text containing an object, at most 8192 UTF-8 bytes and depth 8. Version 1 requires an empty object. Future versions are retained without interpretation or execution.",
+        ["packageId"] = "On an extensionGraphSurface, extensionRecordsSurface or extensionRecordPanel, the ID of a custom-view package carried in this file (extension.setPackage). The view runs that package's code when it is shown, with the file's typed API; a package not yet in the file is a warning (NUI452), and the view says so where it is shown.",
+        ["packageVersion"] = "Kept when present and read by nothing: earlier hosts pinned a separately installed package. The package in the file is the one that runs.",
+        ["packageDigest"] = "Kept when present and read by nothing: earlier hosts pinned a separately installed archive by its SHA-256.",
+        ["protocolVersion"] = "Kept when present and read by nothing: views now speak one API, feature-detected with nendo.has(name).",
+        ["configurationVersion"] = "Kept when present and read by nothing.",
+        ["configuration"] = "Optional JSON text containing an object, at most 16384 UTF-8 bytes and 32 levels deep. The view's code reads it as context.configuration; the host does not interpret it.",
         ["edgeEntityId"] = "The active record type holding graph edges, with two distinct configured References to this surface's node entity.",
-        ["labelFieldId"] = "The active stored Text field disclosed as each graph node's label, or as each record's label in a record view or record panel. " +
-            "An extensionRecordPanel takes its record type from the record page or record form it is on and names no entityId; it receives only that page's record, has no filters, and starts only when the person asks.",
+        ["labelFieldId"] = "The field that labels each graph node, or each record in a record view or record panel: any active field of the record type, stored or calculated. " +
+            "An extensionRecordPanel takes its record type from the record page or record form it is on and names no entityId; it is about that page's record and has no filters.",
         ["sourceFieldId"] = "The edge type's Reference to the source node. Must differ from targetFieldId.",
         ["targetFieldId"] = "The edge type's Reference to the target node. Both graph References must target entityId.",
-        ["statusFieldId"] = "Optional active stored scalar disclosed as exact text on graph nodes. References and calculations are refused.",
+        ["statusFieldId"] = "Optional: any active field of the record type, stored or calculated, that the view shows as a record's status.",
         ["description"] = "On an overviewSurface, prose drawn under the title saying what this file is for. Plain text the author " +
             "writes: not markup, not a template, and never a field reference. Optional, and absent rather than invented when it is not set.",
         ["limit"] = "On a recentList or a rankedList, how many records it shows, from one up to that kind's published ceiling — ten " +

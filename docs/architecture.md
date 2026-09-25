@@ -10,60 +10,34 @@ difference and fix this file.
 
 [ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md), accepted
 2026-09-25, puts a custom view's code in the `.nendo` file and runs views inline in
-the Workbench. It lands in phases. Phase 1 is delivered: packages live in the file
-at host 1.33.0 (see [The file](#the-file)), but nothing runs them yet. Until Phase 2
-ships, the runtime is the bounded slice accepted on 2026-09-20, which ADR-0013's
-History records: an isolated custom-view helper in a zero-capability
-AppContainer/Job Object, outside the permanent Studio process. That acceptance
-does not state that the visible feature is integrated or release-qualified. The
-production helper runs in Desktop tests.
-[The OS experiment](../prototypes/custom-views/OS-BOUNDARY.md) records the
-prototype evidence and the remaining gates.
+the Workbench. It lands in phases, and Phases 0 to 2 are delivered, in product
+0.14.0:
 
-The Engine now contains the [custom-view foundation](contracts/custom-views.md):
-immutable package validation, a closed consent-bound session protocol, bounded
-stream framing and a coherent graph projection through typed application services.
-Durable `extensionGraphSurface` definitions now use canonical UI operations, exact
-proposal replay and compatibility rung 1.29.0, or 1.30.0 for a view at protocol 2,
-which discloses more typed fields and narrows its record types with filters
-(ADR-0013, 2026-09-24). An Engine-owned transaction resolves
-the view and its graph together. The existing Engine lane tests these components,
-and the authoring example runs through MCP.
+- A view's code is a package that the file carries, at host 1.33.0 (see
+  [The file](#the-file)). It arrives through a proposal, and a person reviews it as
+  code.
+- A view is a cross-origin frame in the Workbench's own WebView2. Each package in
+  each file has an origin of its own under the reserved `.example` domain, so
+  Chromium gives each package a renderer process of its own, apart from the
+  Workbench's.
+- The host answers every view origin from the open file, through the browser's
+  resource-request event, and serves the view API, `/_nendo/api.js`, from the
+  installed Workbench.
+- A view calls `window.nendo`. The Workbench's broker checks each request against a
+  closed method table and answers it through the Workbench's own typed bridge, so a
+  view is one more client of the same application services. In this phase the table
+  holds reads and navigation, and nothing that writes.
+- Device-local kill switches decide whether views run. A view's renderer ending
+  stops that view alone. Only a failure of the Workbench's own renderer or of the
+  browser sends the app to recovery, whose panel can restart without custom views.
 
-`DesktopExtensionProcess` now launches `Nendo.ExtensionHost` suspended. It then
-establishes and checks OS containment, and authenticates a private inherited-pipe
-transport. The helper references no application assembly. Its WebView2 tree has
-no Engine or MCP authority. Tests measure round-trip selection, loop termination,
-silent revocation and timeout.
-
-The device cache now performs validated atomic archive activation and exact export.
-Physical-file-scoped consent and one-use native reviews remain outside portable
-data.
-
-Native File → Custom views now provides package management and consent dialogs.
-It also opens a custom view as a native pane beside the Workbench in the main
-window. The toolbar and record navigation of that window remain host-owned. On
-2026-09-20 the owner chose the pane over a second window. A host-owned splitter in
-its own column moves the boundary between the pane and the Workbench. The person
-moves it with the pointer or with the arrow keys, within [480 DIPs, window − 420].
-The host does not remember the width between openings.
-
-Controller-owned lifetimes retain package leases, cancel startup/kill Jobs on file
-rotation and refresh bounded projections. Cross-process HWND placement and
-retained containment have measured tests. An isolated native journey does these
-steps:
-
-- It imports and exports through native file pickers.
-- It reviews consent and opens the configured graph from Use.
-- It measures both themes at the enforced minimum window size.
-- It edits a selected record through Studio and returns keyboard focus with F6.
-- It terminates the owned helper and checks the native fallback.
-- It saves another Studio edit and revokes permission.
-
-Studio stays reachable in the missing and disabled states.
-[Authoring a custom view](custom-view-authoring.md) tells how to write a package
-against this boundary. High-DPI toolbar reflow, broader containment checks and the
-complete installed-host journey remain release gates.
+The contained helper, `Nendo.ExtensionHost`, which ran one view at a time in an
+AppContainer and a Job Object with a browser of its own, is deleted. So are the
+device package cache, device consent and the native pane. The
+[custom-view contract](contracts/custom-views.md) has the rules, and
+[Authoring a custom view](custom-view-authoring.md) tells how to write a view.
+Writes from a view, developing from a folder, and views anywhere (Phases 3 to 5) are
+not yet delivered ([roadmap](roadmap.md)).
 
 [ADR-0008](decisions/0008-general-scripting-and-capability-isolation.md) accepts
 bounded calculations and host-owned local actions. Stages S1–S4 of its
@@ -119,25 +93,32 @@ writes, exact proposal replay, and permanent Studio/recovery access.
 ```text
 Nendo.Workbench  --closed typed bridge-->  Nendo.Desktop  -->  Nendo.Engine
    (TypeScript)                              (WinUI 3)            |
-                                                                  +--> Nendo.LocalMcp
+      ^                                                           +--> Nendo.LocalMcp
+      |  window.nendo: one MessagePort per view, a closed method table
+custom-view frames (an origin, and a renderer, per package per file)
 ```
 
 | Project | Role | Size |
 | --- | --- | --- |
-| `src/Nendo.Engine` | Storage, typed operations, revisions, proposals, the semantic compiler. The only code that opens SQLite. | ~25.1k lines |
-| `src/Nendo.Desktop` | Thin WinUI 3 host: file lifecycle, native dialogs, recovery, window and appearance policy, the notification area and Windows notifications, the Workbench bridge. | ~9.7k lines |
-| `src/Nendo.Workbench` | Local web UI in a WebView2: Studio, custom surfaces, Help (how-to guides, how Nendo works, and an agent reference that the production gate ties to the MCP surface). Vite builds it, and the host bundles it. | ~15.1k lines of TypeScript |
-| `src/Nendo.LocalMcp` | MCP adapter over the same application services. Not an authority model. | ~7.6k lines |
-| `src/Nendo.ExtensionHost` | The custom-view helper. It runs one WebView2 window in an AppContainer and Job Object. It references no application assembly, and it shares only the bounded frame codec with the Engine. | ~0.2k lines |
+| `src/Nendo.Engine` | Storage, typed operations, revisions, proposals, the semantic compiler. The only code that opens SQLite. | ~26.6k lines |
+| `src/Nendo.Desktop` | Thin WinUI 3 host: file lifecycle, native dialogs, recovery, window and appearance policy, the notification area and Windows notifications, the Workbench bridge, and serving custom views from the open file. | ~8.7k lines |
+| `src/Nendo.Workbench` | Local web UI in a WebView2: Studio, custom surfaces, the custom-view frames and their broker, Help (how-to guides, how Nendo works, and an agent reference that the production gate ties to the MCP surface). Vite builds it and the view API, and the host bundles both. | ~17.7k lines of TypeScript |
+| `src/Nendo.LocalMcp` | MCP adapter over the same application services. Not an authority model. | ~7.9k lines |
+
+The sizes are `wc -l` counts of the source files on 2026-09-25.
 
 A gate enforces the dependency arrows. `Test-Production.ps1` fails the build if
 `Microsoft.Data.Sqlite`, a SQLite connection type or `SQLitePCL` appears anywhere
-in Desktop, LocalMcp or the custom-view helper. It also fails the build if any
-project under `src/` or `tests/` references `prototypes/`.
+in Desktop or LocalMcp. It also fails the build if any project under `src/` or
+`tests/` references `prototypes/`, if `src/Nendo.ExtensionHost` comes back, if the
+Desktop registers a catch-all `"*"` resource filter, or if a package source under
+`extensions/` names `chrome.webview`.
 
 No UI or MCP adapter receives SQL, a SQLite handle, physical identifiers, the
 database path, arbitrary filesystem/network/process capability, or a generic
-host invocation. See [ADR-0005](decisions/0005-host-application-services-and-write-coordinator.md)
+host invocation. Nor does a custom view: it reaches the file only through the
+broker's closed method table. See
+[ADR-0005](decisions/0005-host-application-services-and-write-coordinator.md)
 and [ADR-0017](decisions/0017-production-composition-and-build-layout.md).
 
 ## The file
@@ -157,11 +138,12 @@ A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
 what a file can contain. `1.11.0` is for composable surfaces. After it, each
 version adds one capability, usually a widened semantic shape. The highest version
-is `1.33.0`, for custom-view packages carried in the file (ADR-0013, 2026-09-25).
-`1.32.0` is a custom view on a record page (`extensionRecordPanel`), `1.31.0` a
-custom view of one record type as typed columns (`extensionRecordsSurface`),
-`1.30.0` a graph view at protocol 2 and `1.29.0` a custom-view reference at
-protocol 1.
+is `1.34.0`, for a custom view defined by rules that earlier hosts refused (ADR-0013,
+2026-09-25). `1.33.0` is for custom-view packages carried in the file, `1.32.0` a
+custom view on a record page (`extensionRecordPanel`), `1.31.0` a custom view of one
+record type as typed columns (`extensionRecordsSurface`), `1.30.0` a view at
+protocol 2 and `1.29.0` a custom graph (`extensionGraphSurface`). A view that the
+earlier rules accept keeps its earlier rung.
 
 `src/Nendo.Engine/SemanticCapability.cs` computes from its shape which of these
 versions a stored definition needs. It computes this over the tree that a mutation
@@ -183,7 +165,8 @@ row names it, and replaced or removed content stays, so compensation restores th
 exact bytes. Operation and history rows carry the hash, the size and the media
 type, never the bytes. An ordinary open checks the tables' shape and bounds. An
 explicit integrity verification also reads every stored content and compares it
-with its hash. Nothing runs a package from the file yet. The
+with its hash. A view that is shown runs its package's code, which the host serves
+from these tables through a content cache keyed by SHA-256. The
 [custom-view contract](contracts/custom-views.md#packages-in-the-file) has the
 operations, the bounds and the review.
 
@@ -308,7 +291,8 @@ tree that one vocabulary table governs. It covers `recordForm`, `recordList`,
 bounded `summaryTile` and the three tiles that draw a number: `breakdownChart`,
 `progressTile` and `rangeTile`. It also covers `matrixSurface`, `rankedList`,
 `trendChart` and `activityGrid` (see [Studio and safe mode](#studio-and-safe-mode)),
-and `extensionGraphSurface`, the reference to a custom view.
+and the three custom-view kinds: the `extensionGraphSurface` and
+`extensionRecordsSurface` roots, and the `extensionRecordPanel` on a record page.
 
 `relatedList` is the one kind that does something the vocabulary does not
 describe. It adds a record of the related type with the reference back already
@@ -723,7 +707,11 @@ This table gives the current locations, so that you do not need to search.
 | Timelines | `Workbench/src/timeline-model.ts`: civil-year bounds, month grouping, integer day arithmetic and spans cut at the year end. The calendar's page accumulator in `reads.ts` serves both |
 | Ratings | `Workbench/src/rating.ts`: the dots, their accessible name and the radio control. `Engine/Storage/SqliteNendoStore.Scales.cs` stores the scale itself, two rungs below the last |
 | View failures | `Desktop/DesktopViewFailureLog.cs`: the kind, how long the view was up, whether the window was out of sight and what Windows said about memory. Capped at 50 and switched from the tray. Device state, never in the file |
-| Custom-view packages in the file | `Engine/Extensions/ExtensionPackageOperations.cs` (the four operations), `ExtensionPackageModel.cs` (the bounds and the path rules), `ExtensionPackageDiff.cs` (the review's line diff). `Engine/Storage/SqliteNendoStore.ExtensionPackages.cs` stores them on the layout ladder's last rung. `Workbench/src/package-diff-markup.ts` draws the review's Code section |
+| Custom-view packages in the file | `Engine/Extensions/ExtensionPackageOperations.cs` (the four operations), `ExtensionPackageModel.cs` (the bounds, the path rules and the media types), `ExtensionPackageDiff.cs` (the review's line diff), `ExtensionArchive.cs` (reading a folder, a zip or a `.nendoview`, the import change set and the exported manifest). `Engine/Storage/SqliteNendoStore.ExtensionPackages.cs` stores them on the layout ladder's last rung. `Workbench/src/package-diff-markup.ts` draws the review's Code section |
+| Custom-view definitions | `Engine/Extensions/ExtensionViewDefinition.cs` (the three kinds and their properties), `NendoSemanticCompiler.Extensions.cs` (`NUI450`, `NUI452`), `SemanticCapability.cs` (which rung a view needs, 1.29.0 to 1.34.0), `SemanticDiff.cs` (the review sentences and the line that code runs) |
+| Custom views: the host | `Desktop/Extensions/ExtensionOrigins.cs` (an origin per package per file), `ExtensionAssetServer.cs` (answers every view origin from the open file), `DesktopSessionController.Extensions.cs` (what each origin serves, the switches, the content cache, import and removal proposals), `DesktopExtensionSettingsStore.cs` (`extension-settings.json`), `ExtensionWebViewPolicy.cs` (menus, DevTools, permissions, new windows, frame navigation), `WorkbenchProtocol.Extensions.cs` (the `extension.*` bridge methods), `ExtensionFrameDiagnostics.cs` (`diagnostics.frameProcesses`). `MainPage.xaml.cs` turns a view renderer's exit into `extensionFramesFailed` and holds Restart without custom views; `MainPage.Extensions.cs` holds the import and export pickers |
+| Custom views: the Workbench | `Workbench/src/view-frames.ts` (mounts, lazy start, park and adopt, heartbeat, overlays, Stop and Reload), `view-frame-markup.ts` (placeholders, notices, overlays, the frame's attributes, the Studio panel's markup), `extension-broker.ts` (the closed method table and the caps), `extension-model.ts` (the context, records, schema and theme tokens a view is handed), `extension-ui.ts` (what a view may ask the Workbench to do), `view-packages.ts` (Studio → Surfaces → Custom views), `frame-guard.ts` (refuses to run framed) |
+| The view API | `Workbench/src/extension-api/nendo-api.ts` (`window.nendo`) and `protocol.ts` (the messages, shapes and limits both ends share), built by `vite.api.config.ts` to `dist/_nendo/api.js` and served at `/_nendo/api.js` on every view origin |
 | What the file is for | `Engine/Storage/SqliteNendoStore.Application.cs`: a singleton row one rung below the layout ladder's last, read onto the manifest. `nendo://application/describe` leads with it. `Workbench/src/file-actions.ts` shows it on its own page, from About this file in the File menu |
 | Agent tools and allow-list | `LocalMcp/NendoAuthoringTools.cs`, `NendoAgentAuthoringService.cs`, `NendoAuthoringOperations.cs`; the other tools are in `NendoLeaseTools.cs`, `NendoDataTools.cs`, `NendoHealthTools.cs` and `NendoUnattendedTools.cs` |
 | Resources | `LocalMcp/NendoMcpResources.cs`, `NendoResourceProjection.cs` |
@@ -833,7 +821,7 @@ file.
 | --- | --- | --- |
 | `Test-NendoSetupIsolated.ps1` | The setup logic: install, in-place upgrade, obsolete owned file removal, unowned user file preservation, uninstall, and everything setup registers with Windows (the `.nendo` association, the *New* menu entry, the application identity and the Start Menu shortcut), against a task-owned root, class store and Start Menu folder | Always |
 | `Test-NendoInstaller.ps1` | The NSIS wrapper: bootstrapper, payload extraction, HKCU uninstall registration, real `Uninstall.exe` | Only on a clean Windows user |
-| `Test-ExtensionInstalledJourney.ps1` | The native custom-view journey (`DesktopExtensionJourneyTests`) against the app as setup installs it: the published payload installed by `Invoke-NendoSetup.ps1` into a task-owned root, checked byte for byte against the manifest, then uninstalled. It drives the desktop with a real pointer, so it needs an unlocked, otherwise idle session | On request, after a publish |
+| `Test-ExtensionInstalledJourney.ps1` | The custom-view journey (`DesktopExtensionViewJourneyTests`) against the app as setup installs it: the published payload installed by `Invoke-NendoSetup.ps1` into a task-owned root, checked byte for byte against the manifest, then uninstalled. The journey drives the page and the view frames over the browser's debugging port, so it needs no pointer and no foreground | On request, after a publish |
 
 The task-owned class store is a run key under a lane key of its own in HKCU
 (`Software\Nendo-Isolated-Setup`, `Software\Nendo-Installed-Journey`, and

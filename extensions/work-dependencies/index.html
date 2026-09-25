@@ -4,9 +4,10 @@
 <body>
 <header><div><h1>Work dependencies</h1><p id="summary" role="status">Waiting for your records…</p></div>
 <div class="tools" aria-label="Dependency controls"><button id="zoom-out" aria-label="Zoom out">−</button><button id="reset">Fit</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="focus-toggle" aria-pressed="false">Focus</button><button id="text-toggle" aria-expanded="false" aria-controls="text-view">Text view</button></div></header>
-<p class="hint">An arrow points from the item that blocks to the item it blocks. Select one to see what it waits on and what waits on it; Focus dims everything unconnected.</p>
+<p class="hint">An arrow points from the item that blocks to the item it blocks. Select one to see what it waits on and what waits on it, and to open it in Nendo; Focus dims everything unconnected.</p>
 <main><div id="canvas" tabindex="0" aria-label="Work dependencies, laid out left to right. Arrow keys pan. Plus and minus zoom. Tab moves through work items."><svg id="graph" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Work items and what blocks them"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker><marker id="arrow-cycle" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs><g id="drawing"></g></svg><p id="empty" hidden>Nothing is linked yet. Add a dependency record in Nendo naming what blocks what, and it appears here.</p></div>
 <section id="text-view" aria-label="Dependencies as text" hidden><ul id="records"></ul></section></main>
 <footer id="selection" aria-live="polite">No work item selected</footer>
+<script src="/_nendo/api.js"></script>
 <script src="view.js"></script>
 </body></html>

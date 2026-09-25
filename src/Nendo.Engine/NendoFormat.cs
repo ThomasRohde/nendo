@@ -214,7 +214,15 @@ public static class NendoFormat
     /// </summary>
     public const string ExtensionPackagesMinimumHostVersion = "1.33.0";
 
-    public const string CurrentHostVersion = ExtensionPackagesMinimumHostVersion;
+    /// <summary>
+    /// A custom view the 1.32 rules refuse (ADR-0013, 2026-09-25): no package pin, a
+    /// configuration that is not empty, a calculated field shown, a relative filter, more
+    /// fields or panels than those rules allowed. A view those rules accept keeps the rung it
+    /// had, so a file with an older view is not raised until its definition says something new.
+    /// </summary>
+    public const string OpenCustomViewsMinimumHostVersion = "1.34.0";
+
+    public const string CurrentHostVersion = OpenCustomViewsMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

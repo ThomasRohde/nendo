@@ -24,7 +24,7 @@ documentation rendered as a site.
 </p>
 
 <p align="center"><sub>A board an agent authored over MCP, in the running host.
-Captured from the 2026-09-12 review build (0.12.0 is current), with the rest of
+Captured from the 2026-09-12 review build (0.14.0 is current), with the rest of
 that review in <a href="docs/reviews/README.md">docs/reviews/</a>.</sub></p>
 
 The installed host always provides **Nendo Studio**, a high-quality database
@@ -127,13 +127,12 @@ guessing current SDK, template, MSBuild or test behaviour.
 | Path | What is in it |
 | --- | --- |
 | `src/Nendo.Engine` | The typed core: storage, semantic operations, diff, behaviour. The only code that touches SQLite |
-| `src/Nendo.Desktop` | The WinUI 3 host: window, native shell integration, custom-view composition |
+| `src/Nendo.Desktop` | The WinUI 3 host: window, native shell integration, serving custom views from the open file |
 | `src/Nendo.Workbench` | The renderer — TypeScript and Vite, bundled into the Desktop output |
 | `src/Nendo.LocalMcp` | The loopback MCP server: tools, resources, leases and access modes |
-| `src/Nendo.ExtensionHost` | The AppContainer helper process that runs a custom view |
 | `tests/` | MSTest suites for the Engine, the Desktop host and the MCP adapter |
 | `tools/` | Build, packaging, gate and review scripts (PowerShell and Node) |
-| `extensions/` | Source for the bundled custom-view packages |
+| `extensions/` | Source for the four example custom-view packages; a file carries a package's code once it is imported |
 | `fixtures/` | Reference-application seed data |
 | `workspace/` | Tracked `.nendo` demo files |
 | `docs/` | Vision, architecture, ADRs, contracts and reviews |

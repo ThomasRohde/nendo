@@ -1,41 +1,44 @@
 (() => {
   'use strict';
+  // Records as nodes and link records as directed edges. Everything arrives through
+  // window.nendo (ADR-0013): the graph from nendo.view.loadGraph, the names of a status's
+  // choices from nendo.schema.describe, and the theme. Selecting a record asks Nendo to open it.
   const element = id => document.getElementById(id);
   const svg = element('graph'), drawing = element('drawing'), canvas = element('canvas');
-  let session = null, generation = 0, nodes = [], edges = [], selected = null;
+  const nendo = window.nendo;
+  let loaded = false, nodes = [], edges = [], selected = null;
   let width = 800, height = 500, scale = 1, offsetX = 0, offsetY = 0, drag = null;
+  // Reads are numbered so an answer that arrives after a newer read has started is dropped.
+  let latest = 0, pending = null;
   const positions = new Map();
-  function send(method, values = {}) {
-    if (session !== null) window.chrome.webview.postMessage({ version: 1, session, generation, method, ...values });
-  }
   function shape(name, attributes, text) {
     const item = document.createElementNS('http://www.w3.org/2000/svg', name);
     for (const [key, value] of Object.entries(attributes)) item.setAttribute(key, String(value));
     if (text !== undefined) item.textContent = text;
     return item;
   }
+  function describe(error) { return error instanceof Error && error.message ? error.message : String(error); }
   function transform() { drawing.setAttribute('transform', `translate(${offsetX} ${offsetY}) scale(${scale})`); }
   function fit() {
     const bounds = canvas.getBoundingClientRect();
-    // Before the contained window is sized the canvas can measure zero; fitting then puts every node
+    // Before the frame is sized the canvas can measure zero; fitting then puts every node
     // off-screen and the graph looks empty. Skip until it has a real size, and re-fit once it does.
     if (bounds.width < 1 || bounds.height < 1) return;
     scale = Math.min(1.2, Math.max(.08, Math.min(bounds.width / width, bounds.height / height) * .9));
     offsetX = (bounds.width - width * scale) / 2; offsetY = (bounds.height - height * scale) / 2;
     transform();
   }
-  // The pane is composed and sized by the host after the page loads, so the first fit can run against
-  // a stale size. Re-fit on the next two frames and whenever the window changes, so the graph always
-  // opens centred in view even on a large or maximized window that never resizes afterward.
-  function refit() { requestAnimationFrame(() => requestAnimationFrame(() => { if (session !== null && !canvas.hidden) fit(); })); }
-  window.addEventListener('resize', () => { if (session !== null && !canvas.hidden) fit(); });
+  // The frame is laid out and sized by the Workbench after the page loads, so the first fit can
+  // run against a stale size. Re-fit on the next two frames and whenever the window changes, so
+  // the graph always opens centred in view even in a large frame that never resizes afterward.
+  function refit() { requestAnimationFrame(() => requestAnimationFrame(() => { if (loaded && !canvas.hidden) fit(); })); }
+  window.addEventListener('resize', () => { if (loaded && !canvas.hidden) fit(); });
   function zoom(factor, x = canvas.clientWidth / 2, y = canvas.clientHeight / 2) {
     const next = Math.min(4, Math.max(.08, scale * factor));
     offsetX = x - (x - offsetX) * next / scale; offsetY = y - (y - offsetY) * next / scale;
     scale = next; transform();
   }
-  function select(id) {
-    if (!positions.has(id)) return;
+  function highlight(id) {
     selected = id;
     for (const node of drawing.querySelectorAll('.node')) {
       const active = node.dataset.id === id; node.classList.toggle('selected', active); node.setAttribute('aria-pressed', String(active));
@@ -44,7 +47,14 @@
     for (const button of element('records').querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.id === id));
     const node = nodes.find(value => value.id === id);
     element('selection').textContent = `${node.label} selected · ${edges.filter(e => e.targetId === id).length} incoming · ${edges.filter(e => e.sourceId === id).length} outgoing`;
-    send('selectRecord', { recordId: id });
+  }
+  function select(id) {
+    if (!positions.has(id)) return;
+    highlight(id);
+    const node = nodes.find(value => value.id === id);
+    nendo.ui.openRecord(node.entityId, id).catch(error => {
+      if (selected === id) element('selection').textContent = `${node.label} selected · Nendo could not open it: ${describe(error)}`;
+    });
   }
   function textView() {
     const list = element('records'); list.replaceChildren();
@@ -61,6 +71,8 @@
     }
   }
   function render(projection) {
+    // A re-read keeps the selection when its record is still there, without opening it again.
+    const keep = selected;
     nodes = projection.nodes; edges = projection.edges; selected = null; positions.clear(); drawing.replaceChildren();
     element('summary').textContent = `${nodes.length} record${nodes.length === 1 ? '' : 's'} · ${edges.length} connection${edges.length === 1 ? '' : 's'}`;
     element('selection').textContent = 'No record selected'; element('empty').hidden = nodes.length !== 0;
@@ -107,6 +119,50 @@
       drawing.append(group);
     });
     textView(); fit(); refit();
+    if (keep !== null && positions.has(keep)) highlight(keep);
+  }
+  // A field's value as a person reads it: a reference by its target's label, a choice by its
+  // name, a number by its exact digits. Null when the record has none.
+  function display(schema, record, fieldId) {
+    const label = record.labels?.[fieldId];
+    if (typeof label === 'string') return label;
+    const value = record.values?.[fieldId];
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string') {
+      const field = schema.entities.find(entity => entity.entityId === record.entityId)?.fields.find(candidate => candidate.fieldId === fieldId);
+      return field?.choices.find(choice => choice.id === value)?.displayName ?? value;
+    }
+    return record.exact?.[fieldId] ?? (typeof value === 'object' ? JSON.stringify(value) : String(value));
+  }
+  function project(graph, schema) {
+    const statusFieldId = nendo.context.bindings.statusFieldId;
+    return {
+      nodes: graph.nodes.map(node => ({ id: node.id, entityId: node.record.entityId, label: node.label,
+        status: statusFieldId === null ? null : display(schema, node.record, statusFieldId) })),
+      edges: graph.edges.map(edge => ({ id: edge.id, sourceId: edge.source, targetId: edge.target })),
+    };
+  }
+  async function read() {
+    const number = ++latest;
+    let graph, schema;
+    try {
+      [graph, schema] = await Promise.all([nendo.view.loadGraph(), nendo.schema.describe()]);
+    } catch (error) {
+      if (number === latest) element('summary').textContent = `Your records could not be read. ${describe(error)}`;
+      return;
+    }
+    if (number !== latest) return;
+    loaded = true;
+    try { render(project(graph, schema)); } catch { element('summary').textContent = 'This graph could not be displayed. Open your records in Nendo.'; }
+  }
+  // Nendo says the file changed at most four times a second. A burst of changes is one read,
+  // a quarter of a second after the first of them.
+  function schedule() {
+    if (pending !== null) return;
+    pending = setTimeout(() => { pending = null; read(); }, 250);
+  }
+  function applyTheme(theme) {
+    if (theme?.mode === 'light' || theme?.mode === 'dark') document.documentElement.dataset.theme = theme.mode;
   }
   element('zoom-in').addEventListener('click', () => zoom(1.25));
   element('zoom-out').addEventListener('click', () => zoom(.8));
@@ -133,17 +189,18 @@
     else return;
     event.preventDefault();
   });
-  new ResizeObserver(() => { if (session !== null && !canvas.hidden) fit(); }).observe(canvas);
-  window.chrome.webview.addEventListener('message', event => {
-    const message = event.data;
-    if (message.version !== 1) return;
-    try {
-      if (message.method === 'initialize' && session === null) {
-        session = message.session; generation = message.generation; document.documentElement.dataset.theme = message.theme;
-        document.documentElement.lang = message.locale || 'en'; render(message.projection); send('ready');
-      } else if (message.session === session && message.method === 'replaceProjection' && message.generation > generation) {
-        generation = message.generation; render(message.projection);
-      } else if (message.session === session && message.method === 'setTheme') document.documentElement.dataset.theme = message.theme;
-    } catch { element('summary').textContent = 'This graph could not be displayed. Open your records in Nendo.'; send('reportError', { code: 'render-failed', message: 'The graph could not be displayed.' }); }
-  });
+  new ResizeObserver(() => { if (loaded && !canvas.hidden) fit(); }).observe(canvas);
+  if (nendo === undefined) {
+    element('summary').textContent = 'This graph runs inside Nendo. Open the screen that shows it.';
+    return;
+  }
+  nendo.ready.then(context => {
+    document.documentElement.lang = context.locale || 'en';
+    applyTheme(nendo.ui.theme);
+    nendo.on('theme', applyTheme);
+    // A new context can name other fields or another record type: read again under it.
+    nendo.on('context', next => { applyTheme(next.theme); schedule(); });
+    nendo.on('changes', schedule);
+    return read();
+  }).catch(error => { element('summary').textContent = `This graph could not start. ${describe(error)}`; });
 })();

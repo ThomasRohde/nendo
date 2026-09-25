@@ -289,15 +289,24 @@ unsolicited-event set. The renderer re-reads through the bounded chase of the
 2026-09-16 amendment. The full record, with its limits and its recorded outcomes,
 is the entry for this date in the [decision index](README.md#amendments-in-force).
 
-## 2026-09-22 note — custom views run in a second, contained WebView2
+## 2026-09-25 note — custom views run as frames of the one WebView2
 
-The Decision above gives every normal surface to one WebView2 workbench. Since the
-[ADR-0013 amendment of 2026-09-20](0013-custom-views-with-code-in-the-file.md#history),
-a custom view runs in a separate host-owned helper, `Nendo.ExtensionHost`, with
-its own WebView2. The helper runs in a zero-capability AppContainer and a Job
-Object. It is not a second normal Studio and not a storage authority. The
-[custom-view contract](../contracts/custom-views.md) describes the current
-behaviour.
+The Decision above gives every normal surface to one WebView2 workbench. Custom
+views now run inside it too
+([ADR-0013](0013-custom-views-with-code-in-the-file.md)). Each view is a
+cross-origin frame whose code the host serves from the open file, on an origin of
+its own under `.example`. Chromium puts each package in a renderer process of its
+own, separate from the Workbench's. A view reaches the file only through the
+Workbench's broker, which calls the same typed bridge as every other surface. It
+is not a second Studio and not a storage authority.
+
+The host keeps the process model's promise that it outlives the renderer: only a
+failure of the Workbench's own renderer or of the browser sends the app to
+recovery. A view's renderer ending stops that view alone, and the recovery panel
+can restart without custom views. The contained helper of 2026-09-20 to
+2026-09-24, `Nendo.ExtensionHost`, with its own WebView2 in an AppContainer and a
+Job Object, is deleted. The [custom-view contract](../contracts/custom-views.md)
+describes the current behaviour.
 
 ## Consequences
 

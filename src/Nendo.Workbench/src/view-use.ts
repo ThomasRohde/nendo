@@ -1,4 +1,4 @@
-import { refreshDerived, runMutation, openWorkspaceView } from './actions';
+import { refreshDerived, runMutation } from './actions';
 import { accumulatedWindows, boardColumns, calendarModes, calendarMonths, leaveRecordContext, matrixCells, selectedSurfaces, state, surfaceErrors, surfaceWindows, timelineModes, timelineYears, type CreateRelated } from './app-state';
 import { type CalendarMode, shiftMonth } from './calendar-model';
 import { client } from './client';
@@ -17,12 +17,12 @@ import {
   closeRelatedCreate, recordInView, relatedTargetPlan, returnFromRelatedRecord, seedRelatedReference, wireRelatedActions,
 } from './related-actions';
 import { closeInspector, executeTreeCommand, wireRecordForm, wireRelatedPager } from './record-form';
-import { wireExtensionPanels } from './extension-panel';
 import { fieldMarkup, recordFormMarkup } from './record-markup';
 import { content, focusWithoutInteraction, requiredElement, rerender, setBusy, showError } from './shell';
 import { drillPillMarkup, recordPagerMarkup, surfaceBodyMarkup, surfaceSelectorMarkup, surfaceTileMarkup } from './surface-markup';
 import { type BoardView, accumulatesPages, isCustomViewKind, surfaceById } from './surface-model';
 import { renderSurfaces } from './view-surfaces';
+import { wireViewFrames } from './view-frames';
 /**
  * The Use view: one selected surface for one record type, the record opened
  * beside it, and the gestures that move a card between board columns.
@@ -158,7 +158,7 @@ export function renderUse(): void {
     <header class="use-toolbar"><div class="toolbar-group"><label class="select-field">${overview === null ? 'Record type' : 'Showing'}<select id="use-entity">${overview === null ? '' : `<option value="">${escapeHtml(overviewTitle(overview))}</option>`}${applicationPlans().map(app => `<option value="${escapeAttribute(app.entity.semanticId)}" ${app.entity.semanticId === plan.entity.semanticId ? 'selected' : ''}>${escapeHtml(app.entity.displayName)}</option>`).join('')}</select></label>${surfaceSelectorMarkup(plan)}${drillPillMarkup(plan)}${state.returnTo === null ? '' : `<button id="related-back" class="text-button related-back" type="button"><span aria-hidden="true">←</span> Back to ${escapeHtml(state.returnTo.label)}</button>`}</div><div class="toolbar-group">${surface !== null && (accumulatesPages(surface.kind) || isCustomViewKind(surface.kind)) ? '' : recordPagerMarkup(plan.entity.semanticId, surface?.semanticId ?? null)}<button id="new-record" class="primary-button" data-action type="button"><span class="button-glyph" aria-hidden="true">+</span>Add ${escapeHtml(entityName)}</button></div></header>
     <div class="message-slot use-message" role="alert" hidden></div>
     <div class="use-layout ${selected !== null || state.creatingRecord || relatedTarget !== null ? 'has-inspector' : ''}">
-      <section class="use-surface${surface?.kind === 'calendarSurface' ? ' calendar-surface' : surface?.kind === 'timelineSurface' ? ' timeline-surface' : surface?.kind === 'gallerySurface' ? ' gallery-surface' : surface?.kind === 'matrixSurface' ? ' matrix-surface' : ''}"${surface === null ? '' : ` data-surface="${escapeAttribute(surface.semanticId)}"`}>${surfaceTileMarkup(plan)}${surfaceBodyMarkup(plan)}</section>
+      <section class="use-surface${surface?.kind === 'calendarSurface' ? ' calendar-surface' : surface?.kind === 'timelineSurface' ? ' timeline-surface' : surface?.kind === 'gallerySurface' ? ' gallery-surface' : surface?.kind === 'matrixSurface' ? ' matrix-surface' : isCustomViewKind(surface?.kind) ? ' custom-view-surface' : ''}"${surface === null ? '' : ` data-surface="${escapeAttribute(surface.semanticId)}"`}>${surfaceTileMarkup(plan)}${surfaceBodyMarkup(plan)}</section>
       ${created !== null && relatedTarget !== null ? relatedCreateInspector(created, relatedTarget)
         : state.creatingRecord ? `<aside class="record-inspector"><header><span>New ${escapeHtml(entityName)}</span><button id="close-inspector" class="icon-button" type="button" aria-label="Close" data-dismiss>${icon('close')}</button></header>${recordFormMarkup(null, formFields(plan), `Add ${entityName}`, pageFormBody(plan, null, false), '', pageHasTabs(plan))}</aside>` : selected !== null ? inspectorMarkup(plan, selected) : ''}
     </div>
@@ -219,7 +219,6 @@ export function renderUse(): void {
         .finally(() => { state.actionInFlight = false; setBusy(false); rerender(); });
     });
   wireRecordPager();
-  if (isCustomViewKind(surface?.kind)) wireExtensionSurface(surface!);
   content.querySelector<HTMLButtonElement>('#related-back')?.addEventListener('click', () => void returnFromRelatedRecord());
   // Adding a record of the type in view abandons whatever record context there was,
   // including a related record half filled in and the way back to somewhere else — so
@@ -269,67 +268,11 @@ export function renderUse(): void {
     wireRecordForm(selected, plan.entity.semanticId, formFields(plan), closeInspector, plan);
     wireRelatedActions(plan, selected);
     wireRelatedPager(plan, selected);
-    wireExtensionPanels(content);
     for (const button of content.querySelectorAll<HTMLButtonElement>('[data-run-command]'))
       button.addEventListener('click', () => void executeTreeCommand(plan, selected, button.dataset.runCommand!, button.textContent ?? 'Command'));
   }
-}
-
-function wireExtensionSurface(surface: SurfaceNodePlan): void {
-  const status = requiredElement<HTMLElement>('#extension-status');
-  const next = requiredElement<HTMLButtonElement>('#extension-next');
-  const generation = state.session.fileSessionId;
-  // One next step at a time, in the order the design requires: the package on this device,
-  // permission for this view, then the graph. Four buttons at once lost the owner.
-  let step: 'install' | 'allow' | 'open' | null = null;
-  const refresh = async (): Promise<void> => {
-    try {
-      const view = await client.request<{ packageState: string; isApproved: boolean;
-        definition: { packageId: string; packageVersion: string }; notice: string | null }>('extension.status', { viewId: surface.semanticId });
-      if (!status.isConnected || state.session.fileSessionId !== generation) return;
-      const packageName = view.definition.packageId + ' ' + view.definition.packageVersion;
-      if (view.packageState !== 'available') {
-        step = 'install'; next.textContent = 'Install package…';
-        status.textContent = view.packageState === 'missing'
-          ? packageName + ' is not on this device yet. Install it from its .nendoview file, then allow this view.'
-          : view.packageState === 'incompatible'
-            // The bytes are intact; the view and the package disagree about the protocol,
-            // which only a change to the view's pin can settle.
-            ? packageName + ' speaks a different protocol than this view. Pin a package built for this view in Studio; your records are unchanged.'
-            : packageName + ' is ' + view.packageState + ' on this device. Install the exact package again from its .nendoview file.';
-      } else if (!view.isApproved) {
-        step = 'allow'; next.textContent = 'Allow this view';
-        status.textContent = packageName + ' is installed. Allow this view to read the fields it names, then open it.';
-      } else {
-        // A graph says graph; a record set is a view of records, whatever it draws them as.
-        const noun = surface.kind === 'extensionGraphSurface' ? 'graph' : 'view';
-        step = 'open'; next.textContent = 'Open ' + noun;
-        status.textContent = packageName + ' is installed and allowed on this device. The ' + noun + ' opens beside your records.';
-      }
-      if (view.notice) status.textContent += ' ' + view.notice;
-      next.dataset.step = step; next.disabled = false;
-    } catch (error) {
-      if (status.isConnected && state.session.fileSessionId === generation) {
-        step = null; next.disabled = true; next.textContent = 'Unavailable';
-        status.textContent = messageFor(error) + ' Your records remain available in Studio.';
-      }
-    }
-  };
-  const run = async (method: string): Promise<void> => {
-    if (state.actionInFlight || refuseWhileDirty('opening a custom view')) return;
-    state.actionInFlight = true; setBusy(true);
-    try { await client.request(method, { viewId: surface.semanticId }); }
-    catch (error) { showError(messageFor(error)); }
-    finally { state.actionInFlight = false; setBusy(false); await refresh(); }
-  };
-  next.addEventListener('click', () => {
-    if (step === 'install') void run('extension.install');
-    else if (step === 'allow') void run('extension.review');
-    else if (step === 'open') void run('extension.open');
-  });
-  requiredElement<HTMLButtonElement>('#manage-extension').addEventListener('click', () => { void run('file.customViews'); });
-  requiredElement<HTMLButtonElement>('#extension-studio').addEventListener('click', () => { void openWorkspaceView('data'); });
-  void refresh();
+  // A custom view on this screen, and any on the record page beside it (ADR-0013).
+  wireViewFrames(content);
 }
 
 /**

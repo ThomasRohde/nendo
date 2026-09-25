@@ -45,6 +45,7 @@ Each area below is a gap. Do not read a gap as a feature.
 | Broad MCP client parity | Not promised. Claude Code and Codex both connect with only the address, and opt-in installed-client lanes check this. That is not a general parity claim |
 | Account boundary on a shared machine | Removed with the credential ([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md)). This was chosen for iteration speed on a single-user machine. It is not a gap that work is closing |
 | Cross-platform | Windows only |
+| Custom views | Phase 2 is delivered, and its journey passed on 2026-09-25 against a Debug build. No product lane measures the clipboard, downloads or pop-ups in a view, or the memory budget with the four real packages. A received file's code runs when its view is shown: an accepted limitation ([ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md)) |
 | The notification area and Windows notifications | Owner-reported. `Review-ShellRuntime.ps1` checks three things: close hides the window, the process and its file survive, and the exit pin exits. A script cannot observe the icon, its menu or the notifications, and no lane instruments them. By default, Windows puts a new tray icon in the overflow. No test checks whether a first-time person finds their window again |
 | What the Windows shell draws | Owner-reported. The line between measured and not measured is stated precisely here. Measured, item by item: the registry writes that setup makes and removes; the shell identity, read back from the running window and from the notification registration that Windows filed under it; the Jump List file that Windows stored, and the fact that it names the open file; and the `-new` command line, run by hand against both an empty placeholder and an existing file (agent-observed, not a lane). Not measured, and not reachable from a script: Explorer draws the document icon; the taskbar paints the overlay badge or progress; the menu appears on right-click; a file dragged from Explorer arrives; the Jump List is rebuilt when the open file changes. `SetOverlayIcon` and `SetProgressState` report nothing back, and nothing can read them, so the call is unobserved as well as the paint. WebView2 itself refuses a page-made file, and that refusal is measured |
 
@@ -87,7 +88,7 @@ The slices stand as follows:
 - S7, a board grouped by a reference, is delivered at 1.27.0. Its columns are
   records of another type.
 
-## P7: scripting delivered, custom views in progress
+## P7: scripting delivered, custom views running from the file
 
 On 2026-09-10, the owner scheduled general scripting
 ([ADR-0008](decisions/README.md)) and the general extension model
@@ -98,46 +99,47 @@ them from "deferred indefinitely" to "scheduled". ADR-0008 is now delivered.
 view's code lives in the `.nendo` file and runs inline in the Workbench, with the
 full typed API and no install or consent step. It lands in phases:
 
-- Phase 0, a disposable WebView2 spike, has its findings pending.
-- **Phase 1 is delivered** at host 1.33.0. Packages live in the file, a person
-  reviews them as code in a proposal, and an agent writes and reads them through
-  MCP. Nothing runs them yet
-  ([packages in the file](contracts/custom-views.md#packages-in-the-file)).
-- Phase 2 runs views inline from the file and deletes the contained helper.
-  Phases 3–5 add writes from a view, developing from a folder, and views anywhere.
+- Phase 0, a disposable WebView2 spike, is done. Its
+  [findings](../prototypes/iframe-views/FINDINGS.md) settled the browser
+  particulars.
+- Phase 1 is delivered, at host 1.33.0 and product 0.13.0. Packages live in the
+  file, a person reviews them as code in a proposal, and an agent writes and reads
+  them through MCP.
+- **Phase 2 is delivered**, at host 1.34.0 and product 0.14.0. A view that is shown
+  runs its code from the file, inline in the Workbench, as a cross-origin frame with
+  a renderer of its own for each package, and reads the file through `window.nendo`.
+  The kill switches, open view definitions, import and export, and the four packages
+  under `extensions/` ported to `window.nendo` came with it. The contained helper is
+  deleted ([custom-view contract](contracts/custom-views.md)).
 
-Until Phase 2 ships, the views that run are the bounded slice described below, and
-opening a file still grants no execution authority.
+Next, in order:
 
-The bounded slice came from W-007 and its staged
-[custom-view extension plan](design/custom-view-extensions-plan.md). Its
-direction was a read-only dependency graph over existing records, with package
-isolation, explicit consent and permanent Studio access. Disposable boundary
-experiments and an accepted extension ADR come before production implementation.
-The first disposable WebView2 probe contained hangs, but it exposed a WebRTC
-network path outside CSP/request interception. The owner selected OS
-enforcement. The next AppContainer/Job probe blocked the tested native/WebRTC
-IPv4 loopback paths and contained process termination.
+- **Phase 3, views that write**: creating, updating and deleting records and
+  running commands through the same typed operations and version checks as a
+  person's edit, attributed to the view's package; preparing a proposal and
+  following it; and durable state in the file through `nendo.state`. None of this is
+  available yet.
+- **Phase 4, develop from a folder**: a device-local link from a view to a folder
+  on disk, reload on save, and saving the folder back as proposals. Not yet. Export
+  to a folder arrived early, with Phase 2.
+- **Phase 5, views anywhere**: the `extensionView` root, which the Use "Showing"
+  picker offers, and the `extensionTile` on the front page and dashboards, at host
+  1.35.0. Not yet.
 
-The remaining P1 matrix is incomplete. For the exact limits, see the
-[OS experiment](../prototypes/custom-views/OS-BOUNDARY.md). The owner then
-accepted the architecture on 2026-09-20. The
-[Engine foundation and durable view definitions](contracts/custom-views.md) are
-implemented, with canonical MCP authoring and minimum host 1.29.0. The
-production helper and private IPC now pass contained-browser round-trip, loop
-termination, silent revocation and ready-timeout tests. The device cache and
-native consent service now cover exact offline transfer, active package
-retention, raw-copy consent isolation and stale-review refusal.
+**Accepted limitation: a received file's code runs.** A view that is shown runs,
+and a file somebody else wrote brings its views' code with it. Nobody on this device
+has read that code, and it can read the file's records through Nendo, reach the
+network and use the clipboard. At Unattended an agent can accept its own package
+proposal. The owner chose this over consent steps. The kill switches are the whole
+control: **Run custom views** on this device, a switch for each file, safe mode, and
+**Restart without custom views**. The ADR names when to revisit it: harm the
+switches do not cover, a guard that shows a view reaching the Workbench, or use
+with files from people the owner does not trust, or on a shared computer.
 
-Native package/consent controls are implemented. The manager's geometry/themes
-and offline graph interactions now have runtime lanes. The native graph window
-and file-owned lifecycle are implemented. The isolated native journey now covers
-consent, Use entry, a two-record dependency, both themes at 1024×720, a saved
-Studio edit and F6 focus return. Native package import/export,
-missing/disabled states, revocation on reopen and Studio editing after helper
-termination are also measured. High-DPI toolbar reflow, broader containment
-checks and final release qualification remain in progress. Acceptance does not
-erase the unrun checks above.
+What Phase 2 has not measured is listed in the
+[contract's evidence](contracts/custom-views.md#evidence): among others, the
+clipboard, downloads and pop-ups in a product lane, and the memory budget against
+the four real packages rather than the journey's probes.
 
 **ADR-0008 is accepted for bounded calculations and local actions, and its
 implementation plan is complete.** Stages S1–S9 are delivered:
@@ -197,8 +199,8 @@ scaling. [calculations-and-actions.md](contracts/calculations-and-actions.md)
 publishes it with its limits. Cancellation is observed and joined in about a
 millisecond.
 
-**The ADR-0008 part of P7 is delivered.** The ADR-0013 custom-view work above
-is still in progress. The owner ran the keyboard, focus and screen-reader lane on
+**The ADR-0008 part of P7 is delivered.** Phases 3 to 5 of the ADR-0013
+custom-view work above are still ahead. The owner ran the keyboard, focus and screen-reader lane on
 2026-09-13 and reported that all four checks passed. The owner also ran the
 clean-user installer lane, and it passed. (`Test-NendoInstaller.ps1` refuses
 that lane on a machine where Nendo is already installed.) The run covered the

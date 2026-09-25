@@ -26,26 +26,38 @@ vulnerability:
 | --- | --- |
 | Agents to storage | An agent gets typed semantic operations only — never SQL, a connection, a database path or the filesystem. Physical table and column names are validated against a strict allow-list and quoted |
 | Proposal to file | Authoring changes are validated on a physical clone and shown as a diff. Accepting replays the exact validated operations. At every access level but *Unattended*, a person accepts |
-| Custom view to host | A view's HTML and JavaScript run in a separate AppContainer process inside a Job object, behind a CSP, with no host objects, no network, no downloads, no clipboard and no path outside its own asset root. Its package is verified by digest before it is installed |
+| Custom view to Workbench | A view is a cross-origin frame on an origin of its own, `https://{package}-{key}.example`, in a renderer process of its own. It reaches the file only through the broker's closed method table in `window.nendo`, never the Workbench's document, the host bridge, SQL, a path, another file or a device setting. It cannot navigate the Workbench away, load the Workbench in a frame, or accept a proposal |
 
 *Unattended* access is the one level where an agent accepts its own proposal. It
 is off by default, confirmed before it takes effect, never persisted, and ends
 when the level drops or the file closes. That it can change a file with nobody
 reading the diff is the documented point of it, not a defect.
 
+**Custom views are code, and a file carries them.** Since 2026-09-25
+([ADR-0013](docs/decisions/0013-custom-views-with-code-in-the-file.md)) a view's
+code lives in the `.nendo` file and runs when its view is shown: no install step,
+no consent, no pin. That is the owner's chosen trade for an exploratory project.
+A received file's code can read all of that file's records, reach the network
+(loopback included) and the clipboard, and start downloads. The controls are the
+kill switches: **Run custom views** on this device, a switch for each file, and
+**Restart without custom views** in recovery. A view never runs in a file that is
+in recovery or not healthy.
+
 ## What to report
 
 Please report anything that crosses one of the three boundaries above — for
 example an agent operation that reaches arbitrary SQL or a path, a proposal that
 reaches the active file without validation or acceptance, a custom view that
-reads outside its asset root or reaches the network, or a way for a non-loopback
+reaches the Workbench's document or the host bridge, calls a method outside the
+broker's table, or runs while views are switched off, or a way for a non-loopback
 or browser-origin request to be accepted.
 
 Please do **not** report the accepted limitations: that any local process can
 connect while access is on, that there is no account boundary on a shared
-machine, that the installer is unsigned, or that *Unattended* access does what it
-says. These are stated in [the roadmap](docs/roadmap.md) and changing them needs
-a decision, not a patch.
+machine, that the installer is unsigned, that *Unattended* access does what it
+says, or that a custom view carried in a file runs with network, clipboard and
+record access when it is shown. These are stated in [the roadmap](docs/roadmap.md)
+and in ADR-0013, and changing them needs a decision, not a patch.
 
 ## How to report
 
@@ -76,8 +88,11 @@ The enforcement worth reading first:
 - `src/Nendo.LocalMcp/NendoAgentAuthority.cs` — access levels and leases
 - `src/Nendo.Engine/Storage/SqliteNendoStore.Operations.cs` — identifier
   validation and quoting, the only place SQL is built
-- `src/Nendo.Engine/Extensions/ExtensionViewPackage.cs` — package verification
-- `src/Nendo.ExtensionHost/ExtensionWindow.cs` — the custom-view sandbox
+- `src/Nendo.Desktop/Extensions/ExtensionAssetServer.cs` and
+  `ExtensionWebViewPolicy.cs` — serving views from the file, and what a view may
+  do in the browser
+- `src/Nendo.Workbench/src/extension-broker.ts` — the only door from a view to
+  the file
 
 `tools/Test-Production.ps1` asserts several of these boundaries directly, so a
 change that relaxes one fails the gate by name.

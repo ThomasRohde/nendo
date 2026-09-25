@@ -29,7 +29,7 @@ public sealed record SetExtensionPackageOperation : NendoOperation
             ? entryPoint
             : throw new NendoValidationException($"Entry point '{entryPoint}' is not a valid package path.");
         Version = string.IsNullOrWhiteSpace(version) ? null : version;
-        if (Version is not null && (Version.Length > 40 || !NendoExtensionViewDefinition.ValidVersion(Version)))
+        if (Version is not null && (Version.Length > 40 || !NendoExtensionContent.ValidVersion(Version)))
             throw new NendoValidationException($"Package version '{Version}' is not a semantic version such as 1.0.0.");
         Description = string.IsNullOrWhiteSpace(description) ? null : description;
         if (Description is { Length: > 1000 })

@@ -5,7 +5,6 @@ using Microsoft.UI.Xaml.Navigation;
 using Microsoft.Windows.Storage.Pickers;
 using Microsoft.Web.WebView2.Core;
 using Nendo.Engine;
-using Windows.Storage.Streams;
 
 namespace Nendo.Desktop;
 
@@ -18,16 +17,12 @@ public sealed partial class MainPage : Page
     private bool _startupConsumed;
     private bool _unloaded;
     private long _workbenchGeneration;
+    private ExtensionAssetServer? _extensionAssets;
 
     public MainPage()
     {
         DesktopStartupTiming.Mark("page.constructor");
         InitializeComponent();
-        ActualThemeChanged += (_, _) =>
-        {
-            _extensionPane?.ApplyTheme(ActualTheme);
-            _ = _extensionPanel?.SendThemeAsync(ActualTheme == ElementTheme.Dark);
-        };
         DesktopStartupTiming.Mark("page.initialized");
         if (DesktopRuntimeConfiguration.NativeCaptureRoot is not null)
             SizeChanged += (_, _) => { _ = CaptureNativeRecoveryForTestAsync(); };
@@ -161,9 +156,6 @@ public sealed partial class MainPage : Page
             await _webView.EnsureCoreWebView2Async();
             DesktopStartupTiming.Mark("webview.ensure.end");
             var core = _webView.CoreWebView2;
-            core.Settings.AreDefaultContextMenusEnabled = false;
-            core.Settings.AreDefaultScriptDialogsEnabled = false;
-            core.Settings.AreDevToolsEnabled = IsDebugBuild;
             core.Settings.AreHostObjectsAllowed = false;
             core.Settings.IsStatusBarEnabled = false;
             core.Settings.IsWebMessageEnabled = true;
@@ -174,11 +166,13 @@ public sealed partial class MainPage : Page
                 CoreWebView2HostResourceAccessKind.DenyCors);
             core.NavigationCompleted += Workbench_NavigationCompleted;
             core.NavigationStarting += Workbench_NavigationStarting;
-            core.NewWindowRequested += Workbench_NewWindowRequested;
             core.ProcessFailed += Workbench_ProcessFailed;
             core.WebMessageReceived += Workbench_WebMessageReceived;
-            core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
-            core.WebResourceRequested += Workbench_WebResourceRequested;
+            // Custom views run as frames of this document, served from the open file. The
+            // Workbench's own content security policy keeps its document local; nothing here
+            // narrows what a view's frame may reach.
+            ExtensionWebViewPolicy.Attach(core);
+            _extensionAssets = ExtensionAssetServer.Attach(core, _session, assetRoot);
             DesktopStartupTiming.Mark("webview.navigate");
             core.Navigate(DesktopShellContract.WorkbenchUri.AbsoluteUri);
             _viewStartedUtc = DateTimeOffset.UtcNow;
@@ -216,20 +210,34 @@ public sealed partial class MainPage : Page
         ShowRecovery($"The app view could not load ({args.WebErrorStatus}).");
     }
 
-    private static void Workbench_NewWindowRequested(
-        CoreWebView2 sender,
-        CoreWebView2NewWindowRequestedEventArgs args)
-    {
-        args.Handled = true;
-    }
-
+    /// <summary>
+    /// Only the Workbench's own processes going away is a reason for recovery. A view's
+    /// renderer ending stops that view, which the Workbench says in the view's own place. The
+    /// browser restarts a GPU or utility process by itself, and the page never notices.
+    /// </summary>
     private void Workbench_ProcessFailed(
         CoreWebView2 sender,
         CoreWebView2ProcessFailedEventArgs args)
     {
-        var kind = args.ProcessFailedKind.ToString();
+        var kind = args.ProcessFailedKind;
+        if (kind == CoreWebView2ProcessFailedKind.FrameRenderProcessExited)
+        {
+            var frames = (args.FrameInfosForFailedProcess ?? [])
+                .Select(frame => frame.Name)
+                .Where(name => name?.StartsWith("nendo-view-", StringComparison.Ordinal) == true)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            PostWorkbenchEvent(WorkbenchEvents.ExtensionFramesFailed,
+                new ExtensionFramesFailedPayload(_session.CurrentFileSessionId, frames));
+            return;
+        }
+        if (kind is not (CoreWebView2ProcessFailedKind.BrowserProcessExited or
+            CoreWebView2ProcessFailedKind.RenderProcessExited or
+            CoreWebView2ProcessFailedKind.RenderProcessUnresponsive))
+            return;
+        var name = kind.ToString();
         DispatcherQueue.TryEnqueue(
-            () => ShowRecovery($"The app view stopped ({kind}).", kind));
+            () => ShowRecovery($"The app view stopped ({name}).", name));
     }
 
     private async void Workbench_WebMessageReceived(
@@ -315,33 +323,24 @@ public sealed partial class MainPage : Page
         }
     }
 
-    private static void Workbench_WebResourceRequested(
-        CoreWebView2 sender,
-        CoreWebView2WebResourceRequestedEventArgs args)
-    {
-        if (DesktopShellContract.IsAllowedWorkbenchUri(args.Request.Uri) ||
-            IsInDocumentResource(args.Request.Uri))
-        {
-            return;
-        }
-
-        args.Response = sender.Environment.CreateWebResourceResponse(
-            new InMemoryRandomAccessStream(),
-            403,
-            "Blocked by Nendo",
-            "Content-Type: text/plain");
-    }
-
     private async void RestartWorkbench_Click(object sender, RoutedEventArgs e)
     {
+        await StartWorkbenchAsync();
+    }
+
+    /// <summary>
+    /// For a view that brings the whole window down: start again with every view off. They stay
+    /// off until the person turns them on in Studio or starts Nendo again.
+    /// </summary>
+    private async void RestartWithoutViews_Click(object sender, RoutedEventArgs e)
+    {
+        _session.SuspendExtensions();
         await StartWorkbenchAsync();
     }
 
     internal async Task ShutdownAsync()
     {
         _unloaded = true;
-        _extensionPane?.Close();
-        CloseExtensionPanel();
         DetachWorkbench();
         await _session.DisposeAsync();
     }
@@ -392,20 +391,19 @@ public sealed partial class MainPage : Page
 
     private void DetachWorkbench()
     {
-        // The view on a record page belongs to that page; a new Workbench has none.
-        CloseExtensionPanel();
         _workbenchGeneration = checked(_workbenchGeneration + 1);
         var webView = _webView;
         _webView = null;
+        _extensionAssets?.Detach();
+        _extensionAssets = null;
 
         if (webView?.CoreWebView2 is not null)
         {
             webView.CoreWebView2.NavigationCompleted -= Workbench_NavigationCompleted;
             webView.CoreWebView2.NavigationStarting -= Workbench_NavigationStarting;
-            webView.CoreWebView2.NewWindowRequested -= Workbench_NewWindowRequested;
             webView.CoreWebView2.ProcessFailed -= Workbench_ProcessFailed;
             webView.CoreWebView2.WebMessageReceived -= Workbench_WebMessageReceived;
-            webView.CoreWebView2.WebResourceRequested -= Workbench_WebResourceRequested;
+            ExtensionWebViewPolicy.Detach(webView.CoreWebView2);
         }
 
         WebHost.Children.Clear();
@@ -487,13 +485,4 @@ public sealed partial class MainPage : Page
         App.CurrentWindow?.ApplyAppearance(appearance);
     }
 
-    private static bool IsInDocumentResource(string? value) =>
-        Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
-        (uri.Scheme == "data" || uri.Scheme == "blob");
-
-#if DEBUG
-    private const bool IsDebugBuild = true;
-#else
-    private const bool IsDebugBuild = false;
-#endif
 }

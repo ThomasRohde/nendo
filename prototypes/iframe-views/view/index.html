@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Spike view</title>
+    <style>
+      body { margin: 0; font: 12px system-ui, sans-serif; background: #fff; color: #111; }
+      #act { position: absolute; left: 8px; top: 8px; width: 140px; height: 32px; }
+      #newwin { position: absolute; left: 160px; top: 16px; }
+      #dlblob { position: absolute; left: 8px; top: 52px; }
+      #dlfile { position: absolute; left: 160px; top: 52px; }
+      #blank { position: absolute; left: 8px; top: 78px; width: 190px; height: 36px; margin: 0; background: #f3f3f8; }
+      #rows { position: absolute; left: 8px; top: 124px; }
+      td { padding: 1px 4px; border-bottom: 1px solid #eee; }
+    </style>
+  </head>
+  <body>
+    <button id="act" type="button">act</button>
+    <a id="newwin" href="/popup.html?from=link" target="_blank">new window</a>
+    <a id="dlblob" download="spike-blob.txt">blob download</a>
+    <a id="dlfile" href="/file.bin">served download</a>
+    <p id="blank">plain text for a context menu</p>
+    <div id="rows"></div>
+    <script src="/view.js"></script>
+  </body>
+</html>

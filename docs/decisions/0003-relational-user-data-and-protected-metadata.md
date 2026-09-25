@@ -103,9 +103,10 @@ reserved protected metadata namespace for Nendo state.
   idempotency evidence. This ADR does not freeze the exact prototype schema.
 - Protected metadata also holds custom-view packages, by decision of
   [ADR-0013](0013-custom-views-with-code-in-the-file.md). Four tables hold them:
-  `__nendo_extension_package`, `__nendo_extension_file`,
-  `__nendo_extension_retained` (replaced or removed content, kept for
-  compensation) and `__nendo_extension_state` (a view's durable state). The host
+  `__nendo_extension_package`, `__nendo_extension_blob` (content keyed by its
+  SHA-256, kept after it is replaced or removed, so compensation restores exact
+  bytes), `__nendo_extension_file` and `__nendo_extension_state` (a view's
+  durable state). The host
   creates them on the first extension write, never at file creation, as the layout
   ladder's new last rung. A file that has them needs host 1.33.0. Only the typed
   `extension.*` operations write them.

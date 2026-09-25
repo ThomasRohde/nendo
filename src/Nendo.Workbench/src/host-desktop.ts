@@ -3,8 +3,11 @@ import { protocolVersion } from './host';
 import { PendingMutationJournal, isJournaledMutation, type PendingMutation } from './pending-mutations';
 import {
   WorkbenchHostError, isHostRoute,
-  type CancelledRequests, type DesktopOperationView, type HostRoute, type HostRecordTarget, type HostPanelStopped, type WorkbenchClient,
+  type CancelledRequests, type DesktopOperationView, type HostFramesFailed, type HostRoute, type WorkbenchClient,
 } from './host-types';
+
+/** A custom-view frame's name: `nendo-view-` and the mount ID the Workbench gave it. */
+const frameNamePattern = /^nendo-view-[0-9a-f]{12}$/;
 
 /**
  * The real client, and the one that fails closed.
@@ -73,8 +76,7 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
   private fileSessionId: string | null = null;
   private fileIdentity: string | null = null;
   private readonly navigateListeners = new Set<(route: HostRoute) => void>();
-  private readonly openRecordListeners = new Set<(target: HostRecordTarget) => void>();
-  private readonly panelStoppedListeners = new Set<(stopped: HostPanelStopped) => void>();
+  private readonly framesFailedListeners = new Set<(failed: HostFramesFailed) => void>();
   private readonly fileChangedListeners = new Set<(changeSequence: number) => void>();
   private readonly agentActivityListeners = new Set<(work: AgentWork) => void>();
   private readonly journal = new PendingMutationJournal({
@@ -169,7 +171,7 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
       // not a slow host operation. Starting the RPC timeout before the picker
       // opens discards a valid response whenever choosing a path takes longer
       // than fifteen seconds.
-      // The same holds for a custom view's install (picker and review) and permission (consent) dialogs.
+      // The same holds for importing and exporting a custom-view package, which open a picker.
       const timeout = method === 'session.createFile' || method === 'session.openFile' || method.startsWith('file.') || method.startsWith('extension.')
         ? null
         : window.setTimeout(() => {
@@ -248,14 +250,9 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     return () => { this.navigateListeners.delete(listener); };
   }
 
-  onOpenRecord(listener: (target: HostRecordTarget) => void): () => void {
-    this.openRecordListeners.add(listener);
-    return () => { this.openRecordListeners.delete(listener); };
-  }
-
-  onExtensionPanelStopped(listener: (stopped: HostPanelStopped) => void): () => void {
-    this.panelStoppedListeners.add(listener);
-    return () => { this.panelStoppedListeners.delete(listener); };
+  onExtensionFramesFailed(listener: (failed: HostFramesFailed) => void): () => void {
+    this.framesFailedListeners.add(listener);
+    return () => { this.framesFailedListeners.delete(listener); };
   }
 
   onFileChanged(listener: (changeSequence: number) => void): () => void {
@@ -272,21 +269,16 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     if (message.protocolVersion !== protocolVersion) {
       return;
     }
-    if (message.event === 'openRecord') {
-      const target = message.payload as Partial<HostRecordTarget> | null;
-      if (!target || target.fileSessionId !== this.fileSessionId ||
-          typeof target.entityId !== 'string' || target.entityId.length === 0 || target.entityId.length > 256 ||
-          typeof target.recordId !== 'string' || target.recordId.length === 0 || target.recordId.length > 256) return;
-      for (const listener of this.openRecordListeners) listener(target as HostRecordTarget);
-      return;
-    }
-    if (message.event === 'extensionPanelStopped') {
-      const stopped = message.payload as Partial<HostPanelStopped> | null;
-      const text = (value: unknown, maximum: number): boolean => typeof value === 'string' && value.length > 0 && value.length <= maximum;
-      if (!stopped || stopped.fileSessionId !== this.fileSessionId || !text(stopped.viewId, 256) || !text(stopped.recordId, 256) ||
-          !text(stopped.message, 600)) return;
-      for (const listener of this.panelStoppedListeners) {
-        try { listener(stopped as HostPanelStopped); } catch { /* The placeholder redraws on its own next render. */ }
+    if (message.event === 'extensionFramesFailed') {
+      // Frames of the file that is open, named as the Workbench named them. Anything else
+      // names no frame on this page, and a stale event must not stop a view of a new file.
+      const failed = message.payload as Partial<HostFramesFailed> | null;
+      if (!failed || failed.fileSessionId !== this.fileSessionId || !Array.isArray(failed.frames) ||
+          failed.frames.length === 0 || failed.frames.length > 256 ||
+          !failed.frames.every((name) => typeof name === 'string' && frameNamePattern.test(name))) return;
+      const event: HostFramesFailed = { fileSessionId: failed.fileSessionId, frames: [...failed.frames] };
+      for (const listener of this.framesFailedListeners) {
+        try { listener(event); } catch { /* Each frame's overlay is drawn on its own; nothing else waits on this. */ }
       }
       return;
     }

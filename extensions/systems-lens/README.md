@@ -4,11 +4,6 @@ A custom view for [Nendo Station](../../docs/design/nendo-station-plan.md): comp
 nodes, the feeds between them as links. An arrow points **from the component that supplies
 to the one it supplies**, so reading left to right is reading the direction of supply.
 
-It is a separately versioned, unsigned package with no dependencies, downloads or write
-operations, implementing protocol 2. It reads only the bounded projection Nendo approves —
-a name, one state and the system per component, plus the link endpoints. Opening a record and editing
-it stay with the host.
-
 What it shows that a list cannot:
 
 - **Direction of supply.** Longest-path layering over the condensed graph puts each
@@ -21,6 +16,8 @@ What it shows that a list cannot:
 - **What would lose every path.** See below.
 - **A text alternative** listing each component's feeds in and out, and, in take-out mode,
   every verdict by name.
+
+Selecting a component asks Nendo to open it.
 
 ## Take out, and the line it does not cross
 
@@ -42,87 +39,68 @@ it did. A banner states, while the mode is on and not dismissibly:
 
 Three refusals hold that line:
 
-- **Nothing is written.** Take-out is renderer memory, cleared by Escape and by any new
-  projection, and the package has no write capability to lose.
+- **Nothing is written.** Take-out is page state, cleared by Escape and by every re-read of
+  the file, and the view asks Nendo for reads and for opening a record, nothing else.
 - **Stored state does not propagate.** A component already Offline is outlined so it can
   be seen, and is *not* treated as removed. Colour is what the file says; take-out is what
   somebody asked. Merging the two would make the lens assert a failure model it has not got.
 - **No timing, capacity or physics.** The graph knows what is declared to feed what. It
   knows nothing about pressure, heat, flow or margin.
 
-The **sources** are the components nothing declares a feed into — a tank, an array, a
-sensor — and they are read once from the whole graph. Recomputing them without the removed
+The **sources** are the components nothing declares a feed into (a tank, an array, a
+sensor), and they are read once from the whole graph. Recomputing them without the removed
 component would turn a component fed only by it into a source of its own, and the one thing
 this view exists to say would be exactly the thing it got wrong.
 
-## The system is a disclosed field
+## What it reads
 
-Version 0.2.0 speaks protocol 2 (ADR-0013, 2026-09-24). The view names the component's
-system as a disclosed field, and **the first node field the projection names is the system
-this schematic bands by** — for Nendo Station, `componentSystem`, a reference that arrives
-as the system's name. The label is the component's name alone. Where the schematic says
-something about a component it reads `THERM · Coolant pump A`, composed here from the two.
-A component without a system, or a view that discloses no node field, is simply unbanded.
+Everything arrives through `window.nendo`, which `<script src="/_nendo/api.js">` installs:
 
-Version 0.1.0 had no second field to read, so the file packed the system into the label
-and this package split it on ` · `. That convention is gone: a label containing the
-separator is now just a name, and the consent review names the system field the view
-receives.
+- `nendo.view.loadGraph()`: components as nodes and feeds as links. **The first field the
+  view binds on the component's own record type is the system the schematic bands by**;
+  for Nendo Station that is `componentSystem`, a reference, shown by the name of the
+  system it points at. Where the schematic says something about a component it reads
+  `THERM · Coolant pump A`. A component without a system is simply unbanded.
+- `nendo.schema.describe()`: to show the State by its choice's name. The state tones are
+  the station's own (Online, Standby, Offline, Removed); any other value is drawn neutral.
+- `nendo.ui.theme` and the `theme` event. The palette is Nendo's own: `api.js` sets the
+  Workbench's colour tokens on the page as `--nendo-*`, and `lens.css` draws with them, so
+  the schematic sits with the app rather than beside it. The values after each token in
+  `lens.css` are used only when the page runs without them.
+- The `changes` event: the lens reads again a quarter of a second after the file changes,
+  ends any take-out, and keeps the selected component selected while it is still there.
+- `nendo.ui.openRecord(entityId, recordId)`: opening the selected component.
 
-The state tones are the station's own (Online, Standby, Offline, Removed), drawn in the
-same hues Nendo gives those choice tones. Any other value is drawn neutral rather than
-guessed at.
+A read that Nendo refuses is shown in the summary line.
 
-## It sits with the app
+## Putting it into a file
 
-The palette is Nendo's own, copied from `src/Nendo.Workbench/src/styles/02-tokens.css` into
-one block at the top of `lens.css`. No colour crosses the extension boundary — the host
-sends one word, light or dark — so that copy can drift if the app's tokens change, and
-keeping it in step is a rebuild. The view opens in a pane beside the File menu and the
-theme switch, and a palette of its own would read as a foreign window bolted into the
-product. [Authoring a custom view](../../docs/custom-view-authoring.md) carries the rule.
+In Studio → Surfaces → Custom views, choose **Import** and pick this folder's
+`nendo-package.json`. The package arrives as a proposal to review, and once it is accepted
+the file carries the code. An agent does the same over MCP with `extension.setPackage` and
+one `extension.putFile` for each file.
 
-## Building and pinning
-
-```powershell
-pwsh ./tools/Build-NendoSystemsLensPackage.ps1
-```
-
-The output is `artifacts/extensions/org.nendo.systems-lens-0.2.0.nendoview` and the command
-prints its exact SHA-256, which is what a file pins. Entry timestamps, entry order and
-manifest key order are fixed, so unchanged source produces the same digest; rebuilding after
-any edit produces a different package, which must be installed and allowed again.
-`tools/Build-NendoStation.mjs pin` reads the digest off the built archive rather than
-carrying a copy, so the pin cannot go stale against the package beside it.
-
-Its `extensionGraphSurface` binds the node type to Components and the edge type to Feeds,
-whose two Reference fields both point at Components. Writing one is described in
+Show it with an `extensionGraphSurface` whose `packageId` is `org.nendo.systems-lens`. It
+binds the node type to Components, the edge type to Feeds, whose two Reference fields both
+point at Components, and `componentSystem` as its first field. See
 [authoring a custom view](../../docs/custom-view-authoring.md).
 
 ## What measures it
 
-`pwsh ./tools/Review-SystemsLens.ps1` runs the pinned Playwright CLI against a task-owned
-local server with a fixture carrying a reservoir feeding two pumps onto one manifold, a cold
-plate hanging off one pump alone, a three-component coolant circuit, an isolated sensor, a
-component stored Offline, a parallel feed and a markup-shaped label. It measures the
-layering, exact circuit membership and circuit legs, the band read from the disclosed system field, the
-summary counts, selection and its message, **both take-out verdicts by name**, the text
-alternative, that the view sends nothing but a handshake and a selection, Focus dimming,
-keyboard traversal, non-selectable chrome, generation replacement clearing the what-if, the
-empty state, the 500-node bound, both themes and a 512×384 compact window. It runs inside
-`Test-Production.ps1`.
+`pwsh ./tools/Review-SystemsLens.ps1` serves this folder on one origin and a fixture broker
+on another, and runs the real `api.js` between them in Playwright (msedge). Its fixture
+carries a reservoir feeding two pumps onto one manifold, a cold plate hanging off one pump
+alone, a three-component coolant circuit, an isolated sensor, a component stored Offline, a
+parallel feed and a markup-shaped label. It measures the layering, exact circuit membership
+and circuit legs, the band read from the System reference's name, state names read from the
+schema, the summary counts, exactly one `ui.openRecord` per selection, **both take-out
+verdicts by name**, the text alternative, that the view asks only for reads and for opening
+a record, Focus dimming, keyboard traversal, non-selectable chrome, a re-read only after a
+`changes` event that ends a take-out and keeps the selection, one read for a burst of
+changes, a dark `theme` event and a canvas token changing the measured colour, the empty
+state, 500 components and 999 feeds read in pages, a refused read shown as text and a
+512×384 window. It runs inside `Test-Production.ps1`.
 
-**The guard was falsified before it was trusted.** With the verdict rewritten as *everything
-downstream of the removed component is exposed*, the lane fails:
-
-```text
-Error: Taking out pump A named the wrong components as losing every path:
-{"exposed":["chiller","hx","manifold","plate","rad","rad2","valve"],"reduced":[],"removed":["pumpA"]}
-```
-
-Seven exposed and none still fed, where the answer is two and five. The rule was restored
-and the lane re-run to `"systems lens ok"`.
-
-It is a package presentation check. It does not establish AppContainer containment, native
-composition or the install/consent journey; those belong to the host and are measured
-separately in the [custom-view contract](../../docs/contracts/custom-views.md).
+When the verdict assertion was written it was falsified: with every component downstream of
+the removed one counted as exposed, the lane reported seven exposed and none still fed,
+where the answer is two and five.

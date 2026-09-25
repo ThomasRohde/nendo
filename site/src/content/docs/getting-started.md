@@ -114,12 +114,12 @@ Nendo has no built-in agent. A coding agent such as Claude Code or Codex connect
 
 Nendo Station is a demonstration file: a fictional orbital habitat with nine record types (Modules, Systems, Components, Feeds, Readings, Incidents, Maintenance, Experiments, Crew), about 500 records and every kind of screen Nendo draws. It is in the repository at [`workspace/Nendo Station.nendo`](https://github.com/ThomasRohde/nendo/blob/main/workspace/Nendo%20Station.nendo).
 
-To look around, open the file. It starts on the **Station status** front page. Two things ask for your consent on this computer before they work:
+To look around, open the file. It starts on the **Station status** front page. Two things need a step before they work:
 
 - The file has automatic actions. Editing stays off until you choose **Approve automatic actions** under **Health**. Reading works without it.
-- The **Systems Lens** schematic is a custom view. It needs its package, built with `pwsh ./tools/Build-NendoSystemsLensPackage.ps1` and installed through **File › Custom views…**, and your permission for this file. See [Custom views](/nendo/docs/custom-views).
+- The **Systems Lens** schematic is a custom view, a screen of Components. The tracked file was made before views ran from the file, so it does not carry the view's code yet: the screen offers **Add package to file…**. Pick `extensions/systems-lens/nendo-package.json` from the repository and accept the proposal, and the schematic runs. See [Custom views](/nendo/docs/custom-views).
 
-To keep the tracked file unchanged, open it and use **Duplicate…** from the file menu, then work in the copy. A copy asks for both consents again.
+To keep the tracked file unchanged, open it and use **Duplicate…** from the file menu, then work in the copy. A copy asks for the approval of automatic actions again.
 
 The file is an output. [`tools/Build-NendoStation.mjs`](https://github.com/ThomasRohde/nendo/blob/main/tools/Build-NendoStation.mjs) authors it from an empty file over MCP, one stage at a time:
 
@@ -128,7 +128,7 @@ node tools/Build-NendoStation.mjs --list    # the stages, in order
 node tools/Build-NendoStation.mjs           # the first stage not yet applied
 ```
 
-To rebuild it, create an empty file in Nendo, turn agent access on at a level that lets an agent shape the app, and run the script once for each stage. Each schema, behaviour and screen stage becomes a proposal that you accept in Nendo; the script never accepts one. The data stages write records directly. The `readings-csv` stage writes `artifacts/station/readings.csv`, which you import into Readings with **Import CSV…** and the Nendo CSV profile. Build and allow the Systems Lens package before the `pin` stage. The script dates the data relative to the day you build it.
+To rebuild it, create an empty file in Nendo, turn agent access on at a level that lets an agent shape the app, and run the script once for each stage. Each schema, behaviour and screen stage becomes a proposal that you accept in Nendo; the script never accepts one. The data stages write records directly. The `readings-csv` stage writes `artifacts/station/readings.csv`, which you import into Readings with **Import CSV…** and the Nendo CSV profile. The `lens-in-file` stage puts the Systems Lens code into the file from `extensions/systems-lens/`. The script dates the data relative to the day you build it.
 
 ## Next
 

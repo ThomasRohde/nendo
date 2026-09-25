@@ -1,13 +1,13 @@
 namespace Nendo.Desktop;
 
-internal enum WorkbenchFileAction { Create, Open, OpenRecent, OpenDropped, Close, Backup, Duplicate, Fork, Restore, Upgrade, Inspect, Diagnostics, Export, ResolveRecovery, ImportCsv, ExportCsv, CustomViews, OpenCustomView, ReviewCustomView, InstallCustomView }
+internal enum WorkbenchFileAction { Create, Open, OpenRecent, OpenDropped, Close, Backup, Duplicate, Fork, Restore, Upgrade, Inspect, Diagnostics, Export, ResolveRecovery, ImportCsv, ExportCsv }
 
 /// <param name="DroppedPath">
 /// Where a dropped file came from. Never read out of the request payload: the page
 /// hands the host a file object and the host asks Windows for its path, so a page
 /// cannot name a path of its own choosing and have Nendo open it.
 /// </param>
-internal sealed record WorkbenchFileActionRequest(WorkbenchFileAction Action, string? RecentId = null, string? DroppedPath = null, string? ViewId = null);
+internal sealed record WorkbenchFileActionRequest(WorkbenchFileAction Action, string? RecentId = null, string? DroppedPath = null);
 internal sealed record DesktopFileActionView(DesktopSessionView? Session, string? Notice)
 {
     public string? RefreshNotice { get; init; }
@@ -66,16 +66,11 @@ internal sealed partial class WorkbenchProtocolHandler
             [WorkbenchMethods.FileResolveRecovery] = WorkbenchFileAction.ResolveRecovery,
             ["file.importCsv"] = WorkbenchFileAction.ImportCsv,
             ["file.exportCsv"] = WorkbenchFileAction.ExportCsv,
-            ["file.customViews"] = WorkbenchFileAction.CustomViews,
-            ["extension.open"] = WorkbenchFileAction.OpenCustomView,
-            ["extension.review"] = WorkbenchFileAction.ReviewCustomView,
-            // The Use surface's own next step: the native package picker and review, without the package manager in between.
-            ["extension.install"] = WorkbenchFileAction.InstallCustomView,
         };
 
-    private Task<DesktopFileActionView> RunFileActionAsync(WorkbenchFileAction action, string? recentId = null, string? droppedPath = null, string? viewId = null) =>
+    private Task<DesktopFileActionView> RunFileActionAsync(WorkbenchFileAction action, string? recentId = null, string? droppedPath = null) =>
         (_fileActions ?? throw new Nendo.Engine.NendoPreconditionException("file-actions-unavailable",
-            "File actions are unavailable in this host. Use the native recovery view."))(new(action, recentId, droppedPath, viewId));
+            "File actions are unavailable in this host. Use the native recovery view."))(new(action, recentId, droppedPath));
 
     private async Task<object> RunSessionFileActionAsync(WorkbenchFileAction action)
     {

@@ -19,14 +19,14 @@ const lanes = [
 ];
 
 const operations = [
-  ['schema.createEntity', 'data.createRecord', 'ui.addNode'],
-  ['schema.addField', 'data.setField', 'ui.setProperty'],
-  ['schema.renameEntity', 'data.deleteRecord', 'ui.moveNode'],
-  ['schema.renameField', 'data.restoreDeletedRecord *', 'ui.removeNode'],
-  ['schema.setFieldRequired', 'data.backfillRetiredField', ''],
-  ['schema.setRetired', 'data.convertLegacyReference', 'behaviour.setDefinition'],
-  ['schema.setChoiceMetadata', 'identity.transition *', 'behaviour.removeDefinition'],
-  ['schema.configureReference', '', 'application.setPurpose'],
+  ['schema.createEntity', 'data.createRecord', 'ui.addNode', 'extension.setPackage'],
+  ['schema.addField', 'data.setField', 'ui.setProperty', 'extension.putFile'],
+  ['schema.renameEntity', 'data.deleteRecord', 'ui.moveNode', 'extension.removeFile'],
+  ['schema.renameField', 'data.restoreDeletedRecord *', 'ui.removeNode', 'extension.removePackage'],
+  ['schema.setFieldRequired', 'data.backfillRetiredField', '', ''],
+  ['schema.setRetired', 'data.convertLegacyReference', 'behaviour.setDefinition', ''],
+  ['schema.setChoiceMetadata', 'identity.transition *', 'behaviour.removeDefinition', ''],
+  ['schema.configureReference', '', 'application.setPurpose', ''],
 ];
 
 const reversibility = [
@@ -49,6 +49,7 @@ const screens = [
   'recordCommand', 'relatedList', 'summaryTile', 'breakdownChart', 'trendChart',
   'progressTile', 'rangeTile', 'activityGrid', 'recentList', 'filterClause',
   'section', 'tabGroup', 'fieldBinding', 'commandStep', 'extensionGraphSurface',
+  'extensionRecordsSurface', 'extensionRecordPanel',
 ];
 ---
 
@@ -105,7 +106,7 @@ const screens = [
 
   <section class="page section">
     <p class="eyebrow">The vocabulary</p>
-    <h2>Twenty-two operations, twenty of them open to agents.</h2>
+    <h2>Twenty-six operations, twenty-four of them open to agents.</h2>
     <p class="lede">
       These are the only ways the file can change. There is no raw SQL and no
       general-purpose escape hatch. The two marked <code>*</code> are available only in
@@ -114,7 +115,7 @@ const screens = [
     <div class="table-scroll operations">
       <table>
         <thead>
-          <tr><th>Schema</th><th>Data</th><th>Screens, behaviour and purpose</th></tr>
+          <tr><th>Schema</th><th>Data</th><th>Screens, behaviour and purpose</th><th>Custom-view code</th></tr>
         </thead>
         <tbody>
           {operations.map(row => (
@@ -268,11 +269,15 @@ const screens = [
         again.
       </p>
       <p>
-        Custom views are more tightly contained still. Each one runs in a separate helper
-        process with no access to the app's objects, the network, downloads, the clipboard
-        or any path outside its own folder, and its package is checked against a hash
-        before it is installed. Today a custom view can do one thing: draw a bounded graph
-        of records. It is not a plugin system and is not meant to become one.
+        Custom views are the one place a file carries code. A view's HTML and JavaScript
+        arrive in the file as a package, reviewed line by line in a proposal, and run when
+        the view is shown, in a frame of Nendo's own window. Each package gets a web
+        address and a browser process of its own, apart from Nendo's own page. A view
+        reads the file only through a closed set of typed calls, the same reads Nendo's own
+        screens make, and cannot reach Nendo's page, SQL or a file path. It can reach the
+        network and the clipboard. There is no install step and no permission dialog:
+        switches on this computer turn views off, for every file or for one. In this
+        version a view reads and does not write.
       </p>
     </Prose>
   </section>

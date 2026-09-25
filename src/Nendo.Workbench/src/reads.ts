@@ -55,7 +55,7 @@ export async function loadRecordWindow(entityId: string, direction: number, surf
 }
 
 export async function loadSurfaceWindow(entityId: string, node: SurfaceNodePlan): Promise<void> {
-  if (isCustomViewKind(node.kind)) return; // The native host owns its coherent bounded projection.
+  if (isCustomViewKind(node.kind)) return; // A custom view reads its own records, through the extension API.
   const query = effectiveSurfaceQuery(entityId, node);
   const page = await client.request<ReadPage<RecordSnapshot>>('data.queryRecords', windowRequest(entityId, query));
   if (page.changeSequence !== state.session.manifest?.changeSequence)

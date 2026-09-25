@@ -12,12 +12,12 @@ A Nendo application is one SQLite file with the extension `.nendo`. There is no 
 ### What the file holds
 
 - **Record types and records.** Each record type is an ordinary table. Stable semantic IDs connect record types and fields to their tables, so a rename does not break anything that refers to them.
-- **The definition.** Fields, screens, calculations, functions, actions and triggers, and the sentence that says what the file is for.
+- **The definition.** Fields, screens, calculations, functions, actions and triggers, the code of its custom views, and the sentence that says what the file is for.
 - **History.** Every accepted change, as typed operations grouped into revisions.
 - **Identity.** An application ID and an instance ID. [Copies](#copies) explains how they differ.
 - **Revision counters.** A definition revision, a data revision, one change sequence across both, and a version on each record.
 
-Some things are stored on the computer and never in the file: your approval of a file's automatic actions, installed custom-view packages and your permission for a custom view. A copy of the file on another computer, or a Duplicate or Fork on this one, asks for those again.
+Some things are stored on the computer and never in the file: your approval of a file's automatic actions, and this computer's switches for custom views. A copy of the file on another computer, or a Duplicate or Fork on this one, asks for the approval again. A custom view's code is the other way round: it is in the file, so every copy carries it, and it runs when its view is shown. See [Custom views](/nendo/docs/custom-views).
 
 ### Size limits
 

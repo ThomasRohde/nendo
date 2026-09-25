@@ -1,4 +1,4 @@
-import { type AgentAccessMode, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type ApplicationPlan, type ApplyResult, type CompileResult, type DesktopMutationView, type DesktopPromotionView, type DesktopSessionView, type EntitySnapshot, type ProposalPreview, type ReadPage, type RecordPlan, type RecordSnapshot, type RevisionSnapshot, type SemanticDiffEntry, type SurfaceNodePlan, type WorkbenchClient, fileCapabilities } from './host-types';
+import { type AgentAccessMode, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type ApplicationPlan, type ApplyResult, type CompileResult, type DesktopMutationView, type DesktopPromotionView, type DesktopSessionView, type EntitySnapshot, type ExtensionFileChange, type ExtensionPackageView, type ProposalPreview, type ReadPage, type RecordPlan, type RecordSnapshot, type RevisionSnapshot, type SemanticDiffEntry, type SurfaceNodePlan, type WorkbenchClient, fileCapabilities } from './host-types';
 import {
   previewFixture,
   previewFixtureForEntity,
@@ -28,6 +28,11 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
   private plan: ApplicationPlan | null = null;
   private proposedFixture: PreviewFixture | null = null;
   private readonly fixtureName: PreviewFixtureName;
+  // Custom views (ADR-0013): the two device switches, the file's packages, and a package
+  // proposal waiting for review. Frames cannot load here, so placeholders say where views run.
+  private readonly viewSwitches = { device: true, file: true };
+  private packages: ExtensionPackageView[] = [];
+  private packageProposal: { proposal: ProposalPreview; apply: () => void } | null = null;
 
   constructor() {
     this.fixtureName = previewFixtureName(new URLSearchParams(window.location.search).get('preview'));
@@ -122,6 +127,27 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         break;
       case 'agent.getProposal':
         result = this.getAgentProposal(payload);
+        break;
+      case 'extension.settings.set': {
+        const scope = payload.scope;
+        if ((scope !== 'device' && scope !== 'file') || typeof payload.enabled !== 'boolean')
+          throw new WorkbenchHostError('validation', 'Name the device or the file switch, and whether it is on.');
+        this.viewSwitches[scope] = payload.enabled;
+        this.syncExtensions();
+        result = { session: this.session };
+        break;
+      }
+      case 'extension.import':
+        result = this.importPackage();
+        break;
+      case 'extension.export': {
+        const exported = this.packages.find((candidate) => candidate.packageId === payload.packageId);
+        if (exported === undefined) throw new WorkbenchHostError('extension-package-missing', 'That package is not in this file.');
+        result = { exported: true, fileCount: exported.fileCount, folderName: exported.packageId };
+        break;
+      }
+      case 'extension.remove':
+        result = this.removePackage(requiredString(payload, 'packageId'));
         break;
       case 'agent.setSettings':
         this.agentStatus = {
@@ -307,6 +333,17 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
 
   private promoteProposal(payload: Record<string, unknown>): DesktopPromotionView {
     const proposalId = requiredString(payload, 'proposalId');
+    if (this.packageProposal?.proposal.proposalId === proposalId) {
+      const { proposal, apply } = this.packageProposal;
+      apply();
+      this.packageProposal = null;
+      this.syncExtensions();
+      const mutation = this.advance('definition', proposal.title, 'extension.setPackage');
+      return {
+        promotion: { proposalId, state: 'active', applied: true, message: 'The proposal is active.', result: { revisions: [mutation] } },
+        session: structuredClone(this.session),
+      };
+    }
     if (this.agentProposal?.proposalId === proposalId) {
       const mutation = this.advance('definition', this.agentProposal.title, 'ui.setProperty');
       this.clearAgentProposal();
@@ -348,6 +385,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
 
   private rejectProposal(payload: Record<string, unknown>): DesktopPromotionView {
     const proposalId = requiredString(payload, 'proposalId');
+    if (this.packageProposal?.proposal.proposalId === proposalId) this.packageProposal = null;
     if (this.agentProposal?.proposalId === proposalId) {
       this.clearAgentProposal();
       return {
@@ -465,6 +503,76 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
     this.proposedFixture = null;
     this.history = [];
     this.idempotency.clear();
+    this.packages = [];
+    this.packageProposal = null;
+    this.syncExtensions();
+  }
+
+  /** The snapshot's custom-view state: the switches, the file's packages, and whether views may run. */
+  private syncExtensions(): void {
+    if (!this.session.hasFile) {
+      this.session.extensions = null;
+      return;
+    }
+    const healthy = this.session.health === 'normal';
+    const run = this.viewSwitches.device && this.viewSwitches.file && healthy;
+    this.session.extensions = {
+      run,
+      offReason: run ? null : !this.viewSwitches.device ? 'device' : !this.viewSwitches.file ? 'file' : 'health',
+      deviceEnabled: this.viewSwitches.device,
+      fileEnabled: this.viewSwitches.file,
+      notice: null,
+      packages: structuredClone(this.packages),
+    };
+  }
+
+  private packageProposalFor(title: string, changes: ExtensionFileChange[], summary: string, apply: () => void): ProposalPreview {
+    requireFile(this.session);
+    const manifest = this.session.manifest!;
+    const proposal: ProposalPreview = {
+      proposalId: `proposal-${crypto.randomUUID().replaceAll('-', '')}`,
+      title,
+      state: 'previewable',
+      retention: 'retainUntilExplicitCleanup',
+      sourceApplicationId: manifest.applicationId,
+      sourceInstanceId: manifest.instanceId,
+      capturedDefinitionRevision: manifest.definitionRevision,
+      touchedRecords: [],
+      operationDigest: `preview-package-digest-${manifest.changeSequence}`,
+      operationCount: changes.length + 1,
+      diagnostics: [],
+      semanticDiff: [{ kind: 'extension', summary, semanticIds: [], reversibility: 'reversibleWithRetainedState' }],
+      packageChanges: changes,
+    };
+    this.packageProposal = { proposal, apply };
+    return proposal;
+  }
+
+  /** Stands in for the host's picker: the package the preview's graph screen names but the file lacks. */
+  private importPackage(): ProposalPreview {
+    const added = linkGraphPackage();
+    if (this.packages.some((candidate) => candidate.packageId === added.packageId))
+      throw new WorkbenchHostError('extension-package-exists', `${added.title} is already in this file.`);
+    const file = (path: string, bytes: number, lines: string[]): ExtensionFileChange => ({
+      packageId: added.packageId, path, change: 'added', mediaTypeBefore: null, mediaTypeAfter: path.endsWith('.js') ? 'text/javascript' : 'text/html',
+      bytesBefore: null, bytesAfter: bytes, textual: true, truncated: false,
+      hunks: [{ oldStart: 0, oldLines: 0, newStart: 1, newLines: lines.length, lines: lines.map((text) => ({ kind: 'added' as const, text })) }],
+    });
+    return this.packageProposalFor(`Add the custom-view package ${added.title}`, [
+      file('index.html', 612, ['<!doctype html>', '<meta charset="utf-8">', '<script src="/_nendo/api.js"></script>', '<script src="view.js" defer></script>', '<svg id="graph" role="img"></svg>']),
+      file('view.js', 3_904, ['const graph = await nendo.view.loadGraph();', 'draw(graph);', 'nendo.changes.subscribe(async () => draw(await nendo.view.loadGraph()));']),
+    ], `Add the custom-view package ${added.title} (${added.packageId}), starting at ${added.entryPoint}. Its code is kept in this file.`,
+    () => { this.packages.push(added); });
+  }
+
+  private removePackage(packageId: string): ProposalPreview {
+    const removed = this.packages.find((candidate) => candidate.packageId === packageId);
+    if (removed === undefined) throw new WorkbenchHostError('extension-package-missing', 'That package is not in this file.');
+    return this.packageProposalFor(`Remove the custom-view package ${removed.title}`, [{
+      packageId, path: removed.entryPoint, change: 'removed', mediaTypeBefore: 'text/html', mediaTypeAfter: null,
+      bytesBefore: 612, bytesAfter: null, textual: false, truncated: false, hunks: [],
+    }], `Remove the package ${removed.title} from this file.`,
+    () => { this.packages = this.packages.filter((candidate) => candidate.packageId !== packageId); });
   }
 
   private installFixture(fixture: PreviewFixture, preserveRecords: boolean): void {
@@ -482,6 +590,11 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
     this.session = session;
     this.plan = structuredClone(fixture.plan);
     this.syncPlan();
+    if (!preserveRecords) {
+      this.packages = [boardGlancePackage()];
+      this.packageProposal = null;
+    }
+    this.syncExtensions();
     if (!preserveRecords) this.installAgentFixture(fixture);
   }
 
@@ -697,6 +810,24 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
       if (node !== undefined) node.properties.title = root.properties.title;
     }
   }
+}
+
+/** The package the preview's sample views run: in the file from the start. */
+function boardGlancePackage(): ExtensionPackageView {
+  return {
+    packageId: 'org.example.board-glance', title: 'Board glance', version: '1.0.0', entryPoint: 'index.html',
+    description: 'Cards grouped by status, for a quick look at a record type.',
+    origin: 'https://org-example-board-glance-5d1c7e9a20.example', fileCount: 3, totalBytes: 14_682,
+  };
+}
+
+/** A package a sample view names that the file does not carry until it is imported. */
+function linkGraphPackage(): ExtensionPackageView {
+  return {
+    packageId: 'org.example.link-graph', title: 'Link graph', version: '0.3.0', entryPoint: 'index.html',
+    description: 'Records as nodes, and the links between them.',
+    origin: 'https://org-example-link-graph-a07b3c19e4.example', fileCount: 2, totalBytes: 4_516,
+  };
 }
 
 function rootOf(plan: ApplicationPlan, kind: string): SurfaceNodePlan | undefined {

@@ -51,7 +51,7 @@ internal static class NendoAuthoringExamples
             AFrontPageForTheFile(),
             SayWhatTheFileIsFor(),
             CalculateAndActAutomatically(),
-            ACustomGraphReference(),
+            ACustomGraphFromTheFile(),
             PutACustomViewInTheFile(),
         ]);
 
@@ -67,6 +67,7 @@ internal static class NendoAuthoringExamples
             "Send a file as text (stored as UTF-8 exactly as written) or base64 (any bytes). mediaType defaults from the extension: .html, .js, .css, .json, .svg, .png, .woff2, .wasm and more.",
             "One putFile payload is at most extensions.putFilePayloadBytes in the vocabulary. A larger file is a first putFile and then putFile operations with append true for the same package and path, later in the same change set; the host joins them in order before validation.",
             "Read a package back at nendo://application/extensions and nendo://application/extension/{packageId}/file?path=... , with the path percent-encoded. A replaced file stays in history, so the change can be reversed exactly.",
+            "Once accepted, the code runs in the Workbench whenever a view that names the package is shown. It loads /_nendo/api.js, which every view origin serves, and reaches the file only through window.nendo: await nendo.ready, then nendo.view.loadRecords(), nendo.view.loadGraph(), nendo.records.query and nendo.ui.openRecord.",
         ],
         [
             new("Put the hello view in the file",
@@ -80,19 +81,18 @@ internal static class NendoAuthoringExamples
                 Operation("extension.putFile", new
                 {
                     packageId = "org.example.hello", path = "view.js",
-                    text = "document.getElementById('greeting').textContent = 'Hello from a view that lives in this file.';\n",
+                    text = "nendo.ready.then(async (view) => {\n  const records = await nendo.view.loadRecords();\n  document.getElementById('greeting').textContent = `Hello from ${view.title}: ${records.length} records.`;\n});\n",
                 }),
             ]),
         ]);
 
-    private static NendoAuthoringExample ACustomGraphReference() => new(
-        "pin-an-offline-custom-graph",
-        "Define a custom dependency graph while keeping package installation and execution consent separate.",
+    private static NendoAuthoringExample ACustomGraphFromTheFile() => new(
+        "show-a-custom-graph",
+        "Define a custom dependency graph, drawn by a package the file carries.",
         [
-            "Use the existing ui.addNode and ui.setProperty operations. The extensionGraphSurface pins a package and binds stored fields; it contains no executable assets or consent.",
-            "This example's all-zero archive digest deliberately names a missing package. Replace it with the SHA-256 of the exact reviewed offline archive before using the view. A valid definition does not imply an installed package.",
-            "Both distinct edge References target the node record type. Graph limits are 500 nodes, 1000 edges and 1 MiB; oversized or incomplete graphs are refused as a whole.",
-            "Protocol 1 and configuration version 1 use configuration JSON text containing an empty object. Future versions are preserved but disabled. This shape requires host 1.29.0.",
+            "An extensionGraphSurface names its package by packageId and binds a node record type, a label and the two References of an edge type. The package's code lives in the file (see put-a-custom-view-in-the-file); until it does, the view compiles with warning NUI452 and says so where it is shown.",
+            "Both edge References are distinct and target the node record type. fieldBinding children add fields the view reads, calculated ones included; filterClause children narrow the records with any value kind.",
+            "configuration is any JSON object of at most 16 KiB, handed to the view's code as parsed JSON. The earlier pins packageVersion, packageDigest, protocolVersion and configurationVersion are not needed; a view without them requires host 1.34.0.",
         ],
         [
             new("Create nodes and dependency records",
@@ -105,14 +105,12 @@ internal static class NendoAuthoringExamples
                 Operation("schema.configureReference", new { entityId = "graphEdge", fieldId = "graphFrom", targetEntityId = "graphNode", labelFieldId = "graphLabel" }),
                 Operation("schema.configureReference", new { entityId = "graphEdge", fieldId = "graphTo", targetEntityId = "graphNode", labelFieldId = "graphLabel" }),
             ]),
-            new("Pin the custom graph package and disclosed fields",
+            new("Show the dependencies as a custom graph",
             [
                 InlineNode("dependencyGraph", null, "extensionGraphSurface", 0, new()
                 {
                     ["definitionVersion"] = 3, ["entityId"] = "graphNode", ["title"] = "Dependencies",
-                    ["packageId"] = "org.nendo.dependency-graph", ["packageVersion"] = "0.1.0",
-                    ["packageDigest"] = new string('0', 64), ["protocolVersion"] = 1,
-                    ["configurationVersion"] = 1, ["configuration"] = "{}",
+                    ["packageId"] = "org.nendo.dependency-graph", ["configuration"] = "{}",
                     ["labelFieldId"] = "graphLabel", ["edgeEntityId"] = "graphEdge",
                     ["sourceFieldId"] = "graphFrom", ["targetFieldId"] = "graphTo",
                 }),

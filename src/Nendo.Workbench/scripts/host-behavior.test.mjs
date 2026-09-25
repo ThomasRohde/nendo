@@ -224,17 +224,22 @@ test('a host event cannot name a route the router does not have', { timeout: 200
   assert.deepEqual(seen, []);
 });
 
-test('host record navigation is restricted to the current file and bounded semantic IDs', async () => {
+test('a custom-view frame failure is heard only for the open file and for frames the Workbench named', async () => {
   const f = fixture(); const client = f.client(); await client.request('session.getSnapshot');
-  const seen = []; client.onOpenRecord(target => seen.push(target));
-  const target = { fileSessionId: 'file-session-one', entityId: 'nodes', recordId: 'one' };
-  for (const payload of [null, {}, { ...target, fileSessionId: 'old' }, { ...target, recordId: '' },
-    { ...target, entityId: 'x'.repeat(257) }]) {
-    f.deliver({ protocolVersion: module.protocolVersion, event: 'openRecord', payload });
+  const seen = []; client.onExtensionFramesFailed(failed => seen.push(failed));
+  // A crash takes every frame of the package with it, so the host names them all (spike S4).
+  const failed = { fileSessionId: 'file-session-one', frames: ['nendo-view-0a1b2c3d4e5f', 'nendo-view-ffffffffffff'] };
+  for (const payload of [null, {}, { ...failed, fileSessionId: 'old' }, { ...failed, frames: [] }, { ...failed, frames: 'nendo-view-0a1b2c3d4e5f' },
+    { ...failed, frames: ['nendo-view-1'] }, { ...failed, frames: ['workbench'] }, { ...failed, frames: ['nendo-view-0A1B2C3D4E5F'] },
+    { ...failed, frames: [...failed.frames, 42] }, { ...failed, frames: Array(257).fill('nendo-view-0a1b2c3d4e5f') }]) {
+    f.deliver({ protocolVersion: module.protocolVersion, event: 'extensionFramesFailed', payload });
   }
   assert.deepEqual(seen, []);
-  f.deliver({ protocolVersion: module.protocolVersion, event: 'openRecord', payload: target });
-  assert.deepEqual(seen, [target]);
+  f.deliver({ protocolVersion: module.protocolVersion, event: 'extensionFramesFailed', payload: failed });
+  assert.deepEqual(seen, [failed]);
+  // The events the helper sent are gone with it: nothing listens for them any more.
+  assert.equal(typeof client.onOpenRecord, 'undefined');
+  assert.equal(typeof client.onExtensionPanelStopped, 'undefined');
 });
 
 test('a host event from another protocol version is ignored', { timeout: 2000 }, async () => {

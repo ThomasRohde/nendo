@@ -24,7 +24,7 @@ existed. For this reason the numbering is contiguous by intent.
 | [0010](0010-file-identity-duplicate-fork-backup-and-restore.md) | Accepted | Raw copy classification plus typed Duplicate, Fork, Backup and Restore |
 | [0011](0011-local-sqlite-journal-and-copy-discipline.md) | Accepted | Local rollback DELETE, FULL synchronous operation, bounded busy behaviour, host-owned copy discipline |
 | [0012](0012-safe-mode-compatibility-and-migration.md) | Accepted | Explicit normal/read-only/recovery/rejected states, staged migration, permanent host safe mode |
-| [0013](0013-custom-views-with-code-in-the-file.md) | Accepted | Custom views carry their code in the file and run inline with a full API; no install or consent |
+| [0013](0013-custom-views-with-code-in-the-file.md) | Accepted | Custom views carry their code in the file and run inline in the Workbench, with no install or consent; Phases 0–2 delivered (reads), Phases 3–5 ahead |
 | [0014](0014-drop-embedded-agent-mcp-is-the-agent-surface.md) | Accepted | Drop the embedded agent; the local MCP interface is the agent surface. AG-UI not adopted |
 | [0015](0015-host-owned-database-studio-and-ag-grid-community.md) | Accepted | Host-owned Studio, containing UI architecture, AG Grid Community as the grid substrate |
 | [0016](0016-vendor-pinned-dotnet-agent-skills.md) | Accepted | Pinned curated first-party .NET agent skills |
@@ -33,6 +33,20 @@ existed. For this reason the numbering is contiguous by intent.
 
 ## Amendments in force
 
+- **ADR-0002, 2026-09-25 — custom views run as frames of the one WebView2**: a
+  custom view is a cross-origin frame in the Workbench's own browser, served from
+  the open file, with a renderer process of its own for each package
+  ([ADR-0013](0013-custom-views-with-code-in-the-file.md)). The contained helper of
+  2026-09-20 to 2026-09-24, with its own WebView2 in an AppContainer and a Job
+  Object, is deleted. The host still outlives the renderer: only a failure of the
+  Workbench's own renderer or of the browser sends the app to recovery, a view's
+  renderer ending stops that view alone, and the recovery panel can restart
+  without custom views. ADR-0002 carries this as its 2026-09-25 note.
+- **ADR-0017, 2026-09-25 — the helper project is gone**: `src/Nendo.ExtensionHost/`
+  is deleted, and the payload carries no `ExtensionHost/` folder. The one file
+  custom views load from the installation is the view API, which the Workbench
+  build writes to `Workbench/_nendo/api.js`. `Nendo.slnx` lists six projects.
+  ADR-0017 carries this as its 2026-09-25 note.
 - **ADR-0004, 2026-09-20 — a section can be folded away**: every `section` folds.
   An author can store how a section starts, as the `opens` property with the
   closed words `open` and `closed`. A person's own fold is never stored in the file.

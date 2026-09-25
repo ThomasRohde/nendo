@@ -1,677 +1,672 @@
 # Authoring a custom view
 
-This guide tells how to write, package, pin and open a Nendo custom view. The
-behaviour that this guide depends on is in the
-[custom-view contract](contracts/custom-views.md). If this guide, the contract
-and the code disagree, the code is current. Then fix the contract and this guide
-to match the code. The authority is
-[ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md), accepted 2026-09-25.
+This guide tells how to write a Nendo custom view, put it in a `.nendo` file and
+show it. The [custom-view contract](contracts/custom-views.md) states every rule
+this guide depends on. If this guide, the contract and the code disagree, the code
+is current: fix the contract and this guide to match it. The authority is
+[ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md), accepted
+2026-09-25.
 
-Parts 1–4 describe the views that run today: a package installed on the device,
-pinned by digest and allowed through native consent. A package's code can now also
-live in the `.nendo` file, where it is stored, reviewed as code and read back, but
-nothing runs it from there yet.
-[Writing a package into the file](#writing-a-package-into-the-file) describes that
-path.
+A custom view is a small web page that draws a file's records in a way Nendo's own
+screens cannot: a graph, a Gantt chart, a map. Its code lives in the `.nendo` file
+as a **package**. A view that is shown runs, inline in Nendo, in a frame of its own.
+There is nothing to install and nothing to allow.
 
-This repository ships three worked examples. All are MIT-licensed and have no
+This repository has four worked examples. All are MIT-licensed and have no
 dependencies:
 
-- [`extensions/dependency-graph/`](../extensions/dependency-graph/README.md), the
+- [`extensions/dependency-graph/`](../extensions/dependency-graph/README.md), a
   general record graph;
 - [`extensions/work-dependencies/`](../extensions/work-dependencies/README.md), the
   planner's own dependency view;
-- [`extensions/systems-lens/`](../extensions/systems-lens/README.md), the
-  Nendo Station schematic view.
+- [`extensions/systems-lens/`](../extensions/systems-lens/README.md), the Nendo
+  Station schematic;
+- [`extensions/gantt/`](../extensions/gantt/README.md), a record set on a time line,
+  which also works on a record page.
 
-You can read all of this guide against any of the examples.
+## What a view can do
 
-## What you can build today
+A view is a web page with most of a web page's powers. It can use the network,
+loopback included, the clipboard, browser storage, workers, WebAssembly, fonts,
+images and any other file it carries. It reads the file through `window.nendo`:
+records with their calculated fields and exact numbers, the schema, and the file's
+changes as they happen. It can ask Nendo to open a record, a screen or Studio, show
+a sentence, and size its own panel.
 
-You can build one thing: **a renderer for a bounded graph projection**. Protocol 1
-gives a package a read-only list of nodes and edges that the person approved.
-Protocol 2 adds more fields of either record type, named by the view and listed in
-the consent review, and lets the view narrow what it reads with filters. The
-package can send one suggestion back: *this record is selected*. That is the
-whole surface.
+**Not yet.** In this version a view reads and does not write. Writing records,
+running commands, preparing proposals and keeping state in the file arrive with
+Phase 3. Developing a view straight from a folder, with reload on save, arrives
+with Phase 4, and a view as a screen of its own (`extensionView`) or a tile on the
+front page (`extensionTile`) with Phase 5.
 
-A package cannot define storage, read a field that nobody disclosed, run a query,
-open a file, reach the network, navigate the host, write a record, ask for a new
-permission or carry consent. It is not a plugin model, and it is not a step
-toward one. Anything outside the graph projection needs an accepted ADR first.
+A view can never reach the Workbench's own page, the host bridge, SQL, a file path,
+another file or a device setting, and it can never accept a proposal. See
+[What a view can and cannot reach](#what-a-view-can-and-cannot-reach).
 
-You own the layout, the interaction, the accessibility, and the presentation of
-the labels, the optional status value and, at protocol 2, the disclosed fields.
+## A first view
 
-## The three separate things
+A package is a folder. This one lists the records its view is about, and opens one
+when you select it. It has four files.
 
-None of these three things implies the next. Each is a separate act, with its own
-refusal:
-
-1. **A package**: nothing signs it. The SHA-256 of its exact archive bytes
-   identifies it. Installing it grants no permission to run.
-2. **A view definition**: durable content in the `.nendo` file. It pins a package
-   digest and names the fields that the view may read. Accepting it installs
-   nothing and approves nothing.
-3. **Device consent**: a native review, keyed to the *physical file* on *this
-   device*. A copy of the file inherits nothing. A change to either of the first
-   two invalidates it.
-
-## Part 1 — Write the renderer
-
-### Files
-
-Write plain HTML, CSS and JavaScript as files. No build step is required. Only
-`.html`, `.css`, `.js` and `.txt` assets are allowed, and the entry point must be a
-declared `.html` asset. Every asset must be valid UTF-8 text. There are no images,
-fonts, binaries or source maps, and nothing is fetched at runtime. If a package
-needs a library, bundle it as another `.js` file, with its license as `.txt`.
-
-### The environment your page runs in
-
-The host serves the page from the virtual origin `https://nendo.extension.local`
-inside a zero-capability AppContainer. The AppContainer runs in a Job Object with
-a 512 MiB aggregate memory cap, a 20% CPU cap, at most 32 processes and
-kill-on-close. Every response carries:
-
-```text
-Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline';
-  img-src 'self' data:; connect-src 'none'; frame-src 'none'; worker-src 'none';
-  object-src 'none'; base-uri 'none'; form-action 'none'
-```
-
-These are the restrictions, in the order that they usually cause problems:
-
-- **No inline `<script>` and no inline event handlers.** Because of
-  `script-src 'self'`, your JavaScript must be a separate `.js` asset, wired with
-  `addEventListener`. This is the first thing that breaks a page pasted in from
-  elsewhere.
-- **No network of any kind.** This includes `fetch`, `XMLHttpRequest`, WebSocket,
-  WebRTC, beacons, remote fonts and all CDN content. The AppContainer is the
-  boundary that enforces this. The CSP is defence in depth.
-- **No workers, no frames, no plugins, no downloads, no pop-ups.**
-- **No clipboard.** The host seals `navigator.clipboard` to `undefined` before
-  your script runs, and `document.execCommand('copy'|'cut'|'paste')` returns
-  `false`. The person's own Ctrl+C still works on visible text.
-- **No `alert`, `confirm`, `prompt`, context menu, developer tools or browser
-  accelerator keys.** To debug, draw to the page.
-- **No durable storage.** The host stages the browser profile per launch and
-  removes it on disposal, so `localStorage` does not survive when the view
-  closes. Keep state in memory and rebuild it from the projection.
-- **Inline styles are allowed** (`style-src 'unsafe-inline'`), and so are `data:`
-  images.
-- **F6 belongs to the host.** It moves focus between your renderer and Nendo's own
-  controls. Do not bind it.
-
-Navigation is pinned to the entry point. The host cancels a second top-level
-navigation and any frame navigation. Keep the view as one document. Client-side
-routing that navigates, and anything that reloads the page, will not survive.
-
-### The message contract
-
-Messages go in two directions over `window.chrome.webview`. Every message in both
-directions carries `version`, `session` and `generation`. `version` is the view's
-protocol, `1` or `2`, and a page message with any other `version` is refused. The
-methods and their keys are the same at both protocols. Every page message must
-carry the **exact** key set for its method. The host refuses an extra, missing or
-duplicate key, and a bad frame still uses part of your message budget.
-
-**Host → page** (arrives as `event.data` on the `message` event):
-
-| Method | Keys | When |
-| --- | --- | --- |
-| `initialize` | `version`, `method`, `session`, `generation`, `theme`, `locale`, `projection` | Once, at open |
-| `replaceProjection` | `version`, `method`, `session`, `generation`, `projection` | The data changed; `generation` increments and host selection is cleared |
-| `setTheme` | `version`, `method`, `session`, `generation`, `theme` | The person changed theme |
-
-`theme` is `"light"` or `"dark"`. Use it, and do not use `prefers-color-scheme`,
-which does not follow Nendo's own preference. The host also sends transport-level
-`dispose` and `focus` messages. The helper consumes them, and they never reach
-your page.
-
-**Page → host** (`window.chrome.webview.postMessage(...)`):
-
-| Method | Extra keys | Rules |
-| --- | --- | --- |
-| `ready` | — | Must arrive **within five seconds** of the session starting, exactly once, before anything else |
-| `selectRecord` | `recordId` | The ID must be a node in the **current** projection |
-| `reportError` | `code`, `message` | `code` is `render-failed` or `unsupported-projection`; `message` is at most 1024 characters of plain text |
-
-The host does not show the `reportError` text. It clears the host's selection,
-stops the view and shows its own sentence in the pane, which points to Studio. The text is
-never a command, a navigation target or telemetry.
-
-Hard limits:
-
-- **64 KiB** per frame (a larger frame closes the view before parsing);
-- **60 messages per rolling second** (flooding closes the session);
-- maximum JSON depth 8;
-- strict UTF-8.
-
-The helper queues at most 16 outbound frames. A burst from an animation loop can
-therefore lose the view. Send on the interaction, not on each animation frame.
-
-`selectRecord` is a *suggestion*. It updates host-owned selection and nothing
-else. To open the record, the person clicks a native control. Package JavaScript
-cannot forge that gesture.
-
-### The projection
+`nendo-package.json`:
 
 ```json
 {
-  "sourceChangeSequence": 41,
-  "nodes": [{"id": "rec-a", "label": "Engine", "status": "Doing"}],
-  "edges": [{"id": "rec-1", "sourceId": "rec-a", "targetId": "rec-b"}]
+  "packageId": "org.example.record-list",
+  "title": "Record list",
+  "version": "0.1.0",
+  "entryPoint": "index.html",
+  "description": "Lists the view's records and opens the one you select."
 }
 ```
-
-- `status` is present and `null` when no status field is bound. Test for both
-  `null` and `undefined`.
-- Node IDs and edge IDs are semantic record IDs from two different record types,
-  in separate namespaces. The same string can correctly appear as both.
-- Bounds: at most 500 nodes, 1,000 edges and 1 MiB serialized. Labels and status
-  text are at most 4,096 characters each. The host refuses an over-limit graph
-  whole. There is no paging and no silent truncation, so you never have to handle
-  a partial graph.
-- Cycles, self-links, parallel edges and isolated nodes are all valid, and all of
-  them reach you. Lay them out deterministically.
-- Numbers arrive as exact text, and dates as ISO text. If a label is null, the
-  record ID is used.
-
-At **protocol 2** the projection also names the disclosed fields, once, and every
-node and edge carries their values:
-
-```json
-{
-  "sourceChangeSequence": 41,
-  "fields": [
-    {"id": "owner", "name": "Owner", "type": "text", "of": "node"},
-    {"id": "system", "name": "System", "type": "reference", "of": "node"},
-    {"id": "kind", "name": "Kind", "type": "choice", "of": "edge"}
-  ],
-  "nodes": [{"id": "rec-a", "label": "Engine", "status": "Doing",
-             "values": {"owner": "Ada", "system": "THERM"}}],
-  "edges": [{"id": "rec-1", "sourceId": "rec-a", "targetId": "rec-b",
-             "values": {"kind": "blocks"}}],
-  "hiddenEdges": 0
-}
-```
-
-- `fields` is in the order the view names them. `of` is `node` or `edge`; `type` is
-  `text`, `choice`, `integer`, `decimal`, `boolean`, `date` or `reference`.
-- Every record carries exactly its type's disclosed fields, each as exact text or
-  `null`. A `reference` arrives as the **label of the record it points at**, never
-  as an ID. Nothing the view does not name is ever present.
-- `hiddenEdges` counts the links a node filter left without an endpoint. They are
-  not in `edges`; say so rather than drawing a graph that looks complete. Without a
-  node filter it is `0`, because an unavailable endpoint is refused as before.
-- The bounds above apply after filtering, and each value is at most 4,096
-  characters.
-
-A **record-set view** (`extensionRecordsSurface`, below) receives no graph. Its
-projection is one record type as typed columns:
-
-```json
-{
-  "sourceChangeSequence": 41,
-  "fields": [{"id": "starts", "name": "Starts", "type": "date", "of": "node"},
-             {"id": "ends", "name": "Ends", "type": "date", "of": "node"}],
-  "records": [{"id": "rec-a", "label": "Engine", "status": null,
-               "values": {"starts": "2026-10-01", "ends": "2026-10-21"}}]
-}
-```
-
-There is no `nodes`, `edges` or `hiddenEdges`, every field is `of: "node"`, and a
-record set holds at most **1,000** records. `extensions/gantt/` is a complete
-example.
-
-A **view on a record page** (`extensionRecordPanel`, below) receives the page's one
-record in the same shape, as `record` rather than `records`:
-
-```json
-{
-  "sourceChangeSequence": 41,
-  "fields": [{"id": "starts", "name": "Starts", "type": "date", "of": "node"}],
-  "record": {"id": "rec-a", "label": "Engine", "status": null, "values": {"starts": "2026-10-01"}}
-}
-```
-
-A package that serves both shapes reads `projection.records ?? [projection.record]`.
-
-### A minimal renderer
 
 `index.html`:
 
 ```html
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>My view</title><link rel="stylesheet" href="view.css"></head>
-<body><h1 id="summary">Waiting for your records…</h1><ul id="records"></ul>
-<script src="view.js"></script></body>
+<head>
+  <meta charset="utf-8">
+  <title>Record list</title>
+  <link rel="stylesheet" href="view.css">
+</head>
+<body>
+  <main id="content">
+    <h1 id="summary">Waiting for Nendo…</h1>
+    <ul id="records"></ul>
+  </main>
+  <script src="/_nendo/api.js"></script>
+  <script src="view.js"></script>
+</body>
 </html>
+```
+
+`view.css`:
+
+```css
+body {
+  margin: 0;
+  padding: 16px;
+  font: 14px/1.5 system-ui, sans-serif;
+  color: var(--nendo-ink, #13213d);
+  background: var(--nendo-surface-raised, #ffffff);
+}
+h1 { margin: 0 0 8px; font-size: 16px; }
+ul { margin: 0; padding: 0; list-style: none; }
+button {
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--nendo-cobalt, #2458e6);
+  cursor: pointer;
+}
 ```
 
 `view.js`:
 
 ```js
-(() => {
+(async () => {
   'use strict';
-  let session = null, generation = 0;
-  const send = (method, values = {}) => {
-    if (session !== null) window.chrome.webview.postMessage({ version: 1, session, generation, method, ...values });
-  };
-  function render({ nodes, edges }) {
-    document.getElementById('summary').textContent =
-      `${nodes.length} record${nodes.length === 1 ? '' : 's'} · ` +
-      `${edges.length} connection${edges.length === 1 ? '' : 's'}`;
-    const list = document.getElementById('records');
-    list.replaceChildren();
-    for (const node of nodes) {
-      const item = document.createElement('li'), button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = node.label;              // textContent, never innerHTML
-      button.addEventListener('click', () => send('selectRecord', { recordId: node.id }));
-      item.append(button); list.append(item);
-    }
+  const nendo = window.nendo;
+  const summary = document.getElementById('summary');
+  const list = document.getElementById('records');
+  if (nendo === undefined) {
+    summary.textContent = 'This view runs inside Nendo.';
+    return;
   }
-  window.chrome.webview.addEventListener('message', event => {
-    const message = event.data;
-    if (message.version !== 1) return;
+
+  let context;
+  try {
+    context = await nendo.ready;           // the Workbench has connected this frame
+  } catch (error) {
+    summary.textContent = error.message;   // not-framed: the page was opened on its own
+    return;
+  }
+  document.documentElement.lang = context.locale;
+
+  // A record's label as text: a reference's target label, a number's exact digits,
+  // or the value itself.
+  function label(record) {
+    const fieldId = nendo.context.bindings.labelFieldId;
+    const value = fieldId === null ? null
+      : record.labels[fieldId] ?? record.exact[fieldId] ?? record.values[fieldId];
+    return value === null || value === undefined ? record.recordId : String(value);
+  }
+
+  let latest = 0;
+  async function read() {
+    const number = ++latest;
+    let records;
     try {
-      if (message.method === 'initialize' && session === null) {
-        session = message.session; generation = message.generation;
-        document.documentElement.dataset.theme = message.theme;
-        document.documentElement.lang = message.locale || 'en';
-        render(message.projection);
-        send('ready');                               // within five seconds
-      } else if (message.session === session && message.method === 'replaceProjection'
-                 && message.generation > generation) {
-        generation = message.generation; render(message.projection);
-      } else if (message.session === session && message.method === 'setTheme') {
-        document.documentElement.dataset.theme = message.theme;
-      }
-    } catch {
-      send('reportError', { code: 'render-failed', message: 'The view could not be displayed.' });
+      records = await nendo.view.loadRecords();
+    } catch (error) {
+      summary.textContent = `The records could not be read: ${error.message}`;
+      return;
     }
-  });
+    if (number !== latest) return;         // a newer read has started since
+    summary.textContent = `${records.length} ${records.length === 1 ? 'record' : 'records'}`;
+    list.replaceChildren(...records.map((record) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label(record);  // text, never markup
+      button.addEventListener('click', () => {
+        nendo.ui.openRecord(record.entityId, record.recordId).catch((error) => {
+          summary.textContent = error.message;
+        });
+      });
+      const item = document.createElement('li');
+      item.append(button);
+      return item;
+    }));
+  }
+
+  // The file changed, or the view's definition did: read again, once for a burst.
+  let pending = null;
+  function schedule() {
+    if (pending !== null) return;
+    pending = setTimeout(() => { pending = null; read(); }, 250);
+  }
+  nendo.on('changes', schedule);
+  nendo.on('context', schedule);
+  await read();
 })();
 ```
 
-### What a good renderer owes the person
+To see it run, [put the package in a file](#put-the-package-in-a-file) and
+[show it](#show-it-the-view-definition) with an `extensionRecordsSurface` whose
+`packageId` is `org.example.record-list`.
 
-These are not style notes. Each item is a defect that reached the owner or a
-gate:
+## The package folder
 
-- **Labels are text.** Assign them with `textContent`. A record whose label looks
-  like markup must render as characters, never as elements.
-- **Fit after the layout exists.** The host composes and sizes the pane *after*
-  the page loads. On a maximized window, the pane may never resize again. A fit
-  computed against a zero-sized element pushes every node off-screen, and the
-  view looks empty. Skip a fit when the element measures under a pixel. Then
-  re-fit on the next two animation frames, on `resize` and from a
-  `ResizeObserver`.
-- **Chrome does not select.** Set `user-select: none` on headings, toolbars,
-  hints, footers and the canvas, so that a drag pans and does not highlight
-  prose. Leave any text alternative selectable.
-- **Keyboard and focus.** Everything that a pointer can reach must be reachable
-  by Tab and arrow keys, with a visible focus ring. Scroll a keyboard target fully
-  into view. Do not move a node between pointer-down and click: if pointer focus
-  recentres the graph, the click selects the wrong record.
-- **A text alternative.** Dense graphs and screen readers both need the
-  relationships as a list.
-- **Small windows.** The pane opens at half the window and never goes below
-  480 DIPs. But the person can drag the boundary from there, so treat the width
-  as theirs. At 200% scaling, 480 DIPs is roughly a 512×384 CSS-pixel viewport.
-  Every control must stay in bounds there.
-- **Both themes**, driven by `initialize` and `setTheme`.
-- **Stay inside the budget.** The whole contained tree shares 512 MiB and 20% CPU.
-  If the tree reaches 480 MiB, 32 MiB below the cap, the view stops with
-  `memory-pressure`, and the file stays editable in Studio.
+### `nendo-package.json`
 
-### Choosing the colours
+The manifest names the package. It is a JSON object of at most 64 KiB. Comments and
+trailing commas are allowed, and other keys are ignored.
 
-A package owns its palette, and nothing chooses it for you. The host sends one
-word: `theme` is `"light"` or `"dark"`, on `initialize` and again on `setTheme`.
-No colour crosses the boundary. `prefers-color-scheme` is not an alternative: it
-follows Windows, not Nendo's own preference. If a person selects Light inside
-Nendo on a dark device, the view would be dark. Drive both themes from the
-message.
+| Key | Rule |
+| --- | --- |
+| `packageId` | Required. 3–80 characters, lowercase, at least two dotted segments, each starting with a letter and holding only letters, digits and `-`, such as `org.example.map`. It is the package's stable name |
+| `title` | 1–200 characters. Default: the package ID |
+| `version` | Optional. A semantic version such as `1.0.0`, at most 40 characters |
+| `entryPoint` | Default: `index.html`. It must be one of the package's files |
+| `description` | Optional. At most 1,000 characters |
 
-**A view sits with the app.** It opens in a pane beside Nendo's own chrome. The
-File menu, the theme switch and the host toolbar are all near it. A palette of
-its own looks like a foreign window attached to the product, however good the
-palette is by itself. Match these values, current at the time of writing:
+The file never stores the manifest as a file: the package row holds what it says.
+Exporting a package writes it again.
 
-| | Light | Dark |
+### Files
+
+Every other file in the folder is part of the package, of any type. When the
+folder is read, these are left out: hidden and system files, links, and any path
+with a segment that starts with `.` or is `node_modules`. So a `.git` folder and a
+`node_modules` folder stay behind. No build step is needed, and a bundler's output
+folder works as well.
+
+- A path uses letters, digits, `_ - . ~` and `/`, at most 240 characters. A path
+  cannot start with `_nendo/`, which is reserved on every view's origin. Two paths
+  may not differ only in case.
+- A file holds at most 4 MiB, a package 512 files and 16 MiB, and a `.nendo` file
+  64 packages and 64 MiB of package bytes. One change set brings at most 4 MiB of
+  new content.
+- The media type comes from the extension: `.html` is `text/html`, `.js` and `.mjs`
+  are `text/javascript`, `.css`, `.json`, `.svg`, `.png`, `.woff2`, `.wasm` and more
+  have their own, and an unknown extension is `application/octet-stream`. Nendo
+  serves every file with `X-Content-Type-Options: nosniff`, so the browser runs a
+  script only when its type is JavaScript. Give scripts a `.js` or `.mjs`
+  extension; `.ts` is stored as `text/plain` and does not run.
+
+## The API: `window.nendo`
+
+### Load it
+
+Put `<script src="/_nendo/api.js"></script>` before your own scripts. Every view
+origin serves it from the installed Nendo, not from your package, so a view always
+talks to the Nendo it runs in. It defines `window.nendo` and nothing else. The
+script says hello to the Workbench, and the Workbench connects it over a private
+`MessageChannel`. The contract describes that
+[handshake and its messages](contracts/custom-views.md#the-view-api), but a view
+never needs to speak them itself.
+
+### Wait for `nendo.ready`
+
+`await nendo.ready` resolves with the view's **context** once the Workbench has
+connected the frame. A page opened on its own, outside any frame, is told so:
+`nendo.ready` rejects with `not-framed`, and so does every call. `nendo.context`
+always holds the latest context.
+
+| Key | Holds |
+| --- | --- |
+| `viewId` | The view's node ID in the file |
+| `kind` | `extensionGraphSurface`, `extensionRecordsSurface` or `extensionRecordPanel` |
+| `placement` | `screen`, or `recordPage` for a panel on a record page |
+| `title`, `packageId` | The view's title, and the package it runs |
+| `entityId` | The record type the view is about |
+| `recordId` | On a record page, that page's record; otherwise null |
+| `bindings` | `labelFieldId`, `statusFieldId`, `edgeEntityId`, `sourceFieldId`, `targetFieldId`; `fields`, the further fields the definition names, each `{fieldId, entityId}`; `filters`, each `{fieldId, entityId, operator, value, valueKind}` |
+| `configuration` | The definition's configuration, parsed. `{}` when there is none |
+| `theme` | `{mode, tokens}`, the person's theme |
+| `locale` | The browser's language |
+| `readOnly` | True when the open file does not accept edits |
+| `methods`, `apiVersion` | Every method the Workbench answers, and `1` |
+
+The definition decides what a view is about, and the context passes it on. The
+bindings are not permissions: a view can read any record type in the file.
+`nendo.has(name)` says whether the Workbench answers a method, so a view can use a
+method added later where it exists.
+
+## Reading records
+
+### The view's own records
+
+- `nendo.view.loadRecords()` reads the records the view is about: its record type
+  under its definition's filters, with `today` and `now` resolved as it reads, up to
+  10,000 records. On a record page it reads that page's one record.
+- `nendo.view.loadGraph()` reads a graph view's records as nodes and its link
+  records as edges, and answers `{nodes, edges, fields, hiddenEdges}`:
+  - a node is `{id, label, status, values, record}`. `label` is the label field as
+    text: a reference's target label, a choice's display name or a number's exact
+    digits. `status` is the status field's value;
+  - an edge is `{id, source, target, values, record}`, pointing from the record its
+    source reference names to the one its target names;
+  - `values` holds the fields the definition binds on that record type, and
+    `record` is the whole record;
+  - `fields` names each bound field with its record type, display name and storage
+    kind;
+  - an edge whose source or target is not among the nodes, because a filter left
+    it out or it points nowhere, is not in `edges`. `hiddenEdges` counts them. Say
+    so, rather than draw a graph that looks complete.
+
+### Any records
+
+The `nendo.records` calls read any record type in the file, through the same
+bounded reads the Workbench uses:
+
+```js
+const page = await nendo.records.query({
+  entityId: 'task',
+  filters: [{ fieldId: 'taskState', operator: 'ne', value: 'done' }],
+  sortFieldId: 'taskStarts',
+  limit: 50,                                // 1-200, 100 by default
+});
+// page.items are records; pass page.nextCursor as `cursor`, with the same query,
+// for the next page. It is null on the last page.
+
+const one = await nendo.records.get('task', 'task-42');          // a record, or null
+const open = await nendo.records.count({ entityId: 'task', filters: [] });
+const hours = await nendo.records.aggregate({ entityId: 'task', aggregate: 'sum', fieldId: 'taskEstimate' });
+// hours.value is a number; hours.valueLexeme keeps its exact digits.
+const all = await nendo.records.queryAll({ entityId: 'task' }, { max: 5000 });
+```
+
+- A filter is `{fieldId, operator, value}`. The operators are `eq`, `ne`, `lt`,
+  `le`, `gt`, `ge`, `contains`, `isNull` and `isNotNull`; the last two take no
+  value. A query carries at most eight filters. A choice compares by its option
+  ID. A query cannot filter or sort by a calculated field.
+- `records.groupAggregate`, `records.bucketAggregate` and `records.cellAggregate`
+  answer the grouped, date-bucketed and crossed totals that Nendo's own charts
+  draw. `aggregate` is `count`, `sum`, `min` or `max`, and `avg` is refused. The
+  vocabulary, `nendo://application/vocabulary`, publishes the closed `bucket` and
+  `range` words.
+- `records.queryAll(query, {max})` follows the cursor to the end, 200 records at a
+  time, up to `max` (10,000 by default). If the file changes between pages, it
+  reads again from the top, at most three times.
+
+A **record** is:
+
+| Key | Holds |
+| --- | --- |
+| `entityId`, `recordId`, `version` | Its record type, its ID and its record version |
+| `values` | Plain JSON by field ID. A number is a number, a choice is its option ID, a reference is the target record's ID, and a calculated field is its value, or null |
+| `exact` | The exact digits of every number, stored or calculated. A JavaScript number can round a decimal; this cannot |
+| `labels` | For each reference, the label of the record it points at |
+| `calculated` | Each calculated field's `state` (`value`, `empty`, `error` or `pending`), `value`, `exact` and error |
+
+Show a number from `exact` when its digits matter.
+
+### The schema
+
+`nendo.schema.describe()` answers what the file is: its `purpose`, its
+`changeSequence`, each record type with its fields, and its screens and commands. A
+field carries its `displayName`, its `storageKind`, whether it is `required` or
+`calculated`, a calculated field's formula as `expression`, a choice field's
+`choices` (`{id, displayName, retired, tone}`), a reference's target, and a
+rating's scale. Retired record types and fields are left out. Use it to name the
+fields a view shows and to turn a choice's ID into its name.
+
+## Following the file
+
+`nendo.on(name, listener)` subscribes to one of three events and returns a function
+that unsubscribes:
+
+| Event | Data | When |
 | --- | --- | --- |
-| Page behind everything (`--canvas`) | `#f4f5f7` | `#071725` |
-| A raised card (`--surface-raised`) | `#ffffff` | `#0e2435` |
-| Text (`--ink`) | `#13213d` | `#edf3ff` |
-| Secondary text (`--muted`) | `#667085` | `#a8b5c8` |
-| Hairlines (`--line`) | `#d9dde6` | `#263e50` |
-| Accent (`--cobalt`) | `#2458e6` | `#6597ff` |
-| The pane chrome around your viewport | `#f7f8fb` | `#0a1c2b` |
+| `changes` | The file's change sequence | When anything commits to the open file, from anyone: at most once every 250 ms, carrying the latest sequence |
+| `context` | The context | When the view's context changes, for example after its definition changed |
+| `theme` | `{mode, tokens}` | When the person switches between light and dark |
 
-The full set, including the eight choice tones that a status can carry, is in
-[`src/Nendo.Workbench/src/styles/02-tokens.css`](../src/Nendo.Workbench/src/styles/02-tokens.css).
-Copy the ones you need into your own `:root` and `:root[data-theme="dark"]`. If
-you draw a status in the same hue that the app gives that tone, it reads as the
-same status. That is most of the benefit of matching.
+An event is a nudge, not data. Read again what your view shows, and collapse a
+burst into one read, as the first view does. `nendo.changes.subscribe(listener)`
+is the same as `nendo.on('changes', listener)`.
 
-These are the Workbench's current values. They are not a contract. The host does
-not deliver them to the package, and nothing tells a view when they change. So a
-copy can drift away from the app that it matched. Keep the copy in one block at
-the top of your stylesheet, where you can compare it. Keep your own contrast:
-neither theme may lose hierarchy, focus or status meaning.
+When the view's package changes, because a proposal that changes its code was
+accepted, Nendo starts the view again on the new code. A redraw of the page around
+a view does not reload it.
 
-`systems-lens` follows this guidance. `dependency-graph` and `work-dependencies`
-are older than this guidance and still carry their own warm palette. A change to
-their palette would change their digests. So that change waits for a reason to
-rebuild them, and nobody makes it only to tidy up.
+## Colours and the theme
 
-A change to a stylesheet changes the package digest. A file already pinned to the
-old archive reports the package as changed. The view stays shut until the person
-reinstalls the package and allows it again. A behaviour change has the same
-consequence, because consent applies to the bytes.
+The API sets the Workbench's colours on your document's root as custom properties,
+and keeps them current: `--nendo-canvas`, `--nendo-surface`,
+`--nendo-surface-raised`, `--nendo-surface-soft`, `--nendo-ink`, `--nendo-muted`,
+`--nendo-line`, `--nendo-line-strong`, `--nendo-cobalt`, `--nendo-cobalt-soft`,
+`--nendo-violet`, `--nendo-healthy`, `--nendo-warning`, `--nendo-danger`,
+`--nendo-shadow`, and the eight choice tones `--nendo-tone-red`,
+`--nendo-tone-orange`, `--nendo-tone-amber`, `--nendo-tone-green`,
+`--nendo-tone-teal`, `--nendo-tone-blue`, `--nendo-tone-violet` and
+`--nendo-tone-grey`. It also sets `data-nendo-theme` on the root to `light` or
+`dark`, and adds a `color-scheme` meta element after any of yours.
 
-## Part 2 — Package it
+A view that draws with these follows the person's theme without listening for it.
+Give each token a fallback, as `view.css` does, for a page that runs without Nendo.
+A choice's `tone` in the schema names one of the eight tones, so a status drawn in
+`--nendo-tone-‹tone›` reads as the same status it is elsewhere in Nendo. Do not use
+`prefers-color-scheme`: it follows Windows, and a person can choose Light or Dark in
+Nendo against it. `nendo.ui.theme` and the `theme` event carry the same mode and
+values, for a canvas or a chart library that needs them in JavaScript.
 
-A package is a ZIP archive named `*.nendoview`. It contains `manifest.json` and
-exactly the assets that the manifest declares.
+## Acting for the person
 
-### The manifest
+- `nendo.ui.openRecord(entityId, recordId)` opens a record. On a Use screen of that
+  record type, the record opens beside the view, which keeps running. A record of a
+  type that Use does not show opens in Studio's Data view.
+- `nendo.ui.openScreen(surfaceId)` shows a screen in Use, named by its root node ID
+  as `schema.describe` lists it, or by its surface. The front page is a screen too.
+- `nendo.ui.openStudio(entityId)` opens Studio's Data, on one record type when you
+  name it.
+- `nendo.ui.toast(text)` shows one sentence in Nendo's outcome line, as
+  "‹view title›: ‹text›": 1–300 characters, at most one a second.
+- `nendo.ui.setHeight(pixels)` sets the height of a panel on a record page, between
+  80 and 4,000 pixels. A panel starts at 360. A view on a screen fills the screen's
+  area, and `setHeight` answers the height it has.
 
-All eight keys are required. The host refuses any unknown or duplicate key:
+The navigation calls follow the rules a click follows. While another action runs,
+or while a record page holds unsaved typing, they are refused, and nothing moves.
+
+To fit a panel to its content, measure the content, not the document, which is
+always at least as tall as the frame:
+
+```js
+if (context.placement === 'recordPage') {
+  const content = document.getElementById('content');
+  new ResizeObserver(() => {
+    nendo.ui.setHeight(Math.ceil(content.getBoundingClientRect().height) + 32).catch(() => {});
+  }).observe(content);
+}
+```
+
+## When a request is refused
+
+A refused call rejects with a `nendo.NendoError`. Its `code` is stable, and its
+`message` is a sentence you may show.
+
+| Code | Means |
+| --- | --- |
+| `invalid-params` | The parameters are not a JSON object, or one of them breaks its rule. The message names it |
+| `too-large` | The parameters take more than 256 KiB |
+| `unknown-method` | Nendo does not answer that method |
+| `busy` | 64 requests already wait, a second toast came within a second, or Nendo is finishing another action |
+| `not-allowed` | A record page has unsaved changes, so Nendo stays where it is |
+| `not-found` | The record type or the screen is not in this file |
+| `views-off` | Custom views were turned off |
+| `disconnected` | Nendo reconnected the view while the request waited. Send it again |
+| `not-framed` | The page was opened on its own, not in Nendo |
+| `stale-cursor`, `invalid-cursor` | The file changed between pages, or the cursor belongs to another query. Read again from the first page |
+
+A read Nendo refuses keeps Nendo's own code, such as `validation`. At most eight
+requests are in flight at once; the API holds the rest back, so a view that fires a
+thousand reads is slowed rather than refused.
+
+## Put the package in a file
+
+The file carries the code. There are three ways to put it there, and each is a
+proposal that a person reviews line by line before accepting. Nothing runs until the
+proposal is accepted. Each way proposes only what differs from the package the file
+already carries, and names the content each change replaces, so a proposal prepared
+against an older package is refused rather than replayed over a newer one.
+
+### From Studio
+
+1. Open **Studio → Surfaces → Custom views**, or **File → Custom views…**.
+2. Choose **Import package…**, and pick the folder's `nendo-package.json`, a `.zip`
+   of the folder, or a `.nendoview` archive from before 2026-09-25.
+3. Nendo reads the whole package, prepares the proposal and opens the review. Its
+   **Code** section shows each file: the changed lines of a text file, and the sizes
+   of any other. The review also says, once, that the code runs when a view that
+   uses its package is shown.
+4. Accept. A view that names the package now runs it.
+
+A placeholder whose package is missing offers the same Import as **Add package to
+file…**. Import is refused with `extension-unchanged` when the file already carries
+the package exactly. **Export…** in the same panel writes a package back to a new
+folder, with its `nendo-package.json`, so it can be edited and imported again.
+
+### Over MCP
+
+An agent at the **Shape app** access level writes the package through an ordinary
+change set: take a lease, `nendo.change_set.begin`, add the operations with
+`nendo.change_set.add_operations`, and `nendo.change_set.validate`. The person
+accepts the proposal in Nendo. One mutation that holds the package and its files
+becomes one revision, which History can compensate as a whole.
 
 ```json
 {
-  "manifestVersion": 1,
-  "packageId": "org.example.my-view",
-  "version": "0.1.0",
-  "protocolVersion": 1,
-  "entryPoint": "index.html",
-  "capabilities": ["projection.read", "record.select"],
-  "license": "MIT",
-  "assets": [
-    {"path": "index.html", "bytes": 512, "sha256": "<64 lowercase hex characters>"}
+  "description": "Put the Record list view in the file",
+  "operations": [
+    { "operationType": "extension.setPackage",
+      "payload": { "packageId": "org.example.record-list", "title": "Record list", "version": "0.1.0" } },
+    { "operationType": "extension.putFile",
+      "payload": { "packageId": "org.example.record-list", "path": "index.html", "text": "<!doctype html>\n…" } },
+    { "operationType": "extension.putFile",
+      "payload": { "packageId": "org.example.record-list", "path": "view.js", "text": "(async () => {\n…" } }
   ]
 }
 ```
 
-| Key | Rule |
-| --- | --- |
-| `manifestVersion` | Exactly `1` |
-| `packageId` | Lowercase reverse-domain, at least two dot-separated segments, each starting `a`–`z` and containing only `a`–`z`, `0`–`9` and `-`; at most 200 characters |
-| `version` | Exact SemVer, at most 64 characters; numeric prerelease identifiers may not have leading zeros |
-| `protocolVersion` | `1` or `2`, and it must equal the view's. Negotiation is exact, with no wildcard compatibility: a view at another protocol refuses to start the package |
-| `entryPoint` | A declared asset path ending `.html` |
-| `capabilities` | Exactly `projection.read` and `record.select`, in either order. It is a fixed pair. You cannot extend it as a permission list |
-| `license` | Non-empty text, at most 256 characters |
-| `assets` | Every non-manifest file, each with its `path`, exact `bytes` and lowercase-hex `sha256`. The inventory must equal the archive contents exactly |
+- `text` is stored as UTF-8 exactly as written, and `base64` carries any bytes.
+  `mediaType` is optional and defaults from the extension.
+- One `putFile` payload is at most 96 KiB. Send a larger file in parts: a first
+  `putFile`, then `putFile` operations with `append: true` for the same package and
+  path, later in the same change set. Nendo joins the parts in order at validation.
+  About two parts fit in one call.
+- `expectedSha256` makes a put or a removal conditional: the hash the path holds
+  now, or `absent` for a path that must be new.
+- `extension.removeFile` removes a file, and `extension.removePackage` an empty
+  package. A replaced or removed file stays in history.
+- The preview's `packageChanges` lists each file as added, replaced or removed,
+  with the changed lines of a text file: the same lines the person reads.
 
-### Limits and path rules
-
-Size limits:
-
-- at most 10 MiB of archive bytes;
-- at most 30 MiB expanded;
-- at most 200 entries, including the manifest;
-- a `manifest.json` of at most 64 KiB.
-
-Paths are relative and slash-separated, with at most 240 characters. They may
-contain only letters, digits, `_`, `-`, `.` and `/`. The host refuses:
-
-- absolute paths;
-- `.` and `..` segments;
-- a segment ending in a dot;
-- Windows reserved names (`CON`, `PRN`, `AUX`, `NUL`, `COM0`–`COM9`,
-  `LPT0`–`LPT9`);
-- duplicate or case-colliding paths;
-- symlinks and reparse points;
-- alternate data streams;
-- any extension outside `.html`, `.css`, `.js`, `.txt`.
-
-### Building reproducibly
-
-The digest of the archive **is** the identity. So an unchanged source tree must
-produce an unchanged digest.
-[`tools/Build-NendoViewPackage.ps1`](../tools/Build-NendoViewPackage.ps1) packs any
-package. Give it the source directory, the package ID, the version, the entry
-point and the ordered asset list, as the three one-line wrappers beside it do.
-These properties make the build reproducible:
-
-- a fixed ZIP entry timestamp (`1980-01-01T00:00:00Z`) and `ExternalAttributes = 0`;
-- a fixed entry order, `manifest.json` first;
-- an ordered, compact manifest, so key order does not drift;
-- the asset hashes computed from the same source files that are written.
-
-Build the package, then read the pin:
-
-```powershell
-pwsh ./tools/Build-NendoViewPackage.ps1 -Source extensions/my-view `
-  -PackageId org.example.my-view -PackageVersion 0.1.0 `
-  -Assets index.html, view.css, view.js, LICENSE.txt      # prints Package: … and SHA-256: …
-(Get-FileHash -LiteralPath <path>.nendoview -Algorithm SHA256).Hash.ToLowerInvariant()
-```
-
-Validation uses the caller's exact archive bytes. It reads the digest that you
-pin, the byte length and SHA-256 of every asset, and the bounds above. It
-extracts nothing and executes nothing. Nendo's installer never installs a package
-silently.
-
-## Part 3 — Pin it in a file
-
-Author a view with the ordinary canonical UI operations (`ui.addNode`,
-`ui.setProperty`, `ui.removeNode`) through a change set that the person accepts.
-There is no second pipeline and no Studio builder for it. The published MCP
-example `pin-an-offline-custom-graph` in `nendo://application/examples` is the
-form to copy.
-
-```json
-{
-  "operationType": "ui.addNode",
-  "payload": {
-    "surfaceId": "dependencies",
-    "nodeId": "dependencyGraph",
-    "parentNodeId": null,
-    "kind": "extensionGraphSurface",
-    "position": 0,
-    "properties": {
-      "definitionVersion": 3,
-      "entityId": "graphNode",
-      "title": "Dependencies",
-      "packageId": "org.example.my-view",
-      "packageVersion": "0.1.0",
-      "packageDigest": "<the archive SHA-256, 64 lowercase hex characters>",
-      "protocolVersion": 1,
-      "configurationVersion": 1,
-      "configuration": "{}",
-      "labelFieldId": "graphLabel",
-      "edgeEntityId": "graphEdge",
-      "sourceFieldId": "graphFrom",
-      "targetFieldId": "graphTo"
-    }
-  }
-}
-```
-
-| Property | Rule |
-| --- | --- |
-| `definitionVersion` | `3`; contract versions may not be mixed across roots |
-| `entityId` | The **node** record type. The surface's own entity |
-| `title` | Presentation only. It is not part of the consent digest |
-| `packageId`, `packageVersion`, `packageDigest` | The exact pin. The digest is the archive's, never the manifest's |
-| `protocolVersion`, `configurationVersion` | `1` or `2`, and `1`, for this host |
-| `configuration` | JSON **text** holding an object, at most 8192 UTF-8 bytes, depth 8. Version 1 must be `"{}"` |
-| `labelFieldId` | An active stored **Text** field of the node type |
-| `statusFieldId` | Optional; an active stored non-reference scalar of the node type |
-| `edgeEntityId` | The edge record type |
-| `sourceFieldId`, `targetFieldId` | Two **distinct** active configured Reference fields of the edge type, both targeting the node type |
-
-At protocol 1 the root has no children. At **protocol 2** it may have two kinds,
-added under the root with `ui.addNode` in the same change set:
-
-| Child | Properties | Rule |
-| --- | --- | --- |
-| `fieldBinding` | `fieldId` | One more active stored field of the node type or the edge type; the field's own record type decides which. Text, a single choice, Integer, Decimal, Boolean, Date, or a configured Reference (sent as its target's label). Not a calculated field, and not one the view already binds. At most eight per record type, in the order the page receives them |
-| `filterClause` | `fieldId`, `operator`, `value` | Narrows the node type or the edge type, by the field's record type. `eq`, `ne`, `lt`, `lte`, `gt`, `gte` with a literal `value`, or `isNull`/`isNotNull` with none. Not `today` or `now`: a running view's projection is replaced, and a filter that drifts with the clock would change what was allowed. At most eight, combined with AND |
-
-Disclosed fields and filters are part of the consent digest: adding, removing or
-reordering one asks the person again, and the review names each field.
-
-The host refuses an invalid binding as `NUI450`, and a child kind a view does not
-take as `NUI013`. The host preserves a higher `configurationVersion` verbatim and
-warns `NUI451`, and execution then refuses with `extension-version-unsupported`. A
-file that uses this root requires host **1.29.0**, and **1.30.0** once a view in it
-is at protocol 2. To retire a bound record type or field, remove or
-replace the view in the same proposal. Removal of the view never removes records.
-A single-operation removal can be compensated while the definition revision is
-unchanged, for a view with no children. After that, or for a view that carried
-disclosed fields or filters, it is not offered.
-
-**A record-set view** is the root `extensionRecordsSurface`. It takes the same
-package, protocol, configuration, `entityId`, `title`, `labelFieldId` and optional
-`statusFieldId` properties as a graph, and no edge type: `edgeEntityId`,
-`sourceFieldId` and `targetFieldId` are refused. It is protocol 2 only. Its columns
-are its `fieldBinding` children and its filters its `filterClause` children, all on
-its one record type. A file with one requires host **1.31.0**, and the package must
-declare protocol 2.
-
-**A view on a record page** is `extensionRecordPanel`, a child of a `detailSurface`
-or `recordForm`, directly or inside a `section` or a tab. It takes `title`, the
-package pin, `protocolVersion` 2, `configurationVersion`, `configuration`,
-`labelFieldId` and optional `statusFieldId`, and `fieldBinding` children for its
-columns. It has no `entityId` (the page's record type is its own), no edge type and
-no filters, and a page carries at most four. It shows only a placeholder until the
-person presses Show view, and only one runs per window. A file with one requires
-host **1.32.0**.
-
-A definition is portable. A person can review, accept, copy and reopen it on a
-machine where the package does not exist. It carries no consent anywhere.
-
-## Part 4 — Install, allow, open
-
-Do these steps on the person's device, in this order. The view's screen in Use
-shows exactly one next step at a time, with a sentence that tells the person
-where they are:
-
-1. **Install package…**: a native file picker and package review. It validates
-   the archive and caches it, content-addressed, outside the `.nendo` file. It
-   grants no permission to run anything.
-2. **Allow this view**: the native consent dialog. It names the exact package,
-   its unsigned status, its digest and the human-readable field names that the
-   view will read. This is the only thing that authorizes execution. Its scope is
-   this physical file on this device.
-3. **Open graph**: the view opens as a pane beside the records, with a host-owned
-   toolbar (Open record, Focus graph, Refresh, Studio, Disable view, Close).
-
-File → Custom views manages packages directly. It can install a package, export
-the exact original bytes for offline transfer, or remove a package. For a view in
-the file, it can review permission, disable the view, or open it after review.
-
-While the view runs, Nendo re-reads the bounded typed view every 500 ms:
-
-- changed data sends `replaceProjection` with a new generation;
-- changed bindings stop execution;
-- withdrawn consent closes the session. Nendo checks consent every 100 ms, also
-  when the page sends nothing.
-
-**Rebuilding the package changes its digest**, and a different digest is a
-different package. Any file pinned to the old digest reports the package as
-changed. The person must reinstall and allow it again. During development, expect
-to repeat all three steps on every build.
-
-## Writing a package into the file
-
-A package's code can live in the `.nendo` file itself, at host 1.33.0. There it is
-stored, reviewed as code and read back. **Nothing runs it yet.** A view still runs
-the device-installed package that it pins, as Parts 1–4 describe. Running views
-from the file, with no install and no consent, is ADR-0013's Phase 2. The
-[contract](contracts/custom-views.md#packages-in-the-file) has the full rules.
-
-An agent writes a package through MCP, in a change set that the person accepts:
-
-1. `extension.setPackage` creates the package. It takes a `packageId`, lowercase
-   and dotted such as `org.example.map`, and a `title`. `entryPoint` (default
-   `index.html`), `version` and `description` are optional.
-2. `extension.putFile` puts one file. It takes `packageId`, `path`, and the content
-   as `text`, stored as UTF-8 exactly as written, or as `base64`, for any bytes.
-   `mediaType` defaults from the path's extension. Any file type is allowed.
-3. A file whose payload would be larger than 96 KiB is sent in parts. Send the
-   first part as an ordinary `putFile`. Send the rest as `putFile` operations with
-   `append: true` for the same package and path, later in the same change set. The
-   host joins the parts in order at validation. About two parts fit in one call.
-4. Validate. The preview's `packageChanges` lists each file as added, replaced or
-   removed, with the changed lines of a text file. The person reads the same lines
-   in the review's **Code** section before accepting.
-
-Put the package and its files in one mutation. They then become one revision,
-which History can compensate as a whole. To change a file, put it again: the
-review shows the changed lines, and the old version stays in history.
-`extension.removeFile` removes a file, and `extension.removePackage` removes an
-empty package.
-
-A path uses letters, digits, `_ - . ~` and `/`, at most 240 characters, and nothing
-under `_nendo/`, which is reserved for the host. A file holds at most 4 MiB, a
-package 512 files and 16 MiB, and a `.nendo` file 64 packages and 64 MiB. One change
-set brings at most 4 MiB of new content.
-
-Read the package back after acceptance:
-
-- `nendo://application/extensions` lists each file's path, media type, SHA-256 and
-  size.
-- `nendo://application/extension/{packageId}/file?path=…&offset=…` returns a file in
-  pages of at most 131,072 bytes. Percent-encode the path: `tiles/world.bin` is
-  `tiles%2Fworld.bin`. Follow `nextOffset` until it is null. Then compare the
-  SHA-256 of what you assembled with the page's `sha256`, which describes the whole
-  file.
-
+Read a package back at `nendo://application/extensions`, which lists each file's
+path, media type, SHA-256 and size, and at
+`nendo://application/extension/{packageId}/file?path=…&offset=…`, which returns a
+file in pages of at most 131,072 bytes. Percent-encode the path, so
+`tiles/world.bin` is `tiles%2Fworld.bin`, and follow `nextOffset` until it is null.
 The example `put-a-custom-view-in-the-file` in `nendo://application/examples` is a
 complete change set to copy.
 
-## When it refuses you
+### With `tools/Put-NendoPackage.mjs`
 
-**The package will not install.** The message ends in one of these codes:
-`archive-size`, `archive-digest`, `file-count`, `manifest-missing`, `manifest-size`,
-`manifest-version`, `manifest-object`, `manifest-properties`, `manifest-string`,
-`duplicate-property`, `package-id`, `package-version`, `capabilities`, `entry-point`,
-`asset-path`, `asset-link`, `asset-size`, `asset-type`, `asset-digest`,
-`asset-inventory`, `expanded-size`, `malformed-content`. `asset-inventory` and
-`asset-digest` almost always mean that the manifest was written before the assets
-changed.
+From a clone of this repository, with Nendo running, the file open and agent access
+at **Shape app**:
 
-**The view opens and then closes.** The session refuses with one of `not-approved`,
-`ready-timeout`, `message-rate-exceeded`, `message-too-large`, `invalid-message`,
-`invalid-session`, `stale-generation`, `unknown-method`, `invalid-properties`,
-`duplicate-property`, `already-ready`, `not-ready`, `record-outside-projection`,
-`invalid-error`. Three refusals close the session: `not-approved`,
-`ready-timeout` and `message-rate-exceeded`. The first message must be an
-accepted `ready` within five seconds, or the view does not open. After `ready`,
-the host drops any other refused message and the view stays open. An accepted
-`reportError` also stops the view. These three causes are the most frequent:
+```powershell
+node tools/Put-NendoPackage.mjs extensions/gantt             # propose the folder
+node tools/Put-NendoPackage.mjs extensions/gantt --dry-run   # say what it would send
+```
 
-- the page never sent `ready` (often because an inline script was blocked and the
-  page never ran), so the view does not open;
-- a message echoes an old `generation` after a `replaceProjection`, so the host
-  drops it;
-- a `selectRecord` names a node that is no longer in the projection, so the
-  selection does not change.
+The script reads `nendo-package.json` and every other file in the folder, except
+paths with a segment that starts with `.` or is `node_modules`. It finds the
+running Nendo through the files a running Nendo writes under
+`%LOCALAPPDATA%\Nendo\Mcp\active`, and proposes only the files that differ. It
+prints the proposal's title; accept it in Nendo. It never accepts anything.
 
-**The page is blank.** Check the fit-before-layout case above first.
+With more than one Nendo running, name the file by its application ID with
+`--application <applicationId>`. `--title` sets the proposal's title. The script
+sends each operation as its own mutation, so History shows a revision for each
+file. If the draft does not validate, the script prints why and leaves the draft
+open.
 
-**The view's screen says the package is not available.** Its state is one of
-`missing`, `corrupt` or `unavailable`. The next step becomes *Install package…*
-again.
+## Show it: the view definition
 
-## What is not solved
+A package runs only where a view definition names it. A definition is a node in the
+file's screens, authored with `ui.addNode` in a change set that a person accepts,
+like any other screen. Studio has no form for it. The example `show-a-custom-graph`
+in `nendo://application/examples` defines a graph.
 
-These are the limits, so that a package does not claim more than the host does:
+### A screen of records
 
-- **No publisher signing, identity or key revocation.** Every package is unsigned
-  and requires an explicit person-in-the-loop review.
-- **No download, marketplace or update channel.** Packages move as files, offline.
-- **One surface kind and one projection shape.** No second capability, no
-  storage, no host navigation.
-- **Release qualification is incomplete.** The installed-host and offline visible
-  journeys and formal owner usability sign-off remain open for W-007. The
-  clean-user NSIS lane stays Not run under the owner-installation interlock.
+An `extensionRecordsSurface` is a screen of one record type, and the view fills
+it. In Use it is one of that record type's screens, listed by its title.
+
+```json
+{
+  "description": "Show the tasks in the Record list view",
+  "operations": [
+    { "operationType": "ui.addNode",
+      "payload": { "surfaceId": "taskRecordList", "nodeId": "taskRecordList", "parentNodeId": null,
+        "kind": "extensionRecordsSurface", "position": 0,
+        "properties": { "definitionVersion": 3, "entityId": "task", "title": "Record list",
+          "packageId": "org.example.record-list", "labelFieldId": "taskTitle" } } },
+    { "operationType": "ui.addNode",
+      "payload": { "surfaceId": "taskRecordList", "nodeId": "taskRecordList.starts", "parentNodeId": "taskRecordList",
+        "kind": "fieldBinding", "position": 0, "properties": { "fieldId": "taskStarts" } } }
+  ]
+}
+```
+
+### A graph
+
+An `extensionGraphSurface` is a screen whose records are nodes and whose links are
+records of another type. It also names `edgeEntityId`, the link type, and
+`sourceFieldId` and `targetFieldId`, two distinct Reference fields of the link type
+that both point at the node type. A `fieldBinding` under it may name a field of
+either type.
+
+### A panel on a record page
+
+An `extensionRecordPanel` sits on a record page or a record form, at the place it is
+authored: directly under the `detailSurface` or `recordForm`, or inside a
+`section`, in a tab or not. It is about that page's record. It names no `entityId`,
+because its record type is the page's, and it takes no link type and no filter. A
+page may carry as many as it likes.
+
+```json
+{ "operationType": "ui.addNode",
+  "payload": { "surfaceId": "taskPage", "nodeId": "taskPage.timeline", "parentNodeId": "taskPage",
+    "kind": "extensionRecordPanel", "position": 4,
+    "properties": { "title": "Timeline", "packageId": "org.nendo.gantt", "labelFieldId": "taskTitle" } } }
+```
+
+Here `taskPage` is the record page's root node. Its `fieldBinding` children name the
+fields the view shows, and they are the view's: they never become fields of the
+form around it.
+
+### Properties
+
+| Property | Graph | Records | Panel | Rule |
+| --- | --- | --- | --- | --- |
+| `definitionVersion` | Required | Required | — | `3` |
+| `entityId` | Required | Required | — | The record type the view is about |
+| `title` | Required | Required | Required | The view's title |
+| `packageId` | Required | Required | Required | The package in this file that the view runs |
+| `labelFieldId` | Required | Required | Required | Any active field of the record type, stored or calculated |
+| `statusFieldId` | Optional | Optional | Optional | Any active field of the record type, stored or calculated |
+| `configuration` | Optional | Optional | Optional | JSON text holding an object, at most 16 KiB and 32 levels deep |
+| `edgeEntityId`, `sourceFieldId`, `targetFieldId` | Required | — | — | The link type and its two References to the node type |
+
+A view may carry `fieldBinding` children, which name further fields to show, stored
+or calculated, and, on a screen, `filterClause` children, which narrow its records:
+`{fieldId, operator, value}` with an optional `valueKind`. A filter names a stored
+field, uses the operators `eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `isNull` and
+`isNotNull`, and may compare against `today` or `now` through `valueKind`. A view
+carries at most 64 children, and each field is shown once. `loadRecords` and
+`loadGraph` apply the filters; a query reads at most eight of them.
+
+Earlier hosts required `packageVersion`, `packageDigest`, `protocolVersion` and
+`configurationVersion`. They are not needed. When present, they are kept and read by
+nothing.
+
+### Configuration
+
+`configuration` is for a view's settings: which field is the start date, a default
+zoom, a colour scale. The view reads it parsed:
+
+```json
+"configuration": "{\"startField\":\"taskStarts\",\"zoom\":2}"
+```
+
+```js
+const { startField = null, zoom = 1 } = nendo.context.configuration;
+```
+
+Nendo does not interpret it. It is not the place for data.
+
+### What Nendo checks
+
+- An invalid definition is the error `NUI450`, and the change set does not
+  validate. The message names what is wrong: a package ID, a record type, a label, a
+  field or a filter that does not exist or breaks a rule.
+- A package the file does not carry is the warning `NUI452`. The definition is
+  sound and waits for its code; the view says "‹package› is not in this file" where
+  it is shown, and offers **Add package to file…**.
+- A view that only the open rules accept needs host 1.34.0: no pins, a configuration
+  with anything in it, a calculated label or field, a `today` or `now` filter, or
+  more fields or panels than earlier hosts allowed. A view that the earlier rules
+  accept keeps its earlier rung, 1.29.0 to 1.32.0. The review shows a raise before
+  you accept it. A file that carries a package needs 1.33.0 in any case.
+
+## Running, stopping and debugging
+
+- A view starts when its place comes into view: a screen when you show it, a panel
+  when the record page scrolls it near the window. Nothing runs in Studio, in safe
+  mode or during recovery.
+- **DevTools.** Right-click inside the running view and choose **Inspect**. DevTools
+  open on the element you clicked. To run code inside the view, choose its frame as
+  the Console's context, in the drop-down that starts at `top`. The Network and
+  Application panels show its requests and its storage, and its `console.log` lines
+  appear in the Console.
+- **Not responding.** Nendo pings each view every five seconds, and the API answers
+  for you. A view that keeps its main thread busy for ten seconds is marked "This
+  view is not responding", with **Stop** and **Reload**. Stop ends every view of the
+  same package, because they share one renderer process. Keep long work in a worker
+  or in slices.
+- **A crash.** If a view's renderer ends, each of its package's views says "This
+  view stopped", with **Reload**. The rest of Nendo is unaffected.
+- **Switches.** **Run custom views** turns every view off on this device, and **Run
+  this file's views** turns off this file's. Both are in Studio → Surfaces → Custom
+  views. If a view brings the whole window down, the recovery panel offers **Restart
+  without custom views**, which keeps views off until you turn them on again or
+  start Nendo again.
+- **Test outside Nendo.** The four packages are measured in Playwright by their
+  `Review-*.ps1` lanes, which serve the package on one origin and a fixture broker,
+  `tools/Graph-FixtureBroker.html`, on another, with the real `api.js` between them.
+  Copy one of those lanes for your own package.
+
+## What a view can and cannot reach
+
+| A view can | A view cannot |
+| --- | --- |
+| Read every record type in its file, calculated fields and exact numbers included | Reach Nendo's own page: `parent.document` throws |
+| Hear every change to its file | Reach the host bridge: `window.chrome.webview` answers nothing in a frame |
+| Use the network, loopback included, and open WebSockets | Use Nendo's MCP endpoint, which refuses browser origins |
+| Read and write the clipboard, and download files | Reach SQL, a file path, another file or a device setting |
+| Keep `localStorage` and IndexedDB, per package and file, on this device | Navigate Nendo away, or load Nendo inside a frame |
+| Send a link the person clicks, one that opens a new window, to their own browser | Open a window by script without the person's click |
+| Show the browser's `alert`, `confirm` and `prompt` | Write, run a command, prepare a proposal or keep state in the file (not yet: Phase 3) |
+| Ask Nendo to open a record, a screen or Studio, show a sentence and size its panel | Accept or reject a proposal, ever |
+
+Browser storage belongs to the view's origin, which is its own for each package in
+each file. It stays on this device and does not travel with the file.
+
+A received file's code runs when its view is shown, with these powers. The switches
+are the control. The [contract](contracts/custom-views.md#the-trade) states the
+trade.

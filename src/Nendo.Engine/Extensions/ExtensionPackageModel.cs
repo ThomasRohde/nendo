@@ -130,8 +130,20 @@ public static class NendoExtensionContent
     /// two segments, each starting with a letter, of letters, digits and hyphens.
     /// </summary>
     public static bool ValidPackageId(string? value) =>
-        value is { Length: >= 3 and <= NendoExtensionLimits.PackageIdCharacters } &&
-        NendoExtensionViewDefinition.ValidPackageId(value);
+        value is { Length: >= 3 and <= NendoExtensionLimits.PackageIdCharacters } && value.Split('.').Length >= 2 &&
+        value.Split('.').All(segment => segment.Length > 0 && segment[0] is >= 'a' and <= 'z' &&
+            segment.All(character => character is >= 'a' and <= 'z' or >= '0' and <= '9' or '-'));
+
+    /// <summary>An exact semantic version such as 1.0.0 or 2.1.0-beta.1, without leading zeros in numeric parts.</summary>
+    public static bool ValidVersion(string value)
+    {
+        if (value.Length > 64 || !System.Text.RegularExpressions.Regex.IsMatch(value,
+                @"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant)) return false;
+        var release = value.Split('+')[0];
+        var dash = release.IndexOf('-');
+        return dash < 0 || release[(dash + 1)..].Split('.').All(part => part.Length == 1 || part[0] != '0' || !part.All(char.IsAsciiDigit));
+    }
 
     /// <summary>
     /// A relative path of letters, digits, <c>_ - . ~</c> and <c>/</c> between segments. No

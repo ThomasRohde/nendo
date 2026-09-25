@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- The Workbench CSP with frame-src added, exactly as proposed. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src https://*.example"
+    />
+    <title>Spike Workbench</title>
+    <style>
+      body { margin: 0; font: 13px system-ui, sans-serif; background: #f4f5f7; color: #111; }
+      header { display: flex; gap: 16px; align-items: center; height: 48px; padding: 0 12px; background: #fff; border-bottom: 1px solid #ccd; }
+      #wb-button { width: 180px; height: 32px; }
+      #wb-title { font-size: 15px; margin: 0; }
+      #stage { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; align-content: flex-start; min-height: 20px; }
+      iframe { border: 1px solid #99a; background: #fff; }
+      #moves { display: flex; gap: 8px; padding: 8px; }
+      #left, #right { min-width: 380px; min-height: 220px; outline: 1px dashed #aab; }
+      #scroller { height: 320px; width: 420px; overflow: auto; border: 1px solid #99a; margin: 8px; background: #fff; }
+      #spacer { height: 6000px; background: linear-gradient(#fff, #dde); }
+    </style>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <button id="wb-button" type="button">Workbench button</button>
+      <h1 id="wb-title">Spike Workbench</h1>
+    </header>
+    <div id="stage"></div>
+    <div id="moves"><div id="left"></div><div id="right"></div></div>
+    <div id="scroller"><div id="spacer"></div><div id="scroll-end"></div></div>
+  </body>
+</html>

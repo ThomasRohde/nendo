@@ -201,6 +201,14 @@ internal static class SemanticDiff
                     $"Operation type {operation.OperationType} has no semantic diff mapping."),
             });
         }
+        // Code carried into the file runs when a view that names its package is shown, with the
+        // file's typed API. Said once, as a line of its own, so accepting code is accepting that.
+        if (changeSet.Mutations.SelectMany(mutation => mutation.Operations).OfType<PutExtensionFileOperation>().Any())
+        {
+            result.Add(Entry("extensionCode",
+                "This code runs when a view that uses its package is shown. It can read and change this file's records through Nendo, reach the network and use the clipboard.",
+                NendoReversibilityClass.ReversibleWithRetainedState));
+        }
         return result.AsReadOnly();
     }
 
@@ -704,13 +712,13 @@ internal static class SemanticDiff
         // The field this binding shows, on the surface it shows it on, in one sentence.
         // A binding whose field is set later in a change set this does not see says the
         // general thing instead, which is true rather than invented.
-        // A custom view's own binding is a field the view receives, not one shown on the page
-        // or screen around it; the old sentence said a record page would show it.
+        // A custom view's own binding is a field the view shows, not one shown on the page or
+        // screen around it. It is not a permission: the view's code reads through the file's API.
         "fieldBinding" when names.BindingFields.TryGetValue(operation.NodeId, out var viewed) &&
             operation.ParentNodeId is { } parent && NendoExtensionViewDefinition.IsViewKind(names.NodeKinds.GetValueOrDefault(parent)) =>
             names.NodeLabels.TryGetValue(parent, out var view)
-                ? $"Let the custom view \"{view}\" read {FieldName(names, viewed)}."
-                : $"Let the custom view read {FieldName(names, viewed)}.",
+                ? $"Show {FieldName(names, viewed)} in the custom view \"{view}\"."
+                : $"Show {FieldName(names, viewed)} in the custom view.",
         "fieldBinding" when names.BindingFields.TryGetValue(operation.NodeId, out var fieldId) =>
             SurfaceName(names, operation.SurfaceId, operation.NodeId) is { } surface
                 ? $"Show {FieldName(names, fieldId)} on {surface}."
@@ -720,9 +728,9 @@ internal static class SemanticDiff
         "boardSurface" => "Add grouped board.",
         "calendarSurface" => "Add a month calendar of a date field, with its own undated view.",
         "timelineSurface" => "Add a timeline of a date field, with its own undated view.",
-        "extensionGraphSurface" => "Add an isolated custom graph view. Its pinned package needs separate installation and device consent; records remain available in Studio.",
-        "extensionRecordsSurface" => "Add an isolated custom view of these records as typed columns. Its pinned package needs separate installation and device consent; records remain available in Studio.",
-        "extensionRecordPanel" => "Add an isolated custom view of each record to its page. It starts only when asked; its pinned package needs separate installation and device consent, and the page stays editable.",
+        "extensionGraphSurface" => "Add a custom graph view. It runs its package's code from this file when shown; records remain available in Studio.",
+        "extensionRecordsSurface" => "Add a custom view of these records as typed columns. It runs its package's code from this file when shown; records remain available in Studio.",
+        "extensionRecordPanel" => "Add a custom view of each record to its page. It runs its package's code from this file when the page shows it, and the page stays editable.",
         "gallerySurface" => "Add a gallery of cards, one per record.",
         "detailSurface" => "Add a record page.",
         "recordCommand" => "Add record command.",
@@ -801,17 +809,15 @@ internal static class SemanticDiff
         var kind = names.NodeKinds.GetValueOrDefault(operation.NodeId, string.Empty);
         return operation.PropertyName switch
         {
-            "packageId" => $"Use custom-view package {Text(operation.Value, "package")}; installation and consent are separate.",
-            "packageVersion" => $"Pin package version {Text(operation.Value, "version")} without automatic updates.",
-            "packageDigest" => $"Pin the exact package archive {Text(operation.Value, "digest")}; a different digest needs fresh device consent.",
-            "protocolVersion" => $"Require custom-view protocol {Text(operation.Value, "version")}.",
-            "configurationVersion" => $"Use custom-view configuration version {Text(operation.Value, "version")}.",
-            "configuration" => "Retain the bounded custom-view configuration; unsupported versions stay disabled.",
+            "packageId" => $"Draw this view with the package {Text(operation.Value, "package")} carried in this file.",
+            "packageVersion" or "packageDigest" or "protocolVersion" or "configurationVersion" =>
+                $"Keep the earlier pin {operation.PropertyName}; this host reads the package from the file instead.",
+            "configuration" => $"Give the view this configuration, which its code reads: {Text(operation.Value, "configuration")}",
             "edgeEntityId" => $"Read graph relationships from {EntityName(names, Text(operation.Value, "entity"))}.",
             "labelFieldId" => kind == NendoExtensionViewDefinition.NodeKind
-                ? $"Disclose {FieldName(names, Text(operation.Value, "field"))} as the graph node label."
-                : $"Disclose {FieldName(names, Text(operation.Value, "field"))} as each record's label.",
-            "statusFieldId" => $"Disclose {FieldName(names, Text(operation.Value, "field"))} as exact graph status text.",
+                ? $"Label each graph node with {FieldName(names, Text(operation.Value, "field"))}."
+                : $"Label each record with {FieldName(names, Text(operation.Value, "field"))}.",
+            "statusFieldId" => $"Show {FieldName(names, Text(operation.Value, "field"))} as each record's status.",
             "sourceFieldId" => $"Follow {FieldName(names, Text(operation.Value, "field"))} to each edge's source node.",
             "targetFieldId" => $"Follow {FieldName(names, Text(operation.Value, "field"))} to each edge's target node.",
             // A board grouped by a reference has columns that are records rather than

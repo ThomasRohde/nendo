@@ -92,6 +92,13 @@ internal static class NendoSemanticCapability
 
         internal IReadOnlyList<NendoUiNodeSnapshot> Nodes => _nodes;
 
+        /// <summary>Whether the fields to hand include any of this record type's, so a missing field means absent rather than unknown.</summary>
+        internal bool KnowsEntity(string entityId) => _fields.Keys.Any(key => key.Entity == entityId);
+
+        /// <summary>The storage kind of one stored field of a record type, or null when it is not a stored field of it.</summary>
+        internal NendoStorageKind? StoredKind(string entityId, string fieldId) =>
+            _fields.TryGetValue((entityId, fieldId), out var kind) ? kind : null;
+
         internal bool HasKind(string kind) => _nodes.Any(node => node.Kind == kind);
 
         /// <summary>The kind of a node's parent, or null for a root or a dangling reference.</summary>
@@ -216,14 +223,63 @@ internal static class NendoSemanticCapability
                 .Concat(tree.OfKind(NendoExtensionViewDefinition.PanelKind)).Any(view =>
                 view.Properties.TryGetValue("protocolVersion", out var protocol) &&
                 protocol.ValueKind == System.Text.Json.JsonValueKind.Number &&
-                protocol.TryGetInt32(out var number) && number >= NendoExtensionViewDefinition.FieldsProtocolVersion)),
+                protocol.TryGetInt32(out var number) && number >= 2)),
         new(NendoFormat.ExtensionRecordsMinimumHostVersion,
             "a custom view of records as typed columns",
             tree => tree.HasKind(NendoExtensionViewDefinition.RecordsKind)),
         new(NendoFormat.ExtensionRecordPanelMinimumHostVersion,
             "a custom view on a record page",
             tree => tree.HasKind(NendoExtensionViewDefinition.PanelKind)),
+        new(NendoFormat.OpenCustomViewsMinimumHostVersion,
+            "a custom view defined beyond what earlier hosts read",
+            tree => tree.Nodes.Any(view => NendoExtensionViewDefinition.IsViewKind(view.Kind) && BeyondEarlierHosts(tree, view))),
     ];
+
+    private static readonly string[] EarlierPins = ["packageVersion", "packageDigest", "protocolVersion", "configurationVersion", "configuration"];
+
+    /// <summary>
+    /// Whether a view says something the 1.32 rules refused. Only shapes those rules certainly
+    /// refused count: raising a file whose view they accepted would disable editing it in the
+    /// host that opened it, while missing a new shape costs a 1.32 host one view it cannot draw.
+    /// A question the tree cannot answer without fields counts as not beyond.
+    /// </summary>
+    private static bool BeyondEarlierHosts(Tree tree, NendoUiNodeSnapshot view)
+    {
+        if (EarlierPins.Any(pin => !view.Properties.ContainsKey(pin))) return true;
+        try
+        {
+            using var configuration = JsonDocument.Parse(Tree.Text(view, "configuration") ?? "{}");
+            if (configuration.RootElement.ValueKind == JsonValueKind.Object && configuration.RootElement.EnumerateObject().Any()) return true;
+        }
+        catch (JsonException) { return false; }
+        var children = tree.Nodes.Where(node => node.ParentNodeId == view.NodeId && node.SurfaceId == view.SurfaceId).ToArray();
+        var protocol = view.Properties.TryGetValue("protocolVersion", out var declared) && declared.ValueKind == JsonValueKind.Number &&
+            declared.TryGetInt32(out var number) ? number : 0;
+        if (protocol == 1 && children.Length > 0) return true;
+        if (children.Any(child => child.Kind == "filterClause" && Tree.Text(child, "valueKind") is { } kind && kind != "literal")) return true;
+        if (view.Kind == NendoExtensionViewDefinition.PanelKind &&
+            tree.Nodes.Count(node => node.SurfaceId == view.SurfaceId && node.Kind == NendoExtensionViewDefinition.PanelKind) > 4) return true;
+        var bindings = children.Where(child => child.Kind == "fieldBinding").Select(child => Tree.Text(child, "fieldId")).OfType<string>().ToArray();
+        if (bindings.Length > 16) return true;
+        var nodeEntity = view.Kind == NendoExtensionViewDefinition.PanelKind
+            ? tree.Nodes.FirstOrDefault(node => node.SurfaceId == view.SurfaceId && node.ParentNodeId is null) is { } page ? Tree.Text(page, "entityId") : null
+            : Tree.Text(view, "entityId");
+        var edgeEntity = Tree.Text(view, "edgeEntityId");
+        if (nodeEntity is null || !tree.KnowsEntity(nodeEntity)) return false;
+        // What 1.32 read: a stored Text label, a stored non-reference status, and at most eight
+        // stored fields of each record type. A calculated field is none of these.
+        if (Tree.Text(view, "labelFieldId") is { } label && tree.StoredKind(nodeEntity, label) is not NendoStorageKind.Text) return true;
+        if (Tree.Text(view, "statusFieldId") is { } status && tree.StoredKind(nodeEntity, status) is null or NendoStorageKind.Reference) return true;
+        var perType = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var fieldId in bindings.Concat(children.Where(child => child.Kind == "filterClause").Select(child => Tree.Text(child, "fieldId")).OfType<string>()))
+        {
+            var owner = tree.StoredKind(nodeEntity, fieldId) is not null ? nodeEntity
+                : edgeEntity is not null && tree.StoredKind(edgeEntity, fieldId) is not null ? edgeEntity : null;
+            if (owner is null) return true;
+            if (bindings.Contains(fieldId, StringComparer.Ordinal) && (perType[owner] = perType.GetValueOrDefault(owner) + 1) > 8) return true;
+        }
+        return false;
+    }
 
     /// <summary>
     /// The lowest host version that compiles this node tree. An empty-but-valid

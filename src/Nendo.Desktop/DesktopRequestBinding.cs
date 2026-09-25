@@ -49,7 +49,6 @@ internal sealed partial class DesktopSessionController
     private void RotateFileSession()
     {
         StopExtensionsForFile();
-        _extensionReviews.Clear();
         _fileSessionId = $"file-session-{Guid.NewGuid():N}";
         // A single admitted lifecycle action may close and reopen a file. Only
         // that action follows its transition; other queued request scopes do not.

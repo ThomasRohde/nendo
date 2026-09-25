@@ -1,29 +1,20 @@
-using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace Nendo.Engine;
 
-/// <summary>A durable, host-understood reference. It contains neither code nor consent.</summary>
+/// <summary>
+/// A custom view as the file declares it (ADR-0013): which package draws it, what it is
+/// about, and the configuration its code reads. The code itself is a package in the file;
+/// nothing here grants or pins anything.
+/// </summary>
 public sealed record NendoExtensionViewDefinition(string ViewId, string Title, string PackageId,
-    string PackageVersion, string PackageDigest, int ProtocolVersion, int ConfigurationVersion,
     string Configuration, NendoGraphBinding Binding)
 {
     public const string NodeKind = "extensionGraphSurface";
-    /// <summary>
-    /// One record type as typed columns (ADR-0013, 2026-09-24 record-set amendment): no edge
-    /// type, protocol 2 only, and the page receives records rather than nodes and links.
-    /// </summary>
+    /// <summary>One record type as typed columns: no edge type, and the page reads records rather than nodes and links.</summary>
     public const string RecordsKind = "extensionRecordsSurface";
-    public const int MaximumRecords = 1000;
-    /// <summary>
-    /// A view on a record page, scoped to that page's one record (ADR-0013, 2026-09-24
-    /// record-set amendment). It is a child of the page rather than a root, takes its record
-    /// type from the page, and nothing runs until the person asks for it.
-    /// </summary>
+    /// <summary>A view on a record page, scoped to that page's one record; its record type is the page's.</summary>
     public const string PanelKind = "extensionRecordPanel";
-    /// <summary>How many views one record page may carry; only one of them runs at a time.</summary>
-    public const int MaximumPanelsPerPage = 4;
     /// <summary>Whether a node is a custom view of any shape or placement.</summary>
     public static bool IsViewKind(string? kind) => kind is NodeKind or RecordsKind or PanelKind;
     /// <summary>Whether a node is a custom view with a screen of its own, rather than a place on a record page.</summary>
@@ -32,30 +23,21 @@ public sealed record NendoExtensionViewDefinition(string ViewId, string Title, s
     public string Kind { get; init; } = NodeKind;
     public bool IsRecordSet => Kind == RecordsKind;
     public bool IsRecordPanel => Kind == PanelKind;
-    /// <summary>Protocol 2 (ADR-0013, 2026-09-24): disclosed fields and authored filters as child nodes.</summary>
-    public const int FieldsProtocolVersion = 2;
-    public const int MaximumDisclosedFieldsPerType = 8;
-    public const int MaximumFilters = 8;
-    public bool IsSupported => ProtocolVersion is 1 or FieldsProtocolVersion && ConfigurationVersion == 1;
 
-    /// <summary>
-    /// A panel's digest also names its kind: it reads one record where a record set over the
-    /// same fields reads all of them, so the same permission must not cover both. The two
-    /// older shapes keep the digest they were approved under.
-    /// </summary>
-    public string ComputeBindingDigest() => Convert.ToHexString(SHA256.HashData(IsRecordPanel
-        ? JsonSerializer.SerializeToUtf8Bytes(new { Binding, ProtocolVersion, ConfigurationVersion, Configuration, Kind })
-        : JsonSerializer.SerializeToUtf8Bytes(new { Binding, ProtocolVersion, ConfigurationVersion, Configuration }))).ToLowerInvariant();
+    /// <summary>The most UTF-8 bytes a view's configuration may hold. A bound, not an optimum: room for a view's settings, not its data.</summary>
+    public const int MaximumConfigurationBytes = 16 * 1024;
+    /// <summary>The most fieldBinding and filterClause children one view carries together.</summary>
+    public const int MaximumChildren = 64;
 
     public static NendoExtensionViewDefinition Read(string viewId, IReadOnlyDictionary<string, JsonElement> properties) =>
         Read(viewId, properties, []);
 
     /// <summary>
-    /// <paramref name="children"/> are the root's direct children in authored order. A
-    /// protocol-1 view has none. A protocol-2 view may carry fieldBinding and filterClause
-    /// children only; which record type each belongs to is the compiler's and the
-    /// projection's to resolve, because this reader does not see the schema. A future
-    /// protocol's children are preserved in the file and not interpreted here.
+    /// <paramref name="children"/> are the view's direct children in authored order:
+    /// fieldBinding children name the fields it shows, filterClause children narrow what it
+    /// reads. Which record type each belongs to is the compiler's to resolve, because this
+    /// reader does not see the schema. The package pin, protocol and configuration version
+    /// that earlier hosts required are kept in the file when present and read by nothing.
     /// </summary>
     public static NendoExtensionViewDefinition Read(string viewId, IReadOnlyDictionary<string, JsonElement> properties,
         IReadOnlyList<NendoUiNodeSnapshot> children, string kind = NodeKind)
@@ -68,52 +50,36 @@ public sealed record NendoExtensionViewDefinition(string ViewId, string Title, s
                 throw Invalid($"{key} must be nonempty text of at most {maximum} characters.");
             return text;
         }
-        int Number(string key)
+        var package = Text("packageId", NendoExtensionLimits.PackageIdCharacters);
+        if (!NendoExtensionContent.ValidPackageId(package))
+            throw Invalid("packageId must name a package in lowercase dotted segments, such as org.example.map.");
+        var configuration = "{}";
+        if (properties.ContainsKey("configuration"))
         {
-            if (!properties.TryGetValue(key, out var value) || value.ValueKind != JsonValueKind.Number ||
-                !value.TryGetInt32(out var number) || number < 1) throw Invalid($"{key} must be a positive integer.");
-            return number;
+            configuration = Text("configuration", MaximumConfigurationBytes);
+            if (System.Text.Encoding.UTF8.GetByteCount(configuration) > MaximumConfigurationBytes)
+                throw Invalid($"configuration holds at most {MaximumConfigurationBytes} UTF-8 bytes.");
+            try
+            {
+                using var parsed = JsonDocument.Parse(configuration, new JsonDocumentOptions { MaxDepth = 32 });
+                if (parsed.RootElement.ValueKind != JsonValueKind.Object)
+                    throw Invalid("configuration must be JSON text containing an object.");
+            }
+            catch (JsonException) { throw Invalid("configuration must be valid JSON text, at most 32 levels deep."); }
         }
-        var package = Text("packageId", 200);
-        var version = Text("packageVersion", 64);
-        var digest = Text("packageDigest", 64);
-        if (!ValidPackageId(package)) throw Invalid("packageId must be a lowercase namespaced package identifier.");
-        if (!ValidVersion(version)) throw Invalid("packageVersion must be an exact semantic version.");
-        if (digest.Length != 64 || digest.Any(c => c is not (>= '0' and <= '9' or >= 'a' and <= 'f')))
-            throw Invalid("packageDigest must be a lowercase SHA-256 digest.");
-        var protocol = Number("protocolVersion");
-        var configurationVersion = Number("configurationVersion");
-        var config = Text("configuration", 8192);
-        if (System.Text.Encoding.UTF8.GetByteCount(config) > 8192)
-            throw Invalid("configuration must contain at most 8192 UTF-8 bytes.");
-        try
-        {
-            using var parsed = JsonDocument.Parse(config, new JsonDocumentOptions { MaxDepth = 8 });
-            if (parsed.RootElement.ValueKind != JsonValueKind.Object)
-                throw Invalid("configuration must be JSON text containing an object.");
-            // Future bounded configuration is retained verbatim, never interpreted by this host.
-            if (configurationVersion == 1 && parsed.RootElement.EnumerateObject().Any())
-                throw Invalid("Configuration version 1 is an empty object; graph bindings are declared separately.");
-        }
-        catch (JsonException) { throw Invalid("configuration must be valid JSON text with maximum depth 8."); }
         // A record set has one record type and no links, so it names no edge type and no
-        // endpoints; the binding's edge members stay null, which also keeps its digest apart
-        // from any graph's. A record panel is the same with one record, and its record type
-        // is the page's: the store reads it from the page root and passes it in as entityId.
+        // endpoints. A record panel is the same with one record, and its record type is the
+        // page's: the reader takes it from the page and passes it in as entityId.
         var records = kind is RecordsKind or PanelKind;
         if (records && (properties.ContainsKey("edgeEntityId") || properties.ContainsKey("sourceFieldId") || properties.ContainsKey("targetFieldId")))
             throw Invalid("A record-set view has no edge type: remove edgeEntityId, sourceFieldId and targetFieldId.");
-        if (records && protocol != FieldsProtocolVersion && protocol <= FieldsProtocolVersion)
-            throw Invalid("A record-set view speaks protocol 2: its columns are disclosed fields.");
         if (kind == PanelKind && children.Any(child => child.Kind == "filterClause"))
             throw Invalid("A view on a record page shows that one record, so it has no filters.");
         var binding = new NendoGraphBinding(Text("entityId"), Text("labelFieldId"), records ? null : Text("edgeEntityId"),
             records ? null : Text("sourceFieldId"), records ? null : Text("targetFieldId"), properties.ContainsKey("statusFieldId") ? Text("statusFieldId") : null);
         if (!records && binding.SourceFieldId == binding.TargetFieldId) throw Invalid("The two edge reference fields must differ.");
-        if (protocol == 1 && children.Count > 0)
-            throw Invalid("A protocol-1 view has no children. Declare protocolVersion 2 to disclose more fields or to filter.");
-        if (protocol == FieldsProtocolVersion) binding = ReadChildren(binding, children);
-        return new(viewId, Text("title"), package, version, digest, protocol, configurationVersion, config, binding) { Kind = kind };
+        binding = ReadChildren(binding, children);
+        return new(viewId, Text("title"), package, configuration, binding) { Kind = kind };
     }
 
     /// <summary>
@@ -151,6 +117,8 @@ public sealed record NendoExtensionViewDefinition(string ViewId, string Title, s
 
     private static NendoGraphBinding ReadChildren(NendoGraphBinding binding, IReadOnlyList<NendoUiNodeSnapshot> children)
     {
+        if (children.Count > MaximumChildren)
+            throw Invalid($"A custom view carries at most {MaximumChildren} fieldBinding and filterClause children together.");
         var fields = new List<string>();
         var filters = new List<NendoGraphFilter>();
         foreach (var child in children)
@@ -165,42 +133,25 @@ public sealed record NendoExtensionViewDefinition(string ViewId, string Title, s
             if (child.Kind == "fieldBinding")
             {
                 var fieldId = Property("fieldId");
-                if (fields.Contains(fieldId, StringComparer.Ordinal)) throw Invalid($"The field '{fieldId}' is disclosed twice.");
+                if (fields.Contains(fieldId, StringComparer.Ordinal)) throw Invalid($"The field '{fieldId}' is shown twice.");
                 fields.Add(fieldId);
             }
             else if (child.Kind == "filterClause")
             {
                 var fieldId = Property("fieldId");
                 var comparison = Property("operator");
-                if (child.Properties.TryGetValue("valueKind", out var kind) &&
-                    (kind.ValueKind != JsonValueKind.String || kind.GetString() != "literal"))
-                    throw Invalid("A custom view filters on a literal value or on presence; today and now would change what it shows without any definition change.");
+                var valueKind = child.Properties.TryGetValue("valueKind", out var declared) && declared.ValueKind == JsonValueKind.String
+                    ? declared.GetString()! : "literal";
                 var presence = comparison is "isNull" or "isNotNull";
                 var hasValue = child.Properties.TryGetValue("value", out var value);
-                if (presence == hasValue)
-                    throw Invalid(presence ? $"'{comparison}' does not take a value." : "The filter has no value to compare.");
-                filters.Add(new(fieldId, comparison, hasValue ? value.GetRawText() : null));
+                if (presence && hasValue) throw Invalid($"'{comparison}' does not take a value.");
+                if (!presence && valueKind == "literal" && !hasValue) throw Invalid("The filter has no value to compare.");
+                filters.Add(new(fieldId, comparison, hasValue ? value.GetRawText() : null) { ValueKind = valueKind });
             }
             else throw Invalid($"A custom view's children are fieldBinding and filterClause; '{child.Kind}' is not one of them.");
         }
-        if (fields.Count > MaximumDisclosedFieldsPerType * 2) throw Invalid("A custom view discloses at most eight fields of each record type.");
-        if (filters.Count > MaximumFilters) throw Invalid("A custom view has at most eight filters.");
         return binding with { FieldIds = fields, Filters = filters };
-    }
-
-    internal static bool ValidPackageId(string value) => value.Length is > 0 and <= 200 && value.Split('.').Length >= 2 &&
-        value.Split('.').All(s => s.Length > 0 && s[0] is >= 'a' and <= 'z' && s.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-'));
-
-    internal static bool ValidVersion(string value)
-    {
-        if (value.Length > 64 || !Regex.IsMatch(value, @"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z", RegexOptions.CultureInvariant)) return false;
-        var release = value.Split('+')[0];
-        var dash = release.IndexOf('-');
-        return dash < 0 || release[(dash + 1)..].Split('.').All(s => s.Length == 1 || s[0] != '0' || !s.All(char.IsAsciiDigit));
     }
 
     private static NendoPreconditionException Invalid(string message) => new("extension-definition-invalid", message);
 }
-
-public sealed record NendoExtensionViewSnapshot(string ApplicationId, string InstanceId,
-    NendoExtensionViewDefinition Definition, NendoGraphProjection Projection);

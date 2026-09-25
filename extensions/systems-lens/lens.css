@@ -1,25 +1,25 @@
-/* Nendo's own tokens, copied from src/Nendo.Workbench/src/styles/02-tokens.css so the
-   schematic sits with the app rather than beside it. Nothing crosses the extension
-   boundary — the host sends one word, light or dark — so these are a copy and can drift
-   if the app's change. Keep them in step when they do. */
+/* Nendo's own colours, so the schematic sits with the app rather than beside it. The
+   Workbench hands a view its theme's tokens and api.js sets them on this page as
+   --nendo-*; the value after each is that token as src/Nendo.Workbench/src/styles/02-tokens.css
+   declares it, used only when the page runs without them. */
 :root{
   color-scheme:light;
   font:16px/1.5 "Segoe UI Variable Text","Segoe UI",sans-serif;
-  --canvas:#f4f5f7;--surface:#fbfbfc;--surface-raised:#fff;--surface-soft:#f0f1f6;
-  --ink:#13213d;--muted:#667085;--line:#d9dde6;--line-strong:#c9cfdb;
-  --cobalt:#2458e6;--cobalt-soft:#e9edff;--violet:#7256d9;
-  --healthy:#2c9a50;--warning:#b56a13;--danger:#c5364f;
-  --tone-red:#d3384f;--tone-orange:#d9651c;--tone-amber:#b8860b;--tone-green:#2f9e5b;
-  --tone-teal:#1f9a94;--tone-blue:#2f6fe4;--tone-violet:#7a55d6;--tone-grey:#6b7385;
+  --canvas:var(--nendo-canvas,#f4f5f7);--surface:var(--nendo-surface,#fbfbfc);--surface-raised:var(--nendo-surface-raised,#fff);--surface-soft:var(--nendo-surface-soft,#f0f1f6);
+  --ink:var(--nendo-ink,#13213d);--muted:var(--nendo-muted,#667085);--line:var(--nendo-line,#d9dde6);--line-strong:var(--nendo-line-strong,#c9cfdb);
+  --cobalt:var(--nendo-cobalt,#2458e6);--cobalt-soft:var(--nendo-cobalt-soft,#e9edff);--violet:var(--nendo-violet,#7256d9);
+  --healthy:var(--nendo-healthy,#2c9a50);--warning:var(--nendo-warning,#b56a13);--danger:var(--nendo-danger,#c5364f);
+  --tone-red:var(--nendo-tone-red,#d3384f);--tone-orange:var(--nendo-tone-orange,#d9651c);--tone-amber:var(--nendo-tone-amber,#b8860b);--tone-green:var(--nendo-tone-green,#2f9e5b);
+  --tone-teal:var(--nendo-tone-teal,#1f9a94);--tone-blue:var(--nendo-tone-blue,#2f6fe4);--tone-violet:var(--nendo-tone-violet,#7a55d6);--tone-grey:var(--nendo-tone-grey,#6b7385);
 }
 :root[data-theme=dark]{
   color-scheme:dark;
-  --canvas:#071725;--surface:#0a1c2b;--surface-raised:#0e2435;--surface-soft:#10283a;
-  --ink:#edf3ff;--muted:#a8b5c8;--line:#263e50;--line-strong:#355469;
-  --cobalt:#6597ff;--cobalt-soft:#142f5e;--violet:#ad97ff;
-  --healthy:#59d584;--warning:#f0b15f;--danger:#ff8298;
-  --tone-red:#ff7b8c;--tone-orange:#ff9a5c;--tone-amber:#f2c14e;--tone-green:#5ed48a;
-  --tone-teal:#4dd0c8;--tone-blue:#7ba6ff;--tone-violet:#b39dff;--tone-grey:#a3adc0;
+  --canvas:var(--nendo-canvas,#071725);--surface:var(--nendo-surface,#0a1c2b);--surface-raised:var(--nendo-surface-raised,#0e2435);--surface-soft:var(--nendo-surface-soft,#10283a);
+  --ink:var(--nendo-ink,#edf3ff);--muted:var(--nendo-muted,#a8b5c8);--line:var(--nendo-line,#263e50);--line-strong:var(--nendo-line-strong,#355469);
+  --cobalt:var(--nendo-cobalt,#6597ff);--cobalt-soft:var(--nendo-cobalt-soft,#142f5e);--violet:var(--nendo-violet,#ad97ff);
+  --healthy:var(--nendo-healthy,#59d584);--warning:var(--nendo-warning,#f0b15f);--danger:var(--nendo-danger,#ff8298);
+  --tone-red:var(--nendo-tone-red,#ff7b8c);--tone-orange:var(--nendo-tone-orange,#ff9a5c);--tone-amber:var(--nendo-tone-amber,#f2c14e);--tone-green:var(--nendo-tone-green,#5ed48a);
+  --tone-teal:var(--nendo-tone-teal,#4dd0c8);--tone-blue:var(--nendo-tone-blue,#7ba6ff);--tone-violet:var(--nendo-tone-violet,#b39dff);--tone-grey:var(--nendo-tone-grey,#a3adc0);
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--canvas);color:var(--ink);height:100vh;display:flex;flex-direction:column;padding:20px;gap:10px}

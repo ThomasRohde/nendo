@@ -1,8 +1,10 @@
 # Reads and authority contract
 
-The accepted custom-view slice adds a coherent bounded graph read inside the same
-Engine storage boundary. See [custom views](custom-views.md). It has no new MCP or
-Workbench endpoint yet, and it does not grant a package query authority.
+A custom view reads the file through the Workbench's own bounded reads, under the
+same bounds: `data.queryRecords`, `data.countRecords` and the aggregate reads, which
+the Workbench's broker calls for it from a closed method table. It adds no host read
+of its own and no MCP endpoint, and it reaches no SQL and no path. See
+[custom views](custom-views.md#the-method-table).
 
 This contract covers bounded reads, cursor discipline and the scope of read
 authority. It refines the write coordinator. It does not change the file format,

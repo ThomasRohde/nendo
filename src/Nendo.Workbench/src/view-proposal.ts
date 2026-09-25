@@ -21,7 +21,7 @@ export function renderProposal(): void {
     <div class="message-slot" role="alert" hidden></div>
     <div class="proposal-layout">
       <section class="proposal-changes"><h3>What changes</h3>${preview.semanticDiff.map((entry) => `<article><span class="change-mark" aria-hidden="true">＋</span><div><strong>${escapeHtml(entry.summary)}</strong><p>${escapeHtml(reversibilityLabel(entry.reversibility))}</p></div></article>`).join('')}${packageChangesMarkup(preview.packageChanges)}</section>
-      <aside class="proposal-summary"><h3>Preview</h3>${plan === null ? isProposalPreviewable(preview.state) ? '<p>Validated for Studio. Review the field and record changes beside this panel. No custom surface is added.</p>' : '<p>No healthy preview is available.</p>' : `<dl><div><dt>Record type</dt><dd>${escapeHtml(plan.entity.displayName)}</dd></div><div><dt>Screen</dt><dd>${escapeHtml(surfaceTitle(plan) ?? '')}</dd></div><div><dt>Operations</dt><dd>${preview.operationCount}</dd></div></dl><p>Explore the read-only screen preview below.</p>`}
+      <aside class="proposal-summary"><h3>Preview</h3>${plan === null ? isProposalPreviewable(preview.state) ? (preview.packageChanges?.length ?? 0) > 0 ? (preview.packageChanges ?? []).every((change) => change.change === 'removed') ? '<p>Validated. Accepting takes this code out of the file; a view that uses the package then says its package is missing.</p>' : '<p>Validated. Read the code beside this panel: once you accept, it runs wherever a screen or a record page shows its view.</p>' : '<p>Validated for Studio. Review the field and record changes beside this panel. No custom surface is added.</p>' : '<p>No healthy preview is available.</p>' : `<dl><div><dt>Record type</dt><dd>${escapeHtml(plan.entity.displayName)}</dd></div><div><dt>Screen</dt><dd>${escapeHtml(surfaceTitle(plan) ?? '')}</dd></div><div><dt>Operations</dt><dd>${preview.operationCount}</dd></div></dl><p>Explore the read-only screen preview below.</p>`}
         <div class="proposal-actions"><button id="reject-proposal" class="secondary-button" data-action type="button">Reject</button><button id="accept-proposal" class="primary-button" data-action type="button" ${!isProposalPreviewable(preview.state) ? 'disabled' : ''}>Accept changes</button></div>
         ${preview.diagnostics.map((item) => `<p class="proposal-diagnostic">${escapeHtml(item.message)} ${escapeHtml(item.hint)}</p>`).join('')}
       </aside>
@@ -59,7 +59,10 @@ export async function promoteProposal(): Promise<void> {
       showError(result.promotion.message);
       return;
     }
-    state.view = state.proposal.previewApplications?.length ? 'use' : 'data';
+    // A proposal that only brings code goes back to where it began: Use, where its view now
+    // runs, or Studio's Custom views panel.
+    const codeOnly = !state.proposal.previewApplications?.length && (state.proposal.packageChanges?.length ?? 0) > 0;
+    state.view = state.proposal.previewApplications?.length ? 'use' : codeOnly ? state.proposalReturnView : 'data';
     state.proposal = null;
     const notice = await refreshAfterOutcome(result);
     rerender();

@@ -1,0 +1,7 @@
+{
+  "packageId": "org.nendo.systems-lens",
+  "title": "Systems Lens",
+  "version": "1.0.0",
+  "entryPoint": "index.html",
+  "description": "Draws components in the direction of supply, names circuits, and shows which components lose every declared feed path when one is taken out."
+}

@@ -1,6 +1,7 @@
+// First, so that a Workbench loaded inside a frame stops before anything else has run.
+import './frame-guard';
 import { refreshAgentStatus, renderAgent, renderAgentProposal } from './view-agent';
-import { destroyGrid, renderData, renderDataRecordDialog } from './view-data';
-import { loadFocusedRecord } from './reads';
+import { destroyGrid, renderData } from './view-data';
 import { refreshHealth, renderHealth } from './view-health';
 import { renderHelp } from './view-help';
 import { renderHistory } from './view-history';
@@ -20,7 +21,8 @@ import { client } from './client';
 import { announce, applyRail, applyTheme, content, historyBack, historyForward, isThemePreference, navigation, readPreference, readRailCollapsed, railToggle, requiredElement, root, sessionContext, sessionFile, sessionHealth, sessionStatus, sessionVersion, setAgentWork, setBusy, setRenderer, showError, stopInFlightWork, systemDark, themeButtons, workspaceTitle, rerender, markPlace } from './shell';
 import { holdingThePage, refuseWhileDirty } from './draft-guard';
 import { backTarget, forwardTarget, goBack, goForward, placeName, recordPlace } from './navigation-actions';
-import { state, focusedRecords } from './app-state';
+import { state } from './app-state';
+import { installViewFrames, parkViewFrames, releaseViewFrames } from './view-frames';
 import { capitalise, messageFor } from './format';
 import {
   ClientSideRowModelModule,
@@ -54,6 +56,10 @@ ModuleRegistry.registerModules([
  */
 
 function render(): void {
+  // A custom view is a frame, and replacing the markup around it would reload it. Every
+  // live frame is taken out of the page before the page goes, adopted by its new
+  // placeholder while the view draws, and released at the end if nothing adopted it.
+  parkViewFrames();
   // Named before the markup is replaced, so a redraw of the same screen can put the
   // reader back where they were. The surface is part of it: moving from one board to
   // another is a new screen and starts at the top.
@@ -112,6 +118,7 @@ function render(): void {
     }
   }
   setBusy(state.actionInFlight);
+  releaseViewFrames();
 }
 
 /**
@@ -485,23 +492,6 @@ client.onNavigate?.((route) => {
   else if (route === 'studio') void openWorkspaceView('data');
 });
 
-client.onOpenRecord?.((target) => {
-  void (async () => {
-    if (state.actionInFlight || target.fileSessionId !== state.session.fileSessionId || refuseWhileDirty('opening a graph record')) return;
-    state.actionInFlight = true; setBusy(true);
-    try {
-      await loadFocusedRecord(target.entityId, target.recordId);
-      if (target.fileSessionId !== state.session.fileSessionId) return;
-      const entity = state.session.entities.find(e => e.entityId === target.entityId);
-      const record = focusedRecords.get(target.recordId);
-      if (!entity || !record) throw new Error('That record is no longer available. Refresh the graph.');
-      state.view = 'data'; state.selectedEntityId = entity.entityId;
-      rerender(); renderDataRecordDialog(entity, record);
-    } catch (error) { showError(messageFor(error)); }
-    finally { state.actionInFlight = false; setBusy(false); }
-  })();
-});
-
 /**
  * The open file moved, so look again.
  *
@@ -604,5 +594,7 @@ window.setInterval(() => {
 
 // Hand the two frame operations to the shell before anything can ask for one.
 setRenderer(render, updateChrome);
+// Custom views answer to the broker from their first frame, so it listens before the first render.
+installViewFrames();
 
 void initialise();

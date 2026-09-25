@@ -26,8 +26,8 @@ the same change rather than working around it.
   `DOTNET_INSTALL_DIR` to a local path if that matters to you.
 - Node at the floor declared in `src/Nendo.Workbench/package.json` (`engines`).
 - **Windows.** `Nendo.Engine` is `net10.0` and builds anywhere, but the Desktop
-  host is WinUI 3 (`net10.0-windows10.0.26100.0`) and the custom-view helper
-  needs AppContainer, so the solution as a whole is Windows x64 only.
+  host is WinUI 3 (`net10.0-windows10.0.26100.0`) with WebView2, so the solution
+  as a whole is Windows x64 only.
 
 Build the Workbench before the host — it is bundled into the Desktop output:
 

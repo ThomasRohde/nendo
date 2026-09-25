@@ -45,7 +45,8 @@ a total.
 | Calendar | up to 8 | Records on a month grid by one date field, plus an **Undated** view. | Date fields only. A date-and-time field is refused. |
 | Timeline | up to 8 | Records under month headings on a one-year spine, plus an **Undated** view. An optional end date draws a span. | Date fields only. A record is placed by its start date. |
 | Matrix | up to 8 | A grid that crosses two fields, with an exact count and the cards in each cell. | At most 366 cells, so about 19 by 19. |
-| Custom graph | up to 8 | Records as a node-and-edge graph drawn by an installed package. | See [Custom views](/nendo/docs/custom-views). |
+| Custom graph | up to 8 | Records as a node-and-edge graph, drawn by a custom view whose code the file carries. | See [Custom views](/nendo/docs/custom-views). |
+| Custom view | up to 8 | One record type, drawn by a custom view whose code the file carries: a Gantt chart, a map. A custom view can also sit on a record page. | See [Custom views](/nendo/docs/custom-views). |
 | Record page | 1 | One record: a header, fields in sections and tabs, related lists, tiles and commands. | |
 | Form | 1 | One record as a plain form for entering data. | Used only when there is no record page. |
 | Command | up to 8 | A button that sets fields on the open record. | |

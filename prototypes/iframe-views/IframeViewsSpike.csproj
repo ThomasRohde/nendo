@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Disposable spike: custom views as cross-origin iframes inside one WebView2.
+       Not in Nendo.slnx; references no production project. Build and run it through
+       run.ps1, which puts every output under artifacts/spike-iframe-views (see README.md). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>IframeViewsSpike</RootNamespace>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+  <!-- S20 negative probe: `-p:SpikeProbe=true` compiles one API that 1.0.3179.45 lacks.
+       `-p:SpikeWebView2Version=...` exists only to show that probe against another cached SDK. -->
+  <PropertyGroup>
+    <SpikeWebView2Version Condition="'$(SpikeWebView2Version)' == ''">1.0.3179.45</SpikeWebView2Version>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(SpikeProbe)' == 'true'">
+    <DefineConstants>$(DefineConstants);PROBE_NESTED_FRAMECREATED</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The version Nendo.Desktop resolves transitively from Microsoft.WindowsAppSDK 1.8,
+         not the central 1.0.3719.77 that Nendo.ExtensionHost uses. -->
+    <PackageReference Include="Microsoft.Web.WebView2" VersionOverride="$(SpikeWebView2Version)" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="app\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="view\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <!-- WebView2's package adds WPF even for a WinForms-only probe. -->
+  <Target Name="RemoveUnusedWpfReference" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="$([System.String]::Copy('%(Reference.Identity)').EndsWith('Microsoft.Web.WebView2.Wpf.dll'))" />
+    </ItemGroup>
+  </Target>
+</Project>

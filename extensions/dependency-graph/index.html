@@ -4,9 +4,10 @@
 <body>
 <header><div><h1>Dependencies</h1><p id="summary" role="status">Waiting for your records…</p></div>
 <div class="tools" aria-label="Graph controls"><button id="zoom-out" aria-label="Zoom out">−</button><button id="reset">Fit graph</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="text-toggle" aria-expanded="false" aria-controls="text-view">Text view</button></div></header>
-<p class="hint">Select a record to follow its connections. Use Nendo’s Open record control to edit. Drag to pan; use + and − to zoom.</p>
+<p class="hint">Select a record to follow its connections; Nendo opens it for editing. Drag to pan; use + and − to zoom.</p>
 <main><div id="canvas" tabindex="0" aria-label="Dependency graph. Arrow keys pan. Plus and minus zoom. Tab moves through records."><svg id="graph" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Records and directed dependencies"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs><g id="drawing"></g></svg><p id="empty" hidden>No records yet. Add records in Nendo to build this graph.</p></div>
 <section id="text-view" aria-label="Dependencies as text" hidden><ul id="records"></ul></section></main>
 <footer id="selection" aria-live="polite">No record selected</footer>
+<script src="/_nendo/api.js"></script>
 <script src="graph.js"></script>
 </body></html>

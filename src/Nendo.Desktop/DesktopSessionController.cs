@@ -45,6 +45,12 @@ internal sealed record DesktopSessionView(
     public DesktopLocationWarning? LocationWarning { get; init; }
 
     /// <summary>
+    /// The file's custom-view packages and whether their views may run on this device now.
+    /// Null when no file is open or the file is in recovery.
+    /// </summary>
+    public DesktopExtensionRuntimeView? Extensions { get; init; }
+
+    /// <summary>
     /// Which build this is. Present on every view, including the empty one: a
     /// version that disappears when no file is open cannot answer the question it
     /// exists for.
@@ -503,6 +509,7 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
     {
         if (_service is null)
         {
+            StopExtensionsForFile();
             return (_detachedRecovery ?? DesktopSessionView.Empty) with { FileSessionId = _fileSessionId };
         }
 
@@ -518,17 +525,18 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
             return RecoveryView();
         }
         if (!_service.Capabilities.ReadData) return RecoveryView();
+        var health = snapshot.Health switch
+        {
+            NendoSessionHealth.Normal => "normal",
+            NendoSessionHealth.ReadOnly => "readOnly",
+            NendoSessionHealth.RecoveryRequired => "recoveryRequired",
+            NendoSessionHealth.Closed => "closed",
+            _ => "unknown",
+        };
         return new DesktopSessionView(
             true,
             snapshot.FileName,
-            snapshot.Health switch
-            {
-                NendoSessionHealth.Normal => "normal",
-                NendoSessionHealth.ReadOnly => "readOnly",
-                NendoSessionHealth.RecoveryRequired => "recoveryRequired",
-                NendoSessionHealth.Closed => "closed",
-                _ => "unknown",
-            },
+            health,
             snapshot.Manifest,
             snapshot.Entities,
             snapshot.Records,
@@ -541,10 +549,17 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
             AgentCleanupNotice = _agentCleanupNotice,
             LocationWarning = _currentPath is null ? null : _locationPolicy.Inspect(_currentPath),
             BehaviourTrust = DescribeBehaviourTrust(),
+            Extensions = DescribeExtensions(snapshot, health),
         };
     }
 
-    private DesktopSessionView RecoveryView() => new(true, _coordinator!.FileName,
+    private DesktopSessionView RecoveryView()
+    {
+        StopExtensionsForFile();
+        return RecoveryViewCore();
+    }
+
+    private DesktopSessionView RecoveryViewCore() => new(true, _coordinator!.FileName,
         "recoveryRequired", null, [], [], [], null)
     {
         Capabilities = _service!.Capabilities,

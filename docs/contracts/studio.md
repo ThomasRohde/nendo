@@ -28,9 +28,13 @@ The minimum Studio destinations are:
 
 1. **Data**: table, record inspector, search, filters, sorts, import and export;
 2. **Structure**: entities, fields, constraints, relationships and physical mapping;
-3. **Surfaces**: generated and custom semantic views plus validation/disable/restore;
+3. **Surfaces**: generated and custom semantic views plus validation/disable/restore,
+   and the Custom views panel: this device's two switches for custom views, and
+   import, export and removal of the file's view packages
+   ([custom views](custom-views.md#studio));
 4. **History**: revisions, attribution, semantic changes and supported compensation;
-5. **Health**: compatibility, integrity, drift, backup, recovery and safe mode.
+5. **Health**: compatibility, integrity, drift, backup, recovery and safe mode, and
+   whether custom views run.
 
 ## 3. Empty database experience
 
@@ -207,6 +211,8 @@ If the primary table renderer cannot initialise, Studio must keep a bounded fall
 - reach backup and recovery actions.
 
 A renderer crash must not close the database, replay an unconfirmed mutation or corrupt the application session.
+
+Studio never hosts custom-view code. A custom view runs in a frame with a renderer process of its own, and its crash or hang stays in its own place on the page; only a failure of the Workbench's own renderer or of the browser brings up the native recovery panel, which can also restart without custom views ([custom views](custom-views.md#when-a-view-fails)).
 
 ## 11. MVP acceptance criteria
 

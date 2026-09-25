@@ -6,6 +6,7 @@ import { escapeHtml, formatDateTime, messageFor } from './format';
 import { type DesktopSessionView, WorkbenchHostError } from './host';
 import { type IconName, icon } from './icons';
 import { announce, clearError, content, requiredElement, rerender, setBusy, showError } from './shell';
+import { offReasonSentence } from './view-frame-markup';
 /**
  * File health and the consents this device has given: what the host can still
  * do with the open file, and the approval that automatic actions wait on.
@@ -59,7 +60,7 @@ export function renderHealth(): void {
     <div class="health-grid">
       ${healthCard('Data', capabilities.readData, capabilities.readData ? 'Available' : 'Unavailable', capabilities.readData ? '' : 'Not available for inspection.', 'data')}
       ${healthCard('History', capabilities.readHistory, capabilities.readHistory ? 'Available' : 'Unavailable', capabilities.readHistory ? '' : 'Not available for inspection.', 'history')}
-      ${healthCard('Custom views', capabilities.customSurfaces, capabilities.customSurfaces ? 'Available' : 'Off', capabilities.customSurfaces ? '' : 'Off in this session.', 'surfaces')}
+      ${customViewsCard()}
     </div>
     <div class="recovery-layout"><section class="recovery-findings"><h2>File status</h2>
       ${state.session.findings.length ? state.session.findings.map(finding => `<p>${escapeHtml(finding.message)}</p>`).join('') : `<p>${state.session.health === 'normal' ? 'This file passed the checks required for editing. Changes are saved as you work.' : state.session.health === 'readOnly' ? 'You can inspect this file and create a backup without changing it. Editing and agent access are off.' : 'Choose Open file to inspect an application or a verified backup.'}</p>`}
@@ -97,6 +98,21 @@ export function renderHealth(): void {
 export function wireBehaviourApproval(root: HTMLElement): void {
   root.querySelector<HTMLButtonElement>('#approve-behaviour')?.addEventListener('click', () => void setBehaviourApproval(true));
   root.querySelector<HTMLButtonElement>('#revoke-behaviour')?.addEventListener('click', () => void setBehaviourApproval(false));
+}
+
+/**
+ * Whether this file's custom views run here (ADR-0013): Running, or Off with the switch or the
+ * condition that turned them off. They are off in safe mode and recovery whatever the switches say.
+ */
+function customViewsCard(): string {
+  const extensions = state.session.extensions;
+  if (extensions === null || extensions === undefined)
+    return healthCard('Custom views', false, 'Off', state.session.fileName === null ? 'No file open.' : 'This host did not say whether views run.', 'surfaces');
+  const count = extensions.packages.length;
+  const packages = count === 0 ? 'No packages in this file.' : `${count} ${count === 1 ? 'package' : 'packages'} in this file.`;
+  return extensions.run
+    ? healthCard('Custom views', true, 'Running', packages, 'surfaces')
+    : healthCard('Custom views', false, 'Off', `${offReasonSentence(extensions.offReason)} ${packages}`, 'surfaces');
 }
 
 export function healthCard(title: string, ok: boolean, state: string, detail: string, glyph: IconName): string {

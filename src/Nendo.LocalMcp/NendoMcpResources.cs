@@ -153,7 +153,7 @@ internal sealed class NendoMcpResources(
         Name = "nendo.application.extensions",
         UriTemplate = "nendo://application/extensions",
         MimeType = "application/json")]
-    [Description("Every custom-view package the open file carries: its ID, title, version, entry point and each file's path, media type, SHA-256 and size. A package is definition, written through extension.setPackage and extension.putFile in a change set; read a file's content at nendo://application/extension/{packageId}/file?path=... with the path percent-encoded. This host stores and reviews package code; it does not run it yet.")]
+    [Description("Every custom-view package the open file carries: its ID, title, version, entry point and each file's path, media type, SHA-256 and size. A package is definition, written through extension.setPackage and extension.putFile in a change set; read a file's content at nendo://application/extension/{packageId}/file?path=... with the path percent-encoded. A view that names a package runs its code in the Workbench when the view is shown.")]
     public Task<string> GetExtensionsAsync(CancellationToken cancellationToken) =>
         TranslateAsync(() => projection.GetExtensionsAsync(cancellationToken));
 

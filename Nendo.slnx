@@ -1,7 +1,6 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Nendo.Desktop/Nendo.Desktop.csproj" />
-    <Project Path="src/Nendo.ExtensionHost/Nendo.ExtensionHost.csproj" />
     <Project Path="src/Nendo.Engine/Nendo.Engine.csproj" />
     <Project Path="src/Nendo.LocalMcp/Nendo.LocalMcp.csproj" />
   </Folder>

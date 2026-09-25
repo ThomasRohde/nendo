@@ -6,7 +6,7 @@ import { choiceDisplay, cssToken, escapeAttribute, escapeHtml } from './format';
 import { selectedTabs, tabStateKey } from './app-state';
 import { sectionIsOpen } from './fold-state';
 import { formFields } from './plan-selection';
-import { extensionPanelMarkup, panelKind } from './extension-panel-markup';
+import { unsavedViewMarkup, viewPlaceholderMarkup, viewSpecFor } from './view-frame-markup';
 import {
   chartTileMarkup, commandButtons, derivedFieldMarkup, fieldMarkup, fieldsMarkup, nodeTitle, recordFieldDisplay,
   recordFormMarkup, relatedListMarkup, summaryTileMarkup, visibilityFieldId,
@@ -93,10 +93,14 @@ export function pageBodyMarkup(context: PageContext, nodes: SurfaceNodePlan[]): 
         return context.withRecordScoped && context.record !== null
           ? chartTileMarkup(context.plan, { node, scope: { kind: 'page' } })
           : '';
-      // A custom view of this record, at the place it was authored. Only its placeholder
-      // is the page's; the view itself runs in the host's window, when asked.
-      case panelKind:
-        return extensionPanelMarkup(node, context.withRecordScoped ? context.record : null);
+      // A custom view of this record, at the place it was authored (ADR-0013). The page draws
+      // its placeholder; view-frames.ts runs the view in it once it scrolls into view. A record
+      // not yet saved has no ID for a view to be about, so its placeholder says so instead.
+      case 'extensionRecordPanel': {
+        const recordId = context.withRecordScoped && context.record !== null ? context.record.semanticId : null;
+        const spec = viewSpecFor(node, 'recordPage', context.plan.entity.semanticId, recordId);
+        return recordId === null ? unsavedViewMarkup(spec) : viewPlaceholderMarkup(spec);
+      }
       // A command is a page action, not a form control, and keeps its place in
       // the action area rather than moving inside a tab.
       default:

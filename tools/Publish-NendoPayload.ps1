@@ -45,16 +45,8 @@ try {
         Invoke-PilotCommand 'npm.cmd' @('run', 'build') 'workbench-build.log'
     } finally { Pop-Location }
     Invoke-PilotCommand 'dotnet' @('publish', 'src/Nendo.Desktop/Nendo.Desktop.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishTrimmed=false', '-p:PublishReadyToRun=true', '-o', $payload, '--nologo') 'publish.log'
-    # A separate runtime payload keeps the contained helper free of Engine and MCP assemblies.
-    $helperPayload = Join-Path $payload 'ExtensionHost'
-    Invoke-PilotCommand 'dotnet' @('publish', 'src/Nendo.ExtensionHost/Nendo.ExtensionHost.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishTrimmed=false', '-p:PublishReadyToRun=true', '-o', $helperPayload, '--nologo') 'extension-publish.log'
-    foreach ($required in @('Nendo.ExtensionHost.exe', 'Nendo.ExtensionHost.dll', 'coreclr.dll', 'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'WebView2Loader.dll')) {
-        if (-not (Test-Path -LiteralPath (Join-Path $helperPayload $required))) { throw "Missing custom-view helper dependency: $required" }
-    }
-    foreach ($forbidden in @('Nendo.Engine.dll', 'Nendo.LocalMcp.dll', 'Microsoft.Data.Sqlite.dll', 'e_sqlite3.dll')) {
-        if (Get-ChildItem -LiteralPath $helperPayload -Recurse -File -Filter $forbidden) { throw "Privileged dependency in custom-view helper: $forbidden" }
-    }
-    foreach ($required in @('Nendo.Desktop.exe', 'Nendo.Desktop.dll', 'Nendo.Engine.dll', 'Nendo.LocalMcp.dll', 'coreclr.dll', 'Microsoft.UI.Xaml.dll', 'e_sqlite3.dll', 'Workbench/index.html', 'App.xbf', 'MainPage.xbf', 'MainWindow.xbf', 'Nendo.Desktop.pri')) {
+    # Custom views run inside the Workbench's own browser; the API script they load is part of it.
+    foreach ($required in @('Nendo.Desktop.exe', 'Nendo.Desktop.dll', 'Nendo.Engine.dll', 'Nendo.LocalMcp.dll', 'coreclr.dll', 'Microsoft.UI.Xaml.dll', 'e_sqlite3.dll', 'Workbench/index.html', 'Workbench/_nendo/api.js', 'App.xbf', 'MainPage.xbf', 'MainWindow.xbf', 'Nendo.Desktop.pri')) {
         if (-not (Test-Path -LiteralPath (Join-Path $payload $required))) { throw "Missing payload dependency: $required" }
     }
     foreach ($source in $sourceHashes) {

@@ -5,11 +5,17 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $output = Join-Path $repoRoot 'artifacts/extension-runtime-results'
 [void][IO.Directory]::CreateDirectory($output)
+# The view runs the real window.nendo, which the Workbench build writes; build it when it is missing.
+$api = Join-Path $repoRoot 'src/Nendo.Workbench/dist/_nendo/api.js'
+if (-not (Test-Path -LiteralPath $api)) {
+    & npm.cmd --prefix (Join-Path $repoRoot 'src/Nendo.Workbench') run build
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $api)) { throw 'The view API could not be built: npm --prefix src/Nendo.Workbench run build failed.' }
+}
 $run = [Guid]::NewGuid().ToString('N')
 $infoPath = Join-Path $output "work-dependencies-server-$run.json"
 $probePath = Join-Path $output "work-dependencies-probe-$run.mjs"
 $serverScript = Join-Path $PSScriptRoot 'Graph-FixtureServer.mjs'
-$server = Start-Process node -ArgumentList @("`"$serverScript`"", "`"$infoPath`"", '../extensions/work-dependencies', 'index.html,view.js,view.css') -WindowStyle Hidden -PassThru
+$server = Start-Process node -ArgumentList @("`"$serverScript`"", "`"$infoPath`"", '../extensions/work-dependencies') -WindowStyle Hidden -PassThru
 $session = "work-dependencies-$run"
 Push-Location $output
 try {
@@ -21,7 +27,7 @@ try {
     $info = Get-Content -LiteralPath $infoPath -Raw | ConvertFrom-Json
     if ($info.pid -ne $server.Id) { throw 'Work-dependency fixture process identity differs.' }
     $probe = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Gate-WorkDependencies.mjs'))
-    $probe = $probe.Replace("'__NENDO_REPOSITORY__'", ($repoRoot.Replace('\', '/') | ConvertTo-Json -Compress)).Replace('__VIEW_BASE_URL__', $info.url)
+    $probe = $probe.Replace("'__NENDO_REPOSITORY__'", ($repoRoot.Replace('\', '/') | ConvertTo-Json -Compress)).Replace('__BROKER_URL__', $info.brokerUrl)
     [IO.File]::WriteAllText($probePath, $probe, [Text.UTF8Encoding]::new($false))
     & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" open about:blank --browser msedge
     if ($LASTEXITCODE -ne 0) { throw 'Work-dependency browser did not start.' }

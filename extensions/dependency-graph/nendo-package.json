@@ -1,0 +1,7 @@
+{
+  "packageId": "org.nendo.dependency-graph",
+  "title": "Dependency graph",
+  "version": "1.0.0",
+  "entryPoint": "index.html",
+  "description": "Draws one record type as nodes and a link record type as directed edges, with pan, zoom, keyboard traversal and a text view."
+}

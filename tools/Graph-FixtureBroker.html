@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Custom view fixture broker</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#7f7f7f}
+iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
+</style>
+</head>
+<body>
+<script>
+// The Workbench's side of a custom view's protocol (ADR-0013), answered from fixture data for
+// the package measurement lanes. Graph-FixtureServer.mjs serves this page on one origin and the
+// package on another, so a view meets what it meets in Nendo: a cross-origin frame whose only
+// way in is window.nendo, connected by a hello, a connect carrying its context and one end of a
+// MessageChannel, and then requests and events on that port, as
+// src/Nendo.Workbench/src/extension-api/protocol.ts describes them.
+//
+// A probe drives it through window.broker:
+//   setFixture({ context, schema, records })   what the view reads; mounts the frame the first time
+//   pushChanges(), pushTheme(mode | theme), pushContext()   the three events a view hears
+//   fail(method, { code, message }, times)     refuse the next requests of one method
+//   remount()                                   a fresh frame, as a new placeholder would start one
+//   requests, events, hellos, refused, connects what happened, in order
+(() => {
+  'use strict';
+  const config = '__FIXTURE_CONFIG__';
+  // The frame's sandbox, as src/Nendo.Workbench/src/view-frame-markup.ts sets it.
+  const SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-pointer-lock allow-presentation';
+  // The methods this fixture answers, which is what the context lists and nendo.has reads.
+  const METHODS = ['schema.describe', 'records.query', 'records.get', 'ui.openRecord'];
+  // The Workbench's colour tokens for both themes, as src/Nendo.Workbench/src/styles/02-tokens.css
+  // declares them and extension-model.ts names them.
+  const themes = {
+    light: {
+      canvas: '#f4f5f7', surface: '#fbfbfc', 'surface-raised': '#ffffff', 'surface-soft': '#f0f1f6', ink: '#13213d',
+      muted: '#667085', line: '#d9dde6', 'line-strong': '#c9cfdb', cobalt: '#2458e6', 'cobalt-soft': '#e9edff',
+      violet: '#7256d9', healthy: '#2c9a50', warning: '#b56a13', danger: '#c5364f', shadow: '0 18px 55px rgba(44, 55, 83, 0.08)',
+      'tone-red': '#d3384f', 'tone-orange': '#d9651c', 'tone-amber': '#b8860b', 'tone-green': '#2f9e5b',
+      'tone-teal': '#1f9a94', 'tone-blue': '#2f6fe4', 'tone-violet': '#7a55d6', 'tone-grey': '#6b7385',
+    },
+    dark: {
+      canvas: '#071725', surface: '#0a1c2b', 'surface-raised': '#0e2435', 'surface-soft': '#10283a', ink: '#edf3ff',
+      muted: '#a8b5c8', line: '#263e50', 'line-strong': '#355469', cobalt: '#6597ff', 'cobalt-soft': '#142f5e',
+      violet: '#ad97ff', healthy: '#59d584', warning: '#f0b15f', danger: '#ff8298', shadow: '0 20px 65px rgba(0, 0, 0, 0.3)',
+      'tone-red': '#ff7b8c', 'tone-orange': '#ff9a5c', 'tone-amber': '#f2c14e', 'tone-green': '#5ed48a',
+      'tone-teal': '#4dd0c8', 'tone-blue': '#7ba6ff', 'tone-violet': '#b39dff', 'tone-grey': '#a3adc0',
+    },
+  };
+  const requests = [], events = [], hellos = [], refused = [], pongs = [], failures = [];
+  let fixture = null, frame = null, port = null, connects = 0, nextPing = 1;
+
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const now = () => Math.round(performance.now());
+  const themeOf = value => typeof value === 'string' ? { mode: value, tokens: { ...themes[value] } } : clone(value);
+
+  function contextOf() {
+    const context = fixture.context;
+    return {
+      apiVersion: config.apiVersion, packageId: config.packageId, configuration: {}, locale: 'en', readOnly: false,
+      ...clone(context), theme: themeOf(context.theme ?? 'light'), methods: [...METHODS],
+    };
+  }
+
+  function post(message) {
+    if (port !== null) port.postMessage(message);
+  }
+
+  function emit(name, data) {
+    events.push({ n: name, t: now(), at: requests.length });
+    post({ t: 'evt', n: name, d: data });
+  }
+
+  function refusal(code, message) {
+    return Object.assign(new Error(message), { code });
+  }
+
+  function text(params, key) {
+    const value = params[key];
+    if (typeof value !== 'string' || value.length === 0 || value.length > 256)
+      throw refusal('invalid-params', `${key} must be text of 1 to 256 characters.`);
+    return value;
+  }
+
+  /** One request, answered from the fixture as the Workbench's broker answers it from the file. */
+  function answer(method, params) {
+    const failure = failures.findIndex(entry => entry.method === method);
+    if (failure !== -1) {
+      const entry = failures[failure];
+      entry.times -= 1;
+      if (entry.times <= 0) failures.splice(failure, 1);
+      throw refusal(entry.error.code, entry.error.message);
+    }
+    switch (method) {
+      case 'schema.describe':
+        return { purpose: null, screens: [], commands: [], ...clone(fixture.schema), changeSequence: fixture.changeSequence };
+      case 'records.query': {
+        const entityId = text(params, 'entityId');
+        const limit = params.limit ?? 100;
+        if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw refusal('invalid-params', 'limit must be a whole number from 1 to 200.');
+        let start = 0;
+        if (params.cursor !== undefined && params.cursor !== null) {
+          // A cursor names the change it was read at: after the file moves, it is stale.
+          const match = /^(\d+):(\d+)$/.exec(String(params.cursor));
+          if (match === null) throw refusal('invalid-cursor', 'That cursor is not one this file gave.');
+          if (Number(match[1]) !== fixture.changeSequence) throw refusal('stale-cursor', 'The file changed since that page was read.');
+          start = Number(match[2]);
+        }
+        const all = fixture.records[entityId] ?? [];
+        const end = Math.min(all.length, start + limit);
+        return { items: clone(all.slice(start, end)), nextCursor: end < all.length ? `${fixture.changeSequence}:${end}` : null, changeSequence: fixture.changeSequence };
+      }
+      case 'records.get': {
+        const entityId = text(params, 'entityId'), recordId = text(params, 'recordId');
+        const record = (fixture.records[entityId] ?? []).find(candidate => candidate.recordId === recordId);
+        return record === undefined ? null : clone(record);
+      }
+      case 'ui.openRecord':
+        text(params, 'entityId');
+        text(params, 'recordId');
+        return { opened: true };
+      default:
+        throw refusal('unknown-method', `${String(method).slice(0, 80)} is not a method this fixture answers.`);
+    }
+  }
+
+  function receive(message) {
+    if (typeof message !== 'object' || message === null) return;
+    if (message.t === 'ping') { post({ t: 'pong', id: message.id }); return; }
+    if (message.t === 'pong') { pongs.push(message.id); return; }
+    if (message.t !== 'req' || typeof message.id !== 'number') return;
+    const params = message.p ?? {};
+    requests.push({ m: message.m, p: clone(params), t: now() });
+    try {
+      const result = answer(message.m, params);
+      post({ t: 'res', id: message.id, ok: true, r: result === undefined ? null : result });
+    } catch (error) {
+      post({ t: 'res', id: message.id, ok: false, e: { code: error.code ?? 'failed', message: error.message } });
+    }
+  }
+
+  function mount() {
+    if (port !== null) { port.close(); port = null; }
+    if (frame !== null) frame.remove();
+    frame = document.createElement('iframe');
+    frame.name = 'nendo-view-fixture';
+    frame.title = fixture.context.title ?? 'Custom view';
+    frame.setAttribute('sandbox', SANDBOX);
+    frame.src = config.viewUrl;
+    document.body.append(frame);
+  }
+
+  // Only the frame this page mounted, and only from the origin it was mounted at, is connected.
+  window.addEventListener('message', event => {
+    const data = event.data;
+    if (typeof data !== 'object' || data === null || data.nendo !== 'hello') return;
+    if (frame === null || event.source !== frame.contentWindow) { refused.push('not the mounted frame'); return; }
+    if (event.origin !== config.viewOrigin) { refused.push('origin ' + event.origin); return; }
+    hellos.push(data.apiVersion);
+    if (port !== null) port.close();
+    const channel = new MessageChannel();
+    port = channel.port1;
+    port.onmessage = message => receive(message.data);
+    connects += 1;
+    event.source.postMessage({ nendo: 'connect', apiVersion: config.apiVersion, context: contextOf() }, config.viewOrigin, [channel.port2]);
+  });
+
+  window.broker = Object.freeze({
+    viewOrigin: config.viewOrigin,
+    apiVersion: config.apiVersion,
+    themes,
+    requests, events, hellos, refused, pongs,
+    get connects() { return connects; },
+    /** Replace what the view reads. Each fixture is a new change of the file. The first one mounts the frame. */
+    setFixture(next) {
+      fixture = { ...clone(next), changeSequence: (fixture?.changeSequence ?? 0) + 1 };
+      if (frame === null) mount();
+      return fixture.changeSequence;
+    },
+    pushChanges() { emit('changes', fixture.changeSequence); return events.length; },
+    /** A mode ('light' or 'dark') takes the Workbench's own tokens; an object is sent as it is. */
+    pushTheme(theme) {
+      const value = themeOf(theme);
+      fixture.context = { ...fixture.context, theme: value };
+      emit('theme', value);
+      return events.length;
+    },
+    pushContext() { emit('context', contextOf()); return events.length; },
+    fail(method, error, times = 1) { failures.push({ method, error: clone(error), times }); return true; },
+    remount() { mount(); return true; },
+    ping() { const id = nextPing++; post({ t: 'ping', id }); return id; },
+    opened() { return requests.filter(request => request.m === 'ui.openRecord').map(request => request.p); },
+  });
+})();
+</script>
+</body>
+</html>

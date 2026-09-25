@@ -1,0 +1,7 @@
+{
+  "packageId": "org.nendo.gantt",
+  "title": "Gantt",
+  "version": "1.0.0",
+  "entryPoint": "index.html",
+  "description": "Draws one record type on a time line from a start date to an end date, or a chart of one on a record page."
+}

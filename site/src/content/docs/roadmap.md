@@ -20,7 +20,7 @@ The core loop works end to end:
    calculations or actions.
 5. Review the agent's proposal as a semantic diff, and accept or reject it.
 
-The current version is 0.12.0. It runs on Windows x64 only, as an unsigned
+The current version is 0.14.0. It runs on Windows x64 only, as an unsigned
 per-user install. You build the installer from source; see
 [Using Nendo](/nendo/use).
 
@@ -31,25 +31,19 @@ see [Status](/nendo/status). This page does not repeat those tables.
 
 These items are unfinished now. They are the next work, not new ideas.
 
-### Custom views: release qualification
+### Custom views: the next steps
 
-A custom view is a read-only view over existing records that runs code from a
-package, for example a dependency graph. The host runs it in a separate helper
-process with no capabilities, under an operating-system memory and CPU limit. The
-view cannot write records, run commands or accept proposals. Studio stays outside
-that process.
+A custom view's code now lives in the `.nendo` file, and a view that is shown runs
+inline in Nendo and reads the file's records. The next steps are, in order:
 
-The architecture is accepted, and the host implements the view definition, the
-package cache, device consent, the contained helper and the graph window. These
-checks are not complete:
+- views that write: create, change and delete records and run commands through the
+  same checked operations as your own edits, prepare a proposal for you to review,
+  and keep their own state in the file;
+- developing a view straight from a folder, with a reload on every save;
+- a view as a screen of its own, and as a tile on the front page.
 
-- toolbar layout at high display scaling;
-- recovery that a person can see when the helper is under memory or CPU pressure;
-- a journey through the installed host, and a fully offline journey;
-- broader network and process-creation containment in the browser.
-
-Until these checks pass, custom views are not qualified for release. See
-[Custom views](/nendo/docs/custom-views).
+None of these is available yet. What is already true, and what is not measured, is
+on [Custom views](/nendo/docs/custom-views).
 
 ### Distribution and signing
 
@@ -81,8 +75,8 @@ Any of them needs an accepted design decision before work starts.
 
 | Direction | What it would mean | What stands in the way |
 | --- | --- | --- |
-| Broader extensions | Third-party packages and controls beyond the read-only custom view: packaged node types, signed packages, a trust model, offline distribution. | A package model needs identity, versions, dependencies, signatures, isolation, downgrade and recovery rules, each with executable evidence. The product also refuses to store executable code in a `.nendo` file. |
-| General scripting | Code beyond the bounded calculation language: loops, objects, compiled code. | Calculations and actions today are closed, pure and bounded. General code brings isolation questions that nobody has measured. |
+| Broader extensions | Extension code that runs without a view: contributed commands, event handlers, background work. Signed packages and a trust model. | Custom views carry their code in the file today. Code that runs without a view needs its own design decision. Nothing signs a package, and there is no identity, dependency or update model for packages. |
+| General scripting in formulas | Code beyond the bounded calculation language in calculations and actions: loops, objects, compiled code. | Calculations and actions today are closed, pure and bounded. General code there brings isolation questions that nobody has measured. |
 | External effects | Actions that send email, call a web service, read files or run on a timer. | These cannot share the local all-or-nothing transaction. They need durable intent, retries, credentials, consent and recovery, and none is designed. |
 | Scalar multi-choice | A field that holds several choices at once. | Out of scope by product rule. A choice field holds one option, and no design for several options exists. |
 | Binary and asset fields | Images, attachments and other files stored in records. | Out of scope by product rule. The file stores scalar values only, and no design for binary content exists. |

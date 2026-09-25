@@ -1,9 +1,9 @@
-# The native custom-view journey, run against Nendo as setup installs it rather than as
-# the build leaves it. The source journey launches artifacts/bin; this lane installs the
+# The custom-view journey, run against Nendo as setup installs it rather than as the
+# build leaves it. The source journey launches artifacts/bin; this lane installs the
 # published payload through the same Invoke-NendoSetup.ps1 the installer bundles, into a
-# root of this run's own, and points DesktopExtensionJourneyTests at the installed
-# executable. What that adds over the source run: the installed layout, the installed
-# ExtensionHost helper and the installed graph path are the ones exercised.
+# root of this run's own, and points DesktopExtensionViewJourneyTests at the installed
+# executable. What that adds over the source run: the installed layout, and the installed
+# Workbench with the view API every view origin serves (Workbench/_nendo/api.js).
 #
 # It never touches the owner's installation, file association or Start Menu, for the
 # reasons Test-NendoSetupIsolated.ps1 gives. The NSIS wrapper stays outside it.
@@ -69,7 +69,7 @@ try {
     try {
         $log = Join-Path $evidenceRoot 'journey-test.log'
         dotnet test (Join-Path $repoRoot 'tests/Nendo.Desktop.Tests/Nendo.Desktop.Tests.csproj') --no-restore `
-            --filter 'FullyQualifiedName~NativeConsentGraphAndStudioJourneyUsesOnlyAnIsolatedProfile' *> $log
+            --filter 'FullyQualifiedName~DesktopExtensionViewJourneyTests' *> $log
         $exit = $LASTEXITCODE
     }
     finally { Remove-Item Env:NENDO_EXTENSION_JOURNEY_EXECUTABLE -ErrorAction SilentlyContinue }

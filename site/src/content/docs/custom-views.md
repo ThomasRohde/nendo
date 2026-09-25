@@ -1,130 +1,113 @@
 ---
 title: Custom views
-description: What a custom view is, how to install, pin and allow one, how Nendo contains it, and how to build your own.
+description: What a custom view is, how its code travels in the file and runs inside Nendo, what it can reach, how to switch views off, and how to build your own.
 group: Use
 order: 60
 ---
 
-A custom view is a small web page that draws records in a way Nendo's own screens cannot. It renders a **bounded, read-only graph of records**, or **one record type as typed columns** (a Gantt chart, a map, a heat map), and it opens in a pane of the main window beside your records.
+A custom view is a small web page that draws your records in a way Nendo's own screens cannot: a graph of linked records, a Gantt chart, a map. Its code lives in the `.nendo` file as a **package**. A view that is shown runs, inside Nendo, in a frame of its own. There is nothing to install and nothing to allow.
 
-A custom view is not a plugin system. It cannot add storage, run queries, write records, reach the network or ask for more permissions. The only thing it can send back to Nendo is "this record is selected".
+## Where a view appears
 
-## What a custom view shows
+- **As a screen.** A graph of linked records, or a view of one record type, is one of that record type's screens in Use, listed by its title. The view fills the screen.
+- **On a record page.** A view can sit on a record page, about that page's one record: a Gantt bar for one task, say. It starts when you scroll it into sight. On a record that is not saved yet, it asks you to save first.
 
-A graph view uses two record types from your file:
+A redraw of the page around a view does not restart it. When you leave the screen, the view stops.
 
-- a **node** type, for example Component or Work item, with a Text field for the label and, optionally, one field for a status;
-- an **edge** type, for example Feed or Dependency, with two Reference fields that point from one node to another.
+## How the code gets into the file
 
-Nendo reads these fields and nothing else, and sends them to the view as a list of nodes and a list of edges. This list is the **projection**. Nendo sends a new projection when the data changes.
+A package arrives the way every other change to the application does: as a proposal that you review and accept. The review has a **Code** section with every changed line of each file, and it says, once, that the code runs when a view that uses its package is shown. Nothing runs until you accept.
 
-| Limit | Value |
-| --- | ---: |
-| Nodes | 500 |
-| Edges | 1,000 |
-| Projection size | 1 MiB |
-| Label or status text | 4,096 characters |
+There are three ways to propose a package:
 
-A graph over a limit is refused whole. There is no paging and no partial graph. Cycles, self-links, parallel edges and records with no links are all valid.
+- **Studio › Surfaces › Custom views › Import package…** Pick a folder's `nendo-package.json`, a `.zip` of the folder, or an older `.nendoview` file. **File › Custom views…** opens the same panel.
+- **An agent** writes the package over MCP with the operations `extension.setPackage` and `extension.putFile`, in a change set, and you accept it. See [Agents](/nendo/docs/agents).
+- **A script.** From a clone of the repository, `node tools/Put-NendoPackage.mjs <folder>` proposes a package folder into the file that a running Nendo has open.
 
-A **record view** uses one record type and no links. Nendo sends the named fields of up to 1,000 records, each value typed (text, number, date and so on), and refuses a larger set whole in the same way. A record view needs Nendo 1.31.0 or later.
+Each way proposes only what differs from the package the file already carries. When you accept a change to a package's code, its views start again on the new code. In the same panel, **Export…** writes a package to a folder, and **Remove…** takes it out of the file, again as a proposal.
 
-A view can also sit **on a record page**, where it shows that one record: a Gantt bar for one task, say. Nendo sends only that record's named fields. The page shows a placeholder with **Show view**, and nothing runs until you press it. Only one view on a record page runs at a time, so showing another stops the first. It follows the page as you scroll, steps aside while a dialog is open, and **Stop view** ends it. If it stops by itself, the placeholder says why, and you can keep editing the record. A view on a record page needs Nendo 1.32.0 or later.
+A copy of the file carries its views' code. If a view names a package that the file does not carry, the view says so and offers **Add package to file…**, which is Import.
 
-## Three separate steps
-
-A view needs three things. Each is a separate act, and none of them implies the next.
-
-| Step | What it is | Where it lives |
-| --- | --- | --- |
-| 1. Install the package | A `.nendoview` archive. Its SHA-256 digest is its identity. Nothing signs it. | This computer, outside the `.nendo` file |
-| 2. The view definition | A screen in the file that pins the package by ID, version and digest, and names the fields the view may read | The `.nendo` file |
-| 3. Allow on this computer | A native review of the exact package, its digest, that it is unsigned, and the names of the fields it reads | This computer, for this physical file |
-
-Installing a package grants no permission to run. Accepting a view definition installs nothing and allows nothing. Only step 3 lets the view run.
-
-In Use, the view's screen shows one next step at a time, with a sentence that says where you are:
-
-1. **Install package…** opens a file picker and a package review.
-2. **Allow this view** opens the native consent dialog.
-3. **Open graph**, or **Open view** for a record view, opens the pane.
-
-**Open Studio** and **Manage packages…** are always there. File → **Custom views…** installs, exports and removes packages, and reviews, opens or disables the views in the file.
-
-Allowing a view is tied to this physical file on this computer. A copy of the file, even one with the same IDs, asks again. So does another computer. A new package build has a new digest, so it is a different package: install and allow it again. A change to the fields that the view reads also asks again.
-
-A view definition is portable. You can review, accept, copy and reopen a file that pins a package you do not have. Opening a file never starts a view.
-
-## The pane
-
-The view opens in a pane on the right of the main window, at half its width and never narrower than 480 DIPs. Drag the boundary, or focus it and press Left or Right, to change the split. Double-click the boundary to go back to half.
-
-The toolbar belongs to Nendo, not to the view:
-
-| Button | Does |
-| --- | --- |
-| Open record | Opens the selected record next to the graph, where you can edit it |
-| Focus graph | Moves keyboard focus into the view |
-| Refresh | Reads the graph again |
-| Studio | Opens Studio |
-| Disable view | Withdraws permission on this computer; records and the definition stay in the file |
-| Close | Closes the pane and stops the view |
-
-F6 moves focus between the view and Nendo's controls. A selection in the view does nothing until you press **Open record**, and Nendo checks again that the record exists and that the view is still allowed.
-
-## How Nendo contains a view
-
-Nendo runs every view in a separate helper process with the following restrictions:
-
-- **No network.** The helper runs in a Windows AppContainer with no capabilities, so it cannot open network connections, local or remote. The page also has a strict Content Security Policy.
-- **No files and no host objects.** The page cannot read files, reach Nendo's database, call into Nendo or see the MCP server. The helper has no reference to Nendo's engine. It talks to Nendo over two private pipes.
-- **No clipboard, downloads, pop-ups, frames, workers or developer tools.** The page cannot navigate away from its entry page.
-- **Resource limits.** The helper and its browser processes share one Windows Job: 512 MiB of memory, 32 processes and 20% CPU. At 480 MiB Nendo stops the view and says why.
-- **Message limits.** At most 60 messages a second and 64 KiB a message, with a fixed set of message types. The view must say it is ready within five seconds.
-- **Consent is checked continuously**, every 100 ms while the view runs. Withdrawing permission closes it.
-
-If a view stops, crashes or runs out of memory, the pane says so. Studio and your records stay available, and you can keep editing.
-
-These limits measure what the helper can reach on this machine. Nendo does not sign packages or check who wrote them. You are the review.
+A view also needs a definition: a screen or a record-page panel that names its package, the record type it is about and the fields it shows. An agent writes it through an ordinary change set; Studio has no form for it. The [authoring guide](https://github.com/ThomasRohde/nendo/blob/main/docs/custom-view-authoring.md) shows each kind.
 
 ## What a view can and cannot do
 
 | A view can | A view cannot |
 | --- | --- |
-| Draw the nodes and edges it is given | Read a field that the definition does not name |
-| Show one status value per node, and more fields the view names (protocol 2) | Read a calculated field, or any field the view does not name |
-| Lay out, pan, zoom and filter in its own page | Write, create or delete a record |
-| Suggest one selected record | Open a record, navigate Nendo or start a command |
-| Follow Nendo's Light or Dark theme | Reach the network, files, clipboard or other programs |
-| Keep state in memory while it is open | Keep state after it closes |
+| Read every record in the file, with calculated fields and exact numbers | Change a record, run a command or propose a change, in this version |
+| Hear every change to the file, and draw again | Reach Nendo's own page or the bridge to the desktop app |
+| Use the network, including programs on your own computer | Reach SQL, a file path, another file or a setting of this computer |
+| Read and write the clipboard, and download files | Use Nendo's agent connection |
+| Keep browser storage for itself, on this computer | Navigate Nendo away, or load Nendo inside itself |
+| Ask Nendo to open a record, a screen or Studio, and show a sentence | Accept or reject a proposal |
+
+Each package runs on a web address of its own, in a browser process of its own, apart from Nendo's own page. A view that hangs or crashes stays in its own place.
+
+## Before you open someone else's file
+
+A file that somebody else wrote brings its views' code with it, and that code runs when its view is shown. You have not read it: the review happened wherever the change was made. It can read every record in the file, reach the network, including programs on your own computer, use the clipboard and download files. It cannot change your records in this version.
+
+This is a deliberate trade for an exploratory project: no install step and no permission dialog, in exchange for switches. The switches below are the whole control. Turn views off before you open a file you do not trust.
+
+## Switching views off
+
+| Switch | Where | What it covers |
+| --- | --- | --- |
+| **Run custom views** | Studio › Surfaces › Custom views | Every file, on this computer |
+| **Run this file's views** | Studio › Surfaces › Custom views | This file, on this computer |
+| **Restart without custom views** | The recovery panel, when the app view has stopped | Views stay off until you turn **Run custom views** on again or start Nendo again |
+
+Both switches are settings of this computer. They never change the file, and a file cannot turn its own views back on. Views never run in safe mode, during recovery, or while a file needs attention, for example when it opened read-only. A view that cannot run says why where it would be, with the step that changes it. **Health** shows whether views run.
+
+## When a view misbehaves
+
+- A view that stops responding for ten seconds is marked **This view is not responding**, with **Stop** and **Reload**. Stop ends every view of the same package, because they share one browser process. The rest of Nendo keeps working.
+- A view whose page crashes says **This view stopped**, with **Reload**.
+- If a view takes the whole window down, the recovery panel offers **Restart without custom views**.
+
+Studio is there in every case, and your records stay editable.
 
 ## The examples
 
-The repository has four MIT-licensed example packages under [`extensions/`](https://github.com/ThomasRohde/nendo/tree/main/extensions). None has dependencies. The installer does not install them. Build each one with its script under `tools/`, then install the `.nendoview` file with **Install package…**.
+The repository has four MIT-licensed example packages under [`extensions/`](https://github.com/ThomasRohde/nendo/tree/main/extensions). None has dependencies. Each folder has a `nendo-package.json`, so you import it as it is.
 
 | Package | Shows |
 | --- | --- |
 | [`dependency-graph`](https://github.com/ThomasRohde/nendo/tree/main/extensions/dependency-graph) | A general record graph with pan, zoom, keyboard selection and a text list of the relationships |
-| [`work-dependencies`](https://github.com/ThomasRohde/nendo/tree/main/extensions/work-dependencies) | Work items and what blocks what, laid out left to right in the order the work must happen. It marks cycles, counts items that nothing blocks, and dims everything not connected to the selection. |
-| [`systems-lens`](https://github.com/ThomasRohde/nendo/tree/main/extensions/systems-lens) | Components and the feeds between them, for the Nendo Station demo file. It marks loops, and a **Take out** mode shows which components lose every declared supply path when one is removed. It writes nothing. |
-| [`gantt`](https://github.com/ThomasRohde/nendo/tree/main/extensions/gantt) | One record type on a time line, from a start date to an end date, as bars; a record with only a start is a diamond. It is a record view rather than a graph, so it needs no links, and it also works on a record page, for one record. |
+| [`work-dependencies`](https://github.com/ThomasRohde/nendo/tree/main/extensions/work-dependencies) | Work items and what blocks what, laid out left to right in the order the work must happen. It marks cycles and dims everything not connected to the selection |
+| [`systems-lens`](https://github.com/ThomasRohde/nendo/tree/main/extensions/systems-lens) | Components and the feeds between them, for the Nendo Station demo file. It marks loops, and **Take out** shows which components lose every declared supply path when one is removed. It writes nothing |
+| [`gantt`](https://github.com/ThomasRohde/nendo/tree/main/extensions/gantt) | One record type on a time line, from a start date to an end date; a record with only a start is a diamond. It also works on a record page, for one record |
+
+The demo files in the repository were made before views ran from the file. Their views name a package that the file does not carry yet, and offer **Add package to file…**.
 
 ## Build your own
 
 The full guide is [Authoring a custom view](https://github.com/ThomasRohde/nendo/blob/main/docs/custom-view-authoring.md). In outline:
 
-1. **Write the page.** Plain HTML, CSS and JavaScript files, with no build step. Only `.html`, `.css`, `.js` and `.txt` files are allowed. Put all script in `.js` files: inline scripts and inline event handlers are blocked. Bundle any library as a local file.
-2. **Handle the messages.** Nendo sends `initialize`, `replaceProjection` and `setTheme` through `window.chrome.webview`. The page sends `ready` within five seconds, then `selectRecord` or `reportError`. Every message carries exact keys.
-3. **Render with care.** Set labels with `textContent`. Support the keyboard and both themes, and give a text alternative. Fit the graph after the pane has its size.
-4. **Package it.** Write a `manifest.json` that lists every asset with its size and SHA-256, and zip it as a `.nendoview`. [`tools/Build-NendoViewPackage.ps1`](https://github.com/ThomasRohde/nendo/blob/main/tools/Build-NendoViewPackage.ps1) builds a reproducible archive and prints its digest.
-5. **Pin it in a file.** Add an `extensionGraphSurface` screen, an `extensionRecordsSurface` screen for a record view, or an `extensionRecordPanel` on a record page, with the package ID, version and digest and the fields to read, through a change set that a person accepts. The MCP example `pin-an-offline-custom-graph` shows the shape. See [Agents](/nendo/docs/agents).
-6. **Install, allow, open.** Each rebuild changes the digest, so repeat all three steps after every build.
+1. **Write the page.** Plain HTML, CSS and JavaScript files, or a bundler's output folder. Any file type is allowed. Before your own script, load the view API with a script tag whose source is `/_nendo/api.js`: every view's web address serves it.
+2. **Read the file.** `await nendo.ready` gives the view's context. `nendo.view.loadRecords()` and `nendo.view.loadGraph()` read what the view is about, and `nendo.records.query(...)` reads any record type. Follow `nendo.on('changes', ...)` to draw again when the file changes.
+3. **Look like Nendo.** Draw with the `--nendo-*` colour variables that the API sets, and the view follows Light and Dark. Set labels as text, never as markup.
+4. **Act for the person.** `nendo.ui.openRecord(entityId, recordId)` opens a record beside the view.
+5. **Name the package.** A `nendo-package.json` with a `packageId` such as `org.example.map`, and a title.
+6. **Put it in the file, and define a view that names it.** Accept both proposals, and the view runs.
 
-A package is at most 10 MiB, 30 MiB expanded and 200 files. A file that uses a custom view needs Nendo 1.29.0 or later.
+To debug, right-click inside the running view and choose **Inspect**. To run code inside the view, choose its frame as the Console's context, in the drop-down that starts at `top`.
 
-## Limits of the design
+## Limits
 
-- Packages are not signed. There is no publisher identity and no revocation.
-- There is no marketplace, download or update channel. Packages move as files.
-- There are two kinds of view, a graph and a record view. Each opens in the pane, and a record view can also sit on a record page, one running at a time.
-- A view cannot be given a new capability. Any wider access would need a new design, not a setting.
+| Limit | Value |
+| --- | ---: |
+| One file in a package | 4 MiB |
+| One package | 512 files and 16 MiB |
+| Packages in one `.nendo` file | 64, and 64 MiB of code in all |
+| New code in one proposal | 4 MiB |
+| A view's configuration | 16 KiB of JSON |
+
+A file that carries a package needs file capability 1.33.0 or later, and a view defined with the newer, open rules needs 1.34.0. See [Files and data](/nendo/docs/files-and-data).
+
+## Not yet
+
+- A view cannot create, change or delete records, run a command, propose a change or keep its own state in the file. That is the next step.
+- Developing a view straight from a folder, with a reload on every save, is not built.
+- A view as a screen of its own, and a view as a tile on the front page, are not built.
+- Packages are not signed. There is no marketplace, download or update channel: packages move inside files and as folders.

@@ -21,7 +21,7 @@ authority above both.
 | [operation-outcomes.md](operation-outcomes.md) | How a client learns that an operation committed, and what a lost response permits |
 | [help.md](help.md) | The permanent Help route and generated application reference |
 | [calculations-and-actions.md](calculations-and-actions.md) | Stored calculations, reusable functions, local actions and triggers (ADR-0008, stages S1-S9; P1-P8 satisfied) |
-| [custom-views.md](custom-views.md) | The custom-view execution boundary, and packages carried in the file: what the host guarantees and refuses for a view package (ADR-0013) |
+| [custom-views.md](custom-views.md) | Custom views: packages carried in the file, how the host serves and runs them inline, the `window.nendo` API, the kill switches, view definitions, and what the host guarantees and refuses (ADR-0013) |
 
 If a contract and the code disagree, the code is current. Fix the contract in
 the same change.

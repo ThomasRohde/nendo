@@ -7,6 +7,7 @@ import { activePlan, applicationPlans, currentRecipe } from './plan-selection';
 import { content, requiredElement, rerender, showError } from './shell';
 import { renameBoardProposal } from './studio';
 import { descendants, surfaceRoot } from './surface-model';
+import { customViewsPanel, wireCustomViewsPanel } from './view-packages';
 /**
  * The Studio catalogue of compiled surfaces: what the current definition builds,
  * what each root is bound to, and what the compiler refused.
@@ -24,7 +25,9 @@ export function renderSurfaces(): void {
     </div>
     ${boardRename(plan)}`
       : diagnosticsMarkup(state.compilation)}
+    ${customViewsPanel()}
   </div>`;
+  wireCustomViewsPanel(content);
   content.querySelector<HTMLSelectElement>('#surface-entity')?.addEventListener('change', event => {
     state.selectedApplicationEntity = (event.currentTarget as HTMLSelectElement).value; rerender();
   });
@@ -107,6 +110,11 @@ export function treeSurfaceCard(plan: ApplicationPlan, root: SurfaceNodePlan): s
     case 'recordCommand':
       parts.push('Action');
       if (typeof root.properties.fieldId === 'string') parts.push(`sets ${fieldName(plan, root.properties.fieldId)}`);
+      break;
+    case 'extensionGraphSurface':
+    case 'extensionRecordsSurface':
+      parts.push(root.kind === 'extensionGraphSurface' ? 'Custom graph' : 'Custom view');
+      if (typeof root.properties.packageId === 'string') parts.push(`runs ${root.properties.packageId}`);
       break;
     default:
       parts.push(root.kind);

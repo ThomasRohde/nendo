@@ -397,6 +397,59 @@
 .rename-form { margin-top: var(--space-5); padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5); }
 .rename-form input { min-height: 38px; }
 
+/* Studio → Surfaces → Custom views (ADR-0013): this device's two switches, and the packages
+   the file carries. The switches reuse the Agent page's toggle; a package reads like a
+   surface card with its two actions where the card's chip would be. */
+.custom-views-panel {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 880px;
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+
+.custom-views-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.custom-views-heading h2 { margin: 0 0 var(--space-1); font-size: 1.1rem; }
+.custom-views-heading p { max-width: 640px; margin: 0; color: var(--muted); font-size: 0.86rem; line-height: 1.55; }
+.custom-views-heading .health-chip { flex: 0 0 auto; }
+.custom-views-status,
+.custom-views-notice { margin: 0; font-size: 0.86rem; }
+.custom-views-notice { color: var(--warning); }
+.custom-views-resume { display: flex; }
+.custom-views-switches { max-width: 560px; }
+.package-heading { margin: var(--space-3) 0 0; color: var(--muted); font-size: 0.86rem; font-weight: 650; }
+.package-list { display: grid; gap: var(--space-3); }
+
+.package-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.package-card .surface-detail p { overflow-wrap: anywhere; }
+.package-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
+.package-empty { margin: 0; color: var(--muted); font-size: 0.86rem; }
+.package-footer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.package-footer small { flex: 1 1 260px; min-width: 0; color: var(--muted); font-size: 0.78rem; line-height: 1.45; }
+
+@media (max-width: 650px) {
+  .custom-views-heading { flex-direction: column; }
+  .package-card { grid-template-columns: auto minmax(0, 1fr); }
+  .package-actions { grid-column: 2; justify-content: flex-start; }
+}
+
 /* --- Health ---------------------------------------------------------------- */
 
 .health-card {

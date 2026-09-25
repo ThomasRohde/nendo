@@ -56,9 +56,13 @@ export function queryOperatorFor(contractOperator: string): string {
  * Today is the person's civil date, not UTC's: a tile that says what is overdue has to
  * agree with the calendar on their wall. A DateTime field compares against that date as
  * the instant it begins, which is what the host's own command steps resolve it to.
+ *
+ * Exported for the custom-view client (extension-api/nendo-api.ts), which resolves a view's
+ * authored filters when the view reads rather than when it started: a view left open past
+ * midnight must not keep asking for yesterday.
  */
-function clauseValue(properties: Record<string, unknown>, at: Date): unknown {
-  switch (properties.valueKind) {
+export function resolveClauseValue(valueKind: unknown, value: unknown, at: Date = new Date()): unknown {
+  switch (valueKind) {
     case 'today': {
       const local = new Date(at.getTime() - at.getTimezoneOffset() * 60_000);
       return local.toISOString().slice(0, 10);
@@ -66,8 +70,12 @@ function clauseValue(properties: Record<string, unknown>, at: Date): unknown {
     case 'now':
       return at.toISOString().replace(/\.\d+Z$/, 'Z');
     default:
-      return properties.value;
+      return value;
   }
+}
+
+function clauseValue(properties: Record<string, unknown>, at: Date): unknown {
+  return resolveClauseValue(properties.valueKind, properties.value, at);
 }
 
 /** The ANDed filter clauses declared directly on one node. */

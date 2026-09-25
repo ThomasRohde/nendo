@@ -24,7 +24,7 @@ const journey = [
 const demo = [
   'Open the file. It starts on Station status: nine systems, twelve crew, and which systems are nominal.',
   'Open a system record page. The header is coloured by condition, and four tabs hold its capacity, components, incidents and telemetry readings.',
-  'Open Systems Lens beside it and press Fit. This custom view draws the schematic from the same records.',
+  'Show Systems Lens, a screen of Components, and press Fit. This custom view runs code the file carries and draws the schematic from the same records.',
   'Take a component offline with its command, and watch the things that depend on it change.',
   'Try the structural change the file refuses, and read why.',
   'Raise an incident and watch an automatic action run in the same save.',
@@ -200,10 +200,10 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
       <article class="panel">
         <h3>Custom views</h3>
         <p>
-          A custom view needs three separate things: a package identified by the hash of
-          its archive, a view definition in the file that names that hash, and your consent
-          on this computer for that particular file. None implies the others, and a copy of
-          the file has to be approved again.
+          A custom view is a small web page whose code the file carries. It arrives as a
+          proposal you review line by line, and once you accept it, it runs wherever its
+          screen is shown, with nothing to install and nothing to allow. Two switches on
+          this computer turn views off, for every file or for one.
         </p>
         <p><a href={`${base}/docs/custom-views`}>Custom views →</a></p>
       </article>

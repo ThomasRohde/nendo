@@ -14,10 +14,10 @@ export function packageChangesMarkup(changes: readonly ExtensionFileChange[] | u
 
 function fileMarkup(change: ExtensionFileChange): string {
   const sizes = change.change === 'added'
-    ? size(change.bytesAfter)
+    ? byteSize(change.bytesAfter)
     : change.change === 'removed'
-      ? size(change.bytesBefore)
-      : `${size(change.bytesBefore)} → ${size(change.bytesAfter)}`;
+      ? byteSize(change.bytesBefore)
+      : `${byteSize(change.bytesBefore)} → ${byteSize(change.bytesAfter)}`;
   const verb = change.change === 'added' ? 'Added' : change.change === 'removed' ? 'Removed' : 'Changed';
   const body = !change.textual
     ? '<p class="package-change-note">Not text, so it is shown by its size.</p>'
@@ -27,7 +27,8 @@ function fileMarkup(change: ExtensionFileChange): string {
   return `<article class="package-change" data-package-path="${escapeHtml(change.path)}"><header><strong>${escapeHtml(change.path)}</strong><span>${escapeHtml(verb)} in ${escapeHtml(change.packageId)} · ${escapeHtml(sizes)}</span></header>${body}</article>`;
 }
 
-function size(bytes: number | null | undefined): string {
+/** A byte count as a person reads it; Studio's package list says sizes the same way. */
+export function byteSize(bytes: number | null | undefined): string {
   if (bytes === null || bytes === undefined) return '';
   if (bytes < 1024) return `${bytes} bytes`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1).replace(/\.0$/, '')} KB`;

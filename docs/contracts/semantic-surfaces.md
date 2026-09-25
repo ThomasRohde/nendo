@@ -43,8 +43,8 @@ ceiling at all on the front page, so the vocabulary publishes both.
 Under the ADR-0004 2026-09-12 amendment, `recordList`, `boardSurface`,
 `calendarSurface` and `recordCommand` each declare **eight**. `timelineSurface`
 (the 2026-09-14 amendment, S3) and `gallerySurface` (S2) declare the same.
-`matrixSurface` (the 2026-09-17 amendment, S6) and `extensionGraphSurface`
-(ADR-0013) also declare eight. `detailSurface` and `recordForm` keep one, with their existing page precedence:
+`matrixSurface` (the 2026-09-17 amendment, S6) and the two custom-view roots,
+`extensionGraphSurface` and `extensionRecordsSurface` (ADR-0013), also declare eight. `detailSurface` and `recordForm` keep one, with their existing page precedence:
 detail first, otherwise form. Eight is a bounded initial product choice. It is
 not a measured optimum.
 
@@ -80,8 +80,8 @@ return a partial app.
 ## Selecting a surface, not a kind
 
 Use offers every `recordList`, `boardSurface`, `gallerySurface`, `calendarSurface`,
-`timelineSurface`, `matrixSurface` and `extensionGraphSurface` root of the selected
-record type, in compiled order, each by
+`timelineSurface`, `matrixSurface`, `extensionGraphSurface` and
+`extensionRecordsSurface` root of the selected record type, in compiled order, each by
 its own title. The file's `overviewSurface` is not among them. It belongs to the
 file, so Use offers it beside the record types and not among the surfaces of one
 type. When the file has an overview, Use opens it first. The selection is a
@@ -412,7 +412,7 @@ of the bounded expression service, ADR-0008's P8.
   it would carry with the node visible. Visibility grants no write authority and
   removes none.
 - Studio never reads it. A surface cannot conceal the permanent route into a
-  file. For this reason, an invalid surface disables custom views and leaves
+  file. For this reason, an invalid surface disables the custom surfaces and leaves
   Studio reachable.
 - Only a definite `false` hides anything. If a result is empty, not yet
   calculated, or impossible to calculate, the node stays on screen. If a node
@@ -1087,17 +1087,19 @@ the shape cannot show (below). The ladder is:
 | A `matrixSurface` or a `rankedList` | 1.26 |
 | A `boardSurface` grouped by a Reference field | 1.27 |
 | A `section` with `opens` | 1.28 |
-| An `extensionGraphSurface` reference | 1.29 |
-| An `extensionGraphSurface` at protocol 2 (disclosed fields, filters) | 1.30 |
+| An `extensionGraphSurface` (a custom graph) | 1.29 |
+| A custom view that declares `protocolVersion` 2 | 1.30 |
 | An `extensionRecordsSurface` (one record type as typed columns) | 1.31 |
 | An `extensionRecordPanel` (a custom view on a record page) | 1.32 |
+| A custom view that only the open rules accept: no package pin, a configuration with anything in it, a calculated label or field, a filter whose value kind is not `literal`, more fields or panels than the 1.32 rules allowed | 1.34 |
 
-The gaps at 1.17 and 1.24 are rungs that are not shapes of the node tree.
-`1.17.0` goes to a file that stores behaviour definitions (ADR-0008), and `1.24.0`
-goes to a file that carries a purpose (the ADR-0004 2026-09-15 amendment). Each
+The gaps at 1.17, 1.24 and 1.33 are rungs that are not shapes of the node tree.
+`1.17.0` goes to a file that stores behaviour definitions (ADR-0008), `1.24.0`
+goes to a file that carries a purpose (the ADR-0004 2026-09-15 amendment), and
+`1.33.0` goes to a file that carries a custom-view package (ADR-0013). Each
 operation declares that version on its own evidence.
 
-Every row except the 1.27 row is a shape of the node tree. At 1.19 and 1.22 a
+Every row except the 1.27 and 1.34 rows is a shape of the node tree. At 1.19 and 1.22 a
 field operation also raises the rung through its own evidence: a choice tone and a
 rating scale. The 1.27 row is not a shape of the tree. A board grouped by a
 reference and a board grouped by a choice carry the same kind, the
@@ -1106,7 +1108,10 @@ field tells them apart. So the calculation reads the stored fields beside the
 tree. Without that, it would return 1.26 for a file that needs 1.27. One refused
 surface makes a whole definition invalid, so a host on the older rung would report
 that a custom surface cannot run safely over every authored screen in the file,
-and it would name none of them.
+and it would name none of them. The 1.34 row reads the stored fields too: a view
+the 1.32 rules accepted bound stored fields only, so a calculated label or field
+is beyond them. A view those rules accept keeps its earlier rung, and a question the
+tree cannot answer without the fields counts as not beyond.
 
 The calculation runs over the tree that a mutation leaves behind, not over the
 operations it submitted, for two reasons:
@@ -1285,12 +1290,13 @@ it, and a person who pressed Back at that moment saw nothing at all (F-086). The
 gate now writes to the file from elsewhere after the sentence, watches the screen
 follow the write, and reads the sentence again.
 
-## Isolated custom graph definitions
+## Custom view definitions
 
-ADR-0013 authorizes `extensionGraphSurface`, a root that names an exact device
-package and a bounded graph projection. It uses the same canonical UI operations,
-semantic review and replay as other roots. Required properties, preservation and
-execution limits are in [custom views](custom-views.md). The file stores no
-package and no consent. If a package is missing, the definition is preserved. The
-new shape requires host 1.29.0, and a view at protocol 2, which discloses more
-fields or filters, requires 1.30.0.
+ADR-0013 authorizes three custom-view kinds: the `extensionGraphSurface` and
+`extensionRecordsSurface` roots, and the `extensionRecordPanel` on a record page or
+a record form. Each names a package that the file carries by `packageId`, and the
+view runs that package's code when it is shown. They use the same canonical UI
+operations, semantic review and replay as other roots. A view whose package is not
+in the file compiles with the warning `NUI452`, and the definition is preserved.
+The properties, the rungs from 1.29.0 to 1.34.0 and what the view's code may do are
+in [custom views](custom-views.md#view-definitions).

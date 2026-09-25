@@ -5,6 +5,7 @@ import { icon, type IconName } from './icons';
 import type { DesktopFileActionView, DesktopSessionView, RecentFiles } from './host';
 import { state } from './app-state';
 import { openHelp, recoverAfterWriteFailure, refreshDerived, resetFileView, showOutcomeRefreshNotice } from './actions';
+import { openCustomViews } from './view-packages';
 
 /**
  * The File menu, the start screen, and the host dialogs behind them.
@@ -84,7 +85,7 @@ export function renderFileMenu(): void {
     <div class="file-menu-divider"></div><p class="file-menu-label">Data</p>
     ${item('file.importCsv', 'Import CSV…', 'Map fields and review batches of up to 100 new records', 'data', local && state.session.capabilities.mutate && state.session.entities.some(entity => !entity.retired))}
     ${item('file.exportCsv', 'Export CSV…', 'Faithful UTF-8 values from one record type', 'data', local && state.session.capabilities.mutate && state.session.entities.some(entity => !entity.retired))}
-    ${item('file.customViews', 'Custom views…', 'Offline packages and permission for this file', 'surfaces', local)}
+    ${item('customViews', 'Custom views…', 'The packages in this file, and whether views run here', 'surfaces', state.session.hasFile && client.mode !== 'unavailable')}
     <div class="file-menu-divider"></div><p class="file-menu-label">Recovery</p>
     ${item('file.restore', 'Restore backup…', 'Replace from a backup; retain this version', 'history', local && state.session.capabilities.backup)}
     ${item('file.resolveRecovery', 'Review recovery record…', 'Resolve an interrupted replacement', 'health', local)}
@@ -106,9 +107,10 @@ export function wireFileActions(element: Element): void {
     button.addEventListener('click', () => {
       requiredElement<HTMLDetailsElement>('#file-menu').open = false;
       const method = button.dataset.fileAction!;
-      // The only file action that asks the host nothing: what a file is for is already
-      // in hand, and a round trip to be told it again would be a round trip for nothing.
+      // The file actions that ask the host nothing: what a file is for is already in hand,
+      // and a file's custom views are a panel of Studio's rather than a host dialog.
       if (method === 'about') openAboutFile();
+      else if (method === 'customViews') void openCustomViews();
       else if (method === 'session.createFile' || method === 'session.openFile') void chooseFile(method, null);
       else void runFileAction(method, button.dataset.recentId);
     });

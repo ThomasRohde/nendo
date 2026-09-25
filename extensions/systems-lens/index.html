@@ -4,10 +4,11 @@
 <body>
 <header><div><h1>Systems Lens</h1><p id="summary" role="status">Waiting for the schematic…</p></div>
 <div class="tools" aria-label="Schematic controls"><button id="zoom-out" aria-label="Zoom out">−</button><button id="reset">Fit</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="focus-toggle" aria-pressed="false">Focus</button><button id="takeout-toggle" aria-pressed="false" disabled>Take out</button><button id="text-toggle" aria-expanded="false" aria-controls="text-view">Text view</button></div></header>
-<p class="hint">An arrow points from the component that supplies to the one it supplies. Select a component to see what reaches it and what it reaches; Take out asks what would lose every path without it.</p>
+<p class="hint">An arrow points from the component that supplies to the one it supplies. Select a component to see what reaches it and what it reaches, and to open it in Nendo; Take out asks what would lose every path without it.</p>
 <p id="caveat" role="note" hidden>Structural what-if over declared feeds. It says which components lose every declared path — not what will fail. Nothing is written, and a component already offline is drawn as it is rather than treated as removed.</p>
 <main><div id="canvas" tabindex="0" aria-label="Station schematic, laid out left to right in the direction of supply. Arrow keys pan. Plus and minus zoom. Tab moves through components."><svg id="graph" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Components and the feeds between them"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker><marker id="arrow-loop" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs><g id="drawing"></g></svg><p id="empty" hidden>No feeds are recorded yet. Add a feed record in Nendo naming what supplies what, and the schematic appears here.</p></div>
 <section id="text-view" aria-label="The schematic as text" hidden><ul id="records"></ul></section></main>
 <footer id="selection" aria-live="polite">No component selected</footer>
+<script src="/_nendo/api.js"></script>
 <script src="lens.js"></script>
 </body></html>

@@ -58,10 +58,6 @@ public sealed partial class MainPage
                 case WorkbenchFileAction.Export: await ExportNativeDataAsync(); break;
                 case WorkbenchFileAction.ImportCsv: await ImportCsvNativeAsync(); break;
                 case WorkbenchFileAction.ExportCsv: await ExportCsvNativeAsync(); break;
-                case WorkbenchFileAction.CustomViews: await ManageCustomViewsNativeAsync(); break;
-                case WorkbenchFileAction.OpenCustomView: await ReviewExtensionNativeAsync(open: true, requestedViewId: request.ViewId); break;
-                case WorkbenchFileAction.ReviewCustomView: await ReviewExtensionNativeAsync(requestedViewId: request.ViewId); break;
-                case WorkbenchFileAction.InstallCustomView: await InstallExtensionPackageNativeAsync(); break;
                 case WorkbenchFileAction.ResolveRecovery: await ResolveNativeRecoveryAsync(); break;
                 default: throw new NendoValidationException("The file action is not supported.");
             }
@@ -99,7 +95,7 @@ public sealed partial class MainPage
         if (!_unloaded)
         {
             RecoveryActions.IsEnabled = !NativeFileActionRunning;
-            RecoveryRestart.IsEnabled = !NativeFileActionRunning;
+            RecoveryRestart.IsEnabled = RecoveryRestartWithoutViews.IsEnabled = !NativeFileActionRunning;
             await CaptureNativeRecoveryForTestAsync();
         }
     }
@@ -108,7 +104,7 @@ public sealed partial class MainPage
     {
         if (NativeFileActionRunning) return;
         NativeFileActionRunning = true;
-        RecoveryActions.IsEnabled = RecoveryRestart.IsEnabled = false;
+        RecoveryActions.IsEnabled = RecoveryRestart.IsEnabled = RecoveryRestartWithoutViews.IsEnabled = false;
         RecoveryActivity.IsOpen = false;
         try
         {
@@ -396,7 +392,6 @@ public sealed partial class MainPage
             DefaultButton = ContentDialogButton.Close,
         };
         AutomationProperties.SetAutomationId(dialog, "file.confirmation");
-        TrackNativeDialog(dialog);
         if (DesktopRuntimeConfiguration.NativeCaptureRoot is not null)
             dialog.Opened += (_, _) => { _ = CaptureNativeDialogForTestAsync(dialog); };
         return dialog;

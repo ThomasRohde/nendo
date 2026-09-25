@@ -895,39 +895,43 @@ STAGES['surfaces-d'] = {
   appliedWhen: async client => hasNode(client, 'componentList'),
 };
 
-const LENS_PACKAGE = path.join('artifacts', 'extensions', 'org.nendo.systems-lens-0.2.0.nendoview');
+const LENS_ID = 'org.nendo.systems-lens';
+const LENS_FOLDER = path.join('extensions', 'systems-lens');
 
-// The pin is the digest of the exact archive bytes, so it is read off the file that
-// exists rather than copied into this script and left to go stale. Rebuilding the
-// package changes the digest, which is a different package: the view has to be
-// installed and allowed again.
-async function lensDigest() {
-  const bytes = await fs.readFile(LENS_PACKAGE).catch(() => {
-    fail([
-      `${LENS_PACKAGE} is not there.`,
-      'Build it first: pwsh ./tools/Build-NendoSystemsLensPackage.ps1',
-    ].join('\n'));
-  });
-  return crypto.createHash('sha256').update(bytes).digest('hex');
+// The Systems Lens package as its folder has it, every file but the manifest, which the
+// package row holds instead (ADR-0013, 2026-09-25). Read afresh on every run, so the
+// stage carries the code as it is now, not as it was when this script was written.
+async function lensFiles() {
+  const manifest = JSON.parse(await fs.readFile(path.join(LENS_FOLDER, 'nendo-package.json'), 'utf8'));
+  const names = (await fs.readdir(LENS_FOLDER, { recursive: true, withFileTypes: true }))
+    .filter(entry => entry.isFile())
+    .map(entry => path.relative(LENS_FOLDER, path.join(entry.parentPath ?? entry.path, entry.name)).split(path.sep).join('/'))
+    .filter(name => name !== 'nendo-package.json' && !name.split('/').some(part => part.startsWith('.')))
+    .sort();
+  const files = [];
+  for (const name of names) {
+    const bytes = await fs.readFile(path.join(LENS_FOLDER, name));
+    files.push({ path: name, bytes, sha256: crypto.createHash('sha256').update(bytes).digest('hex') });
+  }
+  return { manifest, files };
 }
 
 STAGES.pin = {
-  title: 'Nendo Station: pin the Systems Lens schematic',
+  title: 'Nendo Station: show the Systems Lens schematic',
   needs: ['component', 'feed'],
   makes: [],
   mutations: async () => {
     const t = tree(SURFACE);
-    // Protocol 2 (ADR-0013, 2026-09-24): the system is disclosed as a field of its own,
-    // so the label is the component's name and nothing is packed into it.
+    // The system is a field of its own, so the label is the component's name and nothing
+    // is packed into it. The view names its package; the code arrives in lens-in-file.
     t.add('systemsLens', 'extensionGraphSurface', null, {
       definitionVersion: 3, entityId: 'component', title: 'Systems Lens',
-      packageId: 'org.nendo.systems-lens', packageVersion: '0.2.0', packageDigest: await lensDigest(),
-      protocolVersion: 2, configurationVersion: 1, configuration: '{}',
+      packageId: LENS_ID,
       labelFieldId: 'componentName', statusFieldId: 'componentState',
       edgeEntityId: 'feed', sourceFieldId: 'feedFrom', targetFieldId: 'feedTo',
     });
     t.add('systemsLens.componentSystem', 'fieldBinding', 'systemsLens', { fieldId: 'componentSystem' });
-    return t.asMutations('Pin the schematic view to the components and their feeds');
+    return t.asMutations('Show the schematic of the components and their feeds');
   },
   appliedWhen: async client => hasNode(client, 'systemsLens'),
 };
@@ -989,48 +993,77 @@ STAGES.workarounds = {
   appliedWhen: async client => hasNode(client, 'incidentWorkarounds'),
 };
 
-// A station pinned before protocol 2 carried the system inside its label. This moves the
-// pin to the 0.2.0 package in one proposal: protocol 2, the name as the label, and the
-// system disclosed as a field. It is a new consent, and the review names the field.
+// A station built before the system was a field of its own carried it inside the label.
+// This moves the label to the component's name and binds the system as a field.
 STAGES['lens-fields'] = {
-  title: 'Nendo Station: disclose the system to the schematic instead of packing it into the label',
-  needs: ['component', 'feed'],
-  makes: [],
-  mutations: async () => {
-    const set = (propertyName, value) => op('ui.setProperty', { surfaceId: SURFACE, nodeId: 'systemsLens', propertyName, value });
-    return [{
-      description: "Move the schematic to protocol 2 and disclose each component's system",
-      operations: [
-        set('protocolVersion', 2),
-        set('packageVersion', '0.2.0'),
-        set('packageDigest', await lensDigest()),
-        set('labelFieldId', 'componentName'),
-        op('ui.addNode', { surfaceId: SURFACE, nodeId: 'systemsLens.componentSystem', parentNodeId: 'systemsLens',
-          kind: 'fieldBinding', position: 0, properties: { fieldId: 'componentSystem' } }),
-      ],
-    }];
-  },
-  appliedWhen: async client => hasNode(client, 'systemsLens.componentSystem'),
-};
-
-// Rebuilding the package is a different package, so the pin has to move with it. The
-// digest is consent, not a version number: the file reports the package as changed and
-// the view stays shut until it is installed and allowed again.
-STAGES.repin = {
-  title: 'Nendo Station: point the schematic at the rebuilt package',
+  title: 'Nendo Station: give the schematic the system as a field instead of packing it into the label',
   needs: ['component', 'feed'],
   makes: [],
   mutations: async () => [{
-    description: 'Move the pin to the rebuilt package',
-    operations: [op('ui.setProperty', {
-      surfaceId: SURFACE, nodeId: 'systemsLens', propertyName: 'packageDigest', value: await lensDigest(),
-    })],
+    description: "Label each component by name and show its system as a field",
+    operations: [
+      op('ui.setProperty', { surfaceId: SURFACE, nodeId: 'systemsLens', propertyName: 'labelFieldId', value: 'componentName' }),
+      op('ui.addNode', { surfaceId: SURFACE, nodeId: 'systemsLens.componentSystem', parentNodeId: 'systemsLens',
+        kind: 'fieldBinding', position: 0, properties: { fieldId: 'componentSystem' } }),
+    ],
   }],
+  appliedWhen: async client => hasNode(client, 'systemsLens.componentSystem'),
+};
+
+// The schematic's code, carried in the file (ADR-0013, 2026-09-25): no install, no
+// consent and no pin. Re-running after an edit to the folder proposes only the files that
+// changed, each naming the content it replaces, so the review is the edit.
+const PUT_FILE_BYTES = 96 * 1024;
+STAGES['lens-in-file'] = {
+  title: 'Nendo Station: carry the Systems Lens code in the file',
+  needs: [],
+  makes: [],
+  mutations: async client => {
+    const { manifest, files } = await lensFiles();
+    const current = client ? await lensInFile(client) : null;
+    const operations = [op('extension.setPackage', {
+      packageId: LENS_ID, title: manifest.title, entryPoint: manifest.entryPoint ?? 'index.html',
+      version: manifest.version, description: manifest.description,
+    })];
+    for (const held of current?.files ?? []) {
+      if (!files.some(file => file.path === held.path)) {
+        operations.push(op('extension.removeFile', { packageId: LENS_ID, path: held.path, expectedSha256: held.sha256 }));
+      }
+    }
+    for (const file of files) {
+      const held = current?.files.find(candidate => candidate.path === file.path);
+      if (held?.sha256 === file.sha256) continue;
+      // A file larger than one payload goes as a first put and then appends to the same path.
+      for (let offset = 0; offset === 0 || offset < file.bytes.length; offset += PUT_FILE_BYTES) {
+        const part = file.bytes.subarray(offset, offset + PUT_FILE_BYTES);
+        operations.push(op('extension.putFile', {
+          packageId: LENS_ID, path: file.path, base64: part.toString('base64'),
+          ...(offset === 0 ? { expectedSha256: held?.sha256 ?? 'absent' } : { append: true }),
+        }));
+      }
+    }
+    const mutations = [];
+    for (let index = 0; index < operations.length; index += 16) {
+      mutations.push({ description: index === 0 ? 'Put the Systems Lens package into the file' : 'Put more of the Systems Lens package into the file',
+        operations: operations.slice(index, index + 16) });
+    }
+    return mutations;
+  },
   appliedWhen: async client => {
-    const read = await client.rpc('resources/read', { uri: 'nendo://application/surfaces' });
-    return read.contents[0].text.includes(await lensDigest());
+    const current = await lensInFile(client);
+    if (!current) return false;
+    const { files } = await lensFiles();
+    return files.length === current.files.length &&
+      files.every(file => current.files.some(held => held.path === file.path && held.sha256 === file.sha256));
   },
 };
+
+async function lensInFile(client) {
+  const read = await client.rpc('resources/read', { uri: 'nendo://application/extensions' });
+  const parsed = JSON.parse(read.contents[0].text);
+  const packages = Array.isArray(parsed) ? parsed : parsed.packages ?? [];
+  return packages.find(candidate => candidate.packageId === LENS_ID) ?? null;
+}
 
 // The data stages write records, which is the data lane: no change set, no
 // proposal, no acceptance. A person accepts a shape; records are ordinary
@@ -1072,7 +1105,7 @@ const CSV_PATH = path.join('artifacts', 'station', 'readings.csv');
 const STAGE_ORDER = [
   'schema-a', 'schema-b', 'schema-c', 'behaviour',
   'data-a', 'data-b', 'data-c', 'readings-csv',
-  'surfaces-a', 'surfaces-b', 'surfaces-c', 'surfaces-d', 'pin', 'lens-fields', 'repin', 'workarounds',
+  'surfaces-a', 'surfaces-b', 'surfaces-c', 'surfaces-d', 'pin', 'lens-fields', 'lens-in-file', 'workarounds',
 ];
 
 function fail(message) {
@@ -1273,7 +1306,7 @@ async function main() {
   if (dryRun && name !== 'readings-csv') {
     const planned = DATA_STAGES[name]
       ? DATA_STAGES[name].fills.map(fill => `${fill.records.length} ${fill.entityId}`).join(', ')
-      : `${(await stage.mutations()).length} mutations`;
+      : `${(await stage.mutations(client)).length} mutations`;
     console.log(`Dry run: ${planned} would be written. No lease was taken.`);
     return;
   }
@@ -1295,7 +1328,7 @@ async function main() {
     return;
   }
 
-  const mutations = await stage.mutations();
+  const mutations = await stage.mutations(client);
   const operationCount = mutations.reduce((total, mutation) => total + mutation.operations.length, 0);
   for (const mutation of mutations) {
     if (mutation.operations.length > 16) fail(`Mutation "${mutation.description}" holds ${mutation.operations.length} operations; a call carries 16.`);

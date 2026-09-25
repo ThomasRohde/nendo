@@ -93,7 +93,7 @@ try {
     Write-Host "OK       bundled Workbench entry point ($($bundledEntryPoints.Count) output(s))"
 
     $adapterFiles = @(
-        foreach ($adapterRoot in @('src\Nendo.Desktop', 'src\Nendo.LocalMcp', 'src\Nendo.ExtensionHost')) {
+        foreach ($adapterRoot in @('src\Nendo.Desktop', 'src\Nendo.LocalMcp')) {
             Get-ChildItem -LiteralPath (Join-Path $repoRoot $adapterRoot) -Recurse -File |
                 Where-Object {
                     $_.Extension -in @('.cs', '.csproj', '.xaml') -and
@@ -108,17 +108,35 @@ try {
             throw "SQLite escaped the Engine boundary: $($file.FullName)"
         }
     }
-    Write-Host "OK       Desktop, local MCP and custom-view helper storage boundary ($($adapterFiles.Count) source files)"
+    Write-Host "OK       Desktop and local MCP storage boundary ($($adapterFiles.Count) source files)"
 
-    $helperProject = [xml][IO.File]::ReadAllText((Join-Path $repoRoot 'src/Nendo.ExtensionHost/Nendo.ExtensionHost.csproj'))
-    if ($helperProject.SelectNodes('//ProjectReference').Count -ne 0) { throw 'The custom-view helper must not reference application assemblies.' }
-    $helperPackages = @($helperProject.SelectNodes('//PackageReference') | ForEach-Object { $_.Include })
-    if ($helperPackages.Count -ne 1 -or $helperPackages[0] -ne 'Microsoft.Web.WebView2') { throw 'The custom-view helper dependency inventory changed.' }
-    $helperLinks = @($helperProject.SelectNodes('//Compile[@Include]') | ForEach-Object { $_.Include })
-    if ($helperLinks.Count -ne 1 -or $helperLinks[0].Replace('\', '/') -ne '../Nendo.Engine/Extensions/ExtensionFrameCodec.cs') {
-        throw 'The custom-view helper may share only the bounded frame codec.'
+    # ADR-0013. Custom views run as frames of the Workbench's own browser, served from the open
+    # file. The contained helper is gone, and a filter that answered every address would stop
+    # views reaching the network the decision gives them.
+    if (Test-Path -LiteralPath (Join-Path $repoRoot 'src/Nendo.ExtensionHost')) {
+        throw 'src/Nendo.ExtensionHost is back. Custom views run inside the Workbench under ADR-0013.'
     }
-    Write-Host 'OK       custom-view helper has no application dependency or privileged shared source'
+    foreach ($file in @($adapterFiles | Where-Object { $_.FullName -like '*Nendo.Desktop*' })) {
+        if ([IO.File]::ReadAllText($file.FullName) -match 'AddWebResourceRequestedFilter\(\s*"\*"') {
+            throw "A catch-all resource filter would answer every address a view asks for: $($file.FullName)"
+        }
+    }
+    Write-Host 'OK       custom views run in the Workbench browser, with no helper and no catch-all filter'
+
+    # A view reaches the file only through window.nendo. chrome.webview exists inside a view's
+    # frame (prototypes/iframe-views/FINDINGS.md, S8) and answers nothing, so a package that
+    # names it is a package written for the retired helper.
+    $packageSources = @(
+        Get-ChildItem -LiteralPath (Join-Path $repoRoot 'extensions') -Recurse -File |
+            Where-Object { $_.Extension -in @('.js', '.mjs', '.html') }
+    )
+    if ($packageSources.Count -eq 0) { throw 'No custom-view package sources were found; this check would pass vacuously.' }
+    foreach ($file in $packageSources) {
+        if ([IO.File]::ReadAllText($file.FullName) -match 'chrome\.webview') {
+            throw "A custom-view package still speaks to the retired helper: $($file.FullName)"
+        }
+    }
+    Write-Host "OK       custom-view packages speak only window.nendo ($($packageSources.Count) source files)"
 
     # ADR-0008. The Engine is the only consumer of the expression library, and
     # consent is the desktop host's to give. An adapter that could name either
@@ -141,8 +159,8 @@ try {
         if ($text -match '(?i)BehaviourGrantStore|ApproveBehaviourAsync|BehaviourAuthority') {
             throw "The local MCP surface can reach behaviour approval: $($file.FullName)"
         }
-        if ($text -match '(?i)DesktopExtensionGrantStore|DesktopExtensionPackageStore|ApproveExtensionAsync|PrepareExtensionConsentAsync') {
-            throw "The local MCP surface can install or approve a custom view: $($file.FullName)"
+        if ($text -match '(?i)DesktopExtensionSettingsStore|DesktopExtensionDevLinks|SetExtensionSettingAsync|SuspendExtensions') {
+            throw "The local MCP surface can switch this device's custom views: $($file.FullName)"
         }
         # The notification area is where an owner answers, so it must stay as far from
         # the agent surface as approval itself. An adapter that could raise a Nendo
@@ -296,12 +314,10 @@ try {
     }
     Write-Host "OK       Help inventory matches the local MCP surface ($($declaredUriTemplates.Count) resources, $($expectedTools.Count) tools)"
 
-    # The host turns the browser's own dialogs off and handles none of them, so
-    # window.confirm draws nothing and returns false, window.alert draws nothing at all,
-    # and window.prompt returns null. A renderer that calls one has a control that
-    # silently does nothing -- which is what the fifth access level shipped as (F-120).
-    # The app has its own <dialog>; this check is what stops the browser's being reached
-    # for again.
+    # The Workbench asks with its own <dialog>. The browser's are on for custom views, which
+    # may call them, but in the Workbench they would be a second, foreign kind of question --
+    # and while they were off, the fifth access level shipped with a control that silently did
+    # nothing (F-120). This check is what stops the browser's being reached for again.
     $rendererSource = @(
         Get-ChildItem -LiteralPath (Join-Path $workbenchRoot 'src') -Recurse -File -Include '*.ts', '*.js' |
             Where-Object { $_.FullName -notmatch '[\/](?:node_modules|dist)[\/]' }
@@ -312,12 +328,8 @@ try {
     foreach ($file in $rendererSource) {
         $text = [IO.File]::ReadAllText($file.FullName)
         if ($text -match '(?<![A-Za-z0-9_.$])(?:window\.)?(?:confirm|alert|prompt)\s*\(') {
-            throw "The renderer calls a browser dialog the host has disabled, so the control does nothing: $($file.FullName)"
+            throw "The renderer calls a browser dialog; use the Workbench's own dialog: $($file.FullName)"
         }
-    }
-    $settings = [IO.File]::ReadAllText((Join-Path $repoRoot 'src/Nendo.Desktop/MainPage.xaml.cs'))
-    if ($settings -notmatch 'AreDefaultScriptDialogsEnabled\s*=\s*false') {
-        throw 'The host no longer disables browser dialogs; the renderer check above is guarding nothing.'
     }
     Write-Host "OK       the renderer asks with its own dialog, never the browser's ($($rendererSource.Count) source files)"
 
@@ -348,7 +360,6 @@ try {
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-WorkDependencies.ps1')) 'Work-dependency view presentation'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-SystemsLens.ps1')) 'Systems Lens presentation'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-Gantt.ps1')) 'Gantt record-set presentation'
-    Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-ExtensionDialogs.ps1')) 'Native custom-view dialogs'
 
     Write-Host '== Repository =='
     & (Join-Path $PSScriptRoot 'Test-Repository.ps1')

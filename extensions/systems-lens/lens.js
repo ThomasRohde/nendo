@@ -1,9 +1,17 @@
 (() => {
   'use strict';
+  // Components as nodes and the feeds between them as links, laid out in the direction of
+  // supply. Everything arrives through window.nendo (ADR-0013): the graph from
+  // nendo.view.loadGraph, the names of choices from nendo.schema.describe, and the theme,
+  // whose colours api.js sets on this page as --nendo-* tokens. Selecting a component asks
+  // Nendo to open it. Nothing here writes.
   const element = id => document.getElementById(id);
   const drawing = element('drawing'), canvas = element('canvas');
-  let session = null, generation = 0, nodes = [], edges = [], selected = null, focusing = false, removed = null;
+  const nendo = window.nendo;
+  let loaded = false, nodes = [], edges = [], selected = null, focusing = false, removed = null;
   let width = 800, height = 500, scale = 1, offsetX = 0, offsetY = 0, drag = null;
+  // Reads are numbered so an answer that arrives after a newer read has started is dropped.
+  let latest = 0, pending = null;
   const positions = new Map();     // node id -> {x, y}
   const component = new Map();     // node id -> strongly connected component index
   const looping = new Set();       // node ids that sit in a real circuit
@@ -17,41 +25,27 @@
   // another file's scalar.
   const TONES = { online: 'green', standby: 'blue', offline: 'red', removed: 'grey' };
   const SEPARATOR = ' · ';
-  const PROTOCOL = 2;
 
-  function send(method, values = {}) {
-    if (session !== null) window.chrome.webview.postMessage({ version: PROTOCOL, session, generation, method, ...values });
-  }
   function shape(name, attributes, text) {
     const item = document.createElementNS('http://www.w3.org/2000/svg', name);
     for (const [key, value] of Object.entries(attributes)) item.setAttribute(key, String(value));
     if (text !== undefined) item.textContent = text;
     return item;
   }
-  // Protocol 2: the view discloses the system as a field of its own, and the first node
-  // field the projection names is the system this schematic bands by. A node without a
-  // value, or a view that discloses nothing, is simply unbanded.
+  function describe(error) { return error instanceof Error && error.message ? error.message : String(error); }
   function band(node) { return { band: node.system, name: node.name }; }
-  function withSystems(projection) {
-    const field = (projection.fields ?? []).find(candidate => candidate.of === 'node');
-    return projection.nodes.map(node => {
-      const system = field === undefined ? null : node.values?.[field.id] ?? null;
-      // What the schematic says about a component reads SYSTEM · name, as it always has.
-      return { ...node, name: node.label, system, label: system === null ? node.label : `${system}${SEPARATOR}${node.label}` };
-    });
-  }
   function transform() { drawing.setAttribute('transform', `translate(${offsetX} ${offsetY}) scale(${scale})`); }
   function fit() {
     const bounds = canvas.getBoundingClientRect();
-    // The host composes and sizes this pane after the page loads, so an early fit can
+    // The Workbench lays out and sizes this frame after the page loads, so an early fit can
     // measure zero and put every component off-screen.
     if (bounds.width < 1 || bounds.height < 1) return;
     scale = Math.min(1.1, Math.max(.08, Math.min(bounds.width / width, bounds.height / height) * .92));
     offsetX = (bounds.width - width * scale) / 2; offsetY = (bounds.height - height * scale) / 2;
     transform();
   }
-  function refit() { requestAnimationFrame(() => requestAnimationFrame(() => { if (session !== null && !canvas.hidden) fit(); })); }
-  window.addEventListener('resize', () => { if (session !== null && !canvas.hidden) fit(); });
+  function refit() { requestAnimationFrame(() => requestAnimationFrame(() => { if (loaded && !canvas.hidden) fit(); })); }
+  window.addEventListener('resize', () => { if (loaded && !canvas.hidden) fit(); });
   function zoom(factor, x = canvas.clientWidth / 2, y = canvas.clientHeight / 2) {
     const next = Math.min(4, Math.max(.08, scale * factor));
     offsetX = x - (x - offsetX) * next / scale; offsetY = y - (y - offsetY) * next / scale;
@@ -62,7 +56,7 @@
    * Tarjan's strongly connected components. A coolant circuit is a cycle and a water
    * loop is a cycle, so naming them exactly matters more here than it does on a graph
    * of work: a component merely standing behind a loop is not in one. Iterative,
-   * because this runs inside a contained renderer with no stack to spare.
+   * because a frame has no stack to spare.
    */
   function components() {
     component.clear(); looping.clear();
@@ -227,8 +221,7 @@
 
   function labelOf(id) { return nodes.find(node => node.id === id)?.label ?? id; }
 
-  function select(id) {
-    if (!positions.has(id)) return;
+  function highlight(id) {
     selected = id;
     element('takeout-toggle').disabled = false;
     const fed = incoming.get(id).length, feeds = outgoing.get(id).length;
@@ -238,7 +231,15 @@
       + (looping.has(id) ? ' · in a circuit' : fed === 0 ? ' · a declared source' : '')
       + (baseline.has(id) ? '' : ' · no declared source reaches it');
     paint();
-    send('selectRecord', { recordId: id });
+  }
+
+  function select(id) {
+    if (!positions.has(id)) return;
+    highlight(id);
+    const node = nodes.find(value => value.id === id);
+    nendo.ui.openRecord(node.entityId, id).catch(error => {
+      if (selected === id) element('selection').textContent = `${node.label} · Nendo could not open it: ${describe(error)}`;
+    });
   }
 
   function textView(verdict) {
@@ -287,10 +288,13 @@
   }
 
   function render(projection) {
-    nodes = withSystems(projection); edges = projection.edges; selected = null; removed = null;
+    // A re-read keeps the selection when its component is still there, without opening it
+    // again. It always ends a take-out: the graph may have changed under the question.
+    const keep = selected;
+    nodes = projection.nodes; edges = projection.edges; selected = null; removed = null;
     drawing.replaceChildren();
-    element('takeout-toggle').disabled = true;
-    element('takeout-toggle').setAttribute('aria-pressed', 'false');
+    const toggle = element('takeout-toggle');
+    toggle.disabled = true; toggle.setAttribute('aria-pressed', 'false'); toggle.textContent = 'Take out';
     outgoing.clear(); incoming.clear();
     // Adjacency is by distinct component, not by feed record: two records both saying
     // A supplies B are two feeds to draw and one thing to say about B.
@@ -367,6 +371,7 @@
       drawing.append(group);
     });
     paint(); fit(); refit();
+    if (keep !== null && positions.has(keep)) highlight(keep);
   }
 
   function setTakeOut(id) {
@@ -375,6 +380,67 @@
     button.setAttribute('aria-pressed', String(id !== null));
     button.textContent = id === null ? 'Take out' : 'Put back';
     paint();
+  }
+
+  // A field's value as a person reads it: a reference by its target's label, a choice by its
+  // name, a number by its exact digits. Null when the record has none.
+  function display(schema, record, fieldId) {
+    const label = record.labels?.[fieldId];
+    if (typeof label === 'string') return label;
+    const value = record.values?.[fieldId];
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string') {
+      const field = schema.entities.find(entity => entity.entityId === record.entityId)?.fields.find(candidate => candidate.fieldId === fieldId);
+      return field?.choices.find(choice => choice.id === value)?.displayName ?? value;
+    }
+    return record.exact?.[fieldId] ?? (typeof value === 'object' ? JSON.stringify(value) : String(value));
+  }
+  /**
+   * The first field the view binds on its own record type is the system this schematic bands
+   * by; for Nendo Station a reference, read by the name it points at. A component without a
+   * value, or a view that binds no such field, is simply unbanded. What the schematic says
+   * about a component reads SYSTEM · name, as it always has.
+   */
+  function project(graph, schema) {
+    const context = nendo.context;
+    const system = graph.fields.find(field => field.entityId === context.entityId) ?? null;
+    const statusFieldId = context.bindings.statusFieldId;
+    return {
+      nodes: graph.nodes.map(node => {
+        const named = system === null ? null : display(schema, node.record, system.fieldId);
+        const value = named === null || named === '' ? null : named;
+        return {
+          id: node.id, entityId: node.record.entityId, name: node.label, system: value,
+          label: value === null ? node.label : `${value}${SEPARATOR}${node.label}`,
+          status: statusFieldId === null ? null : display(schema, node.record, statusFieldId),
+        };
+      }),
+      edges: graph.edges.map(edge => ({ id: edge.id, sourceId: edge.source, targetId: edge.target })),
+    };
+  }
+  async function read() {
+    const number = ++latest;
+    let graph, schema;
+    try {
+      [graph, schema] = await Promise.all([nendo.view.loadGraph(), nendo.schema.describe()]);
+    } catch (error) {
+      if (number === latest) element('summary').textContent = `The components could not be read. ${describe(error)}`;
+      return;
+    }
+    if (number !== latest) return;
+    loaded = true;
+    try { render(project(graph, schema)); } catch {
+      element('summary').textContent = 'This schematic could not be displayed. Open your components in Nendo.';
+    }
+  }
+  // Nendo says the file changed at most four times a second. A burst of changes is one read,
+  // a quarter of a second after the first of them.
+  function schedule() {
+    if (pending !== null) return;
+    pending = setTimeout(() => { pending = null; read(); }, 250);
+  }
+  function applyTheme(theme) {
+    if (theme?.mode === 'light' || theme?.mode === 'dark') document.documentElement.dataset.theme = theme.mode;
   }
 
   element('zoom-in').addEventListener('click', () => zoom(1.25));
@@ -413,25 +479,21 @@
     else return;
     event.preventDefault();
   });
-  // A what-if is session state and nothing else. Escape puts it back, and so does any
-  // new projection: the graph may have changed under the question.
+  // A what-if is page state and nothing else. Escape puts it back, and so does any new
+  // read: the graph may have changed under the question.
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && removed !== null) setTakeOut(null); });
-  new ResizeObserver(() => { if (session !== null && !canvas.hidden) fit(); }).observe(canvas);
-  window.chrome.webview.addEventListener('message', event => {
-    const message = event.data;
-    if (message.version !== PROTOCOL) return;
-    try {
-      if (message.method === 'initialize' && session === null) {
-        session = message.session; generation = message.generation;
-        document.documentElement.dataset.theme = message.theme;
-        document.documentElement.lang = message.locale || 'en';
-        render(message.projection); send('ready');
-      } else if (message.session === session && message.method === 'replaceProjection' && message.generation > generation) {
-        generation = message.generation; render(message.projection);
-      } else if (message.session === session && message.method === 'setTheme') document.documentElement.dataset.theme = message.theme;
-    } catch {
-      element('summary').textContent = 'This schematic could not be displayed. Open your components in Nendo.';
-      send('reportError', { code: 'render-failed', message: 'The schematic could not be displayed.' });
-    }
-  });
+  new ResizeObserver(() => { if (loaded && !canvas.hidden) fit(); }).observe(canvas);
+  if (nendo === undefined) {
+    element('summary').textContent = 'This schematic runs inside Nendo. Open the screen that shows it.';
+    return;
+  }
+  nendo.ready.then(context => {
+    document.documentElement.lang = context.locale || 'en';
+    applyTheme(nendo.ui.theme);
+    nendo.on('theme', applyTheme);
+    // A new context can name other fields or another record type: read again under it.
+    nendo.on('context', next => { applyTheme(next.theme); schedule(); });
+    nendo.on('changes', schedule);
+    return read();
+  }).catch(error => { element('summary').textContent = `This schematic could not start. ${describe(error)}`; });
 })();

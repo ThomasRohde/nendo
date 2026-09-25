@@ -1,18 +1,19 @@
-/* Nendo's own tokens, copied from src/Nendo.Workbench/src/styles/02-tokens.css so the
-   chart sits with the app. The host sends one word, light or dark, and no colours, so
-   these are a copy and can drift if the app's change. */
+/* Nendo's own colours, so the chart sits with the app. The Workbench hands a view its
+   theme's tokens and api.js sets them on this page as --nendo-*; the value after each is
+   that token as src/Nendo.Workbench/src/styles/02-tokens.css declares it, used only when
+   the page runs without them. */
 :root{
   color-scheme:light;
   font:16px/1.5 "Segoe UI Variable Text","Segoe UI",sans-serif;
-  --canvas:#f4f5f7;--surface-raised:#fff;--surface-soft:#f0f1f6;
-  --ink:#13213d;--muted:#667085;--line:#d9dde6;--line-strong:#c9cfdb;
-  --cobalt:#2458e6;--cobalt-soft:#e9edff;--violet:#7256d9;
+  --canvas:var(--nendo-canvas,#f4f5f7);--surface-raised:var(--nendo-surface-raised,#fff);--surface-soft:var(--nendo-surface-soft,#f0f1f6);
+  --ink:var(--nendo-ink,#13213d);--muted:var(--nendo-muted,#667085);--line:var(--nendo-line,#d9dde6);--line-strong:var(--nendo-line-strong,#c9cfdb);
+  --cobalt:var(--nendo-cobalt,#2458e6);--cobalt-soft:var(--nendo-cobalt-soft,#e9edff);--violet:var(--nendo-violet,#7256d9);
 }
 :root[data-theme=dark]{
   color-scheme:dark;
-  --canvas:#071725;--surface-raised:#0e2435;--surface-soft:#10283a;
-  --ink:#edf3ff;--muted:#a8b5c8;--line:#263e50;--line-strong:#355469;
-  --cobalt:#6597ff;--cobalt-soft:#142f5e;--violet:#ad97ff;
+  --canvas:var(--nendo-canvas,#071725);--surface-raised:var(--nendo-surface-raised,#0e2435);--surface-soft:var(--nendo-surface-soft,#10283a);
+  --ink:var(--nendo-ink,#edf3ff);--muted:var(--nendo-muted,#a8b5c8);--line:var(--nendo-line,#263e50);--line-strong:var(--nendo-line-strong,#355469);
+  --cobalt:var(--nendo-cobalt,#6597ff);--cobalt-soft:var(--nendo-cobalt-soft,#142f5e);--violet:var(--nendo-violet,#ad97ff);
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--canvas);color:var(--ink);height:100vh;display:flex;flex-direction:column;padding:20px;gap:10px}

@@ -621,17 +621,22 @@
   border-top: 1px solid var(--line);
 }
 
-/* A custom view of this record (ADR-0013, 2026-09-24). The page draws only this
-   placeholder; the view runs in the host's own window, placed over the viewport box
-   once the person asks for it. The box is a fixed height so scrolling never resizes it. */
-.extension-panel {
+/* A custom view (ADR-0013). The page draws the placeholder; view-frames.ts puts the view's
+   frame in its stage once the placeholder scrolls into view. On a record page it is a titled
+   panel at its authored position, 360px tall until the view asks for another height; on a
+   screen of its own it fills the screen. */
+.view-mount {
   display: grid;
   gap: 8px;
+  min-width: 0;
+}
+
+.view-mount.is-panel {
   padding: 14px 0 0;
   border-top: 1px solid var(--line);
 }
 
-.extension-panel header {
+.view-header {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -639,7 +644,7 @@
   gap: 8px;
 }
 
-.extension-panel h3 {
+.view-header h3 {
   margin: 0;
   color: var(--muted);
   font-size: 0.72rem;
@@ -648,28 +653,119 @@
   text-transform: uppercase;
 }
 
-.extension-panel-package,
-.extension-panel-status {
-  margin: 0;
+.view-package {
   color: var(--muted);
   font-size: 0.78rem;
 }
 
-.extension-panel-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.extension-panel-viewport {
-  height: 360px;
+.view-stage {
+  position: relative;
   min-width: 0;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
 }
 
-.extension-panel-viewport[hidden] { display: none; }
+.view-mount.is-panel .view-stage { height: 360px; }
+
+/* The frame covers its stage. It is transparent until the view paints, so the stage's
+   own "Starting…" shows through until the page has loaded. */
+.view-frame {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+}
+
+.view-mount[data-view-state="waiting"] .view-stage::before,
+.view-mount[data-view-state="starting"] .view-stage::before {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+  content: "Starting…";
+}
+
+/* A screen that is a custom view gives the whole surface to it. */
+.custom-view-surface {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.custom-view-surface > .view-mount { flex: 1 1 auto; }
+
+.view-mount.is-screen {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.view-mount.is-screen .view-stage {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* Why a view does not run, and the step that changes it. */
+.view-mount.is-panel .view-stage.is-notice { height: auto; }
+
+.view-stage.is-notice {
+  display: grid;
+  align-content: center;
+}
+
+.view-mount.is-screen .view-stage.is-notice { justify-items: center; }
+
+.view-notice {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  max-width: 560px;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.view-notice p { margin: 0; }
+.view-notice strong { color: var(--ink); overflow-wrap: anywhere; }
+
+/* Over a view that stopped answering or stopped altogether: what happened, and Reload. */
+.view-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 20px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  text-align: center;
+}
+
+.view-overlay p {
+  max-width: 440px;
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.view-overlay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
 
 /* The heading and the one action that belongs beside it: Add, which makes a record of
    the related type already pointing at this one. */
