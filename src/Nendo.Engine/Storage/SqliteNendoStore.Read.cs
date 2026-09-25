@@ -38,7 +38,10 @@ internal sealed partial class SqliteNendoStore
         var records = includeRecords ? await ReadRecordsAsync(mappings, transaction, cancellationToken) : [];
         var uiNodes = await ReadUiNodesAsync(transaction, cancellationToken);
         var storage = await GetStorageHealthAsync(cancellationToken, transaction, verifyIntegrity: false);
-        return new NendoSessionSnapshot(fileName, health, manifest, entities, records, uiNodes, storage);
+        return new NendoSessionSnapshot(fileName, health, manifest, entities, records, uiNodes, storage)
+        {
+            ExtensionPackages = await ReadExtensionPackagesAsync(transaction, cancellationToken),
+        };
     }
 
     internal async Task<IReadOnlyList<NendoRevisionSnapshot>> GetRevisionsAsync(
@@ -65,6 +68,14 @@ internal sealed partial class SqliteNendoStore
         {
             _authorityTainted = true;
             throw new NendoRecoveryRequiredException("The explicit integrity check failed. Reopen for recovery inspection.");
+        }
+        // SQLite checks its pages, not what a stored script says it is. A package file is
+        // named by the hash of its bytes, so the explicit check reads every one and compares.
+        if (await FirstMismatchedExtensionContentAsync(transaction, cancellationToken) is { } mismatched)
+        {
+            _authorityTainted = true;
+            throw new NendoRecoveryRequiredException(
+                $"Stored custom-view content {mismatched} no longer matches its SHA-256. Reopen for recovery inspection.");
         }
         return health;
     }

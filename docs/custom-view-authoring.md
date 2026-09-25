@@ -5,7 +5,14 @@ behaviour that this guide depends on is in the
 [custom-view contract](contracts/custom-views.md). If this guide, the contract
 and the code disagree, the code is current. Then fix the contract and this guide
 to match the code. The authority is
-[ADR-0013](decisions/0013-defer-general-extension-model.md), accepted 2026-09-20.
+[ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md), accepted 2026-09-25.
+
+Parts 1–4 describe the views that run today: a package installed on the device,
+pinned by digest and allowed through native consent. A package's code can now also
+live in the `.nendo` file, where it is stored, reviewed as code and read back, but
+nothing runs it from there yet.
+[Writing a package into the file](#writing-a-package-into-the-file) describes that
+path.
 
 This repository ships three worked examples. All are MIT-licensed and have no
 dependencies:
@@ -573,6 +580,54 @@ While the view runs, Nendo re-reads the bounded typed view every 500 ms:
 different package. Any file pinned to the old digest reports the package as
 changed. The person must reinstall and allow it again. During development, expect
 to repeat all three steps on every build.
+
+## Writing a package into the file
+
+A package's code can live in the `.nendo` file itself, at host 1.33.0. There it is
+stored, reviewed as code and read back. **Nothing runs it yet.** A view still runs
+the device-installed package that it pins, as Parts 1–4 describe. Running views
+from the file, with no install and no consent, is ADR-0013's Phase 2. The
+[contract](contracts/custom-views.md#packages-in-the-file) has the full rules.
+
+An agent writes a package through MCP, in a change set that the person accepts:
+
+1. `extension.setPackage` creates the package. It takes a `packageId`, lowercase
+   and dotted such as `org.example.map`, and a `title`. `entryPoint` (default
+   `index.html`), `version` and `description` are optional.
+2. `extension.putFile` puts one file. It takes `packageId`, `path`, and the content
+   as `text`, stored as UTF-8 exactly as written, or as `base64`, for any bytes.
+   `mediaType` defaults from the path's extension. Any file type is allowed.
+3. A file whose payload would be larger than 96 KiB is sent in parts. Send the
+   first part as an ordinary `putFile`. Send the rest as `putFile` operations with
+   `append: true` for the same package and path, later in the same change set. The
+   host joins the parts in order at validation. About two parts fit in one call.
+4. Validate. The preview's `packageChanges` lists each file as added, replaced or
+   removed, with the changed lines of a text file. The person reads the same lines
+   in the review's **Code** section before accepting.
+
+Put the package and its files in one mutation. They then become one revision,
+which History can compensate as a whole. To change a file, put it again: the
+review shows the changed lines, and the old version stays in history.
+`extension.removeFile` removes a file, and `extension.removePackage` removes an
+empty package.
+
+A path uses letters, digits, `_ - . ~` and `/`, at most 240 characters, and nothing
+under `_nendo/`, which is reserved for the host. A file holds at most 4 MiB, a
+package 512 files and 16 MiB, and a `.nendo` file 64 packages and 64 MiB. One change
+set brings at most 4 MiB of new content.
+
+Read the package back after acceptance:
+
+- `nendo://application/extensions` lists each file's path, media type, SHA-256 and
+  size.
+- `nendo://application/extension/{packageId}/file?path=…&offset=…` returns a file in
+  pages of at most 131,072 bytes. Percent-encode the path: `tiles/world.bin` is
+  `tiles%2Fworld.bin`. Follow `nextOffset` until it is null. Then compare the
+  SHA-256 of what you assembled with the page's `sha256`, which describes the whole
+  file.
+
+The example `put-a-custom-view-in-the-file` in `nendo://application/examples` is a
+complete change set to copy.
 
 ## When it refuses you
 

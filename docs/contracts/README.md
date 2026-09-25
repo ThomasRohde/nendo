@@ -10,7 +10,7 @@ authority above both.
 
 | Contract | Covers |
 | --- | --- |
-| [mcp-interface.md](mcp-interface.md) | The fourteen resources and nineteen tools that an agent sees, lease and handle authority, cursor rules |
+| [mcp-interface.md](mcp-interface.md) | The sixteen resources and nineteen tools that an agent sees, lease and handle authority, cursor rules |
 | [semantic-surfaces.md](semantic-surfaces.md) | How stored surface definitions compile into render plans, across contract versions 1-3 |
 | [studio.md](studio.md) | The permanent host-owned database editor |
 | [scalars.md](scalars.md) | Exact values through storage, the Workbench bridge and the MCP wire |
@@ -21,7 +21,7 @@ authority above both.
 | [operation-outcomes.md](operation-outcomes.md) | How a client learns that an operation committed, and what a lost response permits |
 | [help.md](help.md) | The permanent Help route and generated application reference |
 | [calculations-and-actions.md](calculations-and-actions.md) | Stored calculations, reusable functions, local actions and triggers (ADR-0008, stages S1-S9; P1-P8 satisfied) |
-| [custom-views.md](custom-views.md) | The custom-view execution boundary: what the host guarantees and refuses for a view package (ADR-0013) |
+| [custom-views.md](custom-views.md) | The custom-view execution boundary, and packages carried in the file: what the host guarantees and refuses for a view package (ADR-0013) |
 
 If a contract and the code disagree, the code is current. Fix the contract in
 the same change.

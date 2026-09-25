@@ -95,6 +95,13 @@ public sealed record NendoProposalPreview(
     /// same reason a front page had to be named here explicitly.
     /// </summary>
     public string? PurposeAfter { get; init; }
+
+    /// <summary>
+    /// What the proposal does to each custom-view package file (ADR-0013), compared between
+    /// the active file and the validated clone. Code is reviewed as its lines, not as a
+    /// sentence about them; a binary file is said by its sizes.
+    /// </summary>
+    public IReadOnlyList<NendoExtensionFileChange> PackageChanges { get; init; } = [];
 }
 
 public sealed record NendoPromotionOutcome(

@@ -82,6 +82,12 @@ public sealed record NendoAgentPreviewSummary(
     /// nothing at all — the mistake the front page taught.
     /// </summary>
     public string? PurposeAfter { get; init; }
+
+    /// <summary>
+    /// What the proposal does to each custom-view package file, as the person will review it:
+    /// changed lines with context for text, sizes for anything else.
+    /// </summary>
+    public IReadOnlyList<NendoExtensionFileChange> PackageChanges { get; init; } = [];
 }
 
 public sealed record NendoAgentProposalPreview(
@@ -444,6 +450,7 @@ public sealed class NendoAgentProposalStore
             MinimumHostVersionAfter = preview.MinimumHostVersionAfter,
             PurposeBefore = preview.PurposeBefore,
             PurposeAfter = preview.PurposeAfter,
+            PackageChanges = preview.PackageChanges,
         };
     }
 

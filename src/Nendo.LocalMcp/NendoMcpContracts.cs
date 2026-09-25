@@ -241,7 +241,39 @@ public sealed record NendoMcpDescription(
     /// so one read answers "how do I read this file".
     /// </summary>
     public IReadOnlyList<NendoMcpRead> Reads { get; init; } = [];
+
+    /// <summary>The custom-view packages the file carries, with their files but not their bytes.</summary>
+    public IReadOnlyList<NendoMcpExtensionPackage> Extensions { get; init; } = [];
 }
+
+/// <summary>A custom-view package in the file, as nendo://application/extensions lists it.</summary>
+public sealed record NendoMcpExtensionPackage(
+    string PackageId,
+    string Title,
+    string? Version,
+    string EntryPoint,
+    string? Description,
+    long TotalBytes,
+    IReadOnlyList<NendoMcpExtensionFile> Files);
+
+/// <summary>One file of a package: where it is, what it is and which bytes.</summary>
+public sealed record NendoMcpExtensionFile(string Path, string MediaType, string Sha256, long ByteLength);
+
+/// <summary>
+/// One page of a package file. Exactly one of <paramref name="Text"/> and <paramref name="Base64"/>
+/// is set; <paramref name="Sha256"/> and <paramref name="ByteLength"/> describe the whole file.
+/// </summary>
+public sealed record NendoMcpExtensionFileContent(
+    string PackageId,
+    string Path,
+    string MediaType,
+    string Sha256,
+    long ByteLength,
+    long Offset,
+    long Length,
+    long? NextOffset,
+    string? Text,
+    string? Base64);
 
 public sealed record NendoMcpOperation(
     string OperationType,

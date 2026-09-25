@@ -101,6 +101,17 @@ reserved protected metadata namespace for Nendo state.
 - Protected metadata records the manifest, application/instance identity,
   semantic mappings, UI nodes/properties, revisions, canonical operations and
   idempotency evidence. This ADR does not freeze the exact prototype schema.
+- Protected metadata also holds custom-view packages, by decision of
+  [ADR-0013](0013-custom-views-with-code-in-the-file.md). Four tables hold them:
+  `__nendo_extension_package`, `__nendo_extension_file`,
+  `__nendo_extension_retained` (replaced or removed content, kept for
+  compensation) and `__nendo_extension_state` (a view's durable state). The host
+  creates them on the first extension write, never at file creation, as the layout
+  ladder's new last rung. A file that has them needs host 1.33.0. Only the typed
+  `extension.*` operations write them.
+- A package's files are code and assets that run in the Workbench's WebView2. So
+  the file can carry an executable payload. This is deliberate, and ADR-0013
+  states the trust trade.
 - `format_version` and `minimum_host_version` are mandatory from the first
   production format. SQLite application/user version markers supplement the
   protected manifest. They do not replace it.
@@ -114,7 +125,9 @@ reserved protected metadata namespace for Nendo state.
   the schema service accepts the presentations `singleLine`, `longText`,
   `singleChoice`, `date` and `rating`. Email, URL, color and Markdown
   presentations are not implemented.)
-- Scalar multi-choice, JSON-as-a-user-type and binary/assets are deferred.
+- Scalar multi-choice, JSON-as-a-user-type and binary/asset fields are deferred.
+  A package file's content is stored as a BLOB, but it is protected metadata, not
+  a user field.
 - Relationships use explicit relational metadata and foreign-key/join
   structures. They do not use encoded scalar lists.
 - Generated display-label recovery views are not part of format version 1.
@@ -159,3 +172,12 @@ operation-level change tracking.
 - Format migrations show that stable physical mappings are insufficient.
 - A generated recovery-view experiment proves clear value without collision or
   migration debt.
+
+## History
+
+- 2026-09-02 — accepted.
+- 2026-09-09 — a covering index on each configured reference column (the accepted
+  note under *Context*).
+- 2026-09-25 — protected metadata holds custom-view packages, an executable
+  payload, by decision of [ADR-0013](0013-custom-views-with-code-in-the-file.md);
+  host 1.33.0.

@@ -8,11 +8,15 @@ difference and fix this file.
 
 ## Composition
 
-[ADR-0013's accepted 2026-09-20 amendment](decisions/0013-defer-general-extension-model.md)
-authorizes an isolated custom-view helper in a zero-capability AppContainer/Job
-Object, outside the permanent Studio process. The amendment gives implementation
-authority. It does not state that the visible feature is integrated or
-release-qualified. The production helper now runs in Desktop tests.
+[ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md), accepted
+2026-09-25, puts a custom view's code in the `.nendo` file and runs views inline in
+the Workbench. It lands in phases. Phase 1 is delivered: packages live in the file
+at host 1.33.0 (see [The file](#the-file)), but nothing runs them yet. Until Phase 2
+ships, the runtime is the bounded slice accepted on 2026-09-20, which ADR-0013's
+History records: an isolated custom-view helper in a zero-capability
+AppContainer/Job Object, outside the permanent Studio process. That acceptance
+does not state that the visible feature is integrated or release-qualified. The
+production helper runs in Desktop tests.
 [The OS experiment](../prototypes/custom-views/OS-BOUNDARY.md) records the
 prototype evidence and the remaining gates.
 
@@ -86,7 +90,8 @@ The file format gained these rungs and operations:
 - A rung for the front page (1.23.0): an `overviewSurface` that belongs to the file
   and not to a record type, with a `recentList` and a `rangeTile` under it.
 - A rung for what the file is for (1.24.0): prose that the file carries itself. The
-  prose is in its own protected table, which is the layout ladder's new last rung.
+  prose is in its own protected table, on the layout ladder's rung below the
+  custom-view package tables.
   The describe resource leads with it, and it belongs to no record type and no
   node.
 
@@ -152,10 +157,11 @@ A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
 what a file can contain. `1.11.0` is for composable surfaces. After it, each
 version adds one capability, usually a widened semantic shape. The highest version
-is `1.32.0`, for a custom view on a record page (`extensionRecordPanel`,
-ADR-0013 2026-09-24); `1.31.0` is a custom view of one record type as typed columns
-(`extensionRecordsSurface`), `1.30.0` a graph view at protocol 2 and `1.29.0` a
-custom-view reference at protocol 1.
+is `1.33.0`, for custom-view packages carried in the file (ADR-0013, 2026-09-25).
+`1.32.0` is a custom view on a record page (`extensionRecordPanel`), `1.31.0` a
+custom view of one record type as typed columns (`extensionRecordsSurface`),
+`1.30.0` a graph view at protocol 2 and `1.29.0` a custom-view reference at
+protocol 1.
 
 `src/Nendo.Engine/SemanticCapability.cs` computes from its shape which of these
 versions a stored definition needs. It computes this over the tree that a mutation
@@ -167,6 +173,19 @@ without setting any property.
 The host only raises a recorded minimum, and never lowers it. An older host
 refuses a newer file explicitly, and does not open it partially. Opening an older
 file never upgrades or rewrites it.
+
+Custom-view packages in the file are four protected tables on the layout ladder's
+last rung: the packages, a content store, the files and view state. The Engine
+creates them on the first extension write, never at file creation. A file that
+never carries a package keeps its layout and the host version it states. The
+content store is addressed by SHA-256. Each distinct content is stored once, a file
+row names it, and replaced or removed content stays, so compensation restores the
+exact bytes. Operation and history rows carry the hash, the size and the media
+type, never the bytes. An ordinary open checks the tables' shape and bounds. An
+explicit integrity verification also reads every stored content and compares it
+with its hash. Nothing runs a package from the file yet. The
+[custom-view contract](contracts/custom-views.md#packages-in-the-file) has the
+operations, the bounds and the review.
 
 **Cloud sync is unsupported.** Where practical, the host detects known
 sync-managed paths (OneDrive, Dropbox, Google Drive) and shows a warning. The
@@ -221,8 +240,9 @@ An edit to an unrelated record does not invalidate a UI-only proposal
 
 ### Typed operations
 
-Twenty-two canonical operations are the primitive. Semantic diff, undo evidence
-and replay all derive from the same operation stream.
+Twenty-six operation types are the primitive: every type that a revision can
+record, including the two that only host services create. Semantic diff, undo
+evidence and replay all derive from the same operation stream.
 
 ```text
 schema.createEntity      data.createRecord              ui.addNode
@@ -233,10 +253,14 @@ schema.setFieldRequired  data.backfillRetiredField
 schema.setRetired        data.convertLegacyReference    behaviour.setDefinition
 schema.setChoiceMetadata identity.transition *          behaviour.removeDefinition
 schema.configureReference                               application.setPurpose
+
+extension.setPackage     extension.removeFile
+extension.putFile        extension.removePackage
 ```
 
-`*` marks a native-only operation. The other twenty are the closed union that an
-MCP client may author (see `NendoAuthoringOperations.cs`). Whole-definition
+`*` marks a native-only operation. The other twenty-four are the closed union that
+the canonical change-set parser accepts and an MCP client may author (see
+`NendoAuthoringOperations.cs`). Whole-definition
 convenience APIs must expand into typed operations before the host records, diffs
 or promotes anything.
 
@@ -562,7 +586,10 @@ A separate bound of 100,000 rows applies to each audit and definition table.
 edit. Thus a file reaches that bound at approximately 100,000 writes, whatever
 their size. The host also enforces both bounds at write. Before it stages a
 mutation or a promotion, it refuses the write when the file has reached a write
-ceiling: 4 MiB below the size bound, or 1,000 rows below the row bound. The
+ceiling: 32 MiB below the size bound, at 224 MiB, or 1,000 rows below the row
+bound. The byte reserve covers the largest commit the product accepts, a change set
+with 4 MiB of new custom-view package content
+([ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md)). The
 refusal states that nothing changed and that the file still opens. The host gives
 no warning as a file approaches a ceiling
 ([ADR-0012](decisions/0012-safe-mode-compatibility-and-migration.md), 2026-09-17).
@@ -580,7 +607,7 @@ with the `leaseId`, and every owned operation requires both. Possession of the
 handle governs ownership. Claimed client names and HTTP connection identity do
 not govern it.
 
-The MCP surface has fourteen resources and nineteen tools. Resources are reads and
+The MCP surface has sixteen resources and nineteen tools. Resources are reads and
 need no lease. Tools are writes and need a lease. The exceptions are
 `nendo.lease.status`, `nendo.data.get_receipt` and
 `nendo.health.verify_integrity`: they read authority or file state, and they
@@ -694,9 +721,10 @@ This table gives the current locations, so that you do not need to search.
 | Totals | `Workbench/src/summary-tiles.ts`: tile scopes and the exact read that each one composes |
 | Calendars | `Workbench/src/calendar-model.ts`: civil-date arithmetic, the Monday-first month grid and month/undated queries |
 | Timelines | `Workbench/src/timeline-model.ts`: civil-year bounds, month grouping, integer day arithmetic and spans cut at the year end. The calendar's page accumulator in `reads.ts` serves both |
-| Ratings | `Workbench/src/rating.ts`: the dots, their accessible name and the radio control. `Engine/Storage/SqliteNendoStore.Scales.cs` stores the scale itself, one rung below the last |
+| Ratings | `Workbench/src/rating.ts`: the dots, their accessible name and the radio control. `Engine/Storage/SqliteNendoStore.Scales.cs` stores the scale itself, two rungs below the last |
 | View failures | `Desktop/DesktopViewFailureLog.cs`: the kind, how long the view was up, whether the window was out of sight and what Windows said about memory. Capped at 50 and switched from the tray. Device state, never in the file |
-| What the file is for | `Engine/Storage/SqliteNendoStore.Application.cs`: a singleton row in the layout ladder's last rung, read onto the manifest. `nendo://application/describe` leads with it. `Workbench/src/file-actions.ts` shows it on its own page, from About this file in the File menu |
+| Custom-view packages in the file | `Engine/Extensions/ExtensionPackageOperations.cs` (the four operations), `ExtensionPackageModel.cs` (the bounds and the path rules), `ExtensionPackageDiff.cs` (the review's line diff). `Engine/Storage/SqliteNendoStore.ExtensionPackages.cs` stores them on the layout ladder's last rung. `Workbench/src/package-diff-markup.ts` draws the review's Code section |
+| What the file is for | `Engine/Storage/SqliteNendoStore.Application.cs`: a singleton row one rung below the layout ladder's last, read onto the manifest. `nendo://application/describe` leads with it. `Workbench/src/file-actions.ts` shows it on its own page, from About this file in the File menu |
 | Agent tools and allow-list | `LocalMcp/NendoAuthoringTools.cs`, `NendoAgentAuthoringService.cs`, `NendoAuthoringOperations.cs`; the other tools are in `NendoLeaseTools.cs`, `NendoDataTools.cs`, `NendoHealthTools.cs` and `NendoUnattendedTools.cs` |
 | Resources | `LocalMcp/NendoMcpResources.cs`, `NendoResourceProjection.cs` |
 

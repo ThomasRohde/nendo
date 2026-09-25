@@ -222,6 +222,37 @@ export interface AgentPreviewSummary {
   // built by walking entities and surfaces would review it as changing nothing.
   purposeBefore: string | null;
   purposeAfter: string | null;
+  /** What the proposal does to each custom-view package file, as lines to read. */
+  packageChanges?: ExtensionFileChange[];
+}
+
+/** One line of a code change: context, removed or added. */
+export interface ExtensionDiffLine {
+  kind: 'context' | 'removed' | 'added';
+  text: string;
+}
+
+/** A run of changed lines with three lines of context, numbered from one on each side. */
+export interface ExtensionDiffHunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: ExtensionDiffLine[];
+}
+
+/** How a proposal changes one file of a custom-view package carried in the file (ADR-0013). */
+export interface ExtensionFileChange {
+  packageId: string;
+  path: string;
+  change: 'added' | 'replaced' | 'removed';
+  mediaTypeBefore: string | null;
+  mediaTypeAfter: string | null;
+  bytesBefore: number | null;
+  bytesAfter: number | null;
+  textual: boolean;
+  hunks: ExtensionDiffHunk[];
+  truncated: boolean;
 }
 
 export interface AgentStatus {
@@ -421,6 +452,8 @@ export interface ProposalPreview {
   previewApplications?: ApplicationPlan[];
   /** The front page the validated clone compiles, when the proposal leaves one. */
   previewOverview?: OverviewPlan | null;
+  /** What the proposal does to each custom-view package file, as lines to read. */
+  packageChanges?: ExtensionFileChange[];
 }
 
 export interface PromotionOutcome {

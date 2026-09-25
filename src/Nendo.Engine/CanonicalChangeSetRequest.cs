@@ -193,9 +193,74 @@ internal static class CanonicalChangeSetRequestCompiler
                 String(request.Payload, "definitionId"),
                 BehaviourKind(request.Payload),
                 Long(request.Payload, "expectedDefinitionRevision")),
+            "extension.setPackage" => new SetExtensionPackageOperation(
+                request.OperationId,
+                String(request.Payload, "packageId", NendoExtensionLimits.PackageIdCharacters),
+                String(request.Payload, "title", 200),
+                OptionalString(request.Payload, "entryPoint", NendoExtensionLimits.PathCharacters) ?? "index.html",
+                OptionalString(request.Payload, "version", 40),
+                OptionalString(request.Payload, "description", 1000)),
+            "extension.putFile" => ExtensionPutFile(request.OperationId, request.Payload),
+            "extension.removeFile" => new RemoveExtensionFileOperation(
+                request.OperationId,
+                String(request.Payload, "packageId", NendoExtensionLimits.PackageIdCharacters),
+                String(request.Payload, "path", NendoExtensionLimits.PathCharacters),
+                OptionalString(request.Payload, "expectedSha256", 64)),
+            "extension.removePackage" => new RemoveExtensionPackageOperation(
+                request.OperationId,
+                String(request.Payload, "packageId", NendoExtensionLimits.PackageIdCharacters)),
             _ => throw new NendoValidationException(
                 $"Canonical operation type {request.OperationType} is not supported."),
         };
+    }
+
+    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+    /// <summary>
+    /// A file arrives as <c>text</c> (stored as UTF-8 exactly as written), as <c>base64</c>
+    /// bytes, or — for content the file already holds — as its <c>sha256</c> and
+    /// <c>byteLength</c> alone. Exactly one of the three, so a request never says two things
+    /// about the same bytes.
+    /// </summary>
+    private static PutExtensionFileOperation ExtensionPutFile(string operationId, JsonElement payload)
+    {
+        var packageId = String(payload, "packageId", NendoExtensionLimits.PackageIdCharacters);
+        var path = String(payload, "path", NendoExtensionLimits.PathCharacters);
+        var mediaType = OptionalString(payload, "mediaType", 100);
+        var expected = OptionalString(payload, "expectedSha256", 64);
+        var hasText = payload.TryGetProperty("text", out var text) && text.ValueKind != JsonValueKind.Null;
+        var hasBase64 = payload.TryGetProperty("base64", out var base64) && base64.ValueKind != JsonValueKind.Null;
+        var hasHash = payload.TryGetProperty("sha256", out var sha) && sha.ValueKind != JsonValueKind.Null;
+        if ((hasText ? 1 : 0) + (hasBase64 ? 1 : 0) + (hasHash && !hasText && !hasBase64 ? 1 : 0) != 1 || hasText && hasBase64)
+            throw new NendoValidationException(
+                "extension.putFile needs exactly one of text (the file as written), base64 (its bytes) or sha256 with byteLength (content the file already holds).");
+        if (hasText)
+        {
+            if (text.ValueKind != JsonValueKind.String)
+                throw new NendoValidationException("extension.putFile text must be a string.");
+            byte[] bytes;
+            try { bytes = StrictUtf8.GetBytes(text.GetString() ?? string.Empty); }
+            catch (EncoderFallbackException) { throw new NendoValidationException("extension.putFile text is not valid Unicode; send it as base64."); }
+            return Checked(PutExtensionFileOperation.FromContent(operationId, packageId, path, mediaType, bytes, expected), sha, hasHash);
+        }
+        if (hasBase64)
+        {
+            if (base64.ValueKind != JsonValueKind.String)
+                throw new NendoValidationException("extension.putFile base64 must be a string.");
+            byte[] bytes;
+            try { bytes = Convert.FromBase64String(base64.GetString() ?? string.Empty); }
+            catch (FormatException) { throw new NendoValidationException("extension.putFile base64 is not valid base64."); }
+            return Checked(PutExtensionFileOperation.FromContent(operationId, packageId, path, mediaType, bytes, expected), sha, hasHash);
+        }
+        return PutExtensionFileOperation.FromStoredContent(operationId, packageId, path, mediaType,
+            String(payload, "sha256", 64), Long(payload, "byteLength"), expected);
+
+        // A hash sent beside the bytes is a check the author asked for, not a second source of truth.
+        static PutExtensionFileOperation Checked(PutExtensionFileOperation operation, JsonElement sha, bool hasHash) =>
+            !hasHash || sha.ValueKind == JsonValueKind.String && sha.GetString() == operation.Sha256
+                ? operation
+                : throw new NendoValidationException(
+                    $"extension.putFile sha256 does not match the bytes sent for {operation.Path}; they hash to {operation.Sha256}.");
     }
 
     private static NendoBehaviourKind BehaviourKind(JsonElement payload)

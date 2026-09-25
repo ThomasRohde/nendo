@@ -3,6 +3,7 @@ import { state } from './app-state';
 import { client } from './client';
 import { escapeHtml, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel } from './format';
 import { type ApplicationPlan, type DesktopPromotionView, type OverviewPlan, type ProposalPreview } from './host';
+import { packageChangesMarkup } from './package-diff-markup';
 import { announce, content, requiredElement, rerender, setBusy, showError } from './shell';
 import { surfaceTitle } from './surface-model';
 import { renderSurfacePreview } from './surface-preview';
@@ -19,7 +20,7 @@ export function renderProposal(): void {
     <header class="proposal-heading"><button id="close-proposal" class="text-button" type="button" data-dismiss>Back</button><span class="proposal-state">${escapeHtml(proposalStateLabel(preview.state))}</span><h2>${escapeHtml(preview.title)}</h2><p>Your active file is unchanged until you accept.</p></header>
     <div class="message-slot" role="alert" hidden></div>
     <div class="proposal-layout">
-      <section class="proposal-changes"><h3>What changes</h3>${preview.semanticDiff.map((entry) => `<article><span class="change-mark" aria-hidden="true">＋</span><div><strong>${escapeHtml(entry.summary)}</strong><p>${escapeHtml(reversibilityLabel(entry.reversibility))}</p></div></article>`).join('')}</section>
+      <section class="proposal-changes"><h3>What changes</h3>${preview.semanticDiff.map((entry) => `<article><span class="change-mark" aria-hidden="true">＋</span><div><strong>${escapeHtml(entry.summary)}</strong><p>${escapeHtml(reversibilityLabel(entry.reversibility))}</p></div></article>`).join('')}${packageChangesMarkup(preview.packageChanges)}</section>
       <aside class="proposal-summary"><h3>Preview</h3>${plan === null ? isProposalPreviewable(preview.state) ? '<p>Validated for Studio. Review the field and record changes beside this panel. No custom surface is added.</p>' : '<p>No healthy preview is available.</p>' : `<dl><div><dt>Record type</dt><dd>${escapeHtml(plan.entity.displayName)}</dd></div><div><dt>Screen</dt><dd>${escapeHtml(surfaceTitle(plan) ?? '')}</dd></div><div><dt>Operations</dt><dd>${preview.operationCount}</dd></div></dl><p>Explore the read-only screen preview below.</p>`}
         <div class="proposal-actions"><button id="reject-proposal" class="secondary-button" data-action type="button">Reject</button><button id="accept-proposal" class="primary-button" data-action type="button" ${!isProposalPreviewable(preview.state) ? 'disabled' : ''}>Accept changes</button></div>
         ${preview.diagnostics.map((item) => `<p class="proposal-diagnostic">${escapeHtml(item.message)} ${escapeHtml(item.hint)}</p>`).join('')}

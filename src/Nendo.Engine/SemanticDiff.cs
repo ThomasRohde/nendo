@@ -57,6 +57,7 @@ internal static class SemanticDiff
     internal static IReadOnlyList<NendoSemanticDiffEntry> From(NendoChangeSet changeSet, NendoSessionSnapshot active)
     {
         var names = Resolve(changeSet, active);
+        var packages = new PackageState(active);
         var result = new List<NendoSemanticDiffEntry>();
         foreach (var operation in changeSet.Mutations.SelectMany(mutation => mutation.Operations))
         {
@@ -192,11 +193,80 @@ internal static class SemanticDiff
                         ? "Clear what this file is for."
                         : $"Say what this file is for: {value.Purpose}",
                     value.Reversibility),
+                SetExtensionPackageOperation value => Entry("setExtensionPackage", packages.Set(value), value.Reversibility, value.PackageId),
+                PutExtensionFileOperation value => Entry("putExtensionFile", packages.Put(value), value.Reversibility, value.PackageId, value.Path),
+                RemoveExtensionFileOperation value => Entry("removeExtensionFile", packages.RemoveFile(value), value.Reversibility, value.PackageId, value.Path),
+                RemoveExtensionPackageOperation value => Entry("removeExtensionPackage", packages.Remove(value), value.Reversibility, value.PackageId),
                 _ => throw new NendoValidationException(
                     $"Operation type {operation.OperationType} has no semantic diff mapping."),
             });
         }
         return result.AsReadOnly();
+    }
+
+    /// <summary>
+    /// The packages as the change set leaves them, operation by operation, so each line is
+    /// said against what the file holds at that point: a file put twice reads as added and
+    /// then replaced, and a package named by the operation before is named by its title.
+    /// </summary>
+    private sealed class PackageState
+    {
+        private readonly Dictionary<string, string> _titles = new(StringComparer.Ordinal);
+        private readonly Dictionary<(string Package, string Path), (string Sha256, long Bytes)> _files = new();
+
+        internal PackageState(NendoSessionSnapshot active)
+        {
+            foreach (var package in active.ExtensionPackages)
+            {
+                _titles[package.PackageId] = package.Title;
+                foreach (var file in package.Files) _files[(package.PackageId, file.Path)] = (file.Sha256, file.ByteLength);
+            }
+        }
+
+        private string Title(string packageId) =>
+            _titles.TryGetValue(packageId, out var title) ? $"the package {title}" : $"the package {packageId}";
+
+        internal string Set(SetExtensionPackageOperation operation)
+        {
+            var existed = _titles.ContainsKey(operation.PackageId);
+            _titles[operation.PackageId] = operation.Title;
+            return existed
+                ? $"Update the custom-view package {operation.Title} ({operation.PackageId}): it starts at {operation.EntryPoint}" +
+                    (operation.Version is null ? "." : $" and is version {operation.Version}.")
+                : $"Add the custom-view package {operation.Title} ({operation.PackageId}), starting at {operation.EntryPoint}. Its code is kept in this file.";
+        }
+
+        internal string Put(PutExtensionFileOperation operation)
+        {
+            var key = (operation.PackageId, operation.Path);
+            var had = _files.TryGetValue(key, out var before);
+            _files[key] = (operation.Sha256, operation.ByteLength);
+            if (!had) return $"Add {operation.Path} to {Title(operation.PackageId)} ({operation.MediaType}, {Size(operation.ByteLength)}).";
+            return before.Sha256 == operation.Sha256
+                ? $"Keep {operation.Path} in {Title(operation.PackageId)} as it is; the content sent is identical."
+                : $"Replace {operation.Path} in {Title(operation.PackageId)} ({Size(before.Bytes)} before, {Size(operation.ByteLength)} after); the old version stays in history.";
+        }
+
+        internal string RemoveFile(RemoveExtensionFileOperation operation)
+        {
+            _files.Remove((operation.PackageId, operation.Path));
+            return $"Remove {operation.Path} from {Title(operation.PackageId)}; its content stays in history.";
+        }
+
+        internal string Remove(RemoveExtensionPackageOperation operation)
+        {
+            var title = Title(operation.PackageId);
+            _titles.Remove(operation.PackageId);
+            return $"Remove {title} from this file.";
+        }
+
+        // The review reads the same on every machine, whatever the Windows language.
+        private static string Size(long bytes) => bytes switch
+        {
+            < 1024 => FormattableString.Invariant($"{bytes} bytes"),
+            < 1024 * 1024 => FormattableString.Invariant($"{bytes / 1024.0:0.#} KB"),
+            _ => FormattableString.Invariant($"{bytes / (1024.0 * 1024):0.##} MB"),
+        };
     }
 
     private static DiffNames Resolve(NendoChangeSet changeSet, NendoSessionSnapshot active)

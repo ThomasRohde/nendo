@@ -149,6 +149,35 @@ internal sealed class NendoMcpResources(
     public Task<string> GetHealthAsync(CancellationToken cancellationToken) =>
         TranslateAsync(() => projection.GetHealthAsync(cancellationToken));
 
+    [McpServerResource(
+        Name = "nendo.application.extensions",
+        UriTemplate = "nendo://application/extensions",
+        MimeType = "application/json")]
+    [Description("Every custom-view package the open file carries: its ID, title, version, entry point and each file's path, media type, SHA-256 and size. A package is definition, written through extension.setPackage and extension.putFile in a change set; read a file's content at nendo://application/extension/{packageId}/file?path=... with the path percent-encoded. This host stores and reviews package code; it does not run it yet.")]
+    public Task<string> GetExtensionsAsync(CancellationToken cancellationToken) =>
+        TranslateAsync(() => projection.GetExtensionsAsync(cancellationToken));
+
+    [McpServerResource(
+        Name = "nendo.application.extension.file",
+        UriTemplate = "nendo://application/extension/{packageId}/file{?path,offset,length}",
+        MimeType = "application/json")]
+    [Description("One file of a custom-view package, a page of its bytes at a time. path is percent-encoded, so tiles/world.bin is sent as tiles%2Fworld.bin. A text file arrives as text and anything else as base64; offset and length are byte positions (length at most 131072, default the rest up to that), and nextOffset is null on the last page. sha256 and byteLength describe the whole file, so a reader can check what it assembled. To change a file, send extension.putFile with text or base64 in a change set; a file larger than one operation's payload arrives as a first putFile followed by putFile operations with append true.")]
+    public Task<string> GetExtensionFileAsync(
+        string packageId,
+        string? path = null,
+        string? offset = null,
+        string? length = null,
+        CancellationToken cancellationToken = default) =>
+        TranslateAsync(() => projection.GetExtensionFileAsync(packageId, path, ByteNumber(offset, 0), ByteNumber(length, NendoResourceProjection.ExtensionFilePageBytes), cancellationToken));
+
+    /// <summary>A byte position as a template variable delivers it: text, classified here like a page limit.</summary>
+    private static long ByteNumber(string? value, long fallback) => value switch
+    {
+        null => fallback,
+        _ when long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var number) => number,
+        _ => throw NendoMcpErrors.InvalidLimit(),
+    };
+
     private const int DefaultPageLimit = 50;
 
     /// <summary>

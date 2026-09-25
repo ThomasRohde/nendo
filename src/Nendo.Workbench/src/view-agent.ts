@@ -9,6 +9,7 @@ import { applicationPlans, overviewPlan } from './plan-selection';
 import { addedSurfaceSentence } from './surface-model';
 import { behaviourApprovalMarkup, refreshHealth, wireBehaviourApproval } from './view-health';
 import { attachScreenPreview } from './view-proposal';
+import { packageChangesMarkup } from './package-diff-markup';
 /**
  * Agent access: what this device has granted, where an agent connects, what it
  * has been doing, and the review of anything it proposes.
@@ -148,7 +149,7 @@ export function renderAgentProposal(): void {
     <header class="proposal-heading"><button id="close-agent-proposal" class="text-button" type="button" data-dismiss>Back to Agent</button><span class="proposal-state">${escapeHtml(proposalStateLabel(preview.state))}</span><h2>${escapeHtml(preview.title)}</h2><p>An agent prepared these changes. Your active file is unchanged until you accept.</p></header>
     <div class="message-slot" role="alert" hidden></div>
     <div class="proposal-layout">
-      <section class="proposal-changes"><h3>What changes</h3>${preview.semanticDiff.map((entry) => `<article><span class="change-mark" aria-hidden="true">＋</span><div><strong>${escapeHtml(entry.summary)}</strong><p>${escapeHtml(reversibilityLabel(entry.reversibility))}</p></div></article>`).join('')}${preview.diagnostics.map((item) => `<article class="proposal-diagnostic"><span class="change-mark" aria-hidden="true">!</span><div><strong>${escapeHtml(item.message)}</strong><p>${escapeHtml(item.hint)}</p></div></article>`).join('')}</section>
+      <section class="proposal-changes"><h3>What changes</h3>${preview.semanticDiff.map((entry) => `<article><span class="change-mark" aria-hidden="true">＋</span><div><strong>${escapeHtml(entry.summary)}</strong><p>${escapeHtml(reversibilityLabel(entry.reversibility))}</p></div></article>`).join('')}${preview.diagnostics.map((item) => `<article class="proposal-diagnostic"><span class="change-mark" aria-hidden="true">!</span><div><strong>${escapeHtml(item.message)}</strong><p>${escapeHtml(item.hint)}</p></div></article>`).join('')}${packageChangesMarkup(preview.preview.packageChanges)}</section>
       <aside class="proposal-summary"><h3>What this builds</h3>${agentPreviewMarkup(preview.preview, preview.operationCount)}
         <div class="proposal-actions"><button id="reject-agent-proposal" class="secondary-button" data-action type="button">Reject</button><button id="accept-agent-proposal" class="primary-button" data-action type="button" ${!isProposalPreviewable(preview.state) || preview.diagnostics.some((item) => item.severity === 'error' || item.severity === 0) ? 'disabled' : ''}>Accept changes</button></div>
       </aside>

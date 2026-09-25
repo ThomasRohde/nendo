@@ -61,8 +61,14 @@ internal sealed partial class SqliteNendoStore
     /// the largest commit the suite produces and asserting it stays well inside them,
     /// rather than by reasoning about what a large write might be.
     /// </para>
+    /// <para>
+    /// Raised from 4 MiB to 32 MiB on 2026-09-25 (ADR-0013), when custom-view packages moved
+    /// into the file: a change set may carry <see cref="NendoExtensionLimits.ContentBytesPerChangeSet"/>
+    /// of new file content in one commit, which is now the largest commit the product accepts.
+    /// The reserve keeps several times that, so the write ceiling is 224 MiB.
+    /// </para>
     /// </summary>
-    internal const long WriteHeadroomFileBytes = 4L * 1024 * 1024;
+    internal const long WriteHeadroomFileBytes = 32L * 1024 * 1024;
 
     /// <inheritdoc cref="WriteHeadroomFileBytes"/>
     internal const long WriteHeadroomRows = 1_000;
@@ -203,6 +209,8 @@ internal sealed partial class SqliteNendoStore
             }
 
             var findings = new List<NendoOpenFinding>();
+            if (layout.Contains("-extension-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.ExtensionPackagesMinimumHostVersion))
+                return Unreadable("layout-version-mismatch", "Custom-view packages require the declared package-capable host version.", observedAt);
             if (layout.Contains("-purpose-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.ApplicationPurposeMinimumHostVersion))
                 return Unreadable("layout-version-mismatch", "A stored purpose requires the declared purpose-capable host version.", observedAt);
             if (layout.Contains("-scale-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.GalleryAndRatingMinimumHostVersion))
@@ -261,7 +269,8 @@ internal sealed partial class SqliteNendoStore
             var mappings = await store.ReadEntityMappingsAsync(null, cancellationToken);
             var mappingDrift = await store.ValidateReadableMappingsAsync(mappings, cancellationToken) || !ReferenceMetadataIsValid(mappings) || !ChoiceMetadataIsValid(mappings) ||
                 !RatingScaleMetadataIsValid(mappings) || !ApplicationPurposeIsValid(manifest.Purpose) ||
-                !await store.RetirementMetadataIsValidAsync(cancellationToken);
+                !await store.RetirementMetadataIsValidAsync(cancellationToken) ||
+                !await store.ExtensionPackagesAreValidAsync(cancellationToken);
             if (mappingDrift)
             {
                 coreValid = false;
@@ -348,9 +357,21 @@ internal sealed partial class SqliteNendoStore
             {
                 surfaceReadable = false;
             }
+            IReadOnlyList<NendoExtensionPackageSnapshot> packages = [];
+            try
+            {
+                packages = await store.ReadExtensionPackagesAsync(null, cancellationToken);
+            }
+            catch (Exception exception) when (IsProjectionFailure(exception))
+            {
+                surfaceReadable = false;
+            }
             var snapshot = new NendoSessionSnapshot(
                 Path.GetFileName(path), NendoSessionHealth.ReadOnly, manifest, entities, records, nodes,
-                await store.GetStorageHealthAsync(cancellationToken));
+                await store.GetStorageHealthAsync(cancellationToken))
+            {
+                ExtensionPackages = packages,
+            };
             // What a definition needs is its shape, not the version number on a
             // root: contract version 3 covers a plain form and a tabbed page with
             // two boards alike. The central capability calculation names the
@@ -639,6 +660,14 @@ internal sealed partial class SqliteNendoStore
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(ApplicationPurposeSchemaSql, null, CancellationToken.None);
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(ExtensionPackageSchemaSql, null, CancellationToken.None);
+        layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync("""
+            DROP TABLE __nendo_extension_state;
+            DROP TABLE __nendo_extension_file;
+            DROP TABLE __nendo_extension_blob;
+            DROP TABLE __nendo_extension_package;
+            """, null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_application_purpose;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_field_scale;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_choice_tone;", null, CancellationToken.None);
@@ -676,6 +705,8 @@ internal sealed partial class SqliteNendoStore
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(ApplicationPurposeSchemaSql, null, CancellationToken.None);
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(ExtensionPackageSchemaSql, null, CancellationToken.None);
+        layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         return layouts;
     }
 

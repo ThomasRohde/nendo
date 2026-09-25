@@ -6,7 +6,7 @@
 - **Confidence:** Medium
 - **Evidence:** Owner decisions and authorised follow-up on 2026-09-12; repository contracts; matching NCalc 7.1.0 source; [D1–D4 acceptance experiments](../design/adr-0008-evidence.md). The final complete run passed 70 console cases and the isolated WinUI/WebView2 host exercise. The subsequent host run also passed editor preservation after both action steps and before commit. The narrow adapter fixes the original four integer-division failures before intermediate precision is lost. Confidence covers the bounded design, not production delivery.
 - **Depends on:** ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0009 and ADR-0012.
-- **Related design:** [Architecture](../architecture.md), [scalar contract](../contracts/scalars.md), [semantic surfaces](../contracts/semantic-surfaces.md), [ADR-0013](0013-defer-general-extension-model.md).
+- **Related design:** [Architecture](../architecture.md), [scalar contract](../contracts/scalars.md), [semantic surfaces](../contracts/semantic-surfaces.md), [ADR-0013](0013-custom-views-with-code-in-the-file.md).
 
 ### Accepted amendment — 2026-09-20 (an optional result is quietly empty, and a formula can refuse by name)
 
@@ -495,7 +495,7 @@ The first complete P7 delivery must include automatic triggers and local approva
 
 Link ADR-0008 as **Accepted** in the decision index. It covers restricted expressions and local actions. It does not cover a completed extension platform.
 
-ADR-0013's acceptance addendum preserves its original deferral and scheduling history. It also clarifies the remaining third-party extension scope.
+ADR-0013's History preserves its original deferral and scheduling. ADR-0013 itself states the current extension scope: custom views whose code lives in the file.
 
 In the same architecture change, update the architecture overview and the scalar, read, MCP, operation-outcome and surface contracts where behaviour changes. Define the new calculation/action contract before its code is treated as stable.
 
@@ -564,7 +564,7 @@ Repository baseline: `ThomasRohde/nendo` at commit `4f279d0e7be98e01e687288eb22b
 - **R1:** [Vision](../vision.md) and [architecture](../architecture.md). Current product boundary and component responsibilities.
 - **R2:** [Scalar fidelity contract](../contracts/scalars.md). Existing numeric storage and transport requirements.
 - **R3:** [ADR-0007](0007-proposal-clone-validation-and-replay-promotion.md). Physical clone validation and exact operation replay.
-- **R4:** [ADR-0013](0013-defer-general-extension-model.md). Scheduled extensions and outstanding authority requirements.
+- **R4:** [ADR-0013](0013-custom-views-with-code-in-the-file.md). Scheduled extensions and outstanding authority requirements.
 - **R5:** [ADR-0000](0000-record-architecture-decisions.md) and [ADR template](template.md). Proposed status and evidence requirements.
 - **R6:** [ADR-0006](0006-split-revisions-audit-and-compensation.md). Revision and compensation boundaries.
 - **R7:** [ADR-0012](0012-safe-mode-compatibility-and-migration.md). Safe-mode and compatibility rules.

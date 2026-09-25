@@ -572,3 +572,71 @@
   overflow: auto;
   background: var(--surface-soft);
 }
+
+/* A proposal's changes to custom-view code (ADR-0013): each file with its changed lines. */
+.package-changes {
+  border-top: 1px solid var(--line);
+}
+
+.package-changes h3 {
+  margin: 0;
+  padding: 18px 20px 6px;
+  border-bottom: 0;
+}
+
+/* A file is a block of its own: the change list's two-column article grid would put the code beside its name. */
+.proposal-changes .package-change {
+  display: block;
+  padding: 10px 20px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.package-change:last-child {
+  border-bottom: 0;
+}
+
+.package-change header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.package-change header span,
+.package-change-note {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.package-hunk {
+  margin: 0 0 8px;
+  padding: 8px 0;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  font: 0.78rem/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  user-select: text;
+}
+
+.diff-line {
+  display: block;
+  padding: 0 12px 0 0;
+  white-space: pre;
+}
+
+.diff-mark {
+  display: inline-block;
+  width: 24px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.diff-added {
+  background: color-mix(in srgb, var(--healthy) 14%, transparent);
+}
+
+.diff-removed {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}

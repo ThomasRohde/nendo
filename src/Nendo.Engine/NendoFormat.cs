@@ -205,7 +205,16 @@ public static class NendoFormat
     /// </summary>
     public const string ExtensionRecordPanelMinimumHostVersion = "1.32.0";
 
-    public const string CurrentHostVersion = ExtensionRecordPanelMinimumHostVersion;
+    /// <summary>
+    /// Custom-view packages carried in the file (ADR-0013, 2026-09-25): the package, file,
+    /// content and view-state tables. Like the purpose, a row set in protected tables the node
+    /// ladder cannot see, so each package operation declares this version on its evidence and
+    /// the layout rung states it at open. A 1.32 host does not know the tables and refuses the
+    /// file's layout, which is the refusal it is owed.
+    /// </summary>
+    public const string ExtensionPackagesMinimumHostVersion = "1.33.0";
+
+    public const string CurrentHostVersion = ExtensionPackagesMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

@@ -1,13 +1,230 @@
 # Custom-view execution boundary
 
-Authority: [ADR-0013](../decisions/0013-defer-general-extension-model.md). The
-owner accepted it on 2026-09-20. Acceptance of the architecture authorizes
-implementation. It does not change pending release checks into passes.
+Authority: [ADR-0013](../decisions/0013-custom-views-with-code-in-the-file.md),
+accepted 2026-09-25. Its History records the bounded slice accepted on 2026-09-20,
+which is the runtime this contract describes. Acceptance of the architecture
+authorizes implementation. It does not change pending release checks into passes.
+
+ADR-0013 lands in phases. **Phase 1 is delivered: a package's code can live in the
+`.nendo` file, where it is stored, reviewed as code and read back. Nothing runs it
+yet.** [Packages in the file](#packages-in-the-file) describes it. The views that
+run today still run a device-installed package, pinned by digest, in the contained
+helper, after installation and native consent. Every section after *Packages in
+the file* describes that runtime, and Phase 2 replaces it with views that run
+inline from the file.
 
 This contract states what the host guarantees and what it refuses. To write a
 package against it, read [authoring a custom view](../custom-view-authoring.md).
 That document gives the manifest, the message contract and the authoring steps in
 one place.
+
+## Packages in the file
+
+Host rung **1.33.0**, product 0.13.0. A package in the file is protected
+definition metadata. It changes only through canonical operations in a change set,
+like a screen, and a person reviews it as code before it reaches the file.
+
+### Storage
+
+Four protected tables hold packages. The Engine creates all four together on the
+first extension write, never at file creation. They are the last rung of the
+layout ladder, after the file purpose. A file that never carries a package keeps
+its layout and the host version it states.
+
+| Table | Holds |
+| --- | --- |
+| `__nendo_extension_package` | `package_id`, `title`, `version`, `entry_point`, `description` |
+| `__nendo_extension_blob` | `sha256`, `byte_length`, `content`: each distinct content once, at most 4 MiB |
+| `__nendo_extension_file` | `package_id`, `path`, `media_type`, and the `sha256` of the blob the path holds |
+| `__nendo_extension_state` | `package_id`, `view_id`, `state_key`, `value_json` of at most 64 KiB, `version`. Created with the others; a later phase writes it |
+
+Content is addressed by its SHA-256. A file row names a blob, and identical
+content is stored once, however many paths hold it. A replaced or removed version
+stays in the blob store, so compensation can restore the exact bytes. Nothing
+deletes a blob, so every version of every file stays in the `.nendo` file. Removing
+every package leaves the tables, the layout and the stated host in place.
+
+The layout with these tables is
+`production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-v1`.
+An upgraded file has its twin,
+`production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-v1`.
+Open refuses an `-extension-` layout whose stated minimum host is below 1.33.0, as
+`layout-version-mismatch`.
+
+### Operations
+
+The four operations are in the definition lane, and each one declares
+`ReversibleWithRetainedState`. Each raises the file's minimum host to 1.33.0.
+
+- `extension.setPackage` {`packageId`, `title`, `entryPoint`, `version`,
+  `description`} creates a package or changes its metadata. `entryPoint` defaults
+  to `index.html`. `version` is an optional semantic version. A title has 1–200
+  characters, and a description at most 1,000.
+- `extension.putFile` {`packageId`, `path`, `mediaType`, `expectedSha256`, and
+  exactly one of `text`, `base64`, or `sha256` with `byteLength`} adds a file or
+  replaces what the path holds:
+  - `text` is stored as UTF-8 exactly as written, and `base64` carries any bytes.
+  - `sha256` with `byteLength` names content the file already holds. That is how a
+    reversal, or a copy to another path, is written.
+  - A `sha256` sent beside `text` or `base64` is checked against those bytes.
+  - `mediaType` defaults from the path's extension, or to
+    `application/octet-stream` when the extension names none.
+  - `expectedSha256` makes the put conditional: a hash, or `absent` for a path that
+    must not hold a file yet.
+- `extension.removeFile` {`packageId`, `path`, `expectedSha256`} removes one file.
+  Its content stays in the blob store. `expectedSha256` makes the removal
+  conditional.
+- `extension.removePackage` {`packageId`} removes an empty package. It is refused
+  while the package still holds files. Remove them first, in the same change set if
+  you like.
+
+The canonical operation and its history row carry the SHA-256, the byte length
+and the media type, never the bytes. The bytes travel beside the operation into the
+blob store. So history stays small: the history row of a 300 KB file is under
+1 KB. Opening a file does not read every version of every script.
+
+A revision made only of package operations is compensated as a whole, in reverse
+order, so files leave before the package that holds them. Studio's History offers
+Compensate on such a revision, and one compensation reverses at most 128
+operations. A revision that mixes package operations with other operations is not
+compensated. Each inverse states the content it expects to find. A file changed
+since then therefore refuses the compensation as `extension-file-changed` and is
+not overwritten.
+
+### Bounds and refusals
+
+`NendoExtensionLimits` declares the bounds once. The vocabulary publishes them
+under `limits.extensions`. The Engine refuses a change past a bound and never
+truncates it.
+
+| Bound | Value |
+| --- | --- |
+| One file | 4 MiB |
+| One package | 512 files and 16 MiB |
+| One `.nendo` file | 64 packages, and 64 MiB of current package bytes |
+| New content in one change set | 4 MiB. Validation refuses more and says: "Split the files across several change sets." Content the file already holds does not count |
+| Path | At most 240 characters: letters, digits, `_ - . ~`, and `/` between segments. No empty, `.` or `..` segment, no segment that ends in a dot, no Windows device name, and nothing under `_nendo/`. Unique within its package, ignoring case |
+| Package ID | 3–80 characters, lowercase, at least two dotted segments, each starting with a letter |
+| Media type | A bare lowercase `type/subtype`, without parameters |
+
+A path, ID, media type or size outside its rule is refused when the operation is
+built, before anything is staged. The file's own state is checked when the
+operation runs:
+
+| Code | Meaning |
+| --- | --- |
+| `extension-package-not-found` | A file is put into a package the file does not carry, or a missing package is removed |
+| `extension-package-not-empty` | A package that still holds files is removed |
+| `extension-path-conflict` | A path differs only in case from a path the package holds |
+| `extension-content-missing` | A put names, by its hash, content the file does not hold |
+| `extension-file-changed` | The path does not hold what `expectedSha256` states. A compensation of a file changed since then fails in the same way |
+| `extension-file-not-found` | A removal names a path the package does not hold |
+| `extension-limit` | The change would pass the bound on files or bytes in the package, packages in the file, or bytes across all packages |
+
+### The write reserve
+
+The byte write ceiling sits 32 MiB below the 256 MiB open bound, at 224 MiB
+([ADR-0012](../decisions/0012-safe-mode-compatibility-and-migration.md)). The
+largest commit a change set can make is 4 MiB of new package content. A test
+commits exactly that and asserts that the file grows by more than 4 MiB, so the
+content was stored, and by less than a quarter of the reserve. The measured growth
+is about 4.3 MB. So 32 MiB is the smallest power of two that keeps the growth
+under a quarter of the reserve.
+
+### Review
+
+A proposal names each package change in a sentence:
+
+- "Add the custom-view package ‹title› (‹id›), starting at ‹entry point›. Its code
+  is kept in this file."
+- "Update the custom-view package ‹title› (‹id›): it starts at ‹entry point›."
+  When a version is set, the sentence ends "and is version ‹version›."
+- "Add ‹path› to the package ‹title› (‹media type›, ‹size›)."
+- "Replace ‹path› in the package ‹title› (‹size› before, ‹size› after); the old
+  version stays in history."
+- "Keep ‹path› in the package ‹title› as it is; the content sent is identical."
+- "Remove ‹path› from the package ‹title›; its content stays in history."
+- "Remove the package ‹title› from this file."
+
+In a file below 1.33.0, a package change also raises the file's minimum host to
+1.33.0. The review shows that as its own entry, and it cannot be undone.
+
+The proposal preview also carries `packageChanges`. It compares the active file
+with the validated clone, so it shows what acceptance commits, not what the author
+said it would. Each changed file is `added`, `replaced` or `removed`, with its
+media types and sizes before and after:
+
+- A text file is diffed by line, with three lines of context. It must be at most
+  1 MiB on both sides, have a text media type and be valid UTF-8.
+- The review shows at most 400 changed lines per file and 2,000 per proposal. It
+  sets `truncated` where it stops early.
+- Any other file is said by its sizes.
+- A change of line endings counts as a change, but the carriage return is not
+  shown.
+
+Studio's proposal review and the agent review both show these files in a **Code**
+section: each file with its lines, a binary file by its sizes, and a note where the
+change continues past what the review shows. The MCP preview carries the same list.
+
+### MCP
+
+The four operations are authoring operations, listed under `operations` in the
+vocabulary. One `extension.putFile` payload is at most 96 KiB
+(`limits.extensions.putFilePayloadBytes`). Every other operation keeps its 32 KiB.
+A larger file is sent in parts:
+
+1. a first `putFile` with the first part;
+2. then `putFile` operations with `append: true` for the same package and path,
+   later in the same change set.
+
+The adapter joins the parts in order at validation, so the Engine sees one whole
+file. A part sent with `append` and no earlier put of its path in the change set is
+refused when it is sent. The local MCP's 256 KiB request body fits about two parts
+in one call.
+
+Two resources read packages back:
+
+- `nendo://application/extensions` lists every package, with each file's path,
+  media type, SHA-256 and size.
+- `nendo://application/extension/{packageId}/file{?path,offset,length}` returns one
+  file, in pages of at most 131,072 bytes. The path is percent-encoded, for example
+  `tiles%2Fworld.bin`. A text page arrives as `text`, and any other page as
+  `base64`. `sha256` and `byteLength` describe the whole file, and `nextOffset` is
+  null on the last page.
+
+`nendo://application/describe` lists the packages under `extensions`. The example
+`put-a-custom-view-in-the-file` is a complete change set to copy. The
+[MCP interface contract](mcp-interface.md) has the rest.
+
+### Integrity
+
+An ordinary open checks the package tables' shape: every ID, path and media type,
+every bound, and case-unique paths. A table outside them is `mapping-drift`, and
+editing is disabled. An explicit integrity verification, `health.verify` in the
+Workbench or `nendo.health.verify_integrity` over MCP, also reads every stored
+content and compares it with its SHA-256. A mismatch puts the file into recovery.
+
+### Evidence
+
+`ExtensionPackageTests` (26 cases, Engine lane), `ExtensionPackageProtocolTests`
+(2 cases, LocalMcp lane) and `package-diff.test.mjs` (3 cases, Workbench lane)
+passed. Each guard below was falsified, seen to fail and then restored:
+
+- With the bytes put back into the canonical payload:
+  `The history row for a 300 KB file is 400336 characters; it carries the bytes rather than their hash.`
+- With the reserve put back at 4 MiB:
+  `A package commit of 4194304 content bytes grew the file by 4308992 bytes against a reserve of 4194304.`
+- With an integrity check that never reads the content:
+  `Expected exception type:<Nendo.Engine.NendoRecoveryRequiredException> but no exception was thrown.`
+- With the diff computed against the clone on both sides, the replaced file
+  vanished from the review: `Sequence contains no matching element`.
+- With a reversal that restored the applied content instead of the previous one:
+  `Content efbeb26b7d6b5954cceef4b8f5fa5a58a06a5f302da8da0d481eb33d7fde8999 is not 90 bytes long.`
+- With the MCP adapter not joining the parts,
+  `AMegabyteFileArrivesInPartsAndReadsBackExactly` failed.
+
+Not yet measured: anything that runs a package from the file. That arrives with
+Phase 2.
 
 ## Implemented Engine foundation
 

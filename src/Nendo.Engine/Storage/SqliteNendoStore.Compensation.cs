@@ -86,6 +86,13 @@ internal sealed partial class SqliteNendoStore
                 operations.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
             }
         }
+        if (operations.Count >= 1 && operations.All(operation => IsExtensionOperation(operation.Type)))
+        {
+            // A package usually arrives with its files in one change, so a revision of
+            // package operations is reversed as a whole, files before the package.
+            return new NendoMutation("studio.p2.compensation", idempotencyKey, "studio",
+                $"Compensate {description}", CreateExtensionInverses(operations, idempotencyKey)).Validate();
+        }
         if (operations.Count > 1)
         {
             // A causal revision is the initiating edit and everything its actions did,

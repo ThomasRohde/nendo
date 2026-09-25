@@ -87,19 +87,31 @@ The slices stand as follows:
 - S7, a board grouped by a reference, is delivered at 1.27.0. Its columns are
   records of another type.
 
-## P7: scripting delivered, extensions still scheduled
+## P7: scripting delivered, custom views in progress
 
 On 2026-09-10, the owner scheduled general scripting
 ([ADR-0008](decisions/README.md)) and the general extension model
-([ADR-0013](decisions/0013-defer-general-extension-model.md)) for P7. This moved
+([ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md)) for P7. This moved
 them from "deferred indefinitely" to "scheduled". ADR-0008 is now delivered.
-**ADR-0013 is what remains of P7**: its bounded custom-view design is accepted,
-and implementation is in progress. Opening a file still grants no execution
-authority.
 
-W-007 now has an accepted direction and a staged
-[custom-view extension plan](design/custom-view-extensions-plan.md). The
-direction is a read-only dependency graph over existing records, with package
+**ADR-0013 is what remains of P7.** Since 2026-09-25 it decides that a custom
+view's code lives in the `.nendo` file and runs inline in the Workbench, with the
+full typed API and no install or consent step. It lands in phases:
+
+- Phase 0, a disposable WebView2 spike, has its findings pending.
+- **Phase 1 is delivered** at host 1.33.0. Packages live in the file, a person
+  reviews them as code in a proposal, and an agent writes and reads them through
+  MCP. Nothing runs them yet
+  ([packages in the file](contracts/custom-views.md#packages-in-the-file)).
+- Phase 2 runs views inline from the file and deletes the contained helper.
+  Phases 3–5 add writes from a view, developing from a folder, and views anywhere.
+
+Until Phase 2 ships, the views that run are the bounded slice described below, and
+opening a file still grants no execution authority.
+
+The bounded slice came from W-007 and its staged
+[custom-view extension plan](design/custom-view-extensions-plan.md). Its
+direction was a read-only dependency graph over existing records, with package
 isolation, explicit consent and permanent Studio access. Disposable boundary
 experiments and an accepted extension ADR come before production implementation.
 The first disposable WebView2 probe contained hangs, but it exposed a WebRTC

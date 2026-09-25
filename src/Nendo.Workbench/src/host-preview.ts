@@ -571,6 +571,42 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
           title: rootLabel(fixture.plan, root.kind),
           entityId: fixture.entity.entityId,
         })),
+        // A custom view's code is reviewed as lines (ADR-0013); the preview shows one file changed and one asset replaced.
+        packageChanges: [{
+          packageId: 'org.example.board-glance',
+          path: 'view.js',
+          change: 'replaced',
+          mediaTypeBefore: 'text/javascript',
+          mediaTypeAfter: 'text/javascript',
+          bytesBefore: 1840,
+          bytesAfter: 1912,
+          textual: true,
+          truncated: false,
+          hunks: [{
+            oldStart: 12, oldLines: 7, newStart: 12, newLines: 8,
+            lines: [
+              { kind: 'context', text: 'const cards = await nendo.records.queryAll({ entityId });' },
+              { kind: 'context', text: 'const lanes = groupBy(cards, (card) => card.values.status);' },
+              { kind: 'context', text: '' },
+              { kind: 'removed', text: 'render(lanes);' },
+              { kind: 'added', text: 'render(lanes, { compact: context.placement === \'tile\' });' },
+              { kind: 'added', text: 'nendo.changes.subscribe(() => refresh());' },
+              { kind: 'context', text: '' },
+              { kind: 'context', text: 'function render(lanes, options = {}) {' },
+            ],
+          }],
+        }, {
+          packageId: 'org.example.board-glance',
+          path: 'icons/lane.png',
+          change: 'replaced',
+          mediaTypeBefore: 'image/png',
+          mediaTypeAfter: 'image/png',
+          bytesBefore: 912,
+          bytesAfter: 1024,
+          textual: false,
+          truncated: false,
+          hunks: [],
+        }],
       },
     };
     this.agentStatus = {

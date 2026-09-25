@@ -23,6 +23,7 @@ internal sealed class NendoAgentAuthoringService(
     private static readonly int MaximumCanonicalOperationsPerChangeSet = Limits.CanonicalOperationsPerChangeSet;
     private static readonly int MaximumPropertiesPerNodeOperation = Limits.PropertiesPerNodeOperation;
     private const int MaximumPayloadBytes = 32 * 1024;
+    private static readonly int PutFilePayloadBytes = Limits.Extensions!.PutFilePayloadBytes;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, Draft> _drafts = new(StringComparer.Ordinal);
     private readonly Dictionary<(string SessionId, string Key), Replay<NendoChangeSetBeginResult>>
@@ -140,6 +141,7 @@ internal sealed class NendoAgentAuthoringService(
                         operationCount,
                         canonicalCount);
                     RequireCompilable(validated, draft, draft.Mutations.Count);
+                    RequireAppendTargets(draft.Mutations, validated);
                     draft.Mutations.AddRange(validated);
                     draft.OperationCount += operationCount;
                     draft.CanonicalOperationCount += canonicalCount;
@@ -211,6 +213,7 @@ internal sealed class NendoAgentAuthoringService(
                         operationCount,
                         canonicalCount);
                     RequireCompilable(validated, draft, dropFromMutationOrdinal);
+                    RequireAppendTargets(kept, validated);
                     draft.Mutations.Clear();
                     draft.Mutations.AddRange(kept);
                     draft.Mutations.AddRange(validated);
@@ -637,10 +640,13 @@ internal sealed class NendoAgentAuthoringService(
         // promotion is unchanged. An explicit value is passed through untouched
         // and still conflicts loudly if it is wrong.
         var revision = draft.CapturedDefinitionRevision;
-        var mutations = new List<NendoCanonicalMutationRequest>(draft.Mutations.Count);
-        for (var mutationOrdinal = 0; mutationOrdinal < draft.Mutations.Count; mutationOrdinal++)
+        // Chunks of one file join the put that began it before anything is counted, so the
+        // Engine sees whole files and a mutation that held only chunks is not sent.
+        var joined = JoinChunks(draft.Mutations);
+        var mutations = new List<NendoCanonicalMutationRequest>(joined.Count);
+        for (var mutationOrdinal = 0; mutationOrdinal < joined.Count; mutationOrdinal++)
         {
-            var mutation = draft.Mutations[mutationOrdinal];
+            var mutation = joined[mutationOrdinal];
             mutations.Add(new NendoCanonicalMutationRequest(
                 $"mcp.change-set.{host.HostRunId}.{draft.ChangeSetId}",
                 $"mutation-{mutationOrdinal:D3}",
@@ -808,7 +814,101 @@ internal sealed class NendoAgentAuthoringService(
         operationType.StartsWith("schema.", StringComparison.Ordinal) ||
         operationType.StartsWith("ui.", StringComparison.Ordinal) ||
         operationType.StartsWith("behaviour.", StringComparison.Ordinal) ||
-        operationType.StartsWith("application.", StringComparison.Ordinal);
+        operationType.StartsWith("application.", StringComparison.Ordinal) ||
+        operationType.StartsWith("extension.", StringComparison.Ordinal);
+
+    private static bool IsAppend(NendoAgentOperationInput operation) =>
+        operation.OperationType == "extension.putFile" &&
+        operation.Payload.Element.TryGetProperty("append", out var append) && append.ValueKind == JsonValueKind.True;
+
+    private static (string PackageId, string Path)? FileKey(NendoAgentOperationInput operation) =>
+        operation.OperationType == "extension.putFile" &&
+        operation.Payload.Element.TryGetProperty("packageId", out var packageId) && packageId.ValueKind == JsonValueKind.String &&
+        operation.Payload.Element.TryGetProperty("path", out var path) && path.ValueKind == JsonValueKind.String
+            ? (packageId.GetString()!, path.GetString()!)
+            : null;
+
+    /// <summary>
+    /// A chunk with <c>append</c> continues a file an earlier <c>extension.putFile</c> in the same
+    /// change set began. Refused here, when it is sent, if there is nothing to continue — a chunk
+    /// that silently became a whole file would store half of one.
+    /// </summary>
+    private static void RequireAppendTargets(IEnumerable<NendoAgentMutationInput> held, IReadOnlyList<NendoAgentMutationInput> added)
+    {
+        var begun = new HashSet<(string, string)>();
+        foreach (var operation in held.SelectMany(mutation => mutation.Operations))
+            if (FileKey(operation) is { } key) begun.Add(key);
+        foreach (var operation in added.SelectMany(mutation => mutation.Operations))
+        {
+            if (FileKey(operation) is not { } key) continue;
+            if (IsAppend(operation) && !begun.Contains(key))
+                throw new NendoValidationException(
+                    $"extension.putFile with append true continues {key.Item2} in {key.Item1}, and no earlier extension.putFile in this change set began it. Send the first part without append.");
+            if (IsAppend(operation) && operation.Payload.Element.TryGetProperty("sha256", out _))
+                throw new NendoValidationException("A chunk sent with append carries text or base64, never a sha256 of stored content.");
+            begun.Add(key);
+        }
+    }
+
+    /// <summary>
+    /// Joins every <c>append</c> chunk into the <c>extension.putFile</c> that began its file, in
+    /// order, so the Engine sees one put per file with the whole content, and the chunk's own
+    /// mutation drops it. A mutation left with nothing is not sent at all.
+    /// </summary>
+    private static IReadOnlyList<NendoAgentMutationInput> JoinChunks(IReadOnlyList<NendoAgentMutationInput> mutations)
+    {
+        if (!mutations.Any(mutation => mutation.Operations.Any(IsAppend))) return mutations;
+        var result = mutations.Select(mutation => mutation.Operations.ToList()).ToList();
+        var bodies = new List<(int Mutation, int Operation, List<byte> Bytes, bool Joined)>();
+        var current = new Dictionary<(string, string), int>();
+        for (var m = 0; m < mutations.Count; m++)
+        {
+            for (var o = 0; o < mutations[m].Operations.Count; o++)
+            {
+                var operation = mutations[m].Operations[o];
+                if (FileKey(operation) is not { } key) continue;
+                if (IsAppend(operation) && current.TryGetValue(key, out var index))
+                {
+                    bodies[index].Bytes.AddRange(ChunkBytes(operation));
+                    bodies[index] = bodies[index] with { Joined = true };
+                    result[m][o] = null!;
+                    continue;
+                }
+                // A whole put begins the file again; chunks after it continue that one.
+                current[key] = bodies.Count;
+                bodies.Add((m, o, new List<byte>(ChunkBytes(operation)), false));
+            }
+        }
+        foreach (var (mutationIndex, operationIndex, bytes, joined) in bodies)
+        {
+            if (!joined) continue;
+            var begun = result[mutationIndex][operationIndex];
+            result[mutationIndex][operationIndex] = new NendoAgentOperationInput(begun.OperationType, Object(writer =>
+            {
+                foreach (var property in begun.Payload.Element.EnumerateObject()
+                             .Where(property => property.Name is not ("text" or "base64" or "append")))
+                    property.WriteTo(writer);
+                writer.WriteBase64String("base64", bytes.ToArray());
+            }));
+        }
+        return mutations
+            .Select((mutation, index) => new NendoAgentMutationInput(mutation.Description, result[index].Where(operation => operation is not null).ToArray()))
+            .Where(mutation => mutation.Operations.Count > 0)
+            .ToArray();
+    }
+
+    private static byte[] ChunkBytes(NendoAgentOperationInput operation)
+    {
+        var payload = operation.Payload.Element;
+        if (payload.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String)
+            return new UTF8Encoding(false, true).GetBytes(text.GetString() ?? string.Empty);
+        if (payload.TryGetProperty("base64", out var base64) && base64.ValueKind == JsonValueKind.String)
+        {
+            try { return Convert.FromBase64String(base64.GetString() ?? string.Empty); }
+            catch (FormatException) { throw new NendoValidationException("extension.putFile base64 is not valid base64."); }
+        }
+        return [];
+    }
 
     /// <summary>
     /// The operations whose payload carries <c>expectedDefinitionRevision</c>. A
@@ -916,10 +1016,16 @@ internal sealed class NendoAgentAuthoringService(
             throw new NendoValidationException(
                 $"The payload of {operation.OperationType} must be a JSON object.");
         }
-        if (Encoding.UTF8.GetByteCount(operation.Payload.Element.GetRawText()) > MaximumPayloadBytes)
+        // A package file is the one payload that is content rather than description, so it
+        // gets the larger bound; a file past that arrives in chunks with append.
+        var payloadBytes = operation.OperationType == "extension.putFile" ? PutFilePayloadBytes : MaximumPayloadBytes;
+        if (Encoding.UTF8.GetByteCount(operation.Payload.Element.GetRawText()) > payloadBytes)
         {
             throw new NendoValidationException(
-                $"The payload of {operation.OperationType} is larger than the {MaximumPayloadBytes / 1024} KiB one operation may carry.");
+                $"The payload of {operation.OperationType} is larger than the {payloadBytes / 1024} KiB one operation may carry." +
+                (operation.OperationType == "extension.putFile"
+                    ? " Send the file in parts: a first extension.putFile, then extension.putFile operations for the same package and path with append true."
+                    : string.Empty));
         }
         var unknown = operation.Payload.Element.EnumerateObject()
             .Select(property => property.Name)

@@ -55,8 +55,12 @@ Nendo's canonical artefact is one local `.nendo` SQLite file at rest.
   records is valid.
 - The file contains relational user data, protected Nendo metadata, semantic
   definitions and semantic history.
-- The host permanently provides Studio and recovery access. Custom surfaces and
-  agents cannot hide or revoke that route.
+- A custom view's code may travel in the file, as protected metadata
+  ([ADR-0013](0013-custom-views-with-code-in-the-file.md)). A copy of the file
+  carries the view. Device settings, such as the switches that turn views off,
+  stay on the device.
+- The host permanently provides Studio and recovery access. Custom surfaces,
+  custom views and agents cannot hide or revoke that route.
 - Journals, backup outputs, staged restores and proposal clones are operational
   derivatives. The host defines their owner, lifetime and cleanup. They are not
   additional canonical artefacts.
@@ -100,8 +104,11 @@ layout or source tree of the disposable prototype.
 
 ### Negative
 
-- Assets, executable extensions and multi-file application bundles are excluded
-  from the MVP.
+- Asset fields and multi-file application bundles are excluded. A custom-view
+  package, with its code and assets, is the one executable payload that a file may
+  carry (ADR-0013).
+- A received file's view code runs when its view is shown. Nendo does not sandbox
+  hostile files ([ADR-0012](0012-safe-mode-compatibility-and-migration.md)).
 - Open-file copies need an explicit host operation. An Explorer copy is not
   treated as transactionally current.
 - Sync-managed folders receive a conservative unsupported-use warning.
@@ -114,8 +121,17 @@ single-user MVP is proved.
 
 ## Revisit triggers
 
-- Binary/assets or executable extensions become funded product requirements.
+- Binary or asset fields become a product requirement.
+- Extension code needs to run outside a view, or across files.
 - Cloud sync or collaboration becomes explicit scope.
 - SQLite can no longer meet the tested local durability and inspectability
   requirements.
 - Cross-platform delivery requires a materially different artefact contract.
+
+## History
+
+- 2026-09-02 — accepted. Assets, executable extensions and multi-file application
+  bundles were excluded from the MVP.
+- 2026-09-25 — a custom view's code may travel in the file
+  ([ADR-0013](0013-custom-views-with-code-in-the-file.md)). Asset fields and
+  multi-file bundles stay excluded.

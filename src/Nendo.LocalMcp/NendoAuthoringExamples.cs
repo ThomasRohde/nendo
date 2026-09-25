@@ -52,6 +52,37 @@ internal static class NendoAuthoringExamples
             SayWhatTheFileIsFor(),
             CalculateAndActAutomatically(),
             ACustomGraphReference(),
+            PutACustomViewInTheFile(),
+        ]);
+
+    /// <summary>
+    /// A custom view's code written into the file through the same change set as any other
+    /// definition (ADR-0013). The files are text here; base64 carries any other bytes.
+    /// </summary>
+    private static NendoAuthoringExample PutACustomViewInTheFile() => new(
+        "put-a-custom-view-in-the-file",
+        "Put a custom view's code into the file as a package, so it travels with the file and is reviewed as code.",
+        [
+            "extension.setPackage creates the package; extension.putFile puts each file in it. Both are definition: they reach the file only when the person accepts the proposal, which shows every changed line.",
+            "Send a file as text (stored as UTF-8 exactly as written) or base64 (any bytes). mediaType defaults from the extension: .html, .js, .css, .json, .svg, .png, .woff2, .wasm and more.",
+            "One putFile payload is at most extensions.putFilePayloadBytes in the vocabulary. A larger file is a first putFile and then putFile operations with append true for the same package and path, later in the same change set; the host joins them in order before validation.",
+            "Read a package back at nendo://application/extensions and nendo://application/extension/{packageId}/file?path=... , with the path percent-encoded. A replaced file stays in history, so the change can be reversed exactly.",
+        ],
+        [
+            new("Put the hello view in the file",
+            [
+                Operation("extension.setPackage", new { packageId = "org.example.hello", title = "Hello", entryPoint = "index.html", version = "1.0.0" }),
+                Operation("extension.putFile", new
+                {
+                    packageId = "org.example.hello", path = "index.html",
+                    text = "<!doctype html>\n<meta charset=\"utf-8\">\n<title>Hello</title>\n<p id=\"greeting\">Hello.</p>\n<script src=\"/_nendo/api.js\"></script>\n<script src=\"view.js\"></script>\n",
+                }),
+                Operation("extension.putFile", new
+                {
+                    packageId = "org.example.hello", path = "view.js",
+                    text = "document.getElementById('greeting').textContent = 'Hello from a view that lives in this file.';\n",
+                }),
+            ]),
         ]);
 
     private static NendoAuthoringExample ACustomGraphReference() => new(

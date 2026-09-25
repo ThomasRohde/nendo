@@ -46,6 +46,12 @@ impression is a finding either way.
 Updated 2026-09-15, when the front page landed. Every phase below still gets a pass;
 spend your extra time on these, which changed most recently:
 
+- Code in the file (Custom-view rollout status), the newest thing a change set can
+  carry. A view's code can now live in the file as a package that the person reviews
+  as code before accepting, and nothing runs it yet. Record whether the wire told you,
+  before you tried, how to send a file larger than one operation may carry; whether
+  the review let the person read the code they were accepting; and whether every file
+  you read back hashed to what you sent.
 - The board whose columns are records (Phase 3), the newest shape. Its columns are not in
   the definition at all: they are rows of another record type, read when the board opens,
   and there is a point past which the board stops drawing. Find that point rather than
@@ -657,6 +663,43 @@ Read nothing about it first.
 - Close the file and reopen it offline with no agent. Say what still works.
 
 ## Custom-view rollout status
+
+**Code in the file.** A custom view's code can now live in the file itself, as a
+package written through the same change sets as a screen. Nothing runs a package from
+the file yet, so this checks only that it is stored, reviewed and read back exactly.
+Use the empty review file, at Shape app.
+
+- Before you write, record what the wire told you: the operations that write a
+  package, how large one operation's payload may be, how a larger file is sent, and
+  every bound on files, packages and change sets. Say where each came from.
+- Write a small package in one change set, with the package and its files in one
+  mutation: an HTML entry point, a script, and a file of a few hundred kilobytes of
+  arbitrary bytes, sent in two parts, the second with `append`. Keep your own SHA-256
+  of every file before you send it. Validate, and read what the preview says about
+  each file: the lines it shows for the script, what it says about the binary file,
+  and whether the file sent in two parts is reviewed as one. Ask the person to open
+  the review and say what its Code section shows them, and whether they could accept
+  code from it without trusting you.
+- After the person accepts, find the two reads that list the packages and return a
+  file's content, without being told their names. Read every file back, the one in a
+  folder with its path percent-encoded, and say whether the read told you to encode
+  it. Follow the pages to the end and compare each SHA-256 with your own. Record the
+  minimum host the file states now, and whether the review told you before you
+  accepted.
+- Change one line of the script in a new change set, say what the review shows, and
+  have the person accept it. Ask them to compensate the revision that added the
+  package, from History, and record what they are told. Then have them compensate
+  the change first and the package after it. Read the packages again: the files and
+  the package must be gone. Say what the file still states afterwards, the minimum
+  host included.
+- Try what must not work, and record whether each refusal named the rule and what to
+  do instead: a path under `_nendo/`; a file of 5 MiB, which you can only send in
+  parts; an `append` part whose file no earlier put in the change set began; and a
+  file put into a package that does not exist. For each, say whether it was refused
+  where you sent it or only at validation, and read the file afterwards to confirm
+  that nothing reached it.
+- Ask the person whether anything they can see runs the package. Nothing should, and
+  anything that suggests otherwise is a finding.
 
 [Custom views](../contracts/custom-views.md) now expose `extensionGraphSurface`
 through the canonical UI authoring vocabulary and the `pin-an-offline-custom-graph`

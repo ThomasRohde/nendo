@@ -216,6 +216,8 @@ try {
         'nendo.application.entity.records',
         'nendo.application.entity.schema',
         'nendo.application.examples',
+        'nendo.application.extension.file',
+        'nendo.application.extensions',
         'nendo.application.health',
         'nendo.application.history',
         'nendo.application.manifest',

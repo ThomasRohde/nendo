@@ -2,7 +2,7 @@
 
 Date: 2026-09-20. Status: architecture accepted; implementation in progress.
 Current authority: the owner subsequently accepted the architecture and directed
-implementation; see [ADR-0013](../decisions/0013-defer-general-extension-model.md).
+implementation; see [ADR-0013](../decisions/0013-custom-views-with-code-in-the-file.md).
 Earlier checkpoints below are history. Unfinished P1 checks remain release gates,
 not reasons to request the same architecture acceptance again.
 Work: `nd.work.r.extensions` — W-007, Define and accept the general extension model.

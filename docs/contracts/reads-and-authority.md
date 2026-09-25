@@ -42,12 +42,18 @@ restart and replace their displayed page. A cursor from another query, another
 file or a reopened coordinator fails with `invalid-cursor`. The MCP wrapper of the
 host adds its own agent-access-generation key. This keeps invalidation when
 access is disabled and enabled without closing the file. MCP keeps its 1–100
-public limit. It has fourteen resources:
+public limit. It has sixteen resources:
 
 - History returns summaries and `operationsUri`.
 - The revision operations resource returns only sanitized operation descriptors.
 - The CSV export resource returns one page of the faithful profile. The header
   row is on the first page only (see the [CSV contract](csv.md)).
+- The packages resource lists every custom-view package in the file, with each
+  file's path, media type, SHA-256 and size, and no content.
+- The package-file resource returns one package file, a page of bytes at a time. It
+  pages by byte `offset` and `length`, at most 131,072 bytes, not by the 1–100
+  record limit. Each page carries the whole file's SHA-256 (see the
+  [custom-view contract](custom-views.md#packages-in-the-file)).
 
 Clients must follow the declared URI template order (`cursor,limit`).
 

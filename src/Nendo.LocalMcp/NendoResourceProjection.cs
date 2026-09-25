@@ -144,7 +144,62 @@ internal sealed class NendoResourceProjection(
             await GetHealthAsync(cancellationToken))
         {
             Reads = NendoMcpReadIndex.All,
+            Extensions = ProjectExtensions(snapshot.ExtensionPackages),
         };
+    }
+
+    /// <summary>The most bytes one read of a package file returns.</summary>
+    internal const long ExtensionFilePageBytes = 128 * 1024;
+
+    internal async Task<IReadOnlyList<NendoMcpExtensionPackage>> GetExtensionsAsync(CancellationToken cancellationToken) =>
+        ProjectExtensions((await application.GetDefinitionSnapshotAsync(cancellationToken)).ExtensionPackages);
+
+    private static IReadOnlyList<NendoMcpExtensionPackage> ProjectExtensions(IReadOnlyList<NendoExtensionPackageSnapshot> packages) =>
+        packages.Select(package => new NendoMcpExtensionPackage(
+            package.PackageId, package.Title, package.Version, package.EntryPoint, package.Description, package.TotalBytes,
+            package.Files.Select(file => new NendoMcpExtensionFile(file.Path, file.MediaType, file.Sha256, file.ByteLength)).ToArray()))
+            .ToArray();
+
+    /// <summary>
+    /// One page of a package file. Text arrives as text so an agent can read and edit it as
+    /// written; anything else, and a page that would split a UTF-8 sequence, arrives as base64.
+    /// </summary>
+    internal async Task<NendoMcpExtensionFileContent> GetExtensionFileAsync(
+        string packageId, string? path, long offset, long length, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            throw new NendoValidationException("Name the file with ?path=, for example ?path=index.html.");
+        if (offset < 0 || length < 1 || length > ExtensionFilePageBytes)
+            throw new NendoValidationException($"offset must be 0 or more and length 1 to {ExtensionFilePageBytes}.");
+        var file = await application.ReadExtensionFileAsync(packageId, path, cancellationToken)
+            ?? throw new NendoValidationException($"The file carries no {path} in package {packageId}; nendo://application/extensions lists what it holds.");
+        var total = file.Content.LongLength;
+        if (offset > total)
+            throw new NendoValidationException($"offset {offset} is past the end of {path}, which is {total} bytes.");
+        var count = (int)Math.Min(length, total - offset);
+        var slice = file.Content.AsSpan((int)offset, count);
+        var next = offset + count < total ? offset + count : (long?)null;
+        string? text = null;
+        string? base64 = null;
+        if (NendoExtensionContent.IsTextual(file.MediaType) && TryUtf8(slice, out var decoded)) text = decoded;
+        else base64 = Convert.ToBase64String(slice);
+        return new NendoMcpExtensionFileContent(packageId, path, file.MediaType, file.Sha256, total, offset, count, next, text, base64);
+    }
+
+    private static readonly System.Text.UTF8Encoding StrictUtf8 = new(false, true);
+
+    private static bool TryUtf8(ReadOnlySpan<byte> bytes, out string text)
+    {
+        try
+        {
+            text = StrictUtf8.GetString(bytes);
+            return true;
+        }
+        catch (System.Text.DecoderFallbackException)
+        {
+            text = string.Empty;
+            return false;
+        }
     }
 
     internal async Task<NendoMcpSurfaces> GetSurfacesAsync(CancellationToken cancellationToken)

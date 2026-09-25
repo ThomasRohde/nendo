@@ -496,7 +496,8 @@ internal sealed partial class SqliteNendoStore
                             'schema.setChoiceMetadata', 'schema.setRetired', 'schema.setFieldRequired',
                             'schema.renameEntity', 'schema.renameField',
                             'behaviour.setDefinition', 'behaviour.removeDefinition',
-                            'ui.setProperty', 'application.setPurpose')
+                            'ui.setProperty', 'application.setPurpose',
+                            'extension.setPackage', 'extension.putFile', 'extension.removeFile', 'extension.removePackage')
                             OR (o.operation_type = 'ui.removeNode'
                                 AND json_extract(o.inverse_evidence_json, '$.retainedSubtree[0].kind') IN ('extensionGraphSurface', 'extensionRecordsSurface')
                                 AND json_array_length(o.inverse_evidence_json, '$.retainedSubtree') BETWEEN 1 AND 16
@@ -514,6 +515,12 @@ internal sealed partial class SqliteNendoStore
                     (COUNT(o.operation_id) BETWEEN 2 AND 128
                         AND MIN(CASE WHEN o.operation_type IN (
                             'data.setField', 'data.backfillRetiredField', 'data.deleteRecord') THEN 1 ELSE 0 END) = 1)
+                    OR
+                    -- A package and its files arrive together and are reversed together.
+                    (COUNT(o.operation_id) BETWEEN 2 AND 128
+                        AND MIN(CASE WHEN o.operation_type IN (
+                            'extension.setPackage', 'extension.putFile', 'extension.removeFile', 'extension.removePackage')
+                            THEN 1 ELSE 0 END) = 1)
                 ) THEN 1 ELSE 0 END
             FROM page r LEFT JOIN __nendo_operation o ON o.revision_id = r.revision_id
             GROUP BY r.revision_id ORDER BY r.change_sequence {order};

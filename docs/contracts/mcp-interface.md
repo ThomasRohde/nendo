@@ -1,6 +1,6 @@
 # MCP interface contract
 
-This contract lists the fourteen resources and nineteen tools that an external
+This contract lists the sixteen resources and nineteen tools that an external
 agent sees, and the authority rules behind them. `Test-Production.ps1` asserts
 both surfaces by name.
 
@@ -67,8 +67,8 @@ physical mappings or arbitrary host invocation.
 
 | Resource | Current adapter and shared application service | Projection / outstanding cost |
 | --- | --- | --- |
-| `nendo://application/describe` | `GetDescriptionAsync` → the projections below | What the file is for, then the manifest, authoring limits, every record type with its fields, every compiled screen, health, and `reads`: every resource URI this host serves, generated from the declared resources. It answers the reconnaissance phase without 1 + N round trips. `resources/list` returns only the parameterless resources, so the read path for records was reachable only through `resources/templates/list`. A review concluded from the seven listed entries that the data API was write-only, and it opened the SQLite file directly to check its own writes. |
-| `nendo://application/examples` | `NendoAuthoringExamples.Description` | Sixteen complete contract version 3 change sets that can be sent without change: `create-entity-with-required-fields`, `configure-a-reference`, `a-breakdown-and-a-ring`, `a-trend-and-an-activity-grid`, `a-matrix-and-a-ranking`, `a-board-with-a-lane-per-project`, `build-a-detail-surface`, `define-a-command`, `two-commands-and-a-filtered-list`, `several-views-tabs-and-a-calendar`, `a-timeline-of-spans`, `a-gallery-and-a-rating`, `a-front-page-for-the-file`, `say-what-the-file-is-for`, `calculate-and-act-automatically`, `pin-an-offline-custom-graph`. Each example carries the authoring rule that it conveys. Static for a host build. [The example tests](../../tests/Nendo.LocalMcp.Tests/AuthoringExampleTests.cs) replay every example through the real authoring boundary, so an example that stops validating fails the build. |
+| `nendo://application/describe` | `GetDescriptionAsync` → the projections below | What the file is for, then the manifest, authoring limits, every record type with its fields, every compiled screen, health, `extensions` (every custom-view package the file carries, with its files but not their bytes), and `reads`: every resource URI this host serves, generated from the declared resources. It answers the reconnaissance phase without 1 + N round trips. `resources/list` returns only the parameterless resources, so the read path for records was reachable only through `resources/templates/list`. A review concluded from the seven listed entries that the data API was write-only, and it opened the SQLite file directly to check its own writes. |
+| `nendo://application/examples` | `NendoAuthoringExamples.Description` | Seventeen complete contract version 3 change sets that can be sent without change: `create-entity-with-required-fields`, `configure-a-reference`, `a-breakdown-and-a-ring`, `a-trend-and-an-activity-grid`, `a-matrix-and-a-ranking`, `a-board-with-a-lane-per-project`, `build-a-detail-surface`, `define-a-command`, `two-commands-and-a-filtered-list`, `several-views-tabs-and-a-calendar`, `a-timeline-of-spans`, `a-gallery-and-a-rating`, `a-front-page-for-the-file`, `say-what-the-file-is-for`, `calculate-and-act-automatically`, `pin-an-offline-custom-graph`, `put-a-custom-view-in-the-file`. Each example carries the authoring rule that it conveys. Static for a host build. [The example tests](../../tests/Nendo.LocalMcp.Tests/AuthoringExampleTests.cs) replay every example through the real authoring boundary, so an example that stops validating fails the build. |
 | `nendo://application/manifest` | `NendoResourceProjection.GetManifestAsync` → `GetDefinitionSnapshotAsync` | What the file is for, plus identity and revision counters, without record/history reads. |
 | `nendo://application/vocabulary` | `NendoSemanticVocabulary.Description` + `NendoAuthoringOperations.All` | Every contract version 3 node kind with its permitted properties, required properties, permitted children and root ceiling: `maxRootsPerEntity`, or `maxRootsPerFile` for a root that belongs to the file and not to a record type. The closed filter operators, value kinds, ordering directions and aggregates. The `and` combinator that joins sibling `filterClause` children, and the note that version 3 has no OR and no grouping. The closed `choiceTones` that a choice option may carry. The `charts` rule with its closed groupings and its ceiling on groups. The `overview` rule with the one front page that a file may own and the ceiling on a recent list. The authoring limits. `operations`: every canonical operation with the payload fields that it requires and accepts. It is generated from the tables that the compiler and the authoring boundary validate against. `NendoAgentAuthoringService` builds its accepted field sets from the published table, so a documented field is an accepted field. Static for a host build: it describes the host, not the open file. |
 | `nendo://application/entities` | `GetEntitiesAsync` → `GetDefinitionSnapshotAsync` | Stable entity IDs and display labels; no record projection. |
@@ -81,6 +81,8 @@ physical mappings or arbitrary host invocation.
 | `nendo://application/entity/{entityId}/export{?cursor,limit}` | `GetCsvExportAsync` → `ExportCsvPageAsync` → `QueryRecordsAsync` | One page of the record type as faithful Nendo CSV. This is the profile that the person's own Export writes, so the output can go directly back to `nendo.data.import_records`. The header row carries display names and appears on the first page only, so the pages concatenate into one document. `fieldIds` gives the stable ID behind each column, and an import maps by that ID. The same 1–100 limit and the same revision-bound cursor apply as on every other page here. It is a resource and not a tool, because reading is a resource in this product and because Inspect keeps an empty tool list. |
 | `nendo://application/proposals` | `NendoAgentProposalStore.Snapshot` | Every validated proposal that waits for a person, with its title, captured revision, state, operation count, diagnostic count and the most severe reversibility class that it carries. This is the recovery path after a reconnect or a lost response. Before, a pending proposal was invisible, and each proposal captured a revision that the acceptance of any other proposal invalidates. |
 | `nendo://application/health` | `GetHealthAsync` → `GetDefinitionSnapshotAsync` | Lightweight status with the time of the last integrity check and the change sequence. A status read does not run integrity again. `changesSinceIntegrityCheck` and `integrityStale` state how far the file has moved since that result was measured. An `ok` taken thirty-two changes ago therefore cannot be read as `ok` now. `nendo.health.verify_integrity` requests a measurement. |
+| `nendo://application/extensions` | `GetExtensionsAsync` → `GetDefinitionSnapshotAsync` | Every custom-view package that the file carries: its ID, title, version, entry point, description and total size, and each file's path, media type, SHA-256 and size. No content. A package in the file is stored and reviewed, and nothing runs it yet ([custom-view contract](custom-views.md#packages-in-the-file)). |
+| `nendo://application/extension/{packageId}/file{?path,offset,length}` | `GetExtensionFileAsync` → `ReadExtensionFileAsync` | One package file, a page of bytes at a time. `path` is percent-encoded, so `tiles/world.bin` is sent as `tiles%2Fworld.bin`. `offset` and `length` are byte positions. `length` is at most 131,072, and by default the page runs to the end of the file up to that. A text file's page arrives as `text`. Any other page arrives as `base64`, and so does a text page that would split a UTF-8 sequence. `sha256` and `byteLength` describe the whole file, and `nextOffset` is null on the last page. |
 
 All four page resources (records, export, history and revision operations) keep
 the MCP 1–100 limit. `limit` is a whole number in
@@ -93,6 +95,14 @@ If a data or definition change occurs between pages, the read returns
 `NENDO_STALE_CURSOR`. Restart the query. Foreign, tampered, reopened-file or
 earlier agent-access cursors fail. Follow the declared URI template parameter
 order (`cursor,limit`). See the [read and authority contract](reads-and-authority.md).
+
+The package-file read pages by bytes, not by records, and it has no cursor.
+`offset` and `length` must be whole numbers, and anything else is
+`NENDO_INVALID_LIMIT`. A missing `path`, a path the package does not hold, a
+`length` outside 1–131,072 and an `offset` past the end of the file are each
+`NENDO_INVALID_REQUEST`, and the message names the rule. Each page describes the
+file as it stands when that page is read. Compare `sha256` on every page: a file
+that changed between two pages shows a different hash.
 
 The resources are served at every level from Inspect upward, and Inspect lists no
 tools. The lease, data and health tools are registered from Edit data upward. The
@@ -112,9 +122,9 @@ upward.
 | `nendo.data.delete_record` | Same | `DeleteRecordAsync` → `data.deleteRecord`, expected touched-record version. Incoming references block deletion, and the refusal names the referring records. Exact retries return the committed outcome. `alsoChanged` as above. |
 | `nendo.data.execute_command` | Same | `ExecuteCommandAsync` resolves the stored command, then typed `data.setField`. MCP does not implement domain commands. Returns the resulting `recordVersion`. A command advances the record by one version per `commandStep`, and the steps are in the stored definition. The caller therefore cannot derive the version, and without this value the next optimistic write had nothing to pin to. Null on an idempotent replay, where the version of the original write may have moved since. |
 | `nendo.data.get_receipt` | Current endpoint, no modifying lease needed | `GetMutationReceiptAsync`. The saved locator binds the original app/instance/run/scope. A committed receipt carries `generatedChanges`: the records that the write's automatic actions changed, rebuilt from the revision's attributed operations, with `recordVersion` null. A lost response is therefore recovered without a re-read of every record. A missing receipt remains unresolved, and no write authority is granted. |
-| `nendo.health.verify_integrity` | Current endpoint, no lease needed | `VerifyIntegrityAsync`. Scans the file and returns the health measured now. An unchanged file is not rescanned: `rescanned` is false, and the recorded result already describes the file. A call after every batch therefore costs nothing. A failed scan puts the host into recovery. That is the protection of the file, not a failure of this call. |
+| `nendo.health.verify_integrity` | Current endpoint, no lease needed | `VerifyIntegrityAsync`. Scans the file and returns the health measured now. The scan also reads every stored custom-view package content and compares it with its SHA-256. An unchanged file is not rescanned: `rescanned` is false, and the recorded result already describes the file. A call after every batch therefore costs nothing. A failed scan puts the host into recovery. That is the protection of the file, not a failure of this call. |
 | `nendo.change_set.begin` | Shape app + live lease; `NendoAgentAuthoringService` | Captures typed authority in a bounded transient draft. No active mutation. |
-| `nendo.change_set.add_operations` | Same owning handle/draft | Closed canonical DTOs: ≤16 operations per add and ≤128 submitted per change set, expanding to ≤512 canonical. The host supplies IDs, and every response echoes every limit. `ui.addNode` accepts an inline `properties` map. At the boundary, the map expands to one `ui.setProperty` per property, so a node and its configuration cost one operation instead of one plus one per property. If `expectedDefinitionRevision` is omitted, the host resolves it from the position of the operation in the change set, so the caller does not model the host's counter. A supplied value is honoured exactly. No active mutation. |
+| `nendo.change_set.add_operations` | Same owning handle/draft | Closed canonical DTOs: ≤16 operations per add and ≤128 submitted per change set, expanding to ≤512 canonical. One operation's payload is at most 32 KiB, and an `extension.putFile` payload at most 96 KiB. A larger package file is sent in parts: `putFile` operations with `append: true` continue the file that an earlier `putFile` of the same package and path began in this change set. The host joins the parts in order at validation. A part with nothing to continue is refused when it is sent. The host supplies IDs, and every response echoes every limit. `ui.addNode` accepts an inline `properties` map. At the boundary, the map expands to one `ui.setProperty` per property, so a node and its configuration cost one operation instead of one plus one per property. If `expectedDefinitionRevision` is omitted, the host resolves it from the position of the operation in the change set, so the caller does not model the host's counter. A supplied value is honoured exactly. No active mutation. |
 | `nendo.change_set.amend` | Same owning handle/draft, not frozen | Drops every mutation from an ordinal onwards and appends replacements under the same per-call bounds. A correction of one bad operation costs one call, and the change set does not need to be rebuilt. A change set that validated is no longer a draft. Amend, `add_operations` and a fresh `validate` on it are `NENDO_CHANGE_SET_FROZEN`. The refusal names the proposal that the change set became and both remedies: reject the proposal and begin a new change set, or ask the person to accept it. An ID that this session never had is `NENDO_CHANGE_SET_NOT_FOUND: The change set does not exist.` No active mutation. |
 | `nendo.change_set.validate` | Same | `PrepareProposalAsync(NendoCanonicalProposalRequest)` → canonical compilation → physical clone validation. Schema-only proposals are valid for Studio. Custom trees that are present must compile fully. A failed validation discards its private clone and leaves the draft open and amendable. Validation is therefore a repeatable dry run and does not end the change set. |
 | `nendo.change_set.preview` | Same owning session | Reads the retained typed preview through `NendoAgentProposalStore.GetOwned`. No active mutation and no new acceptance authority. |
@@ -154,6 +164,15 @@ does not have to find them among the entities or the surfaces. The purpose of a
 file belongs to the file and has no record type and no node. A summary built from a
 walk of those would therefore review a change to the purpose as a change to
 nothing.
+
+The preview also carries `packageChanges`: each custom-view package file that the
+proposal adds, replaces or removes, compared between the active file and the
+validated clone. Each entry states the media types and sizes before and after. A
+text file of at most 1 MiB also carries its changed lines, with three lines of
+context, in `hunks`. The review shows at most 400 changed lines per file and 2,000
+per proposal, and `truncated` says where it stopped early. The person sees the same
+list in the **Code** section of the review
+([custom-view contract](custom-views.md#review)).
 
 Each surface in the preview carries an optional `shape`: the size that a reviewer
 cannot infer from a kind and a title. A matrix states its rows, its columns and its
@@ -264,12 +283,31 @@ that table serves two purposes. It is published at
 `nendo://application/vocabulary`, and `NendoAgentAuthoringService` builds its
 enforcement from it. Before, the payload specification was prose inside the
 `add_operations` tool description. That prose grew so long that a real client's
-tool listing truncated it mid-token. The union permits twenty of the Engine's
-twenty-two canonical operations. `data.restoreDeletedRecord` and
+tool listing truncated it mid-token. The union permits twenty-four of the Engine's
+twenty-six canonical operations. `data.restoreDeletedRecord` and
 `identity.transition` are native-only: lifecycle identity operations remain host
 services and are not MCP authoring primitives.
 
-`behaviour.setDefinition` and `behaviour.removeDefinition` are among the twenty,
+`extension.setPackage`, `extension.putFile`, `extension.removeFile` and
+`extension.removePackage` are among the twenty-four. An agent therefore writes a
+custom view's code into the file through ordinary proposals, and the person reviews
+it as code before accepting. Nothing runs a package from the file yet
+([custom-view contract](custom-views.md#packages-in-the-file)). The vocabulary
+publishes the package bounds under `limits.extensions`:
+
+- `fileBytes`: 4 MiB for one file;
+- `packageFiles` and `packageBytes`: 512 files and 16 MiB for one package;
+- `packages` and `totalBytes`: 64 packages and 64 MiB for one `.nendo` file;
+- `contentBytesPerChangeSet`: 4 MiB of new content for one change set;
+- `pathCharacters` and `packageIdCharacters`: 240 and 80;
+- `putFilePayloadBytes`: 96 KiB for one `putFile` payload.
+
+A change set past the content bound, or a file past 4 MiB once its parts are
+joined, is refused at validation as `NENDO_INVALID_REQUEST`, and nothing reaches
+the clone. A package precondition met on the clone, one of the `extension-*` codes,
+arrives as a validation diagnostic, `NPROP010`, with the Engine's sentence.
+
+`behaviour.setDefinition` and `behaviour.removeDefinition` are among the twenty-four,
 so an agent authors calculations, reusable functions, actions and triggers through
 ordinary proposals. The vocabulary's `behaviour.bindings` publishes every binding
 shape with the keys that it takes, from the same table that the codec refuses
@@ -324,4 +362,5 @@ Evidence: [protocol resource tests](../../tests/Nendo.LocalMcp.Tests/ProtocolRes
 [data outcomes](../../tests/Nendo.LocalMcp.Tests/DataOutcomeProtocolTests.cs),
 [read path tests](../../tests/Nendo.LocalMcp.Tests/ReadPathTests.cs),
 [authoring ergonomics tests](../../tests/Nendo.LocalMcp.Tests/AuthoringErgonomicsTests.cs),
+[extension package protocol tests](../../tests/Nendo.LocalMcp.Tests/ExtensionPackageProtocolTests.cs),
 and the [native neutrality probe](../../tools/Review-NeutralityRuntime.mjs).

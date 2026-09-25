@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "site", "run", "preview", "--", "--port", "4321"],
       "port": 4321
+    },
+    {
+      "name": "nendo-workbench-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "src/Nendo.Workbench", "run", "dev", "--", "--port", "5173", "--strictPort"],
+      "port": 5173
     }
   ]
 }

@@ -547,8 +547,24 @@ public sealed record NendoMutation(
         {
             throw new NendoValidationException("Operation IDs must be unique within a mutation.");
         }
+        RequireExtensionContentWithinBound(Operations);
 
         return this;
+    }
+
+    /// <summary>
+    /// Refuses more new package content than one commit may carry. Counted over the bytes the
+    /// operations bring with them, so content the file already holds costs nothing.
+    /// </summary>
+    internal static void RequireExtensionContentWithinBound(IEnumerable<NendoOperation> operations)
+    {
+        var carried = operations.OfType<PutExtensionFileOperation>().Sum(operation => (long)operation.CarriedBytes);
+        if (carried > NendoExtensionLimits.ContentBytesPerChangeSet)
+        {
+            throw new NendoValidationException(
+                $"A change carries at most {NendoExtensionLimits.ContentBytesPerChangeSet} bytes of new package content, and this one carries {carried}. " +
+                "Split the files across several change sets.");
+        }
     }
 
     internal string OperationDigest => NendoCanonical.DigestOperations(Operations);
@@ -570,6 +586,8 @@ public sealed record NendoChangeSet(IReadOnlyList<NendoMutation> Mutations)
             mutation.Validate();
         }
         var operations = Mutations.SelectMany(mutation => mutation.Operations).ToArray();
+        // A change set commits in one transaction, so its content is bounded as a whole.
+        NendoMutation.RequireExtensionContentWithinBound(operations);
         if (operations.OfType<ConvertLegacyReferenceOperation>().Any())
         {
             if (Mutations.Count != 2 || Mutations.Any(mutation => mutation.Operations.Count != 1) ||

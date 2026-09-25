@@ -942,8 +942,44 @@ public sealed record NendoAuthoringLimits(
         MaximumPageLimit: 100,
         CanonicalOperationsPerChangeSet: CanonicalChangeSetRequestCompiler.MaximumOperations,
         PropertiesPerNodeOperation: 16,
-        ApplicationPurposeCharacters: SetApplicationPurposeOperation.MaximumCharacters);
+        ApplicationPurposeCharacters: SetApplicationPurposeOperation.MaximumCharacters)
+    {
+        Extensions = new(
+            NendoExtensionLimits.FileBytes,
+            NendoExtensionLimits.PackageFiles,
+            NendoExtensionLimits.PackageBytes,
+            NendoExtensionLimits.Packages,
+            NendoExtensionLimits.TotalBytes,
+            NendoExtensionLimits.ContentBytesPerChangeSet,
+            NendoExtensionLimits.PathCharacters,
+            NendoExtensionLimits.PackageIdCharacters,
+            PutFilePayloadBytes: 96 * 1024),
+    };
+
+    /// <summary>The bounds a custom-view package in the file keeps (ADR-0013).</summary>
+    public NendoExtensionAuthoringLimits? Extensions { get; init; }
 }
+
+/// <summary>
+/// The bounds a custom-view package keeps, as <see cref="NendoExtensionLimits"/> enforces them:
+/// the largest file, the most files and bytes a package holds, the most packages and bytes a
+/// file carries, the most new content one change set brings, and the longest path and ID.
+/// </summary>
+/// <param name="PutFilePayloadBytes">
+/// The largest <c>extension.putFile</c> payload one authoring call carries, text or base64
+/// included. Two fit under the local MCP's 256 KiB request body; a larger file arrives as a
+/// first put and then chunks with <c>append</c>, which the adapter joins before validation.
+/// </param>
+public sealed record NendoExtensionAuthoringLimits(
+    int FileBytes,
+    int PackageFiles,
+    long PackageBytes,
+    int Packages,
+    long TotalBytes,
+    int ContentBytesPerChangeSet,
+    int PathCharacters,
+    int PackageIdCharacters,
+    int PutFilePayloadBytes);
 
 public sealed record NendoVocabularyDescription(
     int ContractVersion,

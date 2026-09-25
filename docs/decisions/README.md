@@ -24,7 +24,7 @@ existed. For this reason the numbering is contiguous by intent.
 | [0010](0010-file-identity-duplicate-fork-backup-and-restore.md) | Accepted | Raw copy classification plus typed Duplicate, Fork, Backup and Restore |
 | [0011](0011-local-sqlite-journal-and-copy-discipline.md) | Accepted | Local rollback DELETE, FULL synchronous operation, bounded busy behaviour, host-owned copy discipline |
 | [0012](0012-safe-mode-compatibility-and-migration.md) | Accepted | Explicit normal/read-only/recovery/rejected states, staged migration, permanent host safe mode |
-| [0013](0013-defer-general-extension-model.md) | **Accepted, bounded slice** | OS-contained read-only custom views; broader extensions remain deferred |
+| [0013](0013-custom-views-with-code-in-the-file.md) | Accepted | Custom views carry their code in the file and run inline with a full API; no install or consent |
 | [0014](0014-drop-embedded-agent-mcp-is-the-agent-surface.md) | Accepted | Drop the embedded agent; the local MCP interface is the agent surface. AG-UI not adopted |
 | [0015](0015-host-owned-database-studio-and-ag-grid-community.md) | Accepted | Host-owned Studio, containing UI architecture, AG Grid Community as the grid substrate |
 | [0016](0016-vendor-pinned-dotnet-agent-skills.md) | Accepted | Pinned curated first-party .NET agent skills |
@@ -33,20 +33,6 @@ existed. For this reason the numbering is contiguous by intent.
 
 ## Amendments in force
 
-- **ADR-0013, 2026-09-20**: the owner accepted OS-contained custom views after the
-  AppContainer/Job prototype. The amendment permits a helper process
-  (ADR-0002/0017), protected view references (0003), typed view bindings (0004)
-  and supported-envelope preservation (0012). Pending security/lifecycle checks
-  remain release gates.
-- **ADR-0013, 2026-09-24 — protocol 2**: a view may disclose more typed fields of
-  its node and edge types (a reference as its target's label) and narrow them with
-  literal filters, all named in the consent review and bound into its digest.
-  Host 1.30.0. Delivered by W-060.
-- **ADR-0013, 2026-09-24 — a record-set shape and a record-page placement**: an
-  `extensionRecordsSurface` projects one record type as typed columns, and an
-  `extensionRecordPanel` places a view on a record page scoped to its record.
-  Embedded views start only on request, one at a time per window, because a running
-  view measured 219–270 MiB, mostly its own browser engine. Host 1.31.0. W-061.
 - **ADR-0004, 2026-09-20 — a section can be folded away**: every `section` folds.
   An author can store how a section starts, as the `opens` property with the
   closed words `open` and `closed`. A person's own fold is never stored in the file.
@@ -173,14 +159,17 @@ existed. For this reason the numbering is contiguous by intent.
 
   **The reserve is headroom, and the headroom is measured.** The cost of a commit
   is not known before the commit, so the ceiling must sit far enough below the
-  bound that no single write can cross the gap. The bytes reserve is **4 MiB**.
-  The measured worst case is **446,464 bytes**. That is the largest change this
-  product accepts: a change set at the published 128-operation ceiling, with
-  records of the size that the 2026-09-16 amendment measured, 1,306 bytes of text
-  each. That is 9.4 times inside the reserve. A test asserts the relationship, not
-  the number, so a commit that becomes more costly fails here and not in
-  somebody's file. The rows reserve is **1,000**, against at most 129 rows for the
-  same commit: 128 operations and the revision that carries them.
+  bound that no single write can cross the gap. The bytes reserve is **32 MiB**,
+  so the byte write ceiling is 224 MiB. The largest change this product accepts is
+  a change set with 4 MiB of new custom-view package content
+  ([ADR-0013](0013-custom-views-with-code-in-the-file.md)). It grows the file by
+  about **4.3 MB**, under a quarter of the reserve. The largest change of records
+  measured **446,464 bytes** on 2026-09-17: a change set at the published
+  128-operation ceiling, with records of the size that the 2026-09-16 amendment
+  measured, 1,306 bytes of text each. Each test asserts the relationship, not the
+  number, so a commit that becomes more costly fails there and not in somebody's
+  file. The rows reserve is **1,000**, against at most 129 rows for the record
+  commit: 128 operations and the revision that carries them.
 
   **What this does not do.** A file already over either bound still has no route
   to its data, and this amendment does not give it one. It also does not warn on
@@ -325,9 +314,6 @@ existed. For this reason the numbering is contiguous by intent.
   and an action can reach the active file before anybody reads either. It also
   adds bulk data in and out: a paged faithful-CSV export resource and one import
   tool at Edit data.
-- **ADR-0013, 2026-09-10**: general scripting and the general extension model
-  are scheduled for P7. They are not deferred indefinitely. Scheduling grants no
-  implementation authority; each still needs its own accepted ADR.
 
 ## Rules
 

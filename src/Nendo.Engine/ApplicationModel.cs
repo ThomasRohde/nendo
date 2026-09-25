@@ -194,7 +194,15 @@ public sealed record NendoSessionSnapshot(
     IReadOnlyList<NendoEntitySnapshot> Entities,
     IReadOnlyList<NendoRecordSnapshot> Records,
     IReadOnlyList<NendoUiNodeSnapshot> UiNodes,
-    NendoStorageHealthSnapshot Storage);
+    NendoStorageHealthSnapshot Storage)
+{
+    /// <summary>
+    /// The custom-view packages the file carries (ADR-0013), with their files but not their
+    /// bytes. Definition, read in the same transaction as the rest, so a view and the package
+    /// it names are never read from two different moments.
+    /// </summary>
+    public IReadOnlyList<NendoExtensionPackageSnapshot> ExtensionPackages { get; init; } = [];
+}
 
 /// <summary>
 /// One record an automatic action changed while a write was committing, at the

@@ -98,16 +98,24 @@ performs the loop above for an observer.
 editor, CSV import/export, semantic forms, lists, boards, record pages, related
 lists, declared filters, summary tiles, declarative commands, MCP inspection and
 authoring, proposal preview and promotion, history, bounded compensation, safe
-mode, bounded calculations and local actions.
+mode, bounded calculations and local actions, custom views that carry their own
+code in the file, with the full typed API
+([ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md)).
 
-**Out:** general scripting and expressions, plug-ins and third-party controls,
+**Out:** general scripting in formulas, extension code that runs without a view,
 an embedded agent, scalar multi-choice, binary and asset fields, collaboration,
 cloud sync, background agents, other database engines, cross-platform parity.
 
-The scope list describes the shipped product. Bounded calculations and local
-actions are in it because [ADR-0008](decisions/0008-general-scripting-and-capability-isolation.md)
-is delivered. General scripting, plug-ins, third-party controls and external
-effects still require additional accepted authority.
+The scope list covers what is shipped and what an accepted ADR has decided.
+Bounded calculations and local actions are in it because
+[ADR-0008](decisions/0008-general-scripting-and-capability-isolation.md) is
+delivered, and its bounded expressions stay the formula language. Custom views are
+in it because ADR-0013 decides them. A view's code travels in the file and runs in
+the view's own frame. It is one more client of the same typed services, so the
+axioms above hold for it. The [custom-view contract](contracts/custom-views.md)
+states how much of this is delivered at any moment. Extension code that runs
+without a view, such as a contributed command or a background job, still needs its
+own accepted decision.
 
 **Charts and dashboards came into scope on 2026-09-14**, and the slices S0 to S7
 are delivered. A chart in Nendo is an exact aggregate over a closed grouping: a

@@ -106,6 +106,7 @@ public sealed partial class NendoWriteCoordinator
                 context.MinimumHostVersionAfter = previewSnapshot.Manifest.MinimumHostVersion;
                 context.PurposeBefore = active.Manifest.Purpose;
                 context.PurposeAfter = previewSnapshot.Manifest.Purpose;
+                context.PackageChanges = await ExtensionPackageDiff.ComputeAsync(store, clone, changeSet, cancellationToken);
                 context.SemanticDiff = WithHostVersionRaise(
                     context.SemanticDiff,
                     active.Manifest.MinimumHostVersion,

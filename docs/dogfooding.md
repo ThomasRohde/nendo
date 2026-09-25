@@ -476,7 +476,7 @@ These are dated import decisions, not a second evolving backlog.
 | [Roadmap](roadmap.md), Not qualified | Separate distribution, signing, ARM64, startup, clean-machine, accessibility, tray and power-loss work; intentional cloud/platform/client/account limits remain Findings |
 | [Surface plan](design/surfaces-and-charts-plan.md), S4-S7 | One work item per slice, carrying its component list and ADR dependency; Reading Log qualification is separate |
 | Surface plan, parked ideas | Outline, advanced scheduling and images remain accepted-limit Findings, not implied commitments |
-| [ADR index](decisions/README.md) and [ADR-0013](decisions/0013-defer-general-extension-model.md) | One extension-design item; scheduling is not implementation authority |
+| [ADR index](decisions/README.md) and [ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md) | One extension-design item; scheduling is not implementation authority |
 | Roadmap, Agent authoring ergonomics | Consent design, target validation, multiple diagnostics, proposal rebase/recovery, version targeting and handshake naming; required-only sums and path/access boundaries stay limitations |
 | Roadmap, vocabulary widening | Outcome runtime, selector measurement, calendar-month aggregate investigation and tile concurrency; fixed scales, start-year placement and session-local selection stay limitations |
 | Roadmap, cleanup carry-forward | Asset integrity, CI allowance investigation and clean-user NSIS-wrapper lane |
