@@ -4,7 +4,7 @@ A custom view that draws one record type on a time line: a bar from a start date
 date, and a diamond for a record with only a start. It is the first **record-set** package,
 for an `extensionRecordsSurface` view (ADR-0013, 2026-09-24): it receives records with typed
 columns, not a graph, and it needs no links. From 0.2.0 it also sits on a record page as an
-`extensionRecordPanel`, where Nendo sends that page's one record and it draws a chart of one.
+`extensionRecordPanel`, where Nendo sends that page's one record and it draws a chart of one: no title or instructions, the label above its bar, and the span in days (0.2.1).
 
 It is a separately versioned, unsigned package with no dependencies, downloads or write
 operations, implementing protocol 2. It reads only the bounded projection Nendo approves.
@@ -27,7 +27,7 @@ text, so a label that looks like markup stays text.
 pwsh ./tools/Build-NendoGanttPackage.ps1
 ```
 
-The output is `artifacts/extensions/org.nendo.gantt-0.2.0.nendoview`, and the command prints
+The output is `artifacts/extensions/org.nendo.gantt-0.2.1.nendoview`, and the command prints
 the SHA-256 a file pins. Pin it with an `extensionRecordsSurface`, or an
 `extensionRecordPanel` on a record page, whose `fieldBinding` children name a start date and
 an end date; see

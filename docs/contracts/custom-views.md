@@ -384,7 +384,7 @@ version `0.1.0` required. `Review-SystemsLens.ps1` measures it in the
 production gate.
 
 A fourth package, `extensions/gantt/`, is the first **record-set** view:
-`org.nendo.gantt` version `0.2.0`, protocol 2, built through
+`org.nendo.gantt` version `0.2.1`, protocol 2, built through
 `Build-NendoGanttPackage.ps1`. It draws one record type on a time line, or on a record
 page the page's one record (`{fields, record}`), taking the
 first disclosed date field as the start and the second as the end. A record with a
