@@ -634,6 +634,13 @@ internal static class SemanticDiff
         // The field this binding shows, on the surface it shows it on, in one sentence.
         // A binding whose field is set later in a change set this does not see says the
         // general thing instead, which is true rather than invented.
+        // A custom view's own binding is a field the view receives, not one shown on the page
+        // or screen around it; the old sentence said a record page would show it.
+        "fieldBinding" when names.BindingFields.TryGetValue(operation.NodeId, out var viewed) &&
+            operation.ParentNodeId is { } parent && NendoExtensionViewDefinition.IsViewKind(names.NodeKinds.GetValueOrDefault(parent)) =>
+            names.NodeLabels.TryGetValue(parent, out var view)
+                ? $"Let the custom view \"{view}\" read {FieldName(names, viewed)}."
+                : $"Let the custom view read {FieldName(names, viewed)}.",
         "fieldBinding" when names.BindingFields.TryGetValue(operation.NodeId, out var fieldId) =>
             SurfaceName(names, operation.SurfaceId, operation.NodeId) is { } surface
                 ? $"Show {FieldName(names, fieldId)} on {surface}."
@@ -731,7 +738,9 @@ internal static class SemanticDiff
             "configurationVersion" => $"Use custom-view configuration version {Text(operation.Value, "version")}.",
             "configuration" => "Retain the bounded custom-view configuration; unsupported versions stay disabled.",
             "edgeEntityId" => $"Read graph relationships from {EntityName(names, Text(operation.Value, "entity"))}.",
-            "labelFieldId" => $"Disclose {FieldName(names, Text(operation.Value, "field"))} as the graph node label.",
+            "labelFieldId" => kind == NendoExtensionViewDefinition.NodeKind
+                ? $"Disclose {FieldName(names, Text(operation.Value, "field"))} as the graph node label."
+                : $"Disclose {FieldName(names, Text(operation.Value, "field"))} as each record's label.",
             "statusFieldId" => $"Disclose {FieldName(names, Text(operation.Value, "field"))} as exact graph status text.",
             "sourceFieldId" => $"Follow {FieldName(names, Text(operation.Value, "field"))} to each edge's source node.",
             "targetFieldId" => $"Follow {FieldName(names, Text(operation.Value, "field"))} to each edge's target node.",

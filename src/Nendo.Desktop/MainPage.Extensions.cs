@@ -286,13 +286,14 @@ public sealed partial class MainPage
                 ActualTheme == ElementTheme.Dark ? "dark" : "light", System.Globalization.CultureInfo.CurrentUICulture.Name);
             try
             {
+                var graph = session.UiNodes.Any(n => n.NodeId == viewId && n.Kind == NendoExtensionViewDefinition.NodeKind);
                 var pane = new DesktopExtensionPane(_session, run, selected.Title, ActualTheme,
                     () => { RouteTo("studio"); App.CurrentWindow?.Activate(); },
                     (fileSessionId, entityId, recordId) =>
                     {
                         PostWorkbenchEvent(WorkbenchEvents.OpenRecord,new { fileSessionId, entityId, recordId });
                         App.CurrentWindow?.Activate();
-                    });
+                    }, graph);
                 ShowExtensionPane(pane);
             }
             catch { await run.DisposeAsync(); throw; }

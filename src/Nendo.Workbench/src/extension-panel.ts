@@ -201,12 +201,37 @@ export function measure(viewport: HTMLElement, hidden: boolean): Placement {
   }
   const shown = !hidden && rect.width >= 1 && rect.height >= 1 && right - left >= 1 && bottom - top >= 1 &&
     (typeof viewport.checkVisibility !== 'function' || viewport.checkVisibility()) &&
-    document.querySelector('dialog[open]') === null;
+    document.querySelector('dialog[open]') === null && !covered(viewport, left, top, right, bottom);
   const round = (value: number): number => Math.round(value * 100) / 100;
   return {
     visible: shown, x: round(rect.left), y: round(rect.top), width: round(Math.max(1, rect.width)), height: round(Math.max(1, rect.height)),
     clipX: round(left), clipY: round(top), clipWidth: round(Math.max(0, right - left)), clipHeight: round(Math.max(0, bottom - top)),
   };
+}
+
+/**
+ * Whether anything of the page's own is drawn over the part of the placeholder it shows: the
+ * File menu, a popover, a toast. The view's window sits above the whole page, so it would
+ * cover them; the owner met it drawn over the File menu. Asking the page what is on top at
+ * points across the box finds any of them without a list of which ones there are.
+ */
+function covered(viewport: HTMLElement, left: number, top: number, right: number, bottom: number): boolean {
+  if (typeof document.elementFromPoint !== 'function') return false;
+  // Inset from the edges: the placeholder has rounded corners, and a point outside one is
+  // the parent's, which would read as a cover on every placement.
+  const inset = (low: number, high: number): [number, number] =>
+    high - low > 24 ? [low + 12, high - 12] : [(low + high) / 2, (low + high) / 2];
+  const [x0, x1] = inset(left, right), [y0, y1] = inset(top, bottom);
+  const steps = 6;
+  for (let i = 0; i <= steps; i++) {
+    for (let j = 0; j <= steps; j++) {
+      const x = x0 + ((x1 - x0) * i) / steps;
+      const y = y0 + ((y1 - y0) * j) / steps;
+      const hit = document.elementFromPoint(x, y);
+      if (hit !== null && hit !== viewport && !viewport.contains(hit)) return true;
+    }
+  }
+  return false;
 }
 
 async function place(): Promise<void> {

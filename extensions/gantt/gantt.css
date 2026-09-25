@@ -39,3 +39,11 @@ main{flex:1;min-height:120px;overflow:auto;border:1px solid var(--line);border-r
 .row[aria-pressed=true] .milestone{background:var(--violet)}
 #empty{padding:18px 6px}
 footer{font-size:.85rem;color:var(--muted)}
+/* One record on its own page: the chart is the whole box, and the label sits above its bar. */
+body.single{padding:10px;gap:6px}
+body.single h1,body.single .hint,body.single footer{display:none}
+body.single main{min-height:0;padding:6px 10px}
+body.single #axis{margin-left:0}
+body.single .row{flex-direction:column;align-items:stretch;cursor:default}
+body.single .row:hover,body.single .row[aria-pressed=true]{background:none}
+body.single .label{flex:none;padding:2px 0 4px;white-space:normal}

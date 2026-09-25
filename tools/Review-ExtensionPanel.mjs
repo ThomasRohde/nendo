@@ -100,7 +100,13 @@ try {
   await evaluate(`document.querySelector('[data-extension-panel="plan"]').scrollIntoView({block:'center'})`);
   await sleep(400);
   await evaluate(`document.querySelector('[data-extension-panel="plan"] [data-panel-next]').click()`);
-  const first = await waitFor(() => { const w = one(probe()); return w?.Visible ? w : null; }, 'the first view shown');
+  // On failure, say what the page reports on top of the placeholder: the view steps aside for anything.
+  const first = await waitFor(() => { const w = one(probe()); return w?.Visible ? w : null; }, 'the first view shown')
+    .catch(async error => { throw new Error(error.message + ' -- on top of the placeholder: ' + JSON.stringify(await evaluate(`(() => {
+      const v = document.querySelector('[data-extension-panel="plan"] [data-panel-viewport]'); const r = v.getBoundingClientRect(); const hits = new Set();
+      for (let i = 1; i < 6; i++) for (let j = 1; j < 6; j++) { const e = document.elementFromPoint(r.left + r.width * i / 6, r.top + r.height * j / 6);
+        if (e && e !== v && !v.contains(e)) hits.add(e.tagName + '.' + e.className + '#' + e.id); }
+      return { rect: [r.left, r.top, r.width, r.height], hits: [...hits] }; })()`))); });
   const at = await geometry('plan');
   assert(near(first.Width, at.rect.width * at.dpr) && near(first.Height, at.rect.height * at.dpr),
     'The view is not the placeholder\'s size: ' + JSON.stringify({ window: first, placeholder: at }));
@@ -141,6 +147,18 @@ try {
   dialog('Close');
   await evaluate('window.panelGateDialog');
   await waitFor(() => one(probe())?.Visible, 'the view back after the dialog');
+
+  // Anything of the page's own drawn over it -- the File menu, a popover -- is under the view's
+  // window unless the view steps aside. The owner met it drawn over the File menu (2026-09-25).
+  // A plain element over the middle of the view stands in for any of them.
+  await evaluate(`(() => { const r = document.querySelector('[data-extension-panel="plan"] [data-panel-viewport]').getBoundingClientRect();
+    const cover = document.createElement('div'); cover.id = 'panel-gate-cover';
+    Object.assign(cover.style, { position: 'fixed', zIndex: 50, left: (r.left + 20) + 'px', top: (Math.max(r.top, 0) + r.height / 3) + 'px',
+      width: '120px', height: '60px', background: 'rgba(0,0,0,.2)' });
+    document.body.append(cover); })()`);
+  await waitFor(() => one(probe())?.Visible === false, 'the view stepped aside for something drawn over it');
+  await evaluate(`document.querySelector('#panel-gate-cover').remove()`);
+  await waitFor(() => one(probe())?.Visible, 'the view back once nothing covers it');
 
   // Showing the second stops the first: one view per window.
   await evaluate(`document.querySelector('[data-extension-panel="later"]').scrollIntoView({block:'center'})`);

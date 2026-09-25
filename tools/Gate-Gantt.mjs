@@ -90,15 +90,33 @@ async (page) => {
   await page.evaluate(() => window.deliverView({ version: 2, method: 'replaceProjection', session: 'gate', generation: 4,
     projection: { sourceChangeSequence: 3, fields: [{ id: 'starts', name: 'Starts', type: 'date', of: 'node' }, { id: 'ends', name: 'Ends', type: 'date', of: 'node' }],
       record: { id: 'solo', label: 'Solo', status: null, values: { starts: '2026-12-01', ends: '2026-12-10' } } } }));
-  assert(await page.locator('#summary').innerText() === '1 record · 1 on the time line · 2026-12-01 to 2026-12-10',
+  assert(await page.locator('#summary').innerText() === '2026-12-01 to 2026-12-10 · 10 days',
     'The one record a record page sends was not drawn: ' + await page.locator('#summary').innerText());
   assert(await page.locator('.row[data-id="solo"] .bar').count() === 1, 'The one record on a record page is not drawn as a bar.');
+  // The box on a record page is small: the owner met most of it spent on a title, a paragraph
+  // of instructions and a selection footer, and the label cut to "Pour the f...". Measured at
+  // the placeholder's own size.
+  await page.setViewportSize({ width: 380, height: 360 });
+  await page.evaluate(() => window.deliverView({ version: 2, method: 'replaceProjection', session: 'gate', generation: 5,
+    projection: { sourceChangeSequence: 4, fields: [{ id: 'starts', name: 'Starts', type: 'date', of: 'node' }, { id: 'ends', name: 'Ends', type: 'date', of: 'node' }],
+      record: { id: 'solo', label: 'Pour the foundation for the east wing', status: null, values: { starts: '2026-11-03', ends: '2026-11-14' } } } }));
+  const compact = await page.evaluate(() => {
+    const label = document.querySelector('.row[data-id="solo"] .label');
+    const shown = selector => { const e = document.querySelector(selector); return e !== null && getComputedStyle(e).display !== 'none'; };
+    const bar = document.querySelector('.row[data-id="solo"] .bar').getBoundingClientRect();
+    return { chrome: ['h1', '.hint', 'footer'].filter(shown), labelCut: label.scrollWidth > label.clientWidth + 1,
+      barWidth: Math.round(bar.width), bottom: Math.round(bar.bottom), height: innerHeight };
+  });
+  assert(compact.chrome.length === 0, "A record page's chart still spends its box on: " + compact.chrome.join(', '));
+  assert(!compact.labelCut, "The record's label is cut on a record page.");
+  assert(compact.barWidth > 150 && compact.bottom < compact.height, 'The bar does not use the box: ' + JSON.stringify(compact));
+  await page.setViewportSize({ width: 1024, height: 700 });
 
   // A version-1 message is not this page's.
   await page.evaluate(() => window.deliverView({ version: 1, method: 'setTheme', session: 'gate', generation: 3, theme: 'dark' }));
   assert(await page.evaluate(() => document.documentElement.dataset.theme) === 'light', 'A protocol-1 message was acted on.');
-  await page.evaluate(p => window.deliverView({ version: 2, method: 'replaceProjection', session: 'gate', generation: 5, projection: { ...p, sourceChangeSequence: 5 } }), projection);
-  await page.evaluate(() => window.deliverView({ version: 2, method: 'setTheme', session: 'gate', generation: 5, theme: 'dark' }));
+  await page.evaluate(p => window.deliverView({ version: 2, method: 'replaceProjection', session: 'gate', generation: 6, projection: { ...p, sourceChangeSequence: 5 } }), projection);
+  await page.evaluate(() => window.deliverView({ version: 2, method: 'setTheme', session: 'gate', generation: 6, theme: 'dark' }));
   assert(await page.evaluate(() => document.documentElement.dataset.theme) === 'dark', 'The theme message was ignored.');
   const dark = await page.evaluate(() => { const bar = document.querySelector('.bar'); return getComputedStyle(bar).backgroundColor !== getComputedStyle(document.body).backgroundColor; });
   assert(dark, 'A bar is invisible against the dark background.');

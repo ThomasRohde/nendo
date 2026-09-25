@@ -19,6 +19,7 @@ internal sealed class DesktopExtensionPane : Grid
     private readonly TextBlock _notice = new() { Text = "Select a node, then choose Open record. F6 moves between the graph and these controls.", TextWrapping = TextWrapping.Wrap };
     private readonly Button _open = new() { Content = "Open record" };
     private readonly CancellationTokenSource _closed = new();
+    private readonly string _noun;
     private bool _attached;
     private (int X, int Y, int Width, int Height) _placed;
     /// <summary>
@@ -46,10 +47,16 @@ internal sealed class DesktopExtensionPane : Grid
             ? Windows.UI.Color.FromArgb(255, 10, 28, 43) : Windows.UI.Color.FromArgb(255, 247, 248, 251));
     }
 
+    /// <param name="graph">
+    /// A graph says node and graph; a view of records as columns has neither, and the owner
+    /// met "Focus graph" and "Select a node" over a Gantt chart.
+    /// </param>
     internal DesktopExtensionPane(DesktopSessionController session, DesktopExtensionRunningView run, string title,
-        ElementTheme theme, Action studio, Action<string, string, string> openRecord)
+        ElementTheme theme, Action studio, Action<string, string, string> openRecord, bool graph = true)
     {
         _session = session; _run = run;
+        _noun = graph ? "graph" : "view";
+        if (!graph) _notice.Text = "Select a record, then choose Open record. F6 moves between the view and these controls.";
         // A layout panel has no automation peer of its own; the pane is addressed through its controls.
         AutomationProperties.SetAutomationId(_notice, "extensions.notice");
         ApplyTheme(theme);
@@ -61,8 +68,8 @@ internal sealed class DesktopExtensionPane : Grid
         var studioButton = new Button { Content = "Studio" };
         var disable = new Button { Content = "Disable view" };
         var close = new Button { Content = "Close" };
-        var graph = new Button { Content = "Focus graph" };
-        var controls = new[] { _open, graph, refresh, studioButton, disable, close };
+        var focus = new Button { Content = "Focus " + _noun };
+        var controls = new[] { _open, focus, refresh, studioButton, disable, close };
         foreach (var button in controls) toolbar.Children.Add(button);
         void ArrangeToolbar()
         {
@@ -77,7 +84,7 @@ internal sealed class DesktopExtensionPane : Grid
         toolbar.SizeChanged += (_, _) => ArrangeToolbar();
         AutomationProperties.SetAutomationId(_open, "extensions.openRecord");
         AutomationProperties.SetAutomationId(studioButton, "extensions.studio");
-        AutomationProperties.SetAutomationId(graph, "extensions.focusGraph");
+        AutomationProperties.SetAutomationId(focus, "extensions.focusGraph");
         AutomationProperties.SetAutomationId(_viewport, "extensions.viewport");
         Children.Add(toolbar);
         _notice.Margin = new(16, 0, 16, 12); Grid.SetRow(_notice, 1); Children.Add(_notice);
@@ -87,7 +94,7 @@ internal sealed class DesktopExtensionPane : Grid
             if (e.Key != Windows.System.VirtualKey.F6) return;
             e.Handled = true; await FocusGraphAsync();
         };
-        graph.Click += async (_, _) => await FocusGraphAsync();
+        focus.Click += async (_, _) => await FocusGraphAsync();
         Loaded += (_, _) => Attach();
         _placeTimer.Tick += (_, _) => { _placeTimer.Stop(); _placePending = false; Place(); };
         _viewport.SizeChanged += (_, _) => RequestPlace();
@@ -99,13 +106,14 @@ internal sealed class DesktopExtensionPane : Grid
             {
                 var target = await _session.GetExtensionSelectionAsync(_run);
                 if (target is { } record) openRecord(_run.FileSessionId, record.EntityId, record.RecordId);
-                else _notice.Text = "Select a current node. If the file changed, refresh the graph first.";
+                else _notice.Text = _noun == "graph" ? "Select a current node. If the file changed, refresh the graph first."
+                    : "Select a current record. If the file changed, refresh the view first.";
             }
             catch (Exception error) { Fail(error.Message); }
         };
         refresh.Click += async (_, _) =>
         {
-            try { await _session.RefreshExtensionAsync(_run, _closed.Token); _notice.Text = "Showing the current records. Select a node to open it."; }
+            try { await _session.RefreshExtensionAsync(_run, _closed.Token); _notice.Text = "Showing the current records. Select a " + (_noun == "graph" ? "node" : "record") + " to open it."; }
             catch (Exception error) { Fail(error.Message); }
         };
         studioButton.Click += (_, _) => studio();
@@ -219,7 +227,7 @@ internal sealed class DesktopExtensionPane : Grid
                     _open.Focus(FocusState.Keyboard); continue;
                 }
                 if (message.Accepted && message.Code is "render-failed" or "unsupported-projection")
-                { Fail("The package could not display this graph. Open Studio to continue."); return; }
+                { Fail("The package could not display this " + _noun + ". Open Studio to continue."); return; }
             }
             if (!_closed.IsCancellationRequested) Fail(StoppedBecause("This view has closed."));
         }

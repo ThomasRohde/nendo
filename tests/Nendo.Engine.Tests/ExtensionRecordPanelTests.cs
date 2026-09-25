@@ -171,6 +171,20 @@ public sealed class ExtensionRecordPanelTests
         await Pin(service, Page(Properties(), [Disclose("starts")], views: NendoExtensionViewDefinition.MaximumPanelsPerPage));
     }
 
+    [TestMethod]
+    public async Task TheReviewSaysAPanelsFieldsAreTheViewsNotThePages()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var service = await Seed(await workspace.CreateAsync());
+        var preview = await service.PrepareProposalAsync(Page(Properties(), [Disclose("starts")]));
+        var lines = preview.SemanticDiff.Select(entry => entry.Summary).ToArray();
+        // Found by authoring one through MCP on 2026-09-25: the review said the page would
+        // show the view's field, and called a record's label a graph node's.
+        CollectionAssert.Contains(lines, "Let the custom view \"Schedule\" read Starts.", string.Join(" | ", lines));
+        CollectionAssert.Contains(lines, "Disclose Title as each record's label.", string.Join(" | ", lines));
+        Assert.IsFalse(lines.Any(line => line.Contains("graph node", StringComparison.Ordinal)), string.Join(" | ", lines));
+    }
+
     private sealed class Authority(NendoExtensionGrant expected) : INendoExtensionAuthority
     {
         public long RevocationGeneration => 0;

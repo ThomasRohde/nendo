@@ -28,6 +28,10 @@
     // The first field that is not a date is shown under the label, as the record's group.
     const detail = fields.find(field => field.type !== 'date') ?? null;
     records = projection.records ?? (projection.record ? [projection.record] : []);
+    // On a record page the box is small and the record is already the page's: no title,
+    // no instructions about selecting, and the label above its bar rather than cut beside it.
+    const single = projection.records === undefined && projection.record !== undefined;
+    document.body.classList.toggle('single', single);
     element('rows').replaceChildren();
     element('axis').replaceChildren();
     element('selection').textContent = 'No record selected';
@@ -55,10 +59,17 @@
     // A span of at least a week, so one dated record still reads as a moment, not a wall.
     const low = placed.length ? first - DAY : 0, high = placed.length ? Math.max(last + DAY, first + 7 * DAY) : 1;
     const at = time => ((time - low) / (high - low)) * 100;
-    const summary = [`${records.length} ${records.length === 1 ? 'record' : 'records'}`, `${placed.length} on the time line`];
-    if (undated > 0) summary.push(`${undated} without a ${start.name}`);
-    if (placed.length) summary.push(`${new Date(first).toISOString().slice(0, 10)} to ${new Date(last).toISOString().slice(0, 10)}`);
-    element('summary').textContent = summary.join(' · ');
+    const iso = time => new Date(time).toISOString().slice(0, 10);
+    if (single) {
+      const only = placed[0];
+      element('summary').textContent = only === undefined ? '' : only.to === null ? `${start.name} ${iso(only.from)}`
+        : `${iso(only.from)} to ${iso(only.to)} · ${Math.round((only.to - only.from) / DAY) + 1} days`;
+    } else {
+      const summary = [`${records.length} ${records.length === 1 ? 'record' : 'records'}`, `${placed.length} on the time line`];
+      if (undated > 0) summary.push(`${undated} without a ${start.name}`);
+      if (placed.length) summary.push(`${iso(first)} to ${iso(last)}`);
+      element('summary').textContent = summary.join(' · ');
+    }
 
     // Month ticks, at most twelve, so the axis stays readable at any span.
     if (placed.length) {
