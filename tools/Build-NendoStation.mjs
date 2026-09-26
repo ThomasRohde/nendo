@@ -1013,7 +1013,9 @@ STAGES['lens-fields'] = {
 // The schematic's code, carried in the file (ADR-0013, 2026-09-25): no install, no
 // consent and no pin. Re-running after an edit to the folder proposes only the files that
 // changed, each naming the content it replaces, so the review is the edit.
-const PUT_FILE_BYTES = 96 * 1024;
+// The 96 KiB bound on one extension.putFile is on its JSON payload, where base64 makes the
+// bytes a third larger: 70 KiB of file is about 94 KiB of payload.
+const PUT_FILE_BYTES = 70 * 1024;
 STAGES['lens-in-file'] = {
   title: 'Nendo Station: carry the Systems Lens code in the file',
   needs: [],

@@ -15,8 +15,13 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createNendoMcpClient } from './Nendo-McpClient.mjs';
 
-const PUT_FILE_BYTES = 96 * 1024;
-const CALL_PAYLOAD_CHARACTERS = 180 * 1024;
+// The 96 KiB bound on one extension.putFile is on its JSON payload, where base64 makes the
+// bytes a third larger: 70 KiB of file is about 94 KiB of payload.
+const PUT_FILE_BYTES = 70 * 1024;
+// The local MCP takes a request body of at most 256 KiB, so a call, and therefore a mutation,
+// carries at most about 200,000 characters of operations: two parts of a large file.
+const CALL_CHARACTERS = 200_000;
+const OPERATIONS_PER_MUTATION = 16, MUTATIONS_PER_CALL = 8;
 
 function fail(message) {
   console.error(`\n${message}\n`);
@@ -116,22 +121,31 @@ async function main() {
   const owned = { applicationHandle: lease.applicationHandle, leaseId: lease.leaseId };
   try {
     const draft = await client.tool('nendo.change_set.begin', { ...owned, title, idempotencyKey: crypto.randomUUID() });
-    // Every putFile is its own mutation, so a call is bounded by bytes as well as by count.
+    // Operations are packed into mutations by size, and mutations into calls, so a package of
+    // many small files and one of a single large file both fit the change set's 32 mutations.
+    const mutations = [];
+    for (const operation of operations) {
+      const size = JSON.stringify(operation).length, last = mutations.at(-1);
+      if (last === undefined || last.operations.length === OPERATIONS_PER_MUTATION || last.size + size > CALL_CHARACTERS) {
+        mutations.push({ description: mutations.length === 0 ? `Describe the package ${manifest.packageId} and put its files` : `Put more of ${manifest.packageId}`,
+          operations: [operation], size });
+      } else { last.operations.push(operation); last.size += size; }
+    }
     let batch = [], characters = 0;
     const send = async () => {
       if (batch.length === 0) return;
       await client.tool('nendo.change_set.add_operations', {
-        ...owned, changeSetId: draft.changeSetId, mutations: batch, idempotencyKey: crypto.randomUUID(),
+        ...owned, changeSetId: draft.changeSetId, mutations: batch.map(({ description, operations }) => ({ description, operations })), idempotencyKey: crypto.randomUUID(),
       });
       batch = []; characters = 0;
     };
-    for (const [index, operation] of operations.entries()) {
-      const size = JSON.stringify(operation).length;
-      if (batch.length === 8 || characters + size > CALL_PAYLOAD_CHARACTERS) await send();
-      batch.push({ description: index === 0 ? `Describe the package ${manifest.packageId}` : `Change ${operation.payload.path}`, operations: [operation] });
-      characters += size;
+    for (const mutation of mutations) {
+      if (batch.length === MUTATIONS_PER_CALL || characters + mutation.size > CALL_CHARACTERS) await send();
+      batch.push(mutation);
+      characters += mutation.size;
     }
     await send();
+    console.log(`Sent            ${mutations.length} mutations`);
     const validated = await client.tool('nendo.change_set.validate', { ...owned, changeSetId: draft.changeSetId, idempotencyKey: crypto.randomUUID() });
     const diagnostics = (validated.diagnostics ?? []).filter(diagnostic => diagnostic.severity !== 'warning');
     if (validated.isValid === false || diagnostics.length > 0) {

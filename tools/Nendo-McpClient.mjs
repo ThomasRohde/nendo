@@ -32,7 +32,10 @@ export function createNendoMcpClient(discovery, name) {
   }
   async function tool(name, args = {}) {
     const result = await rpc('tools/call', { name, arguments: args });
-    if (result.isError) throw Error(`MCP tool ${name} rejected`);
+    if (result.isError) {
+      const said = (result.content ?? []).filter(part => part.type === 'text').map(part => part.text).join(' ').slice(0, 2000);
+      throw Error(`MCP tool ${name} rejected${said ? ': ' + said : ''}`);
+    }
     return result.structuredContent;
   }
   return { endpoint, headers, envelope, rpc, tool };
