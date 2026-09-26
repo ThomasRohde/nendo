@@ -705,6 +705,13 @@ vocabulary, the examples and the resources — and not from the person.
   and ask the person to press it. Record how long before the app said the view was not
   responding, what it offered, whether the rest of the app answered meanwhile, and what
   Stop and then Reload did.
+- Put the repository's `extensions/work-dependencies` package into the file over MCP. One
+  of its files is a 1.6 MB layout engine that runs in a Web Worker. Record how you learned
+  to send it in parts, how large each part could be once encoded as base64, and how many
+  mutations the whole package took. Then show it over two record types where one links
+  the other, and ask the person to group it by a field, hide a status, find an item and
+  mark the longest chain. Record what they reported, and whether those choices were still
+  there after they reopened the file.
 - Try what must not work, and record whether each refusal named the rule and what to do
   instead, and whether it came where you sent it or only at validation: a record-page
   panel placed as a root, a panel with a record type of its own, a filter on a
