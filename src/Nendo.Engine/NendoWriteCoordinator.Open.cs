@@ -176,19 +176,40 @@ public sealed partial class NendoWriteCoordinator
         {
             pathPin = OpenPathPin(fullPath, FileMode.Open, FileAccess.Read);
             // Pin the namespace before classification. The pin is read-only and
-            // creates no writer sidecar. One complete pinned inspection replaces
-            // the redundant unpinned inspection; no writable connection exists yet.
-            var inspected = await SqliteNendoStore.InspectAsync(fullPath, cancellationToken);
-            if (!inspected.Inspection.CanAcquireWriteAuthority)
+            // creates no writer sidecar; no writable connection exists yet.
+            NendoFileInspection inspection;
+            string expectedDigest;
+            var confirming = observation is { ContentDigest: not null, PhysicalFileKey: not null } &&
+                observation.Inspection.CanAcquireWriteAuthority &&
+                observation.PhysicalFileKey == LocalFileIdentity.Read(pathPin).Key;
+            if (confirming)
             {
-                throw new NendoFileOpenException(inspected.Inspection);
+                // The Engine inspected these bytes moments ago; only it can make an
+                // observation. Classifying them a second time was the largest cost of
+                // an open (W-026). The pinned file's physical facts are checked here,
+                // and once the write lease is held the content digest must equal the
+                // observed one and SQLite's integrity check must pass, so a file that
+                // changed in between is refused rather than trusted.
+                SqliteNendoStore.RequireUnchangedPhysicalFile(fullPath, pathPin);
+                inspection = observation!.Inspection;
+                expectedDigest = observation.ContentDigest!;
             }
-            if (observation is not null &&
-                (observation.PhysicalFileKey != LocalFileIdentity.Read(pathPin).Key ||
-                 observation.Inspection.Manifest != inspected.Inspection.Manifest ||
-                 observation.ContentDigest is null || observation.ContentDigest != inspected.ContentDigest))
-                throw new NendoPreconditionException("file-changed-before-open", "The selected file changed after inspection. Review it again before opening.");
-            var expectedInstance = inspected.Inspection.Manifest!.InstanceId;
+            else
+            {
+                var inspected = await SqliteNendoStore.InspectAsync(fullPath, cancellationToken);
+                if (!inspected.Inspection.CanAcquireWriteAuthority)
+                {
+                    throw new NendoFileOpenException(inspected.Inspection);
+                }
+                if (observation is not null &&
+                    (observation.PhysicalFileKey != LocalFileIdentity.Read(pathPin).Key ||
+                     observation.Inspection.Manifest != inspected.Inspection.Manifest ||
+                     observation.ContentDigest is null || observation.ContentDigest != inspected.ContentDigest))
+                    throw new NendoPreconditionException("file-changed-before-open", "The selected file changed after inspection. Review it again before opening.");
+                inspection = inspected.Inspection;
+                expectedDigest = inspected.ContentDigest!;
+            }
+            var expectedInstance = inspection.Manifest!.InstanceId;
             instanceOwnership = InstanceOwnershipLease.Acquire(expectedInstance);
             ownership = WriteOwnershipLease.Acquire(fullPath, ownerId);
             using var storeTiming = NendoStartupDiagnostics.Source.StartActivity("engine.coordinator.store-open");
@@ -196,11 +217,13 @@ public sealed partial class NendoWriteCoordinator
             storeTiming?.Dispose();
             using var authorityTiming = NendoStartupDiagnostics.Source.StartActivity("engine.coordinator.authority");
             var authority = await store.GetAuthoritySnapshotAsync(cancellationToken);
-            if (authority.InstanceId != expectedInstance || await store.GetContentDigestAsync(cancellationToken) != inspected.ContentDigest)
+            if (authority.InstanceId != expectedInstance || await store.GetContentDigestAsync(cancellationToken) != expectedDigest)
                 throw new NendoPreconditionException("file-changed-before-open", "The selected instance changed before authority was established.");
+            if (confirming && !await store.PassesIntegrityCheckAsync(cancellationToken))
+                throw new NendoPreconditionException("file-changed-before-open", "The selected file no longer passes its integrity check. Review it again before opening.");
             var opened = new NendoWriteCoordinator(fullPath, ownership, instanceOwnership, pathPin, store, authority)
             {
-                _inspection = inspected.Inspection with
+                _inspection = inspection with
                 {
                     Classification = NendoOpenClassification.NormalWritable,
                     Capabilities = NendoFileCapabilities.Writable,

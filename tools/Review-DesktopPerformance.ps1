@@ -16,7 +16,12 @@ $freezeFiles += @(Get-Item -LiteralPath @($PSCommandPath,
     (Join-Path $repoRoot 'artifacts/bin/Nendo.Engine.Tests/debug/Nendo.Engine.Tests.dll')))
 $frozen = @($freezeFiles | Sort-Object FullName | ForEach-Object { @{ path=[IO.Path]::GetRelativePath($repoRoot,$_.FullName); sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() } })
 $frozen | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $root 'frozen-host.json')
-$protocolHash = (Get-FileHash -LiteralPath (Join-Path $repoRoot 'docs/design/r06-performance-qualification.md') -Algorithm SHA256).Hash.ToLowerInvariant()
+# The document the run follows, hashed for provenance, as Review-Performance.ps1 records it: the
+# original qualification note was retired, and the contract that states the ceilings stands in.
+$protocolPath = @('docs/design/r06-performance-qualification.md', 'docs/contracts/calculations-and-actions.md') |
+    ForEach-Object { Join-Path $repoRoot $_ } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+if (-not $protocolPath) { throw 'No measurement protocol document is present to record provenance against.' }
+$protocolHash = (Get-FileHash -LiteralPath $protocolPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $failedTargets = [Collections.Generic.List[string]]::new()
 foreach ($recordCount in @(1000,10000)) {
     foreach ($revisionCount in @(1000,10000)) {

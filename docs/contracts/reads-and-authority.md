@@ -79,13 +79,20 @@ explicit stable-ID/sequence ordering only.
    checks the same connection token again in a read transaction. Every local
    commit invalidates this content-digest cache. Later explicit copy/inspection
    requests compute it again.
-   Writable open acquires its read-only, delete-denying path pin before its one
-   full classification. It no longer performs a redundant unpinned full
+   Writable open acquires its read-only, delete-denying path pin before any
+   classification. It no longer performs a redundant unpinned full
    classification first. No writer sidecar or writable connection exists until
-   that pinned classification permits authority. The active connection still
-   checks the complete content against the inspected state. If a cooperative
-   writer changes the contents between inspection and authority, the connection
-   rejects it.
+   a classification permits authority. The active connection still checks the
+   complete content against the inspected state. If a cooperative writer changes
+   the contents between inspection and authority, the connection rejects it.
+   Since 2026-09-26 (W-026), an open that carries the host's observation of the
+   same physical file does not classify it again. Only the Engine makes an
+   observation, from a full inspection, so the pinned file's physical facts are
+   checked instead: no journal or WAL sidecar, within the size bound, a
+   rollback-journal header. Under the write lease, the content digest must
+   equal the observed one, and SQLite's `integrity_check` runs on the writable
+   connection. Any difference refuses with `file-changed-before-open`, and the
+   host inspects again. An open without an observation still classifies once.
    During advisory recent-file collision checks, Desktop does not observe the
    same physical candidate a second time. When it records that successful open,
    it reuses the exact observation that the Engine checked. Desktop still

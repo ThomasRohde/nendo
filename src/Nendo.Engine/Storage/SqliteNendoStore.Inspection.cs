@@ -125,6 +125,32 @@ internal sealed partial class SqliteNendoStore
     }
     private static readonly Lazy<Task<IReadOnlyDictionary<string, string>>> KnownLayouts = new(BuildKnownLayoutsAsync);
 
+    /// <summary>
+    /// The physical facts an inspection refuses on, checked on a pinned file whose content an
+    /// earlier inspection already classified: no operational sidecar, within the size bound,
+    /// and a rollback-journal header. Refused as a changed file, so the host inspects again.
+    /// </summary>
+    internal static void RequireUnchangedPhysicalFile(string path, FileStream pin)
+    {
+        var header = new byte[20];
+        var headerRead = false;
+        if (pin.Length >= header.Length)
+        {
+            pin.Position = 0;
+            pin.ReadExactly(header);
+            headerRead = true;
+        }
+        if (new[] { "-journal", "-wal", "-shm" }.Any(suffix => File.Exists(path + suffix)) ||
+            pin.Length > MaximumInspectionFileBytes || !headerRead ||
+            !header.AsSpan(0, 16).SequenceEqual("SQLite format 3\0"u8) || header[18] != 1 || header[19] != 1)
+            throw new NendoPreconditionException("file-changed-before-open", "The selected file changed after inspection. Review it again before opening.");
+    }
+
+    /// <summary>SQLite's own integrity check on this connection, as an inspection runs it.</summary>
+    internal async Task<bool> PassesIntegrityCheckAsync(CancellationToken cancellationToken) =>
+        string.Equals(Convert.ToString(await ScalarAsync("PRAGMA integrity_check;", null, cancellationToken), CultureInfo.InvariantCulture),
+            "ok", StringComparison.Ordinal);
+
     internal static async Task<InspectedNendoFile> InspectAsync(
         string path,
         CancellationToken cancellationToken,

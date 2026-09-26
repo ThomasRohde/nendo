@@ -38,7 +38,7 @@ Each area below is a gap. Do not read a gap as a feature.
 | --- | --- |
 | Public distribution, code signing, ARM64 | Not started |
 | Clean-machine install | Owner-reported pass on a machine that is now used for all other work. No automated assertion exists, and none is planned. Accepted limitation 2026-09-19 (W-027 dropped): a disposable environment costs about an afternoon of work, and it gives evidence only about a path that only the owner uses |
-| Installed startup on large datasets | Accepted measured exception. It is not a pass. One open inspects the file twice. The layout signature scan is the largest single cost |
+| Installed startup on large datasets | Accepted measured exception. It is not a pass. Since 2026-09-26 (W-026) one open inspects the file once, not twice: on 10,000 records and 10,000 revisions the Engine's open fell from about 2.4 s to 1.5 s (`Review-DesktopPerformance.ps1`, published payload). Whole startup still misses 5 s on the largest cells, and most of it, and nearly all its variance, lies outside the Engine: the first launch of each cell took 7.6 to 7.9 s |
 | Human usability and accessibility | Owner-reported. The owner ran the Windows 100%/200% scaling, keyboard/focus and screen-reader checks. No lane instruments them. Accepted limitation 2026-09-20 (W-028 dropped): instrumentation of these checks is not valuable for this prototype |
 | Cloud sync and live-root writes | Unsupported. The host warns about known sync paths. There is no sync-safety claim |
 | Physical power loss | Not qualified |
