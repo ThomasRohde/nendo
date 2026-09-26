@@ -81,11 +81,11 @@ function close(h) {
 }
 
 // proposal.get reads a proposal the view's own package prepared, and nothing else.
-const readMethods = ['data.queryRecords', 'data.countRecords', 'data.aggregateRecords', 'data.groupAggregateRecords', 'data.bucketAggregateRecords', 'data.cellAggregateRecords', 'proposal.get'];
+const readMethods = ['data.queryRecords', 'data.countRecords', 'data.aggregateRecords', 'data.groupAggregateRecords', 'data.bucketAggregateRecords', 'data.cellAggregateRecords', 'proposal.get', 'extension.state.read'];
 // The record writes a person's own edit uses, and preparing a proposal (ADR-0013 Phase 3,
 // W-065 and W-069). The host admits a view's actor on exactly these and on proposal.get
 // (WorkbenchMethods.ExtensionWriterMethods). Never promote or reject.
-const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.executeCommand', 'proposal.prepareChangeSet'];
+const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.executeCommand', 'proposal.prepareChangeSet', 'extension.state.set'];
 
 test('the method table is closed: reads, the record writes, preparing a proposal, and no promote, reject, approve, file, session or agent method', () => {
   const expected = [
@@ -104,6 +104,10 @@ test('the method table is closed: reads, the record writes, preparing a proposal
     ['proposals.prepare', 'proposal.prepareChangeSet'],
     ['proposals.get', 'proposal.get'],
     ['proposals.open', 'proposal.get'],
+    ['state.get', 'extension.state.read'],
+    ['state.keys', 'extension.state.read'],
+    ['state.set', 'extension.state.set'],
+    ['state.delete', 'extension.state.set'],
     ['ui.openRecord', null],
     ['ui.openScreen', null],
     ['ui.openStudio', null],
@@ -122,7 +126,7 @@ test('the method table is closed: reads, the record writes, preparing a proposal
       if (host !== null) assert.ok(readMethods.includes(host), `${method} becomes ${host}, which is not one of the host's reads.`);
     }
   }
-  assert.deepEqual(table.filter((entry) => entry.writes).map((entry) => entry.host), writeMethods);
+  assert.deepEqual([...new Set(table.filter((entry) => entry.writes).map((entry) => entry.host))], writeMethods);
 });
 
 test('a write goes to the host as the mount\u2019s package, never as anything the view names, with a fresh key, and answers the record', async (t) => {
@@ -228,6 +232,48 @@ test('a view prepares a proposal as its package, which opens in the review; it r
   assert.equal((await view.next((message) => message.id === 8)).e.code, 'invalid-params');
   await settle();
   assert.equal(h.calls.length, 3, 'A refused proposal reached the host.');
+});
+
+test('a view keeps state as its package, in its own view or the package\u2019s shared place, at most two writes a second', async (t) => {
+  const h = harness();
+  h.context = { ...context, title: 'Glance' };
+  const view = connect(h);
+  t.after(() => close(h));
+  view.send({ t: 'req', id: 1, m: 'state.set', p: { key: 'zoom', value: { level: 2 }, actor: 'extension:someone-else', viewId: 'another.view' } });
+  await until(() => h.calls.length === 1, 'the state write');
+  const { method, payload } = h.calls[0];
+  assert.equal(method, 'extension.state.set');
+  assert.equal(payload.actor, 'extension:org.example.glance', 'State was kept in another package\u2019s name.');
+  assert.equal(payload.viewId, 'view.glance', 'The view chose where its state is kept.');
+  assert.deepEqual({ ...payload, idempotencyKey: undefined, actor: undefined }, {
+    viewId: 'view.glance', key: 'zoom', value: { level: 2 }, description: 'Keep zoom for the view Glance', idempotencyKey: undefined, actor: undefined,
+  });
+  h.pending[0].resolve({});
+  await until(() => h.calls.length === 2, 'the read back');
+  assert.deepEqual(h.calls[1], { method: 'extension.state.read', payload: { viewId: 'view.glance', key: 'zoom', actor: 'extension:org.example.glance' } });
+  h.pending[1].resolve({ entries: [{ key: 'zoom', value: { level: 2 }, version: 1 }] });
+  assert.deepEqual((await view.next((message) => message.id === 1)).r, { key: 'zoom', value: { level: 2 }, version: 1 });
+
+  view.send({ t: 'req', id: 2, m: 'state.delete', p: { key: 'shared', scope: 'package', expectedVersion: 3 } });
+  await until(() => h.calls.length === 3, 'the shared removal');
+  assert.deepEqual({ ...h.calls[2].payload, idempotencyKey: undefined }, {
+    viewId: '', key: 'shared', value: null, expectedVersion: 3, description: 'Forget shared for the views of org.example.glance',
+    idempotencyKey: undefined, actor: 'extension:org.example.glance',
+  });
+  h.pending[2].resolve({});
+  assert.equal((await view.next((message) => message.id === 2)).r, null);
+
+  // Two writes in this second already; a third is refused before the host is asked.
+  view.send({ t: 'req', id: 3, m: 'state.set', p: { key: 'zoom', value: 3 } });
+  assert.equal((await view.next((message) => message.id === 3)).e.code, 'busy');
+  h.now += 1_001;
+  view.send({ t: 'req', id: 4, m: 'state.set', p: { key: 'zoom', value: 3, scope: 'everyone' } });
+  assert.equal((await view.next((message) => message.id === 4)).e.code, 'invalid-params');
+  h.context = { ...context, readOnly: true };
+  view.send({ t: 'req', id: 5, m: 'state.set', p: { key: 'zoom', value: 3 } });
+  assert.equal((await view.next((message) => message.id === 5)).e.code, 'read-only');
+  await settle();
+  assert.equal(h.calls.length, 3, 'A refused state write reached the host.');
 });
 
 test('a write is refused before the host is asked when the file is read-only or the parameters are wrong', async (t) => {

@@ -127,6 +127,18 @@ internal sealed partial class DesktopSessionController
             return preview;
         }, cancellationToken);
 
+    /// <summary>A view's kept values (ADR-0013 Phase 3): one key's, or every key with its version.</summary>
+    internal Task<IReadOnlyList<NendoExtensionStateEntry>> ReadExtensionStateAsync(
+        string packageId, string viewId, string? key, CancellationToken cancellationToken = default) =>
+        QueryAsync(service => service.ReadExtensionStateAsync(packageId, viewId, key, cancellationToken), cancellationToken);
+
+    /// <summary>Keeps, replaces or removes one value of a view, as one Data revision under the view's package.</summary>
+    internal Task<DesktopMutationView> SetExtensionStateAsync(
+        string packageId, string viewId, string key, string? valueJson, long? expectedVersion, string description,
+        string idempotencyKey, string origin, CancellationToken cancellationToken = default) =>
+        MutateAsync(service => service.SetExtensionStateAsync(packageId, viewId, key, valueJson, expectedVersion, description,
+            new NendoRequestContext("desktop.p2.5", idempotencyKey, origin), cancellationToken), cancellationToken);
+
     /// <summary>The proposals views prepared in this file session, so a view can follow one after it is decided.</summary>
     private readonly Dictionary<string, (string Origin, string Title)> _viewProposals = new(StringComparer.Ordinal);
     private const int MaximumViewProposals = 256;

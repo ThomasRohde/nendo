@@ -33,11 +33,13 @@ records with their calculated fields and exact numbers, the schema, and the file
 changes as they happen. It can ask Nendo to open a record, a screen or Studio, show
 a sentence, and size its own panel.
 
-**Not yet.** A view writes records and runs record commands (see
-[Changing records](#changing-records)) and proposes changes to the app (see
-[Proposing a change](#proposing-a-change)). Keeping state in the file arrives with
-the rest of Phase 3. A view as a screen of its own (`extensionView`)
-or a tile on the front page (`extensionTile`) arrives with Phase 5.
+A view also writes records and runs record commands (see
+[Changing records](#changing-records)), proposes changes to the app (see
+[Proposing a change](#proposing-a-change)) and keeps small values with the file (see
+[Keeping state](#keeping-state)).
+
+**Not yet.** A view as a screen of its own (`extensionView`) or a tile on the front
+page (`extensionTile`) arrives with Phase 5.
 
 A view can never reach the Workbench's own page, the host bridge, SQL, a file path,
 another file or a device setting, and it can never accept a proposal. See
@@ -449,6 +451,30 @@ const later = await nendo.proposals.get(asked.proposalId);   // 'active' once ac
   action was running or a record page held unsaved typing. Call `proposals.open`
   later.
 
+### Keeping state
+
+A view keeps small JSON values with the file: a layout, a choice, a zoom level. They
+travel with the file, so a copy of it carries them, unlike `localStorage`, which stays
+on one computer.
+
+```js
+const saved = await nendo.state.get('layout');          // { key, value, version } or null
+await nendo.state.set('layout', { zoom: 2, pinned: ['t1'] });
+await nendo.state.set('palette', 'warm', { scope: 'package' });   // shared by the package's views
+const keys = await nendo.state.keys();                  // [{ key, version }]
+await nendo.state.delete('layout');
+```
+
+- A value belongs to this view unless you pass `{ scope: 'package' }`.
+- Values are JSON of at most 64 KiB, 256 keys per view and 1 MiB per package. An
+  object's keys may come back in another order.
+- Every change is in History under your package, and the person can undo it there.
+  Writes go at most twice a second: writing one key again before its write has gone
+  replaces the value, and every call hears the one answer. Keep a scroll position in
+  `localStorage`, not here.
+- Pass `{ expectedVersion }` to refuse a write when somebody else changed the key
+  since you read it (`state-version-conflict`); 0 means the key must not exist yet.
+
 To fit a panel to its content, measure the content, not the document, which is
 always at least as tall as the frame:
 
@@ -479,6 +505,8 @@ A refused call rejects with a `nendo.NendoError`. Its `code` is stable, and its
 | `record-version-conflict` | The record changed since you read it. Read it again |
 | `proposal-waiting` | A proposal your package prepared still waits for the person |
 | `proposal-not-found` | Your package did not prepare that proposal in this session |
+| `state-version-conflict` | The key changed since you read it, or it exists and you expected version 0 |
+| `state-too-large` | The view has 256 keys, or the package 1 MiB of state |
 | `disconnected` | Nendo reconnected the view while the request waited. Send it again |
 | `not-framed` | The page was opened on its own, not in Nendo |
 | `stale-cursor`, `invalid-cursor` | The file changed between pages, or the cursor belongs to another query. Read again from the first page |

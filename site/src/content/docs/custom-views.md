@@ -87,7 +87,7 @@ The full guide is [Authoring a custom view](https://github.com/ThomasRohde/nendo
 1. **Write the page.** Plain HTML, CSS and JavaScript files, or a bundler's output folder. Any file type is allowed. Before your own script, load the view API with a script tag whose source is `/_nendo/api.js`: every view's web address serves it.
 2. **Read the file.** `await nendo.ready` gives the view's context. `nendo.view.loadRecords()` and `nendo.view.loadGraph()` read what the view is about, and `nendo.records.query(...)` reads any record type. Follow `nendo.on('changes', ...)` to draw again when the file changes.
 3. **Look like Nendo.** Draw with the `--nendo-*` colour variables that the API sets, and the view follows Light and Dark. Set labels as text, never as markup.
-4. **Act for the person.** `nendo.ui.openRecord(entityId, recordId)` opens a record beside the view.
+4. **Act for the person.** `nendo.ui.openRecord(entityId, recordId)` opens a record beside the view. `nendo.records.update(...)` and `nendo.commands.run(...)` change records the way you would, `nendo.proposals.prepare(...)` asks for a change to the app that you review, and `nendo.state.set(...)` keeps a small value with the file. Each change is in **History** under the package's name.
 5. **Name the package.** A `nendo-package.json` with a `packageId` such as `org.example.map`, and a title.
 6. **Put it in the file, and define a view that names it.** Accept both proposals, and the view runs.
 
@@ -107,6 +107,5 @@ A file that carries a package needs file capability 1.33.0 or later, and a view 
 
 ## Not yet
 
-- A view creates, changes and deletes records, runs commands and proposes changes for you to review, as its package, but it cannot yet keep its own state in the file.
 - A view as a screen of its own, and a view as a tile on the front page, are not built.
 - Packages are not signed. There is no marketplace, download or update channel: packages move inside files and as folders.

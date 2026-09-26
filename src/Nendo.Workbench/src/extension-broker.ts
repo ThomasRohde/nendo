@@ -68,7 +68,7 @@ interface MethodCall {
   params: Params;
   mount: BrokerMount;
   deps: BrokerDeps;
-  connection: { toastAt: number };
+  connection: { toastAt: number; stateWrites: number[] };
 }
 
 interface MethodEntry {
@@ -238,6 +238,62 @@ function openedProposal(call: MethodCall, preview: unknown): Params {
   return { ...plainProposal(preview), opened };
 }
 
+/**
+ * Where a view's state lives (ADR-0013 Phase 3): its own view ID, or the empty ID the package's
+ * views share when `scope` is `package`. Both come from the mount, never from the view.
+ */
+function stateView(params: Params, context: { viewId: string }): string {
+  const scope = params.scope;
+  if (scope === undefined || scope === null || scope === 'view') return context.viewId;
+  if (scope === 'package') return '';
+  throw invalid("scope is 'view', the default, or 'package'.");
+}
+
+function stateKey(params: Params): string {
+  return textParam(params, 'key', extensionLimits.stateKeyCharacters);
+}
+
+/** One kept value as a view reads it: its JSON value and its version, or null for a key never kept. */
+function plainState(result: unknown): Params | null {
+  const entry = ((result as { entries?: Array<{ key?: unknown; value?: unknown; version?: unknown }> } | null)?.entries ?? [])[0];
+  return entry === undefined ? null : { key: String(entry.key ?? ''), value: plainJson(entry.value ?? null), version: Number(entry.version ?? 0) };
+}
+
+/**
+ * A state write, as the view's package: a value, or null to remove the key. At most two a
+ * second from one view reach the host; the API spaces a view's writes wider and coalesces a
+ * key written again meanwhile, so only a page that talks to the port directly meets `busy`.
+ */
+function stateWrite(remove: boolean): MethodEntry {
+  return {
+    host: 'extension.state.set',
+    writes: true,
+    run: async ({ params, mount, deps, connection }) => {
+      const context = deps.context(mount);
+      if (context.readOnly) throw new WorkbenchHostError('read-only', 'This file is open read-only, so a view cannot keep anything in it.');
+      const viewId = stateView(params, context);
+      const key = stateKey(params);
+      const value = remove ? null : plainJson(params.value ?? null);
+      const expected = params.expectedVersion;
+      if (expected !== undefined && (typeof expected !== 'number' || !Number.isSafeInteger(expected) || expected < 0))
+        throw invalid('expectedVersion is the key\u2019s version, or 0 for a key that must not exist yet.');
+      const now = deps.now();
+      connection.stateWrites = connection.stateWrites.filter((at) => at > now - 1_000);
+      if (connection.stateWrites.length >= extensionLimits.stateWritesPerSecond)
+        throw new WorkbenchHostError('busy', 'A view keeps at most two values a second. The API spaces them for you.');
+      connection.stateWrites.push(now);
+      const where = viewId === '' ? `the views of ${context.packageId}` : `the view ${context.title}`;
+      await deps.request('extension.state.set', {
+        viewId, key, value, ...(expected === undefined ? {} : { expectedVersion: expected }),
+        description: `${value === null ? 'Forget' : 'Keep'} ${key} for ${where}`.slice(0, 200),
+        idempotencyKey: `view-${crypto.randomUUID()}`, actor: `extension:${context.packageId}`,
+      });
+      if (value === null) return null;
+      return plainState(await deps.request('extension.state.read', { viewId, key, actor: `extension:${context.packageId}` }));
+    },
+  };
+}
+
 /** A record ID a view may choose, or one made for it. */
 function newRecordId(params: Params): string {
   return optionalText(params, 'recordId', 120) ?? `record-${crypto.randomUUID().replaceAll('-', '')}`;
@@ -248,8 +304,8 @@ function newRecordId(params: Params): string {
  * becomes.
  *
  * Reads, and since Phase 3 the four record writes a person's own edit uses: create, update,
- * delete and run a record command (W-065), and preparing and reading the package's own
- * proposals (W-069). Nothing here promotes, rejects or approves a proposal; nothing opens,
+ * delete and run a record command (W-065), preparing and reading the package's own
+ * proposals, and keeping the view's state with the file (W-069). Nothing here promotes, rejects or approves a proposal; nothing opens,
  * closes or copies a file, and nothing touches a
  * session, an agent, behaviour approval, compensation or the appearance. Each write takes
  * its actor from the mount, never from the view's parameters. The production gate and
@@ -323,6 +379,28 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
       proposalId: textParam(call.params, 'proposalId', 64), actor: `extension:${call.deps.context(call.mount).packageId}`,
     })),
   },
+  // What a view keeps with the file (ADR-0013 Phase 3, W-069): small JSON values per view, or
+  // shared by the package's views, each a Data revision History names the package on.
+  'state.get': {
+    host: 'extension.state.read',
+    run: async ({ params, mount, deps }) => {
+      const context = deps.context(mount);
+      return plainState(await deps.request('extension.state.read', {
+        viewId: stateView(params, context), key: stateKey(params), actor: `extension:${context.packageId}`,
+      }));
+    },
+  },
+  'state.keys': {
+    host: 'extension.state.read',
+    run: async ({ params, mount, deps }) => {
+      const context = deps.context(mount);
+      const result = await deps.request('extension.state.read', { viewId: stateView(params, context), actor: `extension:${context.packageId}` });
+      return ((result as { entries?: Array<{ key?: unknown; version?: unknown }> } | null)?.entries ?? [])
+        .map((entry) => ({ key: String(entry.key ?? ''), version: Number(entry.version ?? 0) }));
+    },
+  },
+  'state.set': stateWrite(false),
+  'state.delete': stateWrite(true),
   'ui.openRecord': local(({ mount, params, deps }) =>
     deps.ui.openRecord(mount, { entityId: textParam(params, 'entityId'), recordId: textParam(params, 'recordId') })),
   'ui.openScreen': local(({ mount, params, deps }) => deps.ui.openScreen(mount, { surfaceId: textParam(params, 'surfaceId') })),
@@ -361,6 +439,8 @@ interface Connection {
   inFlight: number;
   queue: Pending[];
   toastAt: number;
+  /** When this view's recent state writes were sent, for the per-second bound. */
+  stateWrites: number[];
   changesAt: number;
   changesPending: number | null;
   changesScheduled: boolean;
@@ -514,7 +594,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       const context = deps.context(mount);
       const now = deps.now();
       const connection: Connection = {
-        mount, port: channel.port1, closed: false, inFlight: 0, queue: [], toastAt: -Infinity,
+        mount, port: channel.port1, closed: false, inFlight: 0, queue: [], toastAt: -Infinity, stateWrites: [],
         changesAt: -Infinity, changesPending: null, changesScheduled: false,
         lastHeardAt: now, lastPingAt: now, ping: null, unresponsive: false, contextJson: JSON.stringify(context),
       };

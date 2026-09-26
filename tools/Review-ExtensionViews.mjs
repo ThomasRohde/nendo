@@ -444,6 +444,38 @@ try {
     'History does not name the view’s package on the change it proposed: ' + JSON.stringify(proposedBy));
   check('G21 a view prepares a proposal in its package’s name, the review names the package, the view cannot accept it, it runs on through the review and reads it as accepted, and History attributes the change to the package');
 
+  // G22 (W-069, ADR-0013 Phase 3): a view keeps state with the file. A value comes back after the
+  // view reloads; three writes to one key sent together reach the file as one, the last winning;
+  // and History names the package on each.
+  const keeper = await waitFor(async () => (await frames()).find(f => f.view === 'probe' && f.state === 'running'), 'the probe screen running to keep state', 30000);
+  const keeperFrame = await frameSession(keeper.name);
+  await waitFor(() => inFrame(keeperFrame, 'probe.state.ready'), 'the probe handshake to keep state');
+  const keptAt = Date.now();
+  const kept = await inFrame(keeperFrame, `(async () => {
+    const layout = await nendo.state.set('layout', { zoom: 2, pinned: ['t1'] });
+    const writes = await Promise.all([nendo.state.set('count', 1), nendo.state.set('count', 2), nendo.state.set('count', 3)]);
+    return { layout, writes, has: ['state.get', 'state.set', 'state.delete', 'state.keys'].map(name => nendo.has(name)) };
+  })()`, 30000);
+  report.measurements.stateWritesMs = Date.now() - keptAt;
+  assert(kept.has.every(Boolean) && kept.layout?.version === 1 && kept.layout.value?.zoom === 2 && kept.layout.value?.pinned?.join() === 't1',
+    'The view could not keep a value: ' + JSON.stringify(kept));
+  assert(kept.writes.every(write => write?.value === 3), 'Coalesced writes did not all hear the last value: ' + JSON.stringify(kept.writes));
+  const stateRows = (await gate('history.query', { limit: 20 })).items.filter(item => item.origin === 'extension:org.nendo.test.probe-a' && /^Keep (count|layout) for the view /.test(item.description));
+  const countRows = stateRows.filter(item => item.description.startsWith('Keep count')).length;
+  assert(countRows === 1 && stateRows.length === 2 && kept.writes.every(write => write.version === 1),
+    'Three writes to one key sent together did not reach the file as one, or History does not name the package: ' + JSON.stringify(stateRows.map(item => item.description)));
+  await inFrame(keeperFrame, 'location.reload()').catch(() => {});
+  const reloaded = await waitFor(async () => {
+    const running = (await frames()).find(f => f.view === 'probe' && f.state === 'running');
+    if (!running) return null;
+    const session = await frameSession(running.name);
+    return (await inFrame(session, 'probe.state.ready').catch(() => false)) ? session : null;
+  }, 'the probe view after reloading', 30000);
+  const restored = await inFrame(reloaded, `(async () => ({ layout: await nendo.state.get('layout'), keys: await nendo.state.keys() }))()`, 30000);
+  assert(restored.layout?.value?.zoom === 2 && restored.layout.value.pinned?.join() === 't1' && restored.keys.map(entry => entry.key).join() === 'count,layout',
+    'A kept value did not come back after the view reloaded: ' + JSON.stringify(restored));
+  check(`G22 a view keeps state with the file: it comes back after a reload, three writes to one key sent together reach the file as one, and History names the package on each (${report.measurements.stateWritesMs} ms)`);
+
   console.log('extension views ok');
 } catch (error) {
   report.error = error.stack ?? String(error);

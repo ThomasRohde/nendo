@@ -65,6 +65,7 @@ internal sealed partial class SqliteNendoStore
             PutExtensionFileOperation putFile => await ExecutePutExtensionFileAsync(putFile, transaction, cancellationToken),
             RemoveExtensionFileOperation removeFile => await ExecuteRemoveExtensionFileAsync(removeFile, transaction, cancellationToken),
             RemoveExtensionPackageOperation removePackage => await ExecuteRemoveExtensionPackageAsync(removePackage, transaction, cancellationToken),
+            SetExtensionStateOperation setState => await ExecuteSetExtensionStateAsync(setState, transaction, cancellationToken),
             _ => throw new NendoValidationException(
                 $"Operation type {operation.OperationType} is not supported by format version 1."),
         };

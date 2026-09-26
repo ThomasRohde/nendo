@@ -754,6 +754,11 @@ vocabulary, the examples and the resources — and not from the person.
   view was still there afterwards, and what History names as the change's author. Then
   have the view ask twice without an answer in between, and record the refusal. Try to
   find any way for the view to accept its own proposal.
+- Author a view that remembers a choice with `nendo.state`. Ask the person to make the
+  choice, close and reopen the file, and say whether it came back; then copy the file
+  and open the copy. Record what History says about each kept value, whether undoing
+  one there brought the old choice back, and what happens when the view writes the
+  same key many times a second.
 - Ask the person to develop the package from its folder: Studio → Surfaces → Custom
   views, **Develop from folder…**. Change the view's page in the folder and ask them what
   the view shows and how long it took. Record what told them the view was not running

@@ -416,7 +416,123 @@ internal sealed partial class SqliteNendoStore
     }
 
     private static bool IsExtensionOperation(string operationType) =>
-        operationType is "extension.setPackage" or "extension.putFile" or "extension.removeFile" or "extension.removePackage";
+        operationType is "extension.setPackage" or "extension.putFile" or "extension.removeFile" or "extension.removePackage"
+            or "extension.setState";
+
+    /// <summary>
+    /// Keeps, replaces or removes one value of a view (ADR-0013 Phase 3). Only for a package the
+    /// file carries, within the per-view key count and the per-package byte bound, and, with an
+    /// expected version, only while the key is at it. The evidence is the value it replaced, which
+    /// is what reversing it sets back.
+    /// </summary>
+    private async Task<OperationEvidence> ExecuteSetExtensionStateAsync(
+        SetExtensionStateOperation operation, SqliteTransaction transaction, CancellationToken ct)
+    {
+        if (!await ExtensionLayoutExistsAsync(transaction, ct) || !await ExtensionPackageExistsAsync(operation.PackageId, transaction, ct))
+            throw new NendoPreconditionException("extension-package-not-found",
+                $"This file carries no package {operation.PackageId}, so nothing can be kept for it.");
+        var previous = await ReadStateRowAsync(operation.PackageId, operation.ViewId, operation.Key, transaction, ct);
+        if (operation.ExpectedVersion is { } expected && (previous?.Version ?? SetExtensionStateOperation.ExpectAbsent) != expected)
+            throw new NendoPreconditionException("state-version-conflict",
+                $"{operation.Key} is at version {previous?.Version ?? 0}, not {expected}. Something changed it since; read it again.");
+        if (operation.ValueJson is null)
+        {
+            if (previous is not null)
+            {
+                await using var delete = Command("""
+                    DELETE FROM __nendo_extension_state WHERE package_id = @package AND view_id = @view AND state_key = @key;
+                    """, transaction);
+                AddStateKey(delete, operation);
+                await delete.ExecuteNonQueryAsync(ct);
+            }
+        }
+        else
+        {
+            await using (var upsert = Command("""
+                INSERT INTO __nendo_extension_state (package_id, view_id, state_key, value_json, version)
+                VALUES (@package, @view, @key, @value, @version)
+                ON CONFLICT (package_id, view_id, state_key) DO UPDATE SET value_json = excluded.value_json, version = excluded.version;
+                """, transaction))
+            {
+                AddStateKey(upsert, operation);
+                upsert.Parameters.AddWithValue("@value", operation.ValueJson);
+                upsert.Parameters.AddWithValue("@version", (previous?.Version ?? 0) + 1);
+                await upsert.ExecuteNonQueryAsync(ct);
+            }
+            await RequireStateBoundsAsync(operation, transaction, ct);
+        }
+        return new(operation, Evidence(new { previous = previous is null ? null : new { value = previous.ValueJson, version = previous.Version } }))
+        {
+            RequiredHostVersion = NendoFormat.ExtensionPackagesMinimumHostVersion,
+        };
+    }
+
+    private static void AddStateKey(SqliteCommand command, SetExtensionStateOperation operation)
+    {
+        command.Parameters.AddWithValue("@package", operation.PackageId);
+        command.Parameters.AddWithValue("@view", operation.ViewId);
+        command.Parameters.AddWithValue("@key", operation.Key);
+    }
+
+    private async Task<bool> ExtensionPackageExistsAsync(string packageId, SqliteTransaction? transaction, CancellationToken ct)
+    {
+        await using var query = Command("SELECT 1 FROM __nendo_extension_package WHERE package_id = @package;", transaction);
+        query.Parameters.AddWithValue("@package", packageId);
+        return await query.ExecuteScalarAsync(ct) is not null;
+    }
+
+    private async Task<NendoExtensionStateEntry?> ReadStateRowAsync(
+        string packageId, string viewId, string key, SqliteTransaction? transaction, CancellationToken ct)
+    {
+        await using var query = Command("""
+            SELECT value_json, version FROM __nendo_extension_state
+            WHERE package_id = @package AND view_id = @view AND state_key = @key;
+            """, transaction);
+        query.Parameters.AddWithValue("@package", packageId);
+        query.Parameters.AddWithValue("@view", viewId);
+        query.Parameters.AddWithValue("@key", key);
+        await using var rows = await query.ExecuteReaderAsync(ct);
+        return await rows.ReadAsync(ct) ? new(viewId, key, rows.GetString(0), rows.GetInt64(1)) : null;
+    }
+
+    /// <summary>Checked after the row is staged, so the numbers are what the file would hold.</summary>
+    private async Task RequireStateBoundsAsync(SetExtensionStateOperation operation, SqliteTransaction transaction, CancellationToken ct)
+    {
+        await using (var keys = Command("SELECT count(*) FROM __nendo_extension_state WHERE package_id = @package AND view_id = @view;", transaction))
+        {
+            AddStateKey(keys, operation);
+            if (Convert.ToInt64(await keys.ExecuteScalarAsync(ct)) > NendoExtensionLimits.StateKeysPerView)
+                throw new NendoPreconditionException("state-too-large",
+                    $"A view keeps at most {NendoExtensionLimits.StateKeysPerView} keys. Remove one before adding {operation.Key}.");
+        }
+        await using var bytes = Command("SELECT coalesce(sum(length(CAST(value_json AS BLOB))), 0) FROM __nendo_extension_state WHERE package_id = @package;", transaction);
+        bytes.Parameters.AddWithValue("@package", operation.PackageId);
+        if (Convert.ToInt64(await bytes.ExecuteScalarAsync(ct)) > NendoExtensionLimits.StatePackageBytes)
+            throw new NendoPreconditionException("state-too-large",
+                $"A package keeps at most {NendoExtensionLimits.StatePackageBytes / 1024 / 1024} MiB of state across its views.");
+    }
+
+    /// <summary>
+    /// A view's kept values: one key's, or, with no key, every key of the view with its version and
+    /// no value, so listing a view's keys never reads megabytes. A file with none reads as empty.
+    /// </summary>
+    internal async Task<IReadOnlyList<NendoExtensionStateEntry>> ReadExtensionStateAsync(
+        string packageId, string viewId, string? key, SqliteTransaction? transaction, CancellationToken ct)
+    {
+        if (!await ExtensionLayoutExistsAsync(transaction, ct)) return [];
+        if (key is not null)
+            return await ReadStateRowAsync(packageId, viewId, key, transaction, ct) is { } row ? [row] : [];
+        await using var query = Command("""
+            SELECT state_key, version FROM __nendo_extension_state
+            WHERE package_id = @package AND view_id = @view ORDER BY state_key;
+            """, transaction);
+        query.Parameters.AddWithValue("@package", packageId);
+        query.Parameters.AddWithValue("@view", viewId);
+        await using var rows = await query.ExecuteReaderAsync(ct);
+        var entries = new List<NendoExtensionStateEntry>();
+        while (await rows.ReadAsync(ct)) entries.Add(new(viewId, rows.GetString(0), "", rows.GetInt64(1)));
+        return entries;
+    }
 
     /// <summary>
     /// The operation that reverses one package operation, built from its canonical payload and
@@ -460,6 +576,18 @@ internal sealed partial class SqliteNendoStore
                     throw new NendoCompensationNotSupportedException($"The removal of {path} retained nothing to restore.");
                 return PutExtensionFileOperation.FromStoredContent(operationId, packageId, path, file.GetProperty("mediaType").GetString(),
                     file.GetProperty("sha256").GetString()!, file.GetProperty("byteLength").GetInt64(), PutExtensionFileOperation.ExpectAbsent);
+            }
+            case "extension.setState":
+            {
+                // The value it replaced goes back, but only while the key still holds what this
+                // write left: a later write refuses rather than being overwritten.
+                var viewId = payload.GetProperty("viewId").GetString()!;
+                var stateKey = payload.GetProperty("key").GetString()!;
+                var applied = payload.GetProperty("value");
+                var previousVersion = previous is { } before ? before.GetProperty("version").GetInt64() : 0;
+                var expected = applied.ValueKind == JsonValueKind.Null ? SetExtensionStateOperation.ExpectAbsent : previousVersion + 1;
+                return new SetExtensionStateOperation(operationId, packageId, viewId, stateKey,
+                    previous is { } kept ? kept.GetProperty("value").GetString() : null, expected);
             }
             default:
                 throw new NendoCompensationNotSupportedException($"Compensation is not implemented for {type}.");

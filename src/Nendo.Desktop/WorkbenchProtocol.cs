@@ -338,6 +338,8 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.ExtensionImport => await ImportExtensionAsync(cancellationToken),
                     WorkbenchMethods.ExtensionExport => await ExportExtensionAsync(RequiredString(payload, "packageId", 80), cancellationToken),
                     WorkbenchMethods.ExtensionRemove => await _session.PrepareExtensionRemovalAsync(RequiredString(payload, "packageId", 80), cancellationToken),
+                    WorkbenchMethods.ExtensionStateRead => await ReadExtensionStateAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.ExtensionStateSet => await SetExtensionStateAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.ExtensionDevelopLink => await LinkExtensionFolderAsync(RequiredString(payload, "packageId", 80), cancellationToken),
                     WorkbenchMethods.ExtensionDevelopStop => await _session.UnlinkExtensionFolderAsync(RequiredString(payload, "packageId", 80), cancellationToken),
                     WorkbenchMethods.ExtensionDevelopSave => await _session.PrepareDevelopmentSaveAsync(RequiredString(payload, "packageId", 80), cancellationToken),

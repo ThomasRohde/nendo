@@ -88,6 +88,21 @@ public static class NendoExtensionLimits
     /// <summary>The most packages one file carries.</summary>
     public const int Packages = 64;
 
+    /// <summary>The largest value a view keeps with <c>nendo.state</c>, as JSON.</summary>
+    public const int StateValueBytes = 64 * 1024;
+
+    /// <summary>The longest state key.</summary>
+    public const int StateKeyCharacters = 128;
+
+    /// <summary>The longest view ID a state row names.</summary>
+    public const int StateViewIdCharacters = 200;
+
+    /// <summary>The most keys one view, or a package's shared state, holds.</summary>
+    public const int StateKeysPerView = 256;
+
+    /// <summary>The most bytes of state one package holds across its views.</summary>
+    public const long StatePackageBytes = 1024 * 1024;
+
     /// <summary>The most bytes every package's current files hold together.</summary>
     public const long TotalBytes = 64L * 1024 * 1024;
 

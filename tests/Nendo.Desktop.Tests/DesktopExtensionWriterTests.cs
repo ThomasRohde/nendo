@@ -56,7 +56,7 @@ public sealed class DesktopExtensionWriterTests
         var before = (await session.GetViewAsync()).Manifest!.ChangeSequence;
 
         var writers = WorkbenchMethods.ExtensionWriterMethods.OrderBy(method => method, StringComparer.Ordinal).ToArray();
-        CollectionAssert.AreEqual(new[] { WorkbenchMethods.DataCreateRecord, WorkbenchMethods.DataDeleteRecord, WorkbenchMethods.DataExecuteCommand, WorkbenchMethods.DataSetFields, WorkbenchMethods.ProposalGet, WorkbenchMethods.ProposalPrepareChangeSet },
+        CollectionAssert.AreEqual(new[] { WorkbenchMethods.DataCreateRecord, WorkbenchMethods.DataDeleteRecord, WorkbenchMethods.DataExecuteCommand, WorkbenchMethods.DataSetFields, WorkbenchMethods.ExtensionStateRead, WorkbenchMethods.ExtensionStateSet, WorkbenchMethods.ProposalGet, WorkbenchMethods.ProposalPrepareChangeSet },
             writers, "The methods a view's actor may reach changed; the ADR, the contract and the broker's table must change with them.");
 
         var methods = typeof(WorkbenchMethods)

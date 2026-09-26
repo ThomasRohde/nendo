@@ -84,6 +84,29 @@ public sealed partial class NendoApplicationService
     public Task<NendoExtensionFileContent?> ReadExtensionFileAsync(string packageId, string path, CancellationToken cancellationToken = default) =>
         _coordinator.ReadExtensionFileAsync(packageId, path, cancellationToken);
 
+    /// <summary>A custom view's kept values: one key's, or every key with its version and no value.</summary>
+    public Task<IReadOnlyList<NendoExtensionStateEntry>> ReadExtensionStateAsync(
+        string packageId, string viewId, string? key, CancellationToken cancellationToken = default) =>
+        _coordinator.ReadExtensionStateAsync(packageId, viewId, key, cancellationToken);
+
+    /// <summary>
+    /// Keeps, replaces or removes one value of a custom view (<c>nendo.state</c>, ADR-0013
+    /// Phase 3): one Data revision under the request's origin, described in the words History
+    /// shows, and reversible there.
+    /// </summary>
+    public Task<NendoApplyResult> SetExtensionStateAsync(
+        string packageId, string viewId, string key, string? valueJson, long? expectedVersion, string description,
+        NendoRequestContext context, CancellationToken cancellationToken = default)
+    {
+        RequireContext(context);
+        RequireText(description, "description", 200);
+        var operation = new SetExtensionStateOperation(
+            NendoCanonical.DeterministicId("operation", context.IdempotencyScope, context.IdempotencyKey, 0),
+            packageId, viewId, key, valueJson, expectedVersion);
+        return _coordinator.ApplyAsync(new NendoMutation(context.IdempotencyScope, context.IdempotencyKey, context.Origin,
+            description.Trim(), [operation]), cancellationToken);
+    }
+
     public Task<NendoRecordCount> CountRecordsAsync(
         NendoRecordCountQuery query,
         CancellationToken cancellationToken = default) =>

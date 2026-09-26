@@ -311,12 +311,12 @@ anything of its own with the file. Two more things finish Phase 3.
 **State.** `nendo.state` keeps small JSON values with the file.
 
 - `nendo.state.get(key)`, `nendo.state.set(key, value, {expectedVersion})`,
-  `nendo.state.remove(key)` and `nendo.state.keys()`. Each value is scoped to the
+  `nendo.state.delete(key)` and `nendo.state.keys()`. Each value is scoped to the
   view that set it (its view definition's node ID); `{scope: 'package'}` shares one
   across the package's views, stored with the view `''`.
 - A write is the canonical `extension.setState` operation, already declared: the
   Data lane and **Reversible**, because the retained previous value is the inverse.
-  A removal is a set to null, which deletes the row. History names the package as
+  A deletion is a set to null, which deletes the row. History names the package as
   its author and describes it as "Keep ‹key› for the view ‹title›", and
   compensation restores the value before.
 - Each row has a version, as a record does. `expectedVersion` makes a write
@@ -527,7 +527,7 @@ contained helper is deleted.
 | 0 | A disposable spike that answers the WebView2 questions below | — |
 | 1 | Code in the file: the tables, the operations, the review and MCP authoring. Nothing runs yet | 1.33.0 |
 | 2 | Views run inline from the file, and the helper is deleted: serving, the read API, the kill switches, open definitions, package import and export as folders, and the four packages ported | 1.34.0 |
-| 3 | Views that write: records and commands (delivered 2026-09-26), proposals to prepare, and state | — |
+| 3 | Views that write: records and commands, proposals to prepare, and state (delivered 2026-09-26) | — |
 | 4 | Develop from a folder: a device-local link, reload on save, and saving the folder as proposals (delivered 2026-09-26) | — |
 | 5 | Views anywhere: `extensionView` and `extensionTile` | 1.35.0 |
 
@@ -569,7 +569,7 @@ falsified once, and has the failure text quoted in its planner Check.
 | A redraw keeps frames, and many views run within the memory budget | G13, G15 |
 | Every kill switch gives no frame and a 403 | G16 |
 | Code runs only after its proposal is accepted | G17 |
-| Reads are exact; writes are attributed, version-checked and approval-gated; a view cannot promote; state round-trips; a busy view does not starve a save | G18–G22 |
+| Reads are exact; writes are attributed, version-checked and approval-gated; a view cannot promote; state round-trips; a busy view does not starve a save | G18, G19, G21, G22 |
 | Develop from a folder | G20, and `DesktopExtensionDevelopmentTests` |
 | `extensionView` and `extensionTile` | G26 |
 

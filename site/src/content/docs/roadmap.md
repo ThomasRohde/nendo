@@ -33,15 +33,11 @@ These items are unfinished now. They are the next work, not new ideas.
 
 ### Custom views: the next steps
 
-A custom view's code now lives in the `.nendo` file, and a view that is shown runs
-inline in Nendo and reads the file's records. The next steps are, in order:
-
-- views that keep their own state in the file (they already change records, run
-  commands and propose changes for you to review);
-- a view as a screen of its own, and as a tile on the front page.
-
-None of these is available yet. What is already true, and what is not measured, is
-on [Custom views](/nendo/docs/custom-views).
+A custom view's code now lives in the `.nendo` file. A view that is shown runs
+inline in Nendo, reads and changes the file's records, proposes changes for you to
+review and keeps its own state in the file. The next step is a view as a screen of its
+own, and as a tile on the front page. It is not available yet. What is already true,
+and what is not measured, is on [Custom views](/nendo/docs/custom-views).
 
 ### Distribution and signing
 

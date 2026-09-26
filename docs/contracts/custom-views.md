@@ -14,8 +14,6 @@ ran views before 2026-09-25 is deleted. The [History](#history) says what it was
 
 Not yet delivered:
 
-- a view that keeps state in the file (the last of Phase 3; writing records, running
-  commands and preparing proposals are delivered, 2026-09-26);
 - the `extensionView` root and the `extensionTile` (Phase 5).
 
 Nothing in this contract describes them as available.
@@ -489,6 +487,10 @@ Workbench suite, pins the table name by name.
 | `proposals.prepare` | `title` (1–200 characters), `operations` (1–128 canonical operations) | `proposal.prepareChangeSet`, then the Workbench's review | `{proposalId, title, state, diagnostics, opened}` |
 | `proposals.get` | `proposalId` | `proposal.get`, for the package's own proposals | `{proposalId, title, state, diagnostics}` |
 | `proposals.open` | `proposalId` | `proposal.get`, then the Workbench's review | `{proposalId, title, state, diagnostics, opened}` |
+| `state.get` | `key`, `scope` | `extension.state.read` | `{key, value, version}`, or null |
+| `state.keys` | `scope` | `extension.state.read` | `[{key, version}]` |
+| `state.set` | `key`, `value`, `expectedVersion`, `scope` | `extension.state.set` | `{key, value, version}` |
+| `state.delete` | `key`, `expectedVersion`, `scope` | `extension.state.set` with a null value | null |
 | `ui.openRecord` | `entityId`, `recordId` | Workbench navigation | `{opened}` |
 | `ui.openScreen` | `surfaceId` | Workbench navigation | `{opened}` |
 | `ui.openStudio` | `entityId` (optional) | Workbench navigation | `{opened}` |
@@ -573,6 +575,41 @@ package's name, and the person decides it in the ordinary review.
   `proposal.reject` with `actor-not-allowed`.
 - A file open read-only refuses `proposals.prepare` with `read-only` before the host is
   asked.
+
+### State
+
+Since 2026-09-26 (ADR-0013 Phase 3, W-069) a view keeps small JSON values with the
+file through `nendo.state`.
+
+- **Where.** A value belongs to the view that kept it, by its view definition's node
+  ID, or, with `scope: 'package'`, to the package's views together. The broker takes
+  the view ID and the package from the mount; a view names only the key.
+- **The operation.** Each write is one canonical `extension.setState` operation in a
+  Data revision: reversible, attributed to `extension:‹package›`, and described in
+  History as "Keep ‹key› for the view ‹title›" ("for the views of ‹package›" for shared
+  state; "Forget" for a deletion). Compensation puts back the value it replaced, and
+  refuses when the key has been written again since.
+- **Versions.** Each key has a version, 1 on its first write. `expectedVersion` makes a
+  write conditional: the key's version, or 0 for a key that must not exist yet. A
+  stale one is refused with `state-version-conflict` and changes nothing. Without it,
+  the last write wins.
+- **Bounds.** A key is 1 to 128 characters; a value is JSON of at most 64 KiB, stored
+  without whitespace, so an object's keys may come back in another order; 256 keys per
+  view; 1 MiB per package. Past a bound the write is refused with `state-too-large`.
+- **Two a second.** The broker sends at most two state writes a second from one view
+  and answers the next with `busy`. `api.js` sends a view's writes 550 ms apart and
+  coalesces writes to one key made meanwhile: every caller hears the one answer, and
+  History has one row.
+- **Host methods.** `extension.state.read` `{viewId, key}` answers `{entries}`: the
+  key's `{key, value, version}`, or, with no key, every key's `{key, version}` without
+  its value. `extension.state.set` `{viewId, key, value, expectedVersion, description,
+  idempotencyKey}` answers the mutation. The host admits both only with a view's
+  actor and takes the package from it (`actor-not-allowed` without one), and refuses a
+  write while views are off (`views-off`).
+- **The file's.** State is in the file (`__nendo_extension_state`, since host 1.33.0),
+  so a copy carries it and no rung is needed. Export does not carry it. Removing a
+  package keeps its state, so compensating the removal brings it back. MCP neither
+  reads nor writes it. A state write changes no record, so it triggers no action.
 
 The table holds none of `proposal.promote`, `proposal.reject`, `behaviour.*`,
 `agent.*`, `file.*`, `session.open*`, `appearance.set` or `history.compensate`, and
@@ -1252,3 +1289,6 @@ passed. Each guard below was falsified, seen to fail and then restored:
   `proposals.open`. A view's proposal carries its package as its origin, opens in the
   review naming the package, and one waits per package. The host admits the actor on
   `proposal.prepareChangeSet` and `proposal.get` (W-069).
+- 2026-09-26 — Phase 3 completes: `state.get`, `state.keys`, `state.set` and
+  `state.delete`, through the `extension.setState` operation and the host's
+  `extension.state.read` and `extension.state.set` (W-069).

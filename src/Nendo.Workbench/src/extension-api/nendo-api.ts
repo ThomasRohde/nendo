@@ -272,6 +272,39 @@ function install(host: Window & { nendo?: unknown }): void {
   type RecordAt = { entityId: string; recordId: string; version: number };
   /** Field values to write: null, text, true or false, a number, or { $nendoNumber: '…' } for exact digits. */
   type WriteValues = Record<string, string | number | boolean | null | { $nendoNumber: string }>;
+  type StateOptions = { scope?: 'view' | 'package' };
+  type StateEntry = { key: string; value: unknown; version: number };
+
+  // State writes wait their turn, one every stateWriteSpacingMs; a key written again while its
+  // write waits replaces the value, and every caller of that key hears the one answer.
+  const stateQueue = new Map<string, { method: string; params: Record<string, unknown>; waiters: Waiting[] }>();
+  let stateTimer: ReturnType<typeof setTimeout> | null = null;
+  let stateSentAt = -Infinity;
+  function queueState(method: string, params: Record<string, unknown>): Promise<StateEntry | null> {
+    const id = `${String(params.scope ?? 'view')}\u0000${String(params.key)}`;
+    return new Promise((resolve, reject) => {
+      const waiting = stateQueue.get(id);
+      if (waiting === undefined) stateQueue.set(id, { method, params, waiters: [{ resolve: resolve as (value: unknown) => void, reject }] });
+      else { waiting.method = method; waiting.params = params; waiting.waiters.push({ resolve: resolve as (value: unknown) => void, reject }); }
+      pumpState();
+    });
+  }
+  function pumpState(): void {
+    if (stateTimer !== null || stateQueue.size === 0) return;
+    stateTimer = setTimeout(() => {
+      stateTimer = null;
+      const next = stateQueue.entries().next().value;
+      if (next === undefined) return;
+      const [id, entry] = next;
+      stateQueue.delete(id);
+      stateSentAt = Date.now();
+      call(entry.method, entry.params).then(
+        (answer) => { for (const waiter of entry.waiters) waiter.resolve(answer); },
+        (error: unknown) => { for (const waiter of entry.waiters) waiter.reject(error); });
+      pumpState();
+    }, Math.max(0, stateSentAt + extensionLimits.stateWriteSpacingMs - Date.now()));
+  }
+
   type ProposalAnswer = { proposalId: string; title: string; state: string; diagnostics: Array<{ code: string; message: string; severity: string }>; opened?: boolean };
 
   const nendo = Object.freeze({
@@ -322,6 +355,20 @@ function install(host: Window & { nendo?: unknown }): void {
       get: (proposalId: string): Promise<ProposalAnswer> => call<ProposalAnswer>('proposals.get', { proposalId }),
       /** Opens the review of a proposal this package prepared again. */
       open: (proposalId: string): Promise<ProposalAnswer> => call<ProposalAnswer>('proposals.open', { proposalId }),
+    }),
+    state: Object.freeze({
+      /**
+       * What this view keeps with the file (ADR-0013 Phase 3): a copy of the file carries it,
+       * History names the package on each change, and the person can undo one there. Values
+       * are JSON of at most 64 KiB. `{ scope: 'package' }` shares a value across the package's
+       * views. Writes to one key are coalesced and sent at most twice a second.
+       */
+      get: (key: string, options: StateOptions = {}): Promise<StateEntry | null> => call<StateEntry | null>('state.get', { key, ...options }),
+      set: (key: string, value: unknown, options: StateOptions & { expectedVersion?: number } = {}): Promise<StateEntry | null> =>
+        queueState('state.set', { key, value, ...options }),
+      delete: (key: string, options: StateOptions & { expectedVersion?: number } = {}): Promise<null> =>
+        queueState('state.delete', { key, ...options }) as Promise<null>,
+      keys: (options: StateOptions = {}): Promise<Array<{ key: string; version: number }>> => call('state.keys', { ...options }),
     }),
     changes: Object.freeze({
       /** Hears the file's change sequence each time anything commits, at most four times a second. */
