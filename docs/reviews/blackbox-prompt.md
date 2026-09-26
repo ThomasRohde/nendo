@@ -724,6 +724,11 @@ vocabulary, the examples and the resources — and not from the person.
   the other, and ask the person to group it by a field, hide a status, find an item and
   mark the longest chain. Record what they reported, and whether those choices were still
   there after they reopened the file.
+- Open the planner's Work dependencies view, select a work item, and ask the person to
+  press Complete there. Record what the line below the drawing said, whether the graph
+  showed it Done without a reload, and what History names as the author. Then change the
+  same item in Studio, press Plan now in the view without reloading it, and record what it
+  said and whether anything changed.
 - Author a view that changes records: a button that marks the selected record done
   through `nendo.commands.run`, and one that renames it through `nendo.records.update`.
   Ask the person to use both, then open History and say what it names as the author of

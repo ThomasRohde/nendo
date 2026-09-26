@@ -41,6 +41,15 @@ Statuses are drawn in their choices' own tones, falling back to the planner's na
 Inbox, Ready, Doing, Blocked, Review, Done and Dropped; any other status is drawn neutral
 rather than guessed at. Selecting an item asks Nendo to open it.
 
+**Acting where you are.** A selected item offers its record type's own commands below
+the drawing, the ones its record page offers: in the planner, Plan now, Start work, Send
+to review, Complete and Reopen. Pressing one runs it on that item at the version the view
+read. The graph follows the change, and the line below says what was done. If somebody
+changed the item since the view read it, nothing happens, the view says so and reads it
+again, and the next press uses the item as it now is. Nendo asks nothing first: the change
+is in History under this package's name, where you can undo it. A file open read-only
+offers nothing to press.
+
 ## What it reads
 
 Everything arrives through `window.nendo`, which `<script src="/_nendo/api.js">`
@@ -53,9 +62,12 @@ installs:
 - `nendo.ui.theme` and the `theme` event: the Workbench's colours, as `--nendo-*`;
 - the `changes` event: the view reads again a quarter of a second after the file
   changes, and keeps the selected item selected while it is still there;
-- `nendo.ui.openRecord(entityId, recordId)`: opening the selected item.
+- `nendo.ui.openRecord(entityId, recordId)`: opening the selected item;
+- `nendo.commands.run(commandId, record)`: running a record command on the selected item
+  (ADR-0013 Phase 3), since 2.1.0.
 
-It writes nothing. A read that Nendo refuses is shown in the summary line.
+It changes records only through the file's own record commands. A read that Nendo refuses
+is shown in the summary line, and a refused command in the line below the drawing.
 
 ## Third-party code
 

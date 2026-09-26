@@ -342,6 +342,66 @@ async (page) => {
   });
   await until(() => document.getElementById('summary').textContent.includes('Custom views are off'), undefined, 'A refused read was not shown as text in the view.');
 
+  // W-068: a selected item offers its record type's own commands, and runs one where it is
+  // (nendo.commands.run, ADR-0013 Phase 3) at the version the view read. The graph follows the
+  // change; an item somebody changed meanwhile is refused, said, and read again; and a
+  // read-only file offers nothing to press.
+  const withCommands = { ...fixture(projection), commandEffects: { 'cmd.plan': { workStatus: 'status-ready' }, 'cmd.complete': { workStatus: 'status-done' } } };
+  withCommands.schema.commands = [
+    { id: 'cmd.plan', entityId: 'workItem', label: 'Plan now' },
+    { id: 'cmd.complete', entityId: 'workItem', label: 'Complete' },
+    { id: 'cmd.initiative', entityId: 'initiative', label: 'Initiative reviewed' },
+  ];
+  await replace(withCommands, '8 work items · 7 links · 2 unblocked · 3 in a dependency cycle');
+  assert(await view.locator('#actions').isHidden(), 'Commands are offered with nothing selected.');
+  await view.locator('.node[data-id="b"]').click();
+  const offered = await view.locator('#actions button').allInnerTexts();
+  assert(JSON.stringify(offered) === JSON.stringify(['Plan now', 'Complete']),
+    'The selected item is not offered exactly its own record type\u2019s commands: ' + JSON.stringify(offered));
+  await page.screenshot({ path: root + '/artifacts/extension-runtime-results/work-dependencies-commands-dark.png' });
+  await page.evaluate(() => window.broker.pushTheme('light'));
+  await until(() => document.documentElement.dataset.theme === 'light', undefined, 'The light theme was ignored.');
+  await page.screenshot({ path: root + '/artifacts/extension-runtime-results/work-dependencies-commands-light.png' });
+  await page.evaluate(() => window.broker.pushTheme('dark'));
+  await until(() => document.documentElement.dataset.theme === 'dark', undefined, 'The dark theme was ignored.');
+  const ranBefore = (await page.evaluate(() => window.broker.commandsRun())).length;
+  await view.locator('#actions button[data-command="cmd.complete"]').click();
+  await until(() => document.querySelector('.node[data-id="b"] title')?.textContent === 'Build the isolated helper — Done', undefined,
+    'The graph did not follow Complete to Done.');
+  const ran = (await page.evaluate(() => window.broker.commandsRun())).slice(ranBefore);
+  assert(ran.length === 1 && JSON.stringify(ran[0]) === JSON.stringify({ commandId: 'cmd.complete', entityId: 'workItem', recordId: 'b', version: 1 }),
+    'Complete was not run once, on that item, at the version the view read: ' + JSON.stringify(ran));
+  assert((await view.locator('#outcome').innerText()).startsWith('Complete: done for Build the isolated helper'),
+    'The view did not say what it did: ' + await view.locator('#outcome').innerText());
+  assert((await page.evaluate(() => window.broker.record('workItem', 'b'))).values.workStatus === 'status-done', 'The command did not change the item.');
+
+  // Somebody else changes c after the view read it. Complete on c is refused and nothing changes.
+  await page.evaluate(() => window.broker.touch('workItem', 'c'));
+  await view.locator('.node[data-id="c"]').click();
+  await view.locator('#actions button[data-command="cmd.complete"]').click();
+  await until(() => document.getElementById('outcome').textContent.includes('changed since this view read it'), undefined,
+    'A command over a version somebody else moved on was not refused in words.');
+  assert((await page.evaluate(() => window.broker.record('workItem', 'c'))).values.workStatus === 'status-ready', 'A refused command changed the item.');
+  assert(await view.locator('#outcome').evaluate(line => line.classList.contains('refused')), 'The refusal does not read as one.');
+  // It read again, so the next press is at the version the item now has, and lands.
+  await page.waitForFunction(() => window.broker.requests.filter(r => r.m === 'records.query').length > 0, undefined, { timeout: 3000 });
+  await page.waitForTimeout(400);
+  await view.locator('.node[data-id="c"]').click();
+  await view.locator('#actions button[data-command="cmd.complete"]').click();
+  await until(() => document.querySelector('.node[data-id="c"] title')?.textContent === 'Qualify the release — Done', undefined,
+    'After reading again, Complete on the changed item did not land.');
+  const lastRun = (await page.evaluate(() => window.broker.commandsRun())).at(-1);
+  assert(lastRun.recordId === 'c' && lastRun.version === 2, 'The retry did not use the version the item now has: ' + JSON.stringify(lastRun));
+
+  // A read-only file offers nothing to press.
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushContext(); }, { ...withCommands, context: { ...withCommands.context, readOnly: true } });
+  await until(() => document.querySelectorAll('.node').length === 8, undefined, 'The view did not read the read-only file.');
+  await page.waitForTimeout(400);
+  await view.locator('.node[data-id="a"]').click();
+  assert(await view.locator('#actions').isHidden(), 'A read-only file offered commands.');
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushContext(); }, withCommands);
+  await page.waitForTimeout(400);
+
   // The pane is half a window and can be small: 512x384 is a 1024x768 window at 200% scaling.
   await replace(fixture(projection), '8 work items · 7 links · 2 unblocked · 3 in a dependency cycle');
   await page.setViewportSize({ width: 512, height: 384 });
@@ -358,8 +418,8 @@ async (page) => {
   assert(compact.controls.every(Boolean), 'A control left the window at 512x384: ' + JSON.stringify(compact.controls));
 
   const methods = [...new Set((await requests()).map(r => r.m))].sort();
-  assert(JSON.stringify(methods) === JSON.stringify(['records.query', 'schema.describe', 'ui.openRecord']),
-    'The view asked for something other than reads and opening a record: ' + JSON.stringify(methods));
+  assert(JSON.stringify(methods) === JSON.stringify(['commands.run', 'records.query', 'schema.describe', 'ui.openRecord']),
+    'The view asked for something other than reads, opening a record and running its commands: ' + JSON.stringify(methods));
   assert(errors.length === 0, 'The view raised: ' + errors.join(' | '));
   return 'work dependencies ok ' + JSON.stringify({ themes: { light: lightColour, dark: darkColour }, burstReads: burst, layout: plain.layout,
     extent: { plain: Object.keys(plain.nodes).length, grouped: grouped.groups.length } });

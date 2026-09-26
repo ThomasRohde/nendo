@@ -18,7 +18,8 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
 // src/Nendo.Workbench/src/extension-api/protocol.ts describes them.
 //
 // A probe drives it through window.broker:
-//   setFixture({ context, schema, records })   what the view reads; mounts the frame the first time
+//   setFixture({ context, schema, records, commandEffects })   what the view reads, and what each
+//                                              record command sets; mounts the frame the first time
 //   pushChanges(), pushTheme(mode | theme), pushContext()   the three events a view hears
 //   fail(method, { code, message }, times)     refuse the next requests of one method
 //   remount()                                   a fresh frame, as a new placeholder would start one
@@ -29,23 +30,25 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
   // The frame's sandbox, as src/Nendo.Workbench/src/view-frame-markup.ts sets it.
   const SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-pointer-lock allow-presentation';
   // The methods this fixture answers, which is what the context lists and nendo.has reads.
-  const METHODS = ['schema.describe', 'records.query', 'records.get', 'ui.openRecord'];
+  const METHODS = ['schema.describe', 'records.query', 'records.get', 'ui.openRecord', 'commands.run'];
   // The Workbench's colour tokens for both themes, as src/Nendo.Workbench/src/styles/02-tokens.css
   // declares them and extension-model.ts names them.
   const themes = {
     light: {
-      canvas: '#f4f5f7', surface: '#fbfbfc', 'surface-raised': '#ffffff', 'surface-soft': '#f0f1f6', ink: '#13213d',
-      muted: '#667085', line: '#d9dde6', 'line-strong': '#c9cfdb', cobalt: '#2458e6', 'cobalt-soft': '#e9edff',
-      violet: '#7256d9', healthy: '#2c9a50', warning: '#b56a13', danger: '#c5364f', shadow: '0 18px 55px rgba(44, 55, 83, 0.08)',
-      'tone-red': '#d3384f', 'tone-orange': '#d9651c', 'tone-amber': '#b8860b', 'tone-green': '#2f9e5b',
-      'tone-teal': '#1f9a94', 'tone-blue': '#2f6fe4', 'tone-violet': '#7a55d6', 'tone-grey': '#6b7385',
+      canvas: '#f3f4f6', surface: '#ffffff', 'surface-raised': '#ffffff', 'surface-soft': '#f1f2f5', ink: '#14171c',
+      muted: '#5b6370', line: '#e2e5ea', 'line-strong': '#cdd2da', cobalt: '#6b3fd6', 'cobalt-soft': '#efe9fd',
+      violet: '#8a4fd8', healthy: '#1a7f51', warning: '#9c6400', danger: '#c23a31',
+      shadow: '0 1px 2px rgba(20, 23, 28, 0.05), 0 12px 32px -16px rgba(20, 23, 28, 0.18)',
+      'tone-red': '#c93a3a', 'tone-orange': '#c75a17', 'tone-amber': '#a37608', 'tone-green': '#1f8a52',
+      'tone-teal': '#16837e', 'tone-blue': '#2f63d6', 'tone-violet': '#7446d4', 'tone-grey': '#677080',
     },
     dark: {
-      canvas: '#071725', surface: '#0a1c2b', 'surface-raised': '#0e2435', 'surface-soft': '#10283a', ink: '#edf3ff',
-      muted: '#a8b5c8', line: '#263e50', 'line-strong': '#355469', cobalt: '#6597ff', 'cobalt-soft': '#142f5e',
-      violet: '#ad97ff', healthy: '#59d584', warning: '#f0b15f', danger: '#ff8298', shadow: '0 20px 65px rgba(0, 0, 0, 0.3)',
-      'tone-red': '#ff7b8c', 'tone-orange': '#ff9a5c', 'tone-amber': '#f2c14e', 'tone-green': '#5ed48a',
-      'tone-teal': '#4dd0c8', 'tone-blue': '#7ba6ff', 'tone-violet': '#b39dff', 'tone-grey': '#a3adc0',
+      canvas: '#0f1115', surface: '#14171c', 'surface-raised': '#181b21', 'surface-soft': '#1c2027', ink: '#e7e9ed',
+      muted: '#9aa1ad', line: '#262a33', 'line-strong': '#353b47', cobalt: '#9d6bff', 'cobalt-soft': '#251c3a',
+      violet: '#c29bff', healthy: '#46d08f', warning: '#e9b659', danger: '#f37b72',
+      shadow: '0 1px 0 rgba(255, 255, 255, 0.02), 0 20px 48px -16px rgba(0, 0, 0, 0.7)',
+      'tone-red': '#f27a7a', 'tone-orange': '#f29a5c', 'tone-amber': '#e8c15a', 'tone-green': '#52d18f',
+      'tone-teal': '#4ecdc4', 'tone-blue': '#6f9bff', 'tone-violet': '#b392ff', 'tone-grey': '#a3abb8',
     },
   };
   const requests = [], events = [], hellos = [], refused = [], pongs = [], failures = [];
@@ -120,6 +123,23 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
         text(params, 'entityId');
         text(params, 'recordId');
         return { opened: true };
+      case 'commands.run': {
+        // As the host runs one: the command's steps set their fields on the record, but only at
+        // the version the view read. A record somebody changed since is refused and left as it is.
+        const commandId = text(params, 'commandId'), entityId = text(params, 'entityId'), recordId = text(params, 'recordId');
+        if (!Number.isSafeInteger(params.version) || params.version < 1) throw refusal('invalid-params', 'version must be the record\u2019s version.');
+        const effect = fixture.commandEffects?.[commandId];
+        if (effect === undefined) throw refusal('command-unavailable', 'That command is not in this file.');
+        const record = (fixture.records[entityId] ?? []).find(candidate => candidate.recordId === recordId);
+        if (record === undefined) throw refusal('record-not-found', 'That record is not in this file.');
+        if (record.version !== params.version) throw refusal('record-version-conflict', 'The record changed. Review its current values.');
+        record.values = { ...record.values, ...clone(effect) };
+        record.version += 1;
+        fixture.changeSequence += 1;
+        // Nendo tells every view the file changed, the one that wrote it included.
+        queueMicrotask(() => emit('changes', fixture.changeSequence));
+        return clone(record);
+      }
       default:
         throw refusal('unknown-method', `${String(method).slice(0, 80)} is not a method this fixture answers.`);
     }
@@ -191,6 +211,15 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
     remount() { mount(); return true; },
     ping() { const id = nextPing++; post({ t: 'ping', id }); return id; },
     opened() { return requests.filter(request => request.m === 'ui.openRecord').map(request => request.p); },
+    commandsRun() { return requests.filter(request => request.m === 'commands.run').map(request => request.p); },
+    /** A record as the fixture now holds it, to see what a command did. */
+    record(entityId, recordId) { return clone((fixture.records[entityId] ?? []).find(candidate => candidate.recordId === recordId) ?? null); },
+    /** Somebody else changes a record: its version moves on under the view. */
+    touch(entityId, recordId) {
+      const record = (fixture.records[entityId] ?? []).find(candidate => candidate.recordId === recordId);
+      record.version += 1; fixture.changeSequence += 1;
+      return record.version;
+    },
   });
 })();
 </script>

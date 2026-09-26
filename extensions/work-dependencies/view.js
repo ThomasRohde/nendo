@@ -7,7 +7,9 @@
   // type, filtered by status and searched; items linked to nothing wait on a shelf below the
   // drawing rather than stretching it. Everything arrives through window.nendo (ADR-0013): the
   // graph from nendo.view.loadGraph, field names and choices from nendo.schema.describe, and
-  // the theme. Selecting an item asks Nendo to open it.
+  // the theme. Selecting an item asks Nendo to open it, and offers that item's record commands
+  // (Plan now, Complete, ...) to run where it is, through nendo.commands.run (ADR-0013 Phase 3):
+  // each at the version this view read, refused if somebody changed the item since.
   const element = id => document.getElementById(id);
   const SVG = 'http://www.w3.org/2000/svg';
   const nendo = window.nendo;
@@ -25,6 +27,7 @@
   let all = { nodes: [], edges: [] };
   let shown = { nodes: [], edges: [], linked: new Set(), hidden: 0 };
   let fields = { status: null, groups: [] };
+  let commands = [], acting = false;
   let selected = null, focusing = false, chaining = false, query = '';
   let chain = { nodes: new Set(), edges: new Set(), order: [] };
   let extent = { x: 0, y: 0, width: 800, height: 500 };
@@ -95,6 +98,9 @@
   // --- Reading ---------------------------------------------------------------------------
 
   function readFields(schema, context) {
+    // The record commands the file defines for these work items: the same ones the record page
+    // offers, by the IDs schema.describe lists.
+    commands = (schema.commands ?? []).filter(command => command.entityId === context.entityId && typeof command.id === 'string');
     const entity = schema.entities.find(candidate => candidate.entityId === context.entityId);
     const status = entity?.fields.find(field => field.fieldId === context.bindings.statusFieldId) ?? null;
     fields = {
@@ -525,6 +531,58 @@
       edge.classList.toggle('chain', chain.edges.has(edge.dataset.edgeId));
     }
     for (const button of element('records').querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.id === selected));
+    showActions();
+  }
+
+  // --- Acting -----------------------------------------------------------------------------
+
+  // A command is offered when Nendo lets views run them, the file is not read-only, and the
+  // file defines one for these work items.
+  function canAct() {
+    return commands.length !== 0 && typeof nendo.has === 'function' && nendo.has('commands.run') && nendo.context?.readOnly !== true;
+  }
+
+  function showActions() {
+    const box = element('actions');
+    const node = selected === null ? undefined : shown.nodes.find(value => value.id === selected);
+    box.hidden = node === undefined || !canAct();
+    if (box.hidden) { box.replaceChildren(); return; }
+    box.replaceChildren(...commands.map(command => {
+      const button = document.createElement('button');
+      button.type = 'button'; button.textContent = command.label; button.dataset.command = command.id; button.disabled = acting;
+      button.addEventListener('click', () => act(command, node.id));
+      return button;
+    }));
+  }
+
+  function say(text, refused = false) {
+    const line = element('outcome');
+    line.textContent = text;
+    line.classList.toggle('refused', refused);
+  }
+
+  /**
+   * Runs a record command on one work item, at the version this view last read. Nendo checks
+   * the version, so an item somebody changed meanwhile is refused and left as it is; the view
+   * says so and reads again. Nendo itself asks nothing first (ADR-0013): the change is in
+   * History under this view's package, where the person can undo it.
+   */
+  async function act(command, id) {
+    const node = all.nodes.find(value => value.id === id);
+    if (node === undefined || acting) return;
+    acting = true; showActions();
+    say(`${command.label}: ${node.label}…`);
+    try {
+      await nendo.commands.run(command.id, node.record);
+      say(`${command.label}: done for ${node.label}. Undo it in Nendo's History.`);
+    } catch (error) {
+      say(error?.code === 'record-version-conflict'
+        ? `${node.label} changed since this view read it, so nothing was done. Reading it again.`
+        : `${command.label} was not run on ${node.label}: ${describe(error)}`, true);
+    } finally {
+      acting = false; showActions();
+      schedule();
+    }
   }
 
   // --- Moving around ----------------------------------------------------------------------

@@ -66,8 +66,12 @@ marker#arrow path{fill:var(--edge)}marker#arrow-cycle path{fill:var(--cycle)}mar
 #text-view{overflow:auto;width:100%;border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:16px}
 #records{list-style:none;margin:0;padding:0}#records>li{padding:12px 0;border-bottom:1px solid var(--line)}#records>li:last-child{border:0}#records p{margin:6px 0 0}
 #records button[aria-pressed=true]{border-color:var(--accent);background:var(--selected)}
-footer{min-height:24px;color:var(--muted);overflow-wrap:anywhere}
+footer{min-height:24px;color:var(--muted);overflow-wrap:anywhere;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+footer p{margin:0}#selection{flex:1 1 240px;min-width:0}
+#actions{display:flex;flex-wrap:wrap;gap:6px}#actions button{padding:4px 10px;font-size:13px}
+#actions button:disabled{opacity:.55;cursor:progress}
+#outcome{flex-basis:100%;font-size:13px}#outcome:empty{display:none}#outcome.refused{color:var(--cycle)}
 [hidden]{display:none!important}
 @media(max-width:640px){body{padding:12px;gap:8px}.hint{display:none}h1{font-size:18px}.tools button{padding:5px 8px}input[type=search]{width:112px}.select span{display:none}.select select{max-width:120px}}
 /* Chrome is not prose: dragging across it must pan or select items, never select text. The text alternative stays selectable. */
-header,.tools,.hint,footer,#canvas,#summary,#empty,#filters{user-select:none}#text-view{user-select:text}
+header,.tools,.hint,footer,#canvas,#summary,#empty,#filters{user-select:none}#outcome{user-select:text}#text-view{user-select:text}

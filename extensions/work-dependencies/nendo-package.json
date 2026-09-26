@@ -1,7 +1,7 @@
 {
   "packageId": "org.nendo.work-dependencies",
   "title": "Work dependencies",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "entryPoint": "index.html",
-  "description": "Lays work items out with the Eclipse Layout Kernel in the order they block each other, groups them by any field, names dependency cycles exactly and marks the longest chain."
+  "description": "Lays work items out with the Eclipse Layout Kernel in the order they block each other, groups them by any field, names dependency cycles exactly, marks the longest chain, and runs a selected item's record commands where it is."
 }
