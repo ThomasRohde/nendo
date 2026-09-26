@@ -16,6 +16,15 @@ internal static partial class WorkbenchMethods
     /// <summary>Prepare a proposal that takes a package and its files out of the file.</summary>
     internal const string ExtensionRemove = "extension.remove";
 
+    /// <summary>Pick a folder and develop a package of the open file from it, on this device (ADR-0013 Phase 4).</summary>
+    internal const string ExtensionDevelopLink = "extension.develop.link";
+
+    /// <summary>Stop developing a package from its folder: its views run the file's reviewed code again.</summary>
+    internal const string ExtensionDevelopStop = "extension.develop.stop";
+
+    /// <summary>Prepare the proposal Import would prepare from a developed package's folder.</summary>
+    internal const string ExtensionDevelopSave = "extension.develop.save";
+
     /// <summary>
     /// The only methods a request may carry a custom view's actor on (ADR-0013 Phase 3): the
     /// record writes a person's own edit uses. A read carries no actor, and every other method
@@ -39,6 +48,9 @@ internal interface IWorkbenchExtensionHost
 
     /// <summary>The folder an exported package's own folder is created in; null when the person cancels.</summary>
     Task<string?> PickExportFolderAsync();
+
+    /// <summary>The folder a package is developed from; null when the person cancels.</summary>
+    Task<string?> PickDevelopmentFolderAsync();
 
     /// <summary>The browser's processes and the frames each holds; answered only under NENDO_NATIVE_DIAGNOSTICS=1.</summary>
     Task<IReadOnlyList<ExtensionFrameProcess>> ReadFrameProcessesAsync();
@@ -65,6 +77,17 @@ internal sealed partial class WorkbenchProtocolHandler
         // window keeps drawing while it happens.
         var archive = await Task.Run(() => NendoExtensionArchives.Read(source), cancellationToken);
         return await _session.PrepareExtensionImportAsync(archive, cancellationToken);
+    }
+
+    /// <summary>
+    /// Develop from folder: the host opens its own folder picker, so the Workbench never names a
+    /// path, and the answer is the session view, whose package says the folder by name only.
+    /// </summary>
+    private async Task<object> LinkExtensionFolderAsync(string packageId, CancellationToken cancellationToken)
+    {
+        var folder = await ExtensionHost().PickDevelopmentFolderAsync();
+        if (folder is null) return new ExtensionImportCancelled();
+        return await _session.LinkExtensionFolderAsync(packageId, folder, cancellationToken);
     }
 
     private async Task<DesktopExtensionExportView> ExportExtensionAsync(string packageId, CancellationToken cancellationToken)

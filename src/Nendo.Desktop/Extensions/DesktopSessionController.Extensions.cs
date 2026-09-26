@@ -16,7 +16,14 @@ internal sealed record DesktopExtensionPackageView(
     string Origin,
     int FileCount,
     long TotalBytes,
-    string ContentDigest);
+    string ContentDigest)
+{
+    /// <summary>
+    /// The name of the folder this device runs the package from while it is developed
+    /// (ADR-0013 Phase 4), or null. The name only: the Workbench is never handed a path.
+    /// </summary>
+    public string? DevelopmentFolder { get; init; }
+}
 
 /// <summary>
 /// Whether the open file's views may run here, and why not when they may not. The Workbench
@@ -74,7 +81,11 @@ internal sealed partial class DesktopSessionController
         _extensionServing = _extensionServing with { Run = false };
     }
 
-    private void StopExtensionsForFile() => _extensionServing = ExtensionServing.None;
+    private void StopExtensionsForFile()
+    {
+        _extensionServing = ExtensionServing.None;
+        StopDevelopment();
+    }
 
     /// <summary>
     /// Admits a write made by a custom view of <paramref name="packageId"/> (ADR-0013 Phase 3):
@@ -111,6 +122,7 @@ internal sealed partial class DesktopSessionController
             : !fileEnabled ? "file"
             : health != "normal" ? "health"
             : null;
+        ReconcileDevelopment(applicationId, snapshot.ExtensionPackages.Select(package => package.PackageId).ToHashSet(StringComparer.Ordinal));
         var hosts = new Dictionary<string, NendoExtensionPackageSnapshot>(StringComparer.OrdinalIgnoreCase);
         var packages = new List<DesktopExtensionPackageView>(snapshot.ExtensionPackages.Count);
         foreach (var package in snapshot.ExtensionPackages)
@@ -118,7 +130,8 @@ internal sealed partial class DesktopSessionController
             var host = ExtensionOrigins.Host(applicationId, package.PackageId);
             hosts[host] = package;
             packages.Add(new(package.PackageId, package.Title, package.Version, package.EntryPoint, package.Description,
-                "https://" + host, package.Files.Count, package.TotalBytes, ContentDigest(package)));
+                "https://" + host, package.Files.Count, package.TotalBytes, ContentDigest(package))
+            { DevelopmentFolder = DevelopmentFolderName(package.PackageId) });
         }
         _extensionServing = new(applicationId, offReason is null, hosts);
         return new(offReason is null, offReason, settings.Run, fileEnabled, packages) { Notice = settings.Notice };
@@ -172,6 +185,8 @@ internal sealed partial class DesktopSessionController
         var serving = _extensionServing;
         if (!serving.Run) return DesktopExtensionAsset.Forbidden;
         if (!serving.Hosts.TryGetValue(host, out var package)) return DesktopExtensionAsset.NotFound;
+        // The serving order's development step: a package this device develops answers from its folder.
+        if (ReadDevelopmentAsset(package.PackageId, path) is { } developed) return developed;
         if (path.Length == 0) path = package.EntryPoint;
         else if (path.EndsWith('/')) path += "index.html";
         var file = package.Files.FirstOrDefault(candidate => candidate.Path == path);

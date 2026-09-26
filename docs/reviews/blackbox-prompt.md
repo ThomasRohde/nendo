@@ -749,6 +749,13 @@ vocabulary, the examples and the resources — and not from the person.
   and a file of 5 MiB. Read the file afterwards to confirm that nothing reached it.
   Then define a view whose package the file does not carry, which is allowed, and
   record what validation said about it and what the screen shows.
+- Ask the person to develop the package from its folder: Studio → Surfaces → Custom
+  views, **Develop from folder…**. Change the view's page in the folder and ask them what
+  the view shows and how long it took. Record what told them the view was not running
+  the file's code, and whether the view could hide that. Then break
+  `nendo-package.json` and record what the view says. Ask them to press **Save to
+  file…**, and compare the review with the folder. Read the file before and after:
+  nothing but the accepted save may reach it.
 - Ask the person to remove the package from the file, and to say what the screen shows
   afterwards. Then have them compensate that removal from History, and say whether the
   view came back.

@@ -119,9 +119,9 @@ Next, in order:
   person's edit, attributed to the view's package, is delivered (2026-09-26, W-065).
   Still to come: preparing a proposal and following it, and durable state in the
   file through `nendo.state`.
-- **Phase 4, develop from a folder**: a device-local link from a view to a folder
-  on disk, reload on save, and saving the folder back as proposals. Not yet. Export
-  to a folder arrived early, with Phase 2.
+- **Phase 4, develop from a folder**: a device-local link from a package to a
+  folder on disk, reload on save, and saving the folder back as a proposal, is
+  delivered (2026-09-26, W-063).
 - **Phase 5, views anywhere**: the `extensionView` root, which the Use "Showing"
   picker offers, and the `extensionTile` on the front page and dashboards, at host
   1.35.0. Not yet.

@@ -335,6 +335,44 @@ device-local:
 Each switch is enforced twice: the Workbench mounts no frame, and the host answers
 403 on the view's origin.
 
+### Develop from a folder (Phase 4)
+
+A person writing a view should see an edit the moment they save it, not after a
+proposal. A development link does that on one device, for one package of one file,
+and it never reaches the file.
+
+- **The link.** In Studio → Surfaces → Custom views, **Develop from folder…** on a
+  package the file carries picks a folder holding a `nendo-package.json` with the same
+  `packageId`. The host keeps the link in this device's custom-view settings, keyed by
+  the file's application ID and the package ID. It is never written to the file, and
+  the Workbench is only ever told the folder's name, never its path. A package the file
+  does not carry yet goes in by Import first.
+- **Serving.** While the link stands and views run, the package's origin answers from
+  the folder: the serving order's development step. The folder is read with the same
+  rules as Import (`NendoExtensionArchives.ReadFolder`: its manifest's entry point,
+  paths confined to the folder, media types by extension, the package bounds), so what
+  runs is what Save would propose. A folder that no longer reads is answered with a
+  503 whose text says why, never with the file's code. Responses carry `no-store`.
+- **Reload on save.** The host watches the folder. A burst of changes becomes one
+  `extensionDevelopmentChanged` event about a quarter of a second after the last, and
+  the Workbench reloads every running view of that package. Starting and stopping a
+  link send the same event, so the Workbench has one path that reloads.
+- **The banner.** Every view of a linked package is drawn with a strip above its frame:
+  Development, the folder's name, and that this computer runs it rather than the code in
+  the file. The strip is the Workbench's own markup, outside the view's frame, so the
+  view cannot hide it. It carries **Save to file…** and **Stop developing**.
+- **Save to file.** Reads the folder and prepares the proposal Import would prepare,
+  only what differs, for the ordinary review. Nothing is written until it is accepted.
+- **Stop developing** removes the link. The view runs the file's reviewed code again.
+- **What does not change.** The kill switches stop linked views like any other. Safe
+  mode and recovery run no view. A copy of the file, or the same file on another device,
+  runs the reviewed package in the file. The API, the broker's table and the actor are
+  the same: a linked view writes as its package, and History says so.
+- **No rung.** Nothing about a link is in the file, so no file needs a newer host.
+
+The trust trade is unchanged: the person who picks the folder is the one who reads the
+code, on their own device.
+
 ### Kept on purpose
 
 These are architecture, not security, and they stay:
@@ -423,7 +461,7 @@ contained helper is deleted.
 | 1 | Code in the file: the tables, the operations, the review and MCP authoring. Nothing runs yet | 1.33.0 |
 | 2 | Views run inline from the file, and the helper is deleted: serving, the read API, the kill switches, open definitions, package import and export as folders, and the four packages ported | 1.34.0 |
 | 3 | Views that write: records and commands (delivered 2026-09-26), proposals to prepare, and state | — |
-| 4 | Develop from a folder: a device-local link, reload on save, and saving the folder as proposals | — |
+| 4 | Develop from a folder: a device-local link, reload on save, and saving the folder as proposals (delivered 2026-09-26) | — |
 | 5 | Views anywhere: `extensionView` and `extensionTile` | 1.35.0 |
 
 ## Evidence and validation obligations
@@ -465,7 +503,7 @@ falsified once, and has the failure text quoted in its planner Check.
 | Every kill switch gives no frame and a 403 | G16 |
 | Code runs only after its proposal is accepted | G17 |
 | Reads are exact; writes are attributed, version-checked and approval-gated; a view cannot promote; state round-trips; a busy view does not starve a save | G18–G22 |
-| Develop from a folder | G23–G25 |
+| Develop from a folder | G20, and `DesktopExtensionDevelopmentTests` |
 | `extensionView` and `extensionTile` | G26 |
 
 ## Consequences
@@ -555,3 +593,7 @@ falsified once, and has the failure text quoted in its planner Check.
   commands take effect like a person's edit and are read and compensated in
   History. The owner followed the recommendation over W-065's earlier ask for a
   native confirmation. Phase 3 starts with records and commands (W-065).
+- 2026-09-26 — Phase 4 detailed: a device-local development link per file and
+  package, serving from the folder, reload on save, a banner the view cannot hide, and
+  Save to file as Import's proposal (W-063). Written before any code, on the owner's
+  standing pre-acceptance.

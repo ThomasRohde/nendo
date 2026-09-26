@@ -36,8 +36,10 @@ AppContainer and a Job Object with a browser of its own, is deleted. So are the
 device package cache, device consent and the native pane. The
 [custom-view contract](contracts/custom-views.md) has the rules, and
 [Authoring a custom view](custom-view-authoring.md) tells how to write a view.
-Writes from a view, developing from a folder, and views anywhere (Phases 3 to 5) are
-not yet delivered ([roadmap](roadmap.md)).
+A view writes records and runs commands, and a package can be developed from a
+folder on this device (Phases 3 and 4). Proposals and state from a view, and views
+anywhere (the rest of Phase 3, and Phase 5), are not yet delivered
+([roadmap](roadmap.md)).
 
 [ADR-0008](decisions/0008-general-scripting-and-capability-isolation.md) accepts
 bounded calculations and host-owned local actions. Stages S1–S4 of its

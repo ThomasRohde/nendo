@@ -196,6 +196,14 @@ public sealed class DesktopExtensionViewJourneyTests
         launch.Environment["NENDO_STARTUP_CREATE"] = "";
         launch.Environment["NENDO_STARTUP_OPEN"] = workspace.FilePath;
         launch.Environment["NENDO_DESKTOP_CLOSE_ACTION"] = "exit";
+        // G20 develops probe A from this folder; the host's picker answers with it under diagnostics.
+        var develop = Path.Combine(output, "develop-probe");
+        Directory.CreateDirectory(develop);
+        await File.WriteAllTextAsync(Path.Combine(develop, NendoExtensionArchives.ManifestName),
+            $$"""{ "packageId": "{{ProbePackages[0]}}", "title": "Probe A", "version": "1.1.0", "entryPoint": "index.html" }""");
+        await File.WriteAllTextAsync(Path.Combine(develop, "index.html"), ProbeHtml.Replace("<html lang=\"en\">", "<html lang=\"en\" data-source=\"folder-1\">", StringComparison.Ordinal));
+        await File.WriteAllTextAsync(Path.Combine(develop, "probe.js"), ProbeScript);
+        launch.Environment["NENDO_DIAGNOSTICS_DEVELOPMENT_FOLDER"] = develop;
         launch.Environment["WEBVIEW2_USER_DATA_FOLDER"] = Path.Combine(output, "webview");
         launch.Environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=" + port;
         using var host = Process.Start(launch)!;

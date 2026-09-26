@@ -29,9 +29,79 @@ export async function openCustomViews(): Promise<void> {
 
 export function customViewsPanel(): string {
   return customViewsPanelMarkup(state.session.extensions, state.session.fileName, (pkg) => ({
-    actions: `<button type="button" class="secondary-button" data-action data-view-add="${escapeAttribute(pkg.packageId)}" aria-expanded="${draft?.packageId === pkg.packageId}">Add view…</button>`,
+    actions: `${developmentActions(pkg)}<button type="button" class="secondary-button" data-action data-view-add="${escapeAttribute(pkg.packageId)}" aria-expanded="${draft?.packageId === pkg.packageId}">Add view…</button>`,
     body: `${packageUsesMarkup(pkg)}${draft?.packageId === pkg.packageId ? addViewFormMarkup(pkg, draft) : ''}`,
   }));
+}
+
+/* --- Developing a package from a folder (ADR-0013 Phase 4, W-063) ------------ */
+
+/** The card's development controls: start, or say where it runs from and how to save or stop. */
+function developmentActions(pkg: ExtensionPackageView): string {
+  if (client.mode !== 'desktop') return '';
+  const id = escapeAttribute(pkg.packageId);
+  if (typeof pkg.developmentFolder === 'string' && pkg.developmentFolder.length > 0)
+    return `<span class="package-developing" title="This computer runs this package from that folder, not the code in the file.">Developing from ${escapeHtml(pkg.developmentFolder)}</span>` +
+      `<button type="button" class="secondary-button" data-action data-develop-save="${id}">Save to file…</button>` +
+      `<button type="button" class="secondary-button" data-action data-develop-stop="${id}">Stop developing</button>`;
+  return `<button type="button" class="secondary-button" data-action data-develop-link="${id}">Develop from folder…</button>`;
+}
+
+/**
+ * Develop from folder: the host picks the folder; the answer is the session, naming the folder
+ * only. The host then says the package changed, which reloads its views (view-frames.ts).
+ */
+async function developPackage(packageId: string): Promise<void> {
+  if (state.actionInFlight) return;
+  state.actionInFlight = true;
+  setBusy(true);
+  clearError();
+  try {
+    const result = await client.request<DesktopSessionView | { cancelled: true }>('extension.develop.link', { packageId });
+    if ('cancelled' in result) return;
+    state.session = result;
+    rerender();
+    const folder = result.extensions?.packages.find((pkg) => pkg.packageId === packageId)?.developmentFolder ?? 'the folder';
+    showOutcome(`This computer now runs ${packageId} from ${folder}. Save there and its views load it again.`);
+  } catch (error) {
+    showError(messageFor(error));
+  } finally {
+    state.actionInFlight = false;
+    setBusy(false);
+  }
+}
+
+export async function stopDeveloping(packageId: string): Promise<void> {
+  if (state.actionInFlight) return;
+  state.actionInFlight = true;
+  setBusy(true);
+  clearError();
+  try {
+    state.session = await client.request<DesktopSessionView>('extension.develop.stop', { packageId });
+    rerender();
+    showOutcome(`${packageId} runs the code in the file again.`);
+  } catch (error) {
+    showError(messageFor(error));
+  } finally {
+    state.actionInFlight = false;
+    setBusy(false);
+  }
+}
+
+/** Save to file: the folder as the proposal Import would prepare, in the ordinary review. */
+export async function saveDevelopment(packageId: string): Promise<void> {
+  if (state.actionInFlight) return;
+  state.actionInFlight = true;
+  setBusy(true);
+  clearError();
+  try {
+    review(await client.request<ProposalPreview>('extension.develop.save', { packageId }), state.view);
+  } catch (error) {
+    showError(messageFor(error));
+  } finally {
+    state.actionInFlight = false;
+    setBusy(false);
+  }
 }
 
 /* --- Where a package is shown, and the Add view form (W-062) ------------------ */
@@ -242,6 +312,12 @@ export function wireCustomViewsPanel(root: ParentNode): void {
     button.addEventListener('click', () => void exportPackage(button.dataset.packageExport!));
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-package-remove]'))
     button.addEventListener('click', () => void removePackage(button.dataset.packageRemove!));
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-develop-link]'))
+    button.addEventListener('click', () => void developPackage(button.dataset.developLink!));
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-develop-save]'))
+    button.addEventListener('click', () => void saveDevelopment(button.dataset.developSave!));
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-develop-stop]'))
+    button.addEventListener('click', () => void stopDeveloping(button.dataset.developStop!));
 }
 
 /**

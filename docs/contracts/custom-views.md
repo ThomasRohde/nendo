@@ -16,7 +16,6 @@ Not yet delivered:
 
 - a view that prepares proposals or keeps state in the file (the rest of Phase 3;
   writing records and running commands are delivered, 2026-09-26);
-- developing a view from a folder on disk, with reload on save (Phase 4);
 - the `extensionView` root and the `extensionTile` (Phase 5).
 
 Nothing in this contract describes them as available.
@@ -352,6 +351,12 @@ A request is answered in this order:
    `index.html`.
 6. A file of the package: 200, with its content.
 7. Anything else: 404, "Not in this package."
+
+Step 5 has a development step in front of it (Phase 4, see
+[Developing from a folder](#developing-from-a-folder)): a package this device develops
+answers from its folder instead of the file, by the same rules from step 5 on. A folder
+that no longer reads as a package is answered 503 with the reason as plain text, never
+with the file's code.
 
 The path `/_nendo/` is reserved on every view origin, and a package cannot hold a
 file under it. If the file cannot be read at that moment, the answer is 503, "The
@@ -870,6 +875,9 @@ The Workbench reaches the host over the bridge (protocol 7) with these methods:
 | `extension.import` | `{}` | A proposal preview, or `{cancelled: true}` |
 | `extension.export` | `{packageId}` | `{exported, fileCount, folderName}`; `exported` is false when the person cancels |
 | `extension.remove` | `{packageId}` | A proposal preview; `extension-package-not-found` for a package the file does not carry |
+| `extension.develop.link` | `{packageId}` | The host opens its folder picker, then the session view, whose package names the folder by `developmentFolder`; or `{cancelled: true}`. `extension-link-mismatch` when the folder's `nendo-package.json` names another package, `extension-package-not-found` when the file does not carry the package |
+| `extension.develop.stop` | `{packageId}` | The session view. Stopping a package that is not developed is not an error |
+| `extension.develop.save` | `{packageId}` | The proposal preview Import would prepare from the folder; `extension-not-linked` when the package is not developed on this device |
 | `diagnostics.frameProcesses` | `{}` | Only when `NENDO_NATIVE_DIAGNOSTICS=1`, otherwise `unknown-method`: each browser process with its ID, kind, private working set in bytes and the frames it holds, each `{name, source}` |
 
 The host sends one event of its own for views. `extensionFramesFailed` carries
@@ -877,6 +885,40 @@ The host sends one event of its own for views. `extensionFramesFailed` carries
 Workbench ignores it for another file session, and ignores a payload with no
 frames, more than 256, or a name that is not `nendo-view-` and twelve hex digits.
 A view's `changes` events come from the existing `fileChanged` event.
+
+`extensionDevelopmentChanged` carries `{packageId}` and nothing else: the folder
+behind a developed package changed, or a link started or stopped. The Workbench
+reloads every running view of that package. It ignores a payload whose `packageId`
+is not a string of 1 to 80 characters.
+
+### Developing from a folder
+
+A development link (ADR-0013 Phase 4) runs one package of one file from a folder on
+this device, so an edit shows the moment it is saved, without a proposal.
+
+- **Where it lives.** In this device's custom-view settings
+  (`extension-settings.json` under the device state root), keyed by the file's
+  application ID and the package ID, with the folder's full path. At most 64 links.
+  A link that does not read as one when the settings load is dropped. Nothing about a
+  link is written to the file, so a copy of the file, or the file on another device,
+  runs the package the file carries.
+- **What the Workbench is told.** Each package in the session view has
+  `developmentFolder`: the folder's name, or null. Never its path.
+- **Starting.** The folder must read as a package by Import's rules and name the same
+  `packageId`, and the file must already carry the package: a new package goes in by
+  Import first.
+- **Reload.** The host watches the folder and its subfolders. A burst of changes
+  becomes one `extensionDevelopmentChanged` 250 ms after the last; the next request
+  reads the folder again.
+- **The strip.** Every view of a developed package is drawn with a strip above its
+  frame, in the Workbench's own markup: "Development", then "This computer runs
+  ‹package› from the folder ‹name›, not the code in the file.", with **Save to file…**
+  and **Stop developing**. The package's card in Studio says "Developing from ‹name›"
+  with the same two buttons, and **Develop from folder…** otherwise.
+- **Save to file** is `extension.develop.save`: Import's proposal from the folder, in
+  the ordinary review. The link stays until **Stop developing**.
+- **Unchanged.** The kill switches stop a developed view like any other (403); safe
+  mode and recovery run none; the API, the broker's table and the actor are the same.
 
 ## View definitions
 
@@ -1162,3 +1204,7 @@ passed. Each guard below was falsified, seen to fail and then restored:
   (W-065).
 - 2026-09-26 — `schema.describe` gives each command its `steps`, so a view can tell,
   as the record page does, that a command is spent on a record (W-068).
+- 2026-09-26 — Phase 4: developing a package from a folder on this device, with a
+  reload on every save, the Development strip, and Save to file as Import's proposal.
+  `extension.develop.link`, `.stop` and `.save`, and the
+  `extensionDevelopmentChanged` event (W-063).

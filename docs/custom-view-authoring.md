@@ -35,9 +35,8 @@ a sentence, and size its own panel.
 
 **Not yet.** A view writes records and runs record commands (see
 [Changing records](#changing-records)). Preparing proposals and keeping state in the
-file arrive with the rest of Phase 3. Developing a view straight from a folder, with reload on save, arrives
-with Phase 4, and a view as a screen of its own (`extensionView`) or a tile on the
-front page (`extensionTile`) with Phase 5.
+file arrive with the rest of Phase 3. A view as a screen of its own (`extensionView`)
+or a tile on the front page (`extensionTile`) arrives with Phase 5.
 
 A view can never reach the Workbench's own page, the host bridge, SQL, a file path,
 another file or a device setting, and it can never accept a proposal. See
@@ -666,6 +665,15 @@ Nendo does not interpret it. It is not the place for data.
   you accept it. A file that carries a package needs 1.33.0 in any case.
 
 ## Running, stopping and debugging
+
+- **Develop from a folder.** Import the package once. Then, in Studio → Surfaces →
+  Custom views, press **Develop from folder…** on its card and pick the package's
+  folder. Every view of the package now runs from that folder on this computer, under
+  a Development strip, and reloads whenever you save a file there. Nothing reaches the
+  `.nendo` file: anyone else, and a copy of the file, runs the code the file carries.
+  **Save to file…** prepares the proposal Import would, for you to review and accept;
+  **Stop developing** puts the file's code back. A folder that stops reading as a
+  package, say with a broken `nendo-package.json`, shows the reason in the view.
 
 - A view starts when its place comes into view: a screen when you show it, a panel
   when the record page scrolls it near the window. Nothing runs in Studio, in safe

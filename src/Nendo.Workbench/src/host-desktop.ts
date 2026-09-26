@@ -78,6 +78,7 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
   private readonly navigateListeners = new Set<(route: HostRoute) => void>();
   private readonly framesFailedListeners = new Set<(failed: HostFramesFailed) => void>();
   private readonly fileChangedListeners = new Set<(changeSequence: number) => void>();
+  private readonly developmentListeners = new Set<(packageId: string) => void>();
   private readonly agentActivityListeners = new Set<(work: AgentWork) => void>();
   private readonly journal = new PendingMutationJournal({
     getItem: key => window.localStorage.getItem(key),
@@ -259,6 +260,11 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     return () => { this.framesFailedListeners.delete(listener); };
   }
 
+  onExtensionDevelopmentChanged(listener: (packageId: string) => void): () => void {
+    this.developmentListeners.add(listener);
+    return () => { this.developmentListeners.delete(listener); };
+  }
+
   onFileChanged(listener: (changeSequence: number) => void): () => void {
     this.fileChangedListeners.add(listener);
     return () => { this.fileChangedListeners.delete(listener); };
@@ -296,6 +302,18 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
       for (const listener of this.agentActivityListeners) {
         try {
           listener({ busy: work.busy, client: work.client, activity: work.activity });
+        } catch {
+          // Nothing here can report a failure the person would act on.
+        }
+      }
+      return;
+    }
+    if (message.event === 'extensionDevelopmentChanged') {
+      const packageId = (message.payload as { packageId?: unknown } | null)?.packageId;
+      if (typeof packageId !== 'string' || packageId.length === 0 || packageId.length > 80) return;
+      for (const listener of this.developmentListeners) {
+        try {
+          listener(packageId);
         } catch {
           // Nothing here can report a failure the person would act on.
         }

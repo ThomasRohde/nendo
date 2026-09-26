@@ -150,6 +150,8 @@ export interface ExtensionPackageView {
   totalBytes: number;
   /** Changes whenever the package's content does, so a view restarts on accepted code. */
   contentDigest?: string;
+  /** The name of the folder this device runs the package from while it is developed (ADR-0013 Phase 4), or null. */
+  developmentFolder?: string | null;
 }
 
 export interface FileCapabilities {
@@ -569,6 +571,8 @@ export interface WorkbenchClient {
    * worse than a screen that is a second behind.
    */
   onFileChanged?(listener: (changeSequence: number) => void): () => void;
+  /** A package developed from a folder changed there; its views load it again (ADR-0013 Phase 4). */
+  onExtensionDevelopmentChanged?(listener: (packageId: string) => void): () => void;
   /**
    * Listen for an agent starting or finishing a call.
    *

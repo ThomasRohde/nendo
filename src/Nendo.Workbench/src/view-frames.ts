@@ -10,7 +10,7 @@ import {
   viewOverlayMarkup, viewSpecOf, type ViewNotice, type ViewTrouble,
 } from './view-frame-markup';
 import { refreshHealth } from './view-health';
-import { importPackage, openCustomViews, setViewSwitch } from './view-packages';
+import { importPackage, openCustomViews, saveDevelopment, setViewSwitch, stopDeveloping } from './view-packages';
 
 /**
  * Custom views on the page (ADR-0013): one cross-origin frame per view, in the placeholder
@@ -103,6 +103,7 @@ export function installViewFrames(): void {
   });
   window.addEventListener('message', (event) => broker?.receive(event));
   client.onFileChanged?.((changeSequence) => broker?.changes(changeSequence));
+  client.onExtensionDevelopmentChanged?.((packageId) => reloadPackageViews(packageId));
   client.onExtensionFramesFailed?.((failed) => {
     if (failed.fileSessionId === state.session.fileSessionId) framesFailed(failed.frames);
   });
@@ -201,9 +202,11 @@ export function wireViewFrames(scope: ParentNode): void {
     if (spec === null || stage === null) continue;
     const notice = viewNotice(state.session.extensions, spec.packageId, client.mode);
     if (notice.kind !== 'run') {
+      developmentBanner(element, stage, null, spec.packageId);
       showNotice(element, stage, notice, spec);
       continue;
     }
+    developmentBanner(element, stage, notice.pkg.developmentFolder ?? null, spec.packageId);
     const key = mountKey(spec, state.session.fileSessionId, notice.pkg);
     let mount = mounts.get(key);
     if (mount === undefined) {
@@ -378,6 +381,49 @@ function reload(mount: Mount): void {
   }
   setTrouble(mount, null);
   if (mount.frame === null) start(mount);
+}
+
+/**
+ * The strip above a view this device runs from a folder (ADR-0013 Phase 4). It is the
+ * Workbench's own markup, outside the view's frame, so the view cannot reach it to hide it,
+ * and it says in words that this is not the code the file carries.
+ */
+function developmentBanner(element: HTMLElement, stage: HTMLElement, folder: string | null, packageId: string): void {
+  let banner = element.querySelector<HTMLElement>(':scope > [data-view-development]');
+  if (folder === null) { banner?.remove(); return; }
+  if (banner === null) {
+    banner = document.createElement('div');
+    banner.className = 'view-development';
+    banner.setAttribute('data-view-development', '');
+    banner.setAttribute('role', 'note');
+    element.insertBefore(banner, stage);
+  }
+  const text = document.createElement('span');
+  text.innerHTML = '<strong>Development</strong> ';
+  text.append(document.createTextNode(`This computer runs ${packageId} from the folder ${folder}, not the code in the file.`));
+  const save = document.createElement('button');
+  save.type = 'button'; save.className = 'text-button'; save.textContent = 'Save to file…';
+  save.setAttribute('data-develop-save', packageId);
+  save.addEventListener('click', () => void saveDevelopment(packageId));
+  const stop = document.createElement('button');
+  stop.type = 'button'; stop.className = 'text-button'; stop.textContent = 'Stop developing';
+  stop.setAttribute('data-develop-stop', packageId);
+  stop.addEventListener('click', () => void stopDeveloping(packageId));
+  banner.replaceChildren(text, save, stop);
+}
+
+/**
+ * The folder behind a developed package changed, or the package started or stopped being
+ * developed: every running view of it loads again, from wherever its origin now answers.
+ */
+function reloadPackageViews(packageId: string): void {
+  for (const mount of mounts.values()) {
+    if (mount.spec.packageId !== packageId || mount.frame === null) continue;
+    broker?.disconnect(mount);
+    mount.loaded = false;
+    setTrouble(mount, null);
+    mount.frame.src = frameSource(mount.origin, mount.entryPoint);
+  }
 }
 
 /** The host says these frames' renderer ended: each shows that, with Reload. */

@@ -83,6 +83,12 @@ internal static class WorkbenchEvents
     internal const string FileChanged = "fileChanged";
 
     /// <summary>
+    /// A package this device develops from a folder changed there (ADR-0013 Phase 4). Payload is
+    /// the package ID and nothing else; the renderer reloads that package's views.
+    /// </summary>
+    internal const string ExtensionDevelopmentChanged = "extensionDevelopmentChanged";
+
+    /// <summary>
     /// An agent started or finished a call. Payload is whether work is running, the
     /// client's display name and the tool or resource it named -- no handle, no lease, no
     /// record. It is the one event here that exists for the person rather than for the
@@ -332,6 +338,9 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.ExtensionImport => await ImportExtensionAsync(cancellationToken),
                     WorkbenchMethods.ExtensionExport => await ExportExtensionAsync(RequiredString(payload, "packageId", 80), cancellationToken),
                     WorkbenchMethods.ExtensionRemove => await _session.PrepareExtensionRemovalAsync(RequiredString(payload, "packageId", 80), cancellationToken),
+                    WorkbenchMethods.ExtensionDevelopLink => await LinkExtensionFolderAsync(RequiredString(payload, "packageId", 80), cancellationToken),
+                    WorkbenchMethods.ExtensionDevelopStop => await _session.UnlinkExtensionFolderAsync(RequiredString(payload, "packageId", 80), cancellationToken),
+                    WorkbenchMethods.ExtensionDevelopSave => await _session.PrepareDevelopmentSaveAsync(RequiredString(payload, "packageId", 80), cancellationToken),
                     WorkbenchMethods.DiagnosticsFrameProcesses when DesktopRuntimeConfiguration.NativeDiagnostics =>
                         await ExtensionHost().ReadFrameProcessesAsync(),
                     WorkbenchMethods.SessionGetRecentFiles => await _session.GetRecentFilesAsync(cancellationToken),

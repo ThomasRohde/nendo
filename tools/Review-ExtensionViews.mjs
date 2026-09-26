@@ -374,6 +374,42 @@ try {
     `The person's save waited ${report.measurements.personSaveDuringFloodMs} ms behind a view's flood.`);
   check(`G19 a view creates, updates, runs a command on and deletes a record as its package, a stale write is refused, and during an eighty-write flood, eight at a time, the person's save took ${report.measurements.personSaveDuringFloodMs} ms`);
 
+  // G20 (W-063, ADR-0013 Phase 4): develop probe A from a folder. The host's picker answers
+  // with the folder the journey test made (NENDO_DIAGNOSTICS_DEVELOPMENT_FOLDER); the card says
+  // so, the screen runs the folder's code under a Development strip the view cannot cover, a
+  // save in the folder reloads it within a measured bound, and Stop developing puts the file's
+  // code back. Nothing of this reaches the file.
+  const developFolder = path.join(output, 'develop-probe');
+  const titleIn = async () => { const running = (await frames()).find(f => f.view === 'probe' && f.state === 'running');
+    return running ? inFrame(await frameSession(running.name), `document.documentElement.dataset.source ?? 'file'`) : null; };
+  // The title the screen shows, or an error naming the one it does show, so a timeout says which code ran.
+  const showing = title => async () => { const now = await titleIn(); return now === title ? now : 'error: showing ' + JSON.stringify(now); };
+  const sequenceBefore = (await installGate()).manifest.changeSequence;
+  await click('#nav-surfaces'); await idle();
+  await click('[data-develop-link="org.nendo.test.probe-a"]'); await idle();
+  const card = await waitFor(() => evaluate(`document.querySelector('[data-package="org.nendo.test.probe-a"] .package-developing')?.textContent ?? null`), 'the card saying where probe A runs from');
+  assert(card === 'Developing from develop-probe', 'The card does not name the folder: ' + JSON.stringify(card));
+  await click('#nav-use'); await idle();
+  await click('[data-select-surface="probe"]'); await idle();
+  await waitFor(showing('folder-1'), 'the screen running the folder’s code', 30000);
+  const strip = await evaluate(`(() => { const mount = [...document.querySelectorAll('[data-view-mount]')].find(m => m.dataset.viewId === 'probe');
+    const banner = mount?.querySelector(':scope > [data-view-development]'); if (!banner) return null;
+    const box = banner.getBoundingClientRect(); const hit = document.elementFromPoint(box.left + 4, box.top + box.height / 2);
+    return { text: banner.textContent, height: box.height, own: banner.contains(hit), frameInside: Boolean(banner.querySelector('iframe')) }; })()`);
+  assert(strip && /^Development This computer runs org\.nendo\.test\.probe-a from the folder develop-probe, not the code in the file\./.test(strip.text),
+    'The Development strip does not say what runs: ' + JSON.stringify(strip));
+  assert(strip.height >= 20 && strip.own && !strip.frameInside, 'The Development strip is hidden, covered or inside the view: ' + JSON.stringify(strip));
+  const saved = Date.now();
+  await fs.writeFile(path.join(developFolder, 'index.html'), (await fs.readFile(path.join(developFolder, 'index.html'), 'utf8')).replace('folder-1', 'folder-2'));
+  await waitFor(showing('folder-2'), 'the screen reloaded after a save in the folder', 15000);
+  report.measurements.developmentReloadMs = Date.now() - saved;
+  assert(report.measurements.developmentReloadMs < 5000, `A save in the folder took ${report.measurements.developmentReloadMs} ms to reach the view.`);
+  await click('[data-view-development] [data-develop-stop]'); await idle();
+  await waitFor(showing('file'), 'the file’s code again after Stop developing', 30000);
+  assert(!(await evaluate(`Boolean(document.querySelector('[data-view-development]'))`)), 'The Development strip outlived Stop developing.');
+  assert((await installGate()).manifest.changeSequence === sequenceBefore, 'Developing from a folder wrote to the file.');
+  check(`G20 probe A developed from a folder runs its code under a Development strip the view cannot cover, a save there reached the view in ${report.measurements.developmentReloadMs} ms, and Stop developing restores the file's code`);
+
   console.log('extension views ok');
 } catch (error) {
   report.error = error.stack ?? String(error);

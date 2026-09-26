@@ -692,6 +692,28 @@
   content: "Starting…";
 }
 
+/* A view this device runs from a folder (ADR-0013 Phase 4) says so above its frame, in the
+   Workbench's own markup, which the view cannot reach. */
+.view-development {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--warning);
+  border-left-width: 4px;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.view-development > span { flex: 1 1 18rem; min-width: 0; overflow-wrap: anywhere; }
+.view-development strong { color: var(--warning); font-weight: 700; }
+.view-development .text-button { min-height: 26px; padding: 2px 8px; font-size: 0.78rem; }
+.view-mount.is-screen .view-development { margin: 8px 8px 0; }
+.view-mount.is-screen:has(> .view-development) { grid-template-rows: auto minmax(0, 1fr); }
+.package-developing { color: var(--warning); font-size: 0.8rem; font-weight: 650; align-self: center; }
+
 /* A screen that is a custom view gives the whole surface to it. */
 .custom-view-surface {
   display: flex;
