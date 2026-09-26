@@ -37,6 +37,44 @@ together but each has an independent defect and regression. Prioritize the
 four High findings, then record-read/edit/undo failures before cosmetic results.
 No CVE or package-vulnerability finding is asserted.
 
+## Resolution, 2026-09-26
+
+All 19 findings are fixed on `main` in one change, on top of `c286522`. Each
+finding has a regression guard in a lane that already runs. Each guard was
+falsified: the defect was put back, the guard was watched failing, and then the
+fix was restored. The quoted failure is what the guard printed with the defect
+back.
+
+| ID | Fix | Guard, and its failure with the defect back |
+| --- | --- | --- |
+| R-001 | `Register-NendoWithWindows` runs on the identical-payload path too, and is idempotent | `Test-NendoSetup.ps1` registration-retry case: "The rerun did not recreate the file association" |
+| R-002 | The view API takes `targetVersions`, and the broker forwards it as `expectedTargetVersions` | `extension-broker`/`extension-api` tests; `DesktopExtensionReferenceWriteTests` (current, stale, absent, empty and null targets): "Select the target again so its current version can be checked." |
+| R-003 | `today` is a date for Date, and the zoned start of the person's day for DateTime; Engine command steps use the same local day | `record-window.test.mjs`, `extension-api.test.mjs`, `CommandStepTodayTests`: "A DateTime step's today was not the instant the person's day begins." |
+| R-004 | The catalogue is registered first and user aliases over it, as the analyzer resolves them | `BehaviourFunctionCallTests`: "Expected:<99>. Actual:<3>." |
+| R-005 | Digits out of range are a `calculation-overflow` field error | `OutOfRangeRoundingDigitsAreAFieldErrorNotAFailedRecordRead`: "NendoValidationException: Rounding takes between 0 and 28 digits." |
+| R-006 | Rows in committed batches carry the target versions their revision recorded | `AnExactCsvRetryReplaysAfterAReferencedTargetIsEdited`, `APartialCsvImportResumes…`: `NENDO_IDEMPOTENCY_CONFLICT` |
+| R-007 | A batch key that would exceed 200 characters becomes `import.sha256.<hash>#N`; shorter keys keep `key#N` | `AnImportKeyOfAnyAdmittedLength…` (198/199/200): "The idempotency key must contain 1-200 characters." |
+| R-008 | Range and ranking loaders use the sequence-aware pending rule | `summary-refresh.test.mjs`: "The file moved and the range and ranking were not read again." |
+| R-009 | `sameRevision` accepts a pair only from one sequence, with bounded re-reads | `summary-refresh.test.mjs`: "A count from revision 2 was divided by a total from revision 3." |
+| R-010 | Same-file outcomes keep the form; file-replacing actions honour the dirty-form guard | `file-action-draft.test.mjs`: "Cancelling file.backup redrew the page, and the redraw discards the unsaved form." |
+| R-011 | A nullable parameter receives a typed empty value | `ANullableParameterTakesAnEmptyArgument…`: "A value this formula needs is empty." |
+| R-012 | The final candidate is refused with `retired-binding` while behaviour reads or writes a retired field or type | `RetiringAnActionTargetIsRefused…`: "Expected exception type:<NendoPreconditionException> but no exception was thrown." |
+| R-013 | An overview row reads its record by ID before selecting it | `overview-open-record.test.mjs`: "The record type opened and the clicked record did not." |
+| R-014 | View authority is checked again inside the Desktop gate. The Engine refuses an `extension:` write whose package is gone, inside the write transaction | `DesktopExtensionWriterTests`, `DesktopExtensionWriterAgentRaceTests`, `ExtensionActorWriteTests`: "A view's write queued behind the device kill switch committed after views were turned off." |
+| R-015 | The inverse reference expects the version planned by the parents' own inverses | `ImmediatelyReversingAReferenceMove…`: "The selected target changed. Select it again before saving." |
+| R-016 | Redundant trailing zeros are shed when the coefficient overflows, before refusing | `AMixedScaleSumShedsARedundantZero…`: "The exact sum is outside the range this host can represent." |
+| R-017 | A null grant or digest is structurally invalid and fails closed with a notice | `StructurallyInvalidStateInTheWrittenCasing…`, `AFileStillOpensWhen…`: `NullReferenceException` |
+| R-018 | Package inverses carry the expected metadata, and are refused with `extension-package-changed` | `ReversingOldPackageMetadataRefusesANewerChange`: "Expected exception type:<NendoPreconditionException> but no exception was thrown." |
+| R-019 | A request generation is moved on by every input and dismissal | `site/scripts/docs-search.test.mjs`, run by `Test-Site.ps1`: "A search answered after the field was cleared reopened the results." |
+
+Limitations that remain:
+
+- A person accepting a view's proposal is not checked against the package's
+  presence, because the acceptance is the person's act.
+- `Test-NendoSetupIsolated.ps1` and the NSIS wrapper were not run against the
+  R-001 retry path.
+- The Pages workflow does not run the site's new script tests.
+
 ## Scope and review boundary
 
 Broad review of the Engine, Desktop host, local MCP adapter, Workbench, custom

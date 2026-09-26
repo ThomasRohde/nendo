@@ -110,6 +110,60 @@ public sealed class ExactAggregateTests
         Assert.AreEqual(500, sum.ContributingRecords);
     }
 
+    // R-016. Mixed scales align on the larger one, so decimal.MaxValue + 0.0 carries
+    // a coefficient ten times the largest a decimal holds -- with a trailing zero the
+    // answer does not need. The answer is exactly decimal.MaxValue and must not be
+    // refused as out of range; a sum that really is out of range still is.
+    [TestMethod]
+    public void AMixedScaleSumShedsARedundantZeroBeforeRefusingItsRange()
+    {
+        static string Sum(params decimal[] values)
+        {
+            var fold = new ExactAggregate("sum", integral: false);
+            foreach (var value in values) fold.Add(value);
+            return fold.Value()!.Value.GetRawText();
+        }
+
+        Assert.AreEqual("79228162514264337593543950335", Sum(decimal.MaxValue, 0.0m));
+        Assert.AreEqual("79228162514264337593543950335", Sum(0.0m, decimal.MaxValue));
+        Assert.AreEqual("-79228162514264337593543950335", Sum(decimal.MinValue, -0.0m));
+        Assert.AreEqual("79228162514264337593543950335", Sum(decimal.MaxValue, 0.0000000000000000000000000000m),
+            "Twenty-eight redundant zeros are shed, not one.");
+        Assert.AreEqual("79228162514264337593543950335", Sum(decimal.MaxValue - 1m, 1.0m));
+        Assert.AreEqual("7922816251426433759354395033.5", Sum(7922816251426433759354395033.5m, 0.00m),
+            "Only the zeros the coefficient cannot hold are shed; the scale it can hold stays.");
+
+        foreach (var outOfRange in new[] { new[] { decimal.MaxValue, 1m }, [decimal.MaxValue, 0.1m], [decimal.MaxValue, decimal.MaxValue], [decimal.MinValue, -0.1m] })
+        {
+            var fold = new ExactAggregate("sum", integral: false);
+            foreach (var value in outOfRange) fold.Add(value);
+            var refusal = Assert.ThrowsExactly<NendoPreconditionException>(() => fold.Value(),
+                $"{string.Join(" + ", outOfRange)} is outside the range and has no zero to shed.");
+            Assert.AreEqual("aggregate-not-representable", refusal.Code);
+        }
+    }
+
+    [TestMethod]
+    public async Task AMixedScaleBoundarySumIsAnsweredBySummaryAndGroupedReads()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator);
+        await SeedAsync(coordinator, decimal.MaxValue, 0.0m);
+
+        var sum = await service.AggregateRecordsAsync(new("item", "sum", "amount"));
+        Assert.AreEqual("79228162514264337593543950335", sum.ValueLexeme);
+        Assert.AreEqual(2, sum.ContributingRecords);
+
+        // The grouped fold is the same accumulator; everything lands in the unset group.
+        await coordinator.ApplyAsync(Mutation("status", [
+            new AddFieldOperation("status", "item", "status", "Status", "status_value", NendoStorageKind.Text, false, "singleChoice", ["open"]),
+        ]));
+        var grouped = await service.GroupAggregateRecordsAsync(new("item", "status", "sum", "amount"));
+        Assert.AreEqual("79228162514264337593543950335", grouped.Groups.Single(group => group.Key is null).ValueLexeme);
+    }
+
     [TestMethod]
     public async Task IntegerAggregatesStayIntegers()
     {

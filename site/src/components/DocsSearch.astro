@@ -98,16 +98,25 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       return loading;
     };
 
+    // A search is answered over several awaits, and the reader keeps typing, clears the
+    // field or dismisses the panel meanwhile. Every one of those moves the generation on,
+    // and an answer is shown only if its own generation is still the current one: an
+    // older, slower search must not reopen a dismissed panel or replace a newer answer.
+    let generation = 0;
+    const dismiss = () => { generation += 1; results.hidden = true; };
+
     input.addEventListener('focus', () => void load());
 
     input.addEventListener('input', async () => {
+      const request = ++generation;
       const term = input.value.trim();
       if (term.length < 2) { results.hidden = true; results.innerHTML = ''; return; }
       await load();
-      if (!pagefind) return;
+      if (request !== generation || !pagefind) return;
       const search = await pagefind.debouncedSearch(term, undefined, 200);
-      if (search === null) return;
+      if (request !== generation || search === null) return;
       const top = await Promise.all(search.results.slice(0, 8).map(result => result.data()));
+      if (request !== generation) return;
       results.innerHTML = top.length === 0
         ? '<p class="empty">Nothing matched.</p>'
         : top.map(item => {
@@ -121,11 +130,11 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
     document.addEventListener('click', event => {
       if (!(event.target instanceof Node)) return;
-      if (!results.contains(event.target) && event.target !== input) results.hidden = true;
+      if (!results.contains(event.target) && event.target !== input) dismiss();
     });
 
     input.addEventListener('keydown', event => {
-      if (event.key === 'Escape') { results.hidden = true; input.blur(); }
+      if (event.key === 'Escape') { dismiss(); input.blur(); }
     });
   }
 </script>

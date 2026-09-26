@@ -180,6 +180,65 @@ test('a write goes to the host as the mount\u2019s package, never as anything th
   assert.equal(h.calls[5].payload.expectedRecordVersion, 1);
 });
 
+// R-002: the host refuses a non-null reference without the target's version
+// (target-version-required), so a view's create and update must carry the map to it.
+test('a create and an update that set a reference carry each target’s version to the host as expectedTargetVersions', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  view.send({ t: 'req', id: 1, m: 'records.create', p: {
+    entityId: 'tasks', recordId: 't9', values: { title: 'Cure the slab', owner: 'p1' }, targetVersions: { owner: 7 },
+  } });
+  await until(() => h.calls.length === 1, 'the create');
+  assert.equal(h.calls[0].method, 'data.createRecord');
+  assert.deepEqual({ ...h.calls[0].payload, idempotencyKey: undefined }, {
+    entityId: 'tasks', recordId: 't9', values: { title: 'Cure the slab', owner: 'p1' }, expectedTargetVersions: { owner: 7 },
+    idempotencyKey: undefined, actor: 'extension:org.example.glance',
+  });
+  h.pending[0].resolve({});
+  await until(() => h.calls.length === 2, 'the read back');
+  h.pending[1].resolve({ items: [] });
+  await view.next((message) => message.id === 1);
+
+  view.send({ t: 'req', id: 2, m: 'records.update', p: {
+    entityId: 'tasks', recordId: 't9', version: 1, values: { owner: 'p2', reviewer: null }, targetVersions: { owner: 3 },
+  } });
+  await until(() => h.calls.length === 3, 'the update');
+  assert.equal(h.calls[2].method, 'data.setFields');
+  assert.deepEqual({ ...h.calls[2].payload, idempotencyKey: undefined }, {
+    entityId: 'tasks', recordId: 't9', expectedRecordVersion: 1, values: { owner: 'p2', reviewer: null }, expectedTargetVersions: { owner: 3 },
+    idempotencyKey: undefined, actor: 'extension:org.example.glance',
+  });
+  h.pending[2].resolve({});
+  await until(() => h.calls.length === 4, 'its read back');
+  h.pending[3].resolve({ items: [] });
+  await view.next((message) => message.id === 2);
+
+  // A write that sets no reference sends no map, and a view's own expectedTargetVersions is not passed on.
+  view.send({ t: 'req', id: 3, m: 'records.update', p: {
+    entityId: 'tasks', recordId: 't9', version: 2, values: { title: 'x' }, expectedTargetVersions: { title: 1 },
+  } });
+  await until(() => h.calls.length === 5, 'the plain update');
+  assert.equal('expectedTargetVersions' in h.calls[4].payload, false, 'A map the broker did not rebuild reached the host.');
+  h.pending[4].resolve({});
+  await until(() => h.calls.length === 6, 'its read back');
+  h.pending[5].resolve({ items: [] });
+  await view.next((message) => message.id === 3);
+
+  const refusals = [
+    [4, 'records.create', { entityId: 'tasks', values: { owner: 'p1' }, targetVersions: { owner: 0 } }],
+    [5, 'records.create', { entityId: 'tasks', values: { owner: 'p1' }, targetVersions: { owner: '7' } }],
+    [6, 'records.create', { entityId: 'tasks', values: { owner: 'p1' }, targetVersions: { reviewer: 7 } }],
+    [7, 'records.update', { entityId: 'tasks', recordId: 't9', version: 3, values: { owner: 'p1' }, targetVersions: [7] }],
+  ];
+  for (const [id, m, p] of refusals) {
+    view.send({ t: 'req', id, m, p });
+    assert.equal((await view.next((message) => message.id === id)).e.code, 'invalid-params', `${m} ${JSON.stringify(p)}`);
+  }
+  await settle();
+  assert.equal(h.calls.length, 6, 'A refused target version reached the host.');
+});
+
 test('a view prepares a proposal as its package, which opens in the review; it reads only its own, and cannot promote or reject', async (t) => {
   const h = harness();
   const view = connect(h);
@@ -554,9 +613,10 @@ test('a view’s context is built from the stored nodes: its bindings, filters, 
     labelFieldId: 'title', statusFieldId: 'status', edgeEntityId: 'link', sourceFieldId: 'from', targetFieldId: 'to',
     fields: [{ fieldId: 'age', entityId: 'work' }, { fieldId: 'kind', entityId: 'link' }],
     filters: [
-      { fieldId: 'due', entityId: 'work', operator: 'le', value: null, valueKind: 'today' },
-      { fieldId: 'kind', entityId: 'link', operator: 'isNotNull', value: null, valueKind: 'literal' },
-      { fieldId: 'status', entityId: 'work', operator: 'ne', value: 'open', valueKind: 'literal' },
+      // Each filter says its field's stored kind, so `today` resolves to a date or an instant (R-003).
+      { fieldId: 'due', entityId: 'work', operator: 'le', value: null, valueKind: 'today', storageKind: 'date' },
+      { fieldId: 'kind', entityId: 'link', operator: 'isNotNull', value: null, valueKind: 'literal', storageKind: 'text' },
+      { fieldId: 'status', entityId: 'work', operator: 'ne', value: 'open', valueKind: 'literal', storageKind: 'text' },
     ],
   });
   assert.deepEqual(built.configuration, { layout: 'layered', gap: 4 });

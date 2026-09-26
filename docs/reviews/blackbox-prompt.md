@@ -736,6 +736,10 @@ vocabulary, the examples and the resources — and not from the person.
   press the view's button again without reloading the view: record what the view was
   told, and whether anything changed. Ask whether they expected Nendo to ask before a
   view changed their records.
+- In the same view, add a button that sets a reference field of the selected record to
+  another record through `nendo.records.update`, passing the target's version in
+  `targetVersions`. Record whether the reference changed, then change the target record
+  in Studio and press the button again without reloading: record what the view was told.
 - Ask the person, without an agent, to show the package on a second screen and as a
   panel on a record page, from Studio → Surfaces → Custom views. Record whether the
   package's card told them where it was already shown, whether the form let them choose
@@ -769,6 +773,11 @@ vocabulary, the examples and the resources — and not from the person.
 - Ask the person to remove the package from the file, and to say what the screen shows
   afterwards. Then have them compensate that removal from History, and say whether the
   view came back.
+- Change the package's title or entry point twice over MCP, as two accepted proposals.
+  Then compensate the first of the two from History. Record whether the host refuses it
+  because the package changed since, what the refusal says, and whether the newer title
+  and entry point are still there. Compensate the second, then the first, and record
+  what each restores.
 
 ## What to produce
 

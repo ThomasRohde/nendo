@@ -34,6 +34,8 @@ import {
 } from 'ag-grid-community';
 import type { DesktopSessionView } from './host';
 import { surfaceLabel, useSurfaces } from './surface-model';
+import { useFieldKinds } from './record-window';
+import { storageKindName } from './extension-model';
 import { icon, type IconName } from './icons';
 import { openPalette } from './command-palette';
 import { matchShortcut, shortcut, shortcutsShownFrom, shortcutsStorageKey, type ShortcutId } from './shortcuts';
@@ -46,6 +48,18 @@ ModuleRegistry.registerModules([
   SelectEditorModule,
   TextEditorModule,
 ]);
+
+// A filter's `today` is a date for a Date field and an instant for a DateTime one, so the
+// resolver asks the open session what kind each field is (R-003). One map per snapshot.
+const fieldKindMaps = new WeakMap<DesktopSessionView, Map<string, string>>();
+useFieldKinds((fieldId) => {
+  let kinds = fieldKindMaps.get(state.session);
+  if (kinds === undefined) {
+    kinds = new Map(state.session.entities.flatMap((entity) => entity.fields.map((field) => [field.fieldId, storageKindName(field.storageKind)] as const)));
+    fieldKindMaps.set(state.session, kinds);
+  }
+  return kinds.get(fieldId);
+});
 
 /**
  * The entry point: what index.html loads, and the only module that knows about

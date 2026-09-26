@@ -193,16 +193,20 @@ internal sealed class NendoExpressionAdapter
                 context.Parameters[parameter.Name] = value.Boxed;
             }
 
-            foreach (var (alias, target) in expression.Calls)
-            {
-                var callee = target;
-                context.Functions[alias] = data => InvokeApplicationFunction(callee, data, budget);
-            }
+            // The catalogue goes in first and the formula's own aliases over it, because
+            // that is the rule the analyzer typed the formula by: an alias that shares a
+            // built-in's name is the author's function. Registering in the other order
+            // would run a different function from the one validation accepted.
             foreach (var name in NendoBehaviourCatalogue.Names)
             {
                 if (!NendoBehaviourCatalogue.TryGet(name, out var function)) continue;
                 var entry = function;
                 context.Functions[name] = data => InvokeCatalogueFunction(entry, data, budget);
+            }
+            foreach (var (alias, target) in expression.Calls)
+            {
+                var callee = target;
+                context.Functions[alias] = data => InvokeApplicationFunction(callee, data, budget);
             }
 
             var factory = new BehaviourVisitorFactory(budget);
@@ -258,7 +262,20 @@ internal sealed class NendoExpressionAdapter
         for (var index = 0; index < callee.Parameters.Count; index++)
         {
             var parameter = callee.Parameters[index];
-            var value = BehaviourValue.FromEvaluated(data.Evaluate(index), budget.Limits);
+            var raw = data.Evaluate(index);
+            // An empty argument reaches a parameter declared to allow one as a typed
+            // empty of the declared kind, so a function that never reads it, or reads
+            // it on a branch not taken, still answers. A parameter declared to need a
+            // value stops the calling formula, as an empty operand does.
+            if (raw is null)
+            {
+                if (!parameter.Nullable)
+                    throw new NendoCalculationException(NendoCalculationCodes.MissingInput,
+                        $"'{parameter.Name}' is empty, and '{callee.FormulaId}' needs a value for it.");
+                arguments[parameter.Name] = BehaviourValue.Empty(parameter.Type);
+                continue;
+            }
+            var value = BehaviourValue.FromEvaluated(raw, budget.Limits);
             if (parameter.Type == NendoBehaviourScalar.Decimal && value.Type == NendoBehaviourScalar.Integer)
                 value = BehaviourValue.Decimal(value.AsDecimal());
             arguments[parameter.Name] = value;

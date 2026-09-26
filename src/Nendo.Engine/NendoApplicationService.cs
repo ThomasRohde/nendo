@@ -481,19 +481,44 @@ public sealed partial class NendoApplicationService
     /// today and now resolve at execution, not at compilation, so the stored
     /// definition and its digest stay independent of the clock.
     /// </summary>
-    private static object? ResolveStepValue(NendoSurfaceNodePlan step, NendoFieldPlan field)
+    private static object? ResolveStepValue(NendoSurfaceNodePlan step, NendoFieldPlan field) =>
+        ResolveStepValue(step, field, DateTimeOffset.UtcNow, TimeZoneInfo.Local);
+
+    /// <summary>
+    /// today is the person's civil date where this host runs, the same day a screen's
+    /// filter resolves: the date itself for a Date field, and the instant that day
+    /// begins, stored in UTC, for a DateTime field.
+    /// </summary>
+    internal static object? ResolveStepValue(
+        NendoSurfaceNodePlan step, NendoFieldPlan field, DateTimeOffset now, TimeZoneInfo zone)
     {
         var kind = step.Properties["valueKind"].GetString();
-        var now = DateTimeOffset.UtcNow;
+        var local = TimeZoneInfo.ConvertTime(now, zone);
         return kind switch
         {
             "null" => null,
             "today" => field.StorageKind == NendoStorageKind.DateTime
-                ? now.Date.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture)
-                : now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            "now" => now.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
+                ? StartOfDay(local.Date, zone).UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture)
+                : local.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            "now" => now.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
             _ => step.Properties["value"],
         };
+    }
+
+    /// <summary>
+    /// The first instant of a civil date in a zone. A day whose midnight a clock change
+    /// skips begins at the first local time that exists; a midnight that happens twice
+    /// begins at the earlier of the two.
+    /// </summary>
+    private static DateTimeOffset StartOfDay(DateTime date, TimeZoneInfo zone)
+    {
+        var start = DateTime.SpecifyKind(date.Date, DateTimeKind.Unspecified);
+        for (var minutes = 0; zone.IsInvalidTime(start) && minutes < 24 * 60; minutes++)
+            start = start.AddMinutes(1);
+        var offset = zone.IsAmbiguousTime(start)
+            ? zone.GetAmbiguousTimeOffsets(start).Max()
+            : zone.GetUtcOffset(start);
+        return new DateTimeOffset(start, offset);
     }
 
     /// <summary>Every proposal this session holds, whoever prepared it.</summary>

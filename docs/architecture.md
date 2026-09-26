@@ -760,7 +760,9 @@ a push to `main` that touches `site/`, `docs/assets/brand/`, the application ico
 workflow itself, or when somebody starts it by hand. It does not restore,
 build or test a .NET project, and it runs neither gate script. Thus it cannot pass
 or fail on anything that the gate covers. `tools/Test-Site.ps1` is the local
-equivalent, and the project keeps it out of `Test-Production.ps1`.
+equivalent, and the project keeps it out of `Test-Production.ps1`. It also runs the
+site's own script tests (`npm run test`, `site/scripts/*.test.mjs`), which the
+workflow does not.
 
 These native lanes exist outside the gate, because they drive a real Desktop window
 and need a desktop session:
@@ -844,10 +846,12 @@ payload and no NSIS, and each takes seconds. Run them when you change
 `Invoke-NendoSetup.ps1`:
 
 ```powershell
-pwsh ./tools/Test-NendoSetup.ps1          # 16 cases: fresh install, upgrade, rollback,
+pwsh ./tools/Test-NendoSetup.ps1          # 17 cases: fresh install, upgrade, rollback,
                                           # locked files, corrupt extraction, path traversal,
-                                          # moved payload and linked backup, and this
-                                          # account's .nendo registration left untouched
+                                          # moved payload and linked backup, a failed
+                                          # registration repaired by rerunning the same
+                                          # payload, and this account's .nendo
+                                          # registration left untouched
 pwsh ./tools/Test-NendoLegacyUpgrade.ps1  # upgrade over a legacy owned payload
 pwsh ./tools/Test-NendoBuildPruning.ps1   # Remove-NendoBuildPayload safety
 ```

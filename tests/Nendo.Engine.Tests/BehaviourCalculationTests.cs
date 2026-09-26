@@ -281,6 +281,65 @@ public sealed class BehaviourCalculationTests
         Assert.AreEqual(beforeManifest.ChangeSequence, (await afterService.GetSnapshotAsync()).Manifest.ChangeSequence);
     }
 
+    // R-005. Rounding digits read from a record are data: out of range, they are a
+    // calculation error on that one field, and the record still reads with its
+    // stored values and every other calculation.
+    [TestMethod]
+    public async Task OutOfRangeRoundingDigitsAreAFieldErrorNotAFailedRecordRead()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await coordinator.ApplyAsync(new("test", "schema", "test", "Items", [
+            new CreateEntityOperation("items", "items", "Items", "items"),
+            new AddFieldOperation("i-digits", "items", "digits", "Digits", "digits", NendoStorageKind.Integer, true),
+            new AddFieldOperation("i-title", "items", "title", "Title", "title", NendoStorageKind.Text, true),
+        ]));
+        await service.CreateRecordAsync(new("items", "r1",
+            new Dictionary<string, object?> { ["digits"] = 2L, ["title"] = "abc" }, Context("r1")));
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "behaviour", "test", "Rounding", [
+            new SetBehaviourDefinitionOperation("round", new NendoCalculationDefinition(
+                "items.rounded", "items", "rounded", "Rounded", NendoBehaviourScalar.Decimal, false,
+                "RoundEven(1.5, digits)",
+                [NendoBehaviourBinding.SameRecordField("digits", "items", "digits", NendoBehaviourScalar.Integer, false)]), revision),
+            new SetBehaviourDefinitionOperation("length", new NendoCalculationDefinition(
+                "items.length", "items", "length", "Length", NendoBehaviourScalar.Integer, false,
+                "TextLength(title)",
+                [NendoBehaviourBinding.SameRecordField("title", "items", "title", NendoBehaviourScalar.Text, false)]), revision),
+        ]));
+
+        foreach (var digits in new[] { -1L, 29L, 0L, 28L })
+        {
+            var version = (await Item(service)).RecordVersion;
+            await service.SetFieldAsync(new("items", "r1", "digits", version, digits, Context($"digits-{digits}")));
+
+            // Both read routes: the full snapshot and a bounded query.
+            var fromQuery = (await coordinator.QueryRecordsAsync(new NendoRecordQuery("items"))).Items.Single();
+            foreach (var record in new[] { await Item(service), fromQuery })
+            {
+                Assert.AreEqual(digits, record.Values["digits"].GetInt64(), $"digits {digits}: the stored value");
+                Assert.AreEqual("abc", record.Values["title"].GetString(), $"digits {digits}: an unrelated stored value");
+                Assert.AreEqual(3L, Number(record, "length"), $"digits {digits}: an unrelated calculation");
+                var rounded = Result(record, "rounded");
+                if (digits is < 0 or > 28)
+                {
+                    Assert.AreEqual(NendoCalculationState.Error, rounded.State, $"digits {digits}");
+                    Assert.AreEqual(NendoCalculationCodes.Overflow, rounded.ErrorCode, $"digits {digits}");
+                    StringAssert.Contains(rounded.ErrorMessage, "between 0 and 28 digits");
+                }
+                else
+                {
+                    Assert.AreEqual(digits == 0 ? 2m : 1.5m, Decimal(record, "rounded"),
+                        $"digits {digits}: 1.5 rounds to the even 2 at 0 digits and is unchanged at 28");
+                }
+            }
+        }
+    }
+
+    private static async Task<NendoRecordSnapshot> Item(NendoApplicationService service) =>
+        (await service.GetSnapshotAsync()).Records.Single(record => record.RecordId == "r1");
+
     private static async Task<NendoRecordSnapshot> Project(NendoApplicationService service, string recordId = "p1") =>
         (await service.GetSnapshotAsync()).Records.Single(record => record.RecordId == recordId);
 

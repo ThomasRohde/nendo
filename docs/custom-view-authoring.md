@@ -245,7 +245,7 @@ always holds the latest context.
 | `title`, `packageId` | The view's title, and the package it runs |
 | `entityId` | The record type the view is about |
 | `recordId` | On a record page, that page's record; otherwise null |
-| `bindings` | `labelFieldId`, `statusFieldId`, `edgeEntityId`, `sourceFieldId`, `targetFieldId`; `fields`, the further fields the definition names, each `{fieldId, entityId}`; `filters`, each `{fieldId, entityId, operator, value, valueKind}` |
+| `bindings` | `labelFieldId`, `statusFieldId`, `edgeEntityId`, `sourceFieldId`, `targetFieldId`; `fields`, the further fields the definition names, each `{fieldId, entityId}`; `filters`, each `{fieldId, entityId, operator, value, valueKind, storageKind}` |
 | `configuration` | The definition's configuration, parsed. `{}` when there is none |
 | `theme` | `{mode, tokens}`, the person's theme |
 | `locale` | The browser's language |
@@ -420,6 +420,12 @@ await nendo.records.delete(added);
 - `nendo.has('records.update')` tells you whether this Nendo lets views write. A
   file open read-only refuses every write with `read-only`.
 - Record commands are the ones `schema.describe` lists under `commands`, by `id`.
+- A write that points a reference at a record passes that record's version, as you
+  read it, in `targetVersions`: `create('tasks', { owner: person.recordId }, { targetVersions:
+  { owner: person.version } })`, or `update(task, values, { targetVersions })`. Nendo
+  refuses a reference without one (`target-version-required`), and one whose target
+  changed since you read it. Clearing a reference to null needs none. `create`'s third
+  argument may also be the record ID alone.
 
 ### Proposing a change
 

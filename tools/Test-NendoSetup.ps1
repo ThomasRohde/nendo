@@ -150,6 +150,38 @@ try {
     Assert ((Get-Content -LiteralPath (Join-Path $moved 'app.txt') -Raw) -eq 'moved two') 'Recovery over a linked backup did not restore the replaced file.'
     Assert ((Get-Content -LiteralPath (Join-Path $moved 'lib/core.dll') -Raw) -eq 'core two') 'Recovery over a linked backup lost the file it shared.'
     Assert ((Get-Content -LiteralPath (Join-Path "$moved.previous" 'lib/core.dll') -Raw) -eq 'core two') 'Recovery truncated the backup it was restoring from.'
+    # Registration fails after the payload has landed, and the same installer is run
+    # again once the cause is gone. The rerun is the identical-payload path, and it has
+    # to register again rather than report success over a missing shortcut.
+    # The failure is real rather than injected: a file where the Start Menu folder
+    # should be makes the shortcut writer's CreateDirectory throw, after the
+    # association has already been written. The association is then taken away as
+    # well, so the rerun has to put back both halves.
+    $retry = Join-Path $evidence 'retry\Nendo'
+    $r1 = New-Payload 'r1' @{'app.txt'='retry one'}
+    $r2 = New-Payload 'r2' @{'app.txt'='retry two'}
+    Run-Setup Install $retry $r1
+    $shortcut = Join-Path $startMenuRoot 'Nendo.lnk'
+    Remove-Item -LiteralPath $startMenuRoot -Recurse -Force
+    [IO.File]::WriteAllText($startMenuRoot, 'a file where the Start Menu folder should be')
+    Run-Setup Install $retry $r2 $false
+    Assert ((Get-Content -LiteralPath (Join-Path $retry 'app.txt') -Raw) -eq 'retry two') 'The failed registration run did not leave its payload installed.'
+    Assert (-not (Test-Path -LiteralPath (Join-Path $retry 'nendo-update.json'))) 'The failed registration run left an update journal.'
+    foreach ($key in @('Nendo.Document', '.nendo')) { Remove-Item -LiteralPath (Join-Path $classesRoot $key) -Recurse -Force }
+    Remove-Item -LiteralPath $startMenuRoot -Force
+    Run-Setup Install $retry $r2
+    $retryCommand = '"' + (Join-Path $retry 'Nendo.Desktop.exe') + '" "%1"'
+    $openCommand = Join-Path $classesRoot 'Nendo.Document\shell\open\command'
+    $registered = if (Test-Path -LiteralPath $openCommand) { [string](Get-ItemProperty -LiteralPath $openCommand).'(default)' } else { 'missing' }
+    Assert ($registered -eq $retryCommand) "The rerun did not recreate the file association: expected '$retryCommand', found '$registered'."
+    $extensionKey = Join-Path $classesRoot '.nendo'
+    $extensionProgId = if (Test-Path -LiteralPath $extensionKey) { [string](Get-ItemProperty -LiteralPath $extensionKey).'(default)' } else { 'missing' }
+    Assert ($extensionProgId -eq 'Nendo.Document') "The rerun did not point .nendo back at Nendo.Document; found '$extensionProgId'."
+    Assert (Test-Path -LiteralPath $shortcut -PathType Leaf) "The rerun did not recreate the Start Menu shortcut at $shortcut."
+    # Read back by the shell's own reader, independent of the writer in setup.
+    $linkTarget = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut).TargetPath
+    Assert ($linkTarget -eq (Join-Path $retry 'Nendo.Desktop.exe')) "The recreated Start Menu shortcut points at '$linkTarget', not at this install."
+    Assert ((Get-Content -LiteralPath (Join-Path "$retry.previous" 'app.txt') -Raw) -eq 'retry one') 'The rerun discarded the backup of the version before it.'
     # A traversal in even an unsigned local inventory must never escape the fixture.
     $bad = New-Payload 'bad' @{'ok.txt'='okay'}
     $inventory = Get-Content -LiteralPath (Join-Path $bad 'nendo-install.json') -Raw | ConvertFrom-Json
@@ -174,5 +206,5 @@ finally {
     }
 }
 Assert (-not (Test-Path -LiteralPath $runClasses)) "The run's class store survived its cleanup: $runClasses"
-@{result='passed'; checks=@('fresh install','changed-version upgrade','same-version reinstall','application rollback/user-file retention','injected staging-capacity boundaries','one previous payload','stale owned removal','locked-file refusal','unowned collision refusal','corrupt extraction refusal','interrupted update recovery','uninstall/user-file retention','moved payload and linked backup by file identity','recovery over a linked backup','path traversal refusal','account registrations untouched'); shell='Windows PowerShell 5.1'; capacityLimitation='Injected measurements at the production predicate; no physical disk exhaustion.'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidence 'results.json')
+@{result='passed'; checks=@('fresh install','changed-version upgrade','same-version reinstall','application rollback/user-file retention','injected staging-capacity boundaries','one previous payload','stale owned removal','locked-file refusal','unowned collision refusal','corrupt extraction refusal','interrupted update recovery','uninstall/user-file retention','moved payload and linked backup by file identity','recovery over a linked backup','registration failure then rerun repairs association and shortcut, backup retained','path traversal refusal','account registrations untouched'); shell='Windows PowerShell 5.1'; capacityLimitation='Injected measurements at the production predicate; no physical disk exhaustion.'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidence 'results.json')
 Write-Output "Nendo setup checks passed: $evidence"

@@ -43,6 +43,9 @@ function Invoke-Npm([string[]] $Arguments) {
 Write-Host '== Website =='
 if (-not $SkipInstall) { Invoke-Npm @('ci') }
 Invoke-Npm @('run', 'check')
+# The site's own scripts, run in memory with no build and no browser: the docs search
+# (DocsSearch.astro) against a Pagefind whose answers arrive out of order.
+Invoke-Npm @('run', 'test')
 Invoke-Npm @('run', 'build')
 
 Write-Host ''

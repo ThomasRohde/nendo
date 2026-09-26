@@ -1,11 +1,63 @@
 import { client } from './client';
-import { announce, clearError, content, requiredElement, rerender, setBusy, showError } from './shell';
+import { announce, clearError, content, refreshChrome, requiredElement, rerender, setBusy, showError } from './shell';
 import { escapeAttribute, escapeHtml, messageFor } from './format';
 import { icon, type IconName } from './icons';
 import type { DesktopFileActionView, DesktopSessionView, RecentFiles } from './host';
 import { state } from './app-state';
-import { openHelp, recoverAfterWriteFailure, refreshDerived, resetFileView, showOutcomeRefreshNotice } from './actions';
+import { openHelp, recoverAfterWriteFailure, refreshDerived, resetFileView, retainDraftReadOnly, showOutcomeRefreshNotice } from './actions';
 import { openCustomViews } from './view-packages';
+import { recordFormIsDirty, refuseWhileDirty } from './draft-guard';
+import { decideDraftState } from './draft-state';
+
+/**
+ * The file actions that put another file, or another state of this one, in place of the
+ * open one: afterwards the record form on screen belongs to nothing. Each is declined while
+ * the form holds unsaved typing, before the host is asked, as every other move off a record
+ * page is. The rest (a backup, a copy, an export, an import) leave the open file where it is,
+ * and their outcome, or a dialog cancelled, leaves the form as it is (R-010).
+ */
+const replacesTheFile = new Set([
+  'session.createFile', 'session.openFile', 'file.openRecent', 'file.openDropped', 'file.close',
+  'file.restore', 'file.upgrade', 'file.inspect', 'file.resolveRecovery',
+]);
+
+function refusedOverDraft(method: string): boolean {
+  return replacesTheFile.has(method) && refuseWhileDirty(method === 'file.close' ? 'closing the file' : 'opening another file');
+}
+
+/**
+ * Whether the unsaved typing on screen outlives what the host now says, and so the page must
+ * not be redrawn. A dialog cancelled, a backup or an export answer with the same file still
+ * open, and a redraw then was the typing gone with nothing said: `main.render` discards the
+ * form it replaces (R-010). The same file, still editable, keeps the form as it is and only
+ * the chrome follows; a file that cannot take the typing any more keeps it on screen locked,
+ * as a failed save does.
+ */
+function keepsDraft(refreshed: DesktopSessionView): boolean {
+  const draft = state.openDraft;
+  if (draft === null || !recordFormIsDirty()) return false;
+  const decided = decideDraftState(draft.session, { fileSessionId: refreshed.fileSessionId, canMutate: refreshed.capabilities.mutate }, true);
+  refreshChrome();
+  if (decided.outcome === 'retain-read-only') retainDraftReadOnly(decided.reason);
+  return true;
+}
+
+/** After a file action the host refused: the draft decides first, as it does after a failed save. */
+async function recoverFromFileAction(): Promise<void> {
+  if (recordFormIsDirty()) {
+    try {
+      const refreshed = await client.request<DesktopSessionView>('session.getSnapshot');
+      const changed = state.session.fileSessionId !== refreshed.fileSessionId;
+      if (!changed) {
+        state.session = refreshed;
+        if (keepsDraft(refreshed)) return;
+      }
+    } catch {
+      // Nothing could be read; recoverAfterWriteFailure locks the draft for that.
+    }
+  }
+  await recoverAfterWriteFailure();
+}
 
 /**
  * The File menu, the start screen, and the host dialogs behind them.
@@ -118,7 +170,7 @@ export function wireFileActions(element: Element): void {
 }
 
 export async function chooseFile(method: 'session.createFile' | 'session.openFile', success: string | null): Promise<void> {
-  if (state.actionInFlight) return;
+  if (state.actionInFlight || refusedOverDraft(method)) return;
   state.actionInFlight = true;
   setBusy(true);
   clearError();
@@ -126,7 +178,7 @@ export async function chooseFile(method: 'session.createFile' | 'session.openFil
     const result = await client.request<DesktopSessionView | DesktopFileActionView>(method);
     await showFileActionOutcome('session' in result ? result : { session: result, notice: result.hasFile ? success : null });
   } catch (error) {
-    await recoverAfterWriteFailure();
+    await recoverFromFileAction();
     showError(messageFor(error));
   } finally {
     state.actionInFlight = false;
@@ -143,7 +195,7 @@ export async function refreshRecentFiles(): Promise<void> {
 }
 
 export async function runFileAction(method: string, recentId?: string): Promise<void> {
-  if (state.actionInFlight) return;
+  if (state.actionInFlight || refusedOverDraft(method)) return;
   state.actionInFlight = true;
   setBusy(true);
   clearError();
@@ -151,7 +203,7 @@ export async function runFileAction(method: string, recentId?: string): Promise<
     const result = await client.request<DesktopFileActionView>(method, recentId ? { recentId } : {});
     await showFileActionOutcome(result);
   } catch (error) {
-    await recoverAfterWriteFailure();
+    await recoverFromFileAction();
     showError(messageFor(error));
   } finally {
     state.actionInFlight = false;
@@ -167,7 +219,7 @@ export async function runFileAction(method: string, recentId?: string): Promise<
  * a shortcut to the picker and not a different way in.
  */
 export async function openDroppedFile(file: File): Promise<void> {
-  if (state.actionInFlight) return;
+  if (state.actionInFlight || refusedOverDraft('file.openDropped')) return;
   if (client.openDroppedFile === undefined) {
     showError('This Nendo cannot open a dropped file. Use Open file from the File menu.');
     return;
@@ -178,7 +230,7 @@ export async function openDroppedFile(file: File): Promise<void> {
   try {
     await showFileActionOutcome(await client.openDroppedFile<DesktopFileActionView>(file));
   } catch (error) {
-    await recoverAfterWriteFailure();
+    await recoverFromFileAction();
     showError(messageFor(error));
   } finally {
     state.actionInFlight = false;
@@ -188,6 +240,7 @@ export async function openDroppedFile(file: File): Promise<void> {
 
 export async function showFileActionOutcome(result: DesktopFileActionView): Promise<void> {
   let refreshNotice: string | null = null;
+  let kept = false;
   try {
     const refreshed = result.session ?? await client.request<DesktopSessionView>('session.getSnapshot');
     const changed = state.session.fileSessionId !== refreshed.fileSessionId;
@@ -195,10 +248,14 @@ export async function showFileActionOutcome(result: DesktopFileActionView): Prom
     if (changed) resetFileView();
     await refreshDerived();
     await refreshRecentFiles();
+    kept = keepsDraft(refreshed);
   } catch {
     refreshNotice = result.refreshNotice ?? 'Refresh the view to see the current file state.';
+    kept = recordFormIsDirty();
   }
-  rerender();
+  // A page holding unsaved typing is not redrawn; the file follows it once it is saved or
+  // closed, as it does for a write from elsewhere.
+  if (!kept) rerender();
   const notice = requiredElement<HTMLElement>('#file-notice');
   notice.textContent = result.notice ?? '';
   notice.hidden = result.notice === null;

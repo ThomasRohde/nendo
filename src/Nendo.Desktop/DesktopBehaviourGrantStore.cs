@@ -50,9 +50,11 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
             var document = JsonSerializer.Deserialize<StoredGrantDocument>(bytes, new JsonSerializerOptions { MaxDepth = 8 });
             if (document?.Version != 1 || document.Grants is null || document.Grants.Count > MaximumGrants)
                 throw new JsonException("Unsupported approval document.");
+            // The reader fills a missing or null member with null whatever the declared
+            // type says, so every entry and every string in it is checked before use.
             foreach (var grant in document.Grants)
             {
-                if (!grant.IsWellFormed()) throw new JsonException("An approval entry is not well formed.");
+                if (grant is null || !grant.IsWellFormed()) throw new JsonException("An approval entry is not well formed.");
                 _grants.Add(grant);
             }
         }
@@ -139,7 +141,7 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
         }
     }
 
-    private sealed record StoredGrantDocument(int Version, IReadOnlyList<StoredGrant> Grants);
+    private sealed record StoredGrantDocument(int Version, IReadOnlyList<StoredGrant?> Grants);
 
     private sealed record StoredGrant(
         string ApplicationId,
@@ -156,7 +158,7 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
         internal bool IsWellFormed() =>
             !string.IsNullOrWhiteSpace(ApplicationId) && ApplicationId.Length <= 200 &&
             !string.IsNullOrWhiteSpace(InstanceId) && InstanceId.Length <= 200 &&
-            BehaviourDigest.Length == 64 && BehaviourDigest.All(Uri.IsHexDigit) &&
+            BehaviourDigest is { Length: 64 } && BehaviourDigest.All(Uri.IsHexDigit) &&
             !string.IsNullOrWhiteSpace(ContractVersion) && ContractVersion.Length <= 64 &&
             DefinitionRevision >= 0 && Capabilities is >= 0 and <= 7;
 

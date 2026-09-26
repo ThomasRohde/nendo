@@ -41,6 +41,14 @@ public sealed record SetExtensionPackageOperation : NendoOperation
     public string EntryPoint { get; }
     public string? Version { get; }
     public string? Description { get; }
+
+    /// <summary>
+    /// When set, the write applies only while the package holds exactly this metadata, or is
+    /// absent. A reversal carries it, so a package changed again since refuses rather than
+    /// having the later change overwritten.
+    /// </summary>
+    internal ExtensionPackageExpectation? Expected { get; init; }
+
     public override string OperationType => "extension.setPackage";
     public override NendoRevisionLane Lane => NendoRevisionLane.Definition;
     public override NendoReversibilityClass Reversibility => NendoReversibilityClass.ReversibleWithRetainedState;
@@ -50,6 +58,7 @@ public sealed record SetExtensionPackageOperation : NendoOperation
         writer.WriteStartObject();
         if (Description is not null) writer.WriteString("description", Description);
         writer.WriteString("entryPoint", EntryPoint);
+        Expected?.Write(writer);
         writer.WriteString("packageId", PackageId);
         writer.WriteString("title", Title);
         if (Version is not null) writer.WriteString("version", Version);
@@ -210,6 +219,10 @@ public sealed record RemoveExtensionPackageOperation : NendoOperation
     }
 
     public string PackageId { get; }
+
+    /// <summary>When set, the removal applies only while the package holds exactly this metadata.</summary>
+    internal ExtensionPackageExpectation? Expected { get; init; }
+
     public override string OperationType => "extension.removePackage";
     public override NendoRevisionLane Lane => NendoRevisionLane.Definition;
     public override NendoReversibilityClass Reversibility => NendoReversibilityClass.ReversibleWithRetainedState;
@@ -217,7 +230,43 @@ public sealed record RemoveExtensionPackageOperation : NendoOperation
     internal override void WritePayload(Utf8JsonWriter writer)
     {
         writer.WriteStartObject();
+        Expected?.Write(writer);
         writer.WriteString("packageId", PackageId);
         writer.WriteEndObject();
     }
+}
+
+/// <summary>
+/// The package metadata a reversal expects to find before it restores or removes anything:
+/// what the reversed operation left, or, for a restored removal, no package at all.
+/// </summary>
+internal sealed record ExtensionPackageExpectation(bool Absent, string? Title, string? EntryPoint, string? Version, string? Description)
+{
+    internal static ExtensionPackageExpectation Missing { get; } = new(true, null, null, null, null);
+
+    internal static ExtensionPackageExpectation Holding(string title, string entryPoint, string? version, string? description) =>
+        new(false, title, entryPoint, version, description);
+
+    /// <summary>Whether the stored metadata, or its absence, is what this expects.</summary>
+    internal bool Matches(string? title, string? entryPoint, string? version, string? description, bool present) =>
+        Absent
+            ? !present
+            : present && string.Equals(Title, title, StringComparison.Ordinal) &&
+              string.Equals(EntryPoint, entryPoint, StringComparison.Ordinal) &&
+              string.Equals(Version, version, StringComparison.Ordinal) &&
+              string.Equals(Description, description, StringComparison.Ordinal);
+
+    internal void Write(Utf8JsonWriter writer)
+    {
+        writer.WritePropertyName("expected");
+        if (Absent) { writer.WriteStringValue("absent"); return; }
+        writer.WriteStartObject();
+        if (Description is not null) writer.WriteString("description", Description);
+        writer.WriteString("entryPoint", EntryPoint);
+        writer.WriteString("title", Title);
+        if (Version is not null) writer.WriteString("version", Version);
+        writer.WriteEndObject();
+    }
+
+    public override string ToString() => Absent ? "no package" : $"{Title} ({EntryPoint})";
 }

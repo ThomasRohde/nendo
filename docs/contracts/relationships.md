@@ -46,7 +46,11 @@ Field/type retirement is reversible metadata. It does not remove physical data.
 Retired data stays available through an explicit Studio view and faithful
 export. Retired definitions reject new writes. Custom surfaces cannot silently
 bind them. A proposal that retires a bound field/type must also remove or
-replace its bindings. While live incoming references remain, the retirement of
+replace its bindings (`retired-binding`). This covers behaviour as well as
+screens: a calculation or trigger condition that reads the field, a trigger on the
+record type, and an automatic action that writes the field or a record of the type
+all count as bindings. The check runs over the final candidate, so one proposal
+may rewire or remove that behaviour and retire its target in either order. While live incoming references remain, the retirement of
 a referenced target type is rejected. This MVP includes no hard field/type drop.
 
 ## Record deletion and compensation

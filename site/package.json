@@ -11,6 +11,7 @@
     "check": "npm run sync && astro check",
     "build": "npm run sync && astro build && pagefind --site dist && npm run check:links",
     "check:links": "node scripts/check-links.mjs",
+    "test": "node --test scripts/*.test.mjs",
     "preview": "astro preview"
   },
   "devDependencies": {

@@ -54,10 +54,18 @@ public sealed partial class NendoApplicationService
     /// commits them as ordinary record operations because nobody is reviewing -- but what
     /// a cell means must not be one of the things they can disagree about.
     /// </para>
+    /// <para>
+    /// <paramref name="resolveTargetVersions"/> names, by zero-based document row, the rows
+    /// whose reference targets are looked up; the others come back with values only and an
+    /// empty version map. An import retry passes it so rows a committed batch already holds
+    /// are not re-resolved against targets edited since: those rows are replayed from their
+    /// receipt with the versions they were committed at, never applied again. Every row that
+    /// may still be written is resolved and validated as before. Null resolves every row.
+    /// </para>
     /// </summary>
     public async Task<IReadOnlyList<NendoCsvRow>> DecodeCsvRowsAsync(NendoCsvDocument document, string entityId,
         IReadOnlyList<NendoCsvMapping> mappings, NendoCsvOptions options, int offset, int count,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, Func<int, bool>? resolveTargetVersions = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(mappings);
@@ -78,12 +86,51 @@ public sealed partial class NendoApplicationService
         }
         if (fields.Values.Any(field => field.Required && !mappedFields.Contains(field.FieldId)))
             throw new NendoValidationException("Map each required field once to an existing CSV column.");
-        return await DecodeRowsAsync(document, entity, mappings, options, offset, count, cancellationToken);
+        return await DecodeRowsAsync(document, entity, mappings, options, offset, count, cancellationToken, resolveTargetVersions);
+    }
+
+    /// <summary>
+    /// The reference target versions each record created by <paramref name="revisionId"/> was
+    /// checked against, by record ID, read from that revision's own stored operations.
+    /// <para>
+    /// This is the original evidence an import retry needs: a committed batch's receipt
+    /// replays only for the payload it was committed with, and that payload carries the
+    /// target versions of the moment it was written, not of the retry.
+    /// </para>
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, long>>> ReadCreatedRecordTargetVersionsAsync(
+        string revisionId, CancellationToken cancellationToken = default)
+    {
+        RequireIdentity(revisionId, "revision ID");
+        var created = new Dictionary<string, IReadOnlyDictionary<string, long>>(StringComparer.Ordinal);
+        string? cursor = null;
+        do
+        {
+            var page = await QueryRevisionOperationsAsync(new(revisionId, 200, cursor), cancellationToken);
+            foreach (var operation in page.Items)
+            {
+                if (operation.OperationType != "data.createRecord") continue;
+                using var json = System.Text.Json.JsonDocument.Parse(operation.CanonicalJson);
+                if (!json.RootElement.TryGetProperty("payload", out var payload) ||
+                    !payload.TryGetProperty("recordId", out var recordId) ||
+                    recordId.ValueKind != System.Text.Json.JsonValueKind.String) continue;
+                var versions = new Dictionary<string, long>(StringComparer.Ordinal);
+                if (payload.TryGetProperty("expectedTargetVersions", out var expected) &&
+                    expected.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    foreach (var pair in expected.EnumerateObject())
+                        if (pair.Value.TryGetInt64(out var version)) versions[pair.Name] = version;
+                }
+                created[recordId.GetString()!] = versions;
+            }
+            cursor = page.NextCursor;
+        } while (cursor is not null);
+        return created;
     }
 
     private async Task<IReadOnlyList<NendoCsvRow>> DecodeRowsAsync(NendoCsvDocument document, NendoEntitySnapshot entity,
         IReadOnlyList<NendoCsvMapping> mappings, NendoCsvOptions options, int offset, int count,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Func<int, bool>? resolveTargetVersions = null)
     {
         var fields = entity.Fields.Where(field => !field.Retired).ToDictionary(field => field.FieldId, StringComparer.Ordinal);
         var rows = new List<NendoCsvRow>();
@@ -94,6 +141,7 @@ public sealed partial class NendoApplicationService
         {
             cancellationToken.ThrowIfCancellationRequested();
             var values = new Dictionary<string, object?>(); var versions = new Dictionary<string, long>();
+            var resolve = resolveTargetVersions?.Invoke(index) ?? true;
             foreach (var mapping in mappings)
             {
                 var field = fields[mapping.FieldId];
@@ -101,7 +149,7 @@ public sealed partial class NendoApplicationService
                 {
                     var value = NendoCsvProfile.Decode(document.Rows[index][mapping.Column], field, options);
                     values.Add(field.FieldId, value);
-                    if (value is string id && field.Reference is { } reference)
+                    if (resolve && value is string id && field.Reference is { } reference)
                     {
                         var key = (reference.TargetEntityId, id);
                         if (!targets.TryGetValue(key, out var version))

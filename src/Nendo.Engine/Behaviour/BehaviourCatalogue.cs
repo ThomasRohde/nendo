@@ -199,8 +199,13 @@ internal static class NendoBehaviourCatalogue
         {
             budget.SpendWork();
             var digits = args[1].AsInteger();
+            // The digits are data here -- a stored field, another calculation -- so a
+            // count outside what a decimal holds is this record's calculation error,
+            // shown on the one field, not a definition error that fails the whole read.
+            // The definition's shape was checked when it was validated.
             if (digits is < 0 or > 28)
-                throw new NendoValidationException("Rounding takes between 0 and 28 digits.");
+                throw new NendoCalculationException(NendoCalculationCodes.Overflow,
+                    $"Rounding takes between 0 and 28 digits, and this value asks for {digits.ToString(CultureInfo.InvariantCulture)}.");
             try
             {
                 return BehaviourValue.Decimal(Math.Round(args[0].AsDecimal(), (int)digits, midpoint));

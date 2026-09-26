@@ -233,12 +233,12 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
                     values,
                     new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "surface"), expectedTargetVersions),
                 cancellationToken),
-            cancellationToken);
+            cancellationToken, origin);
 
     internal Task<DesktopMutationView> DeleteRecordAsync(string entityId, string recordId, long expectedRecordVersion,
         string idempotencyKey, CancellationToken cancellationToken = default, string? origin = null) =>
         MutateAsync(service => service.DeleteRecordAsync(new(entityId, recordId, expectedRecordVersion,
-            new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "studio")), cancellationToken), cancellationToken);
+            new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "studio")), cancellationToken), cancellationToken, origin);
 
     internal async Task<DesktopMutationView> SetFieldAsync(
         string entityId,
@@ -272,7 +272,7 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
         string? origin = null) =>
         MutateAsync(service => service.SetFieldsAsync(new NendoSetFieldsRequest(
             entityId, recordId, expectedRecordVersion, values,
-            new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "surface"), expectedTargetVersions), cancellationToken), cancellationToken);
+            new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "surface"), expectedTargetVersions), cancellationToken), cancellationToken, origin);
 
     internal async Task<DesktopMutationView> ExecuteCommandAsync(
         string commandId,
@@ -289,7 +289,7 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
                     expectedRecordVersion,
                     new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "surface")),
                 cancellationToken),
-            cancellationToken);
+            cancellationToken, origin);
 
     internal async Task<DesktopMutationView> CompensateRevisionAsync(
         string revisionId,
@@ -425,7 +425,8 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
 
     private async Task<DesktopMutationView> MutateAsync(
         Func<NendoApplicationService, Task<NendoApplyResult>> action,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? origin = null)
     {
         await EnterRequestGateAsync(cancellationToken);
         try
@@ -434,6 +435,7 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
             var service = _service ?? throw new NendoPreconditionException(
                 "no-file-open",
                 "Open or create a Nendo file before changing Studio data.");
+            await AdmitExtensionWriterAsync(service, origin, cancellationToken);
             var result = await action(service);
             var refresh = await RefreshAfterOutcomeAsync(cancellationToken);
             return new DesktopMutationView(result, refresh.Session, refresh.Notice);
@@ -470,13 +472,15 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
 
     private async Task<T> QueryAsync<T>(
         Func<NendoApplicationService, Task<T>> action,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? origin = null)
     {
         await EnterRequestGateAsync(cancellationToken);
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             var service = RequireService();
+            await AdmitExtensionWriterAsync(service, origin, cancellationToken);
             return await action(service);
         }
         finally

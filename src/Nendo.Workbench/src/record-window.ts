@@ -54,19 +54,21 @@ export function queryOperatorFor(contractOperator: string): string {
  * unresolved word cost a filter kind, a tile, and the stillness of every screen it was on.
  *
  * Today is the person's civil date, not UTC's: a tile that says what is overdue has to
- * agree with the calendar on their wall. A DateTime field compares against that date as
- * the instant it begins, which is what the host's own command steps resolve it to.
+ * agree with the calendar on their wall. A Date field compares against that date,
+ * `2026-09-26`. A DateTime field compares against the instant that date begins where the
+ * person is, written with its offset, `2026-09-26T00:00:00+02:00`: the host refuses a
+ * timestamp without an explicit zone, so the bare date refused every DateTime `today` read
+ * (R-003). On a day that skips its midnight the day begins at the first local time it has.
+ * `storageKind` is the field's stored kind by name (`date`, `dateTime`); unknown, a date.
  *
  * Exported for the custom-view client (extension-api/nendo-api.ts), which resolves a view's
  * authored filters when the view reads rather than when it started: a view left open past
  * midnight must not keep asking for yesterday.
  */
-export function resolveClauseValue(valueKind: unknown, value: unknown, at: Date = new Date()): unknown {
+export function resolveClauseValue(valueKind: unknown, value: unknown, at: Date = new Date(), storageKind?: string): unknown {
   switch (valueKind) {
-    case 'today': {
-      const local = new Date(at.getTime() - at.getTimezoneOffset() * 60_000);
-      return local.toISOString().slice(0, 10);
-    }
+    case 'today':
+      return storageKind === 'dateTime' ? startOfCivilDay(at) : civilDate(at);
     case 'now':
       return at.toISOString().replace(/\.\d+Z$/, 'Z');
     default:
@@ -74,8 +76,35 @@ export function resolveClauseValue(valueKind: unknown, value: unknown, at: Date 
   }
 }
 
-function clauseValue(properties: Record<string, unknown>, at: Date): unknown {
-  return resolveClauseValue(properties.valueKind, properties.value, at);
+const two = (value: number): string => String(value).padStart(2, '0');
+
+/** The person's own date at `at`, as yyyy-MM-dd. */
+function civilDate(at: Date): string {
+  return `${String(at.getFullYear()).padStart(4, '0')}-${two(at.getMonth() + 1)}-${two(at.getDate())}`;
+}
+
+/** The instant the person's civil day of `at` begins, as an ISO timestamp with its local offset. */
+function startOfCivilDay(at: Date): string {
+  const start = new Date(at.getFullYear(), at.getMonth(), at.getDate());
+  const offset = -start.getTimezoneOffset();
+  const sign = offset < 0 ? '-' : '+';
+  const minutes = Math.abs(offset);
+  return `${civilDate(start)}T${two(start.getHours())}:${two(start.getMinutes())}:${two(start.getSeconds())}${sign}${two(Math.floor(minutes / 60))}:${two(minutes % 60)}`;
+}
+
+/**
+ * Which stored kind a field has, by field ID, so that `today` resolves to a date or an
+ * instant. The Workbench registers its session's fields once (main.ts); field IDs are unique
+ * across the file. Until then every field reads as a Date.
+ */
+let fieldKinds: (fieldId: string) => string | undefined = () => undefined;
+
+export function useFieldKinds(kinds: (fieldId: string) => string | undefined): void {
+  fieldKinds = kinds;
+}
+
+function clauseValue(fieldId: string, properties: Record<string, unknown>, at: Date): unknown {
+  return resolveClauseValue(properties.valueKind, properties.value, at, properties.valueKind === 'today' ? fieldKinds(fieldId) : undefined);
 }
 
 /** The ANDed filter clauses declared directly on one node. */
@@ -89,7 +118,7 @@ export function clauseFilters(node: SurfaceNodePlan, at: Date = new Date()): Que
       const queryOperator = queryOperatorFor(operator);
       return operator === 'isNull' || operator === 'isNotNull'
         ? { fieldId, operator: queryOperator }
-        : { fieldId, operator: queryOperator, value: clauseValue(child.properties, at) };
+        : { fieldId, operator: queryOperator, value: clauseValue(fieldId, child.properties, at) };
     })
     .filter((clause): clause is QueryFilter => clause !== null);
 }

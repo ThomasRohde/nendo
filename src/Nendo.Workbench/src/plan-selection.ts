@@ -395,6 +395,20 @@ export function readIsPending(
   return known === undefined || (known.state === 'ready' && known.changeSequence !== changeSequence);
 }
 
+/**
+ * The same rule for a front-page range end or ranking maximum, which has always asked a
+ * refusal again on the next bounded pass rather than waiting for Retry. The front page's
+ * pending test and the loaders that answer it share this one predicate: when the loaders
+ * skipped every ready answer without looking at its revision, the front page saw them stale
+ * and chased once a second for ever, and nothing was read (R-008).
+ */
+export function overviewReadIsPending(
+  known: { state: string; changeSequence?: number } | undefined,
+  changeSequence: number | undefined,
+): boolean {
+  return known?.state === 'failed' || readIsPending(known, changeSequence);
+}
+
 /** Every tile the current Use view shows, with the scope each one covers. */
 export function visibleTiles(plan: ApplicationPlan): ScopedTile[] {
   const surface = selectedSurfaceNode(plan);

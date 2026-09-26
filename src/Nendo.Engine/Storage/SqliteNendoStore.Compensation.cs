@@ -193,14 +193,17 @@ internal sealed partial class SqliteNendoStore
             }
         }
 
-        // What each record was left at by the revision being reversed.
+        // What each record was left at by the revision being reversed. Record IDs are
+        // unique across the file, so a reference's target is found by its ID alone.
         var versions = new Dictionary<(string Entity, string Record), long>();
+        var touched = new Dictionary<string, (string Entity, string Record)>(StringComparer.Ordinal);
         foreach (var operation in operations)
         {
             using var canonical = JsonDocument.Parse(operation.Canonical);
             using var evidence = JsonDocument.Parse(operation.Evidence);
             var payload = canonical.RootElement.GetProperty("payload");
             var key = (payload.GetProperty("entityId").GetString()!, payload.GetProperty("recordId").GetString()!);
+            touched[key.Item2] = key;
             versions[key] = operation.Type == "data.deleteRecord"
                 ? evidence.RootElement.GetProperty("deletedVersion").GetInt64() + 1
                 : evidence.RootElement.GetProperty("appliedVersion").GetInt64();
@@ -231,6 +234,17 @@ internal sealed partial class SqliteNendoStore
             var previous = RetainedPreviousValue(evidence.RootElement, operation.Type, recordId);
             var targetVersion = evidence.RootElement.TryGetProperty("previousTargetRecordVersion", out var target) &&
                 target.ValueKind == JsonValueKind.Number ? target.GetInt64() : (long?)null;
+            // A reference put back expects its target at the version the target holds when
+            // this inverse runs. The recorded version is right for a target the revision
+            // never touched. A target the revision also wrote -- a parent whose count the
+            // move's automatic action updated -- is at the version the planned inverses
+            // leave it, so its own reversal is not mistaken for someone else's edit. An
+            // outside edit since still moves it past that version and still conflicts.
+            if (targetVersion is not null && previous.ValueKind == JsonValueKind.String &&
+                touched.TryGetValue(previous.GetString()!, out var targetKey))
+            {
+                targetVersion = versions[targetKey];
+            }
             // The inverse of a backfill is itself a backfill, so it too may touch a
             // retired field. A plain data.setField would refuse with "field-retired".
             inverses.Add(operation.Type == "data.backfillRetiredField"

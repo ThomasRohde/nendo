@@ -6,7 +6,7 @@ import { client } from './client';
 import { rerender, setBusy } from './shell';
 import { messageFor, fieldName } from './format';
 import { breakdownRead, bucketDrillFilters, bucketRead, cellDrillFilters, cellRead, chartKey, drillFilter, drillLabel, isOverTimeKind, progressRead, ringDrillFilters, type BucketResult, type CellResult, type GroupedResult, type ScopedChart } from './charts';
-import { tileKey, tileRead, type OverviewTileScope, type ScopedTile } from './summary-tiles';
+import { tileKey, tileRead, type OverviewTileScope, type ScopedTile, type TileRead } from './summary-tiles';
 import {
   overviewCharts, overviewRanges, overviewRankedLists, overviewRecentLists, overviewTiles, rangeEndKey,
   rangeReads, rankedMaxKey, rankedMaxRead,
@@ -17,7 +17,7 @@ import {
   chartStates, drills, leaveRecordContext, matrixCells, selectedSurfaces, state, summaryCounts, surfaceErrors,
   surfaceWindows, type ChartOutcome, type DrillFilter,
 } from './app-state';
-import { boardColumnsPending, chartPending, drillTarget, readIsPending, selectedSurfaceNode, tilePending, visibleCharts, visibleTiles } from './plan-selection';
+import { boardColumnsPending, chartPending, drillTarget, overviewReadIsPending, readIsPending, selectedSurfaceNode, tilePending, visibleCharts, visibleTiles } from './plan-selection';
 import { loadSurfaceWindow } from './reads';
 import { loadBoardColumns, loadRankedWindows, loadRecentWindows } from './reads';
 import { WorkbenchHostError, type ApplicationPlan, type OverviewPlan, type SurfaceNodePlan } from './host';
@@ -121,7 +121,7 @@ export async function loadRankedMaxima(nodes: SurfaceNodePlan[]): Promise<void> 
   const reads = nodes.flatMap((node) => {
     const read = rankedMaxRead(node);
     return read === null ? [] : [{ key: rankedMaxKey(node), read }];
-  }).filter((item) => summaryCounts.get(item.key)?.state !== 'ready');
+  }).filter((item) => overviewReadIsPending(summaryCounts.get(item.key), state.session.manifest?.changeSequence));
   if (reads.length === 0) return;
   for (const item of reads) summaryCounts.set(item.key, { state: 'loading' });
 
@@ -203,35 +203,74 @@ export function matrixPending(plan: ApplicationPlan): boolean {
 export async function loadRanges(scoped: ScopedTile[]): Promise<void> {
   const generation = ++state.summaryGeneration;
   const fileSessionId = state.session.fileSessionId;
-  const ends = scoped.flatMap((item) => {
+  const sequence = state.session.manifest?.changeSequence;
+  const ranges = scoped.flatMap((item) => {
     const scope = item.scope as OverviewTileScope;
     const reads = rangeReads(item.tile, scope);
     return reads === null
       ? []
-      : ([['min', reads.min], ['max', reads.max]] as const).map(([end, read]) =>
-        ({ key: rangeEndKey(item.tile, scope, end), read }));
-  }).filter((end) => summaryCounts.get(end.key)?.state !== 'ready');
-  if (ends.length === 0) return;
-  for (const end of ends) summaryCounts.set(end.key, { state: 'loading' });
+      : [{ minKey: rangeEndKey(item.tile, scope, 'min'), maxKey: rangeEndKey(item.tile, scope, 'max'), reads }];
+  }).filter((range) => [range.minKey, range.maxKey].some((key) => overviewReadIsPending(summaryCounts.get(key), sequence)));
+  if (ranges.length === 0) return;
+  const keys = ranges.flatMap((range) => [range.minKey, range.maxKey]);
+  for (const key of keys) summaryCounts.set(key, { state: 'loading' });
 
   const current = (): boolean =>
     state.summaryGeneration === generation && state.session.fileSessionId === fileSessionId;
+  const aggregate = (read: TileRead) => () =>
+    client.request<{ valueLexeme: string | null; changeSequence: number }>(
+      'data.aggregateRecords', { entityId: read.entityId, aggregate: read.aggregate, fieldId: read.fieldId, filters: read.filters });
   try {
-    await mapBounded(ends, summaryReadConcurrency, async (end) => {
+    await mapBounded(ranges, summaryReadConcurrency, async (range) => {
       try {
-        const result = await client.request<{ valueLexeme: string | null; changeSequence: number }>(
-          'data.aggregateRecords',
-          { entityId: end.read.entityId, aggregate: end.read.aggregate, fieldId: end.read.fieldId, filters: end.read.filters });
-        if (current()) summaryCounts.set(end.key, { state: 'ready', value: result.valueLexeme, changeSequence: result.changeSequence });
+        // Both ends from one revision, or neither: a low from before a write and a high from
+        // after it can draw a range that is inverted or never existed (R-009).
+        const pair = await sameRevision(aggregate(range.reads.min), aggregate(range.reads.max));
+        if (!current()) return;
+        if (pair === null) { summaryCounts.delete(range.minKey); summaryCounts.delete(range.maxKey); return; }
+        const [low, high] = pair;
+        summaryCounts.set(range.minKey, { state: 'ready', value: low.valueLexeme, changeSequence: low.changeSequence });
+        summaryCounts.set(range.maxKey, { state: 'ready', value: high.valueLexeme, changeSequence: high.changeSequence });
       } catch (error) {
-        if (current()) summaryCounts.set(end.key, { state: 'failed', code: error instanceof WorkbenchHostError ? error.code : 'host-error', message: messageFor(error) });
+        if (!current()) return;
+        const failed = { state: 'failed' as const, code: error instanceof WorkbenchHostError ? error.code : 'host-error', message: messageFor(error) };
+        summaryCounts.set(range.minKey, failed);
+        summaryCounts.set(range.maxKey, failed);
       }
     });
   } finally {
     if (!current())
-      for (const end of ends)
-        if (summaryCounts.get(end.key)?.state === 'loading') summaryCounts.delete(end.key);
+      for (const key of keys)
+        if (summaryCounts.get(key)?.state === 'loading') summaryCounts.delete(key);
   }
+}
+
+/** How many pairs one pass compares before it leaves two reads that disagree for the next pass. */
+export const sameRevisionAttempts = 3;
+
+/**
+ * Two reads that are drawn as one answer, both from the same revision of the file (R-009).
+ *
+ * Each read answers with the change sequence it was read at, and a write can commit between
+ * the two: a ring once divided a count of 10 read before a write by a total of 1 read after
+ * it and showed 1000%, labelled as current. A revision only moves forward, so the earlier of
+ * the two is read again until they agree, `sameRevisionAttempts - 1` times at most, so a pass
+ * costs at most one read more than it has attempts. Null when the file kept moving: nothing is kept, the entry stays pending, and the
+ * next bounded pass tries again, so the answer comes once the writing stops.
+ */
+export async function sameRevision<A extends { changeSequence: number }, B extends { changeSequence: number }>(
+  first: () => Promise<A>,
+  second: () => Promise<B>,
+  attempts = sameRevisionAttempts,
+): Promise<[A, B] | null> {
+  let a = await first();
+  let b = await second();
+  for (let read = 1; a.changeSequence !== b.changeSequence; read++) {
+    if (read >= attempts) return null;
+    if (a.changeSequence < b.changeSequence) a = await first();
+    else b = await second();
+  }
+  return [a, b];
 }
 
 export async function refreshVisibleTiles(plan: ApplicationPlan): Promise<void> {
@@ -273,8 +312,11 @@ export async function loadCharts(scoped: ScopedChart[], surfaceEntityId: string 
         if (item.node.kind === 'progressTile') {
           const read = progressRead(item.node, item.scope, surfaceEntityId);
           if (read === null) { settle(key, { state: 'failed', code: 'not-readable', message: 'This ring is not readable.' }); return; }
-          const numerator = await client.request<{ count: number; changeSequence: number }>('data.countRecords', { entityId: read.entityId, filters: read.numerator });
-          const denominator = await client.request<{ count: number; changeSequence: number }>('data.countRecords', { entityId: read.entityId, filters: read.denominator });
+          const count = (filters: unknown[]) => () =>
+            client.request<{ count: number; changeSequence: number }>('data.countRecords', { entityId: read.entityId, filters });
+          const pair = await sameRevision(count(read.numerator), count(read.denominator));
+          if (pair === null) { if (current()) chartStates.delete(key); return; }
+          const [numerator, denominator] = pair;
           settle(key, { state: 'ready', changeSequence: denominator.changeSequence, numerator: String(numerator.count), denominator: String(denominator.count) });
           return;
         }

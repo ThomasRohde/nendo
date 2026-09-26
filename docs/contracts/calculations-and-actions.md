@@ -230,6 +230,13 @@ are properties of the graph. Installation refuses when:
 - a stable ID, alias, parameter ID or step ID repeats within one definition;
 - the definition names a contract version that this host does not implement.
 
+Retirement is checked from the other side too. A change that retires a record type
+or field refuses with `retired-binding` while an installed calculation, trigger or
+action still reads it, listens to it or writes it, because the next edit that
+raised the trigger would roll back on the retired target. The check runs over the
+final candidate, so the same proposal may rewire or remove that behaviour and
+retire its target ([relationships](relationships.md#labels-choices-and-retirement)).
+
 If something else still references a definition, the removal of that definition
 is refused with `definition-referenced`. The exception is when the same ordered
 change set also removes or rewires every dependant. The removal of an absent
@@ -759,6 +766,16 @@ name that is not in the table is refused. It is not resolved. For this reason, a
 formula that tries to use a network, a file or a clock is refused, and nobody had
 to list those names.
 
+A call alias of the author may share a name with an entry in the table. The alias
+then wins: validation types the call against the author's function, and evaluation
+runs that same function, never the built-in. Calculations and actions resolve a
+name by this one rule.
+
+The digits of `RoundEven` and `RoundAway` are often read from a record. A value
+outside 0–28 is that record's data, not a mistake in the definition, so it
+reports `calculation-overflow` on the one calculated field. The record, its stored
+values and its other calculations read as usual.
+
 `Refuse` is the one entry that produces nothing. It reports `calculation-refused`
 with the sentence of the author. A formula can therefore decline a value that it
 was given, for example a rating outside its scale, without the use of a division
@@ -784,6 +801,13 @@ A calculation or function declared to allow an empty result
 declared always to produce a value reports `calculation-missing-input`. It also
 reports this code when its formula ends empty. The result is never zero, never
 false and never a previous result.
+
+A function parameter declared nullable receives an empty argument as a typed
+empty of the parameter's declared type. A function that does not read it, or
+reads it only in a branch that is not taken, therefore still answers. If the
+function uses it as an operand, that stops the function, and the function's own
+declaration decides. A parameter that is not declared nullable refuses an empty
+argument with `calculation-missing-input`, and the declaration of the caller decides.
 
 The empty result of a function reaches its caller as an empty argument, and the
 declaration of the caller then decides. The codes are
@@ -829,7 +853,7 @@ raises them.
 | Cached expressions | 16 | Cleared on reaching the cap |
 | Related rows per chain | 256 | SQL LIMIT plus a charge per row read |
 | Generated changes per chain | 64 | Before each generated write |
-| Exact total | int64, or the .NET decimal range (96-bit coefficient, scale 0–28) | On the fold; refused as `aggregate-not-representable`, never wrapped or rounded |
+| Exact total | int64, or the .NET decimal range (96-bit coefficient, scale 0–28) | On the fold; refused as `aggregate-not-representable`, never wrapped or rounded. Trailing zeros that only a mixed scale added are shed first, so `decimal.MaxValue + 0.0` is `decimal.MaxValue` |
 
 One budget spans an entire evaluation, every nested call and a whole causal
 transaction. A deep call chain or a chain of triggers therefore gets no extra

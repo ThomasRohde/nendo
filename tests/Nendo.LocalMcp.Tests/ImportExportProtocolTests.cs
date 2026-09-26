@@ -175,6 +175,167 @@ public sealed class ImportExportProtocolTests
         Assert.HasCount(54, (await workspace.Service.QueryRecordsAsync(new("notes", 100))).Items);
     }
 
+    /// <summary>
+    /// R-006: CSV decoding reads each reference target's current version into the payload.
+    /// Once the target is edited, an exact retry used to be refused as a different payload,
+    /// because the committed batch had been written with the old version.
+    /// </summary>
+    [TestMethod]
+    public async Task AnExactCsvRetryReplaysAfterAReferencedTargetIsEdited()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareProjectsAsync(workspace);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        Dictionary<string, object?> Arguments(string csv) => new(session)
+        {
+            ["entityId"] = "tasks", ["format"] = "csv", ["csv"] = csv,
+            ["columnMappings"] = Mappings(["project", "title"]), ["idempotencyKey"] = "reference-retry",
+        };
+        const string Csv = "Project,Title\r\np1,First\r\np1,Second\r\n";
+
+        var first = await CallAsync<NendoImportResult>(client, "nendo.data.import_records", Arguments(Csv));
+        await EditProjectAsync(workspace);
+
+        var retried = await client.CallToolAsync("nendo.data.import_records", Arguments(Csv));
+        Assert.AreNotEqual(true, retried.IsError, "An exact retry was refused after its reference target was edited: " + JsonSerializer.Serialize(retried));
+        var replay = retried.StructuredContent!.Value.Deserialize<NendoImportResult>(NendoMcpJson.Options)!;
+        CollectionAssert.AreEqual(first.RecordIds.ToArray(), replay.RecordIds.ToArray());
+        Assert.HasCount(2, (await workspace.Service.QueryRecordsAsync(new("tasks", 50))).Items, "The retry wrote a second copy.");
+
+        // Replaying with the committed evidence does not loosen what the key stands for: the
+        // same key with a different payload is still a conflict and writes nothing.
+        var changed = await client.CallToolAsync("nendo.data.import_records", Arguments("Project,Title\r\np1,First\r\np1,Changed\r\n"));
+        Assert.IsTrue(changed.IsError, "A different payload under a used key was accepted.");
+        StringAssert.Contains(JsonSerializer.Serialize(changed), "NENDO_IDEMPOTENCY_CONFLICT", StringComparison.Ordinal);
+        Assert.HasCount(2, (await workspace.Service.QueryRecordsAsync(new("tasks", 50))).Items);
+    }
+
+    /// <summary>
+    /// R-006, partial resume: the committed first batch replays with the version it was
+    /// written at, and the batch that never committed is resolved and validated against the
+    /// file as it is now.
+    /// </summary>
+    [TestMethod]
+    public async Task APartialCsvImportResumesAfterAReferencedTargetIsEdited()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareProjectsAsync(workspace);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        const string Key = "reference-partial";
+        string Csv(string lastProject) => "Project,Title\r\n" +
+            string.Concat(Enumerable.Range(1, 51).Select(index => $"{(index == 51 ? lastProject : "p1")},Row {index}\r\n"));
+        Dictionary<string, object?> Arguments(string lastProject) => new(session)
+        {
+            ["entityId"] = "tasks", ["format"] = "csv", ["csv"] = Csv(lastProject),
+            ["columnMappings"] = Mappings(["project", "title"]), ["idempotencyKey"] = Key,
+        };
+
+        // An import interrupted after its first batch landed: exactly the revision the first
+        // call writes -- same scope, key, origin, record IDs and values, with the project at
+        // version 1 -- and then the response was lost. Written directly, because no refusal
+        // the decoder does not already catch can stop a CSV import between its batches.
+        var seed = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Key)))[..16].ToLowerInvariant();
+        await workspace.Service.CreateRecordsAsync(new NendoCreateRecordsRequest("tasks",
+            Enumerable.Range(0, 50).Select(index => new NendoCreateRecordEntry($"import.{seed}.{index}",
+                new Dictionary<string, object?> { ["project"] = "p1", ["title"] = $"Row {index + 1}" },
+                new Dictionary<string, long> { ["project"] = 1 })).ToArray(),
+            new("agent.import", Key + "#0", "agent")));
+        await EditProjectAsync(workspace);
+
+        // The row that never committed is still resolved against the file as it is now: a
+        // target that does not exist refuses the call before anything is written.
+        var missing = await client.CallToolAsync("nendo.data.import_records", Arguments("p404"));
+        Assert.IsTrue(missing.IsError, "An uncommitted row naming a missing target was accepted.");
+        StringAssert.Contains(JsonSerializer.Serialize(missing), "Reference target does not exist", StringComparison.Ordinal);
+        Assert.HasCount(50, (await workspace.Service.QueryRecordsAsync(new("tasks", 100))).Items);
+
+        var resumed = await client.CallToolAsync("nendo.data.import_records", Arguments("p1"));
+        Assert.AreNotEqual(true, resumed.IsError, "The resume was refused after the referenced target was edited: " + JsonSerializer.Serialize(resumed));
+        var result = resumed.StructuredContent!.Value.Deserialize<NendoImportResult>(NendoMcpJson.Options)!;
+        Assert.AreEqual(51, result.Committed);
+        Assert.AreEqual(2, result.RevisionCount);
+        var tasks = (await workspace.Service.QueryRecordsAsync(new("tasks", 100))).Items;
+        // The new row committed, so it was checked against the project's current version:
+        // the Engine refuses a create whose target version is not the one the file holds.
+        Assert.HasCount(51, tasks, "The resume duplicated or lost a row.");
+        Assert.IsTrue(tasks.Any(task => task.RecordId == $"import.{seed}.50"));
+    }
+
+    /// <summary>
+    /// R-007: the public key may be two hundred characters, and each batch's internal key
+    /// must still fit the Engine's bound. Two batches, an exact replay and a changed payload
+    /// at each of the lengths around the edge.
+    /// </summary>
+    [TestMethod]
+    [DataRow(198)]
+    [DataRow(199)]
+    [DataRow(200)]
+    public async Task AnImportKeyOfAnyAdmittedLengthImportsReplaysAndRefusesAChangedPayload(int length)
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareAsync(workspace);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        var key = new string('k', length);
+        Dictionary<string, object?> Arguments(string note) => new(session)
+        {
+            ["entityId"] = "notes", ["format"] = "json", ["idempotencyKey"] = key,
+            ["records"] = Enumerable.Range(1, 51).Select(index => new NendoRecordInput($"long-key-{index:D3}",
+                JsonSerializer.SerializeToElement(new Dictionary<string, object?> { ["label"] = $"Row {index}", ["note"] = note }))).ToArray(),
+        };
+
+        var imported = await client.CallToolAsync("nendo.data.import_records", Arguments("First"));
+        Assert.AreNotEqual(true, imported.IsError, $"A {length}-character key was admitted and then could not import: " + JsonSerializer.Serialize(imported));
+        var first = imported.StructuredContent!.Value.Deserialize<NendoImportResult>(NendoMcpJson.Options)!;
+        Assert.AreEqual(51, first.Committed);
+        Assert.AreEqual(2, first.RevisionCount);
+
+        var replay = await CallAsync<NendoImportResult>(client, "nendo.data.import_records", Arguments("First"));
+        CollectionAssert.AreEqual(first.RecordIds.ToArray(), replay.RecordIds.ToArray());
+        Assert.HasCount(54, (await workspace.Service.QueryRecordsAsync(new("notes", 100))).Items, "The replay wrote a second copy.");
+
+        var changed = await client.CallToolAsync("nendo.data.import_records", Arguments("Changed"));
+        Assert.IsTrue(changed.IsError, "A changed payload under a used key was accepted.");
+        StringAssert.Contains(JsonSerializer.Serialize(changed), "NENDO_IDEMPOTENCY_CONFLICT", StringComparison.Ordinal);
+        Assert.HasCount(54, (await workspace.Service.QueryRecordsAsync(new("notes", 100))).Items);
+    }
+
+    [TestMethod]
+    public void BatchKeysStayWithinTheEngineBoundAndKeepTheirOldFormWhereItFits()
+    {
+        // A key that leaves room keeps the form its receipts were written under.
+        Assert.AreEqual("short#0", NendoImportService.BatchKey("short", 0));
+        var roomy = new string('a', 198);
+        Assert.AreEqual(roomy + "#9", NendoImportService.BatchKey(roomy, 9));
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var length in new[] { 199, 200 })
+        {
+            foreach (var fill in new[] { 'a', 'b' })
+            {
+                var key = new string(fill, length);
+                for (var ordinal = 0; ordinal < 10; ordinal++)
+                {
+                    var batch = NendoImportService.BatchKey(key, ordinal);
+                    Assert.IsLessThanOrEqualTo(200, batch.Length, batch);
+                    Assert.AreEqual(batch, NendoImportService.BatchKey(key, ordinal), "A batch key is not stable.");
+                    Assert.IsTrue(seen.Add(batch), $"Two batches share the key {batch}.");
+                }
+            }
+        }
+    }
+
     [TestMethod]
     public async Task InvalidCsvMappingsAreTypedRefusalsBeforeAnyWrite()
     {
@@ -308,6 +469,33 @@ public sealed class ImportExportProtocolTests
         await CreateAsync(workspace, "n1", "Plain", null, 1);
         await CreateAsync(workspace, "n2", "Quoted \"and\" newline\nhere", "", 9007199254740993L);
         await CreateAsync(workspace, "n3", "\\N is text, =SUM(A1) is text", "Unicode 猫 — dash", -42L);
+    }
+
+    /// <summary>Projects and tasks, each task referencing a project; one project, no tasks.</summary>
+    private static async Task PrepareProjectsAsync(LocalMcpTestWorkspace workspace)
+    {
+        await workspace.CreateEmptyAsync();
+        var schema = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest(
+            $"proposal-{Guid.NewGuid():N}", "Projects and tasks", "test",
+            new([new("test", "schema", "test", "Projects and tasks", [
+                new CreateEntityOperation("projects", "projects", "Projects", "projects"),
+                new AddFieldOperation("p-name", "projects", "name", "Name", "name", NendoStorageKind.Text, true),
+                new CreateEntityOperation("tasks", "tasks", "Tasks", "tasks"),
+                new AddFieldOperation("t-project", "tasks", "project", "Project", "project_id", NendoStorageKind.Reference, true),
+                new AddFieldOperation("t-title", "tasks", "title", "Title", "title", NendoStorageKind.Text, true),
+                new ConfigureReferenceOperation("bind", "tasks", "project", "projects", "name", 0),
+            ])])));
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(schema.ProposalId)).Applied);
+        await workspace.Service.CreateRecordAsync(new("projects", "p1",
+            new Dictionary<string, object?> { ["name"] = "Project" }, new("test", "p1", "test")));
+    }
+
+    /// <summary>An ordinary edit of the referenced project, which moves it to version 2.</summary>
+    private static async Task EditProjectAsync(LocalMcpTestWorkspace workspace)
+    {
+        await workspace.Service.SetFieldAsync(new NendoSetFieldRequest("projects", "p1", "name", 1, "Renamed project",
+            new("test", "p1-rename", "test")));
+        Assert.AreEqual(2, (await workspace.Service.QueryRecordsAsync(new("projects", 1) { RecordId = "p1" })).Items.Single().RecordVersion);
     }
 
     private static Task CreateAsync(LocalMcpTestWorkspace workspace, string recordId, string label, string? note, long count) =>

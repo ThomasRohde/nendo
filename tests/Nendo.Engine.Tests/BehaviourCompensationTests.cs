@@ -156,6 +156,91 @@ public sealed class BehaviourCompensationTests
             "Restoring different rules left the old consent standing.");
     }
 
+    // R-015. A reference move whose action also updated both parents: the inverse that puts
+    // the reference back must expect the former parent at the version its own reversal
+    // leaves, not the version it had before the move.
+    [TestMethod]
+    public async Task ImmediatelyReversingAReferenceMoveThatUpdatedBothParentsSucceedsAndReplaysExactly()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await MoveFixtureAsync(coordinator, service);
+
+        var moved = await service.SetFieldAsync(new("children", "c1", "parent", 1, "p2", Context("move"), 1));
+        Assert.HasCount(3, (await service.GetHistoryAsync()).Single(entry => entry.RevisionId == moved.RevisionId).Operations,
+            "The move should carry the reference and a count on each parent.");
+        Assert.AreEqual("0/1", await ParentTotalsAsync(service));
+
+        var undone = await service.CompensateRevisionAsync(moved.RevisionId, "undo-move");
+        var records = (await service.GetSnapshotAsync()).Records;
+        Assert.AreEqual("p1", records.Single(record => record.RecordId == "c1").Values["parent"].GetString());
+        Assert.AreEqual("1/0", await ParentTotalsAsync(service));
+
+        var retry = await service.CompensateRevisionAsync(moved.RevisionId, "undo-move");
+        Assert.IsTrue(retry.IsIdempotentReplay, "An exact retry reversed the move a second time.");
+        Assert.AreEqual(undone.RevisionId, retry.RevisionId);
+        Assert.AreEqual("1/0", await ParentTotalsAsync(service));
+    }
+
+    [TestMethod]
+    public async Task ReversingAReferenceMoveStillRefusesAParentEditedSince()
+    {
+        foreach (var edited in new[] { "p1", "p2" })
+        {
+            await using var workspace = new EngineTestWorkspace();
+            var coordinator = await workspace.CreateAsync();
+            var service = new NendoApplicationService(coordinator);
+            await MoveFixtureAsync(coordinator, service);
+            var moved = await service.SetFieldAsync(new("children", "c1", "parent", 1, "p2", Context("move"), 1));
+
+            var version = (await VersionsAsync(service, "parents"))[edited];
+            await service.SetFieldAsync(new("parents", edited, "parentName", version, "Renamed", Context("outside")));
+            var before = System.Text.Json.JsonSerializer.Serialize((await service.GetSnapshotAsync()).Records);
+
+            var refusal = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(
+                () => service.CompensateRevisionAsync(moved.RevisionId, "undo-move"), $"{edited} was edited after the move");
+            StringAssert.Contains(refusal.Code, "conflict", $"{edited}: {refusal.Code}");
+            Assert.AreEqual(before, System.Text.Json.JsonSerializer.Serialize((await service.GetSnapshotAsync()).Records),
+                "A refused reversal left part of itself behind.");
+        }
+    }
+
+    private static async Task<string> ParentTotalsAsync(NendoApplicationService service)
+    {
+        var records = (await service.GetSnapshotAsync()).Records;
+        long Total(string id) => records.Single(record => record.RecordId == id).Values["total"].GetInt64();
+        return $"{Total("p1")}/{Total("p2")}";
+    }
+
+    private static async Task MoveFixtureAsync(NendoWriteCoordinator coordinator, NendoApplicationService service)
+    {
+        await coordinator.ApplyAsync(new("test", "schema", "test", "Parents and children", [
+            new CreateEntityOperation("parents", "parents", "Parents", "parents"),
+            new AddFieldOperation("p-name", "parents", "parentName", "Name", "name", NendoStorageKind.Text, true),
+            new AddFieldOperation("p-total", "parents", "total", "Total", "total", NendoStorageKind.Integer, true),
+            new CreateEntityOperation("children", "children", "Children", "children"),
+            new AddFieldOperation("c-parent", "children", "parent", "Parent", "parent", NendoStorageKind.Reference, true),
+            new ConfigureReferenceOperation("configure", "children", "parent", "parents", "parentName", 0),
+        ]));
+        await service.CreateRecordAsync(new("parents", "p1",
+            new Dictionary<string, object?> { ["parentName"] = "First", ["total"] = 1L }, Context("p1")));
+        await service.CreateRecordAsync(new("parents", "p2",
+            new Dictionary<string, object?> { ["parentName"] = "Second", ["total"] = 0L }, Context("p2")));
+        await service.CreateRecordAsync(new("children", "c1",
+            new Dictionary<string, object?> { ["parent"] = "p1" }, Context("c1"), new Dictionary<string, long> { ["parent"] = 1 }));
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "behaviour", "test", "Keep parent counts", [
+            new SetBehaviourDefinitionOperation("a", new NendoActionDefinition("count", "Count children",
+                [NendoActionStep.SetField("count", NendoActionTarget.Referenced("parent"),
+                    new NendoActionAssignment("total", "count",
+                        [NendoBehaviourBinding.RelatedCount("count", "parents", "children", "parent")], []))]), revision),
+            new SetBehaviourDefinitionOperation("t", new NendoTriggerDefinition("count.trigger", "children", "Keep parent counts",
+                NendoTriggerEvents.Updated, "count", ["parent"]), revision),
+        ]));
+        TestBehaviourAuthority.Approving(coordinator);
+    }
+
     private static async Task<long> TotalAsync(NendoApplicationService service) =>
         (await service.GetSnapshotAsync()).Records.Single(record => record.RecordId == "p1").Values["total"].GetInt64();
 

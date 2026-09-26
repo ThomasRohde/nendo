@@ -112,6 +112,16 @@ internal sealed class NendoImportService(NendoApplicationService application)
         var mappings = columnMappings
             .Select(mapping => new NendoCsvMapping(mapping.Column, mapping.FieldId))
             .ToArray();
+
+        // A CSV row carries no reference target versions; decoding reads the current ones.
+        // For a batch this key already committed, the current ones are the wrong evidence:
+        // the receipt replays only the payload it was written with, and a target edited
+        // since would turn an exact retry into a "different payload" (R-006). So the
+        // committed batches are found first, by their receipts, and their rows carry the
+        // versions their own revision recorded. Only rows that may still be written are
+        // resolved against the file as it is now, and validated as before.
+        var committedVersions = await ReadCommittedTargetVersionsAsync(
+            idempotencyKey, document.Rows.Count, cancellationToken);
         var decoded = await application.DecodeCsvRowsAsync(
             document,
             entityId,
@@ -119,7 +129,8 @@ internal sealed class NendoImportService(NendoApplicationService application)
             new NendoCsvOptions(nendoProfile, emptyIsNull),
             0,
             document.Rows.Count,
-            cancellationToken);
+            cancellationToken,
+            row => committedVersions[row / BatchSize] is null);
 
         // A CSV row carries no record ID, so one is derived from the caller's key and the
         // row's position. Stable, which is what makes an exact retry ask for the same
@@ -127,12 +138,41 @@ internal sealed class NendoImportService(NendoApplicationService application)
         // record IDs are global to the file rather than scoped to a record type.
         var seed = Seed(idempotencyKey);
         var records = decoded
-            .Select((row, index) => new NendoCreateRecordEntry(
-                $"import.{seed}.{index}",
-                row.Values,
-                row.ExpectedTargetVersions))
+            .Select((row, index) =>
+            {
+                var recordId = $"import.{seed}.{index}";
+                var versions = row.ExpectedTargetVersions;
+                if (committedVersions[index / BatchSize] is { } committed)
+                {
+                    // A row the committed batch does not hold, or whose reference it did not
+                    // carry, makes a different payload, which the receipt refuses as one.
+                    versions = committed.TryGetValue(recordId, out var recorded)
+                        ? recorded.Where(pair => row.Values.ContainsKey(pair.Key))
+                            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal)
+                        : versions;
+                }
+                return new NendoCreateRecordEntry(recordId, row.Values, versions);
+            })
             .ToArray();
         return await CommitAsync(entityId, records, idempotencyKey, cancellationToken);
+    }
+
+    /// <summary>
+    /// For each batch of a CSV import of <paramref name="rowCount"/> rows, the target versions
+    /// its committed revision recorded by record ID, or null for a batch with no receipt.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, long>>?[]> ReadCommittedTargetVersionsAsync(
+        string idempotencyKey, int rowCount, CancellationToken cancellationToken)
+    {
+        var batches = new IReadOnlyDictionary<string, IReadOnlyDictionary<string, long>>?[(rowCount + BatchSize - 1) / BatchSize];
+        for (var ordinal = 0; ordinal < batches.Length; ordinal++)
+        {
+            var receipt = await application.GetMutationReceiptAsync(
+                new NendoOperationIdentity(IdempotencyScope, BatchKey(idempotencyKey, ordinal)), cancellationToken);
+            if (receipt is not null)
+                batches[ordinal] = await application.ReadCreatedRecordTargetVersionsAsync(receipt.RevisionId, cancellationToken);
+        }
+        return batches;
     }
 
     internal async Task<NendoImportResult> ImportRecordsAsync(
@@ -195,7 +235,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
             {
                 result = await application.CreateRecordsAsync(
                     new NendoCreateRecordsRequest(entityId, batch, new NendoRequestContext(
-                        "agent.import", $"{idempotencyKey}#{revisions}", "agent")),
+                        IdempotencyScope, BatchKey(idempotencyKey, revisions), "agent")),
                     cancellationToken);
             }
             catch (NendoException exception) when (committed > 0)
@@ -230,6 +270,30 @@ internal sealed class NendoImportService(NendoApplicationService application)
     /// </summary>
     private static string Seed(string idempotencyKey) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(idempotencyKey)))[..16].ToLowerInvariant();
+
+    private const string IdempotencyScope = "agent.import";
+
+    /// <summary>The Engine's bound on an idempotency key, which the caller's own key shares.</summary>
+    private const int MaximumKeyCharacters = 200;
+
+    /// <summary>
+    /// The idempotency key of one batch: the caller's key, <c>#</c> and the batch ordinal.
+    /// <para>
+    /// The caller may use all two hundred characters the Engine allows, and the suffix would
+    /// then push the batch key past that bound, so no batch of such an import could ever be
+    /// written (R-007). A key that does not fit is replaced by <c>import.sha256.</c> and the
+    /// full SHA-256 of the caller's key: bounded, stable for a retry, and distinct for
+    /// distinct keys. A key that fits keeps its plain form, so a receipt written before this
+    /// rule still replays.
+    /// </para>
+    /// </summary>
+    internal static string BatchKey(string idempotencyKey, int ordinal)
+    {
+        var suffix = "#" + ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return idempotencyKey.Length + suffix.Length <= MaximumKeyCharacters
+            ? idempotencyKey + suffix
+            : "import.sha256." + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(idempotencyKey))).ToLowerInvariant() + suffix;
+    }
 
     private static void RequireRowCount(int count)
     {

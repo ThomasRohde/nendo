@@ -54,7 +54,8 @@ export interface ViewTheme {
 /**
  * One authored narrowing of what a view reads. `operator` is already the query's word
  * (`le`, not `lte`), and `valueKind` says whether `value` is the literal to compare or a
- * word such as `today` that is resolved when the query is made.
+ * word such as `today` that is resolved when the query is made. `storageKind` is the field's
+ * stored kind (`date`, `dateTime`, ...), which says whether `today` is a date or an instant.
  */
 export interface ViewFilter {
   fieldId: string;
@@ -62,6 +63,7 @@ export interface ViewFilter {
   operator: string;
   value: Json;
   valueKind: string;
+  storageKind: string;
 }
 
 export interface ViewBindings {

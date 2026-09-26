@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/record-window.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {cacheKey,clauseFilters,declaredQuery,emptyWindowQuery,hasWindowQuery,pageTarget,queryOperatorFor,windowRequest} =
+const {cacheKey,clauseFilters,declaredQuery,emptyWindowQuery,hasWindowQuery,pageTarget,queryOperatorFor,resolveClauseValue,useFieldKinds,windowRequest} =
  await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
 const node=(semanticId,kind,properties,children=[])=>({semanticId,automationTarget:semanticId,kind,properties,children});
@@ -110,4 +110,55 @@ test('a clause resolves today and now, and today is the reader’s own date',()=
  assert.equal(literal.value,'Open');
  // Every clause must carry a value the host can compare. A missing one is the refusal.
  for(const clause of [today,now,literal]) assert.notEqual(clause.value,undefined);
+});
+
+// R-003: the host refuses a DateTime comparison without an explicit zone, and `today` was
+// sent to a DateTime field as a bare date, so every such tile, list and view read failed.
+// The exact pattern the host's DateTime validation requires.
+const hostTimestamp=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?(Z|[+-]\d{2}:\d{2})$/;
+function inZone(zone,run){
+ const before=process.env.TZ;
+ process.env.TZ=zone;
+ try{return run();}finally{if(before===undefined)delete process.env.TZ;else process.env.TZ=before;}
+}
+
+test('today is a date for a Date field and the instant the person’s day begins, with its offset, for a DateTime field',()=>{
+ const due=node('list.due','recordList',{},[
+  node('f.due.today','filterClause',{fieldId:'due',operator:'lte',valueKind:'today'}),
+  node('f.created.today','filterClause',{fieldId:'createdAt',operator:'lte',valueKind:'today'}),
+ ]);
+ useFieldKinds((fieldId)=>({due:'date',createdAt:'dateTime'})[fieldId]);
+ try{
+  // 22:30 UTC on the 26th is already the 27th in Copenhagen (+02:00 in summer).
+  const late=new Date('2026-09-26T22:30:00Z');
+  inZone('Europe/Copenhagen',()=>{
+   const [date,instant]=clauseFilters(due,late);
+   assert.equal(date.value,'2026-09-27');
+   assert.equal(instant.value,'2026-09-27T00:00:00+02:00');
+   assert.match(instant.value,hostTimestamp,'A DateTime today was sent without the explicit zone the host requires.');
+   assert.equal(new Date(instant.value).toISOString(),'2026-09-26T22:00:00.000Z');
+  });
+  // The same instant is still the 26th west of UTC, and the offset is negative.
+  inZone('America/Los_Angeles',()=>{
+   const [date,instant]=clauseFilters(due,late);
+   assert.equal(date.value,'2026-09-26');
+   assert.equal(instant.value,'2026-09-26T00:00:00-07:00');
+   assert.equal(new Date(instant.value).toISOString(),'2026-09-26T07:00:00.000Z');
+  });
+  // One second either side of local midnight: the day boundary moves the answer.
+  inZone('Asia/Kolkata',()=>{
+   assert.equal(resolveClauseValue('today',undefined,new Date('2026-09-26T18:29:59Z'),'dateTime'),'2026-09-26T00:00:00+05:30');
+   assert.equal(resolveClauseValue('today',undefined,new Date('2026-09-26T18:30:00Z'),'dateTime'),'2026-09-27T00:00:00+05:30');
+   assert.equal(resolveClauseValue('today',undefined,new Date('2026-09-26T18:30:00Z'),'date'),'2026-09-27');
+  });
+  // A day that skips its midnight (Santiago springs forward at 00:00) begins at 01:00.
+  inZone('America/Santiago',()=>{
+   const begins=resolveClauseValue('today',undefined,new Date('2026-09-06T15:00:00Z'),'dateTime');
+   assert.equal(begins,'2026-09-06T01:00:00-03:00');
+   assert.match(begins,hostTimestamp);
+  });
+  inZone('UTC',()=>assert.equal(resolveClauseValue('today',undefined,new Date('2026-09-26T12:00:00Z'),'dateTime'),'2026-09-26T00:00:00+00:00'));
+ }finally{useFieldKinds(()=>undefined);}
+ // A field whose kind is unknown keeps the date, the kind every `today` had before.
+ assert.match(clauseFilters(due,new Date('2026-09-26T12:00:00Z'))[1].value,/^\d{4}-\d{2}-\d{2}$/);
 });

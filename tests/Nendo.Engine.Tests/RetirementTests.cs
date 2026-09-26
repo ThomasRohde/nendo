@@ -91,6 +91,115 @@ public sealed class RetirementTests
         CollectionAssert.AreEqual(bytes, await File.ReadAllBytesAsync(workspace.FilePath));
     }
 
+    // R-012. A trigger whose action writes a field must not survive that field's
+    // retirement: the next routine edit would raise it and roll back on the retired target.
+    [TestMethod]
+    public async Task RetiringAnActionTargetIsRefusedWhileAnActiveActionWritesIt()
+    {
+        await using var workspace = new EngineTestWorkspace(); var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await StampFixture(coordinator, service);
+
+        var before = await service.GetSnapshotAsync();
+        var refusal = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => coordinator.ApplyAsync(
+            Mutation("retire-stamp", new SetRetiredOperation("retire-stamp", "e", "stamp", true, before.Manifest.DefinitionRevision))));
+        Assert.AreEqual("retired-binding", refusal.Code);
+        StringAssert.Contains(refusal.Message, "stamp.action");
+        Assert.AreEqual(JsonSerializer.Serialize(before), JsonSerializer.Serialize(await service.GetSnapshotAsync()));
+
+        // The routine edit the defect used to break still runs its action.
+        await service.SetFieldAsync(new("e", "r", "title", 1, "After", Context("edit")));
+        Assert.AreEqual("Done", (await service.GetSnapshotAsync()).Records.Single().Values["stamp"].GetString());
+    }
+
+    [TestMethod]
+    public async Task RetiringAnActionTargetSucceedsWhenTheSameMutationRewiresTheAction()
+    {
+        await using var workspace = new EngineTestWorkspace(); var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await StampFixture(coordinator, service);
+
+        // Retirement listed first: the final candidate decides, not the operation order.
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "rewire", "test", "Retire and rewire", [
+            new SetRetiredOperation("retire-stamp", "e", "stamp", true, revision),
+            new SetBehaviourDefinitionOperation("rewire", StampAction("note"), revision),
+        ]));
+        TestBehaviourAuthority.Approving(coordinator);
+        await service.SetFieldAsync(new("e", "r", "title", 1, "After", Context("edit")));
+        var record = (await service.GetSnapshotAsync()).Records.Single();
+        Assert.AreEqual("Done", record.Values["note"].GetString());
+        Assert.AreEqual("After", record.Values["title"].GetString());
+    }
+
+    [TestMethod]
+    public async Task RetiringAnActionTargetSucceedsWhenTheSameMutationRemovesTheBehaviour()
+    {
+        await using var workspace = new EngineTestWorkspace(); var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await StampFixture(coordinator, service);
+
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "remove", "test", "Remove and retire", [
+            new RemoveBehaviourDefinitionOperation("drop-trigger", "stamp.trigger", NendoBehaviourKind.Trigger, revision),
+            new RemoveBehaviourDefinitionOperation("drop-action", "stamp.action", NendoBehaviourKind.Action, revision),
+            new SetRetiredOperation("retire-stamp", "e", "stamp", true, revision),
+        ]));
+        await service.SetFieldAsync(new("e", "r", "title", 1, "After", Context("edit")));
+        Assert.IsTrue((await service.GetSnapshotAsync()).Entities.Single().Fields.Single(field => field.FieldId == "stamp").Retired);
+    }
+
+    [TestMethod]
+    public async Task RetiringARecordTypeIsRefusedWhileBehaviourReadsOrWritesIt()
+    {
+        await using var workspace = new EngineTestWorkspace(); var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await coordinator.ApplyAsync(new("test", "schema", "test", "Parents and children", [
+            new CreateEntityOperation("parents", "parents", "Parents", "parents"),
+            new AddFieldOperation("p-name", "parents", "parentName", "Name", "name", NendoStorageKind.Text, true),
+            new AddFieldOperation("p-total", "parents", "total", "Total", "total", NendoStorageKind.Integer, false),
+            new CreateEntityOperation("children", "children", "Children", "children"),
+            new AddFieldOperation("c-parent", "children", "parent", "Parent", "parent", NendoStorageKind.Reference, false),
+            new ConfigureReferenceOperation("configure", "children", "parent", "parents", "parentName", 0),
+        ]));
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "behaviour", "test", "Count onto the parent", [
+            new SetBehaviourDefinitionOperation("action", new NendoActionDefinition("count", "Count children",
+                [NendoActionStep.SetField("count", NendoActionTarget.Referenced("parent"), new NendoActionAssignment("total", "7", [], []))]), revision),
+            new SetBehaviourDefinitionOperation("trigger", new NendoTriggerDefinition("count.trigger", "children", "Keep counts",
+                NendoTriggerEvents.Updated, "count", ["parent"]), revision),
+        ]));
+
+        // No child refers to a parent, so only the action's target stands in the way.
+        revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        var refusal = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => coordinator.ApplyAsync(
+            Mutation("retire-parents", new SetRetiredOperation("retire-parents", "parents", null, true, revision))));
+        Assert.AreEqual("retired-binding", refusal.Code);
+        StringAssert.Contains(refusal.Message, "parents");
+        Assert.IsFalse((await service.GetSnapshotAsync()).Entities.Single(entity => entity.EntityId == "parents").Retired);
+    }
+
+    private static NendoActionDefinition StampAction(string fieldId) => new("stamp.action", "Stamp",
+        [NendoActionStep.SetField("write-stamp", NendoActionTarget.EventRecord, new NendoActionAssignment(fieldId, "'Done'", [], []))]);
+
+    private static async Task StampFixture(NendoWriteCoordinator coordinator, NendoApplicationService service)
+    {
+        await coordinator.ApplyAsync(new("test", "schema", "test", "Schema", [
+            new CreateEntityOperation("e", "e", "Entries", "entries"),
+            new AddFieldOperation("title", "e", "title", "Title", "title", NendoStorageKind.Text, true),
+            new AddFieldOperation("note", "e", "note", "Note", "note", NendoStorageKind.Text, false),
+            new AddFieldOperation("stamp", "e", "stamp", "Stamp", "stamp", NendoStorageKind.Text, false),
+        ]));
+        await service.CreateRecordAsync(new("e", "r", new Dictionary<string, object?> { ["title"] = "Before" }, Context("r")));
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "automatic", "test", "Stamp on title edits", [
+            new SetBehaviourDefinitionOperation("action", StampAction("stamp"), revision),
+            new SetBehaviourDefinitionOperation("trigger", new NendoTriggerDefinition("stamp.trigger", "e", "Stamp edits",
+                NendoTriggerEvents.Updated, "stamp.action", ["title"]), revision),
+        ]));
+        TestBehaviourAuthority.Approving(coordinator);
+    }
+
     private static async Task Seed(NendoWriteCoordinator coordinator) => await coordinator.ApplyAsync(new("test", "schema", "test", "Schema", [
         new CreateEntityOperation("e", "e", "Entries", "entries"),
         new AddFieldOperation("title", "e", "title", "Title", "title", NendoStorageKind.Text, true),

@@ -167,6 +167,34 @@ function valuesParam(params: Params): Params {
 }
 
 /**
+ * The version of each reference target a write assigns, by field ID: the host checks that the
+ * record a reference now points at is still the one the view read, as it does for the person's
+ * own reference picker, and refuses a non-null reference without one (target-version-required).
+ * Rebuilt key by key; a field it names must be one the write assigns. Absent, nothing is sent.
+ */
+function targetVersionsParam(params: Params, values: Params): { expectedTargetVersions?: Record<string, number> } {
+  const value = params.targetVersions;
+  if (value === undefined || value === null) return {};
+  if (typeof value !== 'object' || Array.isArray(value)) throw invalid('targetVersions must be an object of reference field IDs to the target record’s version.');
+  const entries = Object.entries(value as Params);
+  if (entries.length > 64) throw invalid('targetVersions names at most 64 fields.');
+  const rebuilt: Record<string, number> = {};
+  for (const [fieldId, version] of entries) {
+    if (!Object.hasOwn(values, fieldId)) throw invalid(`targetVersions names ${fieldId.slice(0, 256)}, which this write does not assign.`);
+    if (typeof version !== 'number' || !Number.isSafeInteger(version) || version < 1)
+      throw invalid(`targetVersions.${fieldId} must be the target record’s version, a whole number from 1: read it from that record.`);
+    rebuilt[fieldId] = version;
+  }
+  return entries.length === 0 ? {} : { expectedTargetVersions: rebuilt };
+}
+
+/** A write's values and, when it assigns references, the version of each target it read. */
+function assignedValues(params: Params): Params {
+  const values = valuesParam(params);
+  return { values, ...targetVersionsParam(params, values) };
+}
+
+/**
  * A write, as the person's own edit makes it, attributed to the view's package.
  *
  * The actor is the mount's package, from the view definition the Workbench mounted, and never
@@ -338,9 +366,9 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
     entityId: textParam(p, 'entityId'), rowByFieldId: textParam(p, 'rowByFieldId'), columnByFieldId: textParam(p, 'columnByFieldId'),
     aggregate: textParam(p, 'aggregate', 32), fieldId: optionalText(p, 'fieldId'), filters: filterParams(p),
   })),
-  'records.create': write('data.createRecord', (p) => ({ entityId: textParam(p, 'entityId'), recordId: newRecordId(p), values: valuesParam(p) })),
+  'records.create': write('data.createRecord', (p) => ({ entityId: textParam(p, 'entityId'), recordId: newRecordId(p), ...assignedValues(p) })),
   'records.update': write('data.setFields', (p) => ({
-    entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p), values: valuesParam(p),
+    entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p), ...assignedValues(p),
   })),
   'records.delete': write('data.deleteRecord', (p) => ({
     entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p),

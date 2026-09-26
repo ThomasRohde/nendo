@@ -104,6 +104,38 @@ internal sealed partial class DesktopSessionController
     }
 
     /// <summary>
+    /// The same admission again, under the request gate, for a request made in a view's name
+    /// (<c>extension:&lt;package&gt;</c>); any other origin passes untouched. The protocol's
+    /// check runs before the request waits for the gate, so a kill switch or a package removal
+    /// queued ahead of it would otherwise complete first and still let the write commit after
+    /// it (R-014). This check reads the switches themselves and the file's own package list,
+    /// so it holds even when the view read that should have followed them did not.
+    /// </summary>
+    private async Task AdmitExtensionWriterAsync(NendoApplicationService service, string? origin, CancellationToken cancellationToken)
+    {
+        const string prefix = "extension:";
+        if (origin is null || !origin.StartsWith(prefix, StringComparison.Ordinal)) return;
+        var packageId = origin[prefix.Length..];
+        RequireExtensionWriter(packageId);
+        var settings = ExtensionSettings;
+        var applicationId = _extensionServing.ApplicationId;
+        if (_extensionsSuspended || !settings.Run || applicationId is null || !settings.FileEnabled(applicationId))
+            throw new NendoPreconditionException("views-off", "Custom views are off, so a view cannot change this file.");
+        var definition = await service.GetDefinitionSnapshotAsync(cancellationToken);
+        if (!string.Equals(definition.Manifest.ApplicationId, applicationId, StringComparison.Ordinal) ||
+            !definition.ExtensionPackages.Any(package => string.Equals(package.PackageId, packageId, StringComparison.Ordinal)))
+            throw new NendoPreconditionException("actor-not-allowed", $"This file carries no package {packageId}, so nothing may write in its name.");
+        if (AfterExtensionWriterAdmittedForTest is { } hook) await hook();
+    }
+
+    /// <summary>
+    /// Runs once a view's write has passed admission here and before it reaches the Engine:
+    /// the window a writer this gate does not serialize with, such as an agent accepting its
+    /// own proposal, could use. Tests only; the Engine's own check is what closes it.
+    /// </summary>
+    internal Func<Task>? AfterExtensionWriterAdmittedForTest { get; set; }
+
+    /// <summary>
     /// A proposal a custom view prepares (ADR-0013 Phase 3). One per package waits at a time:
     /// each proposal validates against a copy of the file, so a view asking in a loop would
     /// fill the disk, and the person is never asked twice at once by one view.
@@ -125,7 +157,7 @@ internal sealed partial class DesktopSessionController
                 _viewProposals[preview.ProposalId] = new(request.Origin, preview.Title);
             }
             return preview;
-        }, cancellationToken);
+        }, cancellationToken, request.Origin);
 
     /// <summary>A view's kept values (ADR-0013 Phase 3): one key's, or every key with its version.</summary>
     internal Task<IReadOnlyList<NendoExtensionStateEntry>> ReadExtensionStateAsync(
@@ -137,7 +169,7 @@ internal sealed partial class DesktopSessionController
         string packageId, string viewId, string key, string? valueJson, long? expectedVersion, string description,
         string idempotencyKey, string origin, CancellationToken cancellationToken = default) =>
         MutateAsync(service => service.SetExtensionStateAsync(packageId, viewId, key, valueJson, expectedVersion, description,
-            new NendoRequestContext("desktop.p2.5", idempotencyKey, origin), cancellationToken), cancellationToken);
+            new NendoRequestContext("desktop.p2.5", idempotencyKey, origin), cancellationToken), cancellationToken, origin);
 
     /// <summary>The proposals views prepared in this file session, so a view can follow one after it is decided.</summary>
     private readonly Dictionary<string, (string Origin, string Title)> _viewProposals = new(StringComparer.Ordinal);

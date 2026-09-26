@@ -160,6 +160,32 @@ test('a reconnect fails what was waiting with disconnected, and later requests u
   assert.equal(first.inbox.filter((message) => message.t === 'req').length, 1, 'A request after the reconnect went to the old port.');
 });
 
+// R-002: a reference assignment needs the target's version, so the client must send it.
+test('create and update send the reference targets’ versions a view passes, and the record ID create still takes alone', async (t) => {
+  const view = frame();
+  const workbench = connect(view, { ...baseContext, methods: [...baseContext.methods, 'records.create', 'records.update'] }, t);
+  const nendo = view.window.nendo;
+  const requests = () => workbench.inbox.filter((message) => message.t === 'req');
+  const answerLast = async (count) => {
+    await until(() => requests().length === count, `request ${count}`);
+    const request = requests().at(-1);
+    workbench.send({ t: 'res', id: request.id, ok: true, r: null });
+    return plain(request);
+  };
+  const created = nendo.records.create('tasks', { title: 'Cure', owner: 'p1' }, { recordId: 't9', targetVersions: { owner: 7 } });
+  assert.deepEqual((await answerLast(1)).p, { entityId: 'tasks', values: { title: 'Cure', owner: 'p1' }, recordId: 't9', targetVersions: { owner: 7 } });
+  await created;
+  const legacy = nendo.records.create('tasks', { title: 'Cure' }, 't10');
+  assert.deepEqual((await answerLast(2)).p, { entityId: 'tasks', values: { title: 'Cure' }, recordId: 't10' });
+  await legacy;
+  const updated = nendo.records.update({ entityId: 'tasks', recordId: 't9', version: 1 }, { owner: 'p2' }, { targetVersions: { owner: 3 } });
+  assert.deepEqual((await answerLast(3)).p, { entityId: 'tasks', recordId: 't9', version: 1, values: { owner: 'p2' }, targetVersions: { owner: 3 } });
+  await updated;
+  const plainUpdate = nendo.records.update({ entityId: 'tasks', recordId: 't9', version: 2 }, { title: 'x' });
+  assert.deepEqual((await answerLast(4)).p, { entityId: 'tasks', recordId: 't9', version: 2, values: { title: 'x' } });
+  await plainUpdate;
+});
+
 test('the client keeps an honest view inside the bounds: 256 KiB a request, eight in flight', async (t) => {
   const view = frame();
   const workbench = connect(view, baseContext, t);
@@ -252,4 +278,30 @@ test('loadGraph gives nodes, the edges between them, the fields the view names, 
   assert.equal(nodeQuery.filters[0].operator, 'le');
   assert.match(nodeQuery.filters[0].value, /^\d{4}-\d{2}-\d{2}$/, 'A filter on today was sent without the date it means.');
   assert.deepEqual(plain(queries.find((query) => query.entityId === 'link').filters[0]), { fieldId: 'kind', operator: 'isNotNull' });
+});
+
+// R-003: a view's authored `today` on a DateTime field went out as a bare date, which the
+// host refuses for a DateTime comparison; it has to be the instant the day begins, with a zone.
+test('a view’s authored today is a date on a Date field and a zoned instant on a DateTime field', async (t) => {
+  const view = frame();
+  const context = {
+    ...baseContext, recordId: null,
+    bindings: { ...baseContext.bindings, edgeEntityId: null, filters: [
+      { fieldId: 'due', entityId: 'work', operator: 'le', value: null, valueKind: 'today', storageKind: 'date' },
+      { fieldId: 'createdAt', entityId: 'work', operator: 'le', value: null, valueKind: 'today', storageKind: 'dateTime' },
+    ] },
+  };
+  const workbench = connect(view, context, t);
+  const queries = [];
+  workbench.port.onmessage = (event) => {
+    const message = event.data;
+    if (message.t !== 'req') return;
+    queries.push(message.p);
+    workbench.send({ t: 'res', id: message.id, ok: true, r: { items: [], nextCursor: null, changeSequence: 1 } });
+  };
+  await view.window.nendo.view.loadRecords();
+  const [date, instant] = plain(queries[0].filters);
+  assert.match(date.value, /^\d{4}-\d{2}-\d{2}$/);
+  assert.match(instant.value, /^\d{4}-\d{2}-\d{2}T00:00:00[+-]\d{2}:\d{2}$/, 'A DateTime today was sent without the explicit zone the host requires.');
+  assert.equal(instant.value.slice(0, 10), date.value, 'The instant and the date name different days.');
 });

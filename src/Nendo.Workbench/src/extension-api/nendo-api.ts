@@ -196,7 +196,7 @@ function install(host: Window & { nendo?: unknown }): void {
     return view.bindings.filters.filter((filter) => filter.entityId === entityId).map((filter) =>
       filter.operator === 'isNull' || filter.operator === 'isNotNull'
         ? { fieldId: filter.fieldId, operator: filter.operator }
-        : { fieldId: filter.fieldId, operator: filter.operator, value: resolveClauseValue(filter.valueKind, filter.value, at) as Json });
+        : { fieldId: filter.fieldId, operator: filter.operator, value: resolveClauseValue(filter.valueKind, filter.value, at, filter.storageKind) as Json });
   }
 
   /** The records the view is about: its record type under its filters, or the page's one record. */
@@ -272,6 +272,14 @@ function install(host: Window & { nendo?: unknown }): void {
   type RecordAt = { entityId: string; recordId: string; version: number };
   /** Field values to write: null, text, true or false, a number, or { $nendoNumber: '…' } for exact digits. */
   type WriteValues = Record<string, string | number | boolean | null | { $nendoNumber: string }>;
+  /**
+   * For each reference field a write points at a record, that record's version as the view read
+   * it: { owner: person.version }. The host refuses a non-null reference without one, and one
+   * whose target changed since.
+   */
+  type TargetVersions = Record<string, number>;
+  type CreateOptions = { recordId?: string; targetVersions?: TargetVersions };
+  type UpdateOptions = { targetVersions?: TargetVersions };
   type StateOptions = { scope?: 'view' | 'package' };
   type StateEntry = { key: string; value: unknown; version: number };
 
@@ -330,12 +338,21 @@ function install(host: Window & { nendo?: unknown }): void {
       /**
        * Writes, as the person's own edit makes them (ADR-0013 Phase 3). Each is checked against the
        * record's version and refused if somebody changed it since; each is in History under this
-       * view's package, and undone there. Each answers the record as it now stands.
+       * view's package, and undone there. Each answers the record as it now stands. A write that
+       * sets a reference passes the target's version in targetVersions. create's third argument is
+       * { recordId, targetVersions }, or the record ID alone.
        */
-      create: (entityId: string, values: WriteValues, recordId?: string): Promise<ViewRecord | null> =>
-        call<ViewRecord | null>('records.create', { entityId, values, ...(recordId === undefined ? {} : { recordId }) }),
-      update: (record: RecordAt, values: WriteValues): Promise<ViewRecord | null> =>
-        call<ViewRecord | null>('records.update', { entityId: record.entityId, recordId: record.recordId, version: record.version, values }),
+      create: (entityId: string, values: WriteValues, options?: string | CreateOptions): Promise<ViewRecord | null> => {
+        const { recordId, targetVersions } = typeof options === 'string' ? { recordId: options, targetVersions: undefined } : options ?? {};
+        return call<ViewRecord | null>('records.create', {
+          entityId, values, ...(recordId === undefined ? {} : { recordId }), ...(targetVersions === undefined ? {} : { targetVersions }),
+        });
+      },
+      update: (record: RecordAt, values: WriteValues, options?: UpdateOptions): Promise<ViewRecord | null> =>
+        call<ViewRecord | null>('records.update', {
+          entityId: record.entityId, recordId: record.recordId, version: record.version, values,
+          ...(options?.targetVersions === undefined ? {} : { targetVersions: options.targetVersions }),
+        }),
       delete: (record: RecordAt): Promise<null> =>
         call<null>('records.delete', { entityId: record.entityId, recordId: record.recordId, version: record.version }),
     }),

@@ -65,9 +65,16 @@ to do so.
 One call carries at most 500 rows. The 256 KiB request body is the limit that a
 call reaches first. The response echoes that ceiling, what committed and what
 remains. Each internal batch derives its idempotency key from the key of the
-caller. The record ID of a CSV row derives from that key and the position of the
-row. Thus an exact retry requests the same records and does not create a second
-copy. If a later batch is refused, the run stops, and the batches before it stay
+caller: the key, `#` and the batch ordinal while that fits the 200-character
+bound, and otherwise `import.sha256.`, the SHA-256 of the key, `#` and the
+ordinal, so every key the tool admits can import. The record ID of a CSV row
+derives from that key and the position of the row. Thus an exact retry requests
+the same records and does not create a second copy. A CSV row carries no
+reference target versions, so decoding reads the current ones; a retry first
+finds the batches its key already committed and gives their rows the versions
+their own revision recorded, so an exact retry still replays after a referenced
+record is edited. Rows no batch has committed are resolved and validated against
+the file as it is now. If a later batch is refused, the run stops, and the batches before it stay
 committed. `NENDO_IMPORT_PARTIAL` names the committed and remaining counts, the
 first uncommitted data row (one-based, excluding the header), the committed
 revision IDs and the refusal cause. Retry the identical call with the identical

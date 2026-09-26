@@ -124,6 +124,115 @@ public sealed class DesktopExtensionWriterTests
         Assert.AreEqual(before, (await session.GetViewAsync()).Manifest!.ChangeSequence);
     }
 
+    /// <summary>
+    /// R-014: the protocol admits a view's write before the request waits for the session gate.
+    /// A kill switch already waiting there completes first; the write that was queued behind it
+    /// must then be refused, not commit after views were turned off.
+    /// </summary>
+    [TestMethod]
+    [DataRow("device")]
+    [DataRow("file")]
+    public async Task AKillSwitchQueuedAheadOfAViewWriteStopsThatWrite(string scope)
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await DesktopExtensionViewJourneyTests.SeedAsync(workspace.FilePath);
+        var (session, handler, fileSessionId) = await OpenAsync(workspace);
+        await using var _ = session;
+        var before = (await session.GetViewAsync()).Manifest!.ChangeSequence;
+
+        var gate = Gate(session);
+        await gate.WaitAsync();
+        Task<DesktopSessionView> off;
+        Task<WorkbenchResponse> write;
+        try
+        {
+            off = session.SetExtensionSettingAsync(scope, false);
+            write = handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.DataCreateRecord,
+                new { entityId = "tasks", recordId = "queued", values = new { title = "Queued behind the switch" }, idempotencyKey = "view-queued", actor = Actor }));
+            Assert.IsFalse(off.IsCompleted, "The kill switch did not wait for the held gate.");
+            Assert.IsFalse(write.IsCompleted, $"The write did not reach the held gate: {(write.IsCompleted ? write.Result.Error?.Message : null)}");
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        Assert.IsFalse((await off).Extensions!.Run, "The kill switch did not turn views off.");
+        var response = await write;
+        Assert.IsFalse(response.Ok, $"A view's write queued behind the {scope} kill switch committed after views were turned off.");
+        Assert.AreEqual("views-off", response.Error!.Code, response.Error.Message);
+        Assert.AreEqual(before, (await session.GetViewAsync()).Manifest!.ChangeSequence, "The refused write changed the file.");
+    }
+
+    /// <summary>The same order with the package's removal ahead of its view's write.</summary>
+    [TestMethod]
+    public async Task APackageRemovalQueuedAheadOfItsViewsWriteStopsThatWrite()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await DesktopExtensionViewJourneyTests.SeedAsync(workspace.FilePath);
+        var (session, handler, fileSessionId) = await OpenAsync(workspace);
+        await using var _ = session;
+        var package = DesktopExtensionViewJourneyTests.ProbePackages[2];
+        var actor = "extension:" + package;
+        var removal = await session.PrepareExtensionRemovalAsync(package);
+        Assert.AreEqual(NendoProposalState.Previewable, removal.State, string.Join("; ", removal.Diagnostics.Select(d => d.Message)));
+
+        var gate = Gate(session);
+        await gate.WaitAsync();
+        Task<DesktopPromotionView> removed;
+        Task<WorkbenchResponse> write;
+        try
+        {
+            removed = session.PromoteProposalAsync(removal.ProposalId, expectedOperationDigest: removal.OperationDigest);
+            write = handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.DataCreateRecord,
+                new { entityId = "tasks", recordId = "queued", values = new { title = "Queued behind the removal" }, idempotencyKey = "view-queued-removal", actor }));
+            Assert.IsFalse(removed.IsCompleted, "The removal did not wait for the held gate.");
+            Assert.IsFalse(write.IsCompleted, $"The write did not reach the held gate: {(write.IsCompleted ? write.Result.Error?.Message : null)}");
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        Assert.IsTrue((await removed).Promotion.Applied, "The removal was not applied.");
+        var response = await write;
+        Assert.IsFalse(response.Ok, "A view's write queued behind its package's removal committed after the package was gone.");
+        Assert.AreEqual("actor-not-allowed", response.Error!.Code, response.Error.Message);
+        Assert.IsFalse((await session.GetHistoryAsync()).Any(revision => revision.Origin == actor),
+            "History holds a write in the name of a package that was removed before it committed.");
+    }
+
+    /// <summary>
+    /// The other order: a write already admitted when the switch is thrown finishes, and its
+    /// outcome is reported as the commit it was, before the switch takes effect.
+    /// </summary>
+    [TestMethod]
+    public async Task AViewWriteAdmittedBeforeTheKillSwitchCommitsAndSaysSo()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await DesktopExtensionViewJourneyTests.SeedAsync(workspace.FilePath);
+        var (session, handler, fileSessionId) = await OpenAsync(workspace);
+        await using var _ = session;
+
+        // With the gate free, the request runs synchronously through both of its gate entries,
+        // so by the time HandleAsync hands back its task the write holds the gate (or is done)
+        // and the switch below queues behind it.
+        var write = handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.DataCreateRecord,
+            new { entityId = "tasks", recordId = "ahead", values = new { title = "Ahead of the switch" }, idempotencyKey = "view-ahead", actor = Actor }));
+        var off = session.SetExtensionSettingAsync("device", false);
+
+        var response = await write;
+        Assert.IsTrue(response.Ok, response.Error?.Message);
+        Assert.IsFalse((await off).Extensions!.Run);
+        Assert.IsTrue((await session.GetHistoryAsync()).Any(revision => revision.Origin == Actor),
+            "A write reported as committed is not in History.");
+    }
+
+    private static SemaphoreSlim Gate(DesktopSessionController session) =>
+        (SemaphoreSlim)typeof(DesktopSessionController)
+            .GetField("_gate", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(session)!;
+
     private static async Task<(DesktopSessionController Session, WorkbenchProtocolHandler Handler, string FileSessionId)> OpenAsync(DesktopTestWorkspace workspace)
     {
         var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot);

@@ -136,6 +136,100 @@ public sealed class ExtensionPackageTests
         Assert.AreEqual("two();\n", Encoding.UTF8.GetString((await service.ReadExtensionFileAsync(PackageId, "map.js"))!.Content));
     }
 
+    // R-018. Reversing an old metadata change must not overwrite a newer one: the title and
+    // entry point decide which code a custom view runs.
+    [TestMethod]
+    public async Task ReversingOldPackageMetadataRefusesANewerChange()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await coordinator.ApplyAsync(Mutation("add", new SetExtensionPackageOperation("add", PackageId, "Original", "index.html")));
+        var second = await coordinator.ApplyAsync(Mutation("second", new SetExtensionPackageOperation("second", PackageId, "Second", "second.html")));
+        var third = await coordinator.ApplyAsync(Mutation("third", new SetExtensionPackageOperation("third", PackageId, "Later owner edit", "third.html", "2.0.0")));
+
+        var refusal = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(
+            () => service.CompensateRevisionAsync(second.RevisionId, "undo-second"));
+        Assert.AreEqual("extension-package-changed", refusal.Code);
+        var package = (await service.GetSnapshotAsync()).ExtensionPackages.Single();
+        Assert.AreEqual("Later owner edit/third.html/2.0.0", $"{package.Title}/{package.EntryPoint}/{package.Version}",
+            "The reversal overwrote the newer metadata.");
+
+        // A version-only change is a change too.
+        await coordinator.ApplyAsync(Mutation("fourth", new SetExtensionPackageOperation("fourth", PackageId, "Later owner edit", "third.html", "2.0.1")));
+        await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => service.CompensateRevisionAsync(third.RevisionId, "undo-third"));
+        Assert.AreEqual("2.0.1", (await service.GetSnapshotAsync()).ExtensionPackages.Single().Version);
+    }
+
+    [TestMethod]
+    public async Task ReversingTheLatestPackageMetadataRestoresItAndRetriesIdempotently()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await coordinator.ApplyAsync(Mutation("add", new SetExtensionPackageOperation("add", PackageId, "Original", "index.html")));
+        var second = await coordinator.ApplyAsync(Mutation("second", new SetExtensionPackageOperation("second", PackageId, "Second", "second.html", "1.0.0", "Described")));
+
+        var undone = await service.CompensateRevisionAsync(second.RevisionId, "undo-second");
+        var package = (await service.GetSnapshotAsync()).ExtensionPackages.Single();
+        Assert.AreEqual("Original/index.html", $"{package.Title}/{package.EntryPoint}");
+        Assert.IsNull(package.Version);
+        Assert.IsNull(package.Description);
+
+        var retry = await service.CompensateRevisionAsync(second.RevisionId, "undo-second");
+        Assert.IsTrue(retry.IsIdempotentReplay, "A retried reversal ran again.");
+        Assert.AreEqual(undone.RevisionId, retry.RevisionId);
+    }
+
+    [TestMethod]
+    public async Task ReversingSeveralPackageOperationsInOneRevisionChecksEachAgainstWhatItLeft()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await coordinator.ApplyAsync(Mutation("add", new SetExtensionPackageOperation("add", PackageId, "Original", "index.html"), Put("index.html", Html)));
+
+        // Two metadata changes and a file in one revision; reversed in the opposite order,
+        // each reversal finds exactly what the next-later operation left.
+        var both = await coordinator.ApplyAsync(Mutation("both",
+            new SetExtensionPackageOperation("step-1", PackageId, "Step one", "index.html"),
+            Put("map.js", Script),
+            new SetExtensionPackageOperation("step-2", PackageId, "Step two", "map.js")));
+        // A metadata change after it refuses the whole reversal, and the file stays.
+        var later = await coordinator.ApplyAsync(Mutation("later", new SetExtensionPackageOperation("later", PackageId, "Later", "map.js")));
+        var refusal = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(
+            () => service.CompensateRevisionAsync(both.RevisionId, "undo-both-refused"));
+        Assert.AreEqual("extension-package-changed", refusal.Code);
+        var package = (await service.GetSnapshotAsync()).ExtensionPackages.Single();
+        Assert.AreEqual("Later/map.js", $"{package.Title}/{package.EntryPoint}");
+        CollectionAssert.AreEqual(new[] { "index.html", "map.js" }, package.Files.Select(file => file.Path).ToArray(),
+            "A refused reversal removed a file on its way to the refusal.");
+
+        // Reversing the later change first puts back what the revision left, and then the
+        // revision reverses cleanly, in the opposite order, each step finding what it expects.
+        await service.CompensateRevisionAsync(later.RevisionId, "undo-later");
+        await service.CompensateRevisionAsync(both.RevisionId, "undo-both");
+        package = (await service.GetSnapshotAsync()).ExtensionPackages.Single();
+        Assert.AreEqual("Original/index.html", $"{package.Title}/{package.EntryPoint}");
+        CollectionAssert.AreEqual(new[] { "index.html" }, package.Files.Select(file => file.Path).ToArray());
+    }
+
+    [TestMethod]
+    public async Task ReversingAPackageRemovalRefusesAPackageCreatedAgainSince()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await coordinator.ApplyAsync(Mutation("add", new SetExtensionPackageOperation("add", PackageId, "Original", "index.html")));
+        var removed = await coordinator.ApplyAsync(Mutation("remove", new RemoveExtensionPackageOperation("remove", PackageId)));
+        await coordinator.ApplyAsync(Mutation("again", new SetExtensionPackageOperation("again", PackageId, "Recreated", "new.html")));
+
+        var refusal = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(
+            () => service.CompensateRevisionAsync(removed.RevisionId, "undo-remove"));
+        Assert.AreEqual("extension-package-changed", refusal.Code);
+        Assert.AreEqual("Recreated", (await service.GetSnapshotAsync()).ExtensionPackages.Single().Title);
+    }
+
     [TestMethod]
     public async Task TheLargestPackageCommitStaysWellInsideTheReserve()
     {

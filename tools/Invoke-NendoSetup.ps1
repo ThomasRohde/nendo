@@ -494,6 +494,17 @@ public static extern void SHChangeNotify(int eventId, uint flags, System.IntPtr 
     }
 }
 
+# Everything setup tells Windows, after the payload is in place. Idempotent: each
+# value is written with -Force and the shortcut is saved over whatever is there, so
+# running it again over a complete registration changes nothing and running it over
+# a partial one completes it. That is what lets a rerun of the same installer repair
+# a registration that failed after the payload landed.
+function Register-NendoWithWindows {
+    Write-Step 'Registering Nendo with Windows.'
+    Set-NendoFileAssociation $ClassesRoot $root
+    Set-NendoStartMenuShortcut $StartMenuRoot $root
+}
+
 function Assert-Closed {
     foreach ($process in @(Get-Process -Name 'Nendo.Desktop' -ErrorAction SilentlyContinue)) {
         $exe = $process.Path
@@ -608,7 +619,16 @@ try {
         foreach ($entry in $next.files) {
             if (-not @($old.files | Where-Object { $_.path -eq $entry.path -and $_.sha256 -eq $entry.sha256 }).Count) { $same = $false; break }
         }
-        if ($same) { Write-Step 'This Nendo payload is already installed; retained the previous version.'; return }
+        if ($same) {
+            Write-Step 'This Nendo payload is already installed; retained the previous version.'
+            # The payload is the one installed, but its registration may not be: the run
+            # that installed it can have failed after the files landed and the journal was
+            # removed, or somebody removed the shortcut or the association since. Register
+            # again rather than report an install the Start Menu cannot find.
+            Register-NendoWithWindows
+            Write-Step "Nendo installed: $root"
+            return
+        }
     }
     $oldPaths = @{}
     if ($null -ne $old) { foreach ($entry in $old.files) { $oldPaths[$entry.path] = $true } }
@@ -650,10 +670,10 @@ try {
         throw $failure
     }
     # After the payload lands, so neither the association nor the shortcut points at
-    # an executable that is not there yet.
-    Write-Step 'Registering Nendo with Windows.'
-    Set-NendoFileAssociation $ClassesRoot $root
-    Set-NendoStartMenuShortcut $StartMenuRoot $root
+    # an executable that is not there yet. A failure here leaves the payload installed
+    # and no journal behind; rerunning the same installer takes the identical-payload
+    # path above, which registers again.
+    Register-NendoWithWindows
     Write-Step "Nendo installed: $root"
 } catch {
     # Only the log: the error itself already reaches the installer through stderr.

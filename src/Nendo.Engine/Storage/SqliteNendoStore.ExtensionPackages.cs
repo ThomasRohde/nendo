@@ -188,6 +188,7 @@ internal sealed partial class SqliteNendoStore
     {
         await EnsureExtensionLayoutAsync(transaction, ct);
         var previous = await ReadStoredPackageAsync(operation.PackageId, transaction, ct);
+        RequireExpectedPackage(operation.PackageId, operation.Expected, previous);
         if (previous is null)
         {
             var count = Convert.ToInt64(await ScalarAsync("SELECT COUNT(*) FROM __nendo_extension_package;", transaction, ct), CultureInfo.InvariantCulture);
@@ -221,6 +222,7 @@ internal sealed partial class SqliteNendoStore
         var previous = await ReadStoredPackageAsync(operation.PackageId, transaction, ct)
             ?? throw new NendoPreconditionException("extension-package-not-found",
                 $"The file carries no package {operation.PackageId}.");
+        RequireExpectedPackage(operation.PackageId, operation.Expected, previous);
         await using (var count = Command("SELECT COUNT(*) FROM __nendo_extension_file WHERE package_id = @package;", transaction))
         {
             count.Parameters.AddWithValue("@package", operation.PackageId);
@@ -317,6 +319,15 @@ internal sealed partial class SqliteNendoStore
         {
             RequiredHostVersion = NendoFormat.ExtensionPackagesMinimumHostVersion,
         };
+    }
+
+    private static void RequireExpectedPackage(string packageId, ExtensionPackageExpectation? expected, StoredPackage? current)
+    {
+        if (expected is null) return;
+        if (expected.Matches(current?.Title, current?.EntryPoint, current?.Version, current?.Description, current is not null)) return;
+        var found = current is null ? "no package" : $"{current.Title} ({current.EntryPoint})";
+        throw new NendoPreconditionException("extension-package-changed",
+            $"Package {packageId} was expected to be {expected}, and it is {found}. Something changed it since.");
     }
 
     private static void RequireExpectedContent(string packageId, string path, string? expected, StoredFile? current)
@@ -554,12 +565,22 @@ internal sealed partial class SqliteNendoStore
         {
             case "extension.setPackage":
             case "extension.removePackage":
+            {
+                // Each reversal expects the package as the reversed operation left it: the
+                // metadata a set applied, or no package after a removal. A later change to any
+                // of it refuses the reversal rather than being overwritten.
+                var expected = type == "extension.setPackage"
+                    ? ExtensionPackageExpectation.Holding(payload.GetProperty("title").GetString()!,
+                        payload.GetProperty("entryPoint").GetString()!, Optional(payload, "version"), Optional(payload, "description"))
+                    : ExtensionPackageExpectation.Missing;
                 if (previous is not { } package)
                     return type == "extension.setPackage"
-                        ? new RemoveExtensionPackageOperation(operationId, packageId)
+                        ? new RemoveExtensionPackageOperation(operationId, packageId) { Expected = expected }
                         : throw new NendoCompensationNotSupportedException("The removed package retained no metadata to restore.");
                 return new SetExtensionPackageOperation(operationId, packageId, package.GetProperty("title").GetString()!,
-                    package.GetProperty("entryPoint").GetString()!, Optional(package, "version"), Optional(package, "description"));
+                    package.GetProperty("entryPoint").GetString()!, Optional(package, "version"), Optional(package, "description"))
+                { Expected = expected };
+            }
             case "extension.putFile":
             {
                 var path = payload.GetProperty("path").GetString()!;

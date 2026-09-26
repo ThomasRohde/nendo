@@ -203,12 +203,15 @@ export function viewBindings(session: DesktopSessionView, viewId: string, entity
       const operator = text(child.properties.operator);
       if (operator === null) continue;
       const presence = operator === 'isNull' || operator === 'isNotNull';
+      const holderId = holder(fieldId);
+      const stored = session.entities.find((entity) => entity.entityId === holderId)?.fields.find((field) => field.fieldId === fieldId);
       filters.push({
         fieldId,
-        entityId: holder(fieldId),
+        entityId: holderId,
         operator: queryOperatorFor(operator),
         value: presence ? null : plainJson(child.properties.value),
         valueKind: text(child.properties.valueKind) ?? 'literal',
+        storageKind: stored === undefined ? 'unsupported' : storageKindName(stored.storageKind),
       });
     }
   }

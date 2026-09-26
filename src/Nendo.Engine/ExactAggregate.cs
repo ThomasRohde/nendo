@@ -139,9 +139,14 @@ internal sealed class ExactAggregate
     {
         var negative = coefficient.Sign < 0;
         var magnitude = BigInteger.Abs(coefficient);
-        // Shed only zero digits the scale does not need; never round.
-        while (scale > 28 && magnitude % 10 == 0) { magnitude /= 10; scale--; }
+        // Shed only zero digits the scale does not need; never round. A trailing zero
+        // goes when the scale is past what a decimal holds, and also when the
+        // coefficient is: decimal.MaxValue + 0.0 aligns on scale 1 and carries a
+        // coefficient ten times the maximum whose last digit is a removable zero. The
+        // same rule ExactDecimal.Read applies to a single value.
         var maximum = (BigInteger.One << 96) - 1;
+        while (scale > 0 && (scale > 28 || magnitude > maximum) && magnitude % 10 == 0)
+        { magnitude /= 10; scale--; }
         if (scale > 28 || magnitude > maximum)
             throw new NendoPreconditionException("aggregate-not-representable",
                 "The exact sum is outside the range this host can represent.");

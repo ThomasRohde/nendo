@@ -117,6 +117,69 @@ internal sealed partial class SqliteNendoStore
                 (pair.Value.ValueKind == JsonValueKind.Array && pair.Value.EnumerateArray().Any(value => value.ValueKind == JsonValueKind.String && retired.Contains(value.GetString()!))))
                 throw new NendoPreconditionException("retired-binding", "Remove or replace surface bindings to the retired definition in the same proposal.");
         }
+        await ValidateRetiredBehaviourAsync(entities, fields, transaction, ct);
+    }
+
+    /// <summary>
+    /// Refuses a candidate whose calculations, triggers or automatic actions still read or
+    /// write a retired record type or field. Installing such a definition is refused when it
+    /// is installed; this is the other half, for a retirement that lands under a definition
+    /// already in place. Without it the retirement commits and the next routine edit that
+    /// raises the trigger rolls back on the retired target.
+    /// <para>
+    /// It runs over the final candidate — after every operation of the mutation or change
+    /// set — so one proposal that rewires or removes the behaviour and retires its target
+    /// is accepted, whatever order it lists them in.
+    /// </para>
+    /// </summary>
+    private async Task ValidateRetiredBehaviourAsync(
+        HashSet<string> entities, HashSet<string> fields, SqliteTransaction transaction, CancellationToken ct)
+    {
+        if (!await HasBehaviourAsync(transaction, ct)) return;
+        var definitions = await ReadBehaviourDefinitionsAsync(transaction, ct);
+        if (definitions.Count == 0) return;
+
+        static NendoPreconditionException Refuse(NendoBehaviourDefinition definition, string retiredId) => new("retired-binding",
+            $"'{definition.DefinitionId}' still uses {retiredId}, which this change retires. " +
+            "Change or remove that behaviour in the same proposal, or leave the definition active.");
+
+        foreach (var definition in definitions.Values)
+        {
+            if (definition.OwningEntityId is { } owner && entities.Contains(owner)) throw Refuse(definition, owner);
+            foreach (var binding in BindingsOf(definition))
+            {
+                foreach (var entityId in new[] { binding.EntityId, binding.RelatedEntityId })
+                    if (entityId is not null && entities.Contains(entityId)) throw Refuse(definition, entityId);
+                foreach (var fieldId in new[] { binding.FieldId, binding.ReferenceFieldId, binding.RelatedReferenceFieldId, binding.PredicateFieldId, binding.ValueFieldId })
+                    if (fieldId is not null && fields.Contains(fieldId)) throw Refuse(definition, fieldId);
+            }
+        }
+
+        // What an action writes is only known beside the trigger that raises it: the step
+        // targets the event record, or the record one of its references reaches.
+        Dictionary<string, EntityMapping>? mappings = null;
+        foreach (var trigger in definitions.Values.OfType<NendoTriggerDefinition>())
+        {
+            if (!definitions.TryGetValue(trigger.ActionId, out var found) || found is not NendoActionDefinition action) continue;
+            foreach (var step in action.Steps)
+            {
+                string? target;
+                if (step.Kind == NendoActionStepKind.CreateRecord) target = step.EntityId;
+                else if (step.Target.Kind == NendoActionTargetKind.EventRecord) target = trigger.EntityId;
+                else
+                {
+                    var referenceFieldId = step.Target.ReferenceFieldId!;
+                    if (fields.Contains(referenceFieldId)) throw Refuse(action, referenceFieldId);
+                    mappings ??= (await ReadEntityMappingsAsync(transaction, ct)).ToDictionary(entity => entity.EntityId, StringComparer.Ordinal);
+                    target = mappings.TryGetValue(trigger.EntityId, out var source)
+                        ? source.Fields.SingleOrDefault(field => field.FieldId == referenceFieldId)?.Reference?.TargetEntityId
+                        : null;
+                }
+                if (target is not null && entities.Contains(target)) throw Refuse(action, target);
+                foreach (var assignment in step.Assignments)
+                    if (fields.Contains(assignment.FieldId)) throw Refuse(action, assignment.FieldId);
+            }
+        }
     }
 
     private static SetRetiredOperation CreateRetirementInverse(string canonicalJson, string evidenceJson, string key)

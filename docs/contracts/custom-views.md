@@ -106,7 +106,13 @@ Compensate on such a revision, and one compensation reverses at most 128
 operations. A revision that mixes package operations with other operations is not
 compensated. Each inverse states the content it expects to find. A file changed
 since then therefore refuses the compensation as `extension-file-changed` and is
-not overwritten.
+not overwritten. The package's metadata is checked the same way: the inverse of a
+metadata change expects the title, entry point, version and description that the
+change left, and the inverse of a removal expects no package. A package whose
+metadata changed since, or that was created again, refuses the compensation as
+`extension-package-changed`, so an older undo never replaces the entry point a
+newer change chose. An exact retry of a compensation that succeeded returns its
+receipt and runs nothing again.
 
 ### Bounds and refusals
 
@@ -136,6 +142,7 @@ operation runs:
 | `extension-content-missing` | A put names, by its hash, content the file does not hold |
 | `extension-file-changed` | The path does not hold what `expectedSha256` states. A compensation of a file changed since then fails in the same way |
 | `extension-file-not-found` | A removal names a path the package does not hold |
+| `extension-package-changed` | A compensation finds the package's metadata, or its absence, different from what the reversed revision left |
 | `extension-limit` | The change would pass the bound on files or bytes in the package, packages in the file, or bytes across all packages |
 
 ### The write reserve
@@ -480,8 +487,8 @@ Workbench suite, pins the table name by name.
 | `records.groupAggregate` | `entityId`, `groupByFieldId`, `aggregate`, `fieldId`, `filters` | `data.groupAggregateRecords` | The host's grouped aggregate |
 | `records.bucketAggregate` | `entityId`, `dateFieldId`, `bucket`, `range`, `aggregate`, `fieldId`, `filters` | `data.bucketAggregateRecords` | The host's date buckets |
 | `records.cellAggregate` | `entityId`, `rowByFieldId`, `columnByFieldId`, `aggregate`, `fieldId`, `filters` | `data.cellAggregateRecords` | The host's grid of cells |
-| `records.create` | `entityId`, `values`, `recordId` (optional) | `data.createRecord` | The record as it now stands |
-| `records.update` | `entityId`, `recordId`, `version`, `values` | `data.setFields` | The record as it now stands |
+| `records.create` | `entityId`, `values`, `recordId` (optional), `targetVersions` (optional) | `data.createRecord`, with `targetVersions` as `expectedTargetVersions` | The record as it now stands |
+| `records.update` | `entityId`, `recordId`, `version`, `values`, `targetVersions` (optional) | `data.setFields`, with `targetVersions` as `expectedTargetVersions` | The record as it now stands |
 | `records.delete` | `entityId`, `recordId`, `version` | `data.deleteRecord` | null |
 | `commands.run` | `commandId`, `entityId`, `recordId`, `version` | `data.executeCommand` | The record as it now stands |
 | `proposals.prepare` | `title` (1–200 characters), `operations` (1–128 canonical operations) | `proposal.prepareChangeSet`, then the Workbench's review | `{proposalId, title, state, diagnostics, opened}` |
@@ -641,7 +648,7 @@ area, and the answer is the height it has.
 | `packageId` | The package the view runs |
 | `entityId` | The record type the view is about; on a record page, the page's |
 | `recordId` | The page's record, for a view on a record page; null elsewhere |
-| `bindings` | `labelFieldId`, `statusFieldId`, `edgeEntityId`, `sourceFieldId`, `targetFieldId`; `fields`, each `{fieldId, entityId}` in authored order; `filters`, each `{fieldId, entityId, operator, value, valueKind}` |
+| `bindings` | `labelFieldId`, `statusFieldId`, `edgeEntityId`, `sourceFieldId`, `targetFieldId`; `fields`, each `{fieldId, entityId}` in authored order; `filters`, each `{fieldId, entityId, operator, value, valueKind, storageKind}` |
 | `configuration` | The definition's configuration, parsed; `{}` when there is none |
 | `theme` | `{mode, tokens}`: `light` or `dark`, and the Workbench's colour tokens |
 | `locale` | The browser's language, or `en` |
@@ -652,6 +659,9 @@ Each field and filter names the record type that holds it: the view's own record
 type first, then its link type. A filter's `operator` is already the query's word
 (`le` rather than `lte`), and `valueKind` says whether `value` is the literal to
 compare or a word such as `today`, which the reader resolves when it reads.
+`storageKind` is the field's stored kind: `today` is the person's civil date,
+`2026-09-26`, for a `date` field, and the instant that date begins where the person
+is, with its offset, `2026-09-26T00:00:00+02:00`, for a `dateTime` field.
 
 `nendo.has(name)` answers whether `methods` holds a name. A method added later is
 feature-detected this way.
@@ -678,7 +688,9 @@ A record, from `records.query`, `records.get` and the loaders below:
 - Each screen is `{id, surfaceId, kind, title, entityId}`: a root node of the file.
 - Each command is `{id, entityId, label, steps}`. Each step is `{fieldId, valueKind,
   value}`, in the order it runs: `valueKind` is `literal` (the value is `value`),
-  `null`, `today` or `now`. A command is spent on a record when every step with a fixed
+  `null`, `today` or `now`. The host resolves `today` to the same civil day a filter
+  does, where the person is: the date for a `date` field, and the instant that day
+  begins, stored in UTC, for a `dateTime` field. A command is spent on a record when every step with a fixed
   value (`literal` or `null`) already holds it, which is when the record page greys its
   button. `steps` arrived 2026-09-26; a view on an earlier host finds it missing.
 
@@ -818,6 +830,21 @@ Each switch is enforced twice: the Workbench mounts no frame, and the host answe
 the 403. The broker also connects no view while views are off, and refuses every
 request with `views-off`. A view that is running when views go off loses its frame
 at the next redraw, which the switch itself causes.
+
+The host checks a view's write, state change or proposal twice: when the request
+arrives, and again once it holds the session's request gate, immediately before
+anything runs. The second check reads the switches and the file's own package list,
+so a switch thrown, or a package removed, while the write waited behind it refuses
+the write with `views-off` or `actor-not-allowed` rather than letting it commit after.
+A write that already held the gate when the switch was thrown finishes, and reports
+the commit it made. The Engine checks the package a third time, inside the write
+transaction that would commit the write: a direct mutation whose origin is
+`extension:<package>` for a package the file does not carry at that moment is
+refused with `actor-not-allowed`. That covers a removal committed by a writer the
+request gate does not serialize with, such as an agent at Unattended accepting its
+own proposal. An exact retry of a write that did commit still returns its receipt.
+A view's proposal accepted by a person is the person's act and is not checked this
+way.
 
 `extension-settings.json` sits in the device-state root, `%LocalAppData%\Nendo`
 unless `NENDO_DEVICE_STATE_ROOT` names another. It is device preference, never
@@ -1292,3 +1319,9 @@ passed. Each guard below was falsified, seen to fail and then restored:
 - 2026-09-26 — Phase 3 completes: `state.get`, `state.keys`, `state.set` and
   `state.delete`, through the `extension.setState` operation and the host's
   `extension.state.read` and `extension.state.set` (W-069).
+- 2026-09-26 — `records.create` and `records.update` take `targetVersions`, the
+  version of each reference target the write assigns, passed to the host as
+  `expectedTargetVersions`. Without it no view could set a reference (R-002).
+- 2026-09-26 — each filter binding carries its field's `storageKind`, and `today` on a
+  DateTime field resolves to the zoned instant the person's day begins rather than a
+  bare date the host refuses (R-003).

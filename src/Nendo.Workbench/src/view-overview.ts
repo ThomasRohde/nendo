@@ -1,4 +1,4 @@
-import { rankedWindows, recentWindows, state, summaryCounts, surfaceErrors } from './app-state';
+import { focusedRecords, rankedWindows, recentWindows, state, summaryCounts, surfaceErrors } from './app-state';
 import { foldSection, sectionIsOpen } from './fold-state';
 import { escapeAttribute, escapeHtml, messageFor } from './format';
 import { strip, type ChartStatus } from './chart-kit';
@@ -9,11 +9,13 @@ import {
 } from './overview-model';
 import { drillInto, refreshOverview } from './panels';
 import { createReadChase } from './read-chase';
-import { applicationPlans, chartPending, overviewPlan, recordPlanOf, tilePending } from './plan-selection';
+import { applicationPlans, chartPending, overviewPlan, overviewReadIsPending, recordPlanOf, tilePending } from './plan-selection';
 import { chartStates, chartTables } from './app-state';
 import { overviewCharts, overviewRanges, overviewRankedLists, overviewRecentLists, overviewTiles, rangeReads } from './overview-model';
 import { chartTileMarkupFor, recordFieldDisplay, summaryTileMarkup } from './record-markup';
-import { content, rerender, showError, interactionInProgress } from './shell';
+import { content, rerender, setBusy, showError, interactionInProgress } from './shell';
+import { loadFocusedRecord } from './reads';
+import { loadOpenedRecordPanels } from './related-actions';
 import { isSettledSummaryFailure, type OverviewTileScope } from './summary-tiles';
 import { chartKey, isChartKind, rankNumerals, rankProportion, rankValue } from './charts';
 import { refreshDerived } from './actions';
@@ -226,14 +228,39 @@ export function overviewMarkup(overview: OverviewPlan): string {
  * Open the record type a front-page row belongs to, at that record. The overview
  * is left behind rather than kept beside it: a record is edited on its own type's
  * surface, which is where its form, its commands and its related records are.
+ *
+ * The record is read by its own ID first, as a related row's is. A front-page list is
+ * ordered and narrowed its own way, so the row clicked need not be in the first page its
+ * type's surface loads, and a selection the surface does not hold was dropped: the type
+ * opened and the record did not (R-013). A record that has gone is said so, and the front
+ * page stays.
  */
-function openRecord(entityId: string, recordId: string): void {
-  if (!hasPlan(entityId)) return;
-  state.showOverview = false;
-  state.selectedApplicationEntity = entityId;
-  leaveRecordContext();
-  state.selectedRecordId = recordId;
-  void (async () => { await refreshDerived(); rerender(); })().catch((error) => showError(messageFor(error)));
+export async function openOverviewRecord(entityId: string, recordId: string): Promise<void> {
+  if (!hasPlan(entityId) || state.actionInFlight) return;
+  state.actionInFlight = true;
+  setBusy(true);
+  // Held until after the redraw, which would otherwise replace the sentence.
+  let failure: string | null = null;
+  try {
+    await loadFocusedRecord(entityId, recordId);
+    if (!focusedRecords.has(recordId)) {
+      failure = 'That record is no longer there. The front page will show the current records when it is read again.';
+    } else {
+      state.showOverview = false;
+      state.selectedApplicationEntity = entityId;
+      leaveRecordContext();
+      state.selectedRecordId = recordId;
+      await refreshDerived();
+      await loadOpenedRecordPanels(recordId);
+    }
+  } catch (error) {
+    failure = messageFor(error);
+  } finally {
+    state.actionInFlight = false;
+    setBusy(false);
+    rerender();
+  }
+  if (failure !== null) showError(failure);
 }
 
 /** The front page, and the reads that fill it. */
@@ -255,7 +282,7 @@ export function renderOverview(overview: OverviewPlan): void {
     void (async () => { await refreshDerived(); rerender(); })().catch((error) => showError(messageFor(error)));
   });
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-overview-record]'))
-    button.addEventListener('click', () => openRecord(button.dataset.overviewEntity!, button.dataset.overviewRecord!));
+    button.addEventListener('click', () => { void openOverviewRecord(button.dataset.overviewEntity!, button.dataset.overviewRecord!); });
   // A fold is remembered for the open file and redrawn: opening a section makes what
   // it holds pending, and the redraw is what starts the chase that reads it. The
   // front page holds no draft, so a redraw here loses nothing.
@@ -324,11 +351,8 @@ export function overviewPending(overview: OverviewPlan): boolean {
   const endPending = overviewRanges(overview).some((scoped) => {
     const scope = scoped.scope as OverviewTileScope;
     if (rangeReads(scoped.tile, scope) === null) return false;
-    return (['min', 'max'] as const).some((end) => {
-      const known = summaryCounts.get(rangeEndKey(scoped.tile, scope, end));
-      return known === undefined || known.state === 'failed' ||
-        (known.state === 'ready' && known.changeSequence !== sequence);
-    });
+    return (['min', 'max'] as const).some((end) =>
+      overviewReadIsPending(summaryCounts.get(rangeEndKey(scoped.tile, scope, end)), sequence));
   });
   const recentPending = overviewRecentLists(overview).some((node) =>
     recentWindows.get(recentWindowKey(node))?.page.changeSequence !== sequence &&
@@ -336,9 +360,7 @@ export function overviewPending(overview: OverviewPlan): boolean {
   const rankedPending = overviewRankedLists(overview).some((node) => {
     if (surfaceErrors.get(node.semanticId) !== undefined) return false;
     if (rankedWindows.get(rankedWindowKey(node))?.page.changeSequence !== sequence) return true;
-    const largest = summaryCounts.get(rankedMaxKey(node));
-    return largest === undefined || largest.state === 'failed' ||
-      (largest.state === 'ready' && largest.changeSequence !== sequence);
+    return overviewReadIsPending(summaryCounts.get(rankedMaxKey(node)), sequence);
   });
   return overviewTiles(overview).some(tilePending) || overviewCharts(overview).some(chartPending) ||
     endPending || recentPending || rankedPending;
