@@ -45,7 +45,7 @@ Each package runs on a web address of its own, in a browser process of its own, 
 
 ## Before you open someone else's file
 
-A file that somebody else wrote brings its views' code with it, and that code runs when its view is shown. You have not read it: the review happened wherever the change was made. It can read every record in the file, reach the network, including programs on your own computer, use the clipboard and download files. It cannot change your records in this version.
+A file that somebody else wrote brings its views' code with it, and that code runs when its view is shown. You have not read it: the review happened wherever the change was made. It can read every record in the file, reach the network, including programs on your own computer, use the clipboard and download files. It can also change your records and run their commands, the way you would. Each change is in **History** under the package's name, where you can undo it.
 
 This is a deliberate trade for an exploratory project: no install step and no permission dialog, in exchange for switches. The switches below are the whole control. Turn views off before you open a file you do not trust.
 

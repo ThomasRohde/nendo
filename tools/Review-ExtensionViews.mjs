@@ -319,6 +319,61 @@ try {
     'The accepted view is not the one the form described: ' + JSON.stringify(definition));
   check('G17 Studio names where each package is shown, refuses a graph the file cannot draw, and a view added from the form is accepted, selected in Use and running');
 
+  // G19 (W-065, ADR-0013 Phase 3): a view writes as its package. It creates, updates, runs a
+  // record command on, and deletes a record through window.nendo; History names the package on
+  // each; a write over a stale version is refused without a change; and a view that floods the
+  // host cannot starve a person's save, because it has at most eight requests in flight.
+  await click('#nav-use'); await idle();
+  await click('[data-select-surface="probe"]'); await idle();
+  const writer = await waitFor(async () => (await frames()).find(f => f.view === 'probe' && f.state === 'running'), 'the probe screen running for writes', 30000);
+  const writerFrame = await frameSession(writer.name);
+  await waitFor(() => inFrame(writerFrame, 'probe.state.ready'), 'the probe handshake for writes');
+  const wrote = await inFrame(writerFrame, `(async () => {
+    const created = await nendo.records.create('tasks', { title: 'Written by the view', estimate: { $nendoNumber: '1.25' } });
+    const updated = await nendo.records.update(created, { title: 'Changed by the view' });
+    const commanded = await nendo.commands.run('cmd', updated);
+    let stale = null;
+    try { await nendo.records.update(created, { title: 'Over a version that is gone' }); } catch (error) { stale = error.code; }
+    await nendo.records.delete(commanded);
+    const gone = await nendo.records.get('tasks', created.recordId);
+    return { has: ['records.create', 'records.update', 'records.delete', 'commands.run'].map(name => nendo.has(name)),
+      versions: [created.version, updated.version, commanded.version], exact: created.exact.estimate,
+      title: updated.values.title, notes: commanded.values.notes, stale, gone };
+  })()`, 30000);
+  assert(wrote.has.every(Boolean), 'The view is not offered the write methods: ' + JSON.stringify(wrote));
+  assert(wrote.versions[0] === 1 && wrote.versions[1] === 2 && wrote.versions[2] > 2, 'The versions a view got back are not the record’s: ' + JSON.stringify(wrote));
+  assert(wrote.exact === '1.25' && wrote.title === 'Changed by the view' && wrote.notes === 'Reviewed by a view', 'What the view wrote is not what it read back: ' + JSON.stringify(wrote));
+  assert(wrote.stale === 'record-version-conflict' && wrote.gone === null, 'A stale write or the delete did not behave: ' + JSON.stringify(wrote));
+  const history = await gate('history.query', { limit: 20 });
+  const byView = history.items.filter(item => item.origin === 'extension:org.nendo.test.probe-a');
+  assert(byView.length === 4, 'History does not name the view’s package on its four writes: ' + JSON.stringify(history.items.map(item => [item.origin, item.description])));
+  report.measurements.viewWriteOrigins = byView.map(item => item.description);
+
+  // The flood: eighty writes at once from the view, and one save by the person in the middle.
+  const flood = inFrame(writerFrame, `(async () => {
+    const results = await Promise.allSettled(Array.from({ length: 80 }, (_, i) =>
+      nendo.records.create('tasks', { title: 'Flood ' + i })));
+    return { ok: results.filter(r => r.status === 'fulfilled').length,
+      busy: results.filter(r => r.status === 'rejected' && r.reason?.code === 'busy').length,
+      other: results.filter(r => r.status === 'rejected' && r.reason?.code !== 'busy').map(r => r.reason?.code) };
+  })()`, 120000);
+  await sleep(200);
+  const t1 = (await gate('data.queryRecords', { entityId: 'tasks', recordId: 't1', limit: 1 })).items[0];
+  const personStarted = Date.now();
+  await gate('data.setFields', { entityId: 'tasks', recordId: 't1', expectedRecordVersion: t1.recordVersion,
+    values: { notes: 'Saved by the person during a flood' }, idempotencyKey: 'person-during-flood-' + Date.now() });
+  report.measurements.personSaveDuringFloodMs = Date.now() - personStarted;
+  const flooded = await flood;
+  report.measurements.flood = flooded;
+  // api.js itself keeps eight in flight and holds the rest, so a view that uses it is never
+  // answered busy; the broker's own sixty-four is for a page that talks to the port directly,
+  // and scripts/extension-broker.test.mjs measures that.
+  assert(flooded.ok === 80 && flooded.busy === 0 && flooded.other.length === 0,
+    'A view’s flood of writes did not all land: ' + JSON.stringify(flooded));
+  assert(report.measurements.personSaveDuringFloodMs < 10000,
+    `The person's save waited ${report.measurements.personSaveDuringFloodMs} ms behind a view's flood.`);
+  check(`G19 a view creates, updates, runs a command on and deletes a record as its package, a stale write is refused, and during an eighty-write flood, eight at a time, the person's save took ${report.measurements.personSaveDuringFloodMs} ms`);
+
   console.log('extension views ok');
 } catch (error) {
   report.error = error.stack ?? String(error);

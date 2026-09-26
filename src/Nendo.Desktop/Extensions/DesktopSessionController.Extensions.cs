@@ -76,6 +76,21 @@ internal sealed partial class DesktopSessionController
 
     private void StopExtensionsForFile() => _extensionServing = ExtensionServing.None;
 
+    /// <summary>
+    /// Admits a write made by a custom view of <paramref name="packageId"/> (ADR-0013 Phase 3):
+    /// only while views may run, and only for a package the open file carries. Every kill
+    /// switch that stops a view's frame therefore also stops its writes, even one already on
+    /// its way.
+    /// </summary>
+    internal void RequireExtensionWriter(string packageId)
+    {
+        var serving = _extensionServing;
+        if (!serving.Run)
+            throw new NendoPreconditionException("views-off", "Custom views are off, so a view cannot change this file.");
+        if (!serving.Hosts.Values.Any(package => string.Equals(package.PackageId, packageId, StringComparison.Ordinal)))
+            throw new NendoPreconditionException("actor-not-allowed", $"This file carries no package {packageId}, so nothing may write in its name.");
+    }
+
     /// <summary>The file session a view's frames belong to, so a late failure from a closed file is ignored.</summary>
     internal string CurrentFileSessionId => _fileSessionId;
 

@@ -116,9 +116,9 @@ Next, in order:
 
 - **Phase 3, views that write**: creating, updating and deleting records and
   running commands through the same typed operations and version checks as a
-  person's edit, attributed to the view's package; preparing a proposal and
-  following it; and durable state in the file through `nendo.state`. None of this is
-  available yet.
+  person's edit, attributed to the view's package, is delivered (2026-09-26, W-065).
+  Still to come: preparing a proposal and following it, and durable state in the
+  file through `nendo.state`.
 - **Phase 4, develop from a folder**: a device-local link from a view to a folder
   on disk, reload on save, and saving the folder back as proposals. Not yet. Export
   to a folder arrived early, with Phase 2.

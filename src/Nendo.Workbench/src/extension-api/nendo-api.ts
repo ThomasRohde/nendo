@@ -268,6 +268,11 @@ function install(host: Window & { nendo?: unknown }): void {
     return { nodes, edges, fields, hiddenEdges };
   }
 
+  /** A record as a write names it: which one, and the version the view last read. */
+  type RecordAt = { entityId: string; recordId: string; version: number };
+  /** Field values to write: null, text, true or false, a number, or { $nendoNumber: '…' } for exact digits. */
+  type WriteValues = Record<string, string | number | boolean | null | { $nendoNumber: string }>;
+
   const nendo = Object.freeze({
     apiVersion,
     /** Resolves with the view's context once the Workbench has connected it. */
@@ -288,6 +293,22 @@ function install(host: Window & { nendo?: unknown }): void {
       bucketAggregate: (query: Query): Promise<unknown> => call('records.bucketAggregate', query),
       cellAggregate: (query: Query): Promise<unknown> => call('records.cellAggregate', query),
       queryAll,
+      /**
+       * Writes, as the person's own edit makes them (ADR-0013 Phase 3). Each is checked against the
+       * record's version and refused if somebody changed it since; each is in History under this
+       * view's package, and undone there. Each answers the record as it now stands.
+       */
+      create: (entityId: string, values: WriteValues, recordId?: string): Promise<ViewRecord | null> =>
+        call<ViewRecord | null>('records.create', { entityId, values, ...(recordId === undefined ? {} : { recordId }) }),
+      update: (record: RecordAt, values: WriteValues): Promise<ViewRecord | null> =>
+        call<ViewRecord | null>('records.update', { entityId: record.entityId, recordId: record.recordId, version: record.version, values }),
+      delete: (record: RecordAt): Promise<null> =>
+        call<null>('records.delete', { entityId: record.entityId, recordId: record.recordId, version: record.version }),
+    }),
+    commands: Object.freeze({
+      /** Runs a record command the file defines (schema.describe lists them), on the record at the version given. */
+      run: (commandId: string, record: RecordAt): Promise<ViewRecord | null> =>
+        call<ViewRecord | null>('commands.run', { commandId, entityId: record.entityId, recordId: record.recordId, version: record.version }),
     }),
     changes: Object.freeze({
       /** Hears the file's change sequence each time anything commits, at most four times a second. */

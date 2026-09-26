@@ -14,8 +14,8 @@ ran views before 2026-09-25 is deleted. The [History](#history) says what it was
 
 Not yet delivered:
 
-- a view that writes records, runs commands, prepares proposals or keeps state in
-  the file (Phase 3);
+- a view that prepares proposals or keeps state in the file (the rest of Phase 3;
+  writing records and running commands are delivered, 2026-09-26);
 - developing a view from a folder on disk, with reload on save (Phase 4);
 - the `extensionView` root and the `extensionTile` (Phase 5).
 
@@ -459,7 +459,8 @@ A request without a safe-integer `id` is dropped without an answer.
 ### The method table
 
 The broker has a closed method table. Each method becomes one of the Workbench's
-own typed reads, or something the Workbench does for the person. Parameters are
+own typed reads, one of the four record writes a person's edit uses, or something
+the Workbench does for the person. Parameters are
 rebuilt key by key: nothing else a view sends reaches the host, and nothing a view
 sends is used as a method name, a host payload or an identity.
 `scripts/extension-broker.test.mjs`, which the production gate runs with the
@@ -475,6 +476,10 @@ Workbench suite, pins the table name by name.
 | `records.groupAggregate` | `entityId`, `groupByFieldId`, `aggregate`, `fieldId`, `filters` | `data.groupAggregateRecords` | The host's grouped aggregate |
 | `records.bucketAggregate` | `entityId`, `dateFieldId`, `bucket`, `range`, `aggregate`, `fieldId`, `filters` | `data.bucketAggregateRecords` | The host's date buckets |
 | `records.cellAggregate` | `entityId`, `rowByFieldId`, `columnByFieldId`, `aggregate`, `fieldId`, `filters` | `data.cellAggregateRecords` | The host's grid of cells |
+| `records.create` | `entityId`, `values`, `recordId` (optional) | `data.createRecord` | The record as it now stands |
+| `records.update` | `entityId`, `recordId`, `version`, `values` | `data.setFields` | The record as it now stands |
+| `records.delete` | `entityId`, `recordId`, `version` | `data.deleteRecord` | null |
+| `commands.run` | `commandId`, `entityId`, `recordId`, `version` | `data.executeCommand` | The record as it now stands |
 | `ui.openRecord` | `entityId`, `recordId` | Workbench navigation | `{opened}` |
 | `ui.openScreen` | `surfaceId` | Workbench navigation | `{opened}` |
 | `ui.openStudio` | `entityId` (optional) | Workbench navigation | `{opened}` |
@@ -493,11 +498,41 @@ that bind the file's change sequence, and no filter or sort by a calculated fiel
 The aggregate words are the ones the Workbench's own tiles and charts use, and the
 vocabulary publishes the closed `bucket` and `range` words.
 
-The table holds no write, no command, no proposal and no state method in this
-phase. It holds none of `proposal.promote`, `proposal.reject`, `behaviour.*`,
+### Writes
+
+Since 2026-09-26 (ADR-0013 Phase 3, W-065) a view writes records and runs record
+commands, through the same typed operations and version checks as a person's edit.
+
+- **The actor is the mount's.** The broker adds `actor: extension:‹package›` from the
+  view definition it mounted, never from the view's parameters. The host admits an
+  actor on `data.createRecord`, `data.setFields`, `data.deleteRecord` and
+  `data.executeCommand` alone (`WorkbenchMethods.ExtensionWriterMethods`), and
+  refuses it on every other method with `actor-not-allowed`. It refuses an actor
+  whose package the open file does not carry the same way, and any write while
+  views are off with `views-off`.
+- **History names the package.** Each write is a revision whose origin is
+  `extension:‹package›`, read and compensated in History like any other.
+- **Versions.** `version` is the record's version as the view last read it. A write
+  over another version is refused and changes nothing. Each write carries a fresh
+  idempotency key, so a request is never applied twice.
+- **Values.** Each value is null, text, true or false, a number, or
+  `{"$nendoNumber": "‹digits›"}` for a decimal a JavaScript number would round. The
+  broker rebuilds the map field by field, at most 64 fields.
+- **The answer** is the record read back after the write, with its new version, or
+  null after a delete.
+- **Not the person's save.** A view's write does not take the Workbench's pending-save
+  slot, so it never holds the person's next save behind it. A view whose answer is
+  lost reads the record again.
+- **No confirmation** is drawn by the host (ADR-0013, the trust trade). A view that
+  wants the person to confirm an act asks them itself.
+- A file open read-only refuses a view's writes with `read-only` before the host is
+  asked. A file with automatic actions still needs this device's behaviour approval
+  before any write, a view's included.
+
+The table holds none of `proposal.promote`, `proposal.reject`, `behaviour.*`,
 `agent.*`, `file.*`, `session.open*`, `appearance.set` or `history.compensate`, and
-never will: acceptance stays with the person. A view's reads carry no actor of
-their own. They are the Workbench's reads, under its file session.
+never will: acceptance stays with the person. A view's reads carry no actor. They
+are the Workbench's reads, under its file session.
 
 The navigation methods follow the rules a click follows. Nothing moves while
 another action runs (`busy`) or while a record page holds unsaved typing
@@ -983,8 +1018,8 @@ View code cannot:
   ([ADR-0009](../decisions/0009-local-mcp-transport-authority-and-change-sets.md));
 - navigate the Workbench away, load the Workbench in a frame, or connect a window
   it made to the broker;
-- write records, run commands, prepare a proposal or keep state in the file (not
-  yet: Phase 3);
+- prepare a proposal or keep state in the file (not yet: the rest of Phase 3);
+- write under any name but its own package's;
 - accept or reject a proposal, ever.
 
 Studio never hosts extension code, and it stays reachable. A file with automatic
@@ -1116,3 +1151,8 @@ passed. Each guard below was falsified, seen to fail and then restored:
   1.34.0. Deleted: the contained helper, the device package cache, device consent,
   digest pins, the native pane and its splitter, the message protocol, the host's
   graph projection read and the `extension.panel.*` methods.
+- 2026-09-26 — Phase 3 begins, product 0.16.x: `records.create`, `records.update`,
+  `records.delete` and `commands.run`. The host admits a view's actor on the four
+  record writes alone, and History attributes each write to `extension:‹package›`.
+  No host confirmation (ADR-0013). Proposals and `nendo.state` are still to come
+  (W-065).

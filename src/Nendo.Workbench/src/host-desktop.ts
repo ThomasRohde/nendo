@@ -115,7 +115,11 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
   }
 
   request<T>(method: string, payload: Record<string, unknown> = {}): Promise<T> {
-    if (isJournaledMutation(method) && this.fileIdentity !== null && this.fileSessionId !== null)
+    // A custom view's write (it names an actor) is not the person's save, so it does not take
+    // the journal's one slot. Taking it would hold the person's next save behind a view's
+    // unconfirmed write, and refuse a view's second write while its first is in flight. A view
+    // whose answer is lost reads the record again; its writes are checked against versions.
+    if (isJournaledMutation(method) && typeof payload.actor !== 'string' && this.fileIdentity !== null && this.fileSessionId !== null)
       return this.journal.submit(this.fileSender(), this.fileIdentity, this.fileSessionId, method, payload) as Promise<T>;
     return this.requestCore<T>(method, payload);
   }

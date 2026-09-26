@@ -15,6 +15,17 @@ internal static partial class WorkbenchMethods
 
     /// <summary>Prepare a proposal that takes a package and its files out of the file.</summary>
     internal const string ExtensionRemove = "extension.remove";
+
+    /// <summary>
+    /// The only methods a request may carry a custom view's actor on (ADR-0013 Phase 3): the
+    /// record writes a person's own edit uses. A read carries no actor, and every other method
+    /// -- proposals, behaviour, agents, files, sessions, appearance, compensation -- refuses one
+    /// with <c>actor-not-allowed</c>. tests/Nendo.Desktop.Tests pins the set.
+    /// </summary>
+    internal static readonly IReadOnlySet<string> ExtensionWriterMethods = new HashSet<string>(StringComparer.Ordinal)
+    {
+        DataCreateRecord, DataSetFields, DataDeleteRecord, DataExecuteCommand,
+    };
 }
 
 /// <summary>

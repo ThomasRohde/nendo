@@ -724,6 +724,13 @@ vocabulary, the examples and the resources — and not from the person.
   the other, and ask the person to group it by a field, hide a status, find an item and
   mark the longest chain. Record what they reported, and whether those choices were still
   there after they reopened the file.
+- Author a view that changes records: a button that marks the selected record done
+  through `nendo.commands.run`, and one that renames it through `nendo.records.update`.
+  Ask the person to use both, then open History and say what it names as the author of
+  each change, and whether Compensate undoes it. Then change the record in Studio and
+  press the view's button again without reloading the view: record what the view was
+  told, and whether anything changed. Ask whether they expected Nendo to ask before a
+  view changed their records.
 - Ask the person, without an agent, to show the package on a second screen and as a
   panel on a record page, from Studio → Surfaces → Custom views. Record whether the
   package's card told them where it was already shown, whether the form let them choose

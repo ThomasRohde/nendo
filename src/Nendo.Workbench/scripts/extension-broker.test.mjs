@@ -17,7 +17,7 @@ const model = await bundleOf('src/extension-model.ts');
 
 const origin = 'https://org-example-glance-3f2a9c01be.example';
 const hello = { nendo: 'hello', apiVersion: 1 };
-const context = { apiVersion: 1, viewId: 'view.glance', methods: ['records.count'], bindings: { fields: [], filters: [] } };
+const context = { apiVersion: 1, viewId: 'view.glance', packageId: 'org.example.glance', readOnly: false, methods: ['records.count'], bindings: { fields: [], filters: [] } };
 
 function harness() {
   const posted = [];
@@ -32,7 +32,7 @@ function harness() {
     },
     mounts: () => [mount],
     running: () => h.running,
-    context: () => context,
+    context: () => h.context ?? context,
     describe: () => ({ purpose: null, changeSequence: 1, entities: [], screens: [], commands: [] }),
     ui: {
       openRecord: async (_mount, target) => ({ opened: true, target }),
@@ -80,8 +80,11 @@ function close(h) {
 }
 
 const readMethods = ['data.queryRecords', 'data.countRecords', 'data.aggregateRecords', 'data.groupAggregateRecords', 'data.bucketAggregateRecords', 'data.cellAggregateRecords'];
+// The record writes a person's own edit uses, and nothing else (ADR-0013 Phase 3, W-065). The
+// host admits a view's actor on exactly these (WorkbenchMethods.ExtensionWriterMethods).
+const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.executeCommand'];
 
-test('the method table is closed, reads only, and holds no write, promote, approve, file, session or agent method', () => {
+test('the method table is closed: reads, the four record writes, and no promote, approve, file, session or agent method', () => {
   const expected = [
     ['schema.describe', null],
     ['records.query', 'data.queryRecords'],
@@ -91,6 +94,10 @@ test('the method table is closed, reads only, and holds no write, promote, appro
     ['records.groupAggregate', 'data.groupAggregateRecords'],
     ['records.bucketAggregate', 'data.bucketAggregateRecords'],
     ['records.cellAggregate', 'data.cellAggregateRecords'],
+    ['records.create', 'data.createRecord'],
+    ['records.update', 'data.setFields'],
+    ['records.delete', 'data.deleteRecord'],
+    ['commands.run', 'data.executeCommand'],
     ['ui.openRecord', null],
     ['ui.openScreen', null],
     ['ui.openStudio', null],
@@ -100,11 +107,91 @@ test('the method table is closed, reads only, and holds no write, promote, appro
   const table = broker.brokerTable();
   assert.deepEqual(table.map(({ method, host }) => [method, host]), expected);
   assert.deepEqual([...broker.brokerMethodNames], expected.map(([method]) => method));
-  for (const { method, host } of table) {
+  for (const { method, host, writes } of table) {
     assert.doesNotMatch(method, /^(proposal|behaviour|agent|file|session|appearance|history|extension|data)\./, method);
-    assert.doesNotMatch(method, /promote|reject|approve|create|update|delete|remove|execute|import|compensate|write|commit/i, method);
-    if (host !== null) assert.ok(readMethods.includes(host), `${method} becomes ${host}, which is not one of the host's reads.`);
+    assert.doesNotMatch(method, /promote|reject|approve|remove|import|compensate|commit|grant|lease/i, method);
+    if (writes) assert.ok(writeMethods.includes(host), `${method} writes through ${host}, which is not one of the record writes.`);
+    else {
+      assert.doesNotMatch(method, /create|update|delete|execute|write|run/i, method);
+      if (host !== null) assert.ok(readMethods.includes(host), `${method} becomes ${host}, which is not one of the host's reads.`);
+    }
   }
+  assert.deepEqual(table.filter((entry) => entry.writes).map((entry) => entry.host), writeMethods);
+});
+
+test('a write goes to the host as the mount\u2019s package, never as anything the view names, with a fresh key, and answers the record', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  const record = { entityId: 'tasks', recordId: 't1', recordVersion: 4, values: { title: 'Done', estimate: { $nendoNumber: '12.50' } } };
+  view.send({ t: 'req', id: 1, m: 'records.update', p: {
+    entityId: 'tasks', recordId: 't1', version: 3, actor: 'extension:someone-else', idempotencyKey: 'replay-me',
+    values: { title: 'Done', estimate: { $nendoNumber: '12.50' }, count: 2 },
+  } });
+  await until(() => h.calls.length === 1, 'the host write');
+  const { method, payload } = h.calls[0];
+  assert.equal(method, 'data.setFields');
+  assert.equal(payload.actor, 'extension:org.example.glance', 'The write was not made in the name of the mount\u2019s package.');
+  assert.match(payload.idempotencyKey, /^view-[0-9a-f-]{36}$/, 'The view chose its own idempotency key.');
+  assert.deepEqual({ ...payload, idempotencyKey: undefined, actor: undefined }, {
+    entityId: 'tasks', recordId: 't1', expectedRecordVersion: 3, idempotencyKey: undefined, actor: undefined,
+    values: { title: 'Done', estimate: { $nendoNumber: '12.50' }, count: { $nendoNumber: '2' } },
+  });
+  h.pending[0].resolve({ mutation: { changeSequence: 10 }, session: null });
+  await until(() => h.calls.length === 2, 'the read back');
+  assert.deepEqual(h.calls[1], { method: 'data.queryRecords', payload: { entityId: 'tasks', recordId: 't1', limit: 1 } });
+  h.pending[1].resolve({ items: [record] });
+  const answered = await view.next((message) => message.id === 1);
+  assert.equal(answered.ok, true);
+  assert.equal(answered.r.version, 4);
+  assert.equal(answered.r.exact.estimate, '12.50');
+
+  view.send({ t: 'req', id: 2, m: 'records.update', p: { entityId: 'tasks', recordId: 't1', version: 4, values: { title: 'Again' } } });
+  await until(() => h.calls.length === 3, 'a second write');
+  assert.notEqual(h.calls[2].payload.idempotencyKey, payload.idempotencyKey, 'Two writes shared one key, so the second would replay the first.');
+  h.pending[2].resolve({});
+  await until(() => h.calls.length === 4, 'its read back');
+  h.pending[3].resolve({ items: [] });
+  assert.equal((await view.next((message) => message.id === 2)).r, null);
+
+  view.send({ t: 'req', id: 3, m: 'records.delete', p: { entityId: 'tasks', recordId: 't1', version: 5 } });
+  await until(() => h.calls.length === 5, 'the delete');
+  assert.deepEqual({ ...h.calls[4].payload, idempotencyKey: undefined },
+    { entityId: 'tasks', recordId: 't1', expectedRecordVersion: 5, actor: 'extension:org.example.glance', idempotencyKey: undefined });
+  h.pending[4].resolve({});
+  assert.equal((await view.next((message) => message.id === 3)).r, null);
+  await settle();
+  assert.equal(h.calls.length, 5, 'A delete read the record back.');
+
+  view.send({ t: 'req', id: 4, m: 'commands.run', p: { commandId: 'page.done', entityId: 'tasks', recordId: 't2', version: 1 } });
+  await until(() => h.calls.length === 6, 'the command');
+  assert.equal(h.calls[5].method, 'data.executeCommand');
+  assert.equal(h.calls[5].payload.commandId, 'page.done');
+  assert.equal(h.calls[5].payload.expectedRecordVersion, 1);
+});
+
+test('a write is refused before the host is asked when the file is read-only or the parameters are wrong', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  const refusals = [
+    [1, 'records.update', { entityId: 'tasks', recordId: 't1', values: { title: 'x' } }],
+    [2, 'records.update', { entityId: 'tasks', recordId: 't1', version: 0, values: { title: 'x' } }],
+    [3, 'records.create', { entityId: 'tasks', values: {} }],
+    [4, 'records.create', { entityId: 'tasks', values: { title: ['a list'] } }],
+    [5, 'records.create', { entityId: 'tasks', values: { estimate: { $nendoNumber: 'twelve' } } }],
+    [6, 'records.create', { entityId: 'tasks', values: { estimate: Number.POSITIVE_INFINITY } }],
+    [7, 'commands.run', { commandId: 'page.done', entityId: 'tasks', recordId: 't1' }],
+  ];
+  for (const [id, m, p] of refusals) {
+    view.send({ t: 'req', id, m, p });
+    assert.equal((await view.next((message) => message.id === id)).e.code, 'invalid-params', `${m} ${JSON.stringify(p)}`);
+  }
+  h.context = { ...context, readOnly: true };
+  view.send({ t: 'req', id: 8, m: 'records.create', p: { entityId: 'tasks', values: { title: 'x' } } });
+  assert.equal((await view.next((message) => message.id === 8)).e.code, 'read-only');
+  await settle();
+  assert.equal(h.calls.length, 0, 'A refused write reached the host.');
 });
 
 test('a hello is answered only for a frame this Workbench mounted, from the origin it was mounted at', (t) => {

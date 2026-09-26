@@ -369,6 +369,13 @@ View code cannot:
 
 The owner chose this over consent steps. The kill switches are the whole control.
 
+That includes a view's writes. A record a view changes and a command it runs take
+effect without a host-drawn confirmation. The person reads what changed in History,
+under the package's name, and compensates it there like any other write. A view
+that wants the person to confirm an act shows its own confirmation. The owner
+settled this on 2026-09-26, over an earlier ask (W-065) for a native confirmation
+before a view runs a command.
+
 ### Compatibility
 
 - A file that carries packages needs host 1.33.0. A view definition that only the
@@ -415,7 +422,7 @@ contained helper is deleted.
 | 0 | A disposable spike that answers the WebView2 questions below | — |
 | 1 | Code in the file: the tables, the operations, the review and MCP authoring. Nothing runs yet | 1.33.0 |
 | 2 | Views run inline from the file, and the helper is deleted: serving, the read API, the kill switches, open definitions, package import and export as folders, and the four packages ported | 1.34.0 |
-| 3 | Views that write: records, commands, proposals to prepare, and state | — |
+| 3 | Views that write: records and commands (delivered 2026-09-26), proposals to prepare, and state | — |
 | 4 | Develop from a folder: a device-local link, reload on save, and saving the folder as proposals | — |
 | 5 | Views anywhere: `extensionView` and `extensionTile` | 1.35.0 |
 
@@ -544,3 +551,7 @@ falsified once, and has the failure text quoted in its planner Check.
   the file; the contained helper is deleted. The spike's findings refined the
   permission, context-menu, hang and lazy-start particulars; no flag was needed
   for isolation.
+- 2026-09-26 — writes need no host confirmation: a view's record writes and
+  commands take effect like a person's edit and are read and compensated in
+  History. The owner followed the recommendation over W-065's earlier ask for a
+  native confirmation. Phase 3 starts with records and commands (W-065).

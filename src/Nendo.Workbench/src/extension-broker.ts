@@ -66,8 +66,10 @@ interface MethodCall {
 }
 
 interface MethodEntry {
-  /** The typed read this method becomes, or null for one the Workbench answers itself. */
+  /** The typed read or write this method becomes, or null for one the Workbench answers itself. */
   readonly host: string | null;
+  /** Whether it changes the file, and so goes to the host as the view's package (ADR-0013 Phase 3). */
+  readonly writes?: boolean;
   readonly run: (call: MethodCall) => unknown;
 }
 
@@ -125,13 +127,80 @@ function local(run: (call: MethodCall) => unknown): MethodEntry {
   return { host: null, run };
 }
 
+function versionParam(params: Params, key = 'version'): number {
+  const value = params[key];
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1)
+    throw invalid(`${key} must be the record's version, a whole number from 1: read it from the record.`);
+  return value;
+}
+
 /**
- * The closed method table: every name a view may call, and the one typed read each becomes.
+ * The values a view writes, rebuilt field by field. A value is null, text, true or false, a
+ * number, or `{ $nendoNumber: '…' }` for a decimal whose digits a JavaScript number would not
+ * keep, the envelope every exact number crosses the bridge in. Nothing else is passed on.
+ */
+function valuesParam(params: Params): Params {
+  const value = params.values;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw invalid('values must be an object of field IDs to values.');
+  const entries = Object.entries(value as Params);
+  if (entries.length === 0 || entries.length > 64) throw invalid('values must name 1 to 64 fields.');
+  const rebuilt: Params = {};
+  for (const [fieldId, item] of entries) {
+    if (fieldId.length === 0 || fieldId.length > 256) throw invalid('Each field ID is text of 1 to 256 characters.');
+    if (item === null || typeof item === 'string' || typeof item === 'boolean') rebuilt[fieldId] = item;
+    else if (typeof item === 'number') {
+      if (!Number.isFinite(item)) throw invalid(`${fieldId} must be a finite number.`);
+      rebuilt[fieldId] = { $nendoNumber: String(item) };
+    } else if (typeof item === 'object' && !Array.isArray(item) && Object.keys(item).length === 1 &&
+      typeof (item as Params).$nendoNumber === 'string' && /^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test((item as Params).$nendoNumber as string) &&
+      ((item as Params).$nendoNumber as string).length <= 128) {
+      rebuilt[fieldId] = { $nendoNumber: (item as Params).$nendoNumber };
+    } else throw invalid(`${fieldId} must be null, text, true or false, a number, or { $nendoNumber: '…' }.`);
+  }
+  return rebuilt;
+}
+
+/**
+ * A write, as the person's own edit makes it, attributed to the view's package.
  *
- * Reads only, in this phase. Nothing here writes, prepares, promotes, rejects or approves;
- * nothing opens, closes or copies a file, and nothing touches a session, an agent or the
- * appearance. A write, when one is added, is one more line here, taking its actor from the
- * mount and never from the view's parameters. The production gate and
+ * The actor is the mount's package, from the view definition the Workbench mounted, and never
+ * anything the view sent: a view cannot write as the person or as another package. The host
+ * admits that actor on these methods alone and refuses it elsewhere (actor-not-allowed), and
+ * History records the write under it. Each call carries a fresh idempotency key, so a
+ * retried request is never applied twice. The answer is the record as it now stands, read
+ * back, so the view has the version its next write needs; a deleted record answers null.
+ */
+function write(host: string, payload: (params: Params) => Params & { entityId: string; recordId?: string }, readBack = true): MethodEntry {
+  return {
+    host,
+    writes: true,
+    run: async ({ params, mount, deps }) => {
+      const context = deps.context(mount);
+      if (context.readOnly) throw new WorkbenchHostError('read-only', 'This file is open read-only, so a view cannot change it.');
+      const body = payload(params);
+      await deps.request(host, { ...body, idempotencyKey: `view-${crypto.randomUUID()}`, actor: `extension:${context.packageId}` });
+      if (!readBack || body.recordId === undefined) return null;
+      const page = await deps.request('data.queryRecords', { entityId: body.entityId, recordId: body.recordId, limit: 1 }) as { items?: RecordSnapshot[] } | null;
+      const item = page?.items?.[0];
+      return item === undefined ? null : plainRecord(item);
+    },
+  };
+}
+
+/** A record ID a view may choose, or one made for it. */
+function newRecordId(params: Params): string {
+  return optionalText(params, 'recordId', 120) ?? `record-${crypto.randomUUID().replaceAll('-', '')}`;
+}
+
+/**
+ * The closed method table: every name a view may call, and the one typed read or write each
+ * becomes.
+ *
+ * Reads, and since Phase 3 the four record writes a person's own edit uses: create, update,
+ * delete and run a record command (W-065). Nothing here prepares, promotes, rejects or
+ * approves a proposal; nothing opens, closes or copies a file, and nothing touches a
+ * session, an agent, behaviour approval, compensation or the appearance. Each write takes
+ * its actor from the mount, never from the view's parameters. The production gate and
  * scripts/extension-broker.test.mjs pin this table.
  */
 export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freeze({
@@ -161,6 +230,16 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
     entityId: textParam(p, 'entityId'), rowByFieldId: textParam(p, 'rowByFieldId'), columnByFieldId: textParam(p, 'columnByFieldId'),
     aggregate: textParam(p, 'aggregate', 32), fieldId: optionalText(p, 'fieldId'), filters: filterParams(p),
   })),
+  'records.create': write('data.createRecord', (p) => ({ entityId: textParam(p, 'entityId'), recordId: newRecordId(p), values: valuesParam(p) })),
+  'records.update': write('data.setFields', (p) => ({
+    entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p), values: valuesParam(p),
+  })),
+  'records.delete': write('data.deleteRecord', (p) => ({
+    entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p),
+  }), false),
+  'commands.run': write('data.executeCommand', (p) => ({
+    commandId: textParam(p, 'commandId'), entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p),
+  })),
   'ui.openRecord': local(({ mount, params, deps }) =>
     deps.ui.openRecord(mount, { entityId: textParam(params, 'entityId'), recordId: textParam(params, 'recordId') })),
   'ui.openScreen': local(({ mount, params, deps }) => deps.ui.openScreen(mount, { surfaceId: textParam(params, 'surfaceId') })),
@@ -185,9 +264,9 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
 /** Every method name, in table order: what a view's context lists and `nendo.has` answers. */
 export const brokerMethodNames: readonly string[] = Object.freeze(Object.keys(brokerMethods));
 
-/** The table as data: each method and the host read it becomes, for the guards that pin it. */
-export function brokerTable(): Array<{ method: string; host: string | null }> {
-  return Object.entries(brokerMethods).map(([method, entry]) => ({ method, host: entry.host }));
+/** The table as data: each method, the host method it becomes, and whether it writes, for the guards that pin it. */
+export function brokerTable(): Array<{ method: string; host: string | null; writes: boolean }> {
+  return Object.entries(brokerMethods).map(([method, entry]) => ({ method, host: entry.host, writes: entry.writes === true }));
 }
 
 interface Pending { id: number; method: string; params: unknown }
@@ -261,7 +340,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
   async function run(connection: Connection, pending: Pending): Promise<void> {
     connection.inFlight += 1;
     try {
-      if (!deps.running()) throw new WorkbenchHostError('views-off', 'Custom views are off, so this view cannot read the file.');
+      if (!deps.running()) throw new WorkbenchHostError('views-off', 'Custom views are off, so this view cannot reach the file.');
       const raw = pending.params;
       if (raw !== undefined && raw !== null && (typeof raw !== 'object' || Array.isArray(raw)))
         throw invalid('The parameters must be an object.');

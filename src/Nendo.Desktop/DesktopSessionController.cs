@@ -223,21 +223,22 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
         IReadOnlyDictionary<string, object?> values,
         string idempotencyKey,
         CancellationToken cancellationToken = default,
-        IReadOnlyDictionary<string, long>? expectedTargetVersions = null) =>
+        IReadOnlyDictionary<string, long>? expectedTargetVersions = null,
+        string? origin = null) =>
         await MutateAsync(
             service => service.CreateRecordAsync(
                 new NendoCreateRecordRequest(
                     entityId,
                     recordId,
                     values,
-                    new NendoRequestContext("desktop.p2.5", idempotencyKey, "surface"), expectedTargetVersions),
+                    new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "surface"), expectedTargetVersions),
                 cancellationToken),
             cancellationToken);
 
     internal Task<DesktopMutationView> DeleteRecordAsync(string entityId, string recordId, long expectedRecordVersion,
-        string idempotencyKey, CancellationToken cancellationToken = default) =>
+        string idempotencyKey, CancellationToken cancellationToken = default, string? origin = null) =>
         MutateAsync(service => service.DeleteRecordAsync(new(entityId, recordId, expectedRecordVersion,
-            new NendoRequestContext("desktop.p2.5", idempotencyKey, "studio")), cancellationToken), cancellationToken);
+            new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "studio")), cancellationToken), cancellationToken);
 
     internal async Task<DesktopMutationView> SetFieldAsync(
         string entityId,
@@ -267,24 +268,26 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
         IReadOnlyDictionary<string, object?> values,
         string idempotencyKey,
         CancellationToken cancellationToken = default,
-        IReadOnlyDictionary<string, long>? expectedTargetVersions = null) =>
+        IReadOnlyDictionary<string, long>? expectedTargetVersions = null,
+        string? origin = null) =>
         MutateAsync(service => service.SetFieldsAsync(new NendoSetFieldsRequest(
             entityId, recordId, expectedRecordVersion, values,
-            new NendoRequestContext("desktop.p2.5", idempotencyKey, "surface"), expectedTargetVersions), cancellationToken), cancellationToken);
+            new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "surface"), expectedTargetVersions), cancellationToken), cancellationToken);
 
     internal async Task<DesktopMutationView> ExecuteCommandAsync(
         string commandId,
         string recordId,
         long expectedRecordVersion,
         string idempotencyKey,
-        CancellationToken cancellationToken = default) =>
+        CancellationToken cancellationToken = default,
+        string? origin = null) =>
         await MutateAsync(
             service => service.ExecuteCommandAsync(
                 new NendoExecuteCommandRequest(
                     commandId,
                     recordId,
                     expectedRecordVersion,
-                    new NendoRequestContext("desktop.p2.5", idempotencyKey, "surface")),
+                    new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "surface")),
                 cancellationToken),
             cancellationToken);
 

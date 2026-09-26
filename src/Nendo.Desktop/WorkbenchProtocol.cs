@@ -276,6 +276,11 @@ internal sealed partial class WorkbenchProtocolHandler
                     $"Workbench method {method} is not part of protocol version {protocolVersion}.");
             }
 
+            // A custom view's write arrives through the Workbench's broker, named for the
+            // view's package (ADR-0013 Phase 3). It is admitted on the record writes alone,
+            // and becomes the origin History attributes the write to.
+            var writer = ExtensionWriter(payload, method);
+
             // V5 sends the opaque file generation it actually rendered. Older
             // renderers are pinned once and cannot silently follow a native file
             // switch. The controller checks this under its gate, including after
@@ -336,11 +341,11 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.SessionOpenFile => protocolVersion == DesktopShellContract.BridgeProtocolVersion
                         ? await RunSessionFileActionAsync(WorkbenchFileAction.Open)
                         : await OpenFileAsync(cancellationToken),
-                    WorkbenchMethods.DataCreateRecord => await CreateGenericRecordAsync(payload, cancellationToken),
-                    WorkbenchMethods.DataDeleteRecord => await DeleteGenericRecordAsync(payload, cancellationToken),
+                    WorkbenchMethods.DataCreateRecord => await CreateGenericRecordAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataDeleteRecord => await DeleteGenericRecordAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataSetField => await SetGenericFieldAsync(payload, cancellationToken),
-                    WorkbenchMethods.DataSetFields => await SetGenericFieldsAsync(payload, cancellationToken),
-                    WorkbenchMethods.DataExecuteCommand => await ExecuteGenericCommandAsync(payload, cancellationToken),
+                    WorkbenchMethods.DataSetFields => await SetGenericFieldsAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataExecuteCommand => await ExecuteGenericCommandAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataGetReceipt => await _session.GetMutationReceiptAsync(RequiredString(payload, "idempotencyKey", 200), false, cancellationToken),
                     WorkbenchMethods.CompensationGetReceipt => await _session.GetMutationReceiptAsync(RequiredString(payload, "idempotencyKey", 200), true, cancellationToken),
                     WorkbenchMethods.ProposalGetReceipt => await _session.GetProposalReceiptAsync(RequiredString(payload, "proposalId", 80), cancellationToken),
@@ -466,8 +471,28 @@ internal sealed partial class WorkbenchProtocolHandler
             : await _session.OpenAsync(path, cancellationToken);
     }
 
+    /// <summary>
+    /// The origin a view's write is attributed to, <c>extension:&lt;package&gt;</c>, or null for
+    /// a request that names no actor. An actor on any method but the record writes, or one
+    /// that is not a well-formed package name, is refused before anything runs.
+    /// </summary>
+    private string? ExtensionWriter(JsonElement payload, string method)
+    {
+        if (payload.ValueKind != JsonValueKind.Object || !payload.TryGetProperty("actor", out var actor)) return null;
+        if (!WorkbenchMethods.ExtensionWriterMethods.Contains(method))
+            throw new NendoPreconditionException("actor-not-allowed", $"A custom view may not call {method}.");
+        var text = actor.ValueKind == JsonValueKind.String ? actor.GetString() : null;
+        const string prefix = "extension:";
+        if (text is null || !text.StartsWith(prefix, StringComparison.Ordinal) || text.Length > 100 ||
+            !System.Text.RegularExpressions.Regex.IsMatch(text[prefix.Length..], "^[a-z0-9]+(?:[.-][a-z0-9]+)*$"))
+            throw new NendoPreconditionException("actor-not-allowed", "A write names its view by extension: and a package ID.");
+        _session.RequireExtensionWriter(text[prefix.Length..]);
+        return text;
+    }
+
     private async Task<DesktopMutationView> CreateGenericRecordAsync(
         JsonElement payload,
+        string? writer,
         CancellationToken cancellationToken)
     {
         var request = Deserialize<CreateRecordPayload>(payload);
@@ -479,14 +504,14 @@ internal sealed partial class WorkbenchProtocolHandler
                 pair => (object?)pair.Value.Clone(),
                 StringComparer.Ordinal),
             request.IdempotencyKey,
-            cancellationToken, request.ExpectedTargetVersions);
+            cancellationToken, request.ExpectedTargetVersions, writer);
     }
 
-    private async Task<DesktopMutationView> DeleteGenericRecordAsync(JsonElement payload, CancellationToken cancellationToken)
+    private async Task<DesktopMutationView> DeleteGenericRecordAsync(JsonElement payload, string? writer, CancellationToken cancellationToken)
     {
         var request = Deserialize<DeleteRecordPayload>(payload);
         return await _session.DeleteRecordAsync(request.EntityId, request.RecordId, request.ExpectedRecordVersion,
-            request.IdempotencyKey, cancellationToken);
+            request.IdempotencyKey, cancellationToken, writer);
     }
 
     private async Task<DesktopMutationView> SetGenericFieldAsync(
@@ -506,17 +531,19 @@ internal sealed partial class WorkbenchProtocolHandler
 
     private async Task<DesktopMutationView> SetGenericFieldsAsync(
         JsonElement payload,
+        string? writer,
         CancellationToken cancellationToken)
     {
         var request = Deserialize<SetFieldsPayload>(payload);
         if (request.Values is null) throw new NendoValidationException("The form values are required.");
         return await _session.SetFieldsAsync(request.EntityId, request.RecordId, request.ExpectedRecordVersion,
             request.Values.ToDictionary(pair => pair.Key, pair => (object?)pair.Value.Clone(), StringComparer.Ordinal),
-            request.IdempotencyKey, cancellationToken, request.ExpectedTargetVersions);
+            request.IdempotencyKey, cancellationToken, request.ExpectedTargetVersions, writer);
     }
 
     private async Task<DesktopMutationView> ExecuteGenericCommandAsync(
         JsonElement payload,
+        string? writer,
         CancellationToken cancellationToken)
     {
         var request = Deserialize<ExecuteCommandPayload>(payload);
@@ -525,7 +552,8 @@ internal sealed partial class WorkbenchProtocolHandler
             request.RecordId,
             request.ExpectedRecordVersion,
             request.IdempotencyKey,
-            cancellationToken);
+            cancellationToken,
+            writer);
     }
 
     private async Task<NendoProposalPreview> PrepareChangeSetAsync(

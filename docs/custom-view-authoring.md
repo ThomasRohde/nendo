@@ -33,9 +33,9 @@ records with their calculated fields and exact numbers, the schema, and the file
 changes as they happen. It can ask Nendo to open a record, a screen or Studio, show
 a sentence, and size its own panel.
 
-**Not yet.** In this version a view reads and does not write. Writing records,
-running commands, preparing proposals and keeping state in the file arrive with
-Phase 3. Developing a view straight from a folder, with reload on save, arrives
+**Not yet.** A view writes records and runs record commands (see
+[Changing records](#changing-records)). Preparing proposals and keeping state in the
+file arrive with the rest of Phase 3. Developing a view straight from a folder, with reload on save, arrives
 with Phase 4, and a view as a screen of its own (`extensionView`) or a tile on the
 front page (`extensionTile`) with Phase 5.
 
@@ -392,6 +392,33 @@ values, for a canvas or a chart library that needs them in JavaScript.
 The navigation calls follow the rules a click follows. While another action runs,
 or while a record page holds unsaved typing, they are refused, and nothing moves.
 
+## Changing records
+
+A view changes records the way a person's edit does: through the same typed
+operations, checked against the record's version, and recorded in History under
+your package's name, `extension:‹package›`, where the person can undo it. Nendo
+draws no confirmation. If an act needs one, ask the person yourself.
+
+```js
+const task = await nendo.records.get('tasks', 't1');
+const updated = await nendo.records.update(task, { title: 'Pour the base', estimate: 12.5 });
+const done = await nendo.commands.run('page.done', updated);   // a command from schema.describe
+const added = await nendo.records.create('tasks', { title: 'Cure the slab' });
+await nendo.records.delete(added);
+```
+
+- Each call takes the record as you last read it, `{entityId, recordId, version}`,
+  and answers the record as it now stands, with its new version. Keep that one for
+  the next write. `delete` answers null.
+- If somebody changed the record since you read it, the write is refused and nothing
+  changes. Read it again and decide.
+- A value is null, text, true or false, a number, or `{ $nendoNumber: '12.50' }` for a
+  decimal whose digits a JavaScript number would not keep. Read exact digits from a
+  record's `exact`.
+- `nendo.has('records.update')` tells you whether this Nendo lets views write. A
+  file open read-only refuses every write with `read-only`.
+- Record commands are the ones `schema.describe` lists under `commands`, by `id`.
+
 To fit a panel to its content, measure the content, not the document, which is
 always at least as tall as the frame:
 
@@ -418,6 +445,8 @@ A refused call rejects with a `nendo.NendoError`. Its `code` is stable, and its
 | `not-allowed` | A record page has unsaved changes, so Nendo stays where it is |
 | `not-found` | The record type or the screen is not in this file |
 | `views-off` | Custom views were turned off |
+| `read-only` | The file is open read-only, so nothing may change it |
+| `record-version-conflict` | The record changed since you read it. Read it again |
 | `disconnected` | Nendo reconnected the view while the request waited. Send it again |
 | `not-framed` | The page was opened on its own, not in Nendo |
 | `stale-cursor`, `invalid-cursor` | The file changed between pages, or the cursor belongs to another query. Read again from the first page |
@@ -673,7 +702,8 @@ Nendo does not interpret it. It is not the place for data.
 | Read and write the clipboard, and download files | Reach SQL, a file path, another file or a device setting |
 | Keep `localStorage` and IndexedDB, per package and file, on this device | Navigate Nendo away, or load Nendo inside a frame |
 | Send a link the person clicks, one that opens a new window, to their own browser | Open a window by script without the person's click |
-| Show the browser's `alert`, `confirm` and `prompt` | Write, run a command, prepare a proposal or keep state in the file (not yet: Phase 3) |
+| Show the browser's `alert`, `confirm` and `prompt` | Prepare a proposal or keep state in the file (not yet) |
+| Create, change and delete records and run record commands, in its package's name | Write under any other name, or without a version check |
 | Ask Nendo to open a record, a screen or Studio, show a sentence and size its panel | Accept or reject a proposal, ever |
 
 Browser storage belongs to the view's origin, which is its own for each package in
