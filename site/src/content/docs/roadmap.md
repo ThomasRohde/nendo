@@ -20,7 +20,7 @@ The core loop works end to end:
    calculations or actions.
 5. Review the agent's proposal as a semantic diff, and accept or reject it.
 
-The current version is 0.15.0. It runs on Windows x64 only, as an unsigned
+The current version is 0.16.0. It runs on Windows x64 only, as an unsigned
 per-user install. You build the installer from source; see
 [Using Nendo](/nendo/use).
 
