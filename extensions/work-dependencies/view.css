@@ -69,7 +69,7 @@ marker#arrow path{fill:var(--edge)}marker#arrow-cycle path{fill:var(--cycle)}mar
 footer{min-height:24px;color:var(--muted);overflow-wrap:anywhere;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
 footer p{margin:0}#selection{flex:1 1 240px;min-width:0}
 #actions{display:flex;flex-wrap:wrap;gap:6px}#actions button{padding:4px 10px;font-size:13px}
-#actions button:disabled{opacity:.55;cursor:progress}
+#actions button:disabled{opacity:.55;cursor:progress}#actions button[title]:disabled{cursor:default}
 #outcome{flex-basis:100%;font-size:13px}#outcome:empty{display:none}#outcome.refused{color:var(--cycle)}
 [hidden]{display:none!important}
 @media(max-width:640px){body{padding:12px;gap:8px}.hint{display:none}h1{font-size:18px}.tools button{padding:5px 8px}input[type=search]{width:112px}.select span{display:none}.select select{max-width:120px}}

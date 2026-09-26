@@ -437,6 +437,8 @@ test('a view’s context is built from the stored nodes: its bindings, filters, 
       { surfaceId: 's.graph', nodeId: 'graph.f2', parentNodeId: 'graph', kind: 'filterClause', position: 4, properties: { fieldId: 'status', operator: 'ne', value: 'open' } },
       { surfaceId: 's.page', nodeId: 'page', parentNodeId: null, kind: 'detailSurface', position: 0, properties: { entityId: 'work' } },
       { surfaceId: 's.page', nodeId: 'page.done', parentNodeId: 'page', kind: 'recordCommand', position: 0, properties: { label: 'Done' } },
+      { surfaceId: 's.page', nodeId: 'page.done.when', parentNodeId: 'page.done', kind: 'commandStep', position: 1, properties: { fieldId: 'due', valueKind: 'today' } },
+      { surfaceId: 's.page', nodeId: 'page.done.status', parentNodeId: 'page.done', kind: 'commandStep', position: 0, properties: { fieldId: 'status', valueKind: 'literal', value: 'status-done' } },
     ],
   };
   const spec = { viewId: 'graph', kind: 'extensionGraphSurface', placement: 'screen', title: 'Dependencies', packageId: 'org.example.graph', entityId: 'work', recordId: null };
@@ -474,5 +476,9 @@ test('a view’s context is built from the stored nodes: its bindings, filters, 
     { id: 'graph', surfaceId: 's.graph', kind: 'extensionGraphSurface', title: 'Dependencies', entityId: 'work' },
     { id: 'page', surfaceId: 's.page', kind: 'detailSurface', title: null, entityId: 'work' },
   ]);
-  assert.deepEqual(schema.commands, [{ id: 'page.done', entityId: 'work', label: 'Done' }]);
+  // A command says what it sets, in step order, so a view can grey one the record already holds.
+  assert.deepEqual(schema.commands, [{ id: 'page.done', entityId: 'work', label: 'Done', steps: [
+    { fieldId: 'status', valueKind: 'literal', value: 'status-done' },
+    { fieldId: 'due', valueKind: 'today', value: null },
+  ] }]);
 });

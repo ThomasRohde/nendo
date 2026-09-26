@@ -163,6 +163,9 @@ export function describeSchema(session: DesktopSessionView): SchemaDescription {
       id: node.nodeId,
       entityId: text(node.properties.entityId) ?? text(rootOf(node, nodes).properties.entityId),
       label: text(node.properties.label),
+      steps: nodes.filter((step) => step.kind === 'commandStep' && step.parentNodeId === node.nodeId && step.surfaceId === node.surfaceId)
+        .sort(byPosition)
+        .map((step) => ({ fieldId: text(step.properties.fieldId) ?? '', valueKind: text(step.properties.valueKind) ?? 'literal', value: plainJson(step.properties.value) })),
     })),
   };
 }

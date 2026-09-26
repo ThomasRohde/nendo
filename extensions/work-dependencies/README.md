@@ -46,7 +46,9 @@ the drawing, the ones its record page offers: in the planner, Plan now, Start wo
 to review, Complete and Reopen. Pressing one runs it on that item at the version the view
 read. The graph follows the change, and the line below says what was done. If somebody
 changed the item since the view read it, nothing happens, the view says so and reads it
-again, and the next press uses the item as it now is. Nendo asks nothing first: the change
+again, and the next press uses the item as it now is. A command the item already has
+what it sets, such as Complete on a Done item, is greyed out, as the record page greys
+it. Nendo asks nothing first: the change
 is in History under this package's name, where you can undo it. A file open read-only
 offers nothing to press.
 

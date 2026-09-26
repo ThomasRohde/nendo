@@ -348,9 +348,9 @@ async (page) => {
   // read-only file offers nothing to press.
   const withCommands = { ...fixture(projection), commandEffects: { 'cmd.plan': { workStatus: 'status-ready' }, 'cmd.complete': { workStatus: 'status-done' } } };
   withCommands.schema.commands = [
-    { id: 'cmd.plan', entityId: 'workItem', label: 'Plan now' },
-    { id: 'cmd.complete', entityId: 'workItem', label: 'Complete' },
-    { id: 'cmd.initiative', entityId: 'initiative', label: 'Initiative reviewed' },
+    { id: 'cmd.plan', entityId: 'workItem', label: 'Plan now', steps: [{ fieldId: 'workStatus', valueKind: 'literal', value: 'status-ready' }] },
+    { id: 'cmd.complete', entityId: 'workItem', label: 'Complete', steps: [{ fieldId: 'workStatus', valueKind: 'literal', value: 'status-done' }] },
+    { id: 'cmd.initiative', entityId: 'initiative', label: 'Initiative reviewed', steps: [] },
   ];
   await replace(withCommands, '8 work items · 7 links · 2 unblocked · 3 in a dependency cycle');
   assert(await view.locator('#actions').isHidden(), 'Commands are offered with nothing selected.');
@@ -392,6 +392,12 @@ async (page) => {
     'After reading again, Complete on the changed item did not land.');
   const lastRun = (await page.evaluate(() => window.broker.commandsRun())).at(-1);
   assert(lastRun.recordId === 'c' && lastRun.version === 2, 'The retry did not use the version the item now has: ' + JSON.stringify(lastRun));
+
+  // A command the item already holds is greyed, as the record page greys it: c is Done now, so
+  // Complete is spent and Plan now is not.
+  const greyed = await view.evaluate(() => Object.fromEntries([...document.querySelectorAll('#actions button')].map(button => [button.dataset.command, button.disabled])));
+  assert(greyed['cmd.complete'] === true && greyed['cmd.plan'] === false,
+    'A spent command is pressable, or a live one is greyed, on a Done item: ' + JSON.stringify(greyed));
 
   // A read-only file offers nothing to press.
   await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushContext(); }, { ...withCommands, context: { ...withCommands.context, readOnly: true } });

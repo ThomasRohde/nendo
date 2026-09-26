@@ -594,7 +594,11 @@ A record, from `records.query`, `records.get` and the loaders below:
   `expression` and its result type as `storageKind`. Each choice is `{id,
   displayName, retired, tone}`. Retired record types and fields are left out.
 - Each screen is `{id, surfaceId, kind, title, entityId}`: a root node of the file.
-- Each command is `{id, entityId, label}`.
+- Each command is `{id, entityId, label, steps}`. Each step is `{fieldId, valueKind,
+  value}`, in the order it runs: `valueKind` is `literal` (the value is `value`),
+  `null`, `today` or `now`. A command is spent on a record when every step with a fixed
+  value (`literal` or `null`) already holds it, which is when the record page greys its
+  button. `steps` arrived 2026-09-26; a view on an earlier host finds it missing.
 
 The script adds three readers on top of the table. None of them is a method of its
 own:
@@ -1156,3 +1160,5 @@ passed. Each guard below was falsified, seen to fail and then restored:
   record writes alone, and History attributes each write to `extension:‹package›`.
   No host confirmation (ADR-0013). Proposals and `nendo.state` are still to come
   (W-065).
+- 2026-09-26 — `schema.describe` gives each command its `steps`, so a view can tell,
+  as the record page does, that a command is spent on a record (W-068).

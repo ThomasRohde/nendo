@@ -542,6 +542,17 @@
     return commands.length !== 0 && typeof nendo.has === 'function' && nendo.has('commands.run') && nendo.context?.readOnly !== true;
   }
 
+  // Spent as the record page judges it: every step with a fixed value already holds it. A
+  // step set to today or now is never spent, and a host that does not say a command's steps
+  // leaves every command pressable.
+  function spent(command, record) {
+    const fixed = (command.steps ?? []).filter(step => step.valueKind === 'literal' || step.valueKind === 'null');
+    return fixed.length !== 0 && fixed.every(step => {
+      const held = record.values?.[step.fieldId] ?? null;
+      return step.valueKind === 'null' ? held === null : JSON.stringify(held) === JSON.stringify(step.value ?? null);
+    });
+  }
+
   function showActions() {
     const box = element('actions');
     const node = selected === null ? undefined : shown.nodes.find(value => value.id === selected);
@@ -549,7 +560,9 @@
     if (box.hidden) { box.replaceChildren(); return; }
     box.replaceChildren(...commands.map(command => {
       const button = document.createElement('button');
-      button.type = 'button'; button.textContent = command.label; button.dataset.command = command.id; button.disabled = acting;
+      const done = spent(command, node.record);
+      button.type = 'button'; button.textContent = command.label; button.dataset.command = command.id; button.disabled = acting || done;
+      if (done) button.title = `${node.label} already has what ${command.label} sets.`;
       button.addEventListener('click', () => act(command, node.id));
       return button;
     }));

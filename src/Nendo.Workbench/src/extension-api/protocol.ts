@@ -148,7 +148,15 @@ export interface SchemaEntity { entityId: string; displayName: string; fields: S
 /** A screen the file defines: a root node, by its node ID and the surface that holds it. */
 export interface SchemaScreen { id: string; surfaceId: string; kind: string; title: string | null; entityId: string | null }
 
-export interface SchemaCommand { id: string; entityId: string | null; label: string | null }
+/**
+ * One step of a record command: the field it sets and to what. `valueKind` is `literal` (the
+ * value is `value`), `null`, or a moment resolved when it runs (`today`, `now`). A view can tell
+ * a command is spent on a record when every step with a fixed value already holds it, which is
+ * how the record page greys its own buttons.
+ */
+export interface SchemaCommandStep { fieldId: string; valueKind: string; value: unknown }
+
+export interface SchemaCommand { id: string; entityId: string | null; label: string | null; steps: SchemaCommandStep[] }
 
 export interface SchemaDescription {
   purpose: string | null;
