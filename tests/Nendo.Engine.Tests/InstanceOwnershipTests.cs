@@ -46,7 +46,7 @@ public sealed class InstanceOwnershipTests
         using var child = StartChild(workspace.FilePath);
         try
         {
-            var ready = await child.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line");
+            var ready = await child.StandardOutput.ReadLineAsync().WithinAsync(TestWaits.ChildStart, "the child's first line");
             if (ready != "OWNED")
                 Assert.Fail($"Child did not open the fixture: {ready}; {await child.StandardError.ReadToEndAsync().WaitAsync(TimeSpan.FromSeconds(5))}");
             Assert.IsFalse(child.HasExited);

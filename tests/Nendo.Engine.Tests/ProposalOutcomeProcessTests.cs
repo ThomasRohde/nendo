@@ -18,7 +18,7 @@ public sealed class ProposalOutcomeProcessTests
         {
             try
             {
-                var signal = await child.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line");
+                var signal = await child.StandardOutput.ReadLineAsync().WithinAsync(TestWaits.ChildStart, "the child's first line");
                 if (signal != "COMMITTED")
                     Assert.Fail($"Commit child missed its seam: {signal}; {await child.StandardError.ReadToEndAsync().WaitAsync(TimeSpan.FromSeconds(5))}");
             }
@@ -33,7 +33,7 @@ public sealed class ProposalOutcomeProcessTests
         {
             try
             {
-                var text = await reader.StandardOutput.ReadToEndAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line");
+                var text = await reader.StandardOutput.ReadToEndAsync().WithinAsync(TestWaits.ChildStart, "the child's first line");
                 await reader.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(0, reader.ExitCode, await reader.StandardError.ReadToEndAsync());
                 using var evidence = JsonDocument.Parse(text);

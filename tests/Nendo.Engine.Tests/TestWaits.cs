@@ -11,6 +11,15 @@ namespace Nendo.Engine.Tests;
 /// </summary>
 internal static class TestWaits
 {
+    /// <summary>
+    /// How long a child process may take to say it is ready: start pwsh, load the Engine, open
+    /// the fixture. Measured on 2026-09-26 under the full gate: a 20 s wait ran out with this
+    /// process's pool at 32 threads, 24 busy and nothing queued, so the reader was ready and the
+    /// child was slow to start. Start-up time is not what these tests measure, so the bound is
+    /// generous; a child that never answers still fails, and says what the pool was doing.
+    /// </summary>
+    public static readonly TimeSpan ChildStart = TimeSpan.FromSeconds(60);
+
     public static async Task<T> WithinAsync<T>(this Task<T> task, TimeSpan bound, string what)
     {
         try { return await task.WaitAsync(bound); }

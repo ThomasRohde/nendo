@@ -117,7 +117,7 @@ public sealed class UpgradeLifecycleTests
         {
             try
             {
-                var signal = await child.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line");
+                var signal = await child.StandardOutput.ReadLineAsync().WithinAsync(TestWaits.ChildStart, "the child's first line");
                 if (signal != $"CHECKPOINT {checkpoint}")
                     Assert.Fail($"Upgrade child missed the seam: {signal}; {await child.StandardError.ReadToEndAsync().WaitAsync(TimeSpan.FromSeconds(5))}");
                 child.Kill(entireProcessTree: true);
@@ -132,7 +132,7 @@ public sealed class UpgradeLifecycleTests
         {
             try
             {
-                var json = await reader.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line");
+                var json = await reader.StandardOutput.ReadLineAsync().WithinAsync(TestWaits.ChildStart, "the child's first line");
                 await reader.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(0, reader.ExitCode, await reader.StandardError.ReadToEndAsync());
                 var recovery = JsonSerializer.Deserialize<NendoReplacementRecovery>(json!);

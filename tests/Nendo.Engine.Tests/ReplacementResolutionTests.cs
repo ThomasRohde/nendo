@@ -179,7 +179,7 @@ public sealed class ReplacementResolutionTests
         {
             try
             {
-                Assert.AreEqual($"CHECKPOINT {seam}", await child.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line"));
+                Assert.AreEqual($"CHECKPOINT {seam}", await child.StandardOutput.ReadLineAsync().WithinAsync(TestWaits.ChildStart, "the child's first line"));
                 child.Kill(entireProcessTree: true);
                 await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
             }

@@ -51,7 +51,7 @@ public sealed class RestoreInterruptionTests
         {
             try
             {
-                var signal = await child.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line");
+                var signal = await child.StandardOutput.ReadLineAsync().WithinAsync(TestWaits.ChildStart, "the child's first line");
                 if (signal != $"CHECKPOINT {checkpoint}")
                     Assert.Fail($"Child missed the named seam: {signal}; {await child.StandardError.ReadToEndAsync().WaitAsync(TimeSpan.FromSeconds(5))}");
                 Assert.IsFalse(child.HasExited);
@@ -74,7 +74,7 @@ public sealed class RestoreInterruptionTests
         {
             try
             {
-                var json = await reader.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line");
+                var json = await reader.StandardOutput.ReadLineAsync().WithinAsync(TestWaits.ChildStart, "the child's first line");
                 await reader.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(0, reader.ExitCode, await reader.StandardError.ReadToEndAsync());
                 var recovery = JsonSerializer.Deserialize<NendoReplacementRecovery>(json!);
@@ -107,7 +107,7 @@ public sealed class RestoreInterruptionTests
             activeState == "missing" ? "UseStagedReplacement" : "KeepActive");
         try
         {
-            var resultJson = await resolver.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line");
+            var resultJson = await resolver.StandardOutput.ReadLineAsync().WithinAsync(TestWaits.ChildStart, "the child's first line");
             await resolver.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
             Assert.AreEqual(0, resolver.ExitCode, await resolver.StandardError.ReadToEndAsync());
             Assert.IsNotNull(JsonSerializer.Deserialize<NendoReplacementResolutionResult>(resultJson!));
