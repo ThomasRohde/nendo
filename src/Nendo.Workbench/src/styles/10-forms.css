@@ -5,10 +5,10 @@
 input,
 select,
 textarea {
-  min-height: 39px;
-  padding: 8px 10px;
+  min-height: 30px;
+  padding: 4px 8px;
   border: 1px solid var(--line-strong);
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   outline: 0;
   color: var(--ink);
   background: var(--surface-raised);
@@ -24,7 +24,7 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--cobalt);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cobalt) 18%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cobalt) 22%, transparent);
 }
 
 .form-pair {
@@ -41,13 +41,13 @@ textarea:focus {
 
 .command-button {
   width: calc(100% - 32px);
-  min-height: 40px;
+  min-height: 32px;
   margin: 0 16px;
   border: 1px solid color-mix(in srgb, var(--violet) 45%, var(--line));
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: var(--violet);
   background: color-mix(in srgb, var(--violet) 8%, var(--surface));
-  font-weight: 680;
+  font-weight: 600;
 }
 
 /* A command whose fixed values the record already holds is spent, and must not
@@ -70,16 +70,16 @@ textarea:focus {
 .version-note {
   margin: 12px 16px 20px;
   color: var(--muted);
-  font-size: 0.71rem;
+  font-size: 0.75rem;
   text-align: right;
 }
 
 .icon-button,
 .text-button {
-  min-height: 34px;
-  padding: 5px 9px;
+  min-height: 28px;
+  padding: 4px 8px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: var(--muted);
   background: transparent;
 }
@@ -87,14 +87,14 @@ textarea:focus {
 .icon-button {
   display: grid;
   place-items: center;
-  width: 34px;
-  padding: 5px;
+  width: 28px;
+  padding: 4px;
 }
 
 .icon-button .outline-icon {
-  width: 18px;
-  height: 18px;
-  flex-basis: 18px;
+  width: 16px;
+  height: 16px;
+  flex-basis: 16px;
 }
 
 .text-button:hover,
@@ -103,27 +103,29 @@ textarea:focus {
   background: var(--surface-soft);
 }
 
+/* A list is a table edge to edge: rows on hairlines, no card around them. */
 .record-list {
   display: grid;
-  padding: 16px;
+  padding: 0;
+  background: var(--surface);
 }
 
 .record-list button {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 52px;
-  padding: 9px 14px;
-  border: 1px solid var(--line);
-  border-bottom: 0;
+  min-height: 34px;
+  padding: 5px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
   color: var(--ink);
-  background: var(--surface-raised);
+  background: transparent;
   text-align: left;
 }
 
-.record-list button:first-child { border-radius: 10px 10px 0 0; }
-.record-list button:last-child { border-bottom: 1px solid var(--line); border-radius: 0 0 10px 10px; }
-.record-list button:only-child { border-radius: 10px; }
+.record-list button:hover { background: var(--surface-soft); }
+.record-list button > small { font-family: var(--mono); font-size: 0.85rem; }
 .record-list button > span,
 .record-list button small { color: var(--muted); }
 .record-list button > strong,
@@ -140,7 +142,7 @@ textarea:focus {
   gap: 1px;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-panel);
   background: var(--line);
 }
 
@@ -159,10 +161,10 @@ textarea:focus {
   width: 34px;
   height: 34px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: var(--muted);
   background: var(--surface-raised);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -171,7 +173,7 @@ textarea:focus {
   align-items: center;
   gap: 8px;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
 }
 
 .lane-chip.definition { color: var(--violet); }
@@ -195,7 +197,7 @@ textarea:focus {
   justify-content: center;
   gap: 9px;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   text-align: right;
 }
 
@@ -208,7 +210,7 @@ textarea:focus {
 .health-grid section {
   padding: 22px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
 }
 
@@ -217,7 +219,7 @@ textarea:focus {
   place-items: center;
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: var(--healthy);
   background: color-mix(in srgb, var(--healthy) 9%, var(--surface));
   font-weight: 800;
@@ -393,7 +395,7 @@ textarea:focus {
   }
 
   .workbench {
-    border-radius: 14px;
+    border-radius: var(--radius-panel);
   }
 
   .empty-state {

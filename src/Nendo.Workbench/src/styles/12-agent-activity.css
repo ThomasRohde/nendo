@@ -64,7 +64,7 @@
   gap: 24px;
   padding: 18px 20px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
 }
 
@@ -76,7 +76,7 @@
 
 .presence-label {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 690;
   letter-spacing: 0.055em;
   text-transform: uppercase;
@@ -117,7 +117,7 @@
   border-radius: 999px;
   color: var(--violet);
   background: color-mix(in srgb, var(--violet) 8%, var(--surface));
-  font-size: 0.73rem;
+  font-size: 0.75rem;
   font-weight: 680;
 }
 
@@ -128,7 +128,7 @@
   gap: 14px;
   padding: 14px 18px;
   border: 1px solid color-mix(in srgb, var(--violet) 30%, var(--line));
-  border-radius: 14px;
+  border-radius: var(--radius-panel);
   background: color-mix(in srgb, var(--violet) 5%, var(--surface));
 }
 
@@ -147,7 +147,7 @@
   place-items: center;
   width: 34px;
   height: 34px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: var(--violet);
   background: color-mix(in srgb, var(--violet) 12%, var(--surface));
 }
@@ -346,8 +346,8 @@
   .rail .nav-symbol { display: inline; }
   .rail .nav-item > span:not(.nav-symbol) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .workspace { padding: 0 10px 8px; }
-  .status-bar { min-height: 20px; padding: 4px 2px 0; font-size: .7rem; }
-  .status-bar .status-pill { height: 18px; padding: 0 7px; font-size: .68rem; }
+  .status-bar { min-height: 20px; padding: 4px 2px 0; font-size: 0.75rem; }
+  .status-bar .status-pill { height: 18px; padding: 0 7px; font-size: 0.75rem; }
   .workspace-header { min-height: 65px; padding: 10px 0; gap: 10px; flex-direction: row; align-items: center; }
   .workspace-header h1 { font-size: 1.2rem; }
   .header-controls { width: auto; flex-direction: row; flex-wrap: nowrap; gap: 6px; }
@@ -385,16 +385,16 @@
 /* Bounded reference selection keeps record IDs separate from readable labels. */
 .reference-control { display: grid; gap: 8px; min-width: 0; }
 .reference-selected { overflow-wrap: anywhere; }
-.reference-picker { border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.reference-picker { border: 1px solid var(--line); border-radius: var(--radius-panel); padding: 12px; }
 .reference-picker[hidden] { display: none; }
 .reference-results { display: grid; max-height: 220px; overflow-y: auto; margin-top: 10px; }
 .reference-result { text-align: left; padding: 10px; border: 0; border-bottom: 1px solid var(--line); color: inherit; background: transparent; overflow-wrap: anywhere; cursor: pointer; }
 .reference-result:hover, .reference-result:focus-visible { background: var(--surface); outline: 2px solid var(--cobalt); outline-offset: -2px; }
- .record-delete-dialog { max-width: 32rem; padding: 2rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); color: var(--ink); }
+ .record-delete-dialog { max-width: 32rem; padding: 2rem; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); color: var(--ink); }
  .record-delete-dialog::backdrop { background: rgb(10 20 40 / 45%); }
  .record-delete-dialog p { overflow-wrap: anywhere; }
 .field-actions { display: flex; flex-wrap: wrap; gap: 4px; }
-.proposal-live-preview { margin-top: 24px; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); min-width: 0; }
+.proposal-live-preview { margin-top: 24px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); min-width: 0; }
 .preview-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
 .preview-controls label { display: grid; gap: 6px; max-width: 100%; }
 .preview-controls select { max-width: 22rem; }

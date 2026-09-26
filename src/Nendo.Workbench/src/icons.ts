@@ -30,6 +30,7 @@ const paths = {
   command: '<path d="m13 2-9 12h7l-1 8 9-12h-7l1-8Z"/>',
   export: '<path d="M12 3v12M8 11l4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  keyboard: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M9 13h6M7 16h10"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   empty: '<path d="M3 8.5 12 3l9 5.5v7L12 21l-9-5.5Z"/><path d="M3 8.5 12 14l9-5.5M12 14v7"/>',
 } as const;

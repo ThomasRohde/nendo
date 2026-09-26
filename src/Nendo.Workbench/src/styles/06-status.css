@@ -16,7 +16,7 @@
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
-  padding: 0 28px 22px;
+  padding: 0;
 }
 
 .workspace-header { grid-row: 1; }
@@ -32,11 +32,11 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 0 0 12px;
-  padding: 8px 14px;
+  margin: 8px 12px;
+  padding: 6px 12px;
   border: 1px solid var(--line);
   border-left: 3px solid var(--violet);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   background: var(--surface-raised);
   font-size: 0.85rem;
 }
@@ -69,10 +69,13 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  min-height: 30px;
-  padding: var(--space-2) var(--space-1) 0;
+  min-height: 26px;
+  padding: 0 12px;
+  border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: 0.76rem;
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 0.8rem;
 }
 
 .status-bar[hidden] {
@@ -117,31 +120,42 @@
   opacity: 0.75;
 }
 
-/* The pill was sized to stand beside the File menu; here it sits on one text line. */
+/* The pill was sized to stand beside the File menu; here it sits on one text line,
+   as a dot and a word rather than a lozenge. */
 .status-bar .status-pill {
-  height: 22px;
-  padding: 0 9px;
-  font-size: 0.72rem;
+  height: 20px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
+/* One compact bar: where you are on the left, as a breadcrumb, and the frame's
+   controls on the right. The page names itself here and nowhere larger. */
 .workspace-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  min-height: 102px;
-  padding: 16px 3px;
+  gap: 16px;
+  min-height: 48px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
 }
 
 .workspace-header h1 {
-  margin: 2px 0 0;
-  font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
-  font-size: clamp(1.55rem, 2.5vw, 2.15rem);
-  font-weight: 680;
-  letter-spacing: -0.035em;
+  margin: 0;
+  font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
 }
 
 .workspace-identity {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -152,7 +166,15 @@
 }
 
 .location {
+  flex: none;
   margin: 0;
   color: var(--muted);
-  font-size: 0.83rem;
+  font-size: 0.93rem;
+}
+
+.location::after {
+  content: "/";
+  margin-left: 8px;
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+  font-family: var(--mono);
 }

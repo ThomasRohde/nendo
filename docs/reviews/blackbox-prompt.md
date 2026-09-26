@@ -578,6 +578,18 @@ Ask the person to look at the app and tell you, in their words:
   long it took to appear, and whether it said who was writing. Ask them what they would
   click to stop it, and record whether what they name actually would.
 - Can they reach approval and the file actions with the keyboard alone?
+- The window has a new look: dense, dark-first, one violet accent. Ask them, before you
+  say anything, whether it reads as one application in Light and in Dark, and whether any
+  screen still looks like it belongs to an older one. Name the screen.
+- Ask them to get to Structure, then to a different view of a record type, then to
+  Create backup, without touching the navigation on the left. Watch whether they find the
+  box at the top (Ctrl K) and whether what they type finds what they meant. Does a command
+  that is switched off on screen show up anyway? With unsaved typing on a record page, does
+  a command that leaves the page ask first, as the click would?
+- Turn on the keyboard button at the right of the top bar. Does every control that has a
+  key now say which, and does the key do what the hint says? Close and reopen the window:
+  is the choice still there? Then press Ctrl 1 to Ctrl 7, F1, Ctrl B and Alt F from inside
+  a text field, and say which of them did something you did not want there.
 
 ## Phase 8 — A development planner as a real application
 

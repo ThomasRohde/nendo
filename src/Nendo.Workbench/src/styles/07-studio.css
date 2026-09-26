@@ -5,7 +5,7 @@
 .header-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .status-pill {
@@ -87,10 +87,11 @@
 .theme-control,
 .history-control {
   display: flex;
-  padding: 4px;
+  gap: 2px;
+  padding: 2px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
+  border-radius: var(--radius-control);
+  background: var(--canvas);
 }
 
 .history-control button:disabled {
@@ -99,9 +100,9 @@
 }
 
 .history-control .outline-icon {
-  width: 18px;
-  height: 18px;
-  flex-basis: 18px;
+  width: 16px;
+  height: 16px;
+  flex-basis: 16px;
 }
 
 .theme-control button,
@@ -109,12 +110,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  min-width: 34px;
-  min-height: 34px;
+  width: 28px;
+  min-width: 28px;
+  min-height: 26px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: var(--muted);
   background: transparent;
 }
@@ -127,7 +128,7 @@
 .theme-control button[aria-pressed="true"] {
   color: var(--ink);
   background: var(--surface-raised);
-  box-shadow: 0 1px 5px rgba(35, 45, 68, 0.12);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
   font-weight: 620;
 }
 
@@ -136,10 +137,7 @@
   grid-template-rows: 1fr;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface-raised);
-  box-shadow: var(--shadow);
+  background: var(--canvas);
 }
 
 .studio-content {
@@ -247,10 +245,10 @@
 
 code {
   padding: 2px 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--surface-soft);
   color: var(--ink);
-  font-family: "Cascadia Code", Consolas, monospace;
+  font-family: var(--mono);
   font-size: 0.9em;
 }
 
@@ -267,30 +265,30 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  min-height: 42px;
-  padding: 9px 16px;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 680;
+  gap: 6px;
+  min-height: 32px;
+  padding: 5px 12px;
+  border-radius: var(--radius-control);
+  font-size: 0.93rem;
+  font-weight: 600;
 }
 
 .primary-button .outline-icon,
 .secondary-button .outline-icon {
-  width: 17px;
-  height: 17px;
-  flex-basis: 17px;
+  width: 15px;
+  height: 15px;
+  flex-basis: 15px;
 }
 
 .primary-button {
   border: 1px solid var(--cobalt);
   color: #ffffff;
   background: var(--cobalt);
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--cobalt) 23%, transparent);
+  box-shadow: none;
 }
 
 :root[data-theme="dark"] .primary-button {
-  color: #071725;
+  color: var(--canvas);
 }
 
 .primary-button:hover:not(:disabled) {
@@ -319,7 +317,7 @@ code {
   margin: 16px auto 24px;
   padding: 11px 13px;
   border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line));
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 8%, var(--surface));
   font-size: 0.86rem;
@@ -366,7 +364,7 @@ code {
   min-width: 180px;
   padding: 9px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: var(--ink);
   background: var(--surface);
   font: inherit;
@@ -401,7 +399,7 @@ code {
   min-height: 42px;
   padding: 8px 10px;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   color: var(--ink);
   background: transparent;
   text-align: left;
@@ -433,7 +431,7 @@ code {
 
 .studio-query { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
 .studio-query label { display: grid; gap: 4px; font-size: 12px; min-width: 90px; flex: 1 1 110px; }
-.studio-query select, .studio-query input { min-width: 0; width: 100%; padding: 7px; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; }
+.studio-query select, .studio-query input { min-width: 0; width: 100%; padding: 7px; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-control); }
 .studio-query button { padding: 8px 12px; }
 .query-status { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--muted); }
 
@@ -470,10 +468,10 @@ code {
   height: 58px;
   margin-bottom: 18px;
   border: 1px solid color-mix(in srgb, var(--cobalt) 36%, var(--line));
-  border-radius: 17px;
+  border-radius: var(--radius-panel);
   color: var(--cobalt);
   background: var(--cobalt-soft);
-  font-family: "Cascadia Code", Consolas, monospace;
+  font-family: var(--mono);
   font-size: 0.88rem;
   font-weight: 740;
 }

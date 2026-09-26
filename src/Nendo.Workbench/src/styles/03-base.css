@@ -41,8 +41,8 @@ textarea:disabled {
 }
 
 button:focus-visible {
-  outline: 3px solid var(--cobalt);
-  outline-offset: 2px;
+  outline: 2px solid var(--cobalt);
+  outline-offset: 1px;
 }
 
 .app-shell {
@@ -56,24 +56,39 @@ button:focus-visible {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 28px 14px 20px;
+  padding: 8px 8px 10px;
   border-right: 1px solid var(--line);
-  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  background: var(--surface);
 }
 
+/* The mark and the word, side by side at the height of the top bar, so the rail's
+   head lines up with the header beside it. */
 .brand {
   display: flex;
   align-items: center;
-  height: 46px;
-  padding: 0 10px;
+  height: 48px;
+  margin: -8px -8px 0;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .brand img {
-  width: 112px;
-  height: auto;
+  width: 28px;
+  height: 24px;
   object-fit: contain;
 }
 
-:root[data-theme="dark"] .brand img {
-  filter: drop-shadow(0 2px 10px rgba(101, 151, 255, 0.25));
+.brand-word {
+  color: var(--ink);
+  font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }

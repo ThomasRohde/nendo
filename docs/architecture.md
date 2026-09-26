@@ -540,7 +540,8 @@ closed section (`fold-state.ts`, `overview-model.ts`, `plan-selection.ts`). The 
 stored word is the initial state: `opens` on `section`. What the person does with
 the section never reaches the file. It is kept for the device in the Workbench's
 local storage under `nendo.sectionFolds.<applicationId>`, as the theme and the rail
-are, so it survives a reopen (2026-09-24). Minimum host 1.28.0, only for a file that
+are (and, since 2026-09-26, whether keyboard shortcuts are shown: `nendo.shortcuts`), so it
+survives a reopen (2026-09-24). Minimum host 1.28.0, only for a file that
 carries the property ([ADR-0004](decisions/0004-versioned-semantic-ui-contract.md),
 2026-09-20 and 2026-09-24).
 

@@ -16,7 +16,7 @@
   flex-direction: column;
   min-height: 0;
   border: 1px solid var(--line);
-  border-radius: 13px;
+  border-radius: var(--radius-panel);
   background: color-mix(in srgb, var(--surface) 86%, transparent);
 }
 
@@ -39,7 +39,7 @@
 
 .board-column header strong {
   color: var(--muted);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
 }
 
 .status-dot {
@@ -96,7 +96,7 @@
   width: 100%;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: var(--ink);
   background: var(--surface-raised);
   text-align: left;
@@ -131,7 +131,7 @@
 
 .card-values small {
   color: color-mix(in srgb, var(--muted) 78%, transparent);
-  font-size: 0.66rem;
+  font-size: 0.75rem;
   font-weight: 650;
   letter-spacing: 0.035em;
   text-transform: uppercase;
@@ -146,7 +146,7 @@
 
 .record-card em {
   color: var(--violet);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-style: normal;
   font-weight: 650;
 }
@@ -205,7 +205,7 @@
   gap: 2px;
   padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--surface-raised);
 }
 
@@ -217,7 +217,7 @@
 
 .summary-title {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -227,7 +227,7 @@
    as a count of the cards on screen, which is the one thing it is not. */
 .summary-context {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   line-height: 1.3;
 }
 
@@ -351,7 +351,7 @@
   gap: 1px;
   overflow-x: auto;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--line);
 }
 
@@ -370,7 +370,7 @@
   grid-template-columns: subgrid;
   color: var(--muted);
   background: var(--surface);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -407,7 +407,7 @@
    differs by whether the month has been read to the end. */
 .calendar-empty {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   margin: 0;
 }
 
@@ -415,7 +415,7 @@
   overflow: hidden;
   padding: 4px 6px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   color: var(--ink);
   background: var(--surface);
   font-size: 0.78rem;
@@ -460,7 +460,7 @@
 .timeline-month h3 {
   margin: 0;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -482,7 +482,7 @@
   align-items: start;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: var(--ink);
   background: var(--surface);
   font: inherit;
@@ -547,7 +547,7 @@
 }
 
 .timeline-values span { display: inline-grid; gap: 1px; }
-.timeline-values small { color: var(--muted); font-size: 0.7rem; }
+.timeline-values small { color: var(--muted); font-size: 0.75rem; }
 
 .timeline-entry:focus-visible {
   outline: 2px solid var(--cobalt);
@@ -567,7 +567,7 @@
   gap: 2px;
   padding: 3px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--surface);
 }
 
@@ -577,7 +577,7 @@
   padding: 4px 11px;
   overflow: hidden;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   color: var(--muted);
   background: transparent;
   font-weight: 600;
@@ -588,7 +588,7 @@
 .tablist [role="tab"][aria-selected="true"] {
   color: var(--ink);
   background: var(--surface-raised);
-  box-shadow: 0 1px 5px rgba(35, 45, 68, 0.12);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
   font-weight: 670;
 }
 
@@ -647,7 +647,7 @@
 .view-header h3 {
   margin: 0;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -663,7 +663,7 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface);
 }
 
@@ -780,7 +780,7 @@
 .related-list h3 {
   margin: 0;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -810,7 +810,7 @@
   gap: 2px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface-raised);
 }
 
@@ -827,7 +827,7 @@
   width: 100%;
   padding: 8px 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: none;
   color: inherit;
   font: inherit;
@@ -862,7 +862,7 @@
   gap: 6px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--surface-soft);
 }
 
@@ -880,7 +880,7 @@
   margin: 0;
   padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 /* A node a calculation says is not worth showing. `display: grid` above would
@@ -900,7 +900,7 @@
   cursor: pointer;
   padding: 0 6px;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -909,7 +909,7 @@
 .record-form .form-section > summary:focus-visible {
   outline: 2px solid var(--cobalt);
   outline-offset: 2px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
 }
 
 .record-form .form-section-body {
@@ -966,7 +966,7 @@
 .overview-section > summary:focus-visible {
   outline: 2px solid var(--cobalt);
   outline-offset: 2px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
 }
 
 .overview-section > summary > h3 {
@@ -985,7 +985,7 @@
   gap: 0.5rem;
   padding: 0.85rem 1rem;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
 }
 
@@ -1013,7 +1013,7 @@
   width: 100%;
   padding: 0.45rem 0.55rem;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: none;
   color: inherit;
   font: inherit;
@@ -1036,7 +1036,7 @@
   margin-right: 0.3rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
 }
 
 /* The matrix (ADR-0004, 2026-09-17, S6): two crossed choice fields as a grid of cells.
@@ -1063,7 +1063,7 @@
   gap: 2px;
   padding: 6px 8px;
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -1094,7 +1094,7 @@
   flex-direction: column;
   min-height: 0;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   background: color-mix(in srgb, var(--surface) 86%, transparent);
 }
 
@@ -1131,7 +1131,7 @@
 
 .matrix-cell header small {
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
 }
 
 .matrix-total {
@@ -1156,7 +1156,7 @@
   gap: 0.5rem;
   padding: 0.85rem 1rem;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
 }
 
@@ -1185,7 +1185,7 @@
   width: 100%;
   padding: 0.4rem 0.55rem;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: none;
   color: inherit;
   font: inherit;

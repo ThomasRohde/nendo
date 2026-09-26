@@ -48,8 +48,17 @@
   }
 
   :root[data-rail="collapsed"] .brand img {
-    width: 40px;
-    max-height: 32px;
+    width: 28px;
+    max-height: 24px;
+  }
+
+  :root[data-rail="collapsed"] .brand {
+    margin: 0;
+    padding: 4px 0 8px;
+  }
+
+  :root[data-rail="collapsed"] .brand-word {
+    display: none;
   }
 
   :root[data-rail="collapsed"] .primary-nav,

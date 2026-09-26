@@ -4,7 +4,7 @@
 
 /* --- Controls -------------------------------------------------------------- */
 
-.primary-button { box-shadow: 0 1px 2px color-mix(in srgb, var(--cobalt) 30%, transparent), 0 6px 16px color-mix(in srgb, var(--cobalt) 22%, transparent); }
+.primary-button { box-shadow: none; }
 .primary-button:active:not(:disabled), .secondary-button:active:not(:disabled) { transform: translateY(1px); }
 .text-button { font-weight: 620; }
 
@@ -194,7 +194,7 @@
 
 .record-grid .ag-header-cell-text {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -410,7 +410,7 @@
   height: 28px;
   padding: 0 10px;
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   background: var(--surface-raised);
   color: var(--ink);
   font-size: 0.76rem;
@@ -432,7 +432,7 @@
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-left: 3px solid var(--violet);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface-soft);
 }
 
@@ -473,7 +473,7 @@
 .derived-formula {
   margin: 0;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
 }
 
 .derived-formula abbr {
@@ -485,7 +485,7 @@
 }
 
 .derived-formula code {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--ink);
   background: var(--surface-raised);
   border: 1px solid var(--line);
@@ -514,7 +514,7 @@
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-left: 3px solid var(--violet);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface-soft);
 }
 
@@ -526,7 +526,7 @@
   border: 1px solid var(--line);
   border-radius: 4px;
   padding: 1px 5px;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
 }
 .behaviour-approval-actions { margin-top: 4px; }
 
@@ -656,7 +656,7 @@
   min-width: 220px;
   max-width: 100%;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--surface-raised);
 }
 
@@ -671,7 +671,7 @@
 }
 
 .chart-track.is-empty { align-items: center; justify-content: center; height: auto; min-height: 14px; }
-.chart-empty { padding: 0 8px; color: var(--muted); font-size: 0.72rem; }
+.chart-empty { padding: 0 8px; color: var(--muted); font-size: 0.75rem; }
 
 .chart-segment {
   flex: 0 0 auto;
@@ -750,7 +750,7 @@
   top: 100%;
   padding-top: 3px;
   color: var(--muted);
-  font-size: 0.62rem;
+  font-size: 0.75rem;
   white-space: nowrap;
 }
 
@@ -802,7 +802,7 @@
   gap: 4px;
   margin: 0;
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
 
 .chart-ring-body { display: flex; align-items: center; gap: 10px; }

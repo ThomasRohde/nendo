@@ -4,36 +4,47 @@
 .primary-nav,
 .studio-nav {
   display: grid;
-  gap: 7px;
+  gap: 2px;
 }
 
 .primary-nav {
-  margin-top: 34px;
+  margin-top: 14px;
 }
 
 .studio-nav {
-  margin-top: 20px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }
 
 .studio-nav > p {
-  margin: 0 12px 3px;
+  margin: 0 10px 4px;
   color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 650;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .nav-item {
   display: grid;
-  grid-template-columns: 28px 1fr;
+  grid-template-columns: 24px 1fr;
   align-items: center;
   width: 100%;
-  min-height: 44px;
-  padding: 7px 11px;
+  min-height: 32px;
+  padding: 4px 8px;
   border: 1px solid transparent;
-  border-radius: 10px;
-  color: var(--ink);
+  border-radius: var(--radius-control);
+  color: color-mix(in srgb, var(--ink) 78%, var(--muted));
   background: transparent;
+  font-size: 0.93rem;
   text-align: left;
+}
+
+.nav-item:hover:not(:disabled):not(.is-selected) {
+  color: var(--ink);
+  background: var(--surface-soft);
 }
 
 .nav-item:disabled {
@@ -43,20 +54,25 @@
 }
 
 .nav-item.is-selected {
-  border-color: color-mix(in srgb, var(--cobalt) 24%, var(--line));
+  border-color: color-mix(in srgb, var(--cobalt) 28%, transparent);
   background: var(--cobalt-soft);
-  color: color-mix(in srgb, var(--cobalt) 85%, var(--ink));
-  font-weight: 650;
+  color: color-mix(in srgb, var(--cobalt) 80%, var(--ink));
+  font-weight: 600;
 }
 
 .nav-item.is-subtle {
-  min-height: 39px;
+  min-height: 32px;
 }
 
 .nav-symbol {
+  display: inline-flex;
   color: currentColor;
-  font-size: 1.05rem;
-  text-align: center;
+  font-size: 1rem;
+}
+
+.nav-symbol .outline-icon {
+  width: 17px;
+  height: 17px;
 }
 
 .rail-footer {
@@ -64,7 +80,7 @@
   align-items: center;
   gap: 8px;
   margin-top: 0;
-  padding: 12px;
+  padding: 8px;
   color: var(--muted);
   font-size: 0.78rem;
 }
@@ -97,7 +113,7 @@
   max-width: min(420px, 90vw);
   padding: 32px 36px;
   border: 2px dashed var(--cobalt);
-  border-radius: 18px;
+  border-radius: var(--radius-panel);
   background: var(--surface-raised);
   box-shadow: var(--shadow);
   text-align: center;

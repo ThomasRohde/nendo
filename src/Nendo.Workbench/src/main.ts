@@ -35,6 +35,8 @@ import {
 import type { DesktopSessionView } from './host';
 import { surfaceLabel, useSurfaces } from './surface-model';
 import { icon, type IconName } from './icons';
+import { openPalette } from './command-palette';
+import { matchShortcut, shortcut, shortcutsShownFrom, shortcutsStorageKey, type ShortcutId } from './shortcuts';
 import './styles.css';
 
 ModuleRegistry.registerModules([
@@ -329,6 +331,72 @@ requiredElement<HTMLElement>('.file-chevron').innerHTML = icon('chevron');
 for (const button of themeButtons) {
   button.innerHTML = icon(button.dataset.themeOption as 'system' | 'light' | 'dark');
 }
+requiredElement<HTMLElement>('#palette-icon').innerHTML = icon('search');
+requiredElement<HTMLElement>('#command-palette-icon').innerHTML = icon('search');
+const paletteOpen = requiredElement<HTMLButtonElement>('#palette-open');
+paletteOpen.addEventListener('click', openPalette);
+
+/**
+ * Whether every shortcut is drawn beside its control.
+ *
+ * The person's own view of the window, like the theme and the rail: kept for the device,
+ * never in the file, and off unless they turned it on. Storage that refuses to answer
+ * leaves the hints off. The keys work either way; this only decides whether they show.
+ */
+const shortcutsToggle = requiredElement<HTMLButtonElement>('#shortcuts-toggle');
+shortcutsToggle.innerHTML = icon('keyboard');
+
+function readShortcutsShown(): boolean {
+  try { return shortcutsShownFrom(window.localStorage.getItem(shortcutsStorageKey)); } catch { return false; }
+}
+
+function applyShortcuts(shown: boolean, persist = false): void {
+  root.dataset.shortcuts = shown ? 'shown' : 'hidden';
+  shortcutsToggle.setAttribute('aria-pressed', String(shown));
+  const label = shown ? 'Hide keyboard shortcuts' : 'Show keyboard shortcuts';
+  shortcutsToggle.setAttribute('aria-label', label);
+  shortcutsToggle.title = `${label} (${shortcut('hints').keys})`;
+  if (!persist) return;
+  try { window.localStorage.setItem(shortcutsStorageKey, shown ? 'shown' : 'hidden'); } catch {
+    // The hints still follow the choice in this window when device persistence is unavailable.
+  }
+  announce(shown ? 'Keyboard shortcuts shown.' : 'Keyboard shortcuts hidden.');
+}
+applyShortcuts(readShortcutsShown());
+shortcutsToggle.addEventListener('click', () => { applyShortcuts(root.dataset.shortcuts !== 'shown', true); });
+
+// Named for assistive technology on the controls themselves, whether or not the hints show.
+const shortcutTargets: Partial<Record<ShortcutId, HTMLButtonElement>> = {
+  use: navigation.use, data: navigation.data, structure: navigation.structure, surfaces: navigation.surfaces,
+  history: navigation.history, health: navigation.health, agent: navigation.agent, help: navigation.help,
+  back: historyBack, forward: historyForward, rail: railToggle,
+};
+for (const [id, button] of Object.entries(shortcutTargets)) button!.setAttribute('aria-keyshortcuts', shortcut(id as ShortcutId).aria);
+
+/**
+ * The window's shortcuts (shortcuts.ts). Each presses the control it names, so a key is
+ * refused wherever the click would be -- a disabled route, a page holding unsaved typing.
+ * They stand aside while a modal has hold of the window, the palette included. The Ctrl
+ * keys and F1 work from inside a field, because none of them types anything there.
+ */
+document.addEventListener('keydown', event => {
+  if (event.defaultPrevented || event.repeat) return;
+  const id = matchShortcut(event);
+  if (id === null) return;
+  if (document.querySelector('dialog[open]') !== null) return;
+  event.preventDefault();
+  if (id === 'palette') { openPalette(); return; }
+  if (id === 'hints') { shortcutsToggle.click(); return; }
+  if (id === 'file') {
+    fileDetails.open = true;
+    fileDetails.querySelector<HTMLButtonElement>('#file-actions button:not(:disabled)')?.focus();
+    return;
+  }
+  const target = shortcutTargets[id];
+  // A folded or hidden control is not there to press; nor is a route that is switched off.
+  if (target === undefined || target.disabled || target.offsetParent === null) return;
+  target.click();
+});
 const fileDetails = requiredElement<HTMLDetailsElement>('#file-menu');
 const fileSummary = fileDetails.querySelector('summary')!;
 document.addEventListener('pointerdown', event => {

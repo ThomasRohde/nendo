@@ -12,13 +12,13 @@
 .help-page { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100%; }
 .help-index { min-height: 0; overflow-y: auto; padding: 24px 18px; background: var(--surface-soft); border-right: 1px solid var(--line); }
 .help-index > label { display: block; font-weight: 650; margin-bottom: 10px; }
-.help-index input { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-raised); color: var(--ink); font: inherit; font-size: .8rem; }
+.help-index input { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); color: var(--ink); font: inherit; font-size: .8rem; }
 .help-topics { display: grid; gap: 6px; margin-top: 18px; }
 .help-group { display: grid; gap: 4px; }
 .help-group + .help-group { margin-top: 14px; }
 .help-group[hidden] { display: none; }
-.help-group-label { margin: 0 0 4px 12px; font-size: .68rem; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
-.help-topics button { display: grid; gap: 5px; text-align: left; padding: 10px 12px; background: transparent; color: var(--ink); border: 1px solid transparent; border-radius: 10px; font: inherit; }
+.help-group-label { margin: 0 0 4px 12px; font-size: 0.75rem; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.help-topics button { display: grid; gap: 5px; text-align: left; padding: 10px 12px; background: transparent; color: var(--ink); border: 1px solid transparent; border-radius: var(--radius-control); font: inherit; }
 .help-topics button strong { font-size: .85rem; font-weight: 600; }
 .help-topics button:hover { background: var(--surface-raised); }
 .help-topics button[aria-current] { background: var(--cobalt-soft); border-color: var(--line); color: var(--cobalt); }
@@ -29,7 +29,7 @@
 .help-terms > div { display: grid; grid-template-columns: minmax(150px, 240px) minmax(0, 1fr); gap: 4px 16px; padding: 8px 0; border-top: 1px solid var(--line); }
 .help-terms > div:first-child { border-top: 0; }
 .help-terms dt { font-weight: 620; font-size: .85rem; line-height: 1.5; overflow-wrap: anywhere; }
-.help-terms dt code { font-family: ui-monospace, Consolas, monospace; font-size: .8rem; }
+.help-terms dt code { font-family: var(--mono); font-size: .8rem; }
 .help-terms dd { margin: 0; font-size: .9rem; line-height: 1.6; }
 .help-related { max-width: 72ch; margin-top: 30px; }
 .help-related h3 { font-size: 1.05rem; margin-bottom: 12px; }
@@ -44,8 +44,8 @@
 .help-article p, .help-article li { line-height: 1.7; font-size: .9rem; }
 .help-article ol { padding-left: 24px; }
 .help-article li + li { margin-top: 12px; }
-.connection-request { padding: 20px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 14px; }
-.connection-request textarea { display: block; width: 100%; resize: vertical; color: var(--ink); background: var(--surface-raised); border: 1px solid var(--line); border-radius: 8px; padding: 12px; font: inherit; font-size: .8rem; line-height: 1.6; margin-bottom: 12px; }
+.connection-request { padding: 20px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: var(--radius-panel); }
+.connection-request textarea { display: block; width: 100%; resize: vertical; color: var(--ink); background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-control); padding: 12px; font: inherit; font-size: .8rem; line-height: 1.6; margin-bottom: 12px; }
 .help-footnote { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); }
 .record-form [hidden] { display: none; }
 @media (max-width: 850px) {

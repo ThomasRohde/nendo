@@ -90,7 +90,7 @@
   min-height: 52px;
   padding: 6px 8px 6px 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: var(--muted);
   background: transparent;
   text-align: left;
@@ -148,7 +148,7 @@
 }
 
 :root[data-theme="dark"] .permission-step[aria-pressed="true"] .step-marker {
-  color: #071725;
+  color: var(--canvas);
 }
 
 .permission-step[aria-pressed="true"] strong {
@@ -172,7 +172,7 @@
   min-width: 0;
   padding: 14px 16px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   color: var(--ink);
   background: var(--surface-raised);
 }
@@ -211,14 +211,14 @@
 .connection-copy .secondary-button {
   min-height: 36px;
   padding: 6px 12px;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   font-size: 0.82rem;
 }
 
 .connection-settings {
   display: grid;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   background: var(--surface-raised);
 }
 
@@ -242,7 +242,7 @@
   min-height: 44px;
   padding: 4px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: var(--ink);
   background: transparent;
   text-align: left;
@@ -312,7 +312,7 @@
   width: 8ch;
   padding: 6px 8px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: var(--ink);
   background: var(--surface);
 }

@@ -109,7 +109,7 @@ Every primitive carries its numbers beside the shape, exposes a table of the
 same numbers behind one toggle, names every segment for a screen reader, takes
 keyboard focus per segment, respects reduced motion, and reads *Unavailable*
 with the reason when its number is absent. Tones come from F1; the rest of the
-palette is the Molded Workbench's warm white, deep navy and cobalt focus.
+palette is Console's graphite, hairlines and violet accent ([console-direction.md](console-direction.md); Molded Workbench's warm white, deep navy and cobalt until 2026-09-26).
 
 ### F4. The slice checklist
 

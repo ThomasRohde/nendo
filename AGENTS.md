@@ -160,11 +160,13 @@ It bites heredocs hardest, since they carry a whole file in one command — a
 
 ## UI work
 
-- Use [`docs/assets/mockups/molded-workbench/README.md`](docs/assets/mockups/molded-workbench/README.md)
-  and the mockups beside it as the selected visual and interaction direction.
-- Preserve the shared Molded Workbench shell, the permanent Studio route, the
-  Nendo logo treatment and the material workflow coverage shown across the
-  mockup series. One screenshot is not an isolated page.
+- Use [`docs/design/console-direction.md`](docs/design/console-direction.md) as
+  the selected visual direction (Console, chosen 2026-09-26). The Molded Workbench
+  mockups are superseded for look and feel. Their workflow coverage still says
+  which states each area has to present.
+- Preserve the shared shell (rail, top bar, status bar), the permanent Studio
+  route and the Nendo logo treatment. Colours come from the tokens in
+  `02-tokens.css`, never from a literal. One screenshot is not an isolated page.
 - Support the device theme preference: System follows Windows; Light and Dark are
   explicit overrides. Apply the effective theme to the app frame, Studio, custom
   surfaces, dialogs, title bar and safe mode, and verify UI work in both states.

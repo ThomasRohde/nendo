@@ -15,7 +15,10 @@
     <div class="app-shell">
       <aside id="app-rail" class="rail" aria-label="Nendo workspace">
         <div class="brand" aria-label="Nendo">
-          <img src="/nendo.png" alt="Nendo" />
+          <span class="brand-lockup">
+            <img src="/nendo-mark.png" alt="" />
+            <span class="brand-word" aria-hidden="true">nendo</span>
+          </span>
           <!-- Collapses the rail to icons. Its width is the person's, kept for the
                device like the theme, so it is chrome rather than anything in the file. -->
           <button id="rail-toggle" class="icon-button rail-toggle" type="button" aria-expanded="true" aria-controls="app-rail"></button>
@@ -24,7 +27,7 @@
         <nav class="primary-nav" aria-label="Primary">
           <button id="nav-use" class="nav-item" type="button" disabled>
             <span class="nav-symbol" aria-hidden="true">✣</span>
-            <span>Use</span>
+            <span>Use</span><kbd class="kbd-hint" aria-hidden="true">Ctrl 1</kbd>
           </button>
           <button id="nav-studio" class="nav-item is-selected" type="button" aria-current="page">
             <span class="nav-symbol" aria-hidden="true">⌁</span>
@@ -32,7 +35,7 @@
           </button>
           <button id="nav-agent" class="nav-item" type="button" disabled>
             <span class="nav-symbol" aria-hidden="true">✦</span>
-            <span>Agent</span>
+            <span>Agent</span><kbd class="kbd-hint" aria-hidden="true">Ctrl 7</kbd>
           </button>
         </nav>
 
@@ -40,27 +43,27 @@
           <p>Studio</p>
           <button id="nav-data" class="nav-item is-subtle" type="button" disabled>
             <span class="nav-symbol" aria-hidden="true">▤</span>
-            <span>Data</span>
+            <span>Data</span><kbd class="kbd-hint" aria-hidden="true">Ctrl 2</kbd>
           </button>
           <button id="nav-structure" class="nav-item is-subtle" type="button" disabled>
             <span class="nav-symbol" aria-hidden="true">⌘</span>
-            <span>Structure</span>
+            <span>Structure</span><kbd class="kbd-hint" aria-hidden="true">Ctrl 3</kbd>
           </button>
           <button id="nav-surfaces" class="nav-item is-subtle" type="button" disabled>
             <span class="nav-symbol" aria-hidden="true">▱</span>
-            <span>Surfaces</span>
+            <span>Surfaces</span><kbd class="kbd-hint" aria-hidden="true">Ctrl 4</kbd>
           </button>
           <button id="nav-history" class="nav-item is-subtle" type="button" disabled>
             <span class="nav-symbol" aria-hidden="true">◷</span>
-            <span>History</span>
+            <span>History</span><kbd class="kbd-hint" aria-hidden="true">Ctrl 5</kbd>
           </button>
           <button id="nav-health" class="nav-item is-subtle" type="button" disabled>
             <span class="nav-symbol" aria-hidden="true">◇</span>
-            <span>Health</span>
+            <span>Health</span><kbd class="kbd-hint" aria-hidden="true">Ctrl 6</kbd>
           </button>
         </div>
 
-        <button id="nav-help" class="nav-item help-nav" type="button"><span class="nav-symbol" aria-hidden="true"></span><span>Help</span></button>
+        <button id="nav-help" class="nav-item help-nav" type="button"><span class="nav-symbol" aria-hidden="true"></span><span>Help</span><kbd class="kbd-hint" aria-hidden="true">F1</kbd></button>
       </aside>
 
       <main class="workspace">
@@ -71,6 +74,12 @@
           </div>
 
           <div class="header-controls">
+            <!-- One box that goes anywhere the window can go (command-palette.ts). -->
+            <button id="palette-open" class="palette-trigger" type="button" aria-haspopup="dialog" aria-controls="command-palette" aria-keyshortcuts="Control+K">
+              <span id="palette-icon" aria-hidden="true"></span>
+              <span class="palette-trigger-text">Go to or run a command</span>
+              <kbd aria-hidden="true">Ctrl K</kbd>
+            </button>
             <div class="history-control" role="group" aria-label="History">
               <button id="nav-back" type="button" aria-label="Back" title="Back" disabled></button>
               <button id="nav-forward" type="button" aria-label="Forward" title="Forward" disabled></button>
@@ -84,6 +93,9 @@
               <button type="button" data-theme-option="light" aria-label="Light" title="Light theme" aria-pressed="false"></button>
               <button type="button" data-theme-option="dark" aria-label="Dark" title="Dark theme" aria-pressed="false"></button>
             </div>
+            <!-- Every shortcut beside its control, for the person who asked to see them.
+                 Kept for the device, like the theme. -->
+            <button id="shortcuts-toggle" class="shortcuts-toggle" type="button" aria-pressed="false" aria-label="Show keyboard shortcuts" title="Show keyboard shortcuts" aria-keyshortcuts="Control+/"></button>
           </div>
         </header>
 
@@ -119,7 +131,8 @@
               <span aria-hidden="true"></span>
               Saved locally
             </span>
-            <span id="session-version" class="status-version"></span>
+<span class="status-keys kbd-hint" aria-hidden="true"><kbd>Ctrl K</kbd> commands <kbd>Ctrl /</kbd> hide shortcuts</span>
+                        <span id="session-version" class="status-version"></span>
           </span>
         </footer>
       </main>
@@ -133,6 +146,19 @@
         <p id="file-drop-message" class="file-drop-message"></p>
       </div>
     </div>
+
+    <dialog id="command-palette" class="command-palette" aria-label="Go to or run a command">
+      <div class="command-palette-box">
+        <label class="command-palette-search">
+          <span id="command-palette-icon" aria-hidden="true"></span>
+          <input id="command-palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="command-palette-list" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Go to, switch view or run a command" aria-label="Command" />
+          <kbd aria-hidden="true">Esc</kbd>
+        </label>
+        <ul id="command-palette-list" class="command-palette-list" role="listbox" aria-label="Commands"></ul>
+        <p id="command-palette-empty" class="command-palette-empty" hidden>Nothing matches. Try a page, a view or a File action.</p>
+        <p class="command-palette-foot"><kbd>↑</kbd><kbd>↓</kbd> choose <kbd>Enter</kbd> run <kbd>Esc</kbd> close</p>
+      </div>
+    </dialog>
 
     <div id="announcement" class="visually-hidden" role="status" aria-live="polite"></div>
     <script type="module" src="/src/main.ts"></script>

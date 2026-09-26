@@ -1,3 +1,4 @@
+import { shortcuts } from './shortcuts';
 import { clientHelp } from './client-help';
 import { conceptHelp } from './help-concepts';
 import { agentHelp } from './help-agents';
@@ -47,6 +48,11 @@ const coreHelp: HelpProvider = () => [
       'A view reads the file through the same typed services Studio uses, calculated fields and exact numbers included. It can open a record, a screen or Studio and show a short message; in this version it cannot change records. It is a web page in a frame of its own, so it can also reach the network and the clipboard. A view that stops answering says so, with Stop and Reload, and the rest of Nendo keeps working.',
       'Two switches decide whether views run, both kept on this computer: Run custom views, for every file, and one for each file. They are under Studio → Surfaces → Custom views, which File → Custom views opens. Views never run in safe mode, during recovery, while a file needs attention, or after Restart without custom views. The same panel imports a package from a folder, a .zip or a .nendoview file, exports one to a folder, and removes one; importing and removing are proposals you review.',
     ] },
+  ] },
+  { id: 'keys', title: 'Keyboard shortcuts', category: 'Getting started', summary: 'Go anywhere with Ctrl K, and every key the window answers to.', related: ['start'], sections: [
+    { heading: 'Go to or run a command', paragraphs: ['Press Ctrl K, or click the box at the top of the window, and type a few letters of where you want to go: a page, a record type, a view of the screen you are on, a File action or a theme. The letters only have to appear in order, so "stru" finds Structure. Use the arrow keys and Enter, or click. Escape closes it.', 'A command does exactly what clicking its control does. Something switched off on screen is not offered, and a page holding unsaved typing still asks before you leave it.'] },
+    { heading: 'Every shortcut', terms: shortcuts.map(entry => ({ term: entry.keys, meaning: entry.label })) },
+    { heading: 'Show them on screen', paragraphs: ['The keyboard button at the right of the top bar, or Ctrl /, shows each shortcut beside its control and a reminder in the status bar. Press it again to hide them. The choice is kept on this computer, like the theme, and is never written to the file. The keys work whether or not they are shown.'] },
   ] },
   { id: 'csv', title: 'Import and export CSV', category: 'Everyday work', summary: 'Map columns, review new records and preserve exact values.', related: ['data-model', 'files'], sections: [
     { heading: 'Import step by step', steps: ['Choose File → Import CSV, select the destination record type, then choose a .csv file.', 'Choose External CSV for literal text or Nendo CSV for a faithful Nendo export. In External CSV, explicitly choose whether empty cells mean null. Map each required field to its source column.', 'Click Validate first batch. Review every displayed row and typed value: null and quoted empty text are different. Import creates new records; it never merges with existing records.', 'Click Import to commit that whole batch, or Cancel remaining import. Batches contain at most 100 rows. Cancelling leaves earlier accepted batches committed. History records each accepted batch.'] },

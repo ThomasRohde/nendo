@@ -1,0 +1,264 @@
+/* The command palette, its trigger in the top bar, and the keyboard hints the person
+   can ask to see beside every control.
+   Slice 16 of styles.css; see that file for why the order matters. It loads after the
+   rail fold so its rule for hints on a folded rail is the one that holds. */
+
+kbd,
+.kbd-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--muted);
+  background: var(--surface-raised);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* --- The trigger ------------------------------------------------------------ */
+
+.palette-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: clamp(180px, 22vw, 300px);
+  height: 32px;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  background: var(--canvas);
+  text-align: left;
+  cursor: pointer;
+}
+
+.palette-trigger:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.palette-trigger .outline-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+.palette-trigger-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcuts-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  background: var(--canvas);
+}
+
+.shortcuts-toggle .outline-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.shortcuts-toggle:hover {
+  color: var(--ink);
+}
+
+.shortcuts-toggle[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--cobalt) 45%, var(--line));
+  color: var(--cobalt);
+  background: var(--cobalt-soft);
+}
+
+@media (max-width: 1100px) {
+  .palette-trigger { width: 32px; padding: 0; justify-content: center; }
+  .palette-trigger-text,
+  .palette-trigger kbd { display: none; }
+}
+
+/* --- Hints ------------------------------------------------------------------ */
+
+/* Off unless asked for. A hint is decoration over a control that already has a name,
+   so it is hidden from assistive technology, which reads aria-keyshortcuts instead. */
+.kbd-hint {
+  display: none;
+}
+
+:root[data-shortcuts="shown"] .kbd-hint {
+  display: inline-flex;
+}
+
+:root[data-shortcuts="shown"] .rail .nav-item {
+  grid-template-columns: 24px 1fr auto;
+}
+
+@media (min-width: 841px) {
+  :root[data-rail="collapsed"] .rail .nav-item .kbd-hint {
+    display: none;
+  }
+}
+
+.status-keys {
+  gap: 6px;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.8rem;
+}
+
+.status-keys kbd {
+  height: 16px;
+  font-size: 0.72rem;
+}
+
+/* --- The palette ------------------------------------------------------------ */
+
+.command-palette {
+  width: min(620px, calc(100vw - 32px));
+  max-height: min(520px, calc(100vh - 120px));
+  margin: 12vh auto auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-panel);
+  color: var(--ink);
+  background: var(--surface-raised);
+  box-shadow: 0 24px 64px -16px rgb(0 0 0 / 45%);
+}
+
+.command-palette::backdrop {
+  background: color-mix(in srgb, var(--canvas) 55%, transparent);
+}
+
+.command-palette-box {
+  display: flex;
+  flex-direction: column;
+  max-height: inherit;
+}
+
+.command-palette-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.command-palette-search .outline-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.command-palette-search input {
+  flex: 1 1 auto;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 1.08rem;
+  box-shadow: none;
+}
+
+.command-palette-search input:focus {
+  box-shadow: none;
+}
+
+.command-palette-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 6px;
+  overflow: auto;
+  list-style: none;
+}
+
+.command-palette-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 4px 10px;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.command-palette-list li[data-group]:not(:first-child) {
+  margin-top: 6px;
+}
+
+.command-palette-list li[aria-selected="true"] {
+  background: var(--cobalt-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cobalt) 30%, transparent);
+}
+
+.command-palette-list li:hover:not([aria-selected="true"]) {
+  background: var(--surface-soft);
+}
+
+.command-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-label mark {
+  color: var(--cobalt);
+  background: transparent;
+  font-weight: 600;
+}
+
+.command-group {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.command-palette-empty {
+  margin: 0;
+  padding: 18px 16px;
+  color: var(--muted);
+}
+
+.command-palette-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 0.86rem;
+}
+
+.command-palette-foot kbd:not(:first-child) {
+  margin-left: 6px;
+}
+
+.command-palette-foot kbd + kbd {
+  margin-left: 0;
+}
+
+@media (forced-colors: active) {
+  .command-palette-list li[aria-selected="true"] {
+    outline: 2px solid Highlight;
+  }
+}

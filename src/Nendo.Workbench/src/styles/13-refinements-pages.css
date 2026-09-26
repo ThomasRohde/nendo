@@ -17,9 +17,12 @@
   --space-4: 16px;
   --space-5: 24px;
   --space-6: 32px;
-  --radius-control: 10px;
-  --radius-panel: 14px;
-  --radius-shell: 18px;
+  --radius-control: 6px;
+  --radius-panel: 8px;
+  --radius-shell: 8px;
+  /* Ids, counts, versions and key names. Cascadia ships with Windows 11; a bundled
+     face would be a binary asset the repository gate does not accept. */
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
   --shadow-card: 0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent), 0 8px 24px color-mix(in srgb, var(--ink) 4%, transparent);
   --shadow-raised: 0 2px 4px color-mix(in srgb, var(--ink) 7%, transparent), 0 14px 34px color-mix(in srgb, var(--ink) 6%, transparent);
 }
@@ -69,17 +72,18 @@
   gap: var(--space-2);
   margin: 0;
   color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 620;
+  font-size: 0.93rem;
+  font-weight: 500;
   white-space: nowrap;
 }
 
 .select-field select {
-  min-height: 38px;
-  padding: 6px 10px;
+  min-height: 30px;
+  padding: 3px 8px;
   border-radius: var(--radius-control);
   color: var(--ink);
-  font-weight: 600;
+  background: var(--canvas);
+  font-weight: 500;
 }
 
 .button-glyph {
@@ -93,17 +97,19 @@
 
 .use-toolbar {
   gap: var(--space-4);
-  min-height: 64px;
-  padding: var(--space-3) var(--space-4);
+  min-height: 46px;
+  padding: 7px 16px;
 }
 
 .use-toolbar .page-controls {
   gap: var(--space-2);
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.93rem;
 }
 
 .use-toolbar .page-controls > span {
+  font-family: var(--mono);
+  font-size: 0.85rem;
   padding-right: var(--space-1);
   white-space: nowrap;
 }
@@ -124,7 +130,7 @@
   border-radius: 999px;
   color: color-mix(in srgb, var(--status-color, var(--muted)) 78%, var(--ink));
   background: color-mix(in srgb, var(--status-color, var(--muted)) 14%, var(--surface-raised));
-  font-size: 0.71rem;
+  font-size: 0.75rem;
   font-weight: 680;
   line-height: 1.6;
   white-space: nowrap;
@@ -152,7 +158,7 @@
   border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
 }
 
-.record-card footer small { font-size: 0.68rem; }
+.record-card footer small { font-size: 0.75rem; }
 
 .board-column > header { padding: var(--space-3) var(--space-3) var(--space-2); border-bottom: 0; }
 .board-column h3 { font-size: 0.82rem; font-weight: 680; }
@@ -162,7 +168,7 @@
   padding: 1px 7px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--ink) 6%, transparent);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   text-align: center;
 }
 
@@ -206,7 +212,7 @@
   align-items: center;
   gap: 6px;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
@@ -223,7 +229,7 @@
   min-height: 39px;
   padding: 6px 6px 6px 11px;
   border: 1px solid var(--line-strong);
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   background: var(--surface-raised);
 }
 
@@ -254,7 +260,7 @@
   gap: 4px;
   min-width: 0;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 650;
 }
 
@@ -302,7 +308,7 @@
   padding-block: var(--space-2);
   color: var(--muted);
   background: var(--surface-soft);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -325,7 +331,7 @@
   border-radius: 999px;
   color: var(--warning);
   background: color-mix(in srgb, var(--warning) 12%, var(--surface));
-  font-size: 0.66rem;
+  font-size: 0.75rem;
   font-weight: 700;
   vertical-align: 2px;
 }
@@ -528,7 +534,7 @@
 
 .recovery-text { display: grid; gap: 1px; min-width: 0; }
 .recovery-text strong { font-size: 0.87rem; font-weight: 640; }
-.recovery-text small { color: var(--muted); font-size: 0.74rem; line-height: 1.45; }
+.recovery-text small { color: var(--muted); font-size: 0.75rem; line-height: 1.45; }
 .recovery-chevron { color: var(--muted); }
 .recovery-chevron .outline-icon { width: 16px; height: 16px; }
 
@@ -593,7 +599,7 @@
 
 .studio-query { gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface); }
 .studio-query label { color: var(--muted); font-weight: 620; }
-.studio-query select, .studio-query input { min-height: 34px; border-radius: 8px; }
+.studio-query select, .studio-query input { min-height: 34px; border-radius: var(--radius-control); }
 .studio-query .primary-button, .studio-query .secondary-button { min-height: 34px; }
 .studio-query .text-button { min-height: 34px; color: var(--cobalt); }
 
