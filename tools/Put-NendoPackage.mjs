@@ -2,12 +2,14 @@
 // a person accepts (ADR-0013, 2026-09-25). The folder holds a nendo-package.json and the
 // package's files; the manifest itself is not stored, because the package row holds it.
 //
-//   node tools/Put-NendoPackage.mjs <folder> [--application <applicationId>] [--title <title>] [--dry-run]
+//   node tools/Put-NendoPackage.mjs <folder> [--application <applicationId>] [--title <title>] [--dry-run] [--accept]
 //
 // Only what differs from the package the file already carries is proposed, and every put
 // and removal names the content it replaces, so a proposal prepared against an older
-// package is refused rather than replayed over a newer one. This script never accepts
-// anything: acceptance is the person's act.
+// package is refused rather than replayed over a newer one. Acceptance is the person's act:
+// --accept only works while the person has set that file's Agent access to Unattended, the
+// one level at which they have said an agent may accept its own proposal. Below it the
+// proposal waits for them in Nendo.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -25,6 +27,7 @@ const args = process.argv.slice(2);
 const option = name => { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : undefined; };
 const folder = args.find((value, index) => !value.startsWith('--') && !['--application', '--title'].includes(args[index - 1]));
 const dryRun = args.includes('--dry-run');
+const accept = args.includes('--accept');
 if (!folder) fail('Name the package folder: node tools/Put-NendoPackage.mjs extensions/gantt');
 
 async function readPackage() {
@@ -137,8 +140,25 @@ async function main() {
       process.exitCode = 1;
       return;
     }
-    console.log('\nValidated on a clone. Nothing has changed in the file yet. In Nendo, review and accept the proposal');
-    console.log(`  ${title}`);
+    if (!accept) {
+      console.log('\nValidated on a clone. Nothing has changed in the file yet. In Nendo, review and accept the proposal');
+      console.log(`  ${title}`);
+      return;
+    }
+    let accepted;
+    try {
+      accepted = await client.tool('nendo.change_set.accept', { ...owned, changeSetId: draft.changeSetId, idempotencyKey: crypto.randomUUID() });
+    } catch {
+      console.log('\nValidated, but this file is not at Unattended, so it is not accepted here. In Nendo, review and accept the proposal');
+      console.log(`  ${title}`);
+      return;
+    }
+    if (accepted.applied !== true) {
+      console.error(`\nNot applied: ${accepted.state}. ${accepted.message ?? ''}`);
+      process.exitCode = 1;
+      return;
+    }
+    console.log(`\nAccepted at Unattended and applied: definition revision ${accepted.definitionRevision}. It is an ordinary History revision, so it can be reversed.`);
   } finally {
     await client.tool('nendo.lease.release', owned).catch(() => { /* the person may have revoked it */ });
   }

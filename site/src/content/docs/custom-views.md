@@ -69,12 +69,12 @@ Studio is there in every case, and your records stay editable.
 
 ## The examples
 
-The repository has four MIT-licensed example packages under [`extensions/`](https://github.com/ThomasRohde/nendo/tree/main/extensions). None has dependencies. Each folder has a `nendo-package.json`, so you import it as it is.
+The repository has four MIT-licensed example packages under [`extensions/`](https://github.com/ThomasRohde/nendo/tree/main/extensions). Three have no dependencies; `work-dependencies` carries elkjs, the Eclipse Layout Kernel, unchanged in its `vendor` folder under the Eclipse Public License 2.0. Each folder has a `nendo-package.json`, so you import it as it is.
 
 | Package | Shows |
 | --- | --- |
 | [`dependency-graph`](https://github.com/ThomasRohde/nendo/tree/main/extensions/dependency-graph) | A general record graph with pan, zoom, keyboard selection and a text list of the relationships |
-| [`work-dependencies`](https://github.com/ThomasRohde/nendo/tree/main/extensions/work-dependencies) | Work items and what blocks what, laid out left to right in the order the work must happen. It marks cycles and dims everything not connected to the selection |
+| [`work-dependencies`](https://github.com/ThomasRohde/nendo/tree/main/extensions/work-dependencies) | Work items and what blocks what, laid out by the Eclipse Layout Kernel in the order the work must happen, with links routed at right angles. It groups items by any field, filters by status, finds by title, marks cycles and the longest chain, and dims everything not connected to the selection |
 | [`systems-lens`](https://github.com/ThomasRohde/nendo/tree/main/extensions/systems-lens) | Components and the feeds between them, for the Nendo Station demo file. It marks loops, and **Take out** shows which components lose every declared supply path when one is removed. It writes nothing |
 | [`gantt`](https://github.com/ThomasRohde/nendo/tree/main/extensions/gantt) | One record type on a time line, from a start date to an end date; a record with only a start is a diamond. It also works on a record page, for one record |
 

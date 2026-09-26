@@ -6,35 +6,62 @@ reading left to right is reading the order the work has to happen in.
 
 What it shows that a list cannot:
 
-- **Order.** Longest-path layering puts each item one column right of the last thing
-  blocking it.
+- **Order, laid out properly.** The Eclipse Layout Kernel's layered algorithm puts each
+  item to the right of what blocks it and routes every link at right angles around the
+  items. It runs in a Web Worker, so a large plan never stalls the view. If it cannot
+  run, a simpler layering is drawn and the summary says so.
+- **Groups.** Group by any reference or choice field of the work items, such as an
+  initiative, a horizon or a status. Each group becomes a box, and links cross between
+  boxes.
+- **What is linked, and what is not.** Items linked to nothing wait on a shelf below the
+  drawing, grouped the same way, instead of stretching it. **Linked only** hides the
+  shelf.
 - **Cycles, named exactly.** Strongly connected components are marked `cycle`, and an
   item merely standing *behind* a cycle is not marked, which is the distinction a
   "whatever did not settle" pass gets wrong.
+- **The longest chain.** **Longest chain** marks the longest run of work that has to
+  happen one item after another, with each cycle's own links set aside, and names it
+  below the drawing.
 - **What is free to start.** The summary counts the items nothing blocks.
-- **What one item is connected to.** Select an item and press Focus: everything not
+- **What one item is connected to.** Select an item and press **Focus**: everything not
   upstream or downstream of it dims.
+- **Filter and find.** **Filter** hides statuses, such as Done and Dropped. **Find**
+  dims everything whose title does not match, and Enter opens the first match.
 - **A text alternative** listing each item's blockers and what it blocks, for a dense
   graph or a screen reader.
 
-Statuses are drawn in the planner's own tones (Inbox, Ready, Doing, Blocked, Review,
-Done, Dropped); any other status is drawn neutral rather than guessed at. Selecting an
-item asks Nendo to open it.
+The grouping, the hidden statuses and **Linked only** are remembered on this device for
+this file. The view's configuration can set their first-time defaults:
+
+```json
+{ "groupBy": "nd.work.initiative", "hideStatuses": ["Done", "Dropped"], "linkedOnly": false }
+```
+
+Statuses are drawn in their choices' own tones, falling back to the planner's names for
+Inbox, Ready, Doing, Blocked, Review, Done and Dropped; any other status is drawn neutral
+rather than guessed at. Selecting an item asks Nendo to open it.
 
 ## What it reads
 
 Everything arrives through `window.nendo`, which `<script src="/_nendo/api.js">`
 installs:
 
-- `nendo.view.loadGraph()`: work items as nodes and dependency records as links;
-- `nendo.schema.describe()`: to show the Status by its choice's name, which also picks
-  its tone;
-- `nendo.ui.theme` and the `theme` event: light or dark;
+- `nendo.view.loadGraph()`: work items as nodes and dependency records as links, each
+  with its whole record, which is where a group's value comes from;
+- `nendo.schema.describe()`: the Status by its choice's name and tone, and the fields
+  that can group;
+- `nendo.ui.theme` and the `theme` event: the Workbench's colours, as `--nendo-*`;
 - the `changes` event: the view reads again a quarter of a second after the file
   changes, and keeps the selected item selected while it is still there;
 - `nendo.ui.openRecord(entityId, recordId)`: opening the selected item.
 
 It writes nothing. A read that Nendo refuses is shown in the summary line.
+
+## Third-party code
+
+`vendor/elkjs/` holds elkjs 0.12.0, unchanged, under the Eclipse Public License 2.0. Its
+`README.md` records the source, the licence and each file's SHA-256. The rest of this
+package is under `LICENSE.txt`.
 
 ## Putting it into a file
 
@@ -53,8 +80,13 @@ to a dependency record type whose two Reference fields both point at Work items.
 `pwsh ./tools/Review-WorkDependencies.ps1` serves this folder on one origin and a
 fixture broker on another, and runs the real `api.js` between them in Playwright
 (msedge). Its fixture carries a chain, an isolated item, a three-item cycle, an item
-behind that cycle, a duplicate link and a markup-shaped label. It measures the
-layering, exact cycle membership and cycle edges, the summary counts, status names and
+behind that cycle, a duplicate link, a markup-shaped label and an initiative to group
+by. It measures that ELK laid the drawing out; that every link runs at right angles from
+the blocker's edge to the blocked item's edge and no two items overlap, ungrouped and
+grouped; that the item linked to nothing is on the shelf; that each group's box holds
+exactly its items; that Filter, Linked only, Longest chain and Find do what they say;
+that the grouping survives a reload; and the layering, exact cycle membership and cycle
+edges, the summary counts, status names and
 tones read from the schema, exactly one `ui.openRecord` per selection, Focus dimming,
 keyboard traversal, the text alternative, non-selectable chrome, a re-read only after a
 `changes` event that keeps the selection, one read for a burst of changes, a measured

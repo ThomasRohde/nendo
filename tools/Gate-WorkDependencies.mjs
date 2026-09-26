@@ -16,6 +16,7 @@ async (page) => {
     presentation: null, calculated: false, expression: null, choices: [], reference: null, scale: null, ...extra });
   const record = (entityId, recordId, values, labels = {}) => ({ entityId, recordId, version: 1, values, exact: {}, labels, calculated: {} });
   const statuses = ['Inbox', 'Ready', 'Doing', 'Blocked', 'Review', 'Done', 'Dropped'];
+  const initiatives = { i1: 'Release', i2: 'Cycle work' };
   const fixture = ({ nodes, edges }) => {
     const names = new Map(nodes.map(node => [node.id, node.label]));
     return {
@@ -24,13 +25,16 @@ async (page) => {
           targetFieldId: 'dependencyBlocked', fields: [], filters: [] } },
       schema: { entities: [
         { entityId: 'workItem', displayName: 'Work item', fields: [field('workTitle', 'Title', 'text'), field('workStatus', 'Status', 'text', { presentation: 'singleChoice',
-          choices: statuses.map(name => ({ id: 'status-' + name.toLowerCase(), displayName: name, retired: false, tone: null })) })] },
+          choices: statuses.map(name => ({ id: 'status-' + name.toLowerCase(), displayName: name, retired: false, tone: null })) }),
+          field('workInitiative', 'Initiative', 'reference', { reference: { targetEntityId: 'initiative', labelFieldId: 'initiativeName' } })] },
+        { entityId: 'initiative', displayName: 'Initiative', fields: [field('initiativeName', 'Name', 'text')] },
         { entityId: 'workDependency', displayName: 'Dependency', fields: [
           field('dependencyBlocker', 'Blocker', 'reference', { reference: { targetEntityId: 'workItem', labelFieldId: 'workTitle' } }),
           field('dependencyBlocked', 'Blocked', 'reference', { reference: { targetEntityId: 'workItem', labelFieldId: 'workTitle' } })] },
       ] },
       records: {
-        workItem: nodes.map(node => record('workItem', node.id, { workTitle: node.label, workStatus: node.status ? 'status-' + node.status.toLowerCase() : null })),
+        workItem: nodes.map(node => record('workItem', node.id, { workTitle: node.label, workStatus: node.status ? 'status-' + node.status.toLowerCase() : null,
+          workInitiative: node.initiative ?? null }, node.initiative ? { workInitiative: initiatives[node.initiative] } : {})),
         workDependency: edges.map(edge => record('workDependency', edge.id, { dependencyBlocker: edge.sourceId, dependencyBlocked: edge.targetId },
           { dependencyBlocker: names.get(edge.sourceId) ?? null, dependencyBlocked: names.get(edge.targetId) ?? null })),
       },
@@ -76,14 +80,14 @@ async (page) => {
   // duplicate link and a label that looks like markup. Every claim the view makes is about
   // one of these shapes.
   const projection = { nodes: [
-    { id: 'a', label: 'Accept the amendment', status: 'Done' },
-    { id: 'b', label: 'Build the isolated helper', status: 'Doing' },
-    { id: 'c', label: 'Qualify the release', status: 'Ready' },
+    { id: 'a', label: 'Accept the amendment', status: 'Done', initiative: 'i1' },
+    { id: 'b', label: 'Build the isolated helper', status: 'Doing', initiative: 'i1' },
+    { id: 'c', label: 'Qualify the release', status: 'Ready', initiative: 'i1' },
     { id: 'd', label: 'Write the authoring guide', status: null },
-    { id: 'x', label: '<img src=x onerror=alert(1)>', status: 'Blocked' },
-    { id: 'y', label: 'Second of the cycle', status: 'Blocked' },
-    { id: 'z', label: 'Third of the cycle', status: 'Review' },
-    { id: 'w', label: 'Behind the cycle', status: 'Inbox' },
+    { id: 'x', label: '<img src=x onerror=alert(1)>', status: 'Blocked', initiative: 'i2' },
+    { id: 'y', label: 'Second of the cycle', status: 'Blocked', initiative: 'i2' },
+    { id: 'z', label: 'Third of the cycle', status: 'Review', initiative: 'i2' },
+    { id: 'w', label: 'Behind the cycle', status: 'Inbox', initiative: 'i2' },
   ], edges: [
     { id: 'e1', sourceId: 'a', targetId: 'b' }, { id: 'e2', sourceId: 'a', targetId: 'b' },
     { id: 'e3', sourceId: 'b', targetId: 'c' },
@@ -137,6 +141,107 @@ async (page) => {
     });
   });
   assert(inView.length === 8 && inView.every(Boolean), 'A work item opened outside the visible canvas: ' + JSON.stringify(inView));
+
+  // The layout is ELK's, and it is measured rather than looked at: every link runs at right
+  // angles from the blocker's edge to the blocked item's edge, no two items overlap, and an item
+  // linked to nothing waits on the shelf below the drawing instead of stretching it.
+  const geometry = () => view.evaluate(() => {
+    const nodes = Object.fromEntries([...document.querySelectorAll('.node')].map(node => {
+      const [, x, y] = /translate\(([-0-9.]+) ([-0-9.]+)\)/.exec(node.getAttribute('transform'));
+      const rect = node.querySelector('rect');
+      return [node.dataset.id, { x: +x, y: +y, width: +rect.getAttribute('width'), height: +rect.getAttribute('height'), unlinked: node.classList.contains('unlinked') }];
+    }));
+    const edges = [...document.querySelectorAll('.edge')].map(edge => ({ id: edge.dataset.edgeId, source: edge.dataset.source, target: edge.dataset.target,
+      points: [...edge.getAttribute('d').matchAll(/[ML] ([-0-9.]+) ([-0-9.]+)/g)].map(match => ({ x: +match[1], y: +match[2] })) }));
+    const groups = [...document.querySelectorAll('.group')].map(group => {
+      const rect = group.querySelector('rect');
+      return { key: group.dataset.group, part: group.classList.contains('shelf') ? 'shelf' : 'diagram', title: group.querySelector('.group-title').textContent,
+        x: +rect.getAttribute('x'), y: +rect.getAttribute('y'), width: +rect.getAttribute('width'), height: +rect.getAttribute('height') };
+    });
+    return { layout: document.documentElement.dataset.layout, nodes, edges, groups };
+  });
+  const onBorder = (point, box) => {
+    const within = (value, low, high) => value >= low - 1.5 && value <= high + 1.5, near = (value, target) => Math.abs(value - target) <= 1.5;
+    return within(point.x, box.x, box.x + box.width) && (near(point.y, box.y) || near(point.y, box.y + box.height)) ||
+      within(point.y, box.y, box.y + box.height) && (near(point.x, box.x) || near(point.x, box.x + box.width));
+  };
+  const inside = (box, frame) => box.x >= frame.x - .5 && box.y >= frame.y - .5 && box.x + box.width <= frame.x + frame.width + .5 && box.y + box.height <= frame.y + frame.height + .5;
+  const checkDrawing = (drawn, label) => {
+    assert(drawn.layout === 'elk', `${label}: the drawing was not laid out by ELK; it says "${drawn.layout}".`);
+    for (const edge of drawn.edges) {
+      assert(edge.points.length >= 2, `${label}: link ${edge.id} has no route.`);
+      for (let at = 1; at < edge.points.length; at += 1) {
+        const from = edge.points[at - 1], to = edge.points[at];
+        assert(Math.abs(from.x - to.x) < .6 || Math.abs(from.y - to.y) < .6, `${label}: link ${edge.id} has a slanted segment: ` + JSON.stringify(edge.points));
+      }
+      assert(onBorder(edge.points[0], drawn.nodes[edge.source]) && onBorder(edge.points.at(-1), drawn.nodes[edge.target]),
+        `${label}: link ${edge.id} does not run from its blocker's edge to the blocked item's edge: ` + JSON.stringify({ route: edge.points, from: drawn.nodes[edge.source], to: drawn.nodes[edge.target] }));
+    }
+    const ids = Object.keys(drawn.nodes);
+    for (let first = 0; first < ids.length; first += 1) for (let second = first + 1; second < ids.length; second += 1) {
+      const a = drawn.nodes[ids[first]], b = drawn.nodes[ids[second]];
+      assert(a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y, `${label}: ${ids[first]} and ${ids[second]} overlap: ` + JSON.stringify({ a, b }));
+    }
+  };
+  const plain = await geometry();
+  checkDrawing(plain, 'Ungrouped');
+  const linkedBottom = Math.max(...Object.values(plain.nodes).filter(box => !box.unlinked).map(box => box.y + box.height));
+  assert(plain.nodes.d.unlinked && plain.nodes.d.y > linkedBottom + 20 && Object.values(plain.nodes).filter(box => box.unlinked).length === 1,
+    'The item linked to nothing is not on the shelf below the drawing: ' + JSON.stringify(plain.nodes));
+
+  // Grouped by a reference: each group is a box that holds exactly its own items, and links
+  // still run at right angles between boxes.
+  await view.locator('#group-by').selectOption('workInitiative');
+  await until(() => document.querySelectorAll('.group.diagram').length === 2, undefined, 'Grouping by initiative did not draw a box for each initiative.');
+  const grouped = await geometry();
+  checkDrawing(grouped, 'Grouped');
+  const box = key => grouped.groups.find(group => group.key === key);
+  assert(box('i1')?.title === 'Release · 3' && box('i2')?.title === 'Cycle work · 4' && box('')?.part === 'shelf' && box('')?.title === 'No initiative · 1',
+    'The groups are not titled by their initiatives and counts: ' + JSON.stringify(grouped.groups));
+  for (const [id, key] of Object.entries({ a: 'i1', b: 'i1', c: 'i1', x: 'i2', y: 'i2', z: 'i2', w: 'i2', d: '' }))
+    assert(inside(grouped.nodes[id], box(key)), `${id} is not inside its group's box: ` + JSON.stringify({ node: grouped.nodes[id], group: box(key) }));
+  assert(await summary() === '8 work items · 7 links · 2 unblocked · 3 in a dependency cycle', 'Grouping changed what the summary counts: ' + await summary());
+  await page.screenshot({ path: root + '/artifacts/extension-runtime-results/work-dependencies-grouped.png' });
+
+  // The choice is kept on this device: the view comes back grouped after a reload.
+  await view.evaluate(() => { setTimeout(() => location.reload(), 0); });
+  await page.waitForTimeout(300);
+  await until(() => document.querySelectorAll('.group.diagram').length === 2 && document.getElementById('group-by').value === 'workInitiative', undefined,
+    'The grouping was not remembered across a reload.');
+  await view.locator('#group-by').selectOption('');
+  await until(() => document.querySelectorAll('.group').length === 0, undefined, 'Grouping by nothing left a group box drawn.');
+
+  // Filter hides a status, with its links; Linked only takes the shelf away. Both say so.
+  await view.getByRole('button', { name: 'Filter', exact: true }).click();
+  await view.locator('#status-chips input[data-status="status-done"]').uncheck();
+  await until(() => document.getElementById('summary').textContent === '7 work items · 5 links · 2 unblocked · 3 in a dependency cycle · 1 hidden', undefined,
+    'Hiding Done did not take the done item and its links away, and say so.');
+  assert(await view.locator('.node[data-id="a"]').count() === 0, 'A hidden status is still drawn.');
+  await view.locator('#status-chips input[data-status="status-done"]').check();
+  await view.getByRole('button', { name: 'Linked only', exact: true }).click();
+  await until(() => document.getElementById('summary').textContent === '7 work items · 7 links · 1 unblocked · 3 in a dependency cycle · 1 hidden', undefined,
+    'Linked only did not take away the item linked to nothing, and say so.');
+  await view.getByRole('button', { name: 'Linked only', exact: true }).click();
+  await until(() => document.getElementById('summary').textContent === '8 work items · 7 links · 2 unblocked · 3 in a dependency cycle', undefined,
+    'Showing everything again did not bring the item back.');
+  await view.locator('#filter-toggle').click();
+
+  // Longest chain marks the longest run of work that has to happen in order, cycle links set aside.
+  await view.getByRole('button', { name: 'Longest chain', exact: true }).click();
+  const chained = await view.evaluate(() => ({ nodes: [...document.querySelectorAll('.node.chain')].map(node => node.dataset.id).sort(),
+    edges: [...document.querySelectorAll('.edge.chain')].map(edge => edge.dataset.edgeId).sort(), line: document.getElementById('selection').textContent }));
+  assert(JSON.stringify(chained.nodes) === JSON.stringify(['a', 'b', 'c']) && JSON.stringify(chained.edges) === JSON.stringify(['e1', 'e2', 'e3']),
+    'Longest chain marked the wrong items or links: ' + JSON.stringify(chained));
+  assert(chained.line === 'Longest chain: Accept the amendment → Build the isolated helper → Qualify the release · 3 items', 'The chain is not named: ' + chained.line);
+  await view.getByRole('button', { name: 'Longest chain', exact: true }).click();
+
+  // Find dims what does not match, and Enter opens the first match, once.
+  await view.locator('#find').fill('cycle');
+  const matches = await view.evaluate(() => [...document.querySelectorAll('.node.match')].map(node => node.dataset.id).sort());
+  assert(JSON.stringify(matches) === JSON.stringify(['w', 'y', 'z']), 'Find matched the wrong items: ' + JSON.stringify(matches));
+  exactlyOne(await opens(() => view.locator('#find').press('Enter')), 'y', 'Enter in Find did not open the first match, once:');
+  await view.locator('#find').press('Escape');
+  assert(await view.locator('.node.match').count() === 0, 'Escape did not clear Find.');
 
   // Selecting an item asks Nendo to open it: once, by its record type and ID.
   exactlyOne(await opens(() => view.locator('.node[data-id="b"]').click()), 'b', 'Selecting an item did not ask Nendo to open exactly that item, once:');
@@ -242,7 +347,7 @@ async (page) => {
   await page.setViewportSize({ width: 512, height: 384 });
   await page.waitForTimeout(150);
   const compact = await view.evaluate(() => {
-    const names = ['zoom-out', 'reset', 'zoom-in', 'focus-toggle', 'text-toggle'];
+    const names = ['find', 'group-by', 'filter-toggle', 'linked-toggle', 'chain-toggle', 'zoom-out', 'reset', 'zoom-in', 'focus-toggle', 'text-toggle'];
     const overflow = document.documentElement.scrollWidth > document.documentElement.clientWidth;
     return { overflow, controls: names.map(id => {
       const r = document.getElementById(id).getBoundingClientRect();
@@ -256,5 +361,6 @@ async (page) => {
   assert(JSON.stringify(methods) === JSON.stringify(['records.query', 'schema.describe', 'ui.openRecord']),
     'The view asked for something other than reads and opening a record: ' + JSON.stringify(methods));
   assert(errors.length === 0, 'The view raised: ' + errors.join(' | '));
-  return 'work dependencies ok ' + JSON.stringify({ themes: { light: lightColour, dark: darkColour }, burstReads: burst });
+  return 'work dependencies ok ' + JSON.stringify({ themes: { light: lightColour, dark: darkColour }, burstReads: burst, layout: plain.layout,
+    extent: { plain: Object.keys(plain.nodes).length, grouped: grouped.groups.length } });
 }

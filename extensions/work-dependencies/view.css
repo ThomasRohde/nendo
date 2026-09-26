@@ -1,37 +1,73 @@
-:root{color-scheme:light;--bg:#f5f4f1;--panel:#fff;--ink:#19243b;--muted:#566178;--line:#d7dce5;--accent:#315fe5;--selected:#e9efff;--edge:#8592aa;--cycle:#c2410c;--upstream:#0f766e;--downstream:#6d28d9;
-  --tone-grey:#8b95a7;--tone-blue:#2563eb;--tone-violet:#7c3aed;--tone-red:#dc2626;--tone-amber:#d97706;--tone-green:#15803d;
+/* Colours come from the Workbench's own tokens, which api.js sets on this page as --nendo-*;
+   the values after each are this view's own, for a page opened without them. */
+:root{color-scheme:light;
+  --bg:var(--nendo-canvas,#f5f4f1);--panel:var(--nendo-surface,#fff);--soft:var(--nendo-surface-soft,#f1f3f7);--ink:var(--nendo-ink,#19243b);--muted:var(--nendo-muted,#566178);
+  --line:var(--nendo-line,#d7dce5);--line-strong:var(--nendo-line-strong,#b8c0cf);--accent:var(--nendo-cobalt,#315fe5);--selected:var(--nendo-cobalt-soft,#e9efff);
+  --edge:#8592aa;--cycle:var(--nendo-tone-orange,#c2410c);--upstream:var(--nendo-tone-teal,#0f766e);--downstream:var(--nendo-tone-violet,#6d28d9);--chain:var(--nendo-tone-amber,#d97706);
+  --tone-grey:var(--nendo-tone-grey,#8b95a7);--tone-blue:var(--nendo-tone-blue,#2563eb);--tone-violet:var(--nendo-tone-violet,#7c3aed);--tone-red:var(--nendo-tone-red,#dc2626);
+  --tone-amber:var(--nendo-tone-amber,#d97706);--tone-green:var(--nendo-tone-green,#15803d);--tone-orange:var(--nendo-tone-orange,#ea580c);--tone-teal:var(--nendo-tone-teal,#0f766e);
   font:14px/1.5 "Segoe UI Variable","Segoe UI",sans-serif}
-:root[data-theme=dark]{color-scheme:dark;--bg:#131a27;--panel:#1d2738;--ink:#edf1fa;--muted:#b2bdd1;--line:#39475e;--accent:#9db8ff;--selected:#2a3d64;--edge:#8598b9;--cycle:#fb923c;--upstream:#5eead4;--downstream:#c4b5fd;
-  --tone-grey:#9aa6ba;--tone-blue:#7ea6ff;--tone-violet:#b49bff;--tone-red:#ff8b8b;--tone-amber:#f0b45e;--tone-green:#6ee7a8}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);height:100vh;display:flex;flex-direction:column;padding:20px;gap:12px}
-header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}h1{font-size:20px;margin:0}p{margin:2px 0;color:var(--muted)}
-.tools{display:flex;gap:6px;flex-wrap:wrap}button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
-button:hover{border-color:var(--accent)}button[aria-pressed=true]{border-color:var(--accent);background:var(--selected)}:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+:root[data-theme=dark]{color-scheme:dark;
+  --bg:var(--nendo-canvas,#131a27);--panel:var(--nendo-surface,#1d2738);--soft:var(--nendo-surface-soft,#172031);--ink:var(--nendo-ink,#edf1fa);--muted:var(--nendo-muted,#b2bdd1);
+  --line:var(--nendo-line,#39475e);--line-strong:var(--nendo-line-strong,#4d5d78);--accent:var(--nendo-cobalt,#9db8ff);--selected:var(--nendo-cobalt-soft,#2a3d64);
+  --edge:#8598b9;--cycle:var(--nendo-tone-orange,#fb923c);--upstream:var(--nendo-tone-teal,#5eead4);--downstream:var(--nendo-tone-violet,#c4b5fd);--chain:var(--nendo-tone-amber,#f0b45e);
+  --tone-grey:var(--nendo-tone-grey,#9aa6ba);--tone-blue:var(--nendo-tone-blue,#7ea6ff);--tone-violet:var(--nendo-tone-violet,#b49bff);--tone-red:var(--nendo-tone-red,#ff8b8b);
+  --tone-amber:var(--nendo-tone-amber,#f0b45e);--tone-green:var(--nendo-tone-green,#6ee7a8);--tone-orange:var(--nendo-tone-orange,#fdba74);--tone-teal:var(--nendo-tone-teal,#5eead4)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);height:100vh;display:flex;flex-direction:column;padding:18px 20px;gap:10px}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px 16px;flex-wrap:wrap}
+.heading{min-width:0}h1{font-size:20px;margin:0}p{margin:2px 0;color:var(--muted)}
+.tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+button,select,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px}
+button{padding:6px 11px;cursor:pointer}button:hover,select:hover{border-color:var(--accent)}
+button[aria-pressed=true],button[aria-expanded=true]{border-color:var(--accent);background:var(--selected)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+input[type=search]{width:150px;padding:6px 10px}input[type=search]::placeholder{color:var(--muted)}
+.select{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}.select select{padding:6px 8px;max-width:170px}
+.zoom{display:inline-flex}.zoom button{border-radius:0;margin-left:-1px}.zoom button:first-child{border-radius:8px 0 0 8px;margin-left:0}.zoom button:last-child{border-radius:0 8px 8px 0}
+#filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.filters-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+#status-chips{display:flex;gap:6px;flex-wrap:wrap;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border:1px solid var(--line);border-radius:999px;color:var(--ink);cursor:pointer;font-size:13px}
+.chip:has(input:not(:checked)){color:var(--muted);border-style:dashed}.chip input{margin:0;accent-color:var(--accent)}
 .hint{font-size:12px}main{flex:1;min-height:140px;display:flex}
-#canvas{position:relative;min-height:140px;width:100%;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:var(--panel);touch-action:none}
+#canvas{position:relative;min-height:140px;width:100%;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:var(--panel);touch-action:none;cursor:grab}
+#canvas:active{cursor:grabbing}
 svg{display:block;width:100%;height:100%}
-.edge{stroke:var(--edge);stroke-width:1.7;fill:none;marker-end:url(#arrow)}
+.edge{stroke:var(--edge);stroke-width:1.7;fill:none;marker-end:url(#arrow);stroke-linejoin:round;stroke-linecap:round}
 .edge.cycle{stroke:var(--cycle);stroke-dasharray:6 4;marker-end:url(#arrow-cycle)}
-marker#arrow path{fill:var(--edge)}marker#arrow-cycle path{fill:var(--cycle)}
-.edge.related{stroke:var(--accent);stroke-width:2.6}
-.node rect{fill:var(--panel);stroke:var(--line);stroke-width:1.5}
-.node text{fill:var(--ink);font-size:13px;pointer-events:none}
-.node .status{font-size:11px;fill:var(--muted)}
+marker#arrow path{fill:var(--edge)}marker#arrow-cycle path{fill:var(--cycle)}marker#arrow-strong path{fill:var(--accent)}
+.edge.related{stroke:var(--accent);stroke-width:2.6;marker-end:url(#arrow-strong)}
+.group-box{fill:var(--soft);stroke:var(--line);stroke-width:1.2}
+.group.shelf .group-box{fill:none;stroke-dasharray:5 5}
+.group-title{font:600 12px "Segoe UI Variable","Segoe UI",sans-serif;fill:var(--muted);letter-spacing:.02em}
+.shelf-title{font:600 12px "Segoe UI Variable","Segoe UI",sans-serif;fill:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.node rect{fill:var(--panel);stroke:var(--line-strong);stroke-width:1.4}
+.node.unlinked rect{stroke:var(--line);stroke-dasharray:4 3}
+.node text{fill:var(--ink);pointer-events:none}
+.node .label{font:600 13px "Segoe UI Variable","Segoe UI",sans-serif}
+.node .status,.node .cycle-mark{font-size:11px;fill:var(--muted)}.node .cycle-mark{fill:var(--cycle);font-weight:600}
 .node .tone{stroke-width:0}
 .node{cursor:pointer}
 .node.selected rect{fill:var(--selected);stroke:var(--accent);stroke-width:3}
 .node:focus rect{stroke:var(--accent);stroke-width:3}
 .node.upstream rect{stroke:var(--upstream);stroke-width:2.4}
 .node.downstream rect{stroke:var(--downstream);stroke-width:2.4}
-/* Focus mode answers one question -- what is connected to this -- by taking everything else out of the way. */
+.node.match rect{stroke:var(--accent);stroke-width:2.6}
+/* Focus, Find and Longest chain each answer one question by taking everything else out of the way. */
 #drawing.focused .node.faded,#drawing.focused .edge.faded{opacity:.14}
-.tone-grey{fill:var(--tone-grey)}.tone-blue{fill:var(--tone-blue)}.tone-violet{fill:var(--tone-violet)}.tone-red{fill:var(--tone-red)}.tone-amber{fill:var(--tone-amber)}.tone-green{fill:var(--tone-green)}
+#drawing.searching .node:not(.match){opacity:.22}
+#drawing.chaining .node:not(.chain),#drawing.chaining .edge:not(.chain){opacity:.18}
+#drawing.chaining .node.chain rect{stroke:var(--chain);stroke-width:3}
+#drawing.chaining .edge.chain{stroke:var(--chain);stroke-width:3;stroke-dasharray:none}
+.tone-grey{fill:var(--tone-grey)}.tone-blue{fill:var(--tone-blue)}.tone-violet{fill:var(--tone-violet)}.tone-red{fill:var(--tone-red)}
+.tone-amber{fill:var(--tone-amber)}.tone-green{fill:var(--tone-green)}.tone-orange{fill:var(--tone-orange)}.tone-teal{fill:var(--tone-teal)}
 #empty{position:absolute;inset:40% 20px auto;text-align:center}
 #text-view{overflow:auto;width:100%;border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:16px}
 #records{list-style:none;margin:0;padding:0}#records>li{padding:12px 0;border-bottom:1px solid var(--line)}#records>li:last-child{border:0}#records p{margin:6px 0 0}
 #records button[aria-pressed=true]{border-color:var(--accent);background:var(--selected)}
 footer{min-height:24px;color:var(--muted);overflow-wrap:anywhere}
 [hidden]{display:none!important}
-@media(max-width:560px){body{padding:12px}.hint{display:none}h1{font-size:18px}.tools button{padding:6px 9px}}
+@media(max-width:640px){body{padding:12px;gap:8px}.hint{display:none}h1{font-size:18px}.tools button{padding:5px 8px}input[type=search]{width:112px}.select span{display:none}.select select{max-width:120px}}
 /* Chrome is not prose: dragging across it must pan or select items, never select text. The text alternative stays selectable. */
-header,.tools,.hint,footer,#canvas,#summary,#empty{user-select:none}#text-view{user-select:text}
+header,.tools,.hint,footer,#canvas,#summary,#empty,#filters{user-select:none}#text-view{user-select:text}

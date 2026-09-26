@@ -2,12 +2,30 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Work dependencies</title><link rel="stylesheet" href="view.css"></head>
 <body>
-<header><div><h1>Work dependencies</h1><p id="summary" role="status">Waiting for your records…</p></div>
-<div class="tools" aria-label="Dependency controls"><button id="zoom-out" aria-label="Zoom out">−</button><button id="reset">Fit</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="focus-toggle" aria-pressed="false">Focus</button><button id="text-toggle" aria-expanded="false" aria-controls="text-view">Text view</button></div></header>
-<p class="hint">An arrow points from the item that blocks to the item it blocks. Select one to see what it waits on and what waits on it, and to open it in Nendo; Focus dims everything unconnected.</p>
-<main><div id="canvas" tabindex="0" aria-label="Work dependencies, laid out left to right. Arrow keys pan. Plus and minus zoom. Tab moves through work items."><svg id="graph" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Work items and what blocks them"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker><marker id="arrow-cycle" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs><g id="drawing"></g></svg><p id="empty" hidden>Nothing is linked yet. Add a dependency record in Nendo naming what blocks what, and it appears here.</p></div>
-<section id="text-view" aria-label="Dependencies as text" hidden><ul id="records"></ul></section></main>
+<header>
+<div class="heading"><h1>Work dependencies</h1><p id="summary" role="status">Waiting for your records…</p></div>
+<div class="tools" aria-label="Dependency controls">
+<input id="find" type="search" placeholder="Find…" aria-label="Find a work item" autocomplete="off" spellcheck="false">
+<label class="select"><span>Group</span><select id="group-by" aria-label="Group by"><option value="">None</option></select></label>
+<button id="filter-toggle" type="button" aria-expanded="false" aria-controls="filters">Filter</button>
+<button id="linked-toggle" type="button" aria-pressed="false">Linked only</button>
+<button id="chain-toggle" type="button" aria-pressed="false">Longest chain</button>
+<button id="focus-toggle" type="button" aria-pressed="false">Focus</button>
+<span class="zoom"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><button id="reset" type="button">Fit</button><button id="zoom-in" type="button" aria-label="Zoom in">+</button></span>
+<button id="text-toggle" type="button" aria-expanded="false" aria-controls="text-view">Text view</button>
+</div>
+</header>
+<section id="filters" aria-label="Which work items to show" hidden><span class="filters-label">Show</span><span id="status-chips"></span></section>
+<p class="hint">An arrow points from the item that blocks to the item it blocks, laid out left to right in the order the work has to happen. Select an item to see what it waits on and what waits on it, and to open it in Nendo. Items linked to nothing wait on a shelf below.</p>
+<main>
+<div id="canvas" tabindex="0" aria-label="Work dependencies, laid out left to right. Arrow keys pan. Plus and minus zoom. Tab moves through work items.">
+<svg id="graph" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Work items and what blocks them"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker><marker id="arrow-cycle" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker><marker id="arrow-strong" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs><g id="drawing"><g id="groups"></g><g id="edges"></g><g id="nodes"></g></g></svg>
+<p id="empty" hidden>There are no work items here yet.</p>
+</div>
+<section id="text-view" aria-label="Dependencies as text" hidden><ul id="records"></ul></section>
+</main>
 <footer id="selection" aria-live="polite">No work item selected</footer>
 <script src="/_nendo/api.js"></script>
+<script src="vendor/elkjs/elk-api.js"></script>
 <script src="view.js"></script>
 </body></html>
