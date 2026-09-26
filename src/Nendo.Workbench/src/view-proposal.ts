@@ -1,7 +1,7 @@
 import { refreshAfterOutcome, showOutcomeRefreshNotice } from './actions';
 import { state } from './app-state';
 import { client } from './client';
-import { escapeHtml, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel } from './format';
+import { escapeHtml, isProposalPreviewable, messageFor, proposalAuthorLine, proposalStateLabel, reversibilityLabel } from './format';
 import { type ApplicationPlan, type DesktopPromotionView, type OverviewPlan, type ProposalPreview } from './host';
 import { packageChangesMarkup } from './package-diff-markup';
 import { announce, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
@@ -18,7 +18,7 @@ export function renderProposal(): void {
   const preview = state.proposal!;
   const plan = preview.previewApplications?.[0] ?? null;
   content.innerHTML = `<div class="proposal-page" data-testid="proposal-review">
-    <header class="proposal-heading"><button id="close-proposal" class="text-button" type="button" data-dismiss>Back</button><span class="proposal-state">${escapeHtml(proposalStateLabel(preview.state))}</span><h2>${escapeHtml(preview.title)}</h2><p>Your active file is unchanged until you accept.</p></header>
+    <header class="proposal-heading"><button id="close-proposal" class="text-button" type="button" data-dismiss>Back</button><span class="proposal-state">${escapeHtml(proposalStateLabel(preview.state))}</span><h2>${escapeHtml(preview.title)}</h2><p>${escapeHtml(proposalAuthorLine(preview, state.session.extensions?.packages ?? []))}</p></header>
     <div class="message-slot" role="alert" hidden></div>
     <div class="proposal-layout">
       <section class="proposal-changes"><h3>What changes</h3>${preview.semanticDiff.map((entry) => `<article><span class="change-mark" aria-hidden="true">＋</span><div><strong>${escapeHtml(entry.summary)}</strong><p>${escapeHtml(reversibilityLabel(entry.reversibility))}</p></div></article>`).join('')}${packageChangesMarkup(preview.packageChanges)}</section>
@@ -63,7 +63,9 @@ export async function promoteProposal(): Promise<void> {
     // A proposal that only brings code goes back to where it began: Use, where its view now
     // runs, or Studio's Custom views panel.
     const codeOnly = !state.proposal.previewApplications?.length && (state.proposal.packageChanges?.length ?? 0) > 0;
-    state.view = state.proposal.previewApplications?.length ? 'use' : codeOnly ? state.proposalReturnView : 'data';
+    // A view's own proposal goes back to the view, which is still running there (ADR-0013 Phase 3).
+    const fromView = state.proposal.origin?.startsWith('extension:') === true;
+    state.view = fromView || codeOnly ? state.proposalReturnView : state.proposal.previewApplications?.length ? 'use' : 'data';
     // A view the Add view form made lands the person on it, or names where it is (W-062).
     const landed = landAddedView(state.proposal.proposalId);
     state.proposal = null;

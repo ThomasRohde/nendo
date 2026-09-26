@@ -34,6 +34,7 @@ internal static partial class WorkbenchMethods
     internal static readonly IReadOnlySet<string> ExtensionWriterMethods = new HashSet<string>(StringComparer.Ordinal)
     {
         DataCreateRecord, DataSetFields, DataDeleteRecord, DataExecuteCommand,
+        ProposalPrepareChangeSet, ProposalGet,
     };
 }
 

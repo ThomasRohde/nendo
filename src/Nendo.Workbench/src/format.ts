@@ -190,3 +190,15 @@ export function reviewKindLabel(kind: string): string {
     default: return kind;
   }
 }
+
+/**
+ * The sentence under a proposal's title. A proposal a custom view prepared names the view's
+ * package (ADR-0013 Phase 3), so the person knows who is asking before reading what.
+ */
+export function proposalAuthorLine(preview: { origin?: string }, packages: ReadonlyArray<{ packageId: string; title: string }>): string {
+  const prefix = 'extension:';
+  if (typeof preview.origin !== 'string' || !preview.origin.startsWith(prefix)) return 'Your active file is unchanged until you accept.';
+  const packageId = preview.origin.slice(prefix.length);
+  const title = packages.find((pkg) => pkg.packageId === packageId)?.title;
+  return `Prepared by the custom view ${title === undefined ? packageId : `${title} (${packageId})`}. Nothing changes until you accept.`;
+}

@@ -34,8 +34,9 @@ changes as they happen. It can ask Nendo to open a record, a screen or Studio, s
 a sentence, and size its own panel.
 
 **Not yet.** A view writes records and runs record commands (see
-[Changing records](#changing-records)). Preparing proposals and keeping state in the
-file arrive with the rest of Phase 3. A view as a screen of its own (`extensionView`)
+[Changing records](#changing-records)) and proposes changes to the app (see
+[Proposing a change](#proposing-a-change)). Keeping state in the file arrives with
+the rest of Phase 3. A view as a screen of its own (`extensionView`)
 or a tile on the front page (`extensionTile`) arrives with Phase 5.
 
 A view can never reach the Workbench's own page, the host bridge, SQL, a file path,
@@ -418,6 +419,36 @@ await nendo.records.delete(added);
   file open read-only refuses every write with `read-only`.
 - Record commands are the ones `schema.describe` lists under `commands`, by `id`.
 
+### Proposing a change
+
+A view can ask for a change to the app itself, such as a field it needs or a new
+screen, and the person decides. It sends canonical operations, the same ones an agent
+sends (`nendo://application/vocabulary` lists them), and Nendo opens its ordinary
+review at once, saying which view asked.
+
+```js
+const asked = await nendo.proposals.prepare('Add a due date', [{
+  operationType: 'schema.addField',
+  payload: { entityId: 'tasks', fieldId: 'due', displayName: 'Due', storageKind: 'date',
+    required: false, presentation: 'date', options: [] },
+}]);
+// asked: { proposalId, title, state: 'previewable', diagnostics: [], opened: true }
+const later = await nendo.proposals.get(asked.proposalId);   // 'active' once accepted
+```
+
+- Your view keeps running while the review is open, and the person comes back to it.
+  Follow the outcome with `proposals.get`, or listen to `changes`: an accepted
+  proposal commits like any other change.
+- A proposal the file cannot take comes back `invalid`, with `diagnostics` that say
+  why, and the review shows them too.
+- One proposal of your package waits at a time. Asking again while one waits is
+  refused with `proposal-waiting`, and the message names it; `proposals.open(id)`
+  opens it again.
+- You cannot accept or reject. That is the person's.
+- `opened` is false when Nendo could not open the review then, because another
+  action was running or a record page held unsaved typing. Call `proposals.open`
+  later.
+
 To fit a panel to its content, measure the content, not the document, which is
 always at least as tall as the frame:
 
@@ -446,6 +477,8 @@ A refused call rejects with a `nendo.NendoError`. Its `code` is stable, and its
 | `views-off` | Custom views were turned off |
 | `read-only` | The file is open read-only, so nothing may change it |
 | `record-version-conflict` | The record changed since you read it. Read it again |
+| `proposal-waiting` | A proposal your package prepared still waits for the person |
+| `proposal-not-found` | Your package did not prepare that proposal in this session |
 | `disconnected` | Nendo reconnected the view while the request waited. Send it again |
 | `not-framed` | The page was opened on its own, not in Nendo |
 | `stale-cursor`, `invalid-cursor` | The file changed between pages, or the cursor belongs to another query. Read again from the first page |

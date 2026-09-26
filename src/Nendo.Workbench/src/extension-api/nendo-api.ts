@@ -272,6 +272,7 @@ function install(host: Window & { nendo?: unknown }): void {
   type RecordAt = { entityId: string; recordId: string; version: number };
   /** Field values to write: null, text, true or false, a number, or { $nendoNumber: '…' } for exact digits. */
   type WriteValues = Record<string, string | number | boolean | null | { $nendoNumber: string }>;
+  type ProposalAnswer = { proposalId: string; title: string; state: string; diagnostics: Array<{ code: string; message: string; severity: string }>; opened?: boolean };
 
   const nendo = Object.freeze({
     apiVersion,
@@ -309,6 +310,18 @@ function install(host: Window & { nendo?: unknown }): void {
       /** Runs a record command the file defines (schema.describe lists them), on the record at the version given. */
       run: (commandId: string, record: RecordAt): Promise<ViewRecord | null> =>
         call<ViewRecord | null>('commands.run', { commandId, entityId: record.entityId, recordId: record.recordId, version: record.version }),
+    }),
+    proposals: Object.freeze({
+      /**
+       * Prepares a definition change in this view's package's name and opens it in Nendo's review
+       * (ADR-0013 Phase 3). The person accepts or rejects it; a view never can. One proposal of a
+       * package waits at a time. Answers { proposalId, title, state, diagnostics, opened }.
+       */
+      prepare: (title: string, operations: unknown[]): Promise<ProposalAnswer> => call<ProposalAnswer>('proposals.prepare', { title, operations }),
+      /** A proposal this package prepared: its state is previewable, active, rejected, stale, invalid or failed. */
+      get: (proposalId: string): Promise<ProposalAnswer> => call<ProposalAnswer>('proposals.get', { proposalId }),
+      /** Opens the review of a proposal this package prepared again. */
+      open: (proposalId: string): Promise<ProposalAnswer> => call<ProposalAnswer>('proposals.open', { proposalId }),
     }),
     changes: Object.freeze({
       /** Hears the file's change sequence each time anything commits, at most four times a second. */

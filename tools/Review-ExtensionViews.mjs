@@ -410,6 +410,40 @@ try {
   assert((await installGate()).manifest.changeSequence === sequenceBefore, 'Developing from a folder wrote to the file.');
   check(`G20 probe A developed from a folder runs its code under a Development strip the view cannot cover, a save there reached the view in ${report.measurements.developmentReloadMs} ms, and Stop developing restores the file's code`);
 
+  // G21 (W-069, ADR-0013 Phase 3): a view prepares a proposal in its package's name. It opens in
+  // the ordinary review, which names the package; the view has no way to accept it; the person
+  // accepts, and History attributes the change to the package.
+  await click('#nav-use'); await idle();
+  await click('[data-select-surface="probe"]'); await idle();
+  const proposer = await waitFor(async () => (await frames()).find(f => f.view === 'probe' && f.state === 'running'), 'the probe screen running to propose', 30000);
+  const proposerFrame = await frameSession(proposer.name);
+  await waitFor(() => inFrame(proposerFrame, 'probe.state.ready'), 'the probe handshake to propose');
+  const asked = await inFrame(proposerFrame, `(async () => {
+    window.keptThroughReview = 'kept';
+    const answer = await nendo.proposals.prepare('Add a due date from the view', [{ operationType: 'schema.addField',
+      payload: { entityId: 'tasks', fieldId: 'viewDue', displayName: 'Due from the view', storageKind: 'date', required: false, presentation: 'date', options: [] } }]);
+    return { answer, cannot: ['proposals.promote', 'proposals.reject', 'proposal.promote'].filter(name => nendo.has(name)) };
+  })()`, 30000);
+  assert(asked.answer.state === 'previewable' && asked.answer.opened === true && asked.cannot.length === 0,
+    'The view could not prepare and open a proposal, or was offered a way to decide it: ' + JSON.stringify(asked));
+  const heading = await waitFor(() => evaluate(`document.querySelector('.proposal-heading p')?.textContent ?? null`), 'the review of the view’s proposal');
+  assert(heading === 'Prepared by the custom view Probe A (org.nendo.test.probe-a). Nothing changes until you accept.',
+    'The review does not name the view that asked: ' + JSON.stringify(heading));
+  await waitFor(() => evaluate(`document.querySelector('#accept-proposal')?.disabled === false`), 'the view’s proposal, ready to accept', 30000);
+  await click('#accept-proposal'); await idle();
+  // The view that asked was held through its review: the person is back on its screen, and it
+  // is the same document, which reads its proposal as accepted.
+  const back = await waitFor(async () => (await frames()).find(f => f.view === 'probe' && f.state === 'running'), 'the proposing view, back after acceptance', 30000);
+  const backFrame = await frameSession(back.name);
+  const after = await inFrame(backFrame, `(async () => ({ kept: window.keptThroughReview ?? null,
+    state: (await nendo.proposals.get(${JSON.stringify(asked.answer.proposalId)})).state }))()`, 30000);
+  assert(back.name === proposer.name && after.kept === 'kept' && after.state === 'active',
+    'The view that asked did not run on through its review, or does not read it as accepted: ' + JSON.stringify({ before: proposer.name, after: back.name, ...after }));
+  const proposedBy = (await gate('history.query', { limit: 5 })).items.find(item => item.description === 'Add a due date from the view');
+  assert(proposedBy?.origin === 'extension:org.nendo.test.probe-a',
+    'History does not name the view’s package on the change it proposed: ' + JSON.stringify(proposedBy));
+  check('G21 a view prepares a proposal in its package’s name, the review names the package, the view cannot accept it, it runs on through the review and reads it as accepted, and History attributes the change to the package');
+
   console.log('extension views ok');
 } catch (error) {
   report.error = error.stack ?? String(error);

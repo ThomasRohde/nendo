@@ -59,6 +59,12 @@ public sealed record NendoProposalPreview(
     public IReadOnlyList<NendoApplicationPlan> PreviewApplications { get; init; } = [];
 
     /// <summary>
+    /// Who prepared the proposal: <c>workbench</c>, an agent, or <c>extension:‹package›</c>
+    /// for a custom view (ADR-0013 Phase 3). The review names a view's package from it.
+    /// </summary>
+    public string Origin { get; init; } = "";
+
+    /// <summary>
     /// The front page the clone compiles, when it has one. Separate from the
     /// application plans for the reason it is separate everywhere else: it belongs
     /// to the file rather than to a record type.

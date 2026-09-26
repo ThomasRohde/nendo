@@ -749,6 +749,11 @@ vocabulary, the examples and the resources — and not from the person.
   and a file of 5 MiB. Read the file afterwards to confirm that nothing reached it.
   Then define a view whose package the file does not carry, which is allowed, and
   record what validation said about it and what the screen shows.
+- Author a view that asks for a field it needs through `nendo.proposals.prepare`. Ask
+  the person to use it, and record what the review said about who asked, whether the
+  view was still there afterwards, and what History names as the change's author. Then
+  have the view ask twice without an answer in between, and record the refusal. Try to
+  find any way for the view to accept its own proposal.
 - Ask the person to develop the package from its folder: Studio → Surfaces → Custom
   views, **Develop from folder…**. Change the view's page in the folder and ask them what
   the view shows and how long it took. Record what told them the view was not running

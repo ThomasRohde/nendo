@@ -473,6 +473,11 @@ public sealed partial class NendoApplicationService
         };
     }
 
+    /// <summary>Every proposal this session holds, whoever prepared it.</summary>
+    public Task<IReadOnlyList<NendoProposalPreview>> ListProposalsAsync(
+        CancellationToken cancellationToken = default) =>
+        _coordinator.ListProposalsAsync(cancellationToken);
+
     public Task<NendoProposalPreview> GetProposalAsync(
         string proposalId,
         CancellationToken cancellationToken = default) =>

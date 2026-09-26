@@ -107,6 +107,6 @@ A file that carries a package needs file capability 1.33.0 or later, and a view 
 
 ## Not yet
 
-- A view creates, changes and deletes records and runs commands, as its package, but it cannot yet propose a change or keep its own state in the file.
+- A view creates, changes and deletes records, runs commands and proposes changes for you to review, as its package, but it cannot yet keep its own state in the file.
 - A view as a screen of its own, and a view as a tile on the front page, are not built.
 - Packages are not signed. There is no marketplace, download or update channel: packages move inside files and as folders.

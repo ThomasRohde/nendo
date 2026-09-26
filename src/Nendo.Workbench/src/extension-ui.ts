@@ -2,11 +2,11 @@ import { openWorkspaceView, refreshDerived } from './actions';
 import { focusedRecords, leaveRecordContext, selectedSurfaces, state, surfaceErrors } from './app-state';
 import { refuseWhileDirty } from './draft-guard';
 import { messageFor } from './format';
-import { WorkbenchHostError } from './host';
+import { WorkbenchHostError, type ProposalPreview } from './host';
 import { applicationPlans, overviewPlan } from './plan-selection';
 import { loadFocusedRecord } from './reads';
 import { loadOpenedRecordPanels } from './related-actions';
-import { rerender, setBusy, showError, showOutcome } from './shell';
+import { announce, rerender, setBusy, showError, showOutcome } from './shell';
 import { useSurfaces } from './surface-model';
 import { renderDataRecordDialog } from './view-data';
 
@@ -22,6 +22,26 @@ function refuseNow(action: string): void {
     throw new WorkbenchHostError('busy', 'Nendo is finishing something else. Ask again in a moment.');
   if (refuseWhileDirty(action))
     throw new WorkbenchHostError('not-allowed', 'A record page has unsaved changes, so Nendo stays where it is until they are saved or closed.');
+}
+
+/**
+ * Open a proposal the view's package prepared in Studio's review (ADR-0013 Phase 3). Back
+ * returns to where the person was. It does not open over unsaved typing or another action;
+ * the proposal then waits, and the view can open it again.
+ */
+export function openProposalFromView(preview: ProposalPreview): { opened: boolean } {
+  try {
+    refuseNow('opening a proposal from a custom view');
+  } catch {
+    return { opened: false };
+  }
+  if (state.view !== 'proposal') state.proposalReturnView = state.view;
+  state.proposal = preview;
+  state.agentProposal = null;
+  state.view = 'proposal';
+  rerender();
+  announce('A custom view prepared a proposal to review.');
+  return { opened: true };
 }
 
 /**

@@ -36,6 +36,12 @@ export interface BrokerUi {
   toast(mount: BrokerMount, text: string): void;
   /** Sets the mount's height and answers the height it now has. */
   setHeight(mount: BrokerMount, pixels: number): number;
+  /**
+   * Opens a proposal the view's package prepared in the Workbench's own review (ADR-0013
+   * Phase 3). Answers whether it opened: it does not while a record page holds unsaved typing
+   * or another action runs, and the proposal then waits for the view to ask again.
+   */
+  openProposal(mount: BrokerMount, preview: unknown): { opened: boolean };
 }
 
 export interface BrokerDeps {
@@ -187,6 +193,51 @@ function write(host: string, payload: (params: Params) => Params & { entityId: s
   };
 }
 
+/** The states a proposal is in, as the host numbers them, in the words a view reads. */
+const proposalStates = ['draft', 'validating', 'invalid', 'previewable', 'applying', 'active', 'stale', 'failed', 'rejected'];
+
+/** What a view reads of a proposal: its identity, its state and why it is invalid, if it is. */
+function plainProposal(result: unknown): Params {
+  const preview = (result ?? {}) as { proposalId?: unknown; title?: unknown; state?: unknown; diagnostics?: unknown };
+  const state = typeof preview.state === 'number' ? proposalStates[preview.state] ?? 'unknown'
+    : typeof preview.state === 'string' ? preview.state.charAt(0).toLowerCase() + preview.state.slice(1) : 'unknown';
+  const diagnostics = Array.isArray(preview.diagnostics) ? preview.diagnostics.slice(0, 32).map((item) => {
+    const diagnostic = item as { code?: unknown; message?: unknown; severity?: unknown };
+    return { code: String(diagnostic.code ?? ''), message: String(diagnostic.message ?? ''), severity: String(diagnostic.severity ?? '') };
+  }) : [];
+  return { proposalId: String(preview.proposalId ?? ''), title: String(preview.title ?? ''), state, diagnostics };
+}
+
+/**
+ * The canonical operations a view proposes, each rebuilt: an operation type, its payload as a
+ * JSON object, and an operation ID the view chose or one made for it. The host validates the
+ * payload exactly as it validates the Workbench's own proposals.
+ */
+function operationsParam(params: Params): Params[] {
+  const value = params.operations;
+  if (!Array.isArray(value) || value.length === 0 || value.length > 128) throw invalid('operations must be a list of 1 to 128 canonical operations.');
+  return value.map((item, index) => {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) throw invalid(`operations[${index}] must be an object.`);
+    const operation = item as Params;
+    const operationType = textParam(operation, 'operationType', 64);
+    const payload = operation.payload;
+    if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) throw invalid(`operations[${index}].payload must be a JSON object.`);
+    const operationId = optionalText(operation, 'operationId', 120) ?? `view-op-${crypto.randomUUID().replaceAll('-', '')}`;
+    return { operationId, operationType, payload: plainJson(payload) as Params };
+  });
+}
+
+/** A proposal ID in the form the host requires. */
+function newProposalId(): string {
+  return `proposal-${crypto.randomUUID().replaceAll('-', '')}`;
+}
+
+/** A proposal of the view's package, opened in the review; the answer says whether it opened. */
+function openedProposal(call: MethodCall, preview: unknown): Params {
+  const { opened } = call.deps.ui.openProposal(call.mount, preview);
+  return { ...plainProposal(preview), opened };
+}
+
 /** A record ID a view may choose, or one made for it. */
 function newRecordId(params: Params): string {
   return optionalText(params, 'recordId', 120) ?? `record-${crypto.randomUUID().replaceAll('-', '')}`;
@@ -197,8 +248,9 @@ function newRecordId(params: Params): string {
  * becomes.
  *
  * Reads, and since Phase 3 the four record writes a person's own edit uses: create, update,
- * delete and run a record command (W-065). Nothing here prepares, promotes, rejects or
- * approves a proposal; nothing opens, closes or copies a file, and nothing touches a
+ * delete and run a record command (W-065), and preparing and reading the package's own
+ * proposals (W-069). Nothing here promotes, rejects or approves a proposal; nothing opens,
+ * closes or copies a file, and nothing touches a
  * session, an agent, behaviour approval, compensation or the appearance. Each write takes
  * its actor from the mount, never from the view's parameters. The production gate and
  * scripts/extension-broker.test.mjs pin this table.
@@ -240,6 +292,37 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
   'commands.run': write('data.executeCommand', (p) => ({
     commandId: textParam(p, 'commandId'), entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p),
   })),
+  // A view prepares a definition change in its package's name and the person decides it in
+  // the ordinary review (ADR-0013 Phase 3, W-069). Nothing here promotes or rejects: the host
+  // admits the actor on proposal.prepareChangeSet and proposal.get alone, answers another
+  // origin's proposal as not found, and lets one proposal per package wait at a time.
+  'proposals.prepare': {
+    host: 'proposal.prepareChangeSet',
+    writes: true,
+    run: async (call) => {
+      const context = call.deps.context(call.mount);
+      if (context.readOnly) throw new WorkbenchHostError('read-only', 'This file is open read-only, so a view cannot propose a change to it.');
+      const title = textParam(call.params, 'title', 200);
+      const operations = operationsParam(call.params);
+      const preview = await call.deps.request('proposal.prepareChangeSet', {
+        proposalId: newProposalId(), title, actor: `extension:${context.packageId}`,
+        mutations: [{ idempotencyKey: `view-${crypto.randomUUID()}`, description: title, operations }],
+      });
+      return openedProposal(call, preview);
+    },
+  },
+  'proposals.get': {
+    host: 'proposal.get',
+    run: async ({ params, mount, deps }) => plainProposal(await deps.request('proposal.get', {
+      proposalId: textParam(params, 'proposalId', 64), actor: `extension:${deps.context(mount).packageId}`,
+    })),
+  },
+  'proposals.open': {
+    host: 'proposal.get',
+    run: async (call) => openedProposal(call, await call.deps.request('proposal.get', {
+      proposalId: textParam(call.params, 'proposalId', 64), actor: `extension:${call.deps.context(call.mount).packageId}`,
+    })),
+  },
   'ui.openRecord': local(({ mount, params, deps }) =>
     deps.ui.openRecord(mount, { entityId: textParam(params, 'entityId'), recordId: textParam(params, 'recordId') })),
   'ui.openScreen': local(({ mount, params, deps }) => deps.ui.openScreen(mount, { surfaceId: textParam(params, 'surfaceId') })),

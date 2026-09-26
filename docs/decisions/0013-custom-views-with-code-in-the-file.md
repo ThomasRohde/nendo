@@ -273,6 +273,73 @@ about 4.3 MB, so 32 MiB is the smallest power of two that holds.
 - `nendo.apiVersion` and `nendo.has(name)` version the API. Adding a method costs a
   line in the contract's History. It needs no ADR change and no rung.
 
+### Proposals and state (the rest of Phase 3)
+
+A view that writes records (delivered with W-065) still cannot shape the app or keep
+anything of its own with the file. Two more things finish Phase 3.
+
+**Proposals.** A view prepares a definition change; the person reads and decides.
+
+- `nendo.proposals.prepare({title, operations})` prepares the change through the
+  same path as the Workbench's own `proposal.prepareChangeSet`: the same canonical
+  operations, the same validation, the same diagnostics. The broker sends it with
+  the frame's actor, and the host admits the actor on `proposal.prepareChangeSet`
+  and on `proposal.get`, which join the four record writes in the actor's table.
+- The proposal's origin, and each mutation's, is `extension:‹package›`. The preview
+  carries that origin, and the review says, above the changes, "Prepared by the
+  custom view ‹title› (‹package›). Nothing changes until you accept." When the
+  person accepts, History attributes the change to the package, as it does a view's
+  record write, and the person's acceptance is the promotion.
+- Preparing opens the ordinary review at once, in the Workbench, over the view. The
+  view does not choose when the person is interrupted; it chooses only to ask.
+- `nendo.proposals.get(id)` follows the proposal: its state (`previewable`,
+  `active` once accepted, `rejected`, `stale`, `invalid`, `failed`) and its
+  diagnostics. `nendo.proposals.open(id)` opens its review again. The view learns the
+  outcome from `get`, or from the `changes` event that an acceptance causes.
+- A view can read only proposals its own package prepared. Another origin's
+  proposal answers `not-found`, so a view cannot watch an agent's or a person's work.
+- One waiting proposal per package: while a proposal the package prepared is still
+  `previewable`, another `prepare` is refused with `proposal-waiting`, naming it.
+  Every prepared proposal validates against a copy of the file, so a view that asked
+  in a loop would fill the disk; this bound also keeps the person from being asked
+  twice at once.
+- Never `proposal.promote` or `proposal.reject`: the broker's table has neither, the
+  host refuses the actor on both, and the production gate pins it. A proposal that
+  puts code into a package reviews like any other, code diff and fixed sentence
+  included, so a view can propose its own next version and the person reads it.
+
+**State.** `nendo.state` keeps small JSON values with the file.
+
+- `nendo.state.get(key)`, `nendo.state.set(key, value, {expectedVersion})`,
+  `nendo.state.remove(key)` and `nendo.state.keys()`. Each value is scoped to the
+  view that set it (its view definition's node ID); `{scope: 'package'}` shares one
+  across the package's views, stored with the view `''`.
+- A write is the canonical `extension.setState` operation, already declared: the
+  Data lane and **Reversible**, because the retained previous value is the inverse.
+  A removal is a set to null, which deletes the row. History names the package as
+  its author and describes it as "Keep ‹key› for the view ‹title›", and
+  compensation restores the value before.
+- Each row has a version, as a record does. `expectedVersion` makes a write
+  conditional, and a stale one is refused with `state-version-conflict` without a
+  change. Without it, the last write wins.
+- Bounds: a key of 1 to 128 characters; a value of at most 64 KiB of JSON; at most
+  256 keys per view and 1 MiB of state per package. `api.js` coalesces writes to the
+  same key and sends at most 2 a second per frame, so a view that stores a scroll
+  position on every frame costs two History rows a second, not sixty.
+- A state write changes no record, so it triggers no automatic action. It passes the
+  same gates as a record write all the same: views on, the file writable, and this
+  device's behaviour approval where the file has actions. It raises the `changes`
+  event like any other commit, so another frame of the package can read it again.
+- **No rung.** The table was created with the package tables at 1.33.0, and a view
+  can write state only for a package the file carries. A file with state opens on
+  any host that opens a file with packages.
+- It travels with the file: a copy carries it, and Export does not, because state is
+  the file's, not the package's. Removing a package keeps its rows, so compensating
+  the removal gives the package its state back; a package imported again under the
+  same ID reads them.
+- MCP neither reads nor writes view state. It is the view's, and an agent works
+  through the records and the definition.
+
 ### The browser is open
 
 A view origin may use the network, loopback included; runtime 153 has no
@@ -597,3 +664,8 @@ falsified once, and has the failure text quoted in its planner Check.
   package, serving from the folder, reload on save, a banner the view cannot hide, and
   Save to file as Import's proposal (W-063). Written before any code, on the owner's
   standing pre-acceptance.
+- 2026-09-26 — the rest of Phase 3 detailed: a view prepares a proposal that opens in
+  the ordinary review naming the package, one waiting per package, and never promotes
+  or rejects; `nendo.state` through `extension.setState`, per view or per package,
+  versioned, bounded and attributed, with no rung (W-069). Written before any code,
+  on the owner's standing pre-acceptance.

@@ -14,8 +14,8 @@ ran views before 2026-09-25 is deleted. The [History](#history) says what it was
 
 Not yet delivered:
 
-- a view that prepares proposals or keeps state in the file (the rest of Phase 3;
-  writing records and running commands are delivered, 2026-09-26);
+- a view that keeps state in the file (the last of Phase 3; writing records, running
+  commands and preparing proposals are delivered, 2026-09-26);
 - the `extensionView` root and the `extensionTile` (Phase 5).
 
 Nothing in this contract describes them as available.
@@ -464,8 +464,9 @@ A request without a safe-integer `id` is dropped without an answer.
 ### The method table
 
 The broker has a closed method table. Each method becomes one of the Workbench's
-own typed reads, one of the four record writes a person's edit uses, or something
-the Workbench does for the person. Parameters are
+own typed reads, one of the four record writes a person's edit uses, preparing or
+reading a proposal of the view's own package, or something the Workbench does for the
+person. Parameters are
 rebuilt key by key: nothing else a view sends reaches the host, and nothing a view
 sends is used as a method name, a host payload or an identity.
 `scripts/extension-broker.test.mjs`, which the production gate runs with the
@@ -485,6 +486,9 @@ Workbench suite, pins the table name by name.
 | `records.update` | `entityId`, `recordId`, `version`, `values` | `data.setFields` | The record as it now stands |
 | `records.delete` | `entityId`, `recordId`, `version` | `data.deleteRecord` | null |
 | `commands.run` | `commandId`, `entityId`, `recordId`, `version` | `data.executeCommand` | The record as it now stands |
+| `proposals.prepare` | `title` (1–200 characters), `operations` (1–128 canonical operations) | `proposal.prepareChangeSet`, then the Workbench's review | `{proposalId, title, state, diagnostics, opened}` |
+| `proposals.get` | `proposalId` | `proposal.get`, for the package's own proposals | `{proposalId, title, state, diagnostics}` |
+| `proposals.open` | `proposalId` | `proposal.get`, then the Workbench's review | `{proposalId, title, state, diagnostics, opened}` |
 | `ui.openRecord` | `entityId`, `recordId` | Workbench navigation | `{opened}` |
 | `ui.openScreen` | `surfaceId` | Workbench navigation | `{opened}` |
 | `ui.openStudio` | `entityId` (optional) | Workbench navigation | `{opened}` |
@@ -533,6 +537,42 @@ commands, through the same typed operations and version checks as a person's edi
 - A file open read-only refuses a view's writes with `read-only` before the host is
   asked. A file with automatic actions still needs this device's behaviour approval
   before any write, a view's included.
+
+### Proposals
+
+Since 2026-09-26 (ADR-0013 Phase 3, W-069) a view prepares a definition change in its
+package's name, and the person decides it in the ordinary review.
+
+- **Operations.** `operations` is a list of canonical operations,
+  `{operationType, payload, operationId}`, the same vocabulary the Workbench's own
+  proposals and MCP use (`nendo://application/vocabulary`). `operationId` is optional;
+  the broker makes one. The broker makes the proposal ID and the idempotency key, and
+  sends the whole list as one mutation titled like the proposal. The host validates it
+  exactly as it validates the Workbench's own, diagnostics included.
+- **The origin is the package.** The host admits the actor on
+  `proposal.prepareChangeSet` and `proposal.get` as well as the record writes. The
+  proposal and its mutation carry `extension:‹package›` as their origin, the preview
+  says so in `origin`, and History attributes the accepted change to the package.
+- **The review opens at once**, over the screen the view is on, and says "Prepared by
+  the custom view ‹title› (‹package›). Nothing changes until you accept." The view
+  that asked stays running, parked, while the review is open, and the person comes
+  back to it after accepting or rejecting. `opened` is false when the review could not
+  open (another action was running, or a record page held unsaved typing): the
+  proposal waits, and `proposals.open` opens it later.
+- **State** is `previewable`, `invalid`, `stale`, `active` once accepted, `rejected`,
+  or `failed`. The host remembers what each view prepared in this file session, so a
+  view reads an accepted or rejected proposal's outcome after the Engine has let it go:
+  accepted when the file holds its receipt, rejected otherwise.
+- **One waiting per package.** While a proposal the package prepared is
+  `previewable`, another `proposals.prepare` is refused with `proposal-waiting`,
+  naming it. A person's own proposals and other packages' are not counted.
+- **Only its own.** `proposals.get` and `proposals.open` answer `proposal-not-found`
+  for any proposal the package did not prepare in this session.
+- **Never decided by a view.** Promoting and rejecting are the person's (or an agent's
+  at Unattended). The host refuses the actor on `proposal.promote` and
+  `proposal.reject` with `actor-not-allowed`.
+- A file open read-only refuses `proposals.prepare` with `read-only` before the host is
+  asked.
 
 The table holds none of `proposal.promote`, `proposal.reject`, `behaviour.*`,
 `agent.*`, `file.*`, `session.open*`, `appearance.set` or `history.compensate`, and
@@ -1208,3 +1248,7 @@ passed. Each guard below was falsified, seen to fail and then restored:
   reload on every save, the Development strip, and Save to file as Import's proposal.
   `extension.develop.link`, `.stop` and `.save`, and the
   `extensionDevelopmentChanged` event (W-063).
+- 2026-09-26 — Phase 3 continues: `proposals.prepare`, `proposals.get` and
+  `proposals.open`. A view's proposal carries its package as its origin, opens in the
+  review naming the package, and one waits per package. The host admits the actor on
+  `proposal.prepareChangeSet` and `proposal.get` (W-069).

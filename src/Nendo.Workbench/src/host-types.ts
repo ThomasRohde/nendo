@@ -475,6 +475,8 @@ export interface SemanticDiffEntry {
 
 export interface ProposalPreview {
   previewRecordCounts?: Record<string, number>;
+  /** Who prepared it: workbench, an agent, or extension:‹package› for a custom view (ADR-0013 Phase 3). */
+  origin?: string;
   proposalId: string;
   title: string;
   state: string | number;

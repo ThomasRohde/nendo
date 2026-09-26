@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/format.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {activityLabel,agentModeLabel,canCompensate,capitalise,choiceDisplay,cssToken,escapeAttribute,escapeHtml,fieldName,isAgentAccessMode,isProposalPreviewable,laneLabel,messageFor,mutationKey,operationLabel,presentationLabel,proposalStateLabel,reversibilityLabel,reviewKindLabel,sameValue,shortId,stringValue,storageLabel,valueDisplay} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
+const {proposalAuthorLine,activityLabel,agentModeLabel,canCompensate,capitalise,choiceDisplay,cssToken,escapeAttribute,escapeHtml,fieldName,isAgentAccessMode,isProposalPreviewable,laneLabel,messageFor,mutationKey,operationLabel,presentationLabel,proposalStateLabel,reversibilityLabel,reviewKindLabel,sameValue,shortId,stringValue,storageLabel,valueDisplay} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
 const plan={entity:{fields:[{semanticId:'name',displayName:'Name'}],derivedFields:[{semanticId:'total',displayName:'Total'}]}};
 const revision=(revisionId,canRequestCompensation=true)=>({revisionId,canRequestCompensation,compensationOfRevisionId:null});
@@ -141,4 +141,12 @@ test('every mutation carries a distinct idempotency key',()=>{
  const first=mutationKey();
  assert.match(first,/^studio-[0-9a-f-]{36}$/);
  assert.notEqual(first,mutationKey());
+});
+
+test('a proposal a custom view prepared says which package is asking; any other keeps the plain sentence',()=>{
+ const packages=[{packageId:'org.example.glance',title:'Glance'}];
+ assert.equal(proposalAuthorLine({origin:'extension:org.example.glance'},packages),'Prepared by the custom view Glance (org.example.glance). Nothing changes until you accept.');
+ assert.equal(proposalAuthorLine({origin:'extension:org.example.gone'},packages),'Prepared by the custom view org.example.gone. Nothing changes until you accept.');
+ assert.equal(proposalAuthorLine({origin:'workbench'},packages),'Your active file is unchanged until you accept.');
+ assert.equal(proposalAuthorLine({},packages),'Your active file is unchanged until you accept.');
 });

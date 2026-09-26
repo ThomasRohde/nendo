@@ -3,7 +3,8 @@ import { client } from './client';
 import { brokerMethodNames, createExtensionBroker, type BrokerMount, type ExtensionBroker } from './extension-broker';
 import { describeSchema, viewContext, viewTheme, type ViewSpec } from './extension-model';
 import type { ViewTheme } from './extension-api/protocol';
-import { openRecordFromView, openScreenFromView, openStudioFromView, toastFromView } from './extension-ui';
+import { openProposalFromView, openRecordFromView, openScreenFromView, openStudioFromView, toastFromView } from './extension-ui';
+import type { ProposalPreview } from './host';
 import { content, root } from './shell';
 import {
   defaultPanelHeight, frameAttributes, frameName, frameSource, mountKey, newMountId, viewNotice, viewNoticeMarkup,
@@ -50,6 +51,12 @@ const mounts = new Map<string, Mount>();
 const byPlaceholder = new WeakMap<Element, Mount>();
 let generation = 0;
 let parking: HTMLElement | null = null;
+/**
+ * Views that opened a review of their own proposal (ADR-0013 Phase 3). The review replaces the
+ * screen the view is on, so without this the view would end before it heard its answer; held,
+ * it waits parked and carries on where it was when the person comes back.
+ */
+const heldForReview = new Set<string>();
 let broker: ExtensionBroker | null = null;
 let observer: IntersectionObserver | null = null;
 let ticker: number | null = null;
@@ -86,6 +93,13 @@ export function installViewFrames(): void {
       openStudio: (_mount, target) => openStudioFromView(target.entityId),
       toast: (mount, text) => toastFromView((mount as Mount).spec.title, text),
       setHeight: (mount, pixels) => setHeight(mount as Mount, pixels),
+      openProposal: (mount, preview) => {
+        const key = (mount as Mount).key;
+        heldForReview.add(key);
+        const answer = openProposalFromView(preview as ProposalPreview);
+        if (!answer.opened) heldForReview.delete(key);
+        return answer;
+      },
     },
     responsive: (mount, responsive) => {
       const view = mount as Mount;
@@ -158,7 +172,12 @@ export function parkViewFrames(): void {
 
 /** After a redraw: a frame no placeholder adopted belongs to a view that is no longer on screen. */
 export function releaseViewFrames(): void {
-  for (const mount of [...mounts.values()]) if (mount.seen !== generation) dispose(mount);
+  const reviewing = state.view === 'proposal';
+  for (const mount of [...mounts.values()]) {
+    if (mount.seen === generation || (reviewing && heldForReview.has(mount.key))) continue;
+    dispose(mount);
+  }
+  if (!reviewing) heldForReview.clear();
 }
 
 function dispose(mount: Mount): void {

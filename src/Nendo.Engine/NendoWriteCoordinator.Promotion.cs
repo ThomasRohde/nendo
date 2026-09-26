@@ -23,6 +23,23 @@ public sealed partial class NendoWriteCoordinator
         }
     }
 
+    /// <summary>Every proposal this session holds, in no particular order.</summary>
+    internal async Task<IReadOnlyList<NendoProposalPreview>> ListProposalsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed || _replacementRetired, this);
+            RequireTrustedSession();
+            return _proposals.Values.Select(context => context.ToPreview()).ToArray();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     internal async Task<NendoPromotionOutcome> RejectProposalAsync(
         string proposalId,
         CancellationToken cancellationToken = default)

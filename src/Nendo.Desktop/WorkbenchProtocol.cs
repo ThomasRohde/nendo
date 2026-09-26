@@ -359,8 +359,8 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.CompensationGetReceipt => await _session.GetMutationReceiptAsync(RequiredString(payload, "idempotencyKey", 200), true, cancellationToken),
                     WorkbenchMethods.ProposalGetReceipt => await _session.GetProposalReceiptAsync(RequiredString(payload, "proposalId", 80), cancellationToken),
                     WorkbenchMethods.SemanticCompile => await _session.CompileSemanticUiAsync(cancellationToken),
-                    WorkbenchMethods.ProposalPrepareChangeSet => await PrepareChangeSetAsync(payload, cancellationToken),
-                    WorkbenchMethods.ProposalGet => await GetProposalAsync(payload, cancellationToken),
+                    WorkbenchMethods.ProposalPrepareChangeSet => await PrepareChangeSetAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.ProposalGet => await GetProposalAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.ProposalPromote => await PromoteProposalAsync(payload, cancellationToken),
                     WorkbenchMethods.ProposalReject => await RejectProposalAsync(payload, cancellationToken),
                     WorkbenchMethods.HistoryGet => await _session.GetHistoryAsync(cancellationToken),
@@ -565,33 +565,44 @@ internal sealed partial class WorkbenchProtocolHandler
             writer);
     }
 
+    /// <summary>
+    /// A proposal the person prepares, or, with a view's actor (ADR-0013 Phase 3), one a
+    /// custom view prepares in its package's name: the origin of the proposal and of each
+    /// mutation is then the actor, and a package has at most one waiting at a time.
+    /// </summary>
     private async Task<NendoProposalPreview> PrepareChangeSetAsync(
         JsonElement payload,
+        string? writer,
         CancellationToken cancellationToken)
     {
         var request = Deserialize<PrepareChangeSetPayload>(payload);
+        var origin = writer ?? "workbench";
         var changeSet = new NendoCanonicalChangeSetRequest(request.Mutations.Select(mutation =>
             new NendoCanonicalMutationRequest(
                 "desktop.p2.5",
                 mutation.IdempotencyKey,
-                "workbench",
+                origin,
                 mutation.Description,
                 mutation.Operations)).ToArray());
-        return await _session.PrepareProposalAsync(
-            new NendoCanonicalProposalRequest(
-                request.ProposalId,
-                request.Title,
-                "workbench",
-                changeSet),
-            cancellationToken);
+        var proposal = new NendoCanonicalProposalRequest(request.ProposalId, request.Title, origin, changeSet);
+        return writer is null
+            ? await _session.PrepareProposalAsync(proposal, cancellationToken)
+            : await _session.PrepareExtensionProposalAsync(proposal, cancellationToken);
     }
 
-    private async Task<NendoProposalPreview> GetProposalAsync(
+    /// <summary>
+    /// A proposal and its state. A view reads only its own package's proposals: any other
+    /// answers as a proposal that does not exist, so a view cannot watch anyone else's work.
+    /// </summary>
+    private async Task<object> GetProposalAsync(
         JsonElement payload,
+        string? writer,
         CancellationToken cancellationToken)
     {
         var request = Deserialize<ProposalIdPayload>(payload);
-        return await _session.GetProposalAsync(request.ProposalId, cancellationToken);
+        return writer is null
+            ? await _session.GetProposalAsync(request.ProposalId, cancellationToken)
+            : await _session.GetExtensionProposalAsync(request.ProposalId, writer, cancellationToken);
     }
 
     private async Task<DesktopPromotionView> PromoteProposalAsync(

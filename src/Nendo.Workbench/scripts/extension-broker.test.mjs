@@ -24,7 +24,7 @@ function harness() {
   const frameWindow = { postMessage: (message, targetOrigin, transfer) => posted.push({ message, targetOrigin, transfer }) };
   const otherWindow = { postMessage: () => { throw new Error('A window this Workbench did not mount was answered.'); } };
   const mount = { key: 'mount-1', origin, frameWindow: () => frameWindow };
-  const h = { posted, frameWindow, otherWindow, mount, calls: [], pending: [], timers: [], toasts: [], responsive: [], now: 0, running: true, heights: [] };
+  const h = { posted, frameWindow, otherWindow, mount, calls: [], pending: [], timers: [], toasts: [], responsive: [], now: 0, running: true, heights: [], opened: [], canOpen: true };
   h.broker = broker.createExtensionBroker({
     request: (method, payload) => {
       h.calls.push({ method, payload });
@@ -40,6 +40,7 @@ function harness() {
       openStudio: async () => ({ opened: true }),
       toast: (_mount, text) => h.toasts.push(text),
       setHeight: (_mount, pixels) => { h.heights.push(pixels); return pixels; },
+      openProposal: (_mount, preview) => { h.opened.push(preview); return { opened: h.canOpen }; },
     },
     responsive: (_mount, responsive) => h.responsive.push(responsive),
     now: () => h.now,
@@ -79,12 +80,14 @@ function close(h) {
   for (const { transfer } of h.posted) for (const port of transfer ?? []) port.close();
 }
 
-const readMethods = ['data.queryRecords', 'data.countRecords', 'data.aggregateRecords', 'data.groupAggregateRecords', 'data.bucketAggregateRecords', 'data.cellAggregateRecords'];
-// The record writes a person's own edit uses, and nothing else (ADR-0013 Phase 3, W-065). The
-// host admits a view's actor on exactly these (WorkbenchMethods.ExtensionWriterMethods).
-const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.executeCommand'];
+// proposal.get reads a proposal the view's own package prepared, and nothing else.
+const readMethods = ['data.queryRecords', 'data.countRecords', 'data.aggregateRecords', 'data.groupAggregateRecords', 'data.bucketAggregateRecords', 'data.cellAggregateRecords', 'proposal.get'];
+// The record writes a person's own edit uses, and preparing a proposal (ADR-0013 Phase 3,
+// W-065 and W-069). The host admits a view's actor on exactly these and on proposal.get
+// (WorkbenchMethods.ExtensionWriterMethods). Never promote or reject.
+const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.executeCommand', 'proposal.prepareChangeSet'];
 
-test('the method table is closed: reads, the four record writes, and no promote, approve, file, session or agent method', () => {
+test('the method table is closed: reads, the record writes, preparing a proposal, and no promote, reject, approve, file, session or agent method', () => {
   const expected = [
     ['schema.describe', null],
     ['records.query', 'data.queryRecords'],
@@ -98,6 +101,9 @@ test('the method table is closed: reads, the four record writes, and no promote,
     ['records.update', 'data.setFields'],
     ['records.delete', 'data.deleteRecord'],
     ['commands.run', 'data.executeCommand'],
+    ['proposals.prepare', 'proposal.prepareChangeSet'],
+    ['proposals.get', 'proposal.get'],
+    ['proposals.open', 'proposal.get'],
     ['ui.openRecord', null],
     ['ui.openScreen', null],
     ['ui.openStudio', null],
@@ -168,6 +174,60 @@ test('a write goes to the host as the mount\u2019s package, never as anything th
   assert.equal(h.calls[5].method, 'data.executeCommand');
   assert.equal(h.calls[5].payload.commandId, 'page.done');
   assert.equal(h.calls[5].payload.expectedRecordVersion, 1);
+});
+
+test('a view prepares a proposal as its package, which opens in the review; it reads only its own, and cannot promote or reject', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  const operation = { operationType: 'schema.addField', payload: { entityId: 'tasks', fieldId: 'due' } };
+  view.send({ t: 'req', id: 1, m: 'proposals.prepare', p: {
+    title: 'Add a due date', operations: [operation], actor: 'extension:someone-else', proposalId: 'proposal-chosen-by-the-view',
+  } });
+  await until(() => h.calls.length === 1, 'the prepared proposal');
+  const { method, payload } = h.calls[0];
+  assert.equal(method, 'proposal.prepareChangeSet');
+  assert.equal(payload.actor, 'extension:org.example.glance', 'The proposal was not prepared in the name of the mount\u2019s package.');
+  assert.match(payload.proposalId, /^proposal-[0-9a-f]{32}$/, 'The view chose its own proposal ID.');
+  assert.equal(payload.title, 'Add a due date');
+  assert.equal(payload.mutations.length, 1);
+  assert.match(payload.mutations[0].idempotencyKey, /^view-[0-9a-f-]{36}$/);
+  assert.match(payload.mutations[0].operations[0].operationId, /^view-op-[0-9a-f]{32}$/);
+  assert.deepEqual({ ...payload.mutations[0].operations[0], operationId: undefined }, { ...operation, operationId: undefined });
+  const preview = { proposalId: payload.proposalId, title: 'Add a due date', state: 3, diagnostics: [], origin: 'extension:org.example.glance', semanticDiff: [{ summary: 'x' }] };
+  h.pending[0].resolve(preview);
+  const answered = await view.next((message) => message.id === 1);
+  assert.deepEqual(answered.r, { proposalId: payload.proposalId, title: 'Add a due date', state: 'previewable', diagnostics: [], opened: true });
+  assert.deepEqual(h.opened, [preview], 'The prepared proposal did not open in the review.');
+
+  view.send({ t: 'req', id: 2, m: 'proposals.get', p: { proposalId: payload.proposalId, actor: 'extension:someone-else' } });
+  await until(() => h.calls.length === 2, 'the proposal read');
+  assert.deepEqual(h.calls[1], { method: 'proposal.get', payload: { proposalId: payload.proposalId, actor: 'extension:org.example.glance' } });
+  h.pending[1].resolve({ ...preview, state: 'Active' });
+  assert.equal((await view.next((message) => message.id === 2)).r.state, 'active');
+
+  h.canOpen = false;
+  view.send({ t: 'req', id: 3, m: 'proposals.open', p: { proposalId: payload.proposalId } });
+  await until(() => h.calls.length === 3, 'the proposal read for open');
+  h.pending[2].resolve(preview);
+  assert.equal((await view.next((message) => message.id === 3)).r.opened, false, 'A refused open was reported as opened.');
+
+  for (const [id, name] of [[4, 'proposals.promote'], [5, 'proposals.reject'], [6, 'proposal.promote']]) {
+    view.send({ t: 'req', id, m: name, p: { proposalId: payload.proposalId } });
+    const refused = await view.next((message) => message.id === id);
+    assert.equal(refused.ok, false, `${name} was answered.`);
+  }
+  await settle();
+  assert.equal(h.calls.length, 3, 'A promote or reject reached the host.');
+
+  h.context = { ...context, readOnly: true };
+  view.send({ t: 'req', id: 7, m: 'proposals.prepare', p: { title: 'x', operations: [operation] } });
+  assert.equal((await view.next((message) => message.id === 7)).e.code, 'read-only');
+  h.context = context;
+  view.send({ t: 'req', id: 8, m: 'proposals.prepare', p: { title: 'x', operations: [] } });
+  assert.equal((await view.next((message) => message.id === 8)).e.code, 'invalid-params');
+  await settle();
+  assert.equal(h.calls.length, 3, 'A refused proposal reached the host.');
 });
 
 test('a write is refused before the host is asked when the file is read-only or the parameters are wrong', async (t) => {

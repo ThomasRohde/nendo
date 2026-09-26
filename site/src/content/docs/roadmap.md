@@ -36,8 +36,8 @@ These items are unfinished now. They are the next work, not new ideas.
 A custom view's code now lives in the `.nendo` file, and a view that is shown runs
 inline in Nendo and reads the file's records. The next steps are, in order:
 
-- views that prepare a proposal for you to review, and keep their own state in the
-  file (they already create, change and delete records and run commands);
+- views that keep their own state in the file (they already change records, run
+  commands and propose changes for you to review);
 - a view as a screen of its own, and as a tile on the front page.
 
 None of these is available yet. What is already true, and what is not measured, is

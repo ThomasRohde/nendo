@@ -76,6 +76,7 @@ internal sealed class ProposalContext(
         SemanticDiff)
     {
         PreviewApplications = PreviewApplications,
+        Origin = Origin,
         PreviewOverview = PreviewOverview,
         PreviewRecordCounts = PreviewRecordCounts,
         PreviewEntities = PreviewEntities,

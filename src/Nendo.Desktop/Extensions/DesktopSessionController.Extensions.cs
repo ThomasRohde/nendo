@@ -83,6 +83,7 @@ internal sealed partial class DesktopSessionController
 
     private void StopExtensionsForFile()
     {
+        lock (_viewProposals) _viewProposals.Clear();
         _extensionServing = ExtensionServing.None;
         StopDevelopment();
     }
@@ -100,6 +101,62 @@ internal sealed partial class DesktopSessionController
             throw new NendoPreconditionException("views-off", "Custom views are off, so a view cannot change this file.");
         if (!serving.Hosts.Values.Any(package => string.Equals(package.PackageId, packageId, StringComparison.Ordinal)))
             throw new NendoPreconditionException("actor-not-allowed", $"This file carries no package {packageId}, so nothing may write in its name.");
+    }
+
+    /// <summary>
+    /// A proposal a custom view prepares (ADR-0013 Phase 3). One per package waits at a time:
+    /// each proposal validates against a copy of the file, so a view asking in a loop would
+    /// fill the disk, and the person is never asked twice at once by one view.
+    /// </summary>
+    internal Task<NendoProposalPreview> PrepareExtensionProposalAsync(
+        NendoCanonicalProposalRequest request,
+        CancellationToken cancellationToken = default) =>
+        QueryAsync(async service =>
+        {
+            var waiting = (await service.ListProposalsAsync(cancellationToken))
+                .FirstOrDefault(proposal => proposal.Origin == request.Origin && proposal.State == NendoProposalState.Previewable);
+            if (waiting is not null)
+                throw new NendoPreconditionException("proposal-waiting",
+                    $"This view's proposal \"{waiting.Title}\" ({waiting.ProposalId}) is still waiting for a person. It can prepare another once that one is accepted or rejected.");
+            var preview = await service.PrepareProposalAsync(request, cancellationToken);
+            lock (_viewProposals)
+            {
+                if (_viewProposals.Count >= MaximumViewProposals) _viewProposals.Remove(_viewProposals.Keys.First());
+                _viewProposals[preview.ProposalId] = new(request.Origin, preview.Title);
+            }
+            return preview;
+        }, cancellationToken);
+
+    /// <summary>The proposals views prepared in this file session, so a view can follow one after it is decided.</summary>
+    private readonly Dictionary<string, (string Origin, string Title)> _viewProposals = new(StringComparer.Ordinal);
+    private const int MaximumViewProposals = 256;
+
+    /// <summary>
+    /// A proposal a view's package prepared, for that view. The Engine lets a decided proposal
+    /// go, so one that is gone answers from the file: committed means accepted (its receipt is
+    /// in the file), anything else was rejected. Another origin's proposal is not found.
+    /// </summary>
+    internal Task<object> GetExtensionProposalAsync(string proposalId, string origin, CancellationToken cancellationToken = default)
+    {
+        (string Origin, string Title) known;
+        lock (_viewProposals)
+        {
+            if (!_viewProposals.TryGetValue(proposalId, out known) || known.Origin != origin)
+                throw new NendoPreconditionException("proposal-not-found", "The proposal is not available in this session.");
+        }
+        return QueryAsync<object>(async service =>
+        {
+            try
+            {
+                return await service.GetProposalAsync(proposalId, cancellationToken);
+            }
+            catch (NendoPreconditionException exception) when (exception.Code == "proposal-not-found")
+            {
+                var receipt = await service.GetProposalReceiptAsync(proposalId, cancellationToken);
+                return new DesktopDecidedProposalView(proposalId, known.Title,
+                    receipt is null ? NendoProposalState.Rejected : NendoProposalState.Active, [], origin);
+            }
+        }, cancellationToken);
     }
 
     /// <summary>The file session a view's frames belong to, so a late failure from a closed file is ignored.</summary>
@@ -305,3 +362,11 @@ internal sealed partial class DesktopSessionController
         }
     }
 }
+
+/// <summary>A proposal a view prepared that has since been accepted or rejected, as the view reads it.</summary>
+internal sealed record DesktopDecidedProposalView(
+    string ProposalId,
+    string Title,
+    NendoProposalState State,
+    IReadOnlyList<NendoCompilerDiagnostic> Diagnostics,
+    string Origin);
