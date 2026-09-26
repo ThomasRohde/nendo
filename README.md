@@ -24,7 +24,7 @@ documentation rendered as a site.
 </p>
 
 <p align="center"><sub>A board an agent authored over MCP, in the running host.
-Captured from the 2026-09-12 review build (0.14.0 is current), with the rest of
+Captured from the 2026-09-12 review build (0.15.0 is current), with the rest of
 that review in <a href="docs/reviews/README.md">docs/reviews/</a>.</sub></p>
 
 The installed host always provides **Nendo Studio**, a high-quality database
