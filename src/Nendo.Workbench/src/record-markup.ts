@@ -404,6 +404,78 @@ export function recordFormMarkup(
   </form>`;
 }
 
+/** What the Studio record page needs beyond the record: the words it shows and where Back goes. */
+export interface RecordSheetText {
+  /** The id and label of the way back. The wiring finds it by `#close-inspector` or `#cancel-create`. */
+  backId: 'close-inspector' | 'cancel-create';
+  backLabel: string;
+  headingId: string;
+  heading: string;
+  submitLabel: string;
+}
+
+/**
+ * A record's own page in Studio, as a sheet and a sidebar (W-071, direction A of the
+ * record details canvas, chosen 2026-09-26).
+ *
+ * It replaces a 640px card that stacked every field in one column in the middle of the
+ * window. The fields are sorted by the room they need rather than by a layout anybody
+ * authored: long text takes the wide main column, and everything that fits on one line
+ * -- a choice, a reference, a date, a number, a calculation -- sits in the side panel,
+ * the way a document's properties do. The record type's first line of text heads the
+ * page. A record type with no long text has nothing to put in a wide column, so its
+ * fields fill the main column two to a row instead and the side panel keeps only the
+ * record's own facts.
+ *
+ * It is one form around the toolbar and both columns, so the save, the delete and the
+ * edit tracking in record-form.ts reach every control exactly as they did.
+ */
+export function recordSheetMarkup(
+  entityName: string,
+  record: RecordPlan | null,
+  fields: FieldPlan[],
+  derived: DerivedFieldPlan[],
+  text: RecordSheetText,
+): string {
+  const live = fields.filter((field) => !field.retired);
+  const heading = live.find((field) => field.presentation !== 'longText' && storageLabel(field.storageKind) === 'Text') ?? null;
+  const long = live.filter((field) => field.presentation === 'longText');
+  const short = live.filter((field) => field !== heading && field.presentation !== 'longText');
+  const retired = fields.filter((field) => field.retired);
+  const shortMarkup = short.map((field) => fieldMarkup(record, field)).join('')
+    + derived.map((field) => derivedFieldMarkup(record, field)).join('')
+    + retired.map((field) => fieldMarkup(record, field)).join('');
+  const hasLong = long.length > 0;
+  const facts = `<section class="record-sheet-facts"><h3>Record</h3><dl>
+      <div><dt>Record type</dt><dd>${escapeHtml(entityName)}</dd></div>
+      <div><dt>Version</dt><dd class="record-sheet-mono">${record === null ? 'Not saved yet' : record.version}</dd></div>
+      ${record === null ? '' : `<div><dt>Record id</dt><dd class="record-sheet-mono" title="${escapeAttribute(record.semanticId)}">${escapeHtml(record.semanticId)}</dd></div>`}
+    </dl></section>`;
+  const canDelete = record !== null && state.session.capabilities.mutate;
+  return `<form id="record-form" class="record-form record-sheet${hasLong ? '' : ' is-compact'}">
+    <div class="record-sheet-bar">
+      <button id="${text.backId}" class="text-button record-sheet-back" type="button" data-dismiss><span aria-hidden="true">‹</span> ${escapeHtml(text.backLabel)}</button>
+      <h2 id="${escapeAttribute(text.headingId)}">${escapeHtml(text.heading)}</h2>
+      <span class="record-sheet-spacer"></span>
+      ${canDelete ? '<button id="delete-record" data-action type="button">Delete record…</button>' : ''}
+      <button class="primary-button" data-action type="submit">${escapeHtml(text.submitLabel)}</button>
+    </div>
+    <div class="record-sheet-body">
+      <div class="record-sheet-main">
+        <div class="message-slot" role="alert" hidden></div>
+        ${heading === null ? '' : `<div class="record-sheet-title">${fieldMarkup(record, heading)}</div>`}
+        ${hasLong
+          ? `<div class="record-sheet-long">${long.map((field) => fieldMarkup(record, field)).join('')}</div>`
+          : `<div class="record-sheet-grid">${shortMarkup}</div>`}
+      </div>
+      <aside class="record-sheet-side" aria-label="Properties">
+        ${hasLong && shortMarkup !== '' ? `<section class="record-sheet-properties"><h3>Properties</h3>${shortMarkup}</section>` : ''}
+        ${facts}
+      </aside>
+    </div>
+  </form>`;
+}
+
 /** The calculated field a node's visibility reads, when it declares one. */
 export function visibilityFieldId(node: SurfaceNodePlan): string | null {
   const value = node.properties.visibleWhen;

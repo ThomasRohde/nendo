@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/record-markup.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {accentDot,commandButtons,fieldControlMarkup,fieldMarkup,fieldValueMarkup,recordCardMarkup,recordFieldDisplay,recordFormMarkup,relatedKey,relatedListEmpty,relatedListMarkup,stepSatisfied,summaryTileGroupMarkup,summaryTileMarkup,treeCommandMarkup} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
+const {accentDot,commandButtons,fieldControlMarkup,fieldMarkup,fieldValueMarkup,recordCardMarkup,recordFieldDisplay,recordFormMarkup,recordSheetMarkup,relatedKey,relatedListEmpty,relatedListMarkup,stepSatisfied,summaryTileGroupMarkup,summaryTileMarkup,treeCommandMarkup} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
 // These are the hooks the runtime journeys click: data-record-id, data-run-command,
 // data-summary, data-related and #record-form. A refactor that drops one of them
@@ -150,6 +150,44 @@ test('the form is one element the wiring can find, and offers Delete only on a s
  // on a required field inside a panel nobody can see.
  assert.match(recordFormMarkup(null,[],'Add',' ',' ',true),/novalidate/);
  assert.ok(!recordFormMarkup(null,[],'Add',' ',' ',false).includes('novalidate'));
+});
+
+test('the record page sorts fields by the room they need (W-071)',()=>{
+ // Direction A of the record details canvas: long text in the wide main column, every
+ // one-line field in the side panel, the first line of text heading the page. Asserted
+ // here because the gate only ever reads one record type's page.
+ const text={backId:'close-inspector',backLabel:'Back to Data',headingId:'record-details-heading',heading:'Deal details',submitLabel:'Save changes'};
+ const fields=[field('name'),stage,field('note','longText'),field('brief','longText')];
+ const sheet=recordSheetMarkup('Deal',record,fields,[],text);
+ const [main,side]=sheet.split('<aside');
+ assert.match(sheet,/^<form id="record-form" class="record-form record-sheet">/);
+ assert.match(sheet,/id="close-inspector"[^>]*data-dismiss/);
+ assert.match(sheet,/<h2 id="record-details-heading">Deal details<\/h2>/);
+ assert.match(main,/class="record-sheet-title">(<div class="scalar-field">)?<label>name<input name="name"/);
+ assert.match(main,/<textarea name="note"/);
+ assert.match(main,/<textarea name="brief"/);
+ assert.ok(!main.includes('name="stage"'),'a choice fits on a line and belongs in the side panel');
+ assert.match(side,/<h3>Properties<\/h3>[\s\S]*<select name="stage"/);
+ assert.ok(!side.includes('<textarea'),'long text never lands in the side panel');
+ assert.match(side,/<dt>Version<\/dt><dd class="record-sheet-mono">3<\/dd>/);
+ assert.match(side,/<dt>Record id<\/dt><dd[^>]*>r1<\/dd>/);
+ // Everything a save reads is still inside the one form.
+ assert.ok(sheet.trimEnd().endsWith('</form>'));
+
+ // With no long text there is nothing wide to show, so the fields fill the main column
+ // and the side panel keeps only the record's own facts.
+ const compact=recordSheetMarkup('Deal',record,[field('name'),stage],[],text);
+ const [compactMain,compactSide]=compact.split('<aside');
+ assert.match(compact,/class="record-form record-sheet is-compact"/);
+ assert.match(compactMain,/class="record-sheet-grid">[\s\S]*name="stage"/);
+ assert.ok(!compactSide.includes('Properties<'),'an empty Properties heading is not drawn');
+
+ // A new record has no version, no id and nothing to delete.
+ const create=recordSheetMarkup('Deal',null,fields,[],{...text,backId:'cancel-create',submitLabel:'Add Deal'});
+ assert.match(create,/id="cancel-create"/);
+ assert.ok(!create.includes('delete-record'));
+ assert.ok(!create.includes('Record id'));
+ assert.match(create,/type="submit">Add Deal</);
 });
 
 test('a retired field is shown with its values but cannot be edited',()=>{

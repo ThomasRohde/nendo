@@ -1,0 +1,174 @@
+/* Studio's record page, as a sheet and a sidebar (W-071).
+   Slice 17 of styles.css; see that file for why the order matters.
+
+   It replaced a 640px card that stacked every field in one column. The markup
+   (recordSheetMarkup in record-markup.ts) sorts the fields: long text into the
+   main column, everything that fits on a line into the side panel. This slice
+   comes last so that it wins over `.record-form`, which the page still is. */
+
+.studio-content > .record-sheet-page {
+  display: flex;
+  min-height: 100%;
+  container-type: inline-size;
+}
+
+.record-form.record-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  min-height: 100%;
+  padding: 0;
+}
+
+/* The page toolbar: the way back, the page's own name, and the two actions. It
+   stays in view while a long record scrolls, so the save is never out of reach. */
+.record-sheet-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 46px;
+  padding: 0 var(--space-4) 0 var(--space-2);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.record-sheet-back { color: var(--muted); }
+
+.record-sheet-bar h2 {
+  min-width: 0;
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--line);
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.93rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.record-sheet-spacer { flex: 1 1 auto; }
+
+.record-sheet-body {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+
+.record-sheet.is-compact .record-sheet-body { grid-template-columns: minmax(0, 1fr) 300px; }
+
+.record-sheet-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+  padding: 28px 44px 40px;
+}
+
+/* A line of text past this width is hard to read back, however wide the window. */
+.record-sheet-main > * { max-width: 1200px; }
+
+/* The record's first line of text heads the page: the size of a title, and still
+   the same labelled input, so its Not set toggle and its validation are unchanged. */
+.record-sheet-title input:not([type="checkbox"]) {
+  min-height: 44px;
+  padding: 4px 10px;
+  color: var(--ink);
+  font-size: 1.6rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+/* Long text two to a row, and an odd one out across the whole row. */
+.record-sheet-long {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.record-sheet-long > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+.record-sheet-long textarea {
+  min-height: 168px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+/* A record type with no long text: its fields fill the main column, two to a row. */
+.record-sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px var(--space-5);
+  align-items: start;
+}
+
+.record-sheet-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+  padding: var(--space-5) 20px 40px;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.record-sheet-side h3 {
+  margin: 0 0 var(--space-3);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.record-sheet-properties { display: grid; gap: 14px; }
+.record-sheet-properties > h3 { margin-bottom: 0; }
+
+.record-sheet-facts {
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+
+.record-sheet-properties:not(:has(+ .record-sheet-facts)),
+.record-sheet-side > .record-sheet-facts:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.record-sheet-facts dl { display: grid; gap: 10px; margin: 0; }
+
+.record-sheet-facts dl > div {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: var(--space-2);
+  font-size: 0.86rem;
+}
+
+.record-sheet-facts dt { color: var(--muted); }
+
+.record-sheet-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.record-sheet-mono { font-family: var(--mono); font-size: 0.8rem; }
+
+/* A narrow window has no room beside the main column, so the side panel follows it. */
+@container (max-width: 860px) {
+  .record-sheet-body,
+  .record-sheet.is-compact .record-sheet-body { grid-template-columns: minmax(0, 1fr); }
+  .record-sheet-main { padding: 20px var(--space-5) 28px; }
+  .record-sheet-long,
+  .record-sheet-grid { grid-template-columns: minmax(0, 1fr); }
+  .record-sheet-side { border-top: 1px solid var(--line); border-left: 0; }
+}

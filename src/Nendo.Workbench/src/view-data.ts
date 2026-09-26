@@ -9,7 +9,7 @@ import { icon } from './icons';
 import { activePlan, currentRecipe, derivedFor, recordsForEntity, sessionEntity, snapshotFieldPlans } from './plan-selection';
 import { wireRecordPager } from './reads';
 import { wireRecordForm } from './record-form';
-import { fieldsMarkup, recordFormMarkup } from './record-markup';
+import { recordSheetMarkup } from './record-markup';
 import { emptyWindowQuery, windowRequest } from './record-window';
 import { ratingMarkup, ratingScaleOf, ratingSteps } from './rating';
 import { exactNumberText, parseScalar } from './scalars';
@@ -219,21 +219,17 @@ export async function applyStudioQuery(entityId: string, query: StudioQuery | nu
 
 export function renderDataCreateDialog(entity: EntitySnapshot): void {
   const fields = snapshotFieldPlans(entity).filter(field => !field.retired);
-  content.innerHTML = `<div class="dialog-page"><section class="record-form-card" aria-labelledby="new-record-heading">
-    <header><button id="cancel-create" class="text-button" type="button" data-dismiss>Back to Data</button><h2 id="new-record-heading">Add ${escapeHtml(entity.displayName)}</h2></header>
-    <div class="message-slot" role="alert" hidden></div>${recordFormMarkup(null, fields, `Add ${entity.displayName}`)}
-  </section></div>`;
+  content.innerHTML = `<div class="record-sheet-page" role="region" aria-labelledby="new-record-heading">${recordSheetMarkup(entity.displayName, null, fields, [],
+    { backId: 'cancel-create', backLabel: 'Back to Data', headingId: 'new-record-heading', heading: `Add ${entity.displayName}`, submitLabel: `Add ${entity.displayName}` })}</div>`;
   wireRecordForm(null, entity.entityId, fields, () => { state.creatingRecord = false; state.view = 'data'; rerender(); });
-  content.querySelector<HTMLInputElement>('#record-form input, #record-form select, #record-form textarea')?.focus();
+  content.querySelector<HTMLInputElement>('#record-form .record-sheet-body :is(input, select, textarea)')?.focus();
 }
 
 export function renderDataRecordDialog(entity: EntitySnapshot, record: RecordPlan): void {
   destroyGrid();
   const fields = snapshotFieldPlans(entity);
-  content.innerHTML = `<div class="dialog-page"><section class="record-form-card" aria-labelledby="record-details-heading">
-    <header><button id="close-inspector" class="text-button" type="button" data-dismiss>Back to Data</button><h2 id="record-details-heading">${escapeHtml(entity.displayName)} details</h2><p>Version ${record.version}</p></header>
-    <div class="message-slot" role="alert" hidden></div>${recordFormMarkup(record, fields, 'Save changes', fieldsMarkup(record, fields, derivedFor(entity)))}
-  </section></div>`;
+  content.innerHTML = `<div class="record-sheet-page" role="region" aria-labelledby="record-details-heading">${recordSheetMarkup(entity.displayName, record, fields, derivedFor(entity),
+    { backId: 'close-inspector', backLabel: 'Back to Data', headingId: 'record-details-heading', heading: `${entity.displayName} details`, submitLabel: 'Save changes' })}</div>`;
   wireRecordForm(record, entity.entityId, fields, () => { state.view = 'data'; rerender(); });
   if (!state.session.capabilities.mutate) {
     for (const control of content.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement>('input, select, textarea, [data-action]')) control.disabled = true;

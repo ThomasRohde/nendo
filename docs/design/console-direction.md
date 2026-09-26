@@ -89,6 +89,30 @@ the same.
 - **Help** has a *Keyboard shortcuts* topic under Getting started, built from the same
   table, so the two cannot disagree.
 
+## Studio's record page
+
+Opening a record in Studio › Data, or adding one, shows a sheet and a sidebar
+(W-071). The owner chose direction A of four on the record details canvas,
+<https://claude.ai/artifact/XbdzM84QT6gsVZCVSppEy8>, on 2026-09-26. It replaced a
+640px card with every field in one column.
+
+- A sticky page toolbar holds Back to Data, the page's name, Delete record… and
+  the primary action.
+- The record type's first line of text heads the page at title size. Long text
+  takes the wide main column, two fields to a row, and an odd one out takes the
+  whole row.
+- Every field that fits on one line goes in a 360px side panel under
+  *Properties*. That covers choices, references, dates, numbers, ratings and
+  calculations. Below it, *Record* lists the record type, version and record id.
+- A record type with no long text fills the main column with its fields, two to
+  a row. The side panel then keeps only *Record*.
+- When the page is narrower than 860px, the side panel moves below the main
+  column. This is a container query on the page, so the rail's width counts.
+
+`recordSheetMarkup` in `record-markup.ts` sorts the fields, and
+`styles/17-record-sheet.css` lays them out. The whole page is one
+`#record-form`, so saving, deleting and the unsaved-edit guard work as before.
+
 ## Split pane
 
 The mockup's record pane beside the list is the existing record inspector

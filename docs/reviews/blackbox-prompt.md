@@ -541,6 +541,9 @@ problem, named the thing it was refusing, and offered a remedy you could act on:
 
 Ask the person to look at the app and tell you, in their words:
 
+- Open a record in Studio › Data. Ask them where they would change its status and where
+  they would read its longest text, without pointing at either. Ask what the panel on
+  the right is for. Then make the window narrow and ask whether anything went missing.
 - Do the calculated fields read correctly in both Studio and the Use view, and is it clear
   which fields nobody can type into? Open the record from a list or board in the Use view
   — Studio's editor always shows every stored field, whatever the screens say.
