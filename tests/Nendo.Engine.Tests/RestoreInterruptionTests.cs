@@ -45,13 +45,13 @@ public sealed class RestoreInterruptionTests
         await source.CreateBackupAsync(copyPlan.PlanId);
         await service.SetIdeaTitleAsync("idea-1", 1, "Current state before restore", "edit");
         await source.DisposeAsync();
-        var originalBytes = await File.ReadAllBytesAsync(workspace.FilePath);
-        var backupBytes = await File.ReadAllBytesAsync(backup);
+        var originalBytes = await ObservedFile.ReadAllBytesAsync(workspace.FilePath);
+        var backupBytes = await ObservedFile.ReadAllBytesAsync(backup);
         using (var child = StartChild(workspace.FilePath, "Restore", backup, checkpoint))
         {
             try
             {
-                var signal = await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20));
+                var signal = await child.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line");
                 if (signal != $"CHECKPOINT {checkpoint}")
                     Assert.Fail($"Child missed the named seam: {signal}; {await child.StandardError.ReadToEndAsync().WaitAsync(TimeSpan.FromSeconds(5))}");
                 Assert.IsFalse(child.HasExited);
@@ -69,12 +69,12 @@ public sealed class RestoreInterruptionTests
         }
         await AssertExitedWriterReleasedAsync(workspace.FilePath);
         var paths = Directory.GetFiles(folder).Order(StringComparer.Ordinal).ToArray();
-        var hashes = paths.Select(path => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path)))).ToArray();
+        var hashes = paths.Select(path => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(ObservedFile.ReadAllBytes(path)))).ToArray();
         using (var reader = StartChild(workspace.FilePath, "InspectRecovery"))
         {
             try
             {
-                var json = await reader.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20));
+                var json = await reader.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line");
                 await reader.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(0, reader.ExitCode, await reader.StandardError.ReadToEndAsync());
                 var recovery = JsonSerializer.Deserialize<NendoReplacementRecovery>(json!);
@@ -85,7 +85,7 @@ public sealed class RestoreInterruptionTests
                 Assert.AreEqual(stagedState, recovery.Staged!.State);
                 Assert.AreEqual("verifiedOriginal", recovery.PreChangeBackup!.State);
                 var originalPath = activeState == "verifiedOriginal" ? workspace.FilePath : Path.Combine(folder, recovery.Retained.FileName);
-                CollectionAssert.AreEqual(originalBytes, await File.ReadAllBytesAsync(originalPath));
+                CollectionAssert.AreEqual(originalBytes, await ObservedFile.ReadAllBytesAsync(originalPath));
             }
             finally
             {
@@ -97,8 +97,8 @@ public sealed class RestoreInterruptionTests
             }
         }
         CollectionAssert.AreEqual(paths, Directory.GetFiles(folder).Order(StringComparer.Ordinal).ToArray());
-        CollectionAssert.AreEqual(hashes, paths.Select(path => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path)))).ToArray());
-        CollectionAssert.AreEqual(backupBytes, await File.ReadAllBytesAsync(backup));
+        CollectionAssert.AreEqual(hashes, paths.Select(path => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(ObservedFile.ReadAllBytes(path)))).ToArray());
+        CollectionAssert.AreEqual(backupBytes, await ObservedFile.ReadAllBytesAsync(backup));
         if (File.Exists(workspace.FilePath))
             await Assert.ThrowsExactlyAsync<NendoFileOpenException>(() => NendoWriteCoordinator.OpenAsync(workspace.FilePath, "no-silent-resume"));
         // A separate fresh process may resolve only after an explicit choice.
@@ -107,7 +107,7 @@ public sealed class RestoreInterruptionTests
             activeState == "missing" ? "UseStagedReplacement" : "KeepActive");
         try
         {
-            var resultJson = await resolver.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            var resultJson = await resolver.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line");
             await resolver.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
             Assert.AreEqual(0, resolver.ExitCode, await resolver.StandardError.ReadToEndAsync());
             Assert.IsNotNull(JsonSerializer.Deserialize<NendoReplacementResolutionResult>(resultJson!));
@@ -118,7 +118,7 @@ public sealed class RestoreInterruptionTests
         }
         await using var resolved = await workspace.OpenAsync();
         Assert.AreEqual(NendoSessionHealth.Normal, resolved.Health);
-        CollectionAssert.AreEqual(backupBytes, await File.ReadAllBytesAsync(backup));
+        CollectionAssert.AreEqual(backupBytes, await ObservedFile.ReadAllBytesAsync(backup));
     }
 
     [TestMethod]

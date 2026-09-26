@@ -266,7 +266,11 @@ public sealed class ProtocolResourceTests
             TransportMode = HttpTransportMode.StreamableHttp,
             ConnectionTimeout = TimeSpan.FromSeconds(5),
         });
-        return await McpClient.CreateAsync(
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        McpClient client;
+        try
+        {
+            client = await McpClient.CreateAsync(
             transport,
             new McpClientOptions
             {
@@ -278,6 +282,24 @@ public sealed class ProtocolResourceTests
                 ProtocolVersion = "2026-07-28",
                 InitializationTimeout = TimeSpan.FromSeconds(10),
             });
+        }
+        catch (McpException error)
+        {
+            // A lost handshake reports itself as a version mismatch. Say how long it took and
+            // what this process's thread pool was doing, which is what tells the two apart.
+            throw new McpException($"{error.Message} [after {elapsed.ElapsedMilliseconds} ms; {PoolState()}]", error);
+        }
+        if (elapsed.Elapsed > TimeSpan.FromSeconds(1)) Console.WriteLine($"HANDSHAKE {elapsed.ElapsedMilliseconds} ms; {PoolState()}");
+        return client;
+    }
+
+    private static string PoolState()
+    {
+        ThreadPool.GetAvailableThreads(out var workers, out _);
+        ThreadPool.GetMaxThreads(out var maxWorkers, out _);
+        ThreadPool.GetMinThreads(out var minWorkers, out _);
+        return $"thread pool {ThreadPool.ThreadCount} threads (min {minWorkers}, busy {maxWorkers - workers}), " +
+            $"{ThreadPool.PendingWorkItemCount} queued, {Environment.ProcessorCount} processors";
     }
 
     internal static async Task<string> ReadTextAsync(McpClient client, string uri)

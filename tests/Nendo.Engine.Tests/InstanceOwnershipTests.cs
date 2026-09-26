@@ -16,7 +16,7 @@ public sealed class InstanceOwnershipTests
         var copyPath = Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, "raw-copy.nendo");
         var backup = await first.PrepareBackupAsync(copyPath, "raw-copy");
         await first.CreateBackupAsync(backup.PlanId);
-        var before = await File.ReadAllBytesAsync(copyPath);
+        var before = await ObservedFile.ReadAllBytesAsync(copyPath);
         var error = await Assert.ThrowsExactlyAsync<NendoWriteOwnershipException>(() => NendoWriteCoordinator.OpenAsync(copyPath, "second"));
         Assert.AreEqual("instance-in-use", error.Code);
         Assert.IsFalse(File.Exists(copyPath + ".write-owner"));
@@ -24,7 +24,7 @@ public sealed class InstanceOwnershipTests
         Assert.AreEqual(NendoProposalState.Previewable, (await service.GetProposalAsync(proposal.ProposalId)).State);
         await using (var reader = await NendoWriteCoordinator.OpenReadOnlyAsync(copyPath))
             Assert.IsFalse(reader.Capabilities.Mutate);
-        CollectionAssert.AreEqual(before, await File.ReadAllBytesAsync(copyPath));
+        CollectionAssert.AreEqual(before, await ObservedFile.ReadAllBytesAsync(copyPath));
         await Task.Run(async () => await first.DisposeAsync());
         workspace.Forget(first);
         await using var afterClose = await NendoWriteCoordinator.OpenAsync(copyPath, "after-close");
@@ -42,11 +42,11 @@ public sealed class InstanceOwnershipTests
         workspace.Forget(initial);
         var copyPath = Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, "raw-copy.nendo");
         File.Copy(workspace.FilePath, copyPath);
-        var sourceBytes = await File.ReadAllBytesAsync(workspace.FilePath);
+        var sourceBytes = await ObservedFile.ReadAllBytesAsync(workspace.FilePath);
         using var child = StartChild(workspace.FilePath);
         try
         {
-            var ready = await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            var ready = await child.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line");
             if (ready != "OWNED")
                 Assert.Fail($"Child did not open the fixture: {ready}; {await child.StandardError.ReadToEndAsync().WaitAsync(TimeSpan.FromSeconds(5))}");
             Assert.IsFalse(child.HasExited);
@@ -62,7 +62,7 @@ public sealed class InstanceOwnershipTests
             await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
             if (!abrupt) Assert.AreEqual(0, child.ExitCode);
             await RestoreInterruptionTests.AssertExitedWriterReleasedAsync(workspace.FilePath);
-            CollectionAssert.AreEqual(sourceBytes, await File.ReadAllBytesAsync(workspace.FilePath));
+            CollectionAssert.AreEqual(sourceBytes, await ObservedFile.ReadAllBytesAsync(workspace.FilePath));
             await using var reopened = await NendoWriteCoordinator.OpenAsync(copyPath, "after-child-exit");
             Assert.IsTrue(reopened.Capabilities.Mutate);
         }

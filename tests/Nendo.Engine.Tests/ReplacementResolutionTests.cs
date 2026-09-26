@@ -18,19 +18,19 @@ public sealed class ReplacementResolutionTests
         var folder = Path.GetDirectoryName(workspace.FilePath)!;
         var selected = review.Plan.Options.Single(option => option.Choice == choice);
         var selectedPath = Path.Combine(folder, selected.FileName);
-        var before = Directory.GetFiles(folder).ToDictionary(path => path, File.ReadAllBytes);
+        var before = Directory.GetFiles(folder).ToDictionary(path => path, ObservedFile.ReadAllBytes);
         Assert.DoesNotContain(folder, JsonSerializer.Serialize(review));
         var result = await NendoWriteCoordinator.ResolveReplacementAsync(review, choice);
         Assert.IsNotNull(result.OpenObservation);
         Assert.IsFalse(result.IsIdempotentReplay);
         Assert.IsFalse(File.Exists(FileReplacementReceipt.PendingPath(workspace.FilePath)));
-        CollectionAssert.AreEqual(before[selectedPath], await File.ReadAllBytesAsync(workspace.FilePath));
+        CollectionAssert.AreEqual(before[selectedPath], await ObservedFile.ReadAllBytesAsync(workspace.FilePath));
         foreach (var (path, bytes) in before)
         {
             if (path == FileReplacementReceipt.PendingPath(workspace.FilePath))
-                CollectionAssert.AreEqual(bytes, await File.ReadAllBytesAsync(Path.Combine(folder, result.AcknowledgedReceiptFileName)));
+                CollectionAssert.AreEqual(bytes, await ObservedFile.ReadAllBytesAsync(Path.Combine(folder, result.AcknowledgedReceiptFileName)));
             else if (path != selectedPath)
-                CollectionAssert.AreEqual(bytes, await File.ReadAllBytesAsync(path));
+                CollectionAssert.AreEqual(bytes, await ObservedFile.ReadAllBytesAsync(path));
         }
         var replay = await NendoWriteCoordinator.ResolveReplacementAsync(review, choice);
         Assert.IsTrue(replay.IsIdempotentReplay);
@@ -88,11 +88,11 @@ public sealed class ReplacementResolutionTests
     {
         await using var workspace = new EngineTestWorkspace();
         var review = await InterruptAsync(workspace, "before-retention");
-        var bytes = await File.ReadAllBytesAsync(workspace.FilePath);
+        var bytes = await ObservedFile.ReadAllBytesAsync(workspace.FilePath);
         File.Move(workspace.FilePath, workspace.FilePath + ".preserved");
         await File.WriteAllBytesAsync(workspace.FilePath, bytes);
         await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => NendoWriteCoordinator.ResolveReplacementAsync(review, NendoReplacementResolutionChoice.KeepActive));
-        CollectionAssert.AreEqual(bytes, await File.ReadAllBytesAsync(workspace.FilePath));
+        CollectionAssert.AreEqual(bytes, await ObservedFile.ReadAllBytesAsync(workspace.FilePath));
         var marker = FileReplacementReceipt.PendingPath(workspace.FilePath);
         var receipt = JsonSerializer.Deserialize<FileReplacementReceipt>(await File.ReadAllTextAsync(marker))!;
         await File.WriteAllTextAsync(marker, JsonSerializer.Serialize(receipt with { StagedFileName = "unrelated.nendo" }));
@@ -106,12 +106,12 @@ public sealed class ReplacementResolutionTests
         await using var workspace = new EngineTestWorkspace();
         var review = await InterruptAsync(workspace, "original-retained");
         var folder = Path.GetDirectoryName(workspace.FilePath)!;
-        var before = Directory.GetFiles(folder).ToDictionary(path => path, File.ReadAllBytes);
+        var before = Directory.GetFiles(folder).ToDictionary(path => path, ObservedFile.ReadAllBytes);
         using var cancellation = new CancellationTokenSource();
         review.ResolutionCheckpoint = _ => cancellation.Cancel();
         await Assert.ThrowsExactlyAsync<OperationCanceledException>(() => NendoWriteCoordinator.ResolveReplacementAsync(review, NendoReplacementResolutionChoice.UseRetainedOriginal, cancellation.Token));
         CollectionAssert.AreEquivalent(before.Keys.ToArray(), Directory.GetFiles(folder));
-        foreach (var (path, bytes) in before) CollectionAssert.AreEqual(bytes, await File.ReadAllBytesAsync(path));
+        foreach (var (path, bytes) in before) CollectionAssert.AreEqual(bytes, await ObservedFile.ReadAllBytesAsync(path));
         review.ResolutionCheckpoint = null;
         await NendoWriteCoordinator.ResolveReplacementAsync(review, NendoReplacementResolutionChoice.UseRetainedOriginal);
     }
@@ -171,15 +171,15 @@ public sealed class ReplacementResolutionTests
         var review = await InterruptAsync(workspace, "original-retained");
         var folder = Path.GetDirectoryName(workspace.FilePath)!;
         var selectedPath = Path.Combine(folder, review.Plan.Options.Single(option => option.Choice == NendoReplacementResolutionChoice.UseStagedReplacement).FileName);
-        var selectedBytes = await File.ReadAllBytesAsync(selectedPath);
+        var selectedBytes = await ObservedFile.ReadAllBytesAsync(selectedPath);
         var retainedPath = Path.Combine(folder, review.Plan.Recovery.Retained!.FileName);
-        var originalBytes = await File.ReadAllBytesAsync(retainedPath);
+        var originalBytes = await ObservedFile.ReadAllBytesAsync(retainedPath);
         using (var child = RestoreInterruptionTests.StartChild(workspace.FilePath, "ResolveRecovery", checkpoint: seam,
                    resolutionChoice: "UseStagedReplacement"))
         {
             try
             {
-                Assert.AreEqual($"CHECKPOINT {seam}", await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20)));
+                Assert.AreEqual($"CHECKPOINT {seam}", await child.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line"));
                 child.Kill(entireProcessTree: true);
                 await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
             }
@@ -189,8 +189,8 @@ public sealed class ReplacementResolutionTests
             }
         }
         await RestoreInterruptionTests.AssertExitedWriterReleasedAsync(workspace.FilePath);
-        CollectionAssert.AreEqual(selectedBytes, await File.ReadAllBytesAsync(workspace.FilePath));
-        CollectionAssert.AreEqual(originalBytes, await File.ReadAllBytesAsync(retainedPath));
+        CollectionAssert.AreEqual(selectedBytes, await ObservedFile.ReadAllBytesAsync(workspace.FilePath));
+        CollectionAssert.AreEqual(originalBytes, await ObservedFile.ReadAllBytesAsync(retainedPath));
         Assert.AreEqual(pending, (await NendoWriteCoordinator.InspectReplacementRecoveryAsync(workspace.FilePath)).HasPendingReplacement);
         if (pending)
         {

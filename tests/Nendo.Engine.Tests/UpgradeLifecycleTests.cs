@@ -33,7 +33,7 @@ public sealed class UpgradeLifecycleTests
     {
         await using var workspace = new EngineTestWorkspace();
         await LegacyUpgradeTests.CreateLegacyAsync(workspace, populated);
-        var before = await File.ReadAllBytesAsync(workspace.FilePath);
+        var before = await ObservedFile.ReadAllBytesAsync(workspace.FilePath);
         await using var legacy = await NendoWriteCoordinator.OpenReadOnlyAsync(workspace.FilePath);
         var state = await legacy.GetSnapshotAsync();
         var history = JsonSerializer.Serialize(await legacy.GetHistoryAsync());
@@ -49,7 +49,7 @@ public sealed class UpgradeLifecycleTests
         await Assert.ThrowsExactlyAsync<ObjectDisposedException>(() => legacy.GetSnapshotAsync());
         await legacy.DisposeAsync();
         var retained = Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, result.RetainedFileName);
-        CollectionAssert.AreEqual(before, await File.ReadAllBytesAsync(retained));
+        CollectionAssert.AreEqual(before, await ObservedFile.ReadAllBytesAsync(retained));
         await using var upgraded = await workspace.OpenAsync();
         var after = await upgraded.GetSnapshotAsync();
         Assert.AreEqual(state.Manifest with { MinimumHostVersion = NendoFormat.SemanticMinimumHostVersion }, after.Manifest);
@@ -70,7 +70,7 @@ public sealed class UpgradeLifecycleTests
     {
         await using var workspace = new EngineTestWorkspace();
         await LegacyUpgradeTests.CreateLegacyAsync(workspace, true);
-        var before = await File.ReadAllBytesAsync(workspace.FilePath);
+        var before = await ObservedFile.ReadAllBytesAsync(workspace.FilePath);
         await using var legacy = await NendoWriteCoordinator.OpenReadOnlyAsync(workspace.FilePath);
         var plan = await legacy.PrepareUpgradeAsync("upgrade");
         using var cancellation = new CancellationTokenSource();
@@ -112,12 +112,12 @@ public sealed class UpgradeLifecycleTests
         await using var workspace = new EngineTestWorkspace();
         await LegacyUpgradeTests.CreateLegacyAsync(workspace, true);
         var folder = Path.GetDirectoryName(workspace.FilePath)!;
-        var before = await File.ReadAllBytesAsync(workspace.FilePath);
+        var before = await ObservedFile.ReadAllBytesAsync(workspace.FilePath);
         using (var child = RestoreInterruptionTests.StartChild(workspace.FilePath, "Upgrade", checkpoint: checkpoint))
         {
             try
             {
-                var signal = await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20));
+                var signal = await child.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line");
                 if (signal != $"CHECKPOINT {checkpoint}")
                     Assert.Fail($"Upgrade child missed the seam: {signal}; {await child.StandardError.ReadToEndAsync().WaitAsync(TimeSpan.FromSeconds(5))}");
                 child.Kill(entireProcessTree: true);
@@ -127,12 +127,12 @@ public sealed class UpgradeLifecycleTests
         }
         await RestoreInterruptionTests.AssertExitedWriterReleasedAsync(workspace.FilePath);
         var paths = Directory.GetFiles(folder).Order(StringComparer.Ordinal).ToArray();
-        var hashes = paths.Select(path => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)))).ToArray();
+        var hashes = paths.Select(path => Convert.ToHexString(SHA256.HashData(ObservedFile.ReadAllBytes(path)))).ToArray();
         using (var reader = RestoreInterruptionTests.StartChild(workspace.FilePath, "InspectRecovery"))
         {
             try
             {
-                var json = await reader.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20));
+                var json = await reader.StandardOutput.ReadLineAsync().WithinAsync(TimeSpan.FromSeconds(20), "the child's first line");
                 await reader.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(0, reader.ExitCode, await reader.StandardError.ReadToEndAsync());
                 var recovery = JsonSerializer.Deserialize<NendoReplacementRecovery>(json!);
@@ -144,12 +144,12 @@ public sealed class UpgradeLifecycleTests
                 Assert.AreEqual(stagedState, recovery.Staged!.State);
                 Assert.AreEqual("verifiedOriginal", recovery.PreChangeBackup!.State);
                 var original = activeState == "verifiedOriginal" ? workspace.FilePath : Path.Combine(folder, recovery.Retained.FileName);
-                CollectionAssert.AreEqual(before, await File.ReadAllBytesAsync(original));
+                CollectionAssert.AreEqual(before, await ObservedFile.ReadAllBytesAsync(original));
             }
             finally { await StopOwnedChildAsync(reader); }
         }
         CollectionAssert.AreEqual(paths, Directory.GetFiles(folder).Order(StringComparer.Ordinal).ToArray());
-        CollectionAssert.AreEqual(hashes, paths.Select(path => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)))).ToArray());
+        CollectionAssert.AreEqual(hashes, paths.Select(path => Convert.ToHexString(SHA256.HashData(ObservedFile.ReadAllBytes(path)))).ToArray());
         if (File.Exists(workspace.FilePath))
             await Assert.ThrowsExactlyAsync<NendoFileOpenException>(() => workspace.OpenAsync("no-silent-adoption"));
     }
@@ -164,7 +164,7 @@ public sealed class UpgradeLifecycleTests
     {
         await using var workspace = new EngineTestWorkspace();
         await LegacyUpgradeTests.CreateLegacyAsync(workspace, true);
-        var originalBytes = await File.ReadAllBytesAsync(workspace.FilePath);
+        var originalBytes = await ObservedFile.ReadAllBytesAsync(workspace.FilePath);
         await using var legacy = await NendoWriteCoordinator.OpenReadOnlyAsync(workspace.FilePath);
         var before = await legacy.GetSnapshotAsync();
         var history = JsonSerializer.Serialize(await legacy.GetHistoryAsync());
@@ -183,7 +183,7 @@ public sealed class UpgradeLifecycleTests
         Assert.AreEqual(JsonSerializer.Serialize(before.Records), JsonSerializer.Serialize(after.Records));
         Assert.AreEqual(before.Manifest.ApplicationId, after.Manifest.ApplicationId);
         Assert.AreEqual(before.Manifest.InstanceId, after.Manifest.InstanceId);
-        if (!upgraded) CollectionAssert.AreEqual(originalBytes, await File.ReadAllBytesAsync(workspace.FilePath));
+        if (!upgraded) CollectionAssert.AreEqual(originalBytes, await ObservedFile.ReadAllBytesAsync(workspace.FilePath));
     }
 
     private static async Task StopOwnedChildAsync(Process process)
