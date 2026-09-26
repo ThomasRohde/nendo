@@ -4,7 +4,8 @@ import { client } from './client';
 import { escapeHtml, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel } from './format';
 import { type ApplicationPlan, type DesktopPromotionView, type OverviewPlan, type ProposalPreview } from './host';
 import { packageChangesMarkup } from './package-diff-markup';
-import { announce, content, requiredElement, rerender, setBusy, showError } from './shell';
+import { announce, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
+import { landAddedView } from './view-packages';
 import { surfaceTitle } from './surface-model';
 import { renderSurfacePreview } from './surface-preview';
 /**
@@ -63,11 +64,15 @@ export async function promoteProposal(): Promise<void> {
     // runs, or Studio's Custom views panel.
     const codeOnly = !state.proposal.previewApplications?.length && (state.proposal.packageChanges?.length ?? 0) > 0;
     state.view = state.proposal.previewApplications?.length ? 'use' : codeOnly ? state.proposalReturnView : 'data';
+    // A view the Add view form made lands the person on it, or names where it is (W-062).
+    const landed = landAddedView(state.proposal.proposalId);
     state.proposal = null;
     const notice = await refreshAfterOutcome(result);
     rerender();
-    announce(`${acceptedTitle} accepted.`);
-    if (notice !== null) showOutcomeRefreshNotice(`${acceptedTitle} accepted.`, notice);
+    const outcome = landed === null ? `${acceptedTitle} accepted.` : `${acceptedTitle} accepted. ${landed}`;
+    announce(outcome);
+    if (notice !== null) showOutcomeRefreshNotice(outcome, notice);
+    else if (landed !== null) showOutcome(outcome);
   } catch (error) {
     rerender();
     showError(messageFor(error));

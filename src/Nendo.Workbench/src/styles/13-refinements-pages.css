@@ -450,6 +450,60 @@
 .package-footer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .package-footer small { flex: 1 1 260px; min-width: 0; color: var(--muted); font-size: 0.78rem; line-height: 1.45; }
 
+/* Where a package is shown, and the Add view form under its card (W-062). Both span the
+   card, below its title and buttons. */
+.package-uses {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: var(--space-2) 0 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+  font-size: 0.93rem;
+}
+
+.package-uses li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-height: 28px; }
+.package-uses li span { color: var(--muted); }
+.package-uses-none { color: var(--muted); }
+
+.add-view-form {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--canvas);
+}
+
+.add-view-kinds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); margin: 0; padding: 0; border: 0; }
+.add-view-kinds legend { margin-bottom: var(--space-2); color: var(--muted); font-size: 0.86rem; font-weight: 600; }
+
+.add-view-kind {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.add-view-kind:has(input:checked) { border-color: color-mix(in srgb, var(--cobalt) 45%, var(--line)); background: var(--cobalt-soft); }
+.add-view-kind input { min-height: 0; margin: 3px 0 0; accent-color: var(--cobalt); }
+.add-view-kind span { display: grid; gap: 2px; }
+.add-view-kind small { color: var(--muted); font-size: 0.86rem; line-height: 1.35; }
+
+.add-view-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-3); }
+.add-view-field { display: grid; gap: 4px; color: var(--muted); font-size: 0.86rem; font-weight: 600; }
+.add-view-field input, .add-view-field select { width: 100%; color: var(--ink); font-weight: 400; }
+.add-view-note { margin: 0; color: var(--muted); font-size: 0.93rem; }
+.add-view-actions { display: flex; gap: var(--space-2); }
+
+@media (max-width: 760px) { .add-view-kinds { grid-template-columns: 1fr; } }
+
 @media (max-width: 650px) {
   .custom-views-heading { flex-direction: column; }
   .package-card { grid-template-columns: auto minmax(0, 1fr); }

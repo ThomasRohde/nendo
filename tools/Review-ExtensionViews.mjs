@@ -285,6 +285,40 @@ try {
   }
   check('G16 with views off for the device or the file, no frame is drawn and a frame inserted by hand gets the 403');
 
+  // G17 (W-062): a person adds a view from Studio, without an agent. The Custom views panel
+  // names where each package is already shown; the Add view form offers only what compiles,
+  // refuses a graph the file has no link record type for, and its proposal is accepted
+  // through the ordinary review. The new screen is selected in Use and its view runs.
+  await click('#nav-surfaces'); await idle();
+  const uses = await waitFor(() => evaluate(`(() => { const card = document.querySelector('[data-package="org.nendo.test.probe-a"]');
+    return card ? [...card.querySelectorAll('.package-uses li')].map(li => li.textContent.replace(/\\s+/g, ' ').trim()) : null; })()`), 'where probe A is shown');
+  assert(uses.some(line => line.startsWith('Probe screen') && line.includes('under View in Tasks')), 'The panel does not say where probe A is a screen: ' + JSON.stringify(uses));
+  assert(uses.filter(line => line.includes('a panel on')).length === 2, 'The panel does not name probe A’s two record-page panels: ' + JSON.stringify(uses));
+  await click('[data-view-add="org.nendo.test.probe-b"]');
+  await waitFor(() => evaluate(`Boolean(document.querySelector('#add-view-form'))`), 'the Add view form');
+  const offered = await evaluate(`[...document.querySelectorAll('#add-view-label option')].map(o => o.value)`);
+  assert(offered.includes('title') && offered.includes('titleLength'), 'The label offers neither a stored nor a calculated field: ' + JSON.stringify(offered));
+  await evaluate(`(() => { const r = document.querySelector('#add-view-kind-graph'); r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  const refusedGraph = await waitFor(() => evaluate(`(() => { const f = document.querySelector('#add-view-form'); const kind = f?.querySelector('input[name="add-view-kind"]:checked')?.value;
+    return kind === 'graph' ? { disabled: f.querySelector('button[type="submit"]').disabled, note: f.querySelector('#add-view-refusal').textContent } : null; })()`), 'the graph choice');
+  assert(refusedGraph.disabled === true && /links Tasks records/.test(refusedGraph.note), 'The form offered a graph with no link record type: ' + JSON.stringify(refusedGraph));
+  await evaluate(`(() => { const r = document.querySelector('#add-view-kind-records'); r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  await waitFor(() => evaluate(`document.querySelector('#add-view-kind-records')?.checked === true`), 'back to a screen of records');
+  await evaluate(`(() => { const i = document.querySelector('#add-view-title'); i.value = 'Probe B from Studio'; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await click('#add-view-form button[type="submit"]');
+  await waitFor(() => evaluate(`document.querySelector('#accept-proposal')?.disabled === false`), 'the Add view proposal, ready to accept', 30000);
+  await click('#accept-proposal'); await idle();
+  const landed = await waitFor(() => evaluate(`(() => { const title = document.querySelector('#workspace-title')?.textContent;
+    const said = document.querySelector('.message-slot')?.textContent ?? '';
+    return title === 'Probe B from Studio' ? { said } : null; })()`), 'Use, on the new view', 30000);
+  assert(/Probe B from Studio is under View in Tasks/.test(landed.said), 'The outcome does not say where the view is: ' + JSON.stringify(landed));
+  const added = await waitFor(async () => (await frames()).find(f => f.view?.startsWith('node.view.') && f.state === 'running'), 'the added view running', 30000);
+  const definition = (await installGate()).uiNodes.find(node => node.nodeId === added.view);
+  assert(definition?.kind === 'extensionRecordsSurface' && definition.properties.packageId === 'org.nendo.test.probe-b' &&
+    definition.properties.entityId === 'tasks' && definition.properties.labelFieldId === 'title',
+    'The accepted view is not the one the form described: ' + JSON.stringify(definition));
+  check('G17 Studio names where each package is shown, refuses a graph the file cannot draw, and a view added from the form is accepted, selected in Use and running');
+
   console.log('extension views ok');
 } catch (error) {
   report.error = error.stack ?? String(error);

@@ -28,7 +28,7 @@ Each way proposes only what differs from the package the file already carries. W
 
 A copy of the file carries its views' code. If a view names a package that the file does not carry, the view says so and offers **Add package to file…**, which is Import.
 
-A view also needs a definition: a screen or a record-page panel that names its package, the record type it is about and the fields it shows. An agent writes it through an ordinary change set; Studio has no form for it. The [authoring guide](https://github.com/ThomasRohde/nendo/blob/main/docs/custom-view-authoring.md) shows each kind.
+A view also needs a definition: a screen, a graph or a record-page panel that names its package, the record type it is about and the fields it shows. In **Studio → Surfaces → Custom views**, each package lists where it is already shown and has **Add view…**. The form offers only fields that work, and **Preview view** opens the ordinary review. After you accept a screen, Use opens on it. An agent can write the same definition through a change set, with extra fields and filters the form does not ask for. The [authoring guide](https://github.com/ThomasRohde/nendo/blob/main/docs/custom-view-authoring.md) shows each kind.
 
 ## What a view can and cannot do
 

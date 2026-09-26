@@ -227,7 +227,9 @@ export function mountKey(spec: ViewSpec, fileSessionId: string | null, pkg: Exte
  * the packages this file carries. The switches are this device's and never change the file;
  * adding or removing a package is a proposal, reviewed line by line like any definition change.
  */
-export function customViewsPanelMarkup(extensions: ExtensionRuntimeView | null | undefined, fileName: string | null): string {
+export function customViewsPanelMarkup(extensions: ExtensionRuntimeView | null | undefined, fileName: string | null,
+  /** What Studio adds to a package's card: its own buttons, and a body under the card (where the package is shown, the Add view form). */
+  packageExtras: (pkg: ExtensionPackageView) => { actions: string; body: string } = () => ({ actions: '', body: '' })): string {
   const intro = '<p>A custom view runs from code this file carries, on the screen or record page that shows it. Its code comes in through a proposal you review. These two switches belong to this device and change nothing in the file.</p>';
   const open = '<section class="custom-views-panel" id="custom-views" aria-labelledby="custom-views-title" data-testid="custom-views">';
   if (extensions === null || extensions === undefined)
@@ -252,7 +254,8 @@ export function customViewsPanelMarkup(extensions: ExtensionRuntimeView | null |
     : `<div class="package-list" role="list" aria-label="Packages in this file">${extensions.packages.map((pkg) => {
       const facts = [pkg.packageId, pkg.version === null ? null : `version ${pkg.version}`,
         `${pkg.fileCount} ${pkg.fileCount === 1 ? 'file' : 'files'}`, byteSize(pkg.totalBytes)].filter((fact): fact is string => fact !== null);
-      return `<article class="package-card" role="listitem" data-package="${escapeAttribute(pkg.packageId)}"><span class="surface-icon" aria-hidden="true">${icon('surfaces')}</span><div class="surface-detail"><h3>${escapeHtml(pkg.title)}</h3><p>${escapeHtml(facts.join(' · '))}</p>${pkg.description === null || pkg.description === '' ? '' : `<p class="package-description">${escapeHtml(pkg.description)}</p>`}</div><div class="package-actions"><button type="button" class="secondary-button" data-package-export="${escapeAttribute(pkg.packageId)}">Export…</button><button type="button" class="secondary-button" data-action data-package-remove="${escapeAttribute(pkg.packageId)}">Remove…</button></div></article>`;
+      const extra = packageExtras(pkg);
+      return `<article class="package-card" role="listitem" data-package="${escapeAttribute(pkg.packageId)}"><span class="surface-icon" aria-hidden="true">${icon('surfaces')}</span><div class="surface-detail"><h3>${escapeHtml(pkg.title)}</h3><p>${escapeHtml(facts.join(' · '))}</p>${pkg.description === null || pkg.description === '' ? '' : `<p class="package-description">${escapeHtml(pkg.description)}</p>`}</div><div class="package-actions">${extra.actions}<button type="button" class="secondary-button" data-package-export="${escapeAttribute(pkg.packageId)}">Export…</button><button type="button" class="secondary-button" data-action data-package-remove="${escapeAttribute(pkg.packageId)}">Remove…</button></div>${extra.body}</article>`;
     }).join('')}</div>`;
   return `${open}<header class="custom-views-heading"><div><h2 id="custom-views-title">Custom views</h2>${intro}</div>${chip}</header><p class="custom-views-status" role="status">${escapeHtml(status)}</p>${resume}${typeof extensions.notice === 'string' && extensions.notice.length > 0 ? `<p class="custom-views-notice">${escapeHtml(extensions.notice)}</p>` : ''}${toggles}<h3 class="package-heading">Packages in this file</h3>${packages}<div class="package-footer"><button type="button" class="secondary-button" data-action data-package-import>Import package…</button><small>A folder, a .zip or a .nendoview file. Importing prepares a proposal; nothing runs until you accept it.</small></div></section>`;
 }

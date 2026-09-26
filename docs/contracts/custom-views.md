@@ -843,7 +843,9 @@ A view's `changes` events come from the existing `fileChanged` event.
 
 A view definition is a node in the file's semantic surfaces, authored through the
 ordinary `ui.addNode`, `ui.setProperty` and `ui.removeNode` operations in a change
-set that a person accepts. There is no second pipeline. A definition names its
+set that a person accepts. There is no second pipeline: Studio's Add view form
+(W-062, `custom-view-recipe.ts`) sends those same operations through
+`proposal.prepareChangeSet`, as every Studio proposal does. A definition names its
 package by `packageId`, and the view runs that package from the file.
 
 ### The three kinds

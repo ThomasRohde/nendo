@@ -519,8 +519,20 @@ open.
 
 A package runs only where a view definition names it. A definition is a node in the
 file's screens, authored with `ui.addNode` in a change set that a person accepts,
-like any other screen. Studio has no form for it. The example `show-a-custom-graph`
-in `nendo://application/examples` defines a graph.
+like any other screen. The example `show-a-custom-graph` in
+`nendo://application/examples` defines a graph.
+
+A person can add one without an agent. In **Studio → Surfaces → Custom views**, each
+package's card lists the screens and record pages that already show it, and has an
+**Add view…** button. The form asks for the kind, a title, the record type (or, for a
+panel, the record page) and the label and status fields, and for a graph the link record
+type and its two ends. It offers only choices that pass the checks below, so a graph is
+refused with a sentence rather than offered when no record type links the records.
+**Preview view** prepares the same `ui.addNode` and `ui.setProperty` operations an
+agent's inline node expands to, and opens the ordinary review. After you accept a screen,
+Use opens on it. The form writes no pins and an empty configuration, so the view takes
+the open rules and the file asks for host 1.34.0. Children (`fieldBinding`,
+`filterClause`) and a configuration are still an agent's to write.
 
 ### A screen of records
 

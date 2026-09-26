@@ -724,6 +724,12 @@ vocabulary, the examples and the resources — and not from the person.
   the other, and ask the person to group it by a field, hide a status, find an item and
   mark the longest chain. Record what they reported, and whether those choices were still
   there after they reopened the file.
+- Ask the person, without an agent, to show the package on a second screen and as a
+  panel on a record page, from Studio → Surfaces → Custom views. Record whether the
+  package's card told them where it was already shown, whether the form let them choose
+  anything that would not work (ask them to try a graph over a record type nothing links),
+  and where they were taken after accepting. Compare what the review showed with what you
+  would have sent.
 - Try what must not work, and record whether each refusal named the rule and what to do
   instead, and whether it came where you sent it or only at validation: a record-page
   panel placed as a root, a panel with a record type of its own, a filter on a
