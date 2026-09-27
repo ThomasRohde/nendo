@@ -12,11 +12,11 @@ test('level limits preserve ancestors, uneven branches and focused-group navigat
   const records=[r('a'),r('b','a'),r('c','b'),r('d','c'),r('e','a'),r('f')];
   const original=JSON.stringify(records),h=hierarchy(records);
   const one=projectHierarchy(h,null,1),two=projectHierarchy(h,null,2);
-  assert.deepEqual(one.rows.map(x=>x.r.recordId),['a','f']);
-  assert.deepEqual(two.rows.map(x=>x.r.recordId),['a','b','e','f']);
+  assert.deepEqual(one.rows.map(x=>x.record.recordId),['a','f']);
+  assert.deepEqual(two.rows.map(x=>x.record.recordId),['a','b','e','f']);
   assert.equal(two.hiddenCounts.get('b'),2);
   assert.deepEqual(two.tree[0].children[0].children,[]);
-  assert.deepEqual(projectHierarchy(h,'b',1).rows.map(x=>x.r.recordId),['b','c']);
+  assert.deepEqual(projectHierarchy(h,'b',1).rows.map(x=>x.record.recordId),['b','c']);
   assert.equal(projectHierarchy(h,'b',1).maxDepth,2);
   assert.deepEqual(projectHierarchy(h,null).tree,h.roots.map(h.tree));
   assert.equal(JSON.stringify(records),original,'Filtering must never rewrite stored parent links');
