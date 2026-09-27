@@ -177,6 +177,35 @@ public sealed class ActivityAndFailureTests
     }
 
     /// <summary>
+    /// A start that recovers is not a failure. With the preferred port already taken, the
+    /// hosting layer logs every refused bind as an error before the host falls back to
+    /// another port; recorded, a test run that met a running Nendo on the fixed port wrote
+    /// fifty of those lines into the person's device folder.
+    /// </summary>
+    [TestMethod]
+    public async Task AStartThatFallsBackFromABusyPortRecordsNoFailure()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        using var occupied = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        occupied.Start();
+        var port = ((System.Net.IPEndPoint)occupied.LocalEndpoint).Port;
+        var failures = new List<NendoAgentFailure>();
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service,
+            AgentAccessMode.ReadOnly,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot)
+            {
+                PreferredPort = port,
+                RecordFailure = failure => { lock (failures) failures.Add(failure); },
+            });
+        Assert.IsTrue(host.UsedFallbackPort, "The port was free after all, so nothing was exercised.");
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        await client.ListResourcesAsync();
+        Assert.IsEmpty(failures, "Recorded as failures: " + string.Join(" | ", failures.Select(failure => failure.ExceptionType)));
+    }
+
+    /// <summary>
     /// What the SDK and the web server log is kept by event and exception type only: some
     /// of their events format the request body into the message, so the message never is.
     /// </summary>

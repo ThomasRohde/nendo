@@ -74,6 +74,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
     private readonly NendoAgentProposalStore _proposals;
     private readonly NendoAgentWorkSignal _work;
     private readonly NendoRequestGate _requests;
+    private readonly NendoFailureRecord _failures;
     private readonly string _discoveryPath;
     private int _disposed;
 
@@ -87,6 +88,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         NendoAgentProposalStore proposals,
         NendoAgentWorkSignal work,
         NendoRequestGate requests,
+        NendoFailureRecord failures,
         string discoveryPath,
         int requestedPort,
         bool usedFallbackPort)
@@ -100,6 +102,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         _proposals = proposals;
         _work = work;
         _requests = requests;
+        _failures = failures;
         _discoveryPath = discoveryPath;
         RequestedPort = requestedPort;
         UsedFallbackPort = usedFallbackPort;
@@ -220,6 +223,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         var discoveryStore = new NendoDiscoveryStore(options.DiscoveryRoot);
         var queries = NendoResourceQuery.ForDeclaredResources();
         var requests = new NendoRequestGate(NendoRequestGate.DefaultMaximum, options.RequestTimeout);
+        var failures = new NendoFailureRecord(options.RecordFailure);
         WebApplication? webApplication = null;
         var usedFallbackPort = false;
         string? discoveryPath = null;
@@ -239,11 +243,11 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                     EnvironmentName = Environments.Production,
                 });
                 builder.Logging.ClearProviders();
-                if (options.RecordFailure is { } recordFailure)
+                if (options.RecordFailure is not null)
                 {
                     builder.Logging.SetMinimumLevel(LogLevel.Warning);
                     // Registered as a service, so the container that builds it disposes it.
-                    builder.Services.AddSingleton<ILoggerProvider>(_ => new NendoFailureLoggerProvider(recordFailure));
+                    builder.Services.AddSingleton<ILoggerProvider>(_ => new NendoFailureLoggerProvider(failures.Record));
                 }
                 builder.WebHost.ConfigureKestrel(kestrel =>
                 {
@@ -319,7 +323,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             using var working = work.Begin(
                                 NendoTransportIdentity.DisplayName(context.Server.ClientInfo),
                                 context.Params.Name);
-                            using var failures = NendoAgentFailures.Begin("tool", context.Params.Name, options.RecordFailure);
+                            using var failed = NendoAgentFailures.Begin("tool", context.Params.Name, failures.Sink);
                             // One entry per call. The tool says what it did through this slot --
                             // the revision it committed, the proposal it touched -- and the entry
                             // is written here, once, after the call. It used to be written twice:
@@ -346,7 +350,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             using var working = work.Begin(
                                 NendoTransportIdentity.DisplayName(context.Server.ClientInfo),
                                 name);
-                            using var failures = NendoAgentFailures.Begin("resource", name, options.RecordFailure);
+                            using var failed = NendoAgentFailures.Begin("resource", name, failures.Sink);
                             try
                             {
                                 authority.RequireActive();
@@ -463,6 +467,8 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                 snapshot.FileName,
                 cancellationToken);
             authority.RequireActive();
+            // Only now is there a host whose requests can fail; see NendoFailureRecord.
+            failures.Open();
             return new NendoLocalMcpHost(
                 webApplication,
                 applicationService,
@@ -473,6 +479,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                 proposalStore,
                 work,
                 requests,
+                failures,
                 discoveryPath,
                 options.PreferredPort,
                 usedFallbackPort);
@@ -507,6 +514,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         }
 
         CloseAdmission();
+        _failures.Close();
         _applicationService.WriteAuthorityLost -= _authority.CloseAdmission;
         var cleanupFailures = new List<Exception>();
         try

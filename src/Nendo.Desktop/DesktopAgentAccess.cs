@@ -46,10 +46,14 @@ internal sealed partial class DesktopSessionController
     // relaunch. These are the single-user local defaults: a predictable port keeps an agent's saved
     // configuration working, and no lease expiry stops an in-flight draft dying mid-conversation. The
     // hardened behaviour remains available by choosing it.
-    private NendoLocalMcpHostOptions CurrentHostOptions()
+    internal NendoLocalMcpHostOptions CurrentHostOptions()
     {
         var settings = Settings();
+        // A device-state root named by NENDO_DEVICE_STATE_ROOT is a whole profile, discovery
+        // included, as MainPage composes one; a controller built without options keeps its
+        // discovery entries there too, rather than in the person's own folder.
         var discoveryRoot = _agentOptions?.DiscoveryRoot
+            ?? (DesktopRuntimeConfiguration.DeviceStateRoot is { } profile ? Path.Combine(profile, "discovery") : null)
             ?? NendoLocalMcpHostOptions.CreateDefault().DiscoveryRoot;
         return new NendoLocalMcpHostOptions(discoveryRoot)
         {

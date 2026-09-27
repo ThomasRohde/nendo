@@ -148,6 +148,18 @@ the change. A committed batch is now resubmitted under the origin its receipt
 records, which the receipt carries for that reason, and a test retries from a new
 lease.
 
+A second came from the installed host. After the owner upgraded, the device's
+`agent-failures.jsonl` already held fifty lines, all written by this change's own
+test runs before the upgrade: every one a refused bind on the fixed port, which a
+running Nendo held, logged by the hosting layer before the host fell back to another
+port. Two defects: a start that recovers was recorded as a failure, and the Desktop
+tests used the owner's real device folder. The record now opens only once the host
+serves, the Desktop test process gives itself its own device folder and discovery
+root, and both guards were seen to fail (four lines per fallback start; the suite's
+default root equal to the owner's). The fifty lines were moved out of the owner's
+folder. The installed host was probed on the wire after the upgrade: every fix
+above was present (planner Checks C-248 to C-250).
+
 ## What was read and found sound
 
 So the next reviewer does not spend the same hours:

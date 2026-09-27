@@ -393,7 +393,9 @@ What each now says:
   (`NendoAgentFailures`; the Desktop keeps it beside the view-failure record, under the
   same switch, per the [ADR-0002](../decisions/0002-containing-desktop-architecture-and-process-model.md)
   amendment of 2026-09-27). The SDK's and the web server's own warnings and errors
-  reach the same record by event and exception type, never by their formatted message.
+  reach the same record by event and exception type, never by their formatted message,
+  and only while the host serves: a start that recovers from a busy port is not a
+  failure, though the hosting layer logs each refused bind as an error.
   Before, the host cleared every log provider, and an internal failure left no trace.
 - Every tool call is one entry in the activity the Agent page shows: the tool says
   what it did through a slot the host's filter holds for the call, and the filter

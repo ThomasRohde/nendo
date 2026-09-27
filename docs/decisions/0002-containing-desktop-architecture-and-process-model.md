@@ -303,6 +303,19 @@ because a message is where a stored value, a request body or a location would
 travel; no argument, handle or lease; and no file path. Nothing leaves the device
 and nothing goes into the `.nendo` file.
 
+**Only while the host serves.** The record opens once the listener has started and
+closes when it begins to stop. A start that fails throws to its caller, and a start
+that recovers is not a failure: when the fixed port is taken, the hosting layer logs
+every refused bind as an error before the host falls back to another port. The first
+build recorded those, and on its first day a test run that met a running Nendo on the
+fixed port wrote fifty such lines into the owner's real folder — the Desktop tests
+built their controllers without a device-state root, so they used the owner's folder,
+read the owner's saved agent settings and announced their hosts in the owner's
+discovery folder. The test process now gives itself a device-state folder of its own
+(`DesktopTestDeviceState`), a controller built without options keeps its discovery
+entries inside a named profile as the window already did, and the fifty lines were
+removed from the owner's folder.
+
 **One switch.** The notification-area item that turned view-failure recording off is
 now "Record failures", and it governs both records. It is read at the moment of each
 failure, so switching it off stops the next line without a restart. The stored
@@ -311,8 +324,10 @@ setting keeps its name, so a device that switched recording off before keeps it 
 **Where this is not qualified.** `UnattendedAcceptanceTests` produces a real internal
 failure through the host (a consent store that cannot be written) and checks the one
 line, the reference in the refusal, and the absence of the handle, the lease, the
-path and the message. `DesktopAgentFailureLogTests` measures the cap, the round trip
-and the switch. No lane drives an installed Desktop host into an internal failure
+path and the message. `DesktopAgentFailureLogTests` measures the cap, the round trip,
+the switch, and that the suite never defaults to the owner's folder;
+`AStartThatFallsBackFromABusyPortRecordsNoFailure` holds the port fallback out of the
+record, and failed with four lines per start when the record was left open. No lane drives an installed Desktop host into an internal failure
 end to end.
 
 ## 2026-09-17 amendment — a screen is told when the file moves

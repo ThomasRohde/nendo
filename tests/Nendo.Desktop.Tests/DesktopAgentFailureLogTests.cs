@@ -36,6 +36,27 @@ public sealed class DesktopAgentFailureLogTests
             (kept[^1].Source, kept[^1].Request, kept[^1].ExceptionType));
     }
 
+    /// <summary>
+    /// The suite's default device folder is its own. A controller built without one used to
+    /// read and write the person's real %LOCALAPPDATA%\Nendo, which is how a test run left
+    /// fifty lines in their agent-failures.jsonl (see DesktopTestDeviceState).
+    /// </summary>
+    [TestMethod]
+    public async Task TheSuiteNeverDefaultsToThePersonsDeviceFolder()
+    {
+        var persons = Path.GetFullPath(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nendo"));
+        var suites = Path.GetFullPath(DesktopAppearanceStore.DefaultRoot);
+        Assert.AreNotEqual(persons, suites, "The suite writes device state into the person's own folder.");
+        StringAssert.StartsWith(suites, Path.GetFullPath(Path.GetTempPath()));
+
+        // Nor its agent hosts' discovery entries, which a running Nendo lists to its agents.
+        await using var session = new DesktopSessionController();
+        var discovery = Path.GetFullPath(session.CurrentHostOptions().DiscoveryRoot);
+        Assert.IsFalse(discovery.StartsWith(persons, StringComparison.OrdinalIgnoreCase),
+            $"The suite's agent hosts announce themselves in the person's folder: {discovery}");
+    }
+
     /// <summary>The tray's one switch governs this record too, read at the moment of failure.</summary>
     [TestMethod]
     public async Task TheTraySwitchStopsAgentFailureRecordsAsItStopsViewFailures()

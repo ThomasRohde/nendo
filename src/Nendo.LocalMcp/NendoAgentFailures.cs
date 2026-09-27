@@ -144,6 +144,30 @@ internal static partial class NendoAgentFailures
 }
 
 /// <summary>
+/// The failure record, open only while the host serves. Starting and stopping are the
+/// caller's to report -- a start that fails throws out of StartAsync -- and a start that
+/// recovers is not a failure at all: the port-busy fallback binds another port after the
+/// hosting layer has logged each refused bind as an error. Before this was closed during
+/// startup, a test run that met a running Nendo on the fixed port wrote fifty such lines.
+/// </summary>
+internal sealed class NendoFailureRecord(Action<NendoAgentFailure>? sink)
+{
+    private volatile bool _open;
+
+    /// <summary>The sink to hand a request scope, or null when nothing is recorded.</summary>
+    internal Action<NendoAgentFailure>? Sink => sink is null ? null : Record;
+
+    internal void Open() => _open = true;
+
+    internal void Close() => _open = false;
+
+    internal void Record(NendoAgentFailure failure)
+    {
+        if (_open) sink?.Invoke(failure);
+    }
+}
+
+/// <summary>
 /// The SDK's and the web server's own warnings and errors, into the same record. Before, the
 /// host cleared every log provider, so a failure only they saw — a request the SDK could not
 /// bind, a response the server could not write — vanished. What is kept is the event, the
