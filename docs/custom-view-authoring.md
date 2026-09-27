@@ -305,13 +305,18 @@ const all = await nendo.records.queryAll({ entityId: 'task' }, { max: 5000 });
 
 - A filter is `{fieldId, operator, value}`. The operators are `eq`, `ne`, `lt`,
   `le`, `gt`, `ge`, `contains`, `isNull` and `isNotNull`; the last two take no
-  value. A query carries at most eight filters. A choice compares by its option
+  value. On a record type that declares a hierarchy, `descendantOf` on its parent
+  field takes a record ID and matches everything under it. A query carries at most eight filters. A choice compares by its option
   ID. A query cannot filter or sort by a calculated field.
 - `records.groupAggregate`, `records.bucketAggregate` and `records.cellAggregate`
   answer the grouped, date-bucketed and crossed totals that Nendo's own charts
   draw. `aggregate` is `count`, `sum`, `min` or `max`, and `avg` is refused. The
   vocabulary, `nendo://application/vocabulary`, publishes the closed `bucket` and
   `range` words.
+- `records.tree({entityId, rootRecordId, depth})` reads a record type's declared
+  hierarchy depth-first, siblings in order: each item is `{record, parentRecordId,
+  depth, childCount}`. Without `rootRecordId` it starts at the top level; `depth` is
+  1 to 32 and defaults to 1. `records.treeAll(query, {max})` reads every page.
 - `records.queryAll(query, {max})` follows the cursor to the end, 200 records at a
   time, up to `max` (10,000 by default). If the file changes between pages, it
   reads again from the top, at most three times.

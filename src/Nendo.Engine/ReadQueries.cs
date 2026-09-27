@@ -11,7 +11,11 @@ public sealed record NendoRecordQuery(string EntityId, int Limit = 50, string? C
     public IReadOnlyList<NendoRecordFilter> Filters { get; init; } = [];
 }
 
-/// <summary>AND predicates: eq, ne, lt, le, gt, ge, contains, isNull, isNotNull.</summary>
+/// <summary>
+/// AND predicates: eq, ne, lt, le, gt, ge, contains, isNull, isNotNull, and descendantOf, which
+/// takes a record ID and matches every record under it in the declared hierarchy whose parent
+/// field the filter names (ADR-0019).
+/// </summary>
 public sealed record NendoRecordFilter(string FieldId, string Operator, System.Text.Json.JsonElement Value = default);
 
 /// <summary>An exact count of the records a filtered query would return.</summary>
@@ -189,6 +193,16 @@ public sealed record NendoHistoryQuery(int Limit = 50, string? Cursor = null, bo
 public sealed record NendoRevisionOperationsQuery(string RevisionId, int Limit = 50, string? Cursor = null);
 
 public sealed record NendoPage<T>(IReadOnlyList<T> Items, string? NextCursor, long ChangeSequence);
+
+/// <summary>
+/// A window of a declared hierarchy (ADR-0019), depth-first: the records under
+/// <see cref="RootRecordId"/>, or the whole tree from the top level when it is null, down to
+/// <see cref="Depth"/> levels below it (1 to 32), <see cref="Limit"/> at a time (1 to 100).
+/// </summary>
+public sealed record NendoTreeQuery(string EntityId, string? RootRecordId = null, int Depth = 1, int Limit = 50, string? Cursor = null);
+
+/// <summary>One record of a tree window: its parent, its depth below the root (1 for the top of the window) and how many children it has.</summary>
+public sealed record NendoTreeNode(NendoRecordSnapshot Record, string? ParentRecordId, int Depth, int ChildCount);
 
 /// <summary>A bounded history entry. Operation payloads are deliberately absent.</summary>
 public sealed record NendoRevisionSummary(

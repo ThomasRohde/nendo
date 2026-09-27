@@ -58,6 +58,12 @@ host 1.35.0.
   the revision is undone by compensating its operations, since the one-click
   compensation covers single-operation revisions only.
 
+**Reading the tree.** A tree read returns the hierarchy depth-first, siblings in order,
+each record with its parent, depth and child count ([queries](queries.md)); a view reads it
+with `records.tree` and an agent with `nendo://application/entity/{entityId}/tree`. The
+`descendantOf` filter on the parent field reads a record's whole subtree in any query,
+count or aggregate.
+
 Declaring and removing are definition-lane operations of class
 `ReversibleWithRetainedState`, and each compensates the other. A record with children is
 still refused deletion as `record-referenced`.

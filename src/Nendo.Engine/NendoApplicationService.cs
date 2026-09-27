@@ -136,6 +136,11 @@ public sealed partial class NendoApplicationService
         NendoRecordQuery query, CancellationToken cancellationToken = default) =>
         _coordinator.QueryRecordsAsync(query, cancellationToken);
 
+    /// <summary>A window of a declared hierarchy, depth-first (ADR-0019).</summary>
+    public Task<NendoPage<NendoTreeNode>> TreeRecordsAsync(
+        NendoTreeQuery query, CancellationToken cancellationToken = default) =>
+        _coordinator.TreeRecordsAsync(query, cancellationToken);
+
     public Task<NendoPage<NendoRevisionSummary>> QueryHistoryAsync(
         NendoHistoryQuery query, CancellationToken cancellationToken = default) =>
         _coordinator.QueryHistoryAsync(query, cancellationToken);

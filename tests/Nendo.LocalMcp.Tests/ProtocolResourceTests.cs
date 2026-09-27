@@ -121,6 +121,7 @@ public sealed class ProtocolResourceTests
                 "nendo.application.entity.export",
                 "nendo.application.entity.records",
                 "nendo.application.entity.schema",
+                "nendo.application.entity.tree",
                 "nendo.application.extension.file",
                 "nendo.application.history",
                 "nendo.application.revision.operations",

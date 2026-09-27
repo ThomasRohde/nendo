@@ -94,6 +94,25 @@ internal sealed class NendoMcpResources(
         TranslateAsync(() => projection.GetRecordsAsync(entityId, cursor, PageLimit(limit), cancellationToken));
 
     [McpServerResource(
+        Name = "nendo.application.entity.tree",
+        UriTemplate = "nendo://application/entity/{entityId}/tree{?root,depth,cursor,limit}",
+        MimeType = "application/json")]
+    [Description("A window of a record type's declared hierarchy (ADR-0019), depth-first in sibling order: the records under root, or the whole tree from the top level when root is omitted, down to depth levels (1 to 32, default 1). Each item is a record with its parentRecordId, its depth below the root and its childCount. Refused past limits.hierarchy.maximumDescendants records; read fewer levels or a lower root. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
+    public Task<string> GetTreeAsync(
+        string entityId,
+        string? root = null,
+        string? depth = null,
+        string? cursor = null,
+        string? limit = null,
+        CancellationToken cancellationToken = default) =>
+        TranslateAsync(() => projection.GetTreeAsync(entityId, root, depth switch
+        {
+            null => 1,
+            _ when int.TryParse(depth, NumberStyles.None, CultureInfo.InvariantCulture, out var value) => value,
+            _ => throw new Nendo.Engine.NendoValidationException($"depth is a whole number from 1 to {Nendo.Engine.NendoHierarchyLimits.MaximumDepth}."),
+        }, cursor, PageLimit(limit), cancellationToken));
+
+    [McpServerResource(
         Name = "nendo.application.entity.export",
         UriTemplate = "nendo://application/entity/{entityId}/export{?cursor,limit}",
         MimeType = "application/json")]

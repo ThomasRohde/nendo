@@ -48,5 +48,39 @@ public sealed class HierarchyProtocolTests
         StringAssert.Contains(text, "a → b → a");
     }
 
+    [TestMethod]
+    public async Task TheTreeResourceReadsDepthFirstWithDepthsAndChildCounts()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        var schema = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest($"proposal-{Guid.NewGuid():N}", "A tree", "test", new([
+            new("test", "schema", "test", "A tree", [
+                new CreateEntityOperation("e", "areas", "Areas", "areas"),
+                new AddFieldOperation("f-name", "areas", "name", "Name", "name", NendoStorageKind.Text, true),
+                new AddFieldOperation("f-parent", "areas", "parent", "Part of", "parent_id", NendoStorageKind.Reference, false),
+                new ConfigureReferenceOperation("bind", "areas", "parent", "areas", "name", 0),
+                new DeclareHierarchyOperation("declare", "areas", "parent", null, 0),
+            ]),
+        ])));
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(schema.ProposalId)).Applied);
+        await workspace.Service.CreateRecordAsync(new("areas", "a", new Dictionary<string, object?> { ["name"] = "A" }, new("test", "a", "test")));
+        await workspace.Service.CreateRecordAsync(new("areas", "b", new Dictionary<string, object?> { ["name"] = "B", ["parent"] = "a" },
+            new("test", "b", "test"), new Dictionary<string, long> { ["parent"] = 1 }));
+        await workspace.Service.CreateRecordAsync(new("areas", "c", new Dictionary<string, object?> { ["name"] = "C" }, new("test", "c", "test")));
+
+        await using var host = await NendoLocalMcpHost.StartAsync(workspace.Service, AgentAccessMode.ReadOnly,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var page = ProtocolResourceTests.Deserialize<NendoMcpPage<NendoMcpTreeNode>>(
+            await ProtocolResourceTests.ReadTextAsync(client, "nendo://application/entity/areas/tree?depth=32"));
+        CollectionAssert.AreEqual(new[] { "a", "b", "c" }, page.Items.Select(node => node.Record.RecordId).ToArray());
+        CollectionAssert.AreEqual(new[] { 1, 2, 1 }, page.Items.Select(node => node.Depth).ToArray());
+        CollectionAssert.AreEqual(new[] { 1, 0, 0 }, page.Items.Select(node => node.ChildCount).ToArray());
+        Assert.AreEqual("a", page.Items[1].ParentRecordId);
+        var under = ProtocolResourceTests.Deserialize<NendoMcpPage<NendoMcpTreeNode>>(
+            await ProtocolResourceTests.ReadTextAsync(client, "nendo://application/entity/areas/tree?root=a"));
+        CollectionAssert.AreEqual(new[] { "b" }, under.Items.Select(node => node.Record.RecordId).ToArray());
+    }
+
     private static T Result<T>(CallToolResult result) => JsonSerializer.Deserialize<T>(result.StructuredContent!.Value.GetRawText(), NendoMcpJson.Options)!;
 }

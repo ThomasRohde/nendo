@@ -156,6 +156,9 @@ public sealed record NendoMcpRecord(
 
 public sealed record NendoMcpPage<T>(IReadOnlyList<T> Items, string? NextCursor);
 
+/// <summary>One record of a tree window (ADR-0019): its parent, its depth below the window's root and its child count.</summary>
+public sealed record NendoMcpTreeNode(NendoMcpRecord Record, string? ParentRecordId, int Depth, int ChildCount);
+
 public sealed record NendoMcpDiagnostic(
     string Code,
     NendoDiagnosticSeverity Severity,

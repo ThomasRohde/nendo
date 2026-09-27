@@ -56,15 +56,7 @@ internal sealed partial class SqliteNendoStore
             ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
         ValidateRecordQuery(query, entity.Fields.Select(f => new NendoFieldSnapshot(
             f.FieldId, f.DisplayName, f.StorageKind, f.Required, f.Presentation, f.Options)).ToArray());
-        var columns = new[] { Quote("__nendo_record_id"), Quote("__nendo_record_version") }
-            .Concat(entity.Fields.Select(field => Quote(field.PhysicalColumnName))).ToList();
-        var references = entity.Fields.Where(field => field.Reference is not null).ToArray();
-        foreach (var field in references)
-        {
-            var target = mappings.Single(mapping => mapping.EntityId == field.Reference!.TargetEntityId);
-            var label = target.Fields.Single(candidate => candidate.FieldId == field.Reference!.LabelFieldId);
-            columns.Add($"(SELECT ref_target.{Quote(label.PhysicalColumnName)} FROM {Quote(target.PhysicalTableName)} ref_target WHERE ref_target.{Quote("__nendo_record_id")} = source_record.{Quote(field.PhysicalColumnName)})");
-        }
+        var (columns, references) = RecordColumns(entity, mappings);
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
         var id = Quote("__nendo_record_id");
@@ -92,17 +84,7 @@ internal sealed partial class SqliteNendoStore
             }
         }
         else if (after is not null) predicates.Add($"{id} {comparison} @after COLLATE BINARY");
-        for (var index = 0; index < query.Filters.Count; index++)
-        {
-            var filter = query.Filters[index];
-            var field = entity.Fields.Single(f => f.FieldId == filter.FieldId);
-            var function = $"nendo_query_filter_{index}";
-            _connection.CreateFunction<string?, string?, bool>(function,
-                (actual, expected) => RecordQuerySemantics.Matches(filter.Operator, field.StorageKind, actual, expected), isDeterministic: true);
-            predicates.Add($"{function}(CAST({Quote(field.PhysicalColumnName)} AS TEXT), @filter{index})");
-            parameters[$"@filter{index}"] = filter.Operator is "isNull" or "isNotNull" ? DBNull.Value
-                : ConvertValue(field with { Required = false, Presentation = null, Options = [] }, filter.Value);
-        }
+        await AddFilterPredicatesAsync(entity, query.Filters, "nendo_query_filter", predicates, parameters, transaction, cancellationToken);
         // Only storage-owned mappings become identifiers. User values are parameters.
         var sql = $"SELECT {string.Join(", ", columns)} FROM {Quote(entity.PhysicalTableName)} source_record " +
             (predicates.Count == 0 ? string.Empty : $"WHERE {string.Join(" AND ", predicates)} ") +
@@ -114,16 +96,7 @@ internal sealed partial class SqliteNendoStore
             if (after is not null) command.Parameters.AddWithValue("@after", after);
             foreach (var parameter in parameters) command.Parameters.AddWithValue(parameter.Key, parameter.Value);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var values = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-                for (var index = 0; index < entity.Fields.Count; index++)
-                    values[entity.Fields[index].FieldId] = ToJsonElement(
-                        reader.IsDBNull(index + 2) ? null : reader.GetValue(index + 2), entity.Fields[index].StorageKind);
-                var labels = references.Select((field, index) => (field.FieldId, Value: reader.IsDBNull(2 + entity.Fields.Count + index) ? null : reader.GetString(2 + entity.Fields.Count + index)))
-                    .ToDictionary(pair => pair.FieldId, pair => pair.Value, StringComparer.Ordinal);
-                records.Add(new(entity.EntityId, reader.GetString(0), reader.GetInt64(1), values) { ReferenceLabels = labels });
-            }
+            while (await reader.ReadAsync(cancellationToken)) records.Add(ReadRecordRow(reader, entity, references));
         }
         var next = records.Count > query.Limit ? cursors.Encode(manifest, scope, records[query.Limit - 1].RecordId) : null;
         // The same calculations a full snapshot shows, computed the same way. Studio,
@@ -154,17 +127,7 @@ internal sealed partial class SqliteNendoStore
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
-        for (var index = 0; index < query.Filters.Count; index++)
-        {
-            var filter = query.Filters[index];
-            var field = entity.Fields.Single(f => f.FieldId == filter.FieldId);
-            var function = $"nendo_count_filter_{index}";
-            _connection.CreateFunction<string?, string?, bool>(function,
-                (actual, expected) => RecordQuerySemantics.Matches(filter.Operator, field.StorageKind, actual, expected), isDeterministic: true);
-            predicates.Add($"{function}(CAST({Quote(field.PhysicalColumnName)} AS TEXT), @filter{index})");
-            parameters[$"@filter{index}"] = filter.Operator is "isNull" or "isNotNull" ? DBNull.Value
-                : ConvertValue(field with { Required = false, Presentation = null, Options = [] }, filter.Value);
-        }
+        await AddFilterPredicatesAsync(entity, query.Filters, "nendo_count_filter", predicates, parameters, transaction, cancellationToken);
 
         var sql = $"SELECT COUNT(*) FROM {Quote(entity.PhysicalTableName)} source_record " +
             (predicates.Count == 0 ? string.Empty : $"WHERE {string.Join(" AND ", predicates)}") + ";";
@@ -207,17 +170,7 @@ internal sealed partial class SqliteNendoStore
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
-        for (var index = 0; index < query.Filters.Count; index++)
-        {
-            var filter = query.Filters[index];
-            var field = entity.Fields.Single(f => f.FieldId == filter.FieldId);
-            var function = $"nendo_aggregate_filter_{index}";
-            _connection.CreateFunction<string?, string?, bool>(function,
-                (actual, expected) => RecordQuerySemantics.Matches(filter.Operator, field.StorageKind, actual, expected), isDeterministic: true);
-            predicates.Add($"{function}(CAST({Quote(field.PhysicalColumnName)} AS TEXT), @filter{index})");
-            parameters[$"@filter{index}"] = filter.Operator is "isNull" or "isNotNull" ? DBNull.Value
-                : ConvertValue(field with { Required = false, Presentation = null, Options = [] }, filter.Value);
-        }
+        await AddFilterPredicatesAsync(entity, query.Filters, "nendo_aggregate_filter", predicates, parameters, transaction, cancellationToken);
 
         // An unset field contributes nothing, so it is excluded in SQL rather
         // than fetched and discarded. This predicate is always present, so the
@@ -274,17 +227,7 @@ internal sealed partial class SqliteNendoStore
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
-        for (var index = 0; index < query.Filters.Count; index++)
-        {
-            var filter = query.Filters[index];
-            var field = entity.Fields.Single(f => f.FieldId == filter.FieldId);
-            var function = $"nendo_group_filter_{index}";
-            _connection.CreateFunction<string?, string?, bool>(function,
-                (actual, expected) => RecordQuerySemantics.Matches(filter.Operator, field.StorageKind, actual, expected), isDeterministic: true);
-            predicates.Add($"{function}(CAST({Quote(field.PhysicalColumnName)} AS TEXT), @filter{index})");
-            parameters[$"@filter{index}"] = filter.Operator is "isNull" or "isNotNull" ? DBNull.Value
-                : ConvertValue(field with { Required = false, Presentation = null, Options = [] }, filter.Value);
-        }
+        await AddFilterPredicatesAsync(entity, query.Filters, "nendo_group_filter", predicates, parameters, transaction, cancellationToken);
 
         var columns = target is null
             ? Quote(grouping.PhysicalColumnName)
@@ -340,17 +283,7 @@ internal sealed partial class SqliteNendoStore
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
-        for (var index = 0; index < query.Filters.Count; index++)
-        {
-            var filter = query.Filters[index];
-            var field = entity.Fields.Single(f => f.FieldId == filter.FieldId);
-            var function = $"nendo_bucket_filter_{index}";
-            _connection.CreateFunction<string?, string?, bool>(function,
-                (actual, expected) => RecordQuerySemantics.Matches(filter.Operator, field.StorageKind, actual, expected), isDeterministic: true);
-            predicates.Add($"{function}(CAST({Quote(field.PhysicalColumnName)} AS TEXT), @filter{index})");
-            parameters[$"@filter{index}"] = filter.Operator is "isNull" or "isNotNull" ? DBNull.Value
-                : ConvertValue(field with { Required = false, Presentation = null, Options = [] }, filter.Value);
-        }
+        await AddFilterPredicatesAsync(entity, query.Filters, "nendo_bucket_filter", predicates, parameters, transaction, cancellationToken);
         // The range itself, as the two predicates the compiler already charged the author for.
         predicates.Add($"{Quote(dateField.PhysicalColumnName)} >= @rangeStart");
         predicates.Add($"{Quote(dateField.PhysicalColumnName)} <= @rangeEnd");
@@ -413,17 +346,7 @@ internal sealed partial class SqliteNendoStore
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
-        for (var index = 0; index < query.Filters.Count; index++)
-        {
-            var filter = query.Filters[index];
-            var field = entity.Fields.Single(f => f.FieldId == filter.FieldId);
-            var function = $"nendo_cell_filter_{index}";
-            _connection.CreateFunction<string?, string?, bool>(function,
-                (actual, expected) => RecordQuerySemantics.Matches(filter.Operator, field.StorageKind, actual, expected), isDeterministic: true);
-            predicates.Add($"{function}(CAST({Quote(field.PhysicalColumnName)} AS TEXT), @filter{index})");
-            parameters[$"@filter{index}"] = filter.Operator is "isNull" or "isNotNull" ? DBNull.Value
-                : ConvertValue(field with { Required = false, Presentation = null, Options = [] }, filter.Value);
-        }
+        await AddFilterPredicatesAsync(entity, query.Filters, "nendo_cell_filter", predicates, parameters, transaction, cancellationToken);
 
         var columns = $"{Quote(rowField.PhysicalColumnName)}, {Quote(columnField.PhysicalColumnName)}" +
             (target is null ? string.Empty : $", {Quote(target.PhysicalColumnName)}");
@@ -444,6 +367,37 @@ internal sealed partial class SqliteNendoStore
         return fold.Result(query, manifest.ChangeSequence);
     }
 
+    /// <summary>
+    /// A record's columns as a read selects them, qualified by the <c>source_record</c> alias so
+    /// a joined walk cannot shadow one: the ID, the version, every field, then each reference's
+    /// label read from its target.
+    /// </summary>
+    private static (List<string> Columns, FieldMapping[] References) RecordColumns(EntityMapping entity, IReadOnlyList<EntityMapping> mappings)
+    {
+        var columns = new[] { Quote("__nendo_record_id"), Quote("__nendo_record_version") }
+            .Concat(entity.Fields.Select(field => Quote(field.PhysicalColumnName)))
+            .Select(column => $"source_record.{column}").ToList();
+        var references = entity.Fields.Where(field => field.Reference is not null).ToArray();
+        foreach (var field in references)
+        {
+            var target = mappings.Single(mapping => mapping.EntityId == field.Reference!.TargetEntityId);
+            var label = target.Fields.Single(candidate => candidate.FieldId == field.Reference!.LabelFieldId);
+            columns.Add($"(SELECT ref_target.{Quote(label.PhysicalColumnName)} FROM {Quote(target.PhysicalTableName)} ref_target WHERE ref_target.{Quote("__nendo_record_id")} = source_record.{Quote(field.PhysicalColumnName)})");
+        }
+        return (columns, references);
+    }
+
+    private static NendoRecordSnapshot ReadRecordRow(Microsoft.Data.Sqlite.SqliteDataReader reader, EntityMapping entity, FieldMapping[] references)
+    {
+        var values = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        for (var index = 0; index < entity.Fields.Count; index++)
+            values[entity.Fields[index].FieldId] = ToJsonElement(
+                reader.IsDBNull(index + 2) ? null : reader.GetValue(index + 2), entity.Fields[index].StorageKind);
+        var labels = references.Select((field, index) => (field.FieldId, Value: reader.IsDBNull(2 + entity.Fields.Count + index) ? null : reader.GetString(2 + entity.Fields.Count + index)))
+            .ToDictionary(pair => pair.FieldId, pair => pair.Value, StringComparer.Ordinal);
+        return new(entity.EntityId, reader.GetString(0), reader.GetInt64(1), values) { ReferenceLabels = labels };
+    }
+
     internal static void ValidateRecordQuery(NendoRecordQuery query, IReadOnlyList<NendoFieldSnapshot> fields)
     {
         if (query.SortFieldId is not null && !fields.Any(f => f.FieldId == query.SortFieldId && f.StorageKind != NendoStorageKind.Unsupported))
@@ -452,9 +406,10 @@ internal sealed partial class SqliteNendoStore
         {
             var field = fields.SingleOrDefault(f => f.FieldId == filter.FieldId)
                 ?? throw new NendoValidationException("The filter field does not belong to this record type.");
-            if (field.StorageKind == NendoStorageKind.Unsupported || (filter.Operator == "contains" && field.StorageKind != NendoStorageKind.Text))
+            if (field.StorageKind == NendoStorageKind.Unsupported || (filter.Operator == "contains" && field.StorageKind != NendoStorageKind.Text) ||
+                (filter.Operator == "descendantOf" && field.StorageKind != NendoStorageKind.Reference))
                 throw new NendoValidationException("This filter is not supported for the selected field type.");
-            if (filter.Operator is not ("isNull" or "isNotNull"))
+            if (filter.Operator is not ("isNull" or "isNotNull" or "descendantOf"))
                 _ = ConvertValue(new(field.FieldId, query.EntityId, field.DisplayName, "", field.StorageKind,
                     false, null, []), filter.Value);
         }

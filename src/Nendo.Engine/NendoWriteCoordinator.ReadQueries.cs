@@ -296,9 +296,13 @@ public sealed partial class NendoWriteCoordinator
                 Storage.SqliteNendoStore.ValidateRecordQuery(query, entity.Fields);
                 var scope = RecordScope(query);
                 var after = _queryCursors.Decode(query.Cursor, _readOnlySnapshot.Manifest, scope);
+                var subtrees = query.Filters.Where(filter => filter.Operator == "descendantOf").ToDictionary(filter => filter, filter =>
+                    entity.Hierarchy?.ParentFieldId == filter.FieldId
+                        ? SnapshotSubtree(_readOnlySnapshot.Records.Where(record => record.EntityId == query.EntityId).ToArray(), entity.Hierarchy, filter.Value.GetString()!)
+                        : throw new NendoPreconditionException("hierarchy-not-declared", $"descendantOf reads {entity.DisplayName}'s declared hierarchy, and {filter.FieldId} is not its parent field."));
                 var rows = _readOnlySnapshot.Records.Where(record => record.EntityId == query.EntityId)
                     .Where(record => query.RecordId is null || record.RecordId == query.RecordId)
-                    .Where(record => query.Filters.All(filter => RecordQuerySemantics.Matches(filter.Operator,
+                    .Where(record => query.Filters.All(filter => subtrees.TryGetValue(filter, out var subtree) ? subtree.Contains(record.RecordId) : RecordQuerySemantics.Matches(filter.Operator,
                         entity.Fields.Single(f => f.FieldId == filter.FieldId).StorageKind,
                         RecordQuerySemantics.Text(record.Values.GetValueOrDefault(filter.FieldId)), RecordQuerySemantics.Text(filter.Value))));
                 var comparer = Comparer<NendoRecordSnapshot>.Create((left, right) => {

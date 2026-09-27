@@ -30,6 +30,7 @@ internal static partial class WorkbenchMethods
     internal const string DataGroupAggregateRecords = "data.groupAggregateRecords";
     internal const string DataBucketAggregateRecords = "data.bucketAggregateRecords";
     internal const string DataCellAggregateRecords = "data.cellAggregateRecords";
+    internal const string DataTreeRecords = "data.treeRecords";
     internal const string HealthVerify = "health.verify";
     internal const string HistoryCompensate = "history.compensate";
     internal const string AppearanceSet = "appearance.set";
@@ -374,6 +375,7 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.DataGroupAggregateRecords => await _session.GroupAggregateRecordsAsync(Deserialize<NendoRecordGroupedAggregateQuery>(payload), cancellationToken),
                     WorkbenchMethods.DataBucketAggregateRecords => await _session.BucketAggregateRecordsAsync(Deserialize<NendoRecordDateBucketQuery>(payload), cancellationToken),
                     WorkbenchMethods.DataCellAggregateRecords => await _session.CellAggregateRecordsAsync(Deserialize<NendoRecordCellAggregateQuery>(payload), cancellationToken),
+                    WorkbenchMethods.DataTreeRecords => await _session.TreeRecordsAsync(Deserialize<NendoTreeQuery>(payload), cancellationToken),
                     WorkbenchMethods.HealthVerify => await _session.VerifyIntegrityAsync(cancellationToken),
                     WorkbenchMethods.HistoryCompensate => await CompensateRevisionAsync(payload, cancellationToken),
                     WorkbenchMethods.AppearanceSet => ApplyAppearance(payload),

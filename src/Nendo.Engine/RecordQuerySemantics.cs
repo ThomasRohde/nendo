@@ -25,7 +25,7 @@ internal static class RecordQuerySemantics
         foreach (var filter in query.Filters)
         {
             if (filter is null || string.IsNullOrWhiteSpace(filter.FieldId) ||
-                filter.Operator is not ("eq" or "ne" or "lt" or "le" or "gt" or "ge" or "contains" or "isNull" or "isNotNull"))
+                filter.Operator is not ("eq" or "ne" or "lt" or "le" or "gt" or "ge" or "contains" or "isNull" or "isNotNull" or "descendantOf"))
                 throw new NendoValidationException("The record filter is invalid.");
             if (filter.Value.ValueKind != JsonValueKind.Undefined && filter.Value.GetRawText().Length > 4096)
                 throw new NendoValidationException("A filter value exceeds 4096 characters.");
@@ -36,6 +36,8 @@ internal static class RecordQuerySemantics
             }
             else if (filter.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
                 throw new NendoValidationException("Use isNull or isNotNull to query missing values.");
+            else if (filter.Operator == "descendantOf" && filter.Value.ValueKind != JsonValueKind.String)
+                throw new NendoValidationException("descendantOf takes the record ID whose subtree to read.");
         }
     }
 

@@ -233,6 +233,7 @@ try {
         'nendo.application.entity.export',
         'nendo.application.entity.records',
         'nendo.application.entity.schema',
+        'nendo.application.entity.tree',
         'nendo.application.examples',
         'nendo.application.extension.file',
         'nendo.application.extensions',

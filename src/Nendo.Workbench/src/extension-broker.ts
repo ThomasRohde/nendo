@@ -1,4 +1,4 @@
-import { plainJson, plainPage, plainRecord } from './extension-model';
+import { plainJson, plainPage, plainRecord, plainTreePage } from './extension-model';
 import { WorkbenchHostError, type RecordSnapshot } from './host-types';
 import {
   apiVersion, extensionLimits, utf8Length,
@@ -98,6 +98,15 @@ function optionalBoolean(params: Params, key: string): boolean | undefined {
   const value = params[key];
   if (value === undefined || value === null) return undefined;
   if (typeof value !== 'boolean') throw invalid(`${key} must be true or false.`);
+  return value;
+}
+
+/** How many levels a tree read goes below its root: 1 unless the view says, and never past the host's bound. */
+function treeDepth(params: Params): number {
+  const value = params.depth;
+  if (value === undefined || value === null) return 1;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > 32)
+    throw invalid('depth must be a whole number from 1 to 32.');
   return value;
 }
 
@@ -350,6 +359,11 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
       const item = (result as { items?: RecordSnapshot[] } | null)?.items?.[0];
       return item === undefined ? null : plainRecord(item);
     }),
+  // A window of a declared hierarchy, depth-first (ADR-0019).
+  'records.tree': read('data.treeRecords', (p) => ({
+    entityId: textParam(p, 'entityId'), rootRecordId: optionalText(p, 'rootRecordId', 200) ?? null, depth: treeDepth(p),
+    limit: pageLimit(p), cursor: optionalText(p, 'cursor', 4096) ?? null,
+  }), (result) => plainTreePage(result as Parameters<typeof plainTreePage>[0])),
   'records.count': read('data.countRecords', (p) => ({ entityId: textParam(p, 'entityId'), filters: filterParams(p) })),
   'records.aggregate': read('data.aggregateRecords', (p) => ({
     entityId: textParam(p, 'entityId'), aggregate: textParam(p, 'aggregate', 32), fieldId: textParam(p, 'fieldId'), filters: filterParams(p),

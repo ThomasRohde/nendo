@@ -266,6 +266,104 @@ public sealed class HierarchyTests
             (await Refused(() => service.MoveRecordAsync(new(Entity, "b", 1, "a", null, null, Context("unversioned"))))).Code);
     }
 
+    [TestMethod]
+    public async Task ATreeReadIsDepthFirstInSiblingOrderWithDepthsAndChildCounts()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator);
+        await CreateAsync(service, "r2", null, 2048);
+        await CreateAsync(service, "r1", null, 1024);
+        await CreateAsync(service, "b", "r1", 2048);
+        await CreateAsync(service, "a", "r1", 1024);
+        await CreateAsync(service, "loose", "r1");
+        await CreateAsync(service, "a1", "a", 1);
+        await CreateAsync(service, "neg", "r2", -5);
+        await DeclareAsync(coordinator, service, order: true);
+
+        var all = await service.TreeRecordsAsync(new(Entity, null, NendoHierarchyLimits.MaximumDepth, 100));
+        // Ordered siblings by their order (a negative one first), unordered last, subtrees before the next sibling.
+        CollectionAssert.AreEqual(new[] { "r1", "a", "a1", "b", "loose", "r2", "neg" }, all.Items.Select(node => node.Record.RecordId).ToArray());
+        CollectionAssert.AreEqual(new[] { 1, 2, 3, 2, 2, 1, 2 }, all.Items.Select(node => node.Depth).ToArray());
+        CollectionAssert.AreEqual(new[] { 3, 1, 0, 0, 0, 1, 0 }, all.Items.Select(node => node.ChildCount).ToArray());
+        Assert.AreEqual("r1", all.Items.Single(node => node.Record.RecordId == "a").ParentRecordId);
+        Assert.IsNull(all.Items[0].ParentRecordId);
+
+        // One level from the top, and one level under a root: the root itself is not in its window.
+        CollectionAssert.AreEqual(new[] { "r1", "r2" }, (await service.TreeRecordsAsync(new(Entity))).Items.Select(node => node.Record.RecordId).ToArray());
+        var under = await service.TreeRecordsAsync(new(Entity, "r1", 1));
+        CollectionAssert.AreEqual(new[] { "a", "b", "loose" }, under.Items.Select(node => node.Record.RecordId).ToArray());
+        Assert.IsTrue(under.Items.All(node => node.Depth == 1));
+    }
+
+    [TestMethod]
+    public async Task ATreeReadPagesByPositionAndRefusesAStaleCursor()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator);
+        await CreateAsync(service, "root");
+        for (var i = 0; i < 5; i++) await CreateAsync(service, $"c{i}", "root", (i + 1) * 1024L);
+        await DeclareAsync(coordinator, service, order: true);
+
+        var first = await service.TreeRecordsAsync(new(Entity, null, 2, 3));
+        CollectionAssert.AreEqual(new[] { "root", "c0", "c1" }, first.Items.Select(node => node.Record.RecordId).ToArray());
+        var second = await service.TreeRecordsAsync(new(Entity, null, 2, 3, first.NextCursor));
+        CollectionAssert.AreEqual(new[] { "c2", "c3", "c4" }, second.Items.Select(node => node.Record.RecordId).ToArray());
+        Assert.IsNull(second.NextCursor);
+
+        await service.SetFieldAsync(new(Entity, "c4", "title", 1, "Changed", Context("change")));
+        await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => service.TreeRecordsAsync(new(Entity, null, 2, 3, first.NextCursor)));
+    }
+
+    [TestMethod]
+    public async Task ATreeReadNeedsADeclarationAnExistingRootAndABound()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator);
+        await CreateAsync(service, "root");
+        Assert.AreEqual("hierarchy-not-declared", (await Refused(() => service.TreeRecordsAsync(new(Entity)))).Code);
+        await DeclareAsync(coordinator, service);
+        Assert.AreEqual("record-not-found", (await Refused(() => service.TreeRecordsAsync(new(Entity, "missing")))).Code);
+        await Assert.ThrowsExactlyAsync<NendoValidationException>(() => service.TreeRecordsAsync(new(Entity, null, NendoHierarchyLimits.MaximumDepth + 1)));
+    }
+
+    [TestMethod]
+    public async Task DescendantOfFiltersThePageTheCountAndTheAggregates()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator);
+        await CreateAsync(service, "root");
+        await CreateAsync(service, "a", "root", 10);
+        await CreateAsync(service, "a1", "a", 20);
+        await CreateAsync(service, "a2", "a", 30);
+        await CreateAsync(service, "b", "root", 40);
+        await CreateAsync(service, "other", null, 50);
+        await DeclareAsync(coordinator, service, order: true);
+        var under = new NendoRecordFilter("parent", "descendantOf", System.Text.Json.JsonSerializer.SerializeToElement("a"));
+
+        var page = await service.QueryRecordsAsync(new(Entity, 50) { Filters = [under] });
+        CollectionAssert.AreEquivalent(new[] { "a1", "a2" }, page.Items.Select(record => record.RecordId).ToArray());
+        var everything = new NendoRecordFilter("parent", "descendantOf", System.Text.Json.JsonSerializer.SerializeToElement("root"));
+        Assert.AreEqual(4L, (await service.CountRecordsAsync(new(Entity) { Filters = [everything] })).Count);
+        var sum = await service.AggregateRecordsAsync(new(Entity, "sum", "ord") { Filters = [everything] });
+        Assert.AreEqual("100", sum.Value!.Value.ValueKind == System.Text.Json.JsonValueKind.Number ? sum.Value.Value.GetRawText() : sum.Value.Value.GetProperty("$nendoNumber").GetString());
+
+        // Only the declared parent field reads a hierarchy.
+        await coordinator.ApplyAsync(new("test", "other-ref", "test", "Another self-reference", [
+            new AddFieldOperation($"f-{Guid.NewGuid():N}", Entity, "twin", "Twin", "twin_id", NendoStorageKind.Reference, false),
+            new ConfigureReferenceOperation($"b-{Guid.NewGuid():N}", Entity, "twin", Entity, "title", (await service.GetSnapshotAsync()).Manifest.DefinitionRevision),
+        ]));
+        var wrong = new NendoRecordFilter("twin", "descendantOf", System.Text.Json.JsonSerializer.SerializeToElement("a"));
+        Assert.AreEqual("hierarchy-not-declared", (await Refused(() => service.QueryRecordsAsync(new(Entity, 50) { Filters = [wrong] }))).Code);
+    }
+
     // ------------------------------------------------------------------------------------------
 
     private static async Task SchemaAsync(NendoWriteCoordinator coordinator) =>

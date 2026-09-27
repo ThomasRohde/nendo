@@ -199,6 +199,10 @@ told you and whether the file changed. Repair it, declare it, and try again: thr
 field write, through a create, and through the move tool, and put something deeper than the
 published bound. Record whether each refusal named the records involved, and whether a
 move before a sibling left the order you asked for when you read the records back.
+Then read the tree back the way the vocabulary says a tree is read, from the top and from
+one record down, and compare what came back — the order, each record's depth and how many
+children it claims — with what you built. Ask for a record's whole subtree as a filter on an
+ordinary query, a count and a sum, and say whether the three agree with each other.
 
 **Before you accept any of it, read the review and answer from it alone.** Cover the change
 set you sent and work only from the sentences the person accepting would see: which record

@@ -15,7 +15,7 @@ import { resolveClauseValue } from '../record-window';
 import {
   apiVersion, extensionLimits, utf8Length,
   type ConnectMessage, type HelloMessage, type Json, type PortMessage, type SchemaDescription, type SchemaField,
-  type ViewContext, type ViewEventName, type ViewGraph, type ViewPage, type ViewRecord, type ViewTheme,
+  type ViewContext, type ViewEventName, type ViewGraph, type ViewPage, type ViewRecord, type ViewTheme, type ViewTreeNode, type ViewTreePage,
 } from './protocol';
 
 type Listener = (data: never) => void;
@@ -169,6 +169,26 @@ function install(host: Window & { nendo?: unknown }): void {
   // A page opened on its own has no Workbench to connect to: say so, rather than wait forever.
   if (host.parent !== host) host.parent.postMessage({ nendo: 'hello', apiVersion } satisfies HelloMessage, '*');
   else refuse(new NendoError('not-framed', 'This page is a Nendo view. It runs inside Nendo, on a screen or a record page that shows it.'));
+
+  /** Every node of a tree window, depth-first, read again from the top if the file changes between pages. */
+  async function treeAll(query: Query, options: { max?: number } = {}): Promise<ViewTreeNode[]> {
+    const max = Math.max(1, Math.floor(options.max ?? 10_000));
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const nodes: ViewTreeNode[] = [];
+      let cursor: string | null = null;
+      try {
+        do {
+          const page: ViewTreePage = await call<ViewTreePage>('records.tree', { ...query, cursor, limit: extensionLimits.maximumPageLimit });
+          nodes.push(...page.items);
+          cursor = page.nextCursor;
+        } while (cursor !== null && nodes.length < max);
+        return nodes.slice(0, max);
+      } catch (error) {
+        if (!(error instanceof NendoError) || (error.code !== 'stale-cursor' && error.code !== 'invalid-cursor')) throw error;
+      }
+    }
+    throw new NendoError('stale-cursor', 'The file kept changing while the view read it. Read again when it settles.');
+  }
 
   async function queryAll(query: Query, options: { max?: number } = {}): Promise<ViewRecord[]> {
     const max = Math.max(1, Math.floor(options.max ?? 10_000));
@@ -335,6 +355,13 @@ function install(host: Window & { nendo?: unknown }): void {
       bucketAggregate: (query: Query): Promise<unknown> => call('records.bucketAggregate', query),
       cellAggregate: (query: Query): Promise<unknown> => call('records.cellAggregate', query),
       queryAll,
+      /**
+       * A window of a record type's declared hierarchy, depth-first (ADR-0019): { entityId,
+       * rootRecordId?, depth? (1 to 32, default 1), limit?, cursor? }. Each node carries its record,
+       * its parent, its depth below the root and its child count. treeAll reads every page.
+       */
+      tree: (query: Query): Promise<ViewTreePage> => call<ViewTreePage>('records.tree', query),
+      treeAll,
       /**
        * Writes, as the person's own edit makes them (ADR-0013 Phase 3). Each is checked against the
        * record's version and refused if somebody changed it since; each is in History under this

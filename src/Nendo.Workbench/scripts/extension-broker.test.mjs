@@ -81,7 +81,7 @@ function close(h) {
 }
 
 // proposal.get reads a proposal the view's own package prepared, and nothing else.
-const readMethods = ['data.queryRecords', 'data.countRecords', 'data.aggregateRecords', 'data.groupAggregateRecords', 'data.bucketAggregateRecords', 'data.cellAggregateRecords', 'proposal.get', 'extension.state.read'];
+const readMethods = ['data.queryRecords', 'data.treeRecords', 'data.countRecords', 'data.aggregateRecords', 'data.groupAggregateRecords', 'data.bucketAggregateRecords', 'data.cellAggregateRecords', 'proposal.get', 'extension.state.read'];
 // The record writes a person's own edit uses, and preparing a proposal (ADR-0013 Phase 3,
 // W-065 and W-069). The host admits a view's actor on exactly these and on proposal.get
 // (WorkbenchMethods.ExtensionWriterMethods). Never promote or reject.
@@ -92,6 +92,7 @@ test('the method table is closed: reads, the record writes, preparing a proposal
     ['schema.describe', null],
     ['records.query', 'data.queryRecords'],
     ['records.get', 'data.queryRecords'],
+    ['records.tree', 'data.treeRecords'],
     ['records.count', 'data.countRecords'],
     ['records.aggregate', 'data.aggregateRecords'],
     ['records.groupAggregate', 'data.groupAggregateRecords'],

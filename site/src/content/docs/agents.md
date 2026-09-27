@@ -62,6 +62,7 @@ Reads are MCP resources. They need no lease. Start with `nendo://application/des
 | `nendo://application/describe` | The whole application in one read. |
 | `nendo://application/entity/{entityId}/schema` | One record type's fields, including calculated fields. |
 | `nendo://application/entity/{entityId}/records{?cursor,limit}` | A page of records, with exact numbers. |
+| `nendo://application/entity/{entityId}/tree{?root,depth,cursor,limit}` | A record type kept as a tree, depth-first, each record with its parent, depth and number of children. |
 | `nendo://application/entity/{entityId}/export{?cursor,limit}` | A page of records as Nendo CSV, ready to import again. |
 | `nendo://application/surfaces` | Every compiled screen as a node tree. |
 | `nendo://application/vocabulary` | Everything this Nendo build accepts from an author: node kinds, operators, operations and their payloads, the behaviour catalogue and the limits. |

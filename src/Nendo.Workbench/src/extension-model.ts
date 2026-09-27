@@ -5,7 +5,7 @@ import type { DesktopSessionView, EntitySnapshot, RecordSnapshot, UiNodeSnapshot
 import {
   apiVersion,
   type Json, type SchemaDescription, type SchemaEntity, type SchemaField, type ViewBindings, type ViewCalculation,
-  type ViewContext, type ViewPage, type ViewPlacement, type ViewRecord, type ViewTheme,
+  type ViewContext, type ViewPage, type ViewPlacement, type ViewRecord, type ViewTheme, type ViewTreePage,
 } from './extension-api/protocol';
 
 /**
@@ -71,6 +71,23 @@ export function plainRecord(snapshot: RecordSnapshot): ViewRecord {
 export function plainPage(page: { items?: RecordSnapshot[]; nextCursor?: string | null; changeSequence?: number }): ViewPage {
   return {
     items: (page.items ?? []).map(plainRecord),
+    nextCursor: typeof page.nextCursor === 'string' ? page.nextCursor : null,
+    changeSequence: typeof page.changeSequence === 'number' ? page.changeSequence : 0,
+  };
+}
+
+/** A window of a declared hierarchy, as a view reads it: each node's record in the view's own shape. */
+export function plainTreePage(page: {
+  items?: { record: RecordSnapshot; parentRecordId?: string | null; depth?: number; childCount?: number }[];
+  nextCursor?: string | null; changeSequence?: number;
+}): ViewTreePage {
+  return {
+    items: (page.items ?? []).map((node) => ({
+      record: plainRecord(node.record),
+      parentRecordId: typeof node.parentRecordId === 'string' ? node.parentRecordId : null,
+      depth: typeof node.depth === 'number' ? node.depth : 0,
+      childCount: typeof node.childCount === 'number' ? node.childCount : 0,
+    })),
     nextCursor: typeof page.nextCursor === 'string' ? page.nextCursor : null,
     changeSequence: typeof page.changeSequence === 'number' ? page.changeSequence : 0,
   };

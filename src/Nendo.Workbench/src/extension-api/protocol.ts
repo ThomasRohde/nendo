@@ -133,6 +133,20 @@ export interface ViewPage {
   changeSequence: number;
 }
 
+/** One record of a tree window (ADR-0019): its parent, its depth below the window's root and its child count. */
+export interface ViewTreeNode {
+  record: ViewRecord;
+  parentRecordId: string | null;
+  depth: number;
+  childCount: number;
+}
+
+export interface ViewTreePage {
+  items: ViewTreeNode[];
+  nextCursor: string | null;
+  changeSequence: number;
+}
+
 export interface SchemaChoice { id: string; displayName: string; retired: boolean; tone: string | null }
 
 export interface SchemaField {

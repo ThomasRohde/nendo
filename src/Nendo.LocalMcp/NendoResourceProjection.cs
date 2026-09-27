@@ -70,6 +70,32 @@ internal sealed class NendoResourceProjection(
         };
     }
 
+    internal async Task<NendoMcpPage<NendoMcpTreeNode>> GetTreeAsync(
+        string entityId,
+        string? root,
+        int depth,
+        string? cursor,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        RequireLimit(limit);
+        var scope = $"tree:{entityId}:{root}:{depth}";
+        var page = await application.TreeRecordsAsync(new(entityId, root, depth, limit, cursors.Decode(cursor, scope)), cancellationToken);
+        return new NendoMcpPage<NendoMcpTreeNode>(
+            page.Items.Select(node => new NendoMcpTreeNode(Project(node.Record), node.ParentRecordId, node.Depth, node.ChildCount)).ToArray(),
+            page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor));
+    }
+
+    private static NendoMcpRecord Project(NendoRecordSnapshot record) => new(record.EntityId, record.RecordId, record.RecordVersion, record.Values)
+    {
+        ReferenceLabels = record.ReferenceLabels,
+        Calculations = record.Calculations
+            .Select(result => new NendoMcpCalculation(
+                result.CalculationId, result.FieldId, result.State, result.ResultType,
+                result.Value, result.ErrorCode, result.ErrorMessage))
+            .ToArray(),
+    };
+
     internal async Task<NendoMcpPage<NendoMcpRecord>> GetRecordsAsync(
         string entityId,
         string? cursor,

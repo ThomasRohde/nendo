@@ -47,6 +47,7 @@ internal static partial class WorkbenchMethods
         DataGroupAggregateRecords,
         DataBucketAggregateRecords,
         DataCellAggregateRecords,
+        DataTreeRecords,
         CompensationGetReceipt,
         ProposalGetReceipt,
         ProposalPrepareChangeSet,

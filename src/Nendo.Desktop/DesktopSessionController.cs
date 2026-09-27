@@ -323,6 +323,9 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
     internal Task<NendoRecordCellAggregate> CellAggregateRecordsAsync(NendoRecordCellAggregateQuery query, CancellationToken cancellationToken) =>
         QueryAsync(service => service.CellAggregateRecordsAsync(query, cancellationToken), cancellationToken);
 
+    internal Task<NendoPage<NendoTreeNode>> TreeRecordsAsync(NendoTreeQuery query, CancellationToken cancellationToken) =>
+        QueryAsync(service => service.TreeRecordsAsync(query, cancellationToken), cancellationToken);
+
     internal Task<NendoPage<NendoRevisionSummary>> QueryHistoryAsync(NendoHistoryQuery query, CancellationToken cancellationToken) =>
         QueryAsync(service => service.QueryHistoryAsync(query, cancellationToken), cancellationToken);
 

@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-27
-- **Delivery:** Stages 1 (the cost experiment) and 2 (declaration, cycle rule, move, MCP) done 2026-09-27; stages 3–7 not started. Proposed and accepted the same day, after the owner settled the open questions
+- **Delivery:** Stages 1 (the cost experiment), 2 (declaration, cycle rule, move, MCP) and 3 (tree read, `descendantOf`, `records.tree`) done 2026-09-27; stages 4–7 not started. Proposed and accepted the same day, after the owner settled the open questions
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** The code survey in Context (2026-09-27) and the Capability Atlas review (W-072, planner findings F-154 to F-162). The costs were measured after acceptance as delivery stage 1, and every target was met; see the Stage 1 note
@@ -288,6 +288,35 @@ thrown"). `HierarchyProtocolTests` shows the refusal reaching an MCP client with
 without the audited code it read only `NENDO_HIERARCHY_CYCLE: The semantic precondition was
 not met.` The output-schema contract exercises the move tool and the schema read's
 `hierarchy`.
+
+## Stage 3 note — 2026-09-27: reading the tree
+
+Delivered within host 1.35.0: the tree read reads what stage 2 declared and needs nothing
+new in the file.
+
+- **The tree read** (`NendoTreeQuery`, the view API's `records.tree` and `treeAll`, the MCP
+  resource `nendo://application/entity/{entityId}/tree`) walks the hierarchy depth-first
+  from a root or the top level to a depth of 1 to 32. The order is a path key built one
+  segment per level: the order value encoded to sort numerically (negative, then positive,
+  then unordered), then the record ID, then a separator below any ID character, so a
+  record's subtree comes before its next sibling. Each node carries its parent, its depth
+  and its child count. Pages are cut by position, which the change-bound cursor keeps
+  honest. The walk refuses past 10,000 records before it reads a page.
+- **`descendantOf`** is a filter operator on the declared parent field. Every filtered read
+  shares one predicate builder now — the page, the count and the four aggregates had six
+  copies of the same loop — so the operator holds in all of them. It refuses past 10,000
+  records under the named record.
+- **A read-only file** has no store to query, so the coordinator walks its snapshot the
+  same way for the tree read and for `descendantOf` in a page query. The snapshot's counts
+  and aggregates ignore filters today, as they did before this stage.
+
+Evidence: four more `HierarchyTests` (depth-first order with a negative order value and an
+unordered sibling, depths, child counts and parents; one level from the top and under a
+root; paging by position and a stale cursor; refusals without a declaration, for a missing
+root and past the depth bound; `descendantOf` in the page, the count and a sum, and refused
+on a field that is not the parent). Sorting unordered siblings first failed the order test,
+and a `descendantOf` that matched everything returned 6 records where 2 belong. An MCP test
+reads the tree resource from the top and under a root.
 
 ## Consequences
 
