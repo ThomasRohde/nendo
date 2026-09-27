@@ -11,7 +11,7 @@ import { refreshVisibleTiles, wireCharts, wireSummaryRetry } from './panels';
 import { relatedLists, visibleCharts, visibleTiles } from './plan-selection';
 import { loadRelatedWindow, loadRelatedWindows } from './reads';
 import { wireRelatedActions } from './related-actions';
-import { chartTileMarkup, relatedListMarkup, summaryTileMarkup } from './record-markup';
+import { chartTileMarkup, fieldSequence, relatedListMarkup, summaryTileMarkup } from './record-markup';
 import { referenceVersions, wireReferenceControls } from './reference-controls';
 import { parseScalar } from './scalars';
 import { content, requiredElement, rerender, showError, showOutcome } from './shell';
@@ -108,7 +108,9 @@ export function wireRecordForm(
     // Every declared field is checked, including one in a closed tab. The
     // browser would refuse to focus a hidden required control and block the
     // submit with an error nobody can act on, so the page does this itself.
-    const missing = fields.find((field) => !field.retired && field.required && (values[field.semanticId] === null || values[field.semanticId] === ''));
+    // A numbered field left empty on a new record is not missing: Nendo fills it (ADR-0020).
+    const missing = fields.find((field) => !field.retired && field.required && (values[field.semanticId] === null || values[field.semanticId] === '') &&
+      !(record === null && fieldSequence(field) !== null));
     if (missing !== undefined) {
       if (page !== null) revealField(page, missing.semanticId);
       showError(`${missing.displayName} is required.`);

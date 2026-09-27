@@ -40,6 +40,9 @@ function capabilityTreeFixture(): PreviewFixture {
         reference: { targetEntityId: 'entity.capability', labelFieldId: 'field.capability.name' } },
       field('field.capability.order', 'Order', 'integer', false, null as unknown as string),
       field('field.capability.status', 'Status', 'text', false, 'singleChoice', ['Proposed', 'Active', 'Retiring']),
+      // A unique reference Nendo numbers (ADR-0020), so Structure and a new record's form show both rules.
+      { ...field('field.capability.code', 'Reference', 'text', true, 'singleLine'), unique: true, sequence: { prefix: 'CAP-', width: 3 } },
+      { ...field('field.capability.owner', 'Owner', 'text', false, 'singleLine'), unique: true },
     ],
   };
   const rows: Array<[string, string, string | null, number | null, string]> = [

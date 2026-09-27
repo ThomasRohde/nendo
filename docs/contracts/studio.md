@@ -86,6 +86,15 @@ the 200 read. Enter or Space opens or closes the focused record. Move up, Move d
 and Outdent — or Alt+Shift and an arrow — move it with `data.moveRecord`; a move that would
 pass siblings not yet read is not offered. The other columns edit as in the table.
 
+**Unique and numbered fields** ([ADR-0020](../decisions/0020-unique-and-generated-fields.md)).
+Structure shows a field's rules beside its requirement: a *Unique* tag, and *Numbered* with an
+example code (`Numbered W-001`). A single-line Text or plain Integer field offers **Make unique**
+or **Allow duplicates**; a unique Text field offers **Number automatically**, a form with a prefix
+and a digit count whose example follows the inputs, or **Stop numbering**. Each is a reviewed
+proposal. Allow duplicates is disabled on a numbered field, saying why. On a new record a numbered
+field that is empty is not required and says *Assigned when saved*, with the next code as an
+example; a code typed there is kept if it is free.
+
 Saved views are desirable, but they are secondary to correct editing. The MVP may ship one default view plus one saved custom view per entity before it supports a general view-management system.
 
 ## 6. Field presentations

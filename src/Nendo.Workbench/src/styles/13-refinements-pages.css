@@ -358,6 +358,15 @@
 .requirement-value { color: var(--ink); font-size: 0.83rem; }
 .field-requirement .text-button { margin-left: -9px; color: var(--cobalt); font-size: 0.76rem; }
 
+/* What a field's values are held to beyond being required (ADR-0020): unique, and numbered by
+   Nendo. The tags are facts about the field, so they take the accent rather than the warning
+   a Retired tag wears. */
+.field-rules { display: grid; gap: 2px; justify-items: start; margin-top: 4px; }
+.field-rules .field-tag { margin-left: 0; color: var(--cobalt); background: var(--cobalt-soft); }
+.field-rules .text-button:disabled { color: var(--muted); }
+.record-form .field-note { display: block; margin-top: 4px; color: var(--muted); font-size: 0.76rem; font-weight: 400; }
+.numbering-example { margin: 0; color: var(--ink); font-family: var(--mono); font-size: 0.83rem; }
+
 /* --- Surfaces -------------------------------------------------------------- */
 
 .surface-list {

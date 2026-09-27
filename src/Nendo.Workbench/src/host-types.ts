@@ -353,6 +353,10 @@ export interface FieldPlan {
   choices?: Array<{ id: string; displayName: string; retired: boolean; tone?: string | null }>;
   scale?: { min: number; max: number } | null;
   retired?: boolean;
+  /** No two records may share a value (ADR-0020). */
+  unique?: boolean;
+  /** The host numbers a new record's empty value: prefix then width digits (ADR-0020). */
+  sequence?: { prefix: string; width: number } | null;
   /**
    * Where a Reference field points and which of the target's fields labels it, or null
    * for every other kind and for a reference nobody has bound. A board grouped by the

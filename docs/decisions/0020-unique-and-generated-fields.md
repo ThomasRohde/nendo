@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-27
-- **Delivery:** Stages 1 (unique fields), 2 (sequences) and 3 (`HierarchyPath`) done 2026-09-27, at host 1.37.0; stages 4–5 not started. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24, "I pre-accept any ADR change - this is still an experimental project"), with the recommended option taken at every open point
+- **Delivery:** Stages 1 (unique fields), 2 (sequences), 3 (`HierarchyPath`) and 4 (Studio and forms) done 2026-09-27, at host 1.37.0; stage 5 not started. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24, "I pre-accept any ADR change - this is still an experimental project"), with the recommended option taken at every open point
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** The code survey in Context (2026-09-27) and the planner's own duplicate codes (W-074 names them)
@@ -209,6 +209,26 @@ Evidence: `HierarchyPathTests` (5: paths in order with missing orders last; a pr
 followed at once; ordering by record ID without an order field; refused without a hierarchy, with
 a long prefix, and holding the hierarchy; the wire format and its refusals). Falsified: treating a
 missing order as ordinary made *"Expected 3"* fail for the unordered top-level record.
+
+## Stage 4 note — 2026-09-27: Studio and forms
+
+Structure shows *Unique* and *Numbered W-001* beside a field's requirement and offers **Make
+unique**, **Allow duplicates**, **Number automatically** and **Stop numbering** as reviewed
+proposals; Allow duplicates is disabled on a numbered field with the reason. The numbering form
+suggests a prefix from the field's initials, rejects a prefix ending in a digit, and shows the
+first code as the inputs change. On a new record an empty numbered field is not required, says
+*Assigned when saved* and names the next code's shape; the form's own required check skips it. A
+compiled screen's field plan carries no sequence, so the form reads it from the open file's schema.
+
+Not done here: a duplicate refused on a form reads the Engine's sentence, which names the record
+holding the value by its ID rather than its label.
+
+Evidence: `record-markup.test.mjs` (the numbered control on a new record and on a record with a
+code; `fieldSequence`, `sequenceExample`). Falsified: without the numbered branch, *"The input did
+not match /placeholder="Assigned when saved"/"*. Agent-observed in headless Edge against the
+preview's `tree` fixture (not the real host): the tags and actions per field, the disabled Allow
+duplicates and its reason, the dialog's example (`O-001`, then `OWN-0001`), a trailing digit
+refused, and a new record's code field not required with the note; no console error.
 
 ## Consequences
 

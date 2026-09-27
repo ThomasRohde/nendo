@@ -5,7 +5,7 @@ import { choiceDisplay, cssToken, escapeAttribute, escapeHtml, messageFor, prese
 import { type EntitySnapshot, type FieldPlan, type ReadPage, type RecordSnapshot } from './host';
 import { currentRecipe, sessionEntity } from './plan-selection';
 import { formValue } from './record-form';
-import { fieldControlMarkup } from './record-markup';
+import { fieldControlMarkup, sequenceExample } from './record-markup';
 import { referenceControl, referenceVersions, wireReferenceControls } from './reference-controls';
 import { content, requiredElement, rerender, showError } from './shell';
 import { fieldProposal, renameSchemaProposal } from './studio';
@@ -36,7 +36,7 @@ export function renderStructure(): void {
         <div class="field-identity"><strong>${escapeHtml(field.displayName)}${field.retired ? ' <span class="field-tag">Retired</span>' : ''}</strong><code>${escapeHtml(field.fieldId)}</code><div class="field-actions"><button class="text-button" data-rename-field="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''} aria-label="Rename ${escapeAttribute(field.displayName)}">Rename</button><button class="text-button" data-retire-field="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired ? 'disabled' : ''}>${field.retired ? 'Reactivate' : 'Retire'}</button>${field.presentation === 'singleChoice' ? `<button class="text-button" data-choice-field="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''}>Edit choices</button>` : ''}</div></div>
         <span class="field-kind">${escapeHtml(storageLabel(field.storageKind, field.unsupportedStorageKind))}${storageLabel(field.storageKind) === 'Reference' && !field.reference ? `<button class="text-button" data-convert-reference="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''}>Convert reference</button>` : ''}</span>
         <span class="field-presentation">${escapeHtml(presentationLabel(field.presentation))}${field.scale ? ` ${escapeHtml(`${field.scale.min}–${field.scale.max}`)}` : ''}</span>
-        <span class="field-requirement"><span class="requirement-value">${field.required ? 'Required' : 'Optional'}</span><button class="text-button" data-require-field="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''}>${field.required ? 'Make optional' : 'Make required'}</button></span>
+        <span class="field-requirement"><span class="requirement-value">${field.required ? 'Required' : 'Optional'}</span><button class="text-button" data-require-field="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''}>${field.required ? 'Make optional' : 'Make required'}</button>${fieldRulesMarkup(entity, field)}</span>
       </article>`).join('')}</div>
     </section>
     ${activated ? '<aside class="context-note"><strong>Stable semantics</strong><p>Use surfaces bind to these IDs, not display labels or physical columns.</p></aside>' : '<aside class="context-note"><strong>No active surfaces</strong><p>Data remains available while a stored surface definition is prepared or repaired.</p></aside>'}
@@ -55,6 +55,14 @@ export function renderStructure(): void {
     button.addEventListener('click', () => renderChoiceEditor(entity, button.dataset.choiceField!));
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-require-field]'))
     button.addEventListener('click', () => void renderFieldRequirement(entity, button.dataset.requireField!));
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-unique-field]'))
+    button.addEventListener('click', () => prepareFieldRule(entity, button.dataset.uniqueField!, 'unique'));
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-sequence-field]'))
+    button.addEventListener('click', () => {
+      const field = entity.fields.find(candidate => candidate.fieldId === button.dataset.sequenceField)!;
+      if (field.sequence) prepareFieldRule(entity, field.fieldId, 'stop-numbering');
+      else renderNumbering(entity, field.fieldId);
+    });
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-convert-reference]'))
     button.addEventListener('click', () => renderReferenceConversion(entity, button.dataset.convertReference!));
   requiredElement<HTMLButtonElement>('#rename-entity').addEventListener('click', () => renderRenameSchema(entity, null));
@@ -63,6 +71,91 @@ export function renderStructure(): void {
   content.querySelector<HTMLButtonElement>('#prepare-application')?.addEventListener('click', () => {
     if (recipe !== null) void prepareApplication(recipe, 'structure');
   });
+}
+
+/** Whether a field can be kept unique (ADR-0020): single-line text, or a plain whole number. */
+function canBeUnique(field: EntitySnapshot['fields'][number]): boolean {
+  const kind = storageLabel(field.storageKind);
+  return kind === 'Text' && (field.presentation === null || field.presentation === 'singleLine') ||
+    kind === 'Integer' && field.presentation === null;
+}
+
+/**
+ * What a field's values are held to beyond being required (ADR-0020): unique, and numbered by
+ * Nendo. Each is offered where the field can carry it, and each change is a reviewed proposal.
+ */
+function fieldRulesMarkup(entity: EntitySnapshot, field: EntitySnapshot['fields'][number]): string {
+  if (!canBeUnique(field) && !field.unique) return '';
+  const off = entity.retired || field.retired;
+  const id = escapeAttribute(field.fieldId);
+  const tags = `${field.unique ? '<span class="field-tag" data-field-rule="unique">Unique</span>' : ''}${field.sequence ? `<span class="field-tag" data-field-rule="numbered">Numbered ${escapeHtml(sequenceExample(field.sequence))}</span>` : ''}`;
+  const unique = `<button class="text-button" data-unique-field="${id}" data-action type="button" ${off || field.sequence ? 'disabled' : ''}${field.sequence ? ' title="A numbered field stays unique. Stop numbering it first."' : ''}>${field.unique ? 'Allow duplicates' : 'Make unique'}</button>`;
+  const numbering = field.unique && storageLabel(field.storageKind) === 'Text'
+    ? `<button class="text-button" data-sequence-field="${id}" data-action type="button" ${off ? 'disabled' : ''}>${field.sequence ? 'Stop numbering' : 'Number automatically'}</button>` : '';
+  return `<span class="field-rules">${tags}${unique}${numbering}</span>`;
+}
+
+/** One reviewed change to a field's rules: unique on or off, or numbering off. */
+function prepareFieldRule(entity: EntitySnapshot, fieldId: string, change: 'unique' | 'stop-numbering'): void {
+  const field = entity.fields.find(candidate => candidate.fieldId === fieldId);
+  if (field === undefined) return;
+  const id = crypto.randomUUID().replaceAll('-', '');
+  const expectedDefinitionRevision = state.session.manifest?.definitionRevision ?? 0;
+  const title = change === 'stop-numbering' ? `Stop numbering ${field.displayName}`
+    : field.unique ? `Allow duplicate ${field.displayName} values` : `Keep ${field.displayName} unique`;
+  const operation = change === 'stop-numbering'
+    ? { operationType: 'schema.setFieldSequence', payload: { entityId: entity.entityId, fieldId, prefix: null, width: null, expectedDefinitionRevision } }
+    : { operationType: 'schema.setFieldUnique', payload: { entityId: entity.entityId, fieldId, unique: !field.unique, expectedDefinitionRevision } };
+  void prepareApplication({ actionLabel: title, applicationName: entity.displayName, proposalPayload: {
+    proposalId: `proposal-${id}`, title,
+    mutations: [{ idempotencyKey: `rule-${id}`, description: title, operations: [{ operationId: `rule-${id}`, ...operation }] }],
+  } }, 'structure');
+}
+
+/** Choosing how Nendo numbers a unique text field: a prefix and how many digits, with an example. */
+export function renderNumbering(entity: EntitySnapshot, fieldId: string): void {
+  const field = entity.fields.find(candidate => candidate.fieldId === fieldId);
+  if (field === undefined) return;
+  content.innerHTML = `<div class="dialog-page"><section class="record-form-card"><header><button id="cancel-numbering" class="text-button" type="button" data-dismiss>Back to Structure</button><h2>Number ${escapeHtml(field.displayName)} automatically</h2><p>A new ${escapeHtml(entity.displayName)} record saved without a ${escapeHtml(field.displayName)} gets the next code. Numbering carries on after the highest code of this shape already stored, and a number is never given out twice, even after its record is deleted. Review the proposal before applying it.</p></header>
+    <form id="numbering-form" class="record-form"><label>Prefix<input name="prefix" required maxlength="16" pattern="[^\s]*[^\s0-9]" autocomplete="off" value="${escapeAttribute(suggestedPrefix(field.displayName))}" /></label>
+    <label>Digits<select name="width">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(width => `<option value="${width}" ${width === 3 ? 'selected' : ''}>${width}</option>`).join('')}</select></label>
+    <p class="numbering-example" role="status"></p>
+    <div class="message-slot" role="alert" hidden></div><div class="form-actions"><button class="primary-button" data-action type="submit">Preview numbering</button></div></form></section></div>`;
+  const form = requiredElement<HTMLFormElement>('#numbering-form');
+  const example = (): void => {
+    const data = new FormData(form);
+    const prefix = String(data.get('prefix') ?? '');
+    requiredElement<HTMLElement>('.numbering-example').textContent = prefix === ''
+      ? 'Choose a prefix, such as W- or CAP-.'
+      : `New records get ${sequenceExample({ prefix, width: Number(data.get('width')) })}, then the next number after it.`;
+  };
+  form.addEventListener('input', example);
+  form.addEventListener('change', example);
+  example();
+  requiredElement<HTMLButtonElement>('#cancel-numbering').addEventListener('click', () => rerender());
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const data = new FormData(form);
+    const prefix = String(data.get('prefix'));
+    const width = Number(data.get('width'));
+    const id = crypto.randomUUID().replaceAll('-', '');
+    const title = `Number ${field.displayName} as ${sequenceExample({ prefix, width })}`;
+    void prepareApplication({ actionLabel: title, applicationName: entity.displayName, proposalPayload: {
+      proposalId: `proposal-${id}`, title,
+      mutations: [{ idempotencyKey: `sequence-${id}`, description: title, operations: [{
+        operationId: `sequence-${id}`, operationType: 'schema.setFieldSequence',
+        payload: { entityId: entity.entityId, fieldId, prefix, width, expectedDefinitionRevision: state.session.manifest?.definitionRevision ?? 0 },
+      }] }],
+    } }, 'structure');
+  });
+  form.querySelector<HTMLInputElement>('input[name="prefix"]')?.focus();
+}
+
+/** A starting prefix from the field's name: its initials in capitals and a dash, as in W- for Work. */
+function suggestedPrefix(name: string): string {
+  const letters = name.split(/\s+/).map(word => word.match(/[A-Za-z]/)?.[0] ?? '').join('').toUpperCase().slice(0, 3);
+  return (letters || 'N') + '-';
 }
 
 export function renderAddField(entity: EntitySnapshot): void {

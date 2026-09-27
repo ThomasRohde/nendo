@@ -357,10 +357,30 @@ export function fieldMarkup(record: RecordPlan | null, field: FieldPlan): string
     : fieldControlMarkup(field, record?.values[field.semanticId]);
 }
 
+/**
+ * The sequence a field is numbered by (ADR-0020), from its plan or the open file's schema, or
+ * null. A compiled screen's field plan does not carry it; Studio's does.
+ */
+export function fieldSequence(field: FieldPlan): { prefix: string; width: number } | null {
+  return field.sequence ?? state.session.entities.flatMap(entity => entity.fields)
+    .find(candidate => candidate.fieldId === field.semanticId)?.sequence ?? null;
+}
+
+/** An example of the codes a sequence gives: the prefix, then the number 1 at its width. */
+export function sequenceExample(sequence: { prefix: string; width: number }): string {
+  return sequence.prefix + '1'.padStart(sequence.width, '0');
+}
+
 export function fieldControlMarkup(field: FieldPlan, currentValue: unknown): string {
   const value = valueDisplay(currentValue);
   const definition = state.session.entities.flatMap(entity => entity.fields).find(candidate => candidate.fieldId === field.semanticId);
   if (definition && storageLabel(field.storageKind) === 'Reference') return referenceControl(definition, value);
+  // A numbered field with nothing in it yet is Nendo's to fill when the record is saved, so it
+  // is neither required here nor offered as Not set; a code typed in is kept, if it is free.
+  const sequence = fieldSequence(field);
+  if (sequence !== null && (currentValue === null || currentValue === undefined || currentValue === '')) {
+    return `<label>${escapeHtml(field.displayName)}<input name="${escapeAttribute(field.semanticId)}" type="text" value="" placeholder="Assigned when saved" data-numbered="${escapeAttribute(sequenceExample(sequence))}" aria-describedby="numbered-${escapeAttribute(field.semanticId)}" /><small class="field-note" id="numbered-${escapeAttribute(field.semanticId)}">Nendo gives it the next code, like ${escapeHtml(sequenceExample(sequence))}, unless you type one.</small></label>`;
+  }
   const required = field.required ? 'required' : '';
   const name = escapeAttribute(field.semanticId);
   const label = escapeHtml(field.displayName);

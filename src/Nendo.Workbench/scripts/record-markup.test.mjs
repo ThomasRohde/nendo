@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/record-markup.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {accentDot,commandButtons,fieldControlMarkup,fieldMarkup,fieldValueMarkup,recordCardMarkup,recordFieldDisplay,recordFormMarkup,recordSheetMarkup,relatedKey,relatedListEmpty,relatedListMarkup,stepSatisfied,summaryTileGroupMarkup,summaryTileMarkup,treeCommandMarkup} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
+const {accentDot,commandButtons,fieldControlMarkup,fieldSequence,sequenceExample,fieldMarkup,fieldValueMarkup,recordCardMarkup,recordFieldDisplay,recordFormMarkup,recordSheetMarkup,relatedKey,relatedListEmpty,relatedListMarkup,stepSatisfied,summaryTileGroupMarkup,summaryTileMarkup,treeCommandMarkup} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
 // These are the hooks the runtime journeys click: data-record-id, data-run-command,
 // data-summary, data-related and #record-form. A refactor that drops one of them
@@ -218,4 +218,20 @@ test('two commands with the same label are told apart by an accessible name',()=
  // A command with a label of its own needs no override.
  const distinct={...plan,surfaces:[node('page','detailSurface',{},[node('cmd.a','recordCommand',{label:'Win'}),node('cmd.b','recordCommand',{label:'Lose'})])]};
  assert.ok(!commandButtons(distinct,record).includes('aria-label'));
+});
+
+test('a numbered field left empty on a new record is filled by Nendo, not a required box (ADR-0020)',()=>{
+ const numbered=field('ref','singleLine',{required:true,unique:true,sequence:{prefix:'W-',width:3}});
+ assert.equal(sequenceExample(numbered.sequence),'W-001');
+ assert.deepEqual(fieldSequence(numbered),{prefix:'W-',width:3});
+ const empty=fieldControlMarkup(numbered,null);
+ assert.match(empty,/placeholder="Assigned when saved"/);
+ assert.match(empty,/the next code, like W-001, unless you type one/);
+ assert.doesNotMatch(empty,/required/,'an empty numbered field must not block the save');
+ assert.doesNotMatch(empty,/__unset:/,'Not set would stop Nendo numbering it');
+ // A record that has its code shows it as any required text does.
+ const kept=fieldControlMarkup(numbered,'W-007');
+ assert.match(kept,/value="W-007"/);
+ assert.match(kept,/required/);
+ assert.equal(fieldSequence(field('plain')),null);
 });

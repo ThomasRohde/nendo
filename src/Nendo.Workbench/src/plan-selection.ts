@@ -227,6 +227,8 @@ export function snapshotFieldPlans(entity: EntitySnapshot): FieldPlan[] {
     choices: field.choices,
     scale: field.scale,
     retired: field.retired,
+    unique: field.unique,
+    sequence: field.sequence,
   }));
 }
 
