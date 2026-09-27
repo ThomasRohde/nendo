@@ -31,60 +31,28 @@ export function gap(record) {
 }
 
 /**
- * The hierarchy of a set of capability records.
- *
- * Stored parent links are read, never rewritten. A link to a missing record puts the capability
- * at the top level, and a cycle is cut at one deterministic edge, so every record stays visible
- * and editable; each repair is reported in issues.
+ * The capability hierarchy as the Engine keeps it (ADR-0019): the nodes of one records.treeAll
+ * read, depth first, each with its parent. The file declares Parent capability a hierarchy, so
+ * every write that would close a loop or go deeper than 32 levels is refused before it lands,
+ * and siblings arrive in the Engine's order -- the Display order field, then record ID. Nothing
+ * here repairs a link or sorts a level.
  *
  * Returns:
+ *   records      every capability, in the Engine's depth-first order
  *   byId         record ID -> record
- *   parents      record ID -> parent record ID, or null at the top level (after repair)
- *   children     record ID -> child records, in display order
- *   roots        top-level records, in display order
- *   issues       one sentence per repaired link
+ *   parents      record ID -> parent record ID, or null at the top level
+ *   children     record ID -> child records, in sibling order
+ *   roots        top-level records, in sibling order
  *   descendants  (id) -> every record under id, depth first
  *   tree         (record) -> { id, name, children } for the layout engine
  */
-export function hierarchy(records) {
+export function hierarchy(nodes) {
+  const records = nodes.map(node => node.record);
   const byId = new Map(records.map(record => [record.recordId, record]));
-  const parents = new Map(), issues = [];
-  for (const record of records) {
-    const parent = value(record, 'parent');
-    if (parent && !byId.has(parent)) issues.push(`${title(record)} has a missing parent; shown at the top level.`);
-    parents.set(record.recordId, byId.has(parent) ? parent : null);
-  }
-
-  // Walk up from every record, in record ID order. The first record met twice closes a cycle:
-  // cut its link, which leaves it at the top level.
-  for (const id of [...byId.keys()].sort()) {
-    const seen = new Set();
-    for (let current = id; current; current = parents.get(current)) {
-      if (seen.has(current)) {
-        parents.set(current, null);
-        issues.push(`${title(byId.get(current))} has a circular hierarchy; repair its parent.`);
-        break;
-      }
-      seen.add(current);
-    }
-  }
-
-  const children = new Map([...byId.keys()].map(id => [id, []]));
+  const parents = new Map(nodes.map(node => [node.record.recordId, node.parentRecordId ?? null]));
+  const children = new Map(records.map(record => [record.recordId, []]));
   const roots = [];
-  for (const record of records) {
-    const parent = parents.get(record.recordId);
-    (parent ? children.get(parent) : roots).push(record);
-  }
-
-  // Display order: the stored order number (missing sorts as 999), then the reference code, then
-  // the name, then the record ID, so the order is total and stable.
-  const displayOrder = (a, b) =>
-    (Number(value(a, 'order') ?? 999) - Number(value(b, 'order') ?? 999)) ||
-    String(value(a, 'code') || '').localeCompare(String(value(b, 'code') || '')) ||
-    title(a).localeCompare(title(b)) ||
-    a.recordId.localeCompare(b.recordId);
-  roots.sort(displayOrder);
-  for (const list of children.values()) list.sort(displayOrder);
+  for (const node of nodes) (node.parentRecordId ? children.get(node.parentRecordId) : roots).push(node.record);
 
   function descendants(id) {
     const found = [];
@@ -104,23 +72,7 @@ export function hierarchy(records) {
     children: (children.get(record.recordId) || []).map(tree),
   });
 
-  return { byId, parents, children, roots, issues, descendants, tree };
-}
-
-/** Whether parent may become id's parent: not itself, not missing, not one of its descendants. */
-export function validParent(records, id, parent) {
-  if (!parent) return true;
-  if (id === parent) return false;
-  const byId = new Map(records.map(record => [record.recordId, record]));
-  if (!byId.has(parent)) return false;
-  // Climb from the proposed parent. Meeting id means id is above it; meeting a record twice
-  // means the stored links already loop, which is refused as well.
-  const seen = new Set();
-  for (let current = parent; current; current = value(byId.get(current), 'parent')) {
-    if (current === id || seen.has(current)) return false;
-    seen.add(current);
-  }
-  return true;
+  return { records, byId, parents, children, roots, descendants, tree };
 }
 
 /**

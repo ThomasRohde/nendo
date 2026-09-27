@@ -1,14 +1,16 @@
 // Capability Atlas: a business capability map over one hierarchical record type (ADR-0013).
 //
-// Everything arrives through window.nendo. The capabilities are the view's own records
-// (nendo.view.loadRecords); the applications, support links and initiatives are read to show
+// Everything arrives through window.nendo. The capabilities are read as the tree the file
+// declares (nendo.records.treeAll, ADR-0019), so the Engine keeps it free of loops and orders
+// each level; the applications, support links and initiatives are read to show
 // what supports and changes the selected capability. The map is packed by the owner's BCM
 // reference layout (layout.js, loaded as window.BcmLayout) with the lab preset in
 // layout-profile.js; Assessment and Outline are tables of the same rows. The only writes are
-// capability creates and updates, sent with the parent's version so a stale parent is refused.
+// capability creates and updates, sent with the parent's version so a stale parent is refused,
+// and a parent that would close a loop is refused by the Engine in words the editor shows.
 // Nothing leaves Nendo.
 import {
-  CAPABILITY, FIELD, value, title, gap, hierarchy, projectHierarchy, validParent,
+  CAPABILITY, FIELD, value, title, gap, hierarchy, projectHierarchy,
   maturityLabels, importanceOptions, investmentOptions, lifecycleOptions,
 } from './model.js';
 import { layoutCapabilities, fitViewport } from './layout-profile.js';
@@ -19,6 +21,8 @@ import { layoutCapabilities, fitViewport } from './layout-profile.js';
 // The records as last read, and the hierarchy built from the capabilities (model.js).
 let records = [], applications = [], supports = [], initiatives = [];
 let model = hierarchy([]);
+// Whether the file declares no capability hierarchy, which is the one thing the map needs.
+let undeclared = false;
 
 // What the person is looking at.
 let selected = null;        // record ID of the selected capability
@@ -499,7 +503,7 @@ function render(refit = false) {
   breadcrumbs();
   legend();
   const empty = records.length === 0;
-  $('empty').hidden = !empty;
+  $('empty').hidden = !empty || undeclared;
   $('map').hidden = mode !== 'map' || empty;
   $('table').hidden = mode === 'map' || empty;
   document.querySelector('.map-tools').hidden = mode !== 'map';
@@ -507,8 +511,10 @@ function render(refit = false) {
   else renderTable();
   inspector();
   say(statusLine());
-  $('notice').hidden = !model.issues.length;
-  $('notice').textContent = model.issues.join(' ');
+  $('notice').hidden = !undeclared;
+  $('notice').textContent = undeclared
+    ? 'This file does not keep capabilities as a tree, so there is no map to draw. Declare Parent capability as the hierarchy (with Display order as its order) in Studio or through an agent.'
+    : '';
 }
 
 /** The footer separates what is shown from what is in scope and in the model. */
@@ -524,7 +530,7 @@ async function refresh() {
   const request = ++loading;
   try {
     const loaded = await Promise.all([
-      nendo.view.loadRecords(),
+      nendo.records.treeAll({ entityId: CAPABILITY, depth: 32 }, { max: 10000 }),
       nendo.records.queryAll({ entityId: 'bcm.application' }, { max: 5000 }),
       nendo.records.queryAll({ entityId: 'bcm.support' }, { max: 5000 }),
       nendo.records.queryAll({ entityId: 'bcm.initiative' }, { max: 5000 }),
@@ -533,14 +539,25 @@ async function refresh() {
     // The first map is fitted. After that a change keeps the camera where the person put it,
     // unless the focused group has gone.
     const first = layout === null;
-    [records, applications, supports, initiatives] = loaded;
+    let nodes;
+    [nodes, applications, supports, initiatives] = loaded;
     modelGeneration++;
-    model = hierarchy(records);
+    model = hierarchy(nodes);
+    records = model.records;
+    undeclared = false;
     if (!model.byId.has(selected)) selected = null;
     const lostScope = scope !== null && !model.byId.has(scope);
     if (lostScope) scope = null;
     render(first || lostScope);
   } catch (error) {
+    // The map is the tree the file keeps. A file that does not declare it has no map to draw.
+    if (error.code === 'hierarchy-not-declared') {
+      undeclared = true;
+      records = [];
+      model = hierarchy([]);
+      render(false);
+      return;
+    }
     say(`Could not load model: ${error.message}`);
     $('notice').hidden = false;
     $('notice').textContent = 'The model could not be refreshed. Your current view is retained. ' + error.message;
@@ -579,9 +596,11 @@ function edit(record, parent) {
   fillSelect('importance', importanceOptions, value(record, 'importance'));
   fillSelect('investment', investmentOptions, value(record, 'investment'));
   fillSelect('lifecycle', lifecycleOptions, value(record, 'lifecycle') || 'Proposed', null);
-  // A capability cannot move under itself or one of its own descendants.
+  // Only places a capability can go are offered: not itself, and not anything under it. The
+  // Engine refuses the rest anyway; this keeps the list to choices that can succeed.
+  const beneath = new Set(record ? [record.recordId, ...model.descendants(record.recordId).map(item => item.recordId)] : []);
   const parents = records
-    .filter(candidate => validParent(records, record?.recordId, candidate.recordId))
+    .filter(candidate => !beneath.has(candidate.recordId))
     .sort((a, b) => title(a).localeCompare(title(b)))
     .map(candidate => [candidate.recordId, `${value(candidate, 'code') || ''} ${title(candidate)}`]);
   fillSelect('parent', parents, record ? value(record, 'parent') : parent, 'Enterprise / top level');
@@ -600,10 +619,6 @@ async function save(event) {
   for (const key of textFields) values[FIELD[key]] = form.elements[key].value.trim() || null;
   for (const key of ['maturity', 'target']) values[FIELD[key]] = form.elements[key].value ? Number(form.elements[key].value) : null;
   if (!values[FIELD.name]) return;
-  if (!validParent(records, editing?.recordId, values[FIELD.parent])) {
-    $('form-error').textContent = 'Choose a parent outside this capability’s descendants.';
-    return;
-  }
   $('save').disabled = true;
   try {
     // The parent's version goes with the write, so a parent changed meanwhile is refused. An

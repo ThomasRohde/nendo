@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-27
-- **Delivery:** Stages 1 (the cost experiment), 2 (declaration, cycle rule, move, MCP), 3 (tree read, `descendantOf`, `records.tree`), 4 (subtree aggregates), 5 (the Studio outline) and 6 (the outline surface, at host 1.36.0) done 2026-09-27; stage 7 not started. Proposed and accepted the same day, after the owner settled the open questions
+- **Delivery:** Stages 1 (the cost experiment), 2 (declaration, cycle rule, move, MCP), 3 (tree read, `descendantOf`, `records.tree`), 4 (subtree aggregates), 5 (the Studio outline), 6 (the outline surface, at host 1.36.0) and 7 (the Capability Atlas on the declaration) done 2026-09-27. Proposed and accepted the same day, after the owner settled the open questions
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** The code survey in Context (2026-09-27) and the Capability Atlas review (W-072, planner findings F-154 to F-162). The costs were measured after acceptance as delivery stage 1, and every target was met; see the Stage 1 note
@@ -413,6 +413,27 @@ offered, the reading, failed and found states). Falsified: without the `NUI430` 
 against the preview's `tree` fixture, not the real host: depth-first rows at 20 px a level,
 the keyboard walk, Alt+Shift+Up, a pointer drag onto a row, Enter opening the record page,
 find opening a closed path, both themes from tokens, and no console error.
+
+## Stage 7 note — 2026-09-27: the Capability Atlas on the declaration
+
+The motivating case. `tools/bcm-atlas/build-model.mjs` declares **Parent capability** the
+hierarchy of Capability, with **Display order** as its order, and adds a *Capability outline*
+screen (`reorder` on). The Atlas package reads its capabilities with `records.treeAll` and
+builds nothing itself: `model.js` lost the cycle cut, the missing-parent repair, the sibling
+sort and `validParent`. The editor's parent picker still leaves out the capability and its
+descendants, because offering a choice that can only be refused helps nobody; the save sends
+the write and shows the Engine's refusal in the form if it is one. A file that does not declare
+the hierarchy gets a notice in place of the map.
+
+The node tests use `tools/bcm-atlas/engine-tree.mjs`, a stand-in for the Engine's walk, and the
+fixture broker answers `records.tree` the same way, refusing `hierarchy-not-declared` for a
+fixture that declares none.
+
+Evidence: `tools/Review-BcmAtlas.ps1` passed, now asserting that the map was read with
+`records.tree` and that a file without the hierarchy says so and draws no card. Falsified by
+putting back the local build from stored links: `A file without the hierarchy did not say why
+there is no map. The view says: "48 shown · 635 in scope · 635 total"`. The four other lanes on
+the same broker (Gantt, Nendo graph, Systems Lens, Work dependencies) pass.
 
 ## Consequences
 

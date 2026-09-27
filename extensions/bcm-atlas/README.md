@@ -58,11 +58,15 @@ display scale. The map packs again only when the tree, the scope, the levels or 
 layout mode change; search and colour restyle the cards in place. Each new packing is
 checked with the reference validator.
 
-The package reaches the file only through `window.nendo`. Creates and updates carry the
-record's version and the parent's version; a rejected save keeps the form's draft. A
-missing or circular parent link is reported and shown with a deterministic repair, and
-the stored data is left as it is. The parent picker excludes the capability and its
-descendants. No request leaves Nendo.
+The package reaches the file only through `window.nendo`. The file declares **Parent
+capability** a hierarchy, with **Display order** as its order
+([ADR-0019](../../docs/decisions/0019-hierarchies-in-the-schema.md)), and the map reads the
+tree the Engine keeps with `records.treeAll`. The Engine refuses any write that would close a
+loop or go deeper than 32 levels, whoever makes it, and orders each level, so the package
+repairs and sorts nothing. A file that does not declare the hierarchy gets a notice instead
+of a map. Creates and updates carry the record's version and the parent's version; a
+rejected save, a loop included, keeps the form's draft and says why. The parent picker
+offers only places the capability can go. No request leaves Nendo.
 
 ## Development
 

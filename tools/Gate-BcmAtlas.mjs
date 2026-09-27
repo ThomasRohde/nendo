@@ -14,7 +14,8 @@ async (page) => {
 
   const records = source => Object.fromEntries(Object.entries(source).map(([entityId, list]) =>
     [entityId, list.map(r => ({ entityId, recordId: r.recordId, version: 1, values: r.values, exact: {}, labels: {}, calculated: {} }))]));
-  const fixture = source => ({
+  const fixture = (source, declared = true) => ({
+    hierarchies: declared ? { 'bcm.capability': { parentFieldId: 'cap.parent', orderFieldId: 'cap.order' } } : {},
     context: { viewId: 'bcm.map', kind: 'extensionRecordsSurface', placement: 'screen', title: 'Capability map', entityId: 'bcm.capability', recordId: null,
       bindings: { labelFieldId: 'cap.name', statusFieldId: null, edgeEntityId: null, sourceFieldId: null, targetFieldId: null, fields: [], filters: [] } },
     schema: { entities: [] },
@@ -89,6 +90,16 @@ async (page) => {
   assert(Math.abs(after[0] - before[0] - 60) < 0.5 && Math.abs(after[1] - before[1] - 30) < 0.5, `Ctrl-drag from a card panned ${after[0] - before[0]} / ${after[1] - before[1]}, not 60 / 30.`);
   assert(await view.evaluate(() => document.querySelectorAll('.cap.selected').length) === 0, 'Ctrl-drag from a card selected it.');
 
+  // The map is the tree the file declares (ADR-0019 stage 7): a file that declares none says so
+  // and draws nothing, rather than building a tree the Engine does not keep.
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, fixture(model, false));
+  await until(() => !document.getElementById('notice').hidden && /does not keep capabilities as a tree/.test(document.getElementById('notice').textContent),
+    null, 'A file without the hierarchy did not say why there is no map.');
+  results.undeclared = { cards: await cards(), empty: await view.evaluate(() => document.getElementById('empty').hidden) };
+  assert(results.undeclared.cards === 0, `A file without the hierarchy still drew ${results.undeclared.cards} cards.`);
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, fixture(model));
+  await until(() => /635 total$/.test(document.getElementById('status').textContent) && document.getElementById('notice').hidden, null, 'The map did not come back when the hierarchy did.');
+
   // Both themes take the Workbench's tokens, and a narrow pane does not scroll sideways.
   for (const [mode, canvas] of [['dark', 'rgb(15, 17, 21)'], ['light', 'rgb(243, 244, 246)']]) {
     await page.evaluate(value => window.broker.pushTheme(value), mode);
@@ -99,7 +110,8 @@ async (page) => {
   assert(!(await view.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)), 'The view overflows horizontally at 600px.');
 
   const methods = [...new Set((await page.evaluate(() => window.broker.requests)).map(r => r.m))].sort();
-  assert(methods.every(m => ['records.get', 'records.query', 'schema.describe', 'ui.openRecord'].includes(m)), 'The view asked for more than reads: ' + JSON.stringify(methods));
+  assert(methods.every(m => ['records.get', 'records.query', 'records.tree', 'schema.describe', 'ui.openRecord'].includes(m)), 'The view asked for more than reads: ' + JSON.stringify(methods));
+  assert(methods.includes('records.tree'), 'The map was not read as the declared tree: ' + JSON.stringify(methods));
   assert(errors.length === 0, 'The view raised: ' + errors.join(' | '));
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/bcm-atlas.png' });
   return 'bcm-atlas ok ' + JSON.stringify(results);
