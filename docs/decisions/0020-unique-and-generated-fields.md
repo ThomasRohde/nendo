@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-27
-- **Delivery:** Not started. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24, "I pre-accept any ADR change - this is still an experimental project"), with the recommended option taken at every open point
+- **Delivery:** Stage 1 (unique fields) done 2026-09-27, at host 1.37.0; stages 2–5 not started. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24, "I pre-accept any ADR change - this is still an experimental project"), with the recommended option taken at every open point
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** The code survey in Context (2026-09-27) and the planner's own duplicate codes (W-074 names them)
@@ -135,6 +135,32 @@ with each stage as it lands.
   the rung is recognised on reopen.
 - **Paths.** Positions after a move and a reorder, against a hand-built tree; the cost of a page
   of 100 with a path column at 10,000 records, measured.
+
+## Stage 1 note — 2026-09-27: unique fields
+
+Delivered at host **1.37.0**; ADR-0013's views anywhere, which the documents had reserved
+1.37.0 for, move to the next rung. `__nendo_field_rule` is the `-rule-` rung and already carries
+the sequence columns stage 2 needs, because a rung's DDL is its fingerprint and cannot grow
+later. Details the code settled:
+
+- **Two write hooks cover every path.** Creates (single, batch, import, a restored record) and
+  field writes (set field, form save, command step, automatic action, custom view, agent) all
+  reach the store as `data.createRecord` and `data.setField`, and the check sits in both,
+  beside ADR-0019's placement rule. The partial unique index is the backstop: with the check
+  removed, a duplicate is still stopped, but as a raw storage error rather than a refusal.
+- **Refusals name records, never values.** The MCP rule for audited messages allows stable
+  IDs, display names and counts only, so `value-not-unique` names the record holding the value
+  and `field-values-not-unique` lists the colliding records group by group.
+- **A field added in the same mutation** gets its index when the mutation materializes.
+
+Evidence: `FieldUniqueTests` (7: the rung, reopen and layout; a file without it keeping its
+layout; declaration refused over collisions, then accepted; every write path refused naming
+the holder, with the history unchanged; Integer and the refused shapes; compensation both ways;
+a field declared in the mutation that adds it) and `FieldUniqueProtocolTests` (the schema read
+and the refusal an agent sees). Falsified: with the per-write check skipped, *"Expected
+exception type:<NendoPreconditionException>. Actual exception type:<SqliteException>"*; without
+the audited code, the agent read only *"NENDO_VALUE_NOT_UNIQUE: The semantic precondition was
+not met."*
 
 ## Consequences
 

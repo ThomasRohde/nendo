@@ -115,6 +115,8 @@ internal static class CanonicalChangeSetRequestCompiler
             "schema.declareHierarchy" => new DeclareHierarchyOperation(request.OperationId, String(request.Payload, "entityId"),
                 String(request.Payload, "parentFieldId"), OptionalString(request.Payload, "orderFieldId"),
                 Long(request.Payload, "expectedDefinitionRevision")),
+            "schema.setFieldUnique" => new SetFieldUniqueOperation(request.OperationId, String(request.Payload, "entityId"),
+                String(request.Payload, "fieldId"), Boolean(request.Payload, "unique"), Long(request.Payload, "expectedDefinitionRevision")),
             "schema.removeHierarchy" => new RemoveHierarchyOperation(request.OperationId, String(request.Payload, "entityId"),
                 Long(request.Payload, "expectedDefinitionRevision")),
             "application.setPurpose" => new SetApplicationPurposeOperation(request.OperationId,

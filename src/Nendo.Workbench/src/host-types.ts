@@ -48,6 +48,8 @@ export interface EntitySnapshot {
     /** The closed scale a rating field is drawn on, or null for every other presentation. */
     scale?: { min: number; max: number } | null;
     retired?: boolean;
+    /** No two records may hold equal values in this field (ADR-0020). */
+    unique?: boolean;
   }>;
   /** Calculated fields this record type shows. Never editable. */
   derivedFields?: Array<{

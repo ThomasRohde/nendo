@@ -235,6 +235,8 @@ internal sealed partial class SqliteNendoStore
             }
 
             var findings = new List<NendoOpenFinding>();
+            if (layout.Contains("-rule-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.FieldRuleMinimumHostVersion))
+                return Unreadable("layout-version-mismatch", "A unique field requires the declared field-rule-capable host version.", observedAt);
             if (layout.Contains("-hierarchy-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.HierarchyMinimumHostVersion))
                 return Unreadable("layout-version-mismatch", "A declared hierarchy requires the declared hierarchy-capable host version.", observedAt);
             if (layout.Contains("-extension-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.ExtensionPackagesMinimumHostVersion))
@@ -299,7 +301,8 @@ internal sealed partial class SqliteNendoStore
                 !RatingScaleMetadataIsValid(mappings) || !ApplicationPurposeIsValid(manifest.Purpose) ||
                 !await store.RetirementMetadataIsValidAsync(cancellationToken) ||
                 !await store.ExtensionPackagesAreValidAsync(cancellationToken) ||
-                !await store.HierarchyMetadataIsValidAsync(mappings, cancellationToken);
+                !await store.HierarchyMetadataIsValidAsync(mappings, cancellationToken) ||
+                !await store.FieldRuleMetadataIsValidAsync(mappings, cancellationToken);
             if (mappingDrift)
             {
                 coreValid = false;
@@ -694,6 +697,9 @@ internal sealed partial class SqliteNendoStore
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(HierarchySchemaSql, null, CancellationToken.None);
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(FieldRuleSchemaSql, null, CancellationToken.None);
+        layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync("DROP TABLE __nendo_field_rule;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_hierarchy;", null, CancellationToken.None);
         await store.NonQueryAsync("""
             DROP TABLE __nendo_extension_state;
@@ -742,6 +748,8 @@ internal sealed partial class SqliteNendoStore
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(HierarchySchemaSql, null, CancellationToken.None);
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(FieldRuleSchemaSql, null, CancellationToken.None);
+        layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         return layouts;
     }
 

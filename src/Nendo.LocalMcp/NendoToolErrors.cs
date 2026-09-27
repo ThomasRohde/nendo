@@ -99,6 +99,8 @@ internal static class NendoToolErrors
             "hierarchy-parent-invalid", "hierarchy-parent-required", "hierarchy-order-invalid",
             "hierarchy-already-declared", "hierarchy-not-declared", "hierarchy-field-in-use",
             "hierarchy-order-not-declared", "hierarchy-sibling-not-found", "move-unchanged",
+            // ADR-0020: a uniqueness refusal names the field, the value and the record holding it.
+            "value-not-unique", "field-values-not-unique", "field-unique-invalid", "field-unique-unchanged",
         ], StringComparer.Ordinal);
 
     // These authoring messages are written here and carry only bounded counters and

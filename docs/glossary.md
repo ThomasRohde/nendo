@@ -24,6 +24,10 @@ A semantic record type that Nendo materialises as an ordinary relational user ta
 
 A stable semantic property of an entity. It maps to a physical column or a relationship. Display names and physical names are not its identity.
 
+## Unique field
+
+A field no two records of its type may share a value in ([ADR-0020](decisions/0020-unique-and-generated-fields.md)). The host refuses a duplicate from every client and names the record that holds the value. Text compares ignoring ASCII case; an empty value never collides.
+
 ## Relationship
 
 A typed association between records. Multi-valued relationships are not scalar fields.

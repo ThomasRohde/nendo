@@ -1136,11 +1136,11 @@ the shape cannot show (below). The ladder is:
 | A custom view that only the open rules accept: no package pin, a configuration with anything in it, a calculated label or field, a filter whose value kind is not `literal`, more fields or panels than the 1.32 rules allowed | 1.34 |
 | An `outlineSurface` | 1.36 |
 
-The gaps at 1.17, 1.24, 1.33 and 1.35 are rungs that are not shapes of the node tree.
+The gaps at 1.17, 1.24, 1.33, 1.35 and 1.37 are rungs that are not shapes of the node tree.
 `1.17.0` goes to a file that stores behaviour definitions (ADR-0008), `1.24.0`
 goes to a file that carries a purpose (the ADR-0004 2026-09-15 amendment), and
-`1.33.0` goes to a file that carries a custom-view package (ADR-0013), and `1.35.0` to a
-file that declares a hierarchy (ADR-0019). Each
+`1.33.0` goes to a file that carries a custom-view package (ADR-0013), `1.35.0` to a
+file that declares a hierarchy (ADR-0019), and `1.37.0` to one with a unique field (ADR-0020). Each
 operation declares that version on its own evidence.
 
 Every row except the 1.27 and 1.34 rows is a shape of the node tree. At 1.19 and 1.22 a

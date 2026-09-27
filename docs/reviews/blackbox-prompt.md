@@ -222,6 +222,12 @@ tree while its branch is closed. Close a few rows, reopen the file, and record w
 came back open. Finally try to remove the hierarchy while the screen shows it, and say what
 you were told.
 
+Give one record type a short reference code, like W-001, and find out from the vocabulary how
+to have the host keep it unique. Before you declare it, give two records the same code in
+different case, and record what the declaration told you — and whether it told you the code
+itself or only the records. Then try to create a third record with a code already in use,
+through each route you have, and say whether every refusal named the record that holds it.
+
 **Before you accept any of it, read the review and answer from it alone.** Cover the change
 set you sent and work only from the sentences the person accepting would see: which record
 types does this add, and which fields, of what kind? Which are required? What are the

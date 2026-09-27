@@ -29,7 +29,7 @@ internal sealed partial class SqliteNendoStore
                     field.StorageKind,
                     field.Required,
                     field.Presentation,
-                    field.Options) { UnsupportedStorageKind = field.UnsupportedStorageKind, Reference = field.Reference, Choices = field.Choices, Scale = field.Scale, Retired = field.Retired }).ToArray())
+                    field.Options) { UnsupportedStorageKind = field.UnsupportedStorageKind, Reference = field.Reference, Choices = field.Choices, Scale = field.Scale, Retired = field.Retired, Unique = field.Unique }).ToArray())
             {
                 Retired = mapping.Retired,
                 DerivedFields = derived.TryGetValue(mapping.EntityId, out var calculated) ? calculated : [],
@@ -226,6 +226,7 @@ internal sealed partial class SqliteNendoStore
         await PopulateReferencesAsync(fields, transaction, cancellationToken);
         await PopulateChoicesAsync(fields, transaction, cancellationToken);
         await PopulateRatingScalesAsync(fields, transaction, cancellationToken);
+        await PopulateFieldRulesAsync(fields, transaction, cancellationToken);
         var retiredFields = await RetiredIdsAsync("field", transaction, cancellationToken);
         var retiredEntities = await RetiredIdsAsync("entity", transaction, cancellationToken);
         var hierarchies = await ReadHierarchiesAsync(transaction, cancellationToken);

@@ -78,6 +78,9 @@ public sealed record NendoFieldSnapshot(
     public IReadOnlyList<NendoChoiceOption> Choices { get; init; } = [];
     public NendoRatingScale? Scale { get; init; }
     public bool Retired { get; init; }
+
+    /// <summary>Whether no two records may hold equal values in this field (ADR-0020).</summary>
+    public bool Unique { get; init; }
 }
 
 /// <summary>

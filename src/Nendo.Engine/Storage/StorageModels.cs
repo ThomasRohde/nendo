@@ -33,6 +33,7 @@ internal sealed record FieldMapping(
     internal IReadOnlyList<NendoChoiceOption> Choices { get; init; } = [];
     internal NendoRatingScale? Scale { get; init; }
     internal bool Retired { get; init; }
+    internal bool Unique { get; init; }
 }
 
 internal sealed record OperationEvidence(

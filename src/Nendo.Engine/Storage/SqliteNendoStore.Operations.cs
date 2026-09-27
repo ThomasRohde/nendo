@@ -58,6 +58,7 @@ internal sealed partial class SqliteNendoStore
                 transaction,
                 cancellationToken),
             DeclareHierarchyOperation declare => await ExecuteDeclareHierarchyAsync(declare, transaction, cancellationToken),
+            SetFieldUniqueOperation setUnique => await ExecuteSetFieldUniqueAsync(setUnique, transaction, cancellationToken),
             RemoveHierarchyOperation remove => await ExecuteRemoveHierarchyAsync(remove, transaction, cancellationToken),
             SetApplicationPurposeOperation setPurpose => await ExecuteSetApplicationPurposeAsync(
                 setPurpose,
@@ -361,6 +362,7 @@ internal sealed partial class SqliteNendoStore
                     transaction, cancellationToken);
                 await RequireHierarchyPlacementAsync(entity, referenceField, operation.RecordId, pair.Value, newRecord: true,
                     transaction, cancellationToken);
+                await RequireUniqueValueAsync(entity, referenceField, operation.RecordId, pair.Value, transaction, cancellationToken);
             }
         var unknownField = operation.Values.Keys.FirstOrDefault(key => !fieldsById.ContainsKey(key));
         if (unknownField is not null)
@@ -471,6 +473,7 @@ internal sealed partial class SqliteNendoStore
 
         await ValidateReferenceValueAsync(field, operation.Value, operation.ExpectedTargetRecordVersion, transaction, cancellationToken);
         await RequireHierarchyPlacementAsync(entity, field, operation.RecordId, operation.Value, newRecord: false, transaction, cancellationToken);
+        await RequireUniqueValueAsync(entity, field, operation.RecordId, operation.Value, transaction, cancellationToken);
         ValidateChoiceAssignment(field, operation.Value, previousValue);
         var previousTargetRecordVersion = await ReadReferenceVersionAsync(field, previousValue, transaction, cancellationToken);
         var updateSql = $"UPDATE {Quote(entity.PhysicalTableName)} SET {Quote(field.PhysicalColumnName)} = @value, {Quote("__nendo_record_version")} = {Quote("__nendo_record_version")} + 1 WHERE {Quote("__nendo_record_id")} = @recordId AND {Quote("__nendo_record_version")} = @expectedVersion;";
@@ -533,6 +536,15 @@ internal sealed partial class SqliteNendoStore
                 $"ALTER TABLE {Quote(entity.PhysicalTableName)} ADD COLUMN {Quote(field.PhysicalColumnName)} {SqliteType(field.StorageKind)};",
                 transaction,
                 cancellationToken);
+        }
+
+        // ADR-0020: a unique field added in this same mutation gets its index now that its
+        // column exists; one that already had a column got it when it was declared.
+        foreach (var setUnique in operations.OfType<SetFieldUniqueOperation>().Where(operation => operation.Unique))
+        {
+            var entity = await GetEntityMappingAsync(setUnique.EntityId, transaction, cancellationToken);
+            if (entity.Fields.SingleOrDefault(value => value.FieldId == setUnique.FieldId) is { Unique: true } field)
+                await EnsureUniqueIndexAsync(entity, field, transaction, cancellationToken);
         }
 
         // ADR-0003 note, 2026-09-09: a covering index for the inverse read a
@@ -637,6 +649,7 @@ internal sealed partial class SqliteNendoStore
         await PopulateReferencesAsync(fields, transaction, cancellationToken);
         await PopulateChoicesAsync(fields, transaction, cancellationToken);
         await PopulateRatingScalesAsync(fields, transaction, cancellationToken);
+        await PopulateFieldRulesAsync(fields, transaction, cancellationToken);
         var retiredFields = await RetiredIdsAsync("field", transaction, cancellationToken);
         for (var index = 0; index < fields.Count; index++) fields[index] = fields[index] with { Retired = retiredFields.Contains(fields[index].FieldId) };
         return new EntityMapping(entityId, displayName, physicalTableName, fields)

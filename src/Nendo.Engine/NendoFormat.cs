@@ -239,7 +239,15 @@ public static class NendoFormat
     /// </summary>
     public const string OutlineSurfaceMinimumHostVersion = "1.36.0";
 
-    public const string CurrentHostVersion = OutlineSurfaceMinimumHostVersion;
+    /// <summary>
+    /// A unique field, and later its sequence (ADR-0020): a protected table the node ladder
+    /// cannot see, so the operation states this version on its evidence and the layout rung
+    /// states it at open. 1.37.0 had been reserved in the documents for ADR-0013's views
+    /// anywhere; rungs follow delivery order, so that phase moves to the next one.
+    /// </summary>
+    public const string FieldRuleMinimumHostVersion = "1.37.0";
+
+    public const string CurrentHostVersion = FieldRuleMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

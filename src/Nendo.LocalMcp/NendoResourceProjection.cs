@@ -56,7 +56,7 @@ internal sealed class NendoResourceProjection(
                     field.StorageKind,
                     field.Required,
                     field.Presentation,
-                    field.Options) { Reference = field.Reference, Choices = field.Choices, Scale = field.Scale, Retired = field.Retired })
+                    field.Options) { Reference = field.Reference, Choices = field.Choices, Scale = field.Scale, Retired = field.Retired, Unique = field.Unique })
                 .ToArray())
         {
             Retired = entity.Retired,

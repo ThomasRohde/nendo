@@ -195,6 +195,14 @@ internal static class SemanticDiff
                     value.Reversibility,
                     value.EntityId,
                     value.ParentFieldId),
+                SetFieldUniqueOperation value => Entry(
+                    "setFieldUnique",
+                    value.Unique
+                        ? $"Keep {FieldName(names, value.FieldId)} unique in {EntityName(names, value.EntityId)}: no two records may hold the same value, whoever writes it."
+                        : $"Stop keeping {FieldName(names, value.FieldId)} unique in {EntityName(names, value.EntityId)}. Every value stays as it is.",
+                    value.Reversibility,
+                    value.EntityId,
+                    value.FieldId),
                 RemoveHierarchyOperation value => Entry(
                     "removeHierarchy",
                     $"Stop keeping {EntityName(names, value.EntityId)} a tree. Its parent field keeps every value.",

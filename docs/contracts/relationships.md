@@ -1,8 +1,10 @@
 # Relationships and schema evolution contract
 
-This contract covers reference fields, renames, deletion, retirement and reviewed
-backfill. `ReferenceTests.cs`, `SchemaRenameTests.cs`, `RecordDeletionTests.cs`
-and `RetirementTests.cs` under `tests/Nendo.Engine.Tests/` assert it.
+This contract covers reference fields, renames, deletion, retirement, reviewed
+backfill, declared hierarchies and unique fields. `ReferenceTests.cs`,
+`SchemaRenameTests.cs`, `RecordDeletionTests.cs`, `RetirementTests.cs`,
+`HierarchyTests.cs` and `FieldUniqueTests.cs` under `tests/Nendo.Engine.Tests/`
+assert it.
 
 ## References and target labels
 
@@ -67,6 +69,32 @@ count or aggregate.
 Declaring and removing are definition-lane operations of class
 `ReversibleWithRetainedState`, and each compensates the other. A record with children is
 still refused deletion as `record-referenced`.
+
+## Unique fields
+
+A field can be declared unique with `schema.setFieldUnique { entityId, fieldId, unique }`
+([ADR-0020](../decisions/0020-unique-and-generated-fields.md)). Only an active single-line
+Text field (not a single choice, not long text) or a plain Integer field can be unique;
+anything else is `field-unique-invalid`. Text compares case-insensitively for ASCII letters,
+so `w-001` collides with `W-001`; an empty value never collides. The rule is stored in
+`__nendo_field_rule`, the last rung of the layout ladder, and a file that carries one needs
+host 1.37.0.
+
+- **Declaring checks the data.** Records that already share a value are refused as
+  `field-values-not-unique`, naming the records group by group (the first 20 groups) and
+  never the values. Nothing is renumbered.
+- **Every write.** Once declared, a create, set field, form save, batch create, import,
+  command step, automatic action, custom-view write or agent write that would give a record
+  a value another record holds is refused as `value-not-unique`, naming the record that holds
+  it. A record keeps its own value on every later save. A unique partial index on the column
+  (`nendo_unique_<table>_<column>`, outside the protected namespace) stops a write even on a
+  path that did not check.
+- The schema read (`unique` on each field, in the Studio snapshot, MCP and the view API)
+  says which fields carry the rule.
+
+Declaring and removing are definition-lane operations of class
+`ReversibleWithRetainedState`; removing leaves every value, and compensating a removal over
+new duplicates is refused like declaring.
 
 ## Labels, choices and retirement
 
