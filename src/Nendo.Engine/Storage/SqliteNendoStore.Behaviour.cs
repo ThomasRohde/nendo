@@ -371,6 +371,20 @@ internal sealed partial class SqliteNendoStore
                         RequireScalarField(related, predicate, NendoBehaviourScalar.Boolean, nullable: false);
                     if (binding.ValueFieldId is { } value)
                         RequireScalarField(related, value, binding.ResultType, nullable: false);
+                    if (binding.AcrossSubtree && entity.Hierarchy is null)
+                        throw new NendoValidationException(
+                            $"'{binding.BindingId}' folds across a subtree of {entity.DisplayName}, which declares no hierarchy.");
+                    break;
+                }
+                case NendoBindingKind.SubtreeAggregate:
+                {
+                    if (entity.Hierarchy is null)
+                        throw new NendoValidationException(
+                            $"'{binding.BindingId}' reads the subtree of a {entity.DisplayName}, which declares no hierarchy.");
+                    if (binding.PredicateFieldId is { } predicate)
+                        RequireScalarField(entity, predicate, NendoBehaviourScalar.Boolean, nullable: false);
+                    if (binding.ValueFieldId is { } value)
+                        RequireScalarField(entity, value, binding.ResultType, nullable: false);
                     break;
                 }
                 default:

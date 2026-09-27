@@ -25,6 +25,8 @@ public static class ReviewHierarchyCostFixture
         ["descendantPageRoot"] = 150, ["subtreeAggregateRoot"] = 150, ["subtreeAggregateMiddle"] = 150,
         ["relatedAcrossSubtreeRoot"] = 150, ["declarationScan"] = 1_000,
         ["saveMoveRecord"] = 150, ["renumberWideSiblings"] = 1_000,
+        // Stage 4: reads that evaluate a subtree Count for every record they return.
+        ["calculatedPage"] = 150, ["calculatedTreeWindow"] = 150, ["calculatedSnapshot"] = 10_000,
     };
 
     public static async Task<string> RunAsync(string filePath)
@@ -326,6 +328,46 @@ public static class ReviewHierarchyCostFixture
             timings.Add(watch.Elapsed.TotalMilliseconds);
         }
         results["renumberWideSiblings"] = Summarise(timings, $"{siblings.Count} siblings per revision, 5 rounds");
+
+        // Declared, with a calculation that counts each record's whole subtree: every read that
+        // returns records now walks one subtree per record.
+        var service = new NendoApplicationService(coordinator);
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("hierarchy-cost", "declare", "experiment", "Declare",
+            [new DeclareHierarchyOperation("declare-node", "node", "parent", "order", revision)]));
+        await coordinator.ApplyAsync(new("hierarchy-cost", "inside", "experiment", "Count each subtree",
+            [new SetBehaviourDefinitionOperation("inside-node", new NendoCalculationDefinition("node.inside", "node", "inside", "Inside",
+                NendoBehaviourScalar.Integer, false, "v", [NendoBehaviourBinding.Subtree("v", "node", NendoAggregateFunction.Count)]), revision + 1)]));
+        async Task<Measure> TimeAsync(Func<Task<string>> read, int samples)
+        {
+            var taken = new List<double>();
+            var answer = "";
+            for (var i = 0; i < Warmups + samples; i++)
+            {
+                var watch = Stopwatch.StartNew();
+                answer = await read();
+                watch.Stop();
+                if (i >= Warmups) taken.Add(watch.Elapsed.TotalMilliseconds);
+            }
+            return Summarise(taken, answer);
+        }
+        string Inside(NendoRecordSnapshot record) => record.Calculations.Single().State == NendoCalculationState.Value
+            ? record.Calculations.Single().Value.GetRawText() : record.Calculations.Single().ErrorCode ?? "error";
+        results["calculatedPage"] = await TimeAsync(async () =>
+        {
+            var page = await service.QueryRecordsAsync(new("node", 100));
+            return $"{page.Items.Count} records; first inside {Inside(page.Items[0])}";
+        }, Samples);
+        results["calculatedTreeWindow"] = await TimeAsync(async () =>
+        {
+            var page = await service.TreeRecordsAsync(new("node", tree.RootA, 2, 100));
+            return $"{page.Items.Count} nodes; first inside {Inside(page.Items[0].Record)}";
+        }, Samples);
+        results["calculatedSnapshot"] = await TimeAsync(async () =>
+        {
+            var snapshot = await service.GetSnapshotAsync();
+            return $"{snapshot.Records.Count} records; root inside {Inside(snapshot.Records.Single(record => record.RecordId == tree.RootA))}";
+        }, 3);
         return results;
     }
 }

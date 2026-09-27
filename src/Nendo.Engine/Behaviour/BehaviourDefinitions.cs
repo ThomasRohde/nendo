@@ -58,6 +58,12 @@ public enum NendoBindingKind
 
     /// <summary>A bounded aggregate over the records that reference this one.</summary>
     RelatedAggregate,
+
+    /// <summary>
+    /// A bounded aggregate over this record's descendants in its record type's declared
+    /// hierarchy (ADR-0019), optionally with the record itself.
+    /// </summary>
+    SubtreeAggregate,
 }
 
 /// <summary>The initial aggregate catalogue. Widening it needs its own semantics and tests.</summary>
@@ -107,17 +113,28 @@ public sealed record NendoBindingShape(
             ["bindingId", "kind", "entityId", "referenceFieldId", "relatedEntityId", "fieldId", "resultType", "nullable"], [],
             "One declared hop along a configured reference, to one stored field of the target."),
         new(NendoBindingKind.RelatedAggregate, NendoAggregateFunction.Count,
-            ["bindingId", "kind", "aggregate", "entityId", "relatedEntityId", "relatedReferenceFieldId"], ["resultType", "nullable"],
+            ["bindingId", "kind", "aggregate", "entityId", "relatedEntityId", "relatedReferenceFieldId"], ["acrossSubtree", "resultType", "nullable"],
             "Counts the records pointing back at this one. The result is always Integer and never null; " +
             "resultType and nullable may be sent, and must say so. Past the row ceiling it refuses rather than counting part."),
         new(NendoBindingKind.RelatedAggregate, NendoAggregateFunction.FilteredCount,
-            ["bindingId", "kind", "aggregate", "entityId", "relatedEntityId", "relatedReferenceFieldId", "predicateFieldId"], ["resultType", "nullable"],
+            ["bindingId", "kind", "aggregate", "entityId", "relatedEntityId", "relatedReferenceFieldId", "predicateFieldId"], ["acrossSubtree", "resultType", "nullable"],
             "Counts the records pointing back at this one whose Boolean predicateFieldId is true. " +
             "The result is always Integer and never null."),
         new(NendoBindingKind.RelatedAggregate, NendoAggregateFunction.Sum,
-            ["bindingId", "kind", "aggregate", "entityId", "relatedEntityId", "relatedReferenceFieldId", "valueFieldId", "resultType"], ["nullable"],
+            ["bindingId", "kind", "aggregate", "entityId", "relatedEntityId", "relatedReferenceFieldId", "valueFieldId", "resultType"], ["acrossSubtree", "nullable"],
             "Totals valueFieldId over the records pointing back at this one, exactly. resultType is Integer or Decimal " +
             "and matches the field; the result is never null, and an empty collection totals zero."),
+        new(NendoBindingKind.SubtreeAggregate, NendoAggregateFunction.Count,
+            ["bindingId", "kind", "aggregate", "entityId"], ["includeSelf", "resultType", "nullable"],
+            "Counts the records under this one in the record type's declared hierarchy, at every level; includeSelf counts " +
+            "the record too. The result is always Integer and never null. Past the hierarchy's descendant bound it refuses."),
+        new(NendoBindingKind.SubtreeAggregate, NendoAggregateFunction.FilteredCount,
+            ["bindingId", "kind", "aggregate", "entityId", "predicateFieldId"], ["includeSelf", "resultType", "nullable"],
+            "Counts the records under this one whose Boolean predicateFieldId is true. The result is always Integer and never null."),
+        new(NendoBindingKind.SubtreeAggregate, NendoAggregateFunction.Sum,
+            ["bindingId", "kind", "aggregate", "entityId", "valueFieldId", "resultType"], ["includeSelf", "nullable"],
+            "Totals valueFieldId over the records under this one, exactly; includeSelf adds the record's own value. resultType " +
+            "is Integer or Decimal and matches the field; the result is never null, and an empty subtree totals zero."),
     ];
 
     /// <summary>What a key is for, in the words a refusal uses to ask for it.</summary>
@@ -136,6 +153,8 @@ public sealed record NendoBindingShape(
         "valueFieldId" => "the Integer or Decimal field it totals",
         "resultType" => "the scalar the value has: " + string.Join(", ", Enum.GetNames<NendoBehaviourScalar>()),
         "nullable" => "whether the value may be empty",
+        "includeSelf" => "true to count or total the record itself as well as everything under it",
+        "acrossSubtree" => "true to fold the records pointing at this record or at anything under it in its declared hierarchy",
         _ => "a key this contract defines",
     };
 
@@ -193,6 +212,12 @@ public sealed record NendoBehaviourBinding
     /// <summary>The calculation read from the same record.</summary>
     public string? CalculationId { get; private init; }
 
+    /// <summary>A subtree aggregate that folds the record itself as well as its descendants.</summary>
+    public bool IncludeSelf { get; private init; }
+
+    /// <summary>A related aggregate over the records pointing at this record or anything under it (ADR-0019).</summary>
+    public bool AcrossSubtree { get; private init; }
+
     public static NendoBehaviourBinding SameRecordField(
         string bindingId, string entityId, string fieldId, NendoBehaviourScalar resultType, bool nullable) =>
         new(bindingId, NendoBindingKind.SameRecordField, resultType, nullable)
@@ -227,18 +252,33 @@ public sealed record NendoBehaviourBinding
 
     /// <summary>Counts every related record. The result is a non-null Int64.</summary>
     public static NendoBehaviourBinding RelatedCount(
-        string bindingId, string entityId, string relatedEntityId, string relatedReferenceFieldId) =>
+        string bindingId, string entityId, string relatedEntityId, string relatedReferenceFieldId, bool acrossSubtree = false) =>
         new(bindingId, NendoBindingKind.RelatedAggregate, NendoBehaviourScalar.Integer, false)
         {
             EntityId = NendoOperation.Require(entityId, nameof(entityId)),
             RelatedEntityId = NendoOperation.Require(relatedEntityId, nameof(relatedEntityId)),
             RelatedReferenceFieldId = NendoOperation.Require(relatedReferenceFieldId, nameof(relatedReferenceFieldId)),
             Aggregate = NendoAggregateFunction.Count,
+            AcrossSubtree = acrossSubtree,
+        };
+
+    /// <summary>Counts, counts where a Boolean holds, or totals a number over this record's descendants (ADR-0019).</summary>
+    public static NendoBehaviourBinding Subtree(
+        string bindingId, string entityId, NendoAggregateFunction aggregate, string? memberFieldId = null,
+        NendoBehaviourScalar resultType = NendoBehaviourScalar.Integer, bool includeSelf = false) =>
+        new(bindingId, NendoBindingKind.SubtreeAggregate, aggregate == NendoAggregateFunction.Sum ? resultType : NendoBehaviourScalar.Integer, false)
+        {
+            EntityId = NendoOperation.Require(entityId, nameof(entityId)),
+            Aggregate = aggregate,
+            PredicateFieldId = aggregate == NendoAggregateFunction.FilteredCount ? NendoOperation.Require(memberFieldId!, nameof(memberFieldId)) : null,
+            ValueFieldId = aggregate == NendoAggregateFunction.Sum ? NendoOperation.Require(memberFieldId!, nameof(memberFieldId)) : null,
+            IncludeSelf = includeSelf,
         };
 
     /// <summary>Counts related records whose Boolean field is true. The result is a non-null Int64.</summary>
     public static NendoBehaviourBinding RelatedFilteredCount(
-        string bindingId, string entityId, string relatedEntityId, string relatedReferenceFieldId, string predicateFieldId) =>
+        string bindingId, string entityId, string relatedEntityId, string relatedReferenceFieldId, string predicateFieldId,
+        bool acrossSubtree = false) =>
         new(bindingId, NendoBindingKind.RelatedAggregate, NendoBehaviourScalar.Integer, false)
         {
             EntityId = NendoOperation.Require(entityId, nameof(entityId)),
@@ -246,12 +286,13 @@ public sealed record NendoBehaviourBinding
             RelatedReferenceFieldId = NendoOperation.Require(relatedReferenceFieldId, nameof(relatedReferenceFieldId)),
             Aggregate = NendoAggregateFunction.FilteredCount,
             PredicateFieldId = NendoOperation.Require(predicateFieldId, nameof(predicateFieldId)),
+            AcrossSubtree = acrossSubtree,
         };
 
     /// <summary>Sums a numeric field over related records, with checked arithmetic.</summary>
     public static NendoBehaviourBinding RelatedSum(
         string bindingId, string entityId, string relatedEntityId, string relatedReferenceFieldId,
-        string valueFieldId, NendoBehaviourScalar resultType) =>
+        string valueFieldId, NendoBehaviourScalar resultType, bool acrossSubtree = false) =>
         new(bindingId, NendoBindingKind.RelatedAggregate, resultType, false)
         {
             EntityId = NendoOperation.Require(entityId, nameof(entityId)),
@@ -259,6 +300,7 @@ public sealed record NendoBehaviourBinding
             RelatedReferenceFieldId = NendoOperation.Require(relatedReferenceFieldId, nameof(relatedReferenceFieldId)),
             Aggregate = NendoAggregateFunction.Sum,
             ValueFieldId = NendoOperation.Require(valueFieldId, nameof(valueFieldId)),
+            AcrossSubtree = acrossSubtree,
         };
 
     internal void Validate()
@@ -289,6 +331,19 @@ public sealed record NendoBehaviourBinding
                 if (Nullable)
                     throw new NendoValidationException("An aggregate is never null; an empty collection totals zero.");
                 break;
+            case NendoBindingKind.SubtreeAggregate:
+                if (Aggregate is null)
+                    throw new NendoValidationException("A subtree binding needs an aggregate.");
+                if (Aggregate == NendoAggregateFunction.FilteredCount && PredicateFieldId is null)
+                    throw new NendoValidationException("A filtered count needs the Boolean field it tests.");
+                if (Aggregate == NendoAggregateFunction.Sum && ValueFieldId is null)
+                    throw new NendoValidationException("A sum needs the numeric field it accumulates.");
+                if (Aggregate == NendoAggregateFunction.Sum &&
+                    ResultType is not (NendoBehaviourScalar.Integer or NendoBehaviourScalar.Decimal))
+                    throw new NendoValidationException("A sum produces a whole number or a decimal.");
+                if (Nullable)
+                    throw new NendoValidationException("An aggregate is never null; an empty subtree totals zero.");
+                break;
             default:
                 throw new NendoValidationException("The binding kind is not supported by this contract.");
         }
@@ -297,11 +352,13 @@ public sealed record NendoBehaviourBinding
     internal void WriteCanonical(Utf8JsonWriter writer)
     {
         writer.WriteStartObject();
+        if (AcrossSubtree) writer.WriteBoolean("acrossSubtree", true);
         writer.WriteString("bindingId", BindingId);
         if (Aggregate is { } aggregate) writer.WriteString("aggregate", aggregate.ToString());
         if (CalculationId is not null) writer.WriteString("calculationId", CalculationId);
         writer.WriteString("entityId", EntityId);
         if (FieldId is not null) writer.WriteString("fieldId", FieldId);
+        if (IncludeSelf) writer.WriteBoolean("includeSelf", true);
         writer.WriteString("kind", Kind.ToString());
         writer.WriteBoolean("nullable", Nullable);
         if (PredicateFieldId is not null) writer.WriteString("predicateFieldId", PredicateFieldId);

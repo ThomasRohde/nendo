@@ -127,9 +127,24 @@ A key that is published is accepted, and a key that is accepted is published.
 | `SameRecordField` | A stored field on the record being calculated | `fieldId`, `resultType`, `nullable` |
 | `SameRecordCalculation` | Another calculated field on the same record | `calculationId`, `resultType`, `nullable` |
 | `ReferenceTraversal` | One declared hop along a reference field, then a stored field on the target | `referenceFieldId`, `relatedEntityId`, `fieldId`, `resultType`, `nullable` |
-| `RelatedAggregate` · `Count` | How many records reference this one | `aggregate`, `relatedEntityId`, `relatedReferenceFieldId`; optional `resultType`, `nullable` |
-| `RelatedAggregate` · `FilteredCount` | How many of them have a Boolean field true | … and `predicateFieldId`; optional `resultType`, `nullable` |
-| `RelatedAggregate` · `Sum` | The exact total of a numeric field over them | … and `valueFieldId`, `resultType`; optional `nullable` |
+| `RelatedAggregate` · `Count` | How many records reference this one | `aggregate`, `relatedEntityId`, `relatedReferenceFieldId`; optional `acrossSubtree`, `resultType`, `nullable` |
+| `RelatedAggregate` · `FilteredCount` | How many of them have a Boolean field true | … and `predicateFieldId`; optional `acrossSubtree`, `resultType`, `nullable` |
+| `RelatedAggregate` · `Sum` | The exact total of a numeric field over them | … and `valueFieldId`, `resultType`; optional `acrossSubtree`, `nullable` |
+| `SubtreeAggregate` · `Count` | How many records sit under this one in its declared hierarchy | `aggregate`; optional `includeSelf`, `resultType`, `nullable` |
+| `SubtreeAggregate` · `FilteredCount` | How many of them have a Boolean field true | … and `predicateFieldId`; optional `includeSelf`, `resultType`, `nullable` |
+| `SubtreeAggregate` · `Sum` | The exact total of a numeric field over them | … and `valueFieldId`, `resultType`; optional `includeSelf`, `nullable` |
+
+**Subtrees** ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md), 2026-09-27
+amendment of ADR-0008). A `SubtreeAggregate` folds the record's descendants at every level
+of its record type's declared hierarchy, and with `includeSelf: true` the record as well.
+`acrossSubtree: true` on a `RelatedAggregate` folds the related records that point at this
+record or at anything under it: the applications that support a capability or any part of
+it. Both are installed only on a record type that declares a hierarchy, and while one is in
+place the hierarchy cannot be removed (`hierarchy-field-in-use`). They are bounded by the
+hierarchy's own limit of 10,000 records rather than the related-row budget, which one
+subtree would exceed; past it they are an error, never a partial total. The keys appear in
+a stored definition only when true, so every definition written before them keeps its
+canonical bytes and digest.
 
 The initial aggregate catalogue is closed:
 

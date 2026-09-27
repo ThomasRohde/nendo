@@ -236,7 +236,7 @@ internal static class NendoBehaviourCodec
                     var bindingId = Text(element, "bindingId");
                     _subject = $"Binding '{bindingId}' of {outer}";
                     var kind = Enum<NendoBindingKind>(element, "kind");
-                    var aggregate = kind == NendoBindingKind.RelatedAggregate
+                    var aggregate = kind is NendoBindingKind.RelatedAggregate or NendoBindingKind.SubtreeAggregate
                         ? Enum<NendoAggregateFunction>(element, "aggregate")
                         : (NendoAggregateFunction?)null;
                     var shape = NendoBindingShape.For(kind, aggregate);
@@ -261,7 +261,8 @@ internal static class NendoBehaviourCodec
                         NendoBindingKind.ReferenceTraversal => NendoBehaviourBinding.ReferenceTraversal(
                             bindingId, entityId, Text(element, "referenceFieldId"), Text(element, "relatedEntityId"),
                             Text(element, "fieldId"), Enum<NendoBehaviourScalar>(element, "resultType"), Flag(element, "nullable")),
-                        NendoBindingKind.RelatedAggregate => Aggregate(element, bindingId, entityId, aggregate!.Value),
+                        NendoBindingKind.RelatedAggregate or NendoBindingKind.SubtreeAggregate =>
+                            Aggregate(element, bindingId, entityId, kind, aggregate!.Value),
                         _ => throw Refuse($"{_subject} has a binding kind this contract does not define."),
                     });
                 }
@@ -273,28 +274,42 @@ internal static class NendoBehaviourCodec
             return bindings;
         }
 
-        private NendoBehaviourBinding Aggregate(JsonElement element, string bindingId, string entityId, NendoAggregateFunction aggregate)
+        private NendoBehaviourBinding Aggregate(JsonElement element, string bindingId, string entityId, NendoBindingKind kind, NendoAggregateFunction aggregate)
         {
-            var relatedEntityId = Text(element, "relatedEntityId");
-            var relatedReferenceFieldId = Text(element, "relatedReferenceFieldId");
             if (aggregate != NendoAggregateFunction.Sum)
             {
                 // A count's result type is not a choice, but a body that states it must
                 // state it truthfully rather than be read as something it does not say.
                 if (element.TryGetProperty("resultType", out _) && Enum<NendoBehaviourScalar>(element, "resultType") != NendoBehaviourScalar.Integer)
-                    throw Refuse($"{_subject} ({NendoBindingKind.RelatedAggregate} {aggregate}) always produces Integer; leave resultType out or say Integer.");
+                    throw Refuse($"{_subject} ({kind} {aggregate}) always produces Integer; leave resultType out or say Integer.");
             }
             if (element.TryGetProperty("nullable", out _) && Flag(element, "nullable"))
-                throw Refuse($"{_subject} ({NendoBindingKind.RelatedAggregate} {aggregate}) is never null: an empty collection totals zero. Leave nullable out or say false.");
+                throw Refuse($"{_subject} ({kind} {aggregate}) is never null: an empty collection totals zero. Leave nullable out or say false.");
+            if (kind == NendoBindingKind.SubtreeAggregate)
+            {
+                var includeSelf = element.TryGetProperty("includeSelf", out _) && Flag(element, "includeSelf");
+                return aggregate switch
+                {
+                    NendoAggregateFunction.Count => NendoBehaviourBinding.Subtree(bindingId, entityId, aggregate, includeSelf: includeSelf),
+                    NendoAggregateFunction.FilteredCount => NendoBehaviourBinding.Subtree(bindingId, entityId, aggregate,
+                        Text(element, "predicateFieldId"), includeSelf: includeSelf),
+                    NendoAggregateFunction.Sum => NendoBehaviourBinding.Subtree(bindingId, entityId, aggregate,
+                        Text(element, "valueFieldId"), Enum<NendoBehaviourScalar>(element, "resultType"), includeSelf),
+                    _ => throw Refuse($"{_subject} has an aggregate this contract does not define."),
+                };
+            }
+            var relatedEntityId = Text(element, "relatedEntityId");
+            var relatedReferenceFieldId = Text(element, "relatedReferenceFieldId");
+            var acrossSubtree = element.TryGetProperty("acrossSubtree", out _) && Flag(element, "acrossSubtree");
             return aggregate switch
             {
                 NendoAggregateFunction.Count => NendoBehaviourBinding.RelatedCount(
-                    bindingId, entityId, relatedEntityId, relatedReferenceFieldId),
+                    bindingId, entityId, relatedEntityId, relatedReferenceFieldId, acrossSubtree),
                 NendoAggregateFunction.FilteredCount => NendoBehaviourBinding.RelatedFilteredCount(
-                    bindingId, entityId, relatedEntityId, relatedReferenceFieldId, Text(element, "predicateFieldId")),
+                    bindingId, entityId, relatedEntityId, relatedReferenceFieldId, Text(element, "predicateFieldId"), acrossSubtree),
                 NendoAggregateFunction.Sum => NendoBehaviourBinding.RelatedSum(
                     bindingId, entityId, relatedEntityId, relatedReferenceFieldId,
-                    Text(element, "valueFieldId"), Enum<NendoBehaviourScalar>(element, "resultType")),
+                    Text(element, "valueFieldId"), Enum<NendoBehaviourScalar>(element, "resultType"), acrossSubtree),
                 _ => throw Refuse($"{_subject} has an aggregate this contract does not define."),
             };
         }

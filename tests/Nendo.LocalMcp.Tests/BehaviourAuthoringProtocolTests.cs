@@ -56,8 +56,10 @@ public sealed class BehaviourAuthoringProtocolTests
         CollectionAssert.Contains(behaviour.Operators.ToArray(), "?:");
         CollectionAssert.Contains(behaviour.Scalars.ToArray(), "Decimal");
         CollectionAssert.AreEquivalent(
-            new[] { "SameRecordField", "SameRecordCalculation", "ReferenceTraversal", "RelatedAggregate" },
+            new[] { "SameRecordField", "SameRecordCalculation", "ReferenceTraversal", "RelatedAggregate", "SubtreeAggregate" },
             behaviour.Bindings.Select(binding => binding.Kind).Distinct().ToArray());
+        CollectionAssert.AreEquivalent(new[] { "Count", "FilteredCount", "Sum" },
+            behaviour.Bindings.Where(binding => binding.Kind == "SubtreeAggregate").Select(shape => shape.Aggregate).ToArray());
         // A related aggregate is published once per aggregate, because the key that
         // names the field differs. A reviewer who could not find the sum's key
         // guessed three spellings and abandoned the calculation.

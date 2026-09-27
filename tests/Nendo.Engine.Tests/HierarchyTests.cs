@@ -9,6 +9,7 @@ namespace Nendo.Engine.Tests;
 public sealed class HierarchyTests
 {
     private const string Entity = "nodes";
+    private const string Units = "units";
 
     [TestMethod]
     public async Task DeclaringTakesTheHierarchyRungAndTheReopenedFileStillKnowsIt()
@@ -364,6 +365,149 @@ public sealed class HierarchyTests
         Assert.AreEqual("hierarchy-not-declared", (await Refused(() => service.QueryRecordsAsync(new(Entity, 50) { Filters = [wrong] }))).Code);
     }
 
+    [TestMethod]
+    public async Task SubtreeCalculationsCountAndTotalEverythingUnderARecord()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        // Members a calculation counts or totals are required fields, as for a related aggregate.
+        await coordinator.ApplyAsync(new("test", "units", "test", "Units and links into them", [
+            new CreateEntityOperation("u", Units, "Units", "units"),
+            new AddFieldOperation("u-title", Units, "title", "Title", "title", NendoStorageKind.Text, true),
+            new AddFieldOperation("u-parent", Units, "parent", "Parent", "parent_id", NendoStorageKind.Reference, false),
+            new AddFieldOperation("u-cost", Units, "cost", "Cost", "cost", NendoStorageKind.Integer, true),
+            new AddFieldOperation("u-flag", Units, "flag", "Flag", "flag", NendoStorageKind.Boolean, true),
+            new ConfigureReferenceOperation("u-bind", Units, "parent", Units, "title", 0),
+            new CreateEntityOperation("e-link", "links", "Links", "links"),
+            new AddFieldOperation("l-name", "links", "name", "Name", "name", NendoStorageKind.Text, true),
+            new AddFieldOperation("l-node", "links", "node", "Node", "node_id", NendoStorageKind.Reference, true),
+            new AddFieldOperation("l-hours", "links", "hours", "Hours", "hours", NendoStorageKind.Integer, true),
+            new ConfigureReferenceOperation("l-bind", "links", "node", Units, "title", 0),
+        ]));
+        foreach (var (id, parent, cost, flag) in new[] { ("root", (string?)null, 1L, false), ("a", "root", 10L, true), ("a1", "a", 20L, true), ("a2", "a", 30L, false), ("b", "root", 40L, true) })
+            await service.CreateRecordAsync(new(Units, id, new Dictionary<string, object?> { ["title"] = id, ["parent"] = parent, ["cost"] = cost, ["flag"] = flag },
+                Context($"unit-{id}"), parent is null ? null : new Dictionary<string, long> { ["parent"] = 1 }));
+        foreach (var (link, node, hours) in new[] { ("l1", "root", 1L), ("l2", "a1", 2L), ("l3", "b", 4L), ("l4", "a2", 8L) })
+            await service.CreateRecordAsync(new("links", link, new Dictionary<string, object?> { ["name"] = link, ["node"] = node, ["hours"] = hours },
+                Context(link), new Dictionary<string, long> { ["node"] = 1 }));
+        var declared = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "declare-units", "test", "Declare",
+            [new DeclareHierarchyOperation($"d-{Guid.NewGuid():N}", Units, "parent", null, declared)]));
+
+        NendoCalculationDefinition Calculation(string field, NendoBehaviourBinding binding) =>
+            new($"calc.{field}", Units, field, field, NendoBehaviourScalar.Integer, false, "v", [binding]);
+        var calculations = new[]
+        {
+            Calculation("inside", NendoBehaviourBinding.Subtree("v", Units, NendoAggregateFunction.Count)),
+            Calculation("withSelf", NendoBehaviourBinding.Subtree("v", Units, NendoAggregateFunction.Count, includeSelf: true)),
+            Calculation("flagged", NendoBehaviourBinding.Subtree("v", Units, NendoAggregateFunction.FilteredCount, "flag")),
+            Calculation("orderSum", NendoBehaviourBinding.Subtree("v", Units, NendoAggregateFunction.Sum, "cost")),
+            Calculation("orderSumSelf", NendoBehaviourBinding.Subtree("v", Units, NendoAggregateFunction.Sum, "cost", includeSelf: true)),
+            Calculation("linkCount", NendoBehaviourBinding.RelatedCount("v", Units, "links", "node", acrossSubtree: true)),
+            Calculation("linkHours", NendoBehaviourBinding.RelatedSum("v", Units, "links", "node", "hours", NendoBehaviourScalar.Integer, acrossSubtree: true)),
+            Calculation("directLinks", NendoBehaviourBinding.RelatedCount("v", Units, "links", "node")),
+        };
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "calcs", "test", "Subtree calculations",
+            calculations.Select((calculation, index) => (NendoOperation)new SetBehaviourDefinitionOperation($"c{index}", calculation, revision)).ToArray()));
+
+        long Value(NendoRecordSnapshot record, string field)
+        {
+            var result = record.Calculations.Single(calculation => calculation.FieldId == field);
+            Assert.AreEqual(NendoCalculationState.Value, result.State, $"{field}: {result.ErrorCode} {result.ErrorMessage}");
+            return result.Value.GetInt64();
+        }
+        var root = await UnitAsync(service, "root");
+        Assert.AreEqual(4L, Value(root, "inside"));
+        Assert.AreEqual(5L, Value(root, "withSelf"));
+        Assert.AreEqual(3L, Value(root, "flagged"));
+        Assert.AreEqual(100L, Value(root, "orderSum"));
+        Assert.AreEqual(101L, Value(root, "orderSumSelf"));
+        Assert.AreEqual(4L, Value(root, "linkCount"));
+        Assert.AreEqual(15L, Value(root, "linkHours"));
+        Assert.AreEqual(1L, Value(root, "directLinks"));
+        var a = await UnitAsync(service, "a");
+        Assert.AreEqual(2L, Value(a, "inside"));
+        Assert.AreEqual(10L, Value(a, "linkHours"));
+        var leaf = await UnitAsync(service, "b");
+        Assert.AreEqual(0L, Value(leaf, "inside"));
+        Assert.AreEqual(40L, Value(leaf, "orderSumSelf"));
+
+        // The hierarchy cannot go while a calculation reads it.
+        var now = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        Assert.AreEqual("hierarchy-field-in-use", (await Refused(() => coordinator.ApplyAsync(new("test", "remove", "test", "Remove",
+            [new RemoveHierarchyOperation($"x-{Guid.NewGuid():N}", Units, now)])))).Code);
+    }
+
+    [TestMethod]
+    public async Task ASubtreeCalculationNeedsADeclaredHierarchy()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator);
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await Assert.ThrowsExactlyAsync<NendoValidationException>(() => coordinator.ApplyAsync(new("test", "calc", "test", "Subtree", [
+            new SetBehaviourDefinitionOperation("c", new NendoCalculationDefinition("calc.inside", Entity, "inside", "Inside",
+                NendoBehaviourScalar.Integer, false, "v", [NendoBehaviourBinding.Subtree("v", Entity, NendoAggregateFunction.Count)]), revision)])));
+    }
+
+    [TestMethod]
+    public async Task PastTheDescendantBoundEveryReadRefusesRatherThanAnswerInPart()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator);
+        await CreateAsync(service, "root");
+        var children = Enumerable.Range(0, NendoHierarchyLimits.MaximumDescendants + 1).Select(index => (NendoOperation)new CreateRecordOperation(
+            $"wide-{index}", Entity, $"w{index:D5}", new Dictionary<string, object?> { ["title"] = $"W{index}", ["parent"] = "root" },
+            new Dictionary<string, long> { ["parent"] = 1 })).ToArray();
+        await coordinator.ApplyAsync(new("test", "wide", "test", "One more child than a subtree read folds", children));
+        await DeclareAsync(coordinator, service);
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "calc", "test", "Count", [
+            new SetBehaviourDefinitionOperation("c", new NendoCalculationDefinition("calc.inside", Entity, "inside", "Inside",
+                NendoBehaviourScalar.Integer, false, "v", [NendoBehaviourBinding.Subtree("v", Entity, NendoAggregateFunction.Count)]), revision)]));
+
+        var count = (await RecordAsync(service, "root")).Calculations.Single();
+        Assert.AreEqual(NendoCalculationState.Error, count.State);
+        StringAssert.Contains(count.ErrorMessage, $"More than {NendoHierarchyLimits.MaximumDescendants} records");
+        Assert.AreEqual("hierarchy-too-wide", (await Refused(() => service.TreeRecordsAsync(new(Entity, "root")))).Code);
+        var under = new NendoRecordFilter("parent", "descendantOf", System.Text.Json.JsonSerializer.SerializeToElement("root"));
+        Assert.AreEqual("hierarchy-too-wide", (await Refused(() => service.CountRecordsAsync(new(Entity) { Filters = [under] }))).Code);
+    }
+
+    [TestMethod]
+    public void TheWireFormatCarriesSubtreeBindingsAndKeepsOlderBindingsByteForByte()
+    {
+        static string Body(string binding) => $$"""
+            {"entityId":"units","fieldId":"total","displayName":"Total","resultType":"Integer","resultNullable":false,
+             "expression":"v","callAliases":[],"bindings":[{{binding}}]}
+            """;
+        static NendoBehaviourBinding Read(string binding) => ((NendoCalculationDefinition)NendoBehaviourCodec.Read(
+            "units.total", NendoBehaviourKind.Calculation, NendoBehaviourContract.Version, Body(binding), NendoBehaviourBodySource.Authored)).Bindings.Single();
+
+        var subtree = Read("""{"bindingId":"v","kind":"SubtreeAggregate","aggregate":"Sum","entityId":"units","valueFieldId":"cost","resultType":"Integer","includeSelf":true}""");
+        Assert.AreEqual(NendoBindingKind.SubtreeAggregate, subtree.Kind);
+        Assert.IsTrue(subtree.IncludeSelf);
+        Assert.AreEqual("cost", subtree.ValueFieldId);
+        var across = Read("""{"bindingId":"v","kind":"RelatedAggregate","aggregate":"Count","entityId":"units","relatedEntityId":"links","relatedReferenceFieldId":"node","acrossSubtree":true}""");
+        Assert.IsTrue(across.AcrossSubtree);
+
+        // A key that belongs to the other shape is refused and the right keys are named.
+        var wrong = Assert.ThrowsExactly<NendoValidationException>(() => Read(
+            """{"bindingId":"v","kind":"RelatedAggregate","aggregate":"Count","entityId":"units","relatedEntityId":"links","relatedReferenceFieldId":"node","includeSelf":true}""")).Message;
+        StringAssert.Contains(wrong, "does not define: includeSelf");
+
+        // A binding written before this stage keeps its canonical bytes: the new keys appear only when true.
+        var plain = new NendoCalculationDefinition("units.total", "units", "total", "Total", NendoBehaviourScalar.Integer, false, "v",
+            [NendoBehaviourBinding.RelatedCount("v", "units", "links", "node")]).CanonicalBody();
+        Assert.DoesNotContain("acrossSubtree", plain);
+        Assert.DoesNotContain("includeSelf", plain);
+    }
+
     // ------------------------------------------------------------------------------------------
 
     private static async Task SchemaAsync(NendoWriteCoordinator coordinator) =>
@@ -397,6 +541,9 @@ public sealed class HierarchyTests
             parent = id;
         }
     }
+
+    private static async Task<NendoRecordSnapshot> UnitAsync(NendoApplicationService service, string id) =>
+        (await service.QueryRecordsAsync(new(Units, 1) { RecordId = id })).Items.Single();
 
     private static async Task<NendoRecordSnapshot> RecordAsync(NendoApplicationService service, string id) =>
         (await service.QueryRecordsAsync(new(Entity, 1) { RecordId = id })).Items.Single();

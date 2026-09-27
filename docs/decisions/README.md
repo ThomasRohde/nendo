@@ -30,7 +30,7 @@ existed. For this reason the numbering is contiguous by intent.
 | [0016](0016-vendor-pinned-dotnet-agent-skills.md) | Accepted | Pinned curated first-party .NET agent skills |
 | [0017](0017-production-composition-and-build-layout.md) | Accepted | Minimal Engine/Desktop/Workbench/LocalMcp composition and centralized build layout |
 | [0018](0018-public-website-and-deployment-lane.md) | Accepted | Public website at `site/`, outside the product boundary, with one CI lane that deploys only it; since 2026-09-23 it carries its own guides and does not render `docs/` |
-| [0019](0019-hierarchies-in-the-schema.md) | Accepted | Declare a self-reference as a hierarchy: the Engine refuses cycles for every client, sibling order, typed move, bounded tree reads, subtree aggregates, a Studio outline and an `outlineSurface`; stages 1 (cost), 2 (declaration, cycle rule, move, MCP) and 3 (tree read, `descendantOf`, `records.tree`) delivered at host 1.35.0 |
+| [0019](0019-hierarchies-in-the-schema.md) | Accepted | Declare a self-reference as a hierarchy: the Engine refuses cycles for every client, sibling order, typed move, bounded tree reads, subtree aggregates, a Studio outline and an `outlineSurface`; stages 1 (cost), 2 (declaration, cycle rule, move, MCP), 3 (tree read, `descendantOf`, `records.tree`) and 4 (subtree aggregates) delivered at host 1.35.0 |
 
 ## Amendments in force
 
@@ -54,6 +54,11 @@ existed. For this reason the numbering is contiguous by intent.
 - **ADR-0004, 2026-09-24 — a fold is remembered on this device**: a person's folds
   are kept in the Workbench's local storage, keyed by the file's application ID and
   the section's node ID, so they survive a reopen. The file is unchanged by them.
+- **ADR-0008, 2026-09-27 — subtree aggregates** ([ADR-0019](0019-hierarchies-in-the-schema.md)):
+  a `SubtreeAggregate` binding counts, counts where a Boolean holds, or totals a number
+  over a record's descendants in its declared hierarchy, optionally with the record
+  itself (`includeSelf`); `acrossSubtree` on a `RelatedAggregate` folds the records
+  pointing at the record or anything under it. Both are bounded at 10,000 records.
 - **ADR-0008, 2026-09-20 — an optional result is quietly empty, and a formula can
   refuse by name**: a calculation or function with `resultNullable: true` reports
   an empty result when an empty input stops its formula. A definition declared

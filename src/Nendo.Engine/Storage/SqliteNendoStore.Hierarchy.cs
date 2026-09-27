@@ -123,6 +123,11 @@ internal sealed partial class SqliteNendoStore
         var entity = await GetEntityMappingAsync(operation.EntityId, transaction, ct);
         var removed = entity.Hierarchy
             ?? throw new NendoPreconditionException("hierarchy-not-declared", $"{entity.DisplayName} has no hierarchy to remove.");
+        foreach (var definition in (await ReadBehaviourDefinitionsAsync(transaction, ct)).Values)
+            if (BindingsOf(definition).Any(binding => binding.EntityId == entity.EntityId &&
+                    (binding.Kind == NendoBindingKind.SubtreeAggregate || binding.AcrossSubtree)))
+                throw new NendoPreconditionException("hierarchy-field-in-use",
+                    $"'{definition.DefinitionId}' reads {entity.DisplayName}'s hierarchy. Change or remove that calculation first.");
         await using (var delete = Command("DELETE FROM __nendo_hierarchy WHERE entity_id=@entity;", transaction))
         {
             delete.Parameters.AddWithValue("@entity", entity.EntityId);

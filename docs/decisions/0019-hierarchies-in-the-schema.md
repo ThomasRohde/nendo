@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-27
-- **Delivery:** Stages 1 (the cost experiment), 2 (declaration, cycle rule, move, MCP) and 3 (tree read, `descendantOf`, `records.tree`) done 2026-09-27; stages 4–7 not started. Proposed and accepted the same day, after the owner settled the open questions
+- **Delivery:** Stages 1 (the cost experiment), 2 (declaration, cycle rule, move, MCP), 3 (tree read, `descendantOf`, `records.tree`) and 4 (subtree aggregates) done 2026-09-27; stages 5–7 not started. Proposed and accepted the same day, after the owner settled the open questions
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** The code survey in Context (2026-09-27) and the Capability Atlas review (W-072, planner findings F-154 to F-162). The costs were measured after acceptance as delivery stage 1, and every target was met; see the Stage 1 note
@@ -317,6 +317,34 @@ root and past the depth bound; `descendantOf` in the page, the count and a sum, 
 on a field that is not the parent). Sorting unordered siblings first failed the order test,
 and a `descendantOf` that matched everything returned 6 records where 2 belong. An MCP test
 reads the tree resource from the top and under a root.
+
+## Stage 4 note — 2026-09-27: subtree aggregates
+
+Delivered within host 1.35.0 as the ADR-0008 amendment point 7 describes. A calculation
+binding `SubtreeAggregate` (Count, FilteredCount, Sum; `includeSelf` optional) folds a
+record's descendants, and `acrossSubtree` on a `RelatedAggregate` folds the related records
+pointing anywhere into the subtree. Details the code settled:
+
+- **Their own bound.** A related aggregate charges every row against the per-save budget of
+  256; a subtree would exceed it, so the subtree forms charge one scan and stop at the
+  hierarchy's 10,000 records, past which the calculation is an error. The fold itself is the
+  one the related aggregate uses, so decimals stay exact and a member with no value is an
+  error, never a zero; like a related sum, a counted or totalled field must be required.
+- **Stable digests.** `includeSelf` and `acrossSubtree` are written to a definition's
+  canonical body only when true.
+- **Removing the hierarchy under a calculation** that reads it is refused.
+
+Cost, measured with the stage 1 driver on the same 10,000-record tree with a subtree Count
+installed (p95): a page of 100 records, each counting its whole subtree, 44 ms; a tree window
+of 90 nodes, 42 ms; a whole-file snapshot of 15,000 records, 0.70 s. The first figures of
+that run were lower than stage 1's across the board, so compare within a run.
+
+Evidence: four more `HierarchyTests` (every aggregate with and without `includeSelf` and
+across a subtree against a hand-counted tree, the removal guard; refusal without a
+hierarchy; one past the bound makes the calculation an error and the tree read and
+`descendantOf` refuse; the wire format and unchanged canonical bytes). Ignoring
+`includeSelf` failed with `Expected:<5>. Actual:<4>` and ignoring `acrossSubtree` with
+`Expected:<4>. Actual:<1>`.
 
 ## Consequences
 

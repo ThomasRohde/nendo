@@ -204,6 +204,10 @@ internal sealed partial class SqliteNendoStore
                         : await ReadFieldAsync(binding.RelatedEntityId!, target, binding.FieldId!, binding, budget, cancellationToken);
                 }
 
+                case NendoBindingKind.RelatedAggregate when binding.AcrossSubtree:
+                case NendoBindingKind.SubtreeAggregate:
+                    return await SubtreeAggregateAsync(binding, recordId, budget, cancellationToken);
+
                 case NendoBindingKind.RelatedAggregate:
                     return await AggregateAsync(binding, recordId, budget, cancellationToken);
 
@@ -289,7 +293,76 @@ internal sealed partial class SqliteNendoStore
                 transaction);
             command.Parameters.AddWithValue("@recordId", recordId);
             command.Parameters.AddWithValue("@limit", (long)allowance + 1);
+            return await FoldAsync(command, binding, member, allowance, chargePerRow: true,
+                $"More than {budget.Limits.RelatedRows} related records contribute to this calculation, so no total is shown rather than an incomplete one.",
+                budget, cancellationToken);
+        }
 
+        /// <summary>
+        /// Folds over a record's subtree in its declared hierarchy (ADR-0019): its descendants,
+        /// with the record itself for includeSelf, or — across a subtree — the related records
+        /// pointing at any of them. A subtree is bounded by the hierarchy's own descendant limit
+        /// rather than the per-save related-row budget, which a single hierarchy would exceed;
+        /// past it the result is an error, never a partial total.
+        /// </summary>
+        private async Task<BehaviourValue> SubtreeAggregateAsync(
+            NendoBehaviourBinding binding,
+            string recordId,
+            BehaviourBudget budget,
+            CancellationToken cancellationToken)
+        {
+            var owner = mappings.SingleOrDefault(candidate => candidate.EntityId == binding.EntityId);
+            if (owner?.Hierarchy is not { } hierarchy)
+                throw new NendoCalculationException(NendoCalculationCodes.RelatedUnavailable,
+                    "This calculation reads a hierarchy the record type no longer declares.");
+            var parent = Locate(binding.EntityId, hierarchy.ParentFieldId).Field;
+            var subtree =
+                $"WITH RECURSIVE sub(id, d) AS (SELECT {Quote("__nendo_record_id")}, 1 FROM {Quote(owner.PhysicalTableName)} " +
+                $"WHERE {Quote(parent.PhysicalColumnName)} = @recordId UNION ALL " +
+                $"SELECT n.{Quote("__nendo_record_id")}, sub.d + 1 FROM {Quote(owner.PhysicalTableName)} n " +
+                $"JOIN sub ON n.{Quote(parent.PhysicalColumnName)} = sub.id WHERE sub.d < {NendoHierarchyLimits.MaximumDepth}) ";
+            var bound = NendoHierarchyLimits.MaximumDescendants;
+            string sql;
+            FieldMapping? member;
+            if (binding.Kind == NendoBindingKind.SubtreeAggregate)
+            {
+                var memberId = binding.PredicateFieldId ?? binding.ValueFieldId;
+                member = memberId is null ? null : Locate(binding.EntityId, memberId).Field;
+                var selection = member is null ? "1" : $"t.{Quote(member.PhysicalColumnName)}";
+                var members = binding.IncludeSelf ? "SELECT id FROM sub UNION ALL SELECT @recordId" : "SELECT id FROM sub";
+                sql = $"{subtree} SELECT {selection}, t.{Quote("__nendo_record_id")}, t.{Quote("__nendo_record_version")} " +
+                    $"FROM {Quote(owner.PhysicalTableName)} t WHERE t.{Quote("__nendo_record_id")} IN ({members}) LIMIT @limit;";
+            }
+            else
+            {
+                var (related, pointer) = Locate(binding.RelatedEntityId!, binding.RelatedReferenceFieldId!);
+                var memberId = binding.PredicateFieldId ?? binding.ValueFieldId;
+                member = memberId is null ? null : Locate(binding.RelatedEntityId!, memberId).Field;
+                var selection = member is null ? "1" : $"r.{Quote(member.PhysicalColumnName)}";
+                sql = $"{subtree} SELECT {selection}, r.{Quote("__nendo_record_id")}, r.{Quote("__nendo_record_version")} " +
+                    $"FROM {Quote(related.PhysicalTableName)} r WHERE r.{Quote(pointer.PhysicalColumnName)} IN (SELECT id FROM sub UNION ALL SELECT @recordId) LIMIT @limit;";
+            }
+            budget.SpendScan();
+            await using var command = store.Command(sql, transaction);
+            command.Parameters.AddWithValue("@recordId", recordId);
+            command.Parameters.AddWithValue("@limit", (long)bound + 1);
+            return await FoldAsync(command, binding, member, bound, chargePerRow: false,
+                $"More than {bound} records contribute to this calculation across the hierarchy, so no total is shown rather than an incomplete one.",
+                budget, cancellationToken);
+        }
+
+        /// <summary>Counts or totals the rows a member query returns, refusing past its bound rather than answering in part.</summary>
+        private async Task<BehaviourValue> FoldAsync(
+            SqliteCommand command,
+            NendoBehaviourBinding binding,
+            FieldMapping? member,
+            int allowance,
+            bool chargePerRow,
+            string pastLimit,
+            BehaviourBudget budget,
+            CancellationToken cancellationToken)
+        {
+            var memberEntityId = binding.Kind == NendoBindingKind.SubtreeAggregate ? binding.EntityId : binding.RelatedEntityId!;
             var count = 0L;
             var integerTotal = 0L;
             var decimalTotal = 0m;
@@ -300,12 +373,9 @@ internal sealed partial class SqliteNendoStore
                 {
                     rowsRead++;
                     if (rowsRead > allowance)
-                    {
-                        throw new NendoCalculationException(NendoCalculationCodes.LimitReached,
-                            $"More than {budget.Limits.RelatedRows} related records contribute to this calculation, so no total is shown rather than an incomplete one.");
-                    }
-                    budget.SpendScan();
-                    observe?.Invoke(new RecordKey(binding.RelatedEntityId!, rows.GetString(1)), rows.GetInt64(2));
+                        throw new NendoCalculationException(NendoCalculationCodes.LimitReached, pastLimit);
+                    if (chargePerRow) budget.SpendScan();
+                    observe?.Invoke(new RecordKey(memberEntityId, rows.GetString(1)), rows.GetInt64(2));
                     switch (binding.Aggregate)
                     {
                         case NendoAggregateFunction.Count:

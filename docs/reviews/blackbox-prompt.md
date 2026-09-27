@@ -203,6 +203,10 @@ Then read the tree back the way the vocabulary says a tree is read, from the top
 one record down, and compare what came back — the order, each record's depth and how many
 children it claims — with what you built. Ask for a record's whole subtree as a filter on an
 ordinary query, a count and a sum, and say whether the three agree with each other.
+Finally, give the record type a calculated field that counts everything under a record and
+one that totals a number over it, then one on a related type's links that folds across the
+whole subtree. Check the root's figures by hand, and try to remove the hierarchy while they
+are in place.
 
 **Before you accept any of it, read the review and answer from it alone.** Cover the change
 set you sent and work only from the sentences the person accepting would see: which record
