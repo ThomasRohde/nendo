@@ -2,10 +2,10 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-27
-- **Delivery:** Not started. Proposed and accepted the same day, after the owner settled the open questions
+- **Delivery:** Stage 1 (the cost experiment) done 2026-09-27; stages 2–7 not started. Proposed and accepted the same day, after the owner settled the open questions
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
-- **Evidence:** The code survey in Context (2026-09-27) and the Capability Atlas review (W-072, planner findings F-154 to F-162). The costs are not yet measured: that measurement is the first delivery stage, and its result can lower the bounds (see Evidence and validation obligations)
+- **Evidence:** The code survey in Context (2026-09-27) and the Capability Atlas review (W-072, planner findings F-154 to F-162). The costs were measured after acceptance as delivery stage 1, and every target was met; see the Stage 1 note
 - **Amends:** ADR-0004 (the `outlineSurface` node, the parked B6) and ADR-0008 (the `SubtreeAggregate` binding and a subtree option on `RelatedAggregate`), both on delivery
 - **Depends on:** ADR-0003 relational user data and protected metadata, ADR-0005 host application services, ADR-0006 revisions and compensation, ADR-0008 bounded calculations, ADR-0013 custom views, ADR-0015 Studio
 - **Related design:** [`../design/surfaces-and-charts-plan.md`](../design/surfaces-and-charts-plan.md) (the parked B6 Outline), [`../contracts/relationships.md`](../contracts/relationships.md)
@@ -223,6 +223,42 @@ change with each stage as it lands, not before.
   `filterClause` under one.
 - **The motivating case.** The Capability Atlas drops its own cycle repair and
   parent check and uses the declaration, and `tools/Review-BcmAtlas.ps1` passes.
+
+## Stage 1 note — 2026-09-27: the costs, measured
+
+`tools/Review-HierarchyCost.ps1` builds a file through the Engine's canonical operations:
+10,000 records of one entity with a configured self-reference (so the production table
+shape and its covering index), 5,000 link records pointing into the tree, one root holding
+9,948 of the records, a spine to depth 32, a node with 1,006 children and the rest spread
+over the first seven levels. It times the candidate SQL for each read on a read-only
+connection, and the writes through the coordinator. Thirty samples after three warm-ups;
+two runs on the development machine (Windows x64). The targets were set before the run.
+
+| Measure | p50 | p95 (run 1 / run 2) | Target |
+| --- | ---: | ---: | ---: |
+| Cycle check, walk from depth 32 | 0.15–0.18 ms | 0.58 / 0.32 ms | 2 ms |
+| Cycle check, walk from depth 3 | 0.11–0.12 ms | 0.24 / 0.20 ms | 2 ms |
+| Children page of 100 with child counts, first page of 1,006 | 0.37–0.44 ms | 0.67 / 0.76 ms | 150 ms |
+| The same, last page | 1.5–1.8 ms | 2.95 / 2.37 ms | 150 ms |
+| `descendantOf` page of 100 under the root (9,948) | 28–30 ms | 43.8 / 45.8 ms | 150 ms |
+| Subtree Count, Sum and FilteredCount at the root (9,948) | 27–32 ms | 66.3 / 56.7 ms | 150 ms |
+| The same at a middle node (462) | 0.8–2.1 ms | 1.5 / 2.7 ms | 150 ms |
+| Links related to any node of the root's subtree (4,968) | 37 ms | 56.2 / 58.8 ms | 150 ms |
+| Declaration scan of all 10,000 for loops and depth | 15–16 ms | 21.5 / 17.3 ms | 1 s |
+| A save that changes one parent (baseline, no check yet) | 17 ms | 22.5 / 24.3 ms | 150 ms |
+| One revision renumbering 1,005 siblings | 326–358 ms | 392 / 438 ms | 1 s |
+
+Every answer matched the tree the driver built in memory: the root's 9,948 descendants,
+the middle node's 462, depth 32, no unreachable record, and the loop found when the
+proposed parent is below the record.
+
+**Conclusions.** The bounds of 32 levels and 10,000 descendants stand. The cycle check
+costs at most about 0.6 ms against a save of about 17 ms, so it can run inside every
+parent write. No read needs Option B's derived structure; the costs that grow with the
+tree (a whole-subtree page, aggregate or related fold) stay under half the read target
+at the bound. Renumbering is the one cost that grows with a sibling list; ordering by gaps
+of 1,024 makes it rare, and at 1,005 siblings it still stays under half a second. These are
+Engine numbers on one machine, without MCP or Workbench, and not a guarantee.
 
 ## Consequences
 
