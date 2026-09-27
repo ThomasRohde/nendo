@@ -1,10 +1,12 @@
 # ADR-0019: Declare a self-reference as a hierarchy
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-27
+- **Delivery:** Not started. Proposed and accepted the same day, after the owner settled the open questions
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
-- **Evidence:** Pending. Motivating evidence: the Capability Atlas review (W-072) and the survey below
+- **Evidence:** The code survey in Context (2026-09-27) and the Capability Atlas review (W-072, planner findings F-154 to F-162). The costs are not yet measured: that measurement is the first delivery stage, and its result can lower the bounds (see Evidence and validation obligations)
+- **Amends:** ADR-0004 (the `outlineSurface` node, the parked B6) and ADR-0008 (the `SubtreeAggregate` binding and a subtree option on `RelatedAggregate`), both on delivery
 - **Depends on:** ADR-0003 relational user data and protected metadata, ADR-0005 host application services, ADR-0006 revisions and compensation, ADR-0008 bounded calculations, ADR-0013 custom views, ADR-0015 Studio
 - **Related design:** [`../design/surfaces-and-charts-plan.md`](../design/surfaces-and-charts-plan.md) (the parked B6 Outline), [`../contracts/relationships.md`](../contracts/relationships.md)
 
@@ -103,9 +105,8 @@ manual, and rollups across levels remain impossible. The B6 outline stays parked
 
 ## Decision
 
-**Leading hypothesis: Option A**, with Option B kept as a possible internal index
-behind the same contract if measurement ever calls for it. Proposed; nothing here
-authorises implementation until accepted.
+**Option A**, with Option B kept as a possible internal index behind the same
+contract if measurement ever calls for it.
 
 1. **Declaration.** `schema.declareHierarchy { entityId, parentFieldId,
    orderFieldId? }`. The parent field must be a Reference configured to the same
@@ -125,7 +126,7 @@ authorises implementation until accepted.
    view — is refused with `hierarchy-cycle` when the new parent is the record or
    one of its descendants, naming the loop. The check walks up from the new
    parent over the existing covering index on the reference column, so its cost
-   is the depth, not the tree size. Depth is bounded (proposed: 32 levels) and a
+   is the depth, not the tree size. Depth is bounded at **32 levels**, and a
    write past it is refused with `hierarchy-too-deep`.
 4. **Order.** If an order field is declared, siblings sort by it, then by record
    ID; otherwise by record ID alone. The order stays an ordinary field that a
@@ -143,31 +144,64 @@ authorises implementation until accepted.
    (`records.tree`) and an MCP resource. `records.query` gains a
    `descendantOf` filter over the same bound.
 7. **Subtree aggregates.** ADR-0008 gains a `SubtreeAggregate` binding (Count,
-   FilteredCount, Sum over a record's descendants), and `RelatedAggregate` an
-   option to fold the records related to any node of the subtree (for example,
-   the applications supporting a capability or anything under it). Both carry a
-   descendant bound (proposed: 10,000) and refuse past it, like `RelatedRows`.
+   FilteredCount, Sum). It folds the record's **descendants only** by default
+   ("12 capabilities inside"); `includeSelf: true` adds the record itself, for a
+   total of a node and everything under it. `RelatedAggregate` gains an option to
+   fold the records related to any node of the subtree (for example, the
+   applications supporting a capability or anything under it). Both are bounded
+   at **10,000 descendants** and refuse past it by name, like `RelatedRows`.
 8. **Studio.** A declared hierarchy shows as an outline in the data view: an
    indented, expandable label column with move up, move down, indent and outdent,
    built on AG Grid Community with the tree read and a custom cell renderer (no
    Enterprise tree data). The flat table stays available.
-9. **Import.** Rows of a declared hierarchy are ordered parents first within an
-   import. Resolving a parent by a code rather than a record ID is W-075 and
-   depends on unique fields (W-074); it is not decided here.
-10. **Deletion is unchanged.** A record with children stays `record-referenced`.
+9. **The outline surface (B6).** ADR-0004 gains `outlineSurface`, a root of its
+   own that an author or an agent places in an application, as a list is placed.
+   - Properties: `definitionVersion`; `entityId` (required, and the entity must
+     declare a hierarchy, else refused at authoring); `title`; `titleFieldId`
+     (an active stored Text field that is not a single choice, defaulting to the
+     parent reference's label field); `accentFieldId` (an active single-choice
+     field); `expandDepth` (1 to 4, default 2: the levels open when the surface
+     first shows); `reorder` (Boolean, default false).
+   - Children: ordered `fieldBinding`, shown as columns beside the title. A
+     calculated field bound there may be a subtree aggregate (point 7), which is
+     how an outline shows rollups. `filterClause` is refused: a filtered tree
+     hides the ancestors that give a match its meaning. The surface has a find
+     box instead, which runs one bounded query and opens the matches' ancestor
+     paths.
+   - Reads: the top level, then each expanded node's children, as pages of at
+     most 100 in sibling order, each node with its child count, so a collapsed
+     row says how many it holds and a long sibling list offers the next page.
+   - Behaviour: selecting a row opens its record page. With `reorder: true`, a
+     person moves records by drag and by keyboard (up, down, indent, outdent)
+     through `data.moveRecord`; a refused move puts the row back and says why.
+     A person's expanded rows are kept on this device, keyed by application ID
+     and node ID, as section folds are (ADR-0004, 2026-09-24); the file is
+     unchanged by them.
+   - A file that contains one needs the host version that delivers it, by the
+     `minimum_host_version` rule. Diagnostic codes are allocated at delivery.
+10. **Import.** Rows of a declared hierarchy are ordered parents first within an
+    import. Resolving a parent by a code rather than a record ID is W-075 and
+    depends on unique fields (W-074); it is not decided here.
+11. **Deletion is unchanged.** A record with children stays `record-referenced`.
     Deleting a subtree is not decided here.
+12. **Codes are not part of this decision.** A generated path code (1.2.3) derived
+    from a record's position belongs with unique and generated fields (W-074),
+    which may build on the sibling order this decision provides.
 
-**Undecided:** the exact bounds; whether `SubtreeAggregate` includes the record
-itself as an option; whether the outline also becomes a semantic surface node
-(B6, an ADR-0004 amendment of its own); whether a generated path code (1.2.3)
-rides on this or on W-074.
+**Delivery order.** (1) The cost experiment below, before any product code.
+(2) Declaration, the cycle rule and the move operation in the Engine, with MCP.
+(3) Tree reads, `descendantOf` and the view API. (4) Subtree aggregates.
+(5) The Studio outline. (6) The outline surface. (7) The Capability Atlas moves
+onto the declaration. The contracts, `../architecture.md` and the MCP vocabulary
+change with each stage as it lands, not before.
 
 ## Evidence and validation obligations
 
-- **Cost.** An experiment on the production table shape at 10,000 records and
-  depth 32 measures the cycle check on a parent write, a tree-read window and a
-  subtree Count and Sum, against the existing read targets (R06). A result that
-  misses them reopens Option B as an index.
+- **Cost, first.** An experiment on the production table shape at 10,000 records
+  and depth 32 measures the cycle check on a parent write, a tree-read window, an
+  outline page of 100 children and a subtree Count and Sum, against the existing
+  read targets (R06). A result that misses them lowers the bounds in a note on
+  this ADR, or reopens Option B as an internal index, before stage 2 starts.
 - **One rule for every client.** Engine tests refuse a cycle-closing write from
   set field, create, update, import, a command step, an automatic action, MCP and
   a custom view, each naming the loop. A guard is falsified by removing the
@@ -181,8 +215,12 @@ rides on this or on W-074.
   first declaration adds it; an older host refuses writable open by the
   `minimum_host_version` rule (ADR-0012), and a file that never declares one keeps
   its current minimum.
-- **Studio.** The outline is measured, not screenshotted: indentation by depth,
-  expand and collapse counts, a move by keyboard, both themes.
+- **Studio and the outline surface.** Measured, not screenshotted: indentation
+  by depth, expand and collapse counts, child counts on collapsed rows, the page
+  of 100 and the next page, find opening ancestor paths, a move by keyboard and
+  by pointer with `reorder` on and none with it off, both themes. Authoring
+  refuses an `outlineSurface` on an entity without a hierarchy and a
+  `filterClause` under one.
 - **The motivating case.** The Capability Atlas drops its own cycle repair and
   parent check and uses the declaration, and `tools/Review-BcmAtlas.ps1` passes.
 
@@ -203,7 +241,7 @@ rides on this or on W-074.
   files that declare one.
 - Recursive checks and reads in the Engine, with bounds to tune and defend.
 - More surface to document and test: an operation pair, a move operation, a tree
-  read, a filter, two aggregate forms, a Studio mode.
+  read, a filter, two aggregate forms, a Studio mode and a surface node.
 - One hierarchy per entity: a record type that needs two trees (for example,
   reporting and location) must choose one or use a second entity.
 
@@ -225,5 +263,5 @@ rides on this or on W-074.
 
 - The cost experiment misses its targets at 10,000 records or depth 32.
 - A real application needs two hierarchies on one entity, or several parents.
-- The outline surface (B6) or unique generated codes (W-074) need something this
-  decision does not provide.
+- Unique generated codes (W-074) need something this decision does not provide.
+- Authors need a filtered outline, or an outline across two record types.

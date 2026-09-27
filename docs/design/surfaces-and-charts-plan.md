@@ -167,7 +167,7 @@ rather than as an invented star count.
 | **B3 Matrix** | `matrixSurface`: `rowByFieldId`, `columnByFieldId` (both single-choice), `fieldBinding`, `filterClause`, `summaryTile` with `scope: cell` | One window grouped client-side like a board; a cell tile spends root clauses plus two predicates | Priority against status, effort against value: the Eisenhower grid people draw on whiteboards, with counts in every cell | Medium |
 | **B4 Ranked list** | `rankedList`: `rankByFieldId` (Integer or Decimal), `orderDirection`, `limit` (at most fifty), `fieldBinding`, `filterClause` | One page of at most `limit` records plus one exact `max` | A leaderboard: rank numerals and a bar per row proportional to the exact maximum, so the top record fills its row | Small |
 | **B5 Board by reference** | `boardSurface.groupByFieldId` widened to a Reference field | The referenced entity's label as a bounded page of columns, with a stated ceiling | A lane per project, per person, per client | Medium |
-| **B6 Outline** | A self-referencing entity as an indented tree | Bounded windows against a recursive shape, and cycles | Parked: pretty, and the hardest here | Large |
+| **B6 Outline** | `outlineSurface` over an entity that declares a hierarchy ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)) | The top level and each expanded node's children, in pages of 100 with child counts; the Engine refuses cycles | Decided 2026-09-27 by ADR-0019, not yet delivered | Large |
 
 B2 refuses DateTime by name for the reason the calendar does, and a span whose
 end precedes its start is a data issue the entry states, not a bar drawn
@@ -233,7 +233,7 @@ capability rung, and ships the F4 checklist in full.
 | **S5 Over time** — delivered 2026-09-16 | C3 trend, C5 activity grid | The Axiom Register gate: a trend of accepted axioms by month, a year of days | 1.25.0 |
 | **S6 Grids** — delivered 2026-09-17 | B3 matrix, B4 ranked list | The Axiom Register gate: status against domain, and a ranking by confidence | 1.26.0 |
 | **S7 Board by reference** — delivered 2026-09-17 | B5, with its column ceiling | The Axiom Register gate: axioms by remit, including a remit nobody points at | 1.27.0 |
-| Parked | B6 outline; DateTime, week and day scheduling; drag-to-date; images | | |
+| Parked | DateTime, week and day scheduling; drag-to-date; images (B6 outline is decided by ADR-0019 and waits on its delivery stages) | | |
 
 S3 was asked for before S2, so it took 1.21.0 and S2 takes 1.22.0: the ladder is
 monotone and a host never advertises a later feature than it has, so rungs follow

@@ -30,7 +30,7 @@ existed. For this reason the numbering is contiguous by intent.
 | [0016](0016-vendor-pinned-dotnet-agent-skills.md) | Accepted | Pinned curated first-party .NET agent skills |
 | [0017](0017-production-composition-and-build-layout.md) | Accepted | Minimal Engine/Desktop/Workbench/LocalMcp composition and centralized build layout |
 | [0018](0018-public-website-and-deployment-lane.md) | Accepted | Public website at `site/`, outside the product boundary, with one CI lane that deploys only it; since 2026-09-23 it carries its own guides and does not render `docs/` |
-| [0019](0019-hierarchies-in-the-schema.md) | Proposed | Declare a self-reference as a hierarchy: the Engine refuses cycles for every client, sibling order, typed move, bounded tree reads, subtree aggregates, a Studio outline |
+| [0019](0019-hierarchies-in-the-schema.md) | Accepted | Declare a self-reference as a hierarchy: the Engine refuses cycles for every client, sibling order, typed move, bounded tree reads, subtree aggregates, a Studio outline and an `outlineSurface`; not yet delivered, cost experiment first |
 
 ## Amendments in force
 
