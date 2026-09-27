@@ -280,6 +280,41 @@ the survival of an unreadable line, the default and its persistence. The path
 from a live `ProcessFailed` to a written line is wired but not exercised. The
 next occurrence will exercise it.
 
+## 2026-09-27 amendment — an agent request that fails inside Nendo is written down too
+
+The owner pre-accepts amendments of this kind (since 2026-09-24); this one was written
+first, as that standing asks. An MCP code review on 2026-09-27 found that the local
+MCP host cleared every log provider, and that `NENDO_INTERNAL_ERROR` named only an
+exception type (F-181). An agent that met one could report a type name, and the
+device kept nothing that report could be matched against.
+
+The host now gives the agent a failure reference in the refusal, and hands the
+device one line under the same reference: the source (`tool`, `resource`, `sdk` or
+`web server`), the request's name, the exception types from the outermost in, and
+the frames the failure passed through with their file names and line numbers
+removed. The SDK's and the web server's own warnings and errors reach the same line
+by event and exception type; a refusal the agent has already read and a cancellation
+are not failures and are not recorded.
+
+**The same bounds as a view failure.** The Desktop keeps these in
+`agent-failures.jsonl` beside `view-failures.jsonl`, newest fifty, device-local,
+failing soft. A line carries no exception message and no formatted log message,
+because a message is where a stored value, a request body or a location would
+travel; no argument, handle or lease; and no file path. Nothing leaves the device
+and nothing goes into the `.nendo` file.
+
+**One switch.** The notification-area item that turned view-failure recording off is
+now "Record failures", and it governs both records. It is read at the moment of each
+failure, so switching it off stops the next line without a restart. The stored
+setting keeps its name, so a device that switched recording off before keeps it off.
+
+**Where this is not qualified.** `UnattendedAcceptanceTests` produces a real internal
+failure through the host (a consent store that cannot be written) and checks the one
+line, the reference in the refusal, and the absence of the handle, the lease, the
+path and the message. `DesktopAgentFailureLogTests` measures the cap, the round trip
+and the switch. No lane drives an installed Desktop host into an internal failure
+end to end.
+
 ## 2026-09-17 amendment — a screen is told when the file moves
 
 The owner accepted this amendment on 2026-09-17. The coordinator raises

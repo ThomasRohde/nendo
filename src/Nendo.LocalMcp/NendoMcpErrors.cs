@@ -38,7 +38,8 @@ internal static class NendoMcpErrors
             "NENDO_INVALID_REQUEST",
             validation.Message),
         _ => new McpProtocolException(
-            "NENDO_INTERNAL_ERROR: The local Nendo request could not be completed.",
+            $"NENDO_INTERNAL_ERROR: The local Nendo request could not be completed ({exception.GetType().Name}; " +
+            $"failure {NendoAgentFailures.Report(exception)}).",
             McpErrorCode.InternalError),
     };
 

@@ -102,6 +102,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
         bool nendoProfile,
         bool emptyIsNull,
         string idempotencyKey,
+        string origin,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(csv);
@@ -162,7 +163,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
                 return new NendoCreateRecordEntry(recordId, row.Values, versions);
             })
             .ToArray();
-        return await CommitAsync(entityId, records, idempotencyKey, cancellationToken);
+        return await CommitAsync(entityId, records, idempotencyKey, origin, cancellationToken);
     }
 
     /// <summary>
@@ -188,6 +189,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
         IReadOnlyList<NendoRecordInput> records,
         Func<NendoObjectInput, IReadOnlyDictionary<string, object?>> readValues,
         string idempotencyKey,
+        string origin,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(records);
@@ -210,7 +212,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
                     record.ExpectedTargetVersions ?? new Dictionary<string, long>(StringComparer.Ordinal));
             })
             .ToArray();
-        return await CommitAsync(entityId, entries, idempotencyKey, cancellationToken);
+        return await CommitAsync(entityId, entries, idempotencyKey, origin, cancellationToken);
     }
 
     /// <summary>
@@ -223,10 +225,19 @@ internal sealed class NendoImportService(NendoApplicationService application)
     /// caller can retry the identical request and key; committed batches replay.
     /// </para>
     /// </summary>
+    /// <param name="origin">
+    /// The session pseudonym every other agent write carries, so History says which session
+    /// imported. The batches were attributed to a bare "agent" until 2026-09-27 (F-180).
+    /// The origin is part of what a replay must match, and the idempotency scope is shared on
+    /// purpose, so a retry from a new lease -- after a restart, say -- can finish what an
+    /// earlier one began: a batch that already committed is resubmitted under the origin its
+    /// receipt records, and only a batch not yet written takes this one.
+    /// </param>
     private async Task<NendoImportResult> CommitAsync(
         string entityId,
         IReadOnlyList<NendoCreateRecordEntry> entries,
         string idempotencyKey,
+        string origin,
         CancellationToken cancellationToken)
     {
         var committed = 0;
@@ -238,12 +249,15 @@ internal sealed class NendoImportService(NendoApplicationService application)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var batch = entries.Skip(committed).Take(BatchSize).ToArray();
+            var key = BatchKey(idempotencyKey, revisions);
             NendoApplyResult result;
             try
             {
+                var receipt = await application.GetMutationReceiptAsync(
+                    new NendoOperationIdentity(IdempotencyScope, key), cancellationToken);
                 result = await application.CreateRecordsAsync(
                     new NendoCreateRecordsRequest(entityId, batch, new NendoRequestContext(
-                        IdempotencyScope, BatchKey(idempotencyKey, revisions), "agent")),
+                        IdempotencyScope, key, receipt?.Origin ?? origin)),
                     cancellationToken);
             }
             catch (NendoException exception) when (committed > 0)

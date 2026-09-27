@@ -39,6 +39,8 @@ internal static class NendoWireDescriptions
                 "The records the write's automatic actions changed, rebuilt from its revision, with recordVersion null because the file may have moved since.",
             [(typeof(NendoApplyResult), nameof(NendoApplyResult.AssignedValues))] =
                 "Empty in a receipt: read the records for any codes the host assigned.",
+            [(typeof(NendoApplyResult), nameof(NendoApplyResult.Origin))] =
+                "Who committed the original write, as History names it: the pseudonym of the agent session that wrote it.",
             [(typeof(NendoApplyResult), nameof(NendoApplyResult.RecordVersion))] =
                 "Null in a receipt: the record may have moved since the write, so read it before writing to it.",
 

@@ -550,6 +550,9 @@ problem, named the thing it was refusing, and offered a remedy you could act on:
   the level or the tool, and whether it came back as a tool error or a protocol error.
 - A request addressed to `localhost` instead of `127.0.0.1`, and one nested deeper than
   the host reads: did the refusal say what to send instead?
+- After a working session, ask the person to read Recent activity on the Agent page:
+  does each of your calls appear once, with the revision it wrote, and is an import you
+  ran named after your session in History?
 - A page limit that is not a whole number: letters, a fraction, nothing at all. Then a
   page query with its parameters in the other order, an empty cursor, a parameter the
   read does not take, and one given twice.

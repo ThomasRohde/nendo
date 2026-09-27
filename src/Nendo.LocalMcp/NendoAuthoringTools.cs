@@ -198,9 +198,9 @@ internal sealed class NendoAuthoringTools(
         {
             var result = await action();
             activity.Record(
+                context,
                 "authoring",
                 name,
-                context.Server,
                 "completed",
                 proposalId: proposalId?.Invoke(result));
             return result;

@@ -266,7 +266,7 @@ internal sealed class DesktopTrayIcon : IDisposable
                 menu,
                 MF_STRING | (state.RecordViewFailures ? MF_CHECKED : 0),
                 (int)DesktopTrayCommand.ToggleViewFailureLog,
-                "&Record view failures");
+                "&Record failures");
             AppendMenuW(menu, MF_SEPARATOR, 0, null);
             AppendMenuW(menu, MF_STRING, (int)DesktopTrayCommand.Exit, "E&xit Nendo");
             SetMenuDefaultItem(menu, (uint)DesktopTrayCommand.Open, 0);

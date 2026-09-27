@@ -106,6 +106,12 @@ test('agent activity is named by what the person would say happened, not by the 
  assert.equal(activityLabel({category:'mutation',name:'nendo.data.something_new'}),'Changed workspace data');
 });
 
+test('every tool call reads as what happened, now that a call is one entry',()=>{
+ const tools=['nendo.change_set.accept','nendo.change_set.add_operations','nendo.change_set.amend','nendo.change_set.begin','nendo.change_set.preview','nendo.change_set.reject','nendo.change_set.validate','nendo.data.create_record','nendo.data.create_records','nendo.data.delete_record','nendo.data.execute_command','nendo.data.get_receipt','nendo.data.import_records','nendo.data.move_record','nendo.data.set_field','nendo.health.verify_integrity','nendo.lease.acquire','nendo.lease.release','nendo.lease.renew','nendo.lease.status'];
+ for (const name of tools) for (const category of ['tool','mutation','authoring','receipt','health'])
+  assert.notEqual(activityLabel({category,name}),'Agent activity',`${name} has no label`);
+});
+
 test('a surface kind is reviewed under its screen name, and an unknown kind prints itself',()=>{
  assert.equal(reviewKindLabel('boardSurface'),'Board');
  assert.equal(reviewKindLabel('detailSurface'),'Record page');

@@ -155,8 +155,22 @@ export function activityLabel(activity: AgentActivity): string {
     if (activity.name.includes('/records')) return 'Read records';
     return 'Read workspace details';
   }
+  // Every tool, so each call reads as what happened: a call is one entry since
+  // 2026-09-27, and a tool with no label here would read only as "Agent activity".
   const labels: Record<string, string> = {
+    'nendo.lease.acquire': 'Took edit access',
+    'nendo.lease.status': 'Checked who has edit access',
+    'nendo.lease.renew': 'Renewed edit access',
+    'nendo.lease.release': 'Gave back edit access',
+    'nendo.data.get_receipt': 'Read the outcome of a write',
     'nendo.data.create_record': 'Created a record',
+    'nendo.data.create_records': 'Created records',
+    'nendo.data.import_records': 'Imported records',
+    'nendo.data.delete_record': 'Deleted a record',
+    'nendo.data.move_record': 'Moved a record',
+    'nendo.health.verify_integrity': 'Checked file integrity',
+    'nendo.change_set.amend': 'Amended an app proposal',
+    'nendo.change_set.accept': 'Accepted its own app proposal',
     'nendo.data.set_field': 'Edited a record',
     'nendo.data.execute_command': 'Ran an app action',
     'nendo.change_set.begin': 'Began an app proposal',

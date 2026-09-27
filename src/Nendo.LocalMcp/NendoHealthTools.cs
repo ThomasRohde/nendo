@@ -32,9 +32,9 @@ internal sealed class NendoHealthTools(
         {
             var result = await projection.VerifyIntegrityAsync(cancellationToken);
             activity.Record(
+                context,
                 "health",
                 "nendo.health.verify_integrity",
-                context.Server,
                 result.Rescanned ? "scanned" : "current");
             return result;
         }

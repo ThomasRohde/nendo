@@ -256,6 +256,13 @@ public sealed record NendoApplyResult(
     /// original write's version may since have moved.
     /// </summary>
     public long? RecordVersion { get; init; }
+
+    /// <summary>
+    /// Who committed the revision, as History names it, on a receipt read back; null on the
+    /// result a write returns. The origin is part of what a replay must match, so a retry
+    /// that resubmits a committed batch does so under the origin the batch was committed with.
+    /// </summary>
+    public string? Origin { get; init; }
 }
 
 public sealed record NendoChangeSetApplyResult(

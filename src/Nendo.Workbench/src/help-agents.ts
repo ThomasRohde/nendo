@@ -89,7 +89,7 @@ const refusalCodes: HelpTerm[] = [
   { term: 'NENDO_INVALID_LIMIT', meaning: 'Page limits are whole numbers from 1 to 100. Letters, a fraction or an empty value are refused the same way, never as an internal error.' },
   { term: 'NENDO_IMPORT_PARTIAL', meaning: 'Earlier import batches committed before a later one was refused. Read the counts, first uncommitted row and revision IDs; retry the identical call with the same key.' },
   { term: 'NENDO_RECOVERY_REQUIRED', meaning: 'The file is in recovery and cannot be read or written until the person resolves it.' },
-  { term: 'NENDO_INTERNAL_ERROR', meaning: 'Something failed inside Nendo. The message names only the exception type.' },
+  { term: 'NENDO_INTERNAL_ERROR', meaning: 'Something failed inside Nendo. The message names the exception type and a failure reference, which this device’s failure record keeps with the request and where it happened, while “Record failures” is on.' },
 ];
 
 export const agentHelp: HelpProvider = () => [
@@ -114,7 +114,8 @@ export const agentHelp: HelpProvider = () => [
       'Set access back to Off when no agent is working.',
     ] },
     { heading: 'What the Agent page shows', paragraphs: [
-      '“Most recent agent” is the last request seen, not a live connection. A client that connects with the standard handshake shows as “Local agent”, because its name travels only in that handshake. Recent activity keeps the last 200 events and shows the last 20: reads, edits with their revision, proposal steps, and changes to access.',
+      '“Most recent agent” is the last request seen, not a live connection. A client that connects with the standard handshake shows as “Local agent”, because its name travels only in that handshake. Recent activity keeps the last 200 events and shows the last 20, one entry for each request: reads, edits with their revision, proposal steps, and changes to access. An import is named after the agent session that ran it, like every other agent write.',
+      'When a request fails inside Nendo rather than being refused, the agent is given a failure reference, and this device keeps one line under it: the request, the kind of failure and where in Nendo it happened — never your data, a file path or the agent’s handle. It sits beside the record of view failures, keeps the newest fifty, and “Record failures” in the notification-area menu switches both off.',
       'Pending changes lists every validated proposal with its title, operation count and reversibility; “Review changes” opens “What changes” and “What this builds” with Accept changes and Reject. Approval of automatic actions sits on this page and under Health.',
     ] },
     { heading: 'What an agent cannot do', paragraphs: [

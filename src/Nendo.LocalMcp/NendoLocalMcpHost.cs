@@ -40,6 +40,14 @@ public sealed record NendoLocalMcpHostOptions(string DiscoveryRoot)
     /// </summary>
     public TimeSpan? LeaseTtl { get; init; }
 
+    /// <summary>
+    /// Where the host records a request that failed inside it: an unexpected exception
+    /// behind <c>NENDO_INTERNAL_ERROR</c>, and the SDK's and the web server's own warnings
+    /// and errors. Null records nothing. The host that owns the device decides whether and
+    /// where a record is kept (ADR-0002, 2026-09-27 amendment).
+    /// </summary>
+    public Action<NendoAgentFailure>? RecordFailure { get; init; }
+
     public static NendoLocalMcpHostOptions CreateDefault() => new(
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -209,6 +217,11 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                     EnvironmentName = Environments.Production,
                 });
                 builder.Logging.ClearProviders();
+                if (options.RecordFailure is { } recordFailure)
+                {
+                    builder.Logging.SetMinimumLevel(LogLevel.Warning);
+                    builder.Logging.AddProvider(new NendoFailureLoggerProvider(recordFailure));
+                }
                 builder.WebHost.ConfigureKestrel(kestrel =>
                 {
                     // Every response named the web server it came from. Nothing a client
@@ -282,21 +295,24 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             using var working = work.Begin(
                                 NendoTransportIdentity.DisplayName(context.Server.ClientInfo),
                                 context.Params.Name);
+                            using var failures = NendoAgentFailures.Begin("tool", context.Params.Name, options.RecordFailure);
+                            // One entry per call. The tool says what it did through this slot --
+                            // the revision it committed, the proposal it touched -- and the entry
+                            // is written here, once, after the call. It used to be written twice:
+                            // once here and once by the tool, so twenty entries held ten calls.
+                            var slot = new NendoActivityLog.Slot();
+                            context.Items[NendoActivityLog.SlotKey] = slot;
                             try
                             {
                                 authority.RequireActive();
                                 NendoToolBoundary.Validate(context.Params, mode);
                                 var result = await next(context, token);
-                                activity.Record(
-                                    "tool",
-                                    context.Params.Name,
-                                    context.Server,
-                                    result.IsError is true ? "rejected" : "completed");
+                                activity.Record(slot, context.Params.Name, context.Server, rejected: result.IsError is true);
                                 return result;
                             }
                             catch
                             {
-                                activity.Record("tool", context.Params.Name, context.Server, "rejected");
+                                activity.Record(slot, context.Params.Name, context.Server, rejected: true);
                                 throw;
                             }
                         });
@@ -306,6 +322,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             using var working = work.Begin(
                                 NendoTransportIdentity.DisplayName(context.Server.ClientInfo),
                                 name);
+                            using var failures = NendoAgentFailures.Begin("resource", name, options.RecordFailure);
                             try
                             {
                                 authority.RequireActive();

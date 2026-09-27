@@ -11,7 +11,7 @@ internal sealed partial class SqliteNendoStore
         await VerifyReceiptAuthorityAsync(expectedAuthority, transaction, cancellationToken);
         const string sql = """
             SELECT r.revision_id, r.operation_digest, r.definition_revision_after,
-                   r.data_revision_after, r.change_sequence
+                   r.data_revision_after, r.change_sequence, r.origin
             FROM __nendo_idempotency i JOIN __nendo_revision r ON r.revision_id = i.revision_id
             WHERE i.idempotency_scope = @scope AND i.idempotency_key = @key;
             """;
@@ -23,6 +23,9 @@ internal sealed partial class SqliteNendoStore
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             receipt = await reader.ReadAsync(cancellationToken)
                 ? new(reader.GetString(0), reader.GetString(1), reader.GetInt64(2), reader.GetInt64(3), reader.GetInt64(4), true)
+                {
+                    Origin = reader.GetString(5),
+                }
                 : null;
         }
         return receipt is null

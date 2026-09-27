@@ -55,7 +55,26 @@ internal sealed partial class DesktopSessionController
         {
             PreferredPort = settings.FixedPort ? settings.Port : 0,
             LeaseTtl = settings.LeaseExpiry ? TimeSpan.FromSeconds(settings.LeaseExpirySeconds) : null,
+            RecordFailure = RecordAgentFailure,
         };
+    }
+
+    /// <summary>
+    /// Keeps a request that failed inside the host, under the tray's one "Record failures"
+    /// switch that also governs view failures (ADR-0002, 2026-09-27 amendment). Read fresh
+    /// each time, so switching it off stops the next line without a restart. Runs on the
+    /// agent's thread and never throws into it.
+    /// </summary>
+    internal void RecordAgentFailure(NendoAgentFailure failure)
+    {
+        try
+        {
+            if (!new DesktopShellStore(_deviceStateRoot).RecordViewFailures) return;
+            new DesktopAgentFailureLog(_deviceStateRoot).Record(failure);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     private DesktopAgentSettingsStore Settings() =>

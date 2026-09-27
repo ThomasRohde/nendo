@@ -58,9 +58,9 @@ internal sealed class NendoUnattendedTools(
                 idempotencyKey,
                 cancellationToken);
             activity.Record(
+                context,
                 "authoring",
                 "nendo.change_set.accept",
-                context.Server,
                 result.Applied ? "completed" : "rejected",
                 proposalId: result.ProposalId);
             return result;
@@ -71,7 +71,7 @@ internal sealed class NendoUnattendedTools(
         }
         catch (Exception exception)
         {
-            activity.Record("authoring", "nendo.change_set.accept", context.Server, "rejected");
+            activity.Record(context, "authoring", "nendo.change_set.accept", "rejected");
             throw NendoToolErrors.Translate(exception);
         }
     }

@@ -74,10 +74,12 @@ internal static class NendoToolErrors
                 ? $"The request argument '{name}' is invalid."
                 : "The request arguments are invalid."),
         // The exception's type is named and nothing else: enough for a maintainer to
-        // find it, and no engine text that was never written for a client.
+        // find it, and no engine text that was never written for a client. The reference
+        // is the one the device's failure record keeps, with the frames the type alone
+        // could not say.
         _ => Error(
             "NENDO_INTERNAL_ERROR",
-            $"The local Nendo request failed ({exception.GetType().Name})."),
+            $"The local Nendo request failed ({exception.GetType().Name}; failure {NendoAgentFailures.Report(exception)})."),
     };
 
     // A precondition message reaches the caller only when its template has been read

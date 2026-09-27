@@ -363,6 +363,61 @@ public sealed class UnattendedAcceptanceTests
         }));
 
     /// <summary>A record type with a label and a stamp, and one record in it.</summary>
+    /// <summary>
+    /// W-085 (F-181): an internal failure left no trace but a type name. The consent the host
+    /// records can fail as any storage can, and when it does the agent is told a reference and
+    /// the device keeps one line under it: the request, the exception types and the frames,
+    /// and nothing the request carried, nothing the exception said and no path.
+    /// </summary>
+    [TestMethod]
+    public async Task AnInternalFailureIsRecordedOnceUnderTheReferenceTheAgentIsGiven()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareStampFixtureAsync(workspace);
+        workspace.AttachBehaviourAuthority(new RecordingGrantStore());
+        var failures = new List<NendoAgentFailure>();
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service,
+            AgentAccessMode.Unattended,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot)
+            {
+                RecordFailure = failure => { lock (failures) failures.Add(failure); },
+            },
+            null,
+            CancellationToken.None,
+            _ => throw new IOException(@"The grant store at C:\Users\someone\consent.json could not be written."));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        var validated = await ValidateStampTriggerAsync(client, session, workspace);
+        var before = host.GetActivities().Count;
+
+        var result = await client.CallToolAsync("nendo.change_set.accept", new Dictionary<string, object?>(session)
+        {
+            ["changeSetId"] = validated.ChangeSetId,
+            ["idempotencyKey"] = "accept-fails-inside",
+        });
+        var text = string.Join(' ', result.Content.OfType<ModelContextProtocol.Protocol.TextContentBlock>().Select(block => block.Text));
+        Assert.IsTrue(result.IsError, text);
+        StringAssert.Contains(text, "NENDO_INTERNAL_ERROR: The local Nendo request failed (IOException; failure ");
+
+        Assert.HasCount(1, failures, "One failure, one line.");
+        var failure = failures[0];
+        StringAssert.Contains(text, $"failure {failure.Reference}).");
+        Assert.AreEqual(("tool", "nendo.change_set.accept"), (failure.Source, failure.Request));
+        StringAssert.StartsWith(failure.ExceptionType, "System.IO.IOException");
+        Assert.IsFalse(string.IsNullOrWhiteSpace(failure.Trace), "The frames are what the type alone cannot say.");
+        var written = JsonSerializer.Serialize(failure);
+        foreach (var secret in new[]
+                 {
+                     session["applicationHandle"]!.ToString()!, session["leaseId"]!.ToString()!,
+                     "consent.json", "someone", ":line ",
+                 })
+        {
+            Assert.DoesNotContain(secret, written, StringComparison.Ordinal, $"The failure record carries '{secret}'.");
+        }
+        Assert.HasCount(before + 1, host.GetActivities(), "The failed call is one activity entry.");
+    }
+
     private static async Task PrepareStampFixtureAsync(LocalMcpTestWorkspace workspace)
     {
         await workspace.CreateEmptyAsync();

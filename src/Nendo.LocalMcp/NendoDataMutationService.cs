@@ -216,12 +216,14 @@ internal sealed class NendoDataMutationService(
                         ReadCsvProfile(csvProfile),
                         emptyIsNull,
                         idempotencyKey,
+                        NendoTransportIdentity.Pseudonym(sessionId),
                         cancellationToken),
                     "json" => imports.ImportRecordsAsync(
                         entityId,
                         records ?? throw new NendoValidationException("A json import needs records."),
                         values => ReadValueMap(values.Element),
                         idempotencyKey,
+                        NendoTransportIdentity.Pseudonym(sessionId),
                         cancellationToken),
                     _ => throw new NendoValidationException("format must be \"csv\" or \"json\"."),
                 };

@@ -24,7 +24,7 @@ internal sealed class NendoDataTools(
         try
         {
             var result = await mutations.GetReceiptAsync(receiptContext, idempotencyKey, cancellationToken);
-            activity.Record("receipt", "nendo.data.get_receipt", context.Server, result.State, result.Receipt?.RevisionId);
+            activity.Record(context, "receipt", "nendo.data.get_receipt", result.State, result.Receipt?.RevisionId);
             return result;
         }
         catch (OperationCanceledException) { throw; }
@@ -267,9 +267,9 @@ internal sealed class NendoDataTools(
             // record. Saying it committed without naming one is the true statement; the
             // revisions themselves are in History either way.
             activity.Record(
+                context,
                 "mutation",
                 name,
-                context.Server,
                 "committed",
                 (result as NendoDataApplyResult)?.RevisionId);
             return result;
