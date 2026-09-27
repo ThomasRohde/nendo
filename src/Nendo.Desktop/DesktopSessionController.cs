@@ -364,7 +364,7 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
         string? expectedOperationDigest = null) =>
         await ChangeProposalAsync(
             service => _agentProposals?.Snapshot().Any(value => value.ProposalId == proposalId) is true
-                ? _agentProposals.PromoteAsync(service, proposalId, cancellationToken, expectedOperationDigest)
+                ? _agentProposals.PromoteAsync(service, proposalId, expectedOperationDigest, cancellationToken)
                 : service.PromoteProposalAsync(proposalId, cancellationToken, expectedOperationDigest),
             cancellationToken);
 

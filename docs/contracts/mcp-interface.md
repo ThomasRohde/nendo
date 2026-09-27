@@ -86,7 +86,21 @@ in this way.
 [Output schema contract tests](../../tests/Nendo.LocalMcp.Tests/OutputSchemaContractTests.cs)
 call every declared tool and check its payload against its own declared schema.
 
-Host/Origin/address/body checks occur before dispatch. Lease acquisition mints an
+Host/Origin/address/body checks occur before dispatch. A body is at most 256 KiB and
+nests at most 32 levels; a deeper one is `NENDO_INVALID_JSON` naming its depth and
+the cap. The cap was 16 until 2026-09-27, two levels over the deepest published
+example, and `ThePublishedExamplesLeaveRoomUnderTheDepthCap` now holds eight levels of
+headroom. At most 16 requests are in progress at once, counted from before the body
+is read, so a request still sending its body holds a place: the next is `429`
+`NENDO_BUSY` with `Retry-After`. A request, its body included, may take five minutes
+(`NendoLocalMcpHostOptions.RequestTimeout`); past that it is cancelled and answered
+`503` `NENDO_REQUEST_TIMEOUT`, which says that a write may still have committed and
+that `nendo.data.get_receipt` says whether. Nothing bounded either before. The results
+that make an exact retry replay are kept, per lease, for the newest 256 calls of each
+kind (begin, add and amend, validate, reject, accept); a retry older than that is a
+new call. They were kept for the life of the lease, which has no expiry by default.
+
+Lease acquisition mints an
 opaque `applicationHandle` in addition to `leaseId`. Supply both on every owned
 operation, including renew/release and proposal preview. Possession of the handle
 governs ownership, not claimed client names or HTTP connection identity. Keep the

@@ -198,7 +198,6 @@ public sealed class UnattendedAcceptanceTests
             AgentAccessMode.ApplicationAuthoring,
             new NendoLocalMcpHostOptions(workspace.DiscoveryRoot),
             null,
-            CancellationToken.None,
             // Handed the delegate on purpose. A host that simply never wired one up would
             // refuse for the wrong reason, and this test would pass against a build whose
             // level check had been deleted -- which is what it did until it was falsified.
@@ -267,7 +266,6 @@ public sealed class UnattendedAcceptanceTests
             AgentAccessMode.Unattended,
             new NendoLocalMcpHostOptions(workspace.DiscoveryRoot),
             null,
-            CancellationToken.None,
             _ =>
             {
                 workspace.GrantCurrentBehaviour(grants);
@@ -307,7 +305,6 @@ public sealed class UnattendedAcceptanceTests
             AgentAccessMode.Unattended,
             new NendoLocalMcpHostOptions(workspace.DiscoveryRoot),
             null,
-            CancellationToken.None,
             _ =>
             {
                 // What the Desktop does, in the same two steps: read what the open file
@@ -384,7 +381,6 @@ public sealed class UnattendedAcceptanceTests
                 RecordFailure = failure => { lock (failures) failures.Add(failure); },
             },
             null,
-            CancellationToken.None,
             _ => throw new IOException(@"The grant store at C:\Users\someone\consent.json could not be written."));
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
         var session = await AcquireAsync(client);

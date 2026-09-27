@@ -101,8 +101,8 @@ internal sealed partial class DesktopSessionController
                 {
                     EnsureProposalStore();
                     _agentHost = await NendoLocalMcpHost.StartAsync(
-                        service, mode, CurrentHostOptions(), _agentProposals, cancellationToken,
-                        UnattendedConsent(mode));
+                        service, mode, CurrentHostOptions(), _agentProposals,
+                        UnattendedConsent(mode), cancellationToken);
                     _agentMode = mode;
                     AttachWorkSignal(_agentHost);
                 }
@@ -166,8 +166,8 @@ internal sealed partial class DesktopSessionController
                     requested,
                     CurrentHostOptions(),
                     _agentProposals,
-                    cancellationToken,
-                    UnattendedConsent(requested));
+                    UnattendedConsent(requested),
+                    cancellationToken);
                 _agentMode = requested;
                 AttachWorkSignal(_agentHost);
             }

@@ -43,6 +43,7 @@ public sealed class DataMutationProtocolTests
                 [NendoApplicationService.IdeaTitleFieldId] = "Must not commit",
             }),
             "cancelled-create",
+            null,
             cancellation.Token));
 
         Assert.HasCount(historyBefore.Count, await workspace.Service.GetHistoryAsync());

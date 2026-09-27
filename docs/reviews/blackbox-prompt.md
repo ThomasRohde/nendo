@@ -549,7 +549,9 @@ problem, named the thing it was refusing, and offered a remedy you could act on:
   exists at no level. Record, for each, whether the refusal named the argument, the key,
   the level or the tool, and whether it came back as a tool error or a protocol error.
 - A request addressed to `localhost` instead of `127.0.0.1`, and one nested deeper than
-  the host reads: did the refusal say what to send instead?
+  the host reads: did the refusal say what to send instead? Then open more requests at
+  once than the host serves, and hold one open without finishing its body: record what
+  each refusal said, and whether the others completed.
 - After a working session, ask the person to read Recent activity on the Agent page:
   does each of your calls appear once, with the revision it wrote, and is an import you
   ran named after your session in History?

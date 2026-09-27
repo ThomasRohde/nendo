@@ -199,8 +199,19 @@ public sealed class NendoAgentProposalStore
             pending = _entries.Count;
         }
         // Raised outside the lock: a handler that blocked here would hold every other
-        // caller of this store behind whatever it was doing.
-        ProposalAdded?.Invoke(pending);
+        // caller of this store behind whatever it was doing. And never able to fail the
+        // validate that raised it: a throwing handler used to refuse the agent's call with
+        // the draft already frozen and the proposal already queued (F-182).
+        if (ProposalAdded is { } added)
+        {
+            try
+            {
+                added(pending);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+            }
+        }
     }
 
     internal NendoAgentProposalPreview GetOwned(
@@ -311,8 +322,8 @@ public sealed class NendoAgentProposalStore
     public async Task<NendoPromotionOutcome> PromoteAsync(
         NendoApplicationService application,
         string proposalId,
-        CancellationToken cancellationToken = default,
-        string? expectedOperationDigest = null)
+        string? expectedOperationDigest = null,
+        CancellationToken cancellationToken = default)
     {
         await RequireMatchingFileAsync(application, cancellationToken);
         _ = Get(proposalId);

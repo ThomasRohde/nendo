@@ -48,6 +48,13 @@ public sealed record NendoLocalMcpHostOptions(string DiscoveryRoot)
     /// </summary>
     public Action<NendoAgentFailure>? RecordFailure { get; init; }
 
+    /// <summary>
+    /// How long one request may take, its body included, before it is cancelled and answered
+    /// <c>NENDO_REQUEST_TIMEOUT</c>. Five minutes: longer than any validation or scan of a file
+    /// this host opens, and short enough that a request nobody finishes gives its place back.
+    /// </summary>
+    public TimeSpan RequestTimeout { get; init; } = NendoRequestGate.DefaultTimeout;
+
     public static NendoLocalMcpHostOptions CreateDefault() => new(
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -66,6 +73,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
     private readonly NendoActivityLog _activity;
     private readonly NendoAgentProposalStore _proposals;
     private readonly NendoAgentWorkSignal _work;
+    private readonly NendoRequestGate _requests;
     private readonly string _discoveryPath;
     private int _disposed;
 
@@ -78,6 +86,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         NendoActivityLog activity,
         NendoAgentProposalStore proposals,
         NendoAgentWorkSignal work,
+        NendoRequestGate requests,
         string discoveryPath,
         int requestedPort,
         bool usedFallbackPort)
@@ -90,6 +99,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         _activity = activity;
         _proposals = proposals;
         _work = work;
+        _requests = requests;
         _discoveryPath = discoveryPath;
         RequestedPort = requestedPort;
         UsedFallbackPort = usedFallbackPort;
@@ -114,8 +124,17 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
 
     internal string DiscoveryPath => _discoveryPath;
 
+    /// <summary>Requests past the perimeter and not yet answered.</summary>
+    internal int InFlightRequests => _requests.InFlight;
+
+    /// <summary>
+    /// Who holds the lease, read under the authority's gate. Once the host is disposed every
+    /// lease has been revoked and the gate is gone, so the published answer is the whole one.
+    /// </summary>
     public Task<NendoLeaseStatus> GetLeaseStatusAsync(CancellationToken cancellationToken = default) =>
-        _agentAuthority.GetStatusAsync(cancellationToken);
+        Volatile.Read(ref _disposed) != 0
+            ? Task.FromResult(_agentAuthority.PeekStatus())
+            : _agentAuthority.GetStatusAsync(cancellationToken);
 
     /// <summary>
     /// Who holds the lease, without waiting for what they are doing with it. The gated
@@ -124,7 +143,9 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
     /// </summary>
     public NendoLeaseStatus PeekLeaseStatus() => _agentAuthority.PeekStatus();
 
-    public Task RevokeEditingAsync() => _agentAuthority.RevokeAllAsync();
+    /// <summary>Ends every lease at once. A disposed host has already done so.</summary>
+    public Task RevokeEditingAsync() =>
+        Volatile.Read(ref _disposed) != 0 ? Task.CompletedTask : _agentAuthority.RevokeAllAsync();
 
     public IReadOnlyList<NendoAgentActivity> GetActivities(int maximum = 200) =>
         _activity.Snapshot(maximum);
@@ -145,8 +166,8 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         AgentAccessMode mode,
         NendoLocalMcpHostOptions? options = null,
         NendoAgentProposalStore? proposalStore = null,
-        CancellationToken cancellationToken = default,
-        NendoUnattendedConsent? unattendedConsent = null)
+        NendoUnattendedConsent? unattendedConsent = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(applicationService);
         if (mode == AgentAccessMode.Disabled)
@@ -198,6 +219,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         agentAuthority.SetLeaseEndedHandler(authoring.DiscardSessionAsync);
         var discoveryStore = new NendoDiscoveryStore(options.DiscoveryRoot);
         var queries = NendoResourceQuery.ForDeclaredResources();
+        var requests = new NendoRequestGate(NendoRequestGate.DefaultMaximum, options.RequestTimeout);
         WebApplication? webApplication = null;
         var usedFallbackPort = false;
         string? discoveryPath = null;
@@ -220,7 +242,8 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                 if (options.RecordFailure is { } recordFailure)
                 {
                     builder.Logging.SetMinimumLevel(LogLevel.Warning);
-                    builder.Logging.AddProvider(new NendoFailureLoggerProvider(recordFailure));
+                    // Registered as a service, so the container that builds it disposes it.
+                    builder.Services.AddSingleton<ILoggerProvider>(_ => new NendoFailureLoggerProvider(recordFailure));
                 }
                 builder.WebHost.ConfigureKestrel(kestrel =>
                 {
@@ -234,6 +257,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                 });
                 builder.Services.AddSingleton(applicationService);
                 builder.Services.AddSingleton(authority);
+                builder.Services.AddSingleton(requests);
                 builder.Services.AddSingleton<INendoClock>(clock);
                 builder.Services.AddSingleton(agentAuthority);
                 builder.Services.AddSingleton(activity);
@@ -448,6 +472,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                 activity,
                 proposalStore,
                 work,
+                requests,
                 discoveryPath,
                 options.PreferredPort,
                 usedFallbackPort);
@@ -468,6 +493,8 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                     await webApplication.DisposeAsync();
                 }
             }
+            authoring.Dispose();
+            agentAuthority.Dispose();
             throw;
         }
     }
@@ -499,6 +526,9 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         finally
         {
             await _application.DisposeAsync();
+            // Nothing can reach either gate once the listener has stopped.
+            _authoring.Dispose();
+            _agentAuthority.Dispose();
         }
 
         if (cleanupFailures.Count != 0)

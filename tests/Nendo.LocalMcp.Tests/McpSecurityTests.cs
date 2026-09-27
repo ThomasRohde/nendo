@@ -97,7 +97,7 @@ public sealed class McpSecurityTests
         var middleware = new NendoMcpSecurityMiddleware(_ => { dispatched = true; return Task.CompletedTask; });
         var atCap = NewContext();
         Body(string.Concat(Enumerable.Repeat("[", depth - 1)) + new string(']', depth - 1))(atCap);
-        await middleware.InvokeAsync(atCap, authority);
+        await middleware.InvokeAsync(atCap, authority, Gate());
         Assert.IsTrue(dispatched, "A body exactly at the depth cap was refused.");
     }
 
@@ -129,7 +129,7 @@ public sealed class McpSecurityTests
         var context = NewContext();
         configure(context);
 
-        await middleware.InvokeAsync(context, authority);
+        await middleware.InvokeAsync(context, authority, Gate());
 
         Assert.IsFalse(dispatched);
         Assert.AreEqual(expectedStatus, context.Response.StatusCode);
@@ -154,7 +154,7 @@ public sealed class McpSecurityTests
         var context = NewContext();
         await using var body = new DelayedBody();
         context.Request.Body = body;
-        var request = middleware.InvokeAsync(context, authority);
+        var request = middleware.InvokeAsync(context, authority, Gate());
         await body.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         authority.CloseAdmission();
         body.Finish.SetResult();
@@ -180,6 +180,8 @@ public sealed class McpSecurityTests
             return await base.ReadAsync(buffer, cancellationToken);
         }
     }
+
+    private static NendoRequestGate Gate() => new(NendoRequestGate.DefaultMaximum, NendoRequestGate.DefaultTimeout);
 
     private static DefaultHttpContext NewContext()
     {

@@ -144,7 +144,7 @@ internal sealed class NendoResourceProjection(
     {
         RequireLimit(limit);
         var scope = $"export:{entityId}";
-        var writer = new StringWriter();
+        using var writer = new StringWriter();
         var page = await application.ExportCsvPageAsync(
             entityId, writer, cursors.Decode(cursor, scope), limit, cancellationToken);
         return new NendoMcpCsvPage(

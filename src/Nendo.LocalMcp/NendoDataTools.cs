@@ -59,7 +59,8 @@ internal sealed class NendoDataTools(
                 recordId,
                 values,
                 idempotencyKey,
-                cancellationToken, expectedTargetVersions),
+                expectedTargetVersions,
+                cancellationToken),
             entityId);
 
     [McpServerTool(
@@ -180,7 +181,8 @@ internal sealed class NendoDataTools(
                 expectedRecordVersion,
                 value,
                 idempotencyKey,
-                cancellationToken, expectedTargetRecordVersion),
+                expectedTargetRecordVersion,
+                cancellationToken),
             entityId, fieldId);
 
     [McpServerTool(

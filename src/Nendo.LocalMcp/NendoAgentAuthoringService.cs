@@ -10,7 +10,7 @@ internal sealed class NendoAgentAuthoringService(
     NendoAgentAuthority authority,
     NendoHostAuthority host,
     NendoAgentProposalStore proposals,
-    NendoUnattendedAuthority unattended)
+    NendoUnattendedAuthority unattended) : IDisposable
 {
     // The published limits are the enforced limits: nendo://application/vocabulary
     // serializes this same record, so an agent plans batches against what refuses.
@@ -26,14 +26,19 @@ internal sealed class NendoAgentAuthoringService(
     private static readonly int PutFilePayloadBytes = Limits.Extensions!.PutFilePayloadBytes;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, Draft> _drafts = new(StringComparer.Ordinal);
-    private readonly Dictionary<(string SessionId, string Key), Replay<NendoChangeSetBeginResult>>
+    // Bounded: the newest NendoReplayCache.Capacity of each kind, and all of a session's
+    // are discarded when its lease ends.
+    private readonly NendoReplayCache<(string SessionId, string Key), Replay<NendoChangeSetBeginResult>>
         _beginReplays = new();
-    private readonly Dictionary<(string SessionId, string ChangeSetId, string Key), Replay<NendoAgentProposalPreview>>
+    private readonly NendoReplayCache<(string SessionId, string ChangeSetId, string Key), Replay<NendoAgentProposalPreview>>
         _validateReplays = new();
-    private readonly Dictionary<(string SessionId, string ChangeSetId, string Key), Replay<NendoChangeSetRejectResult>>
+    private readonly NendoReplayCache<(string SessionId, string ChangeSetId, string Key), Replay<NendoChangeSetRejectResult>>
         _rejectReplays = new();
-    private readonly Dictionary<(string SessionId, string ChangeSetId, string Key), Replay<NendoChangeSetAcceptResult>>
+    private readonly NendoReplayCache<(string SessionId, string ChangeSetId, string Key), Replay<NendoChangeSetAcceptResult>>
         _acceptReplays = new();
+
+    /// <summary>Called by the host once it has stopped taking requests.</summary>
+    public void Dispose() => _gate.Dispose();
 
     internal Task<NendoChangeSetBeginResult> BeginAsync(
         string sessionId,
@@ -452,7 +457,7 @@ internal sealed class NendoAgentAuthoringService(
                     }
                     var owned = proposals.GetOwned(changeSetId, host.HostRunId, sessionId);
                     var outcome = await proposals.PromoteAsync(
-                        application, owned.ProposalId, cancellationToken, owned.OperationDigest);
+                        application, owned.ProposalId, owned.OperationDigest, cancellationToken);
 
                     // Consent second, and only when the file now needs it. Asking before the
                     // commit would grant for a behaviour the file does not hold yet, and the
@@ -1139,8 +1144,7 @@ internal sealed class NendoAgentAuthoringService(
         internal string InstanceId { get; } = instanceId;
         internal long CapturedDefinitionRevision { get; } = capturedDefinitionRevision;
         internal List<NendoAgentMutationInput> Mutations { get; } = [];
-        internal Dictionary<string, Replay<NendoChangeSetAddResult>> AddReplays { get; } =
-            new(StringComparer.Ordinal);
+        internal NendoReplayCache<string, Replay<NendoChangeSetAddResult>> AddReplays { get; } = new();
         internal int OperationCount { get; set; }
 
         /// <summary>What <see cref="OperationCount"/> expands to once inline properties are unfolded.</summary>

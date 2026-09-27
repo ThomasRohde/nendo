@@ -33,8 +33,8 @@ internal sealed class NendoDataMutationService(
         string recordId,
         NendoObjectInput values,
         string idempotencyKey,
-        CancellationToken cancellationToken,
-        IReadOnlyDictionary<string, long>? expectedTargetVersions = null) => AdmitAsync(
+        IReadOnlyDictionary<string, long>? expectedTargetVersions,
+        CancellationToken cancellationToken) => AdmitAsync(
             leaseId,
             sessionId,
             async _ => Touched(
@@ -88,8 +88,8 @@ internal sealed class NendoDataMutationService(
         long expectedRecordVersion,
         NendoScalarInput value,
         string idempotencyKey,
-        CancellationToken cancellationToken,
-        long? expectedTargetRecordVersion = null) => AdmitAsync(
+        long? expectedTargetRecordVersion,
+        CancellationToken cancellationToken) => AdmitAsync(
             leaseId,
             sessionId,
             async _ => Touched(

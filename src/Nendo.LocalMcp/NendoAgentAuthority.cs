@@ -76,10 +76,13 @@ public sealed record NendoLeaseStatus(
 internal sealed class NendoAgentAuthority(
     NendoHostAuthority host,
     INendoClock clock,
-    TimeSpan? leaseTtl)
+    TimeSpan? leaseTtl) : IDisposable
 {
     internal static readonly TimeSpan ProductionLeaseTtl = TimeSpan.FromSeconds(60);
     private readonly SemaphoreSlim _gate = new(1, 1);
+
+    /// <summary>Called by the host once it has stopped taking requests.</summary>
+    public void Dispose() => _gate.Dispose();
     private ActiveLease? _activeLease;
     private ReleasedLease? _released;
 

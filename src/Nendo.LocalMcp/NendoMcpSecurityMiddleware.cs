@@ -7,9 +7,11 @@ namespace Nendo.LocalMcp;
 internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
 {
     internal const long MaximumRequestBodyBytes = 256 * 1024;
-    internal const int MaximumJsonDepth = 16;
+    // 32 leaves eighteen levels over the deepest published example; 16 left two, so an
+    // automatic action one level richer than the examples was refused (F-182).
+    internal const int MaximumJsonDepth = 32;
 
-    public async Task InvokeAsync(HttpContext context, NendoHostAuthority authority)
+    public async Task InvokeAsync(HttpContext context, NendoHostAuthority authority, NendoRequestGate gate)
     {
         if (!context.Request.Path.StartsWithSegments("/mcp", StringComparison.Ordinal))
         {
@@ -50,7 +52,48 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
             await RejectTooLargeAsync(context);
             return;
         }
+        // Counted before the body is read: a request still sending its body holds a place,
+        // which is what stops a client from opening requests without ever finishing them.
+        if (!gate.TryEnter())
+        {
+            context.Response.Headers.RetryAfter = "1";
+            await RejectAsync(
+                context,
+                StatusCodes.Status429TooManyRequests,
+                "NENDO_BUSY",
+                $"{gate.Maximum} requests to this file are already in progress, the most this host serves at once. " +
+                "Retry when one of them has answered.");
+            return;
+        }
+        var aborted = context.RequestAborted;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(aborted);
+        timeout.CancelAfter(gate.Timeout);
+        context.RequestAborted = timeout.Token;
+        try
+        {
+            await AdmitAsync(context, authority);
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested && !aborted.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            context.RequestAborted = aborted;
+            gate.Exit();
+        }
+        if (timeout.IsCancellationRequested && !aborted.IsCancellationRequested && !context.Response.HasStarted)
+        {
+            await RejectAsync(
+                context,
+                StatusCodes.Status503ServiceUnavailable,
+                "NENDO_REQUEST_TIMEOUT",
+                $"The request did not finish within {(int)gate.Timeout.TotalSeconds} seconds and was stopped. A write " +
+                "may still have committed: nendo.data.get_receipt with the same idempotency key says whether it did.");
+        }
+    }
 
+    private async Task AdmitAsync(HttpContext context, NendoHostAuthority authority)
+    {
         var originalBody = context.Request.Body;
         await using var buffered = new MemoryStream(
             context.Request.ContentLength is > 0
@@ -60,8 +103,8 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
         {
             try
             {
-                await new SizeLimitedReadStream(originalBody, MaximumRequestBodyBytes)
-                    .CopyToAsync(buffered, context.RequestAborted);
+                await using var limited = new SizeLimitedReadStream(originalBody, MaximumRequestBodyBytes);
+                await limited.CopyToAsync(buffered, context.RequestAborted);
             }
             catch (RequestBodyTooLargeException)
             {
@@ -241,7 +284,7 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
             int count,
             CancellationToken cancellationToken)
         {
-            var read = await inner.ReadAsync(buffer, offset, Limit(count), cancellationToken);
+            var read = await inner.ReadAsync(buffer.AsMemory(offset, Limit(count)), cancellationToken);
             Count(read);
             return read;
         }
