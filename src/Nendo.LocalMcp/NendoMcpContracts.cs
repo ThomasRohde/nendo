@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -322,25 +323,34 @@ public sealed record NendoMcpRevision(
 /// "ok" measured now. <c>nendo.health.verify_integrity</c> requests a fresh scan.
 /// </summary>
 public sealed record NendoMcpHealth(
+    [property: Description("normal, recoveryRequired, closed or readOnly. Anything but normal refuses writes.")]
     NendoSessionHealth State,
+    [property: Description("ok, or what the last integrity scan found. It describes the file at integrityChangeSequence, not necessarily now.")]
     string IntegrityResult,
+    [property: Description("How the file is kept durable: local-coordinated-durable-file, one local file with coordinated writes.")]
     string DurabilityProfile)
 {
+    [Description("When the last integrity scan ran, or null if none has.")]
     public DateTimeOffset? IntegrityCheckedAt { get; init; }
+
+    [Description("The change sequence the last integrity scan measured.")]
     public long? IntegrityChangeSequence { get; init; }
 
     /// <summary>The file's change sequence when this health was read.</summary>
+    [Description("The file's change sequence when this health was read.")]
     public long? ChangeSequence { get; init; }
 
     /// <summary>
     /// How many committed changes the file has taken since the integrity result
     /// was measured. Zero means the result describes the file as it stands.
     /// </summary>
+    [Description("Committed changes since the integrity result was measured. Zero means it describes the file as it stands.")]
     public long? ChangesSinceIntegrityCheck => ChangeSequence is { } current && IntegrityChangeSequence is { } checkedAt
         ? Math.Max(0, current - checkedAt)
         : null;
 
     /// <summary>True when the file has changed since the integrity result was measured.</summary>
+    [Description("True when the file has changed since the integrity result was measured. nendo.health.verify_integrity measures it now.")]
     public bool IntegrityStale => ChangesSinceIntegrityCheck is > 0;
 }
 
@@ -350,8 +360,11 @@ public sealed record NendoMcpHealth(
 /// recorded result already describes the file as it stands and no scan was run.
 /// </summary>
 public sealed record NendoMcpIntegrityCheck(
+    [property: Description("False when the file had not changed since the last scan, so the recorded result already describes it and no scan ran.")]
     bool Rescanned,
+    [property: Description("What was measured, in a sentence.")]
     string Message,
+    [property: Description("The file's health as measured now.")]
     NendoMcpHealth Health);
 
 /// <summary>

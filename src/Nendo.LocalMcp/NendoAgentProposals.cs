@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text.Json;
 using Nendo.Engine;
 
@@ -5,11 +6,16 @@ namespace Nendo.LocalMcp;
 
 /// <summary>One record type a validated proposal leaves behind.</summary>
 public sealed record NendoAgentPreviewEntity(
+    [property: Description("Stable record type ID.")]
     string EntityId,
+    [property: Description("The name the person sees.")]
     string DisplayName,
+    [property: Description("Stored fields the record type would have.")]
     int FieldCount,
+    [property: Description("Records it would hold.")]
     int RecordCount)
 {
+    [Description("True when the record type would be retired.")]
     public bool Retired { get; init; }
 }
 
@@ -31,11 +37,16 @@ public sealed record NendoAgentPreviewEntity(
 /// says so here rather than after acceptance, when it draws empty.
 /// </param>
 public sealed record NendoAgentPreviewSurface(
+    [property: Description("Stable node ID of the surface root.")]
     string NodeId,
+    [property: Description("The root's node kind, as the vocabulary names it.")]
     string Kind,
+    [property: Description("The surface's title, or null when it has none.")]
     string? Title,
+    [property: Description("The record type it is about, or null for the file's front page.")]
     string? EntityId)
 {
+    [Description("What the surface would draw where its kind has a size worth knowing before accepting, such as a matrix's rows and columns or a board's columns; null otherwise.")]
     public string? Shape { get; init; }
 }
 
@@ -54,15 +65,22 @@ public sealed record NendoAgentPreviewSurface(
 /// </para>
 /// </summary>
 public sealed record NendoAgentPreviewSummary(
+    [property: Description("The surface contract version the file would declare, or null when it has no custom surfaces.")]
     int? ContractVersion,
+    [property: Description("Stored fields across every record type, after the change.")]
     int FieldCount,
+    [property: Description("Records across every record type, after the change.")]
     int RecordCount,
+    [property: Description("Every record type the file would hold.")]
     IReadOnlyList<NendoAgentPreviewEntity> Entities,
+    [property: Description("Every compiled surface the file would have.")]
     IReadOnlyList<NendoAgentPreviewSurface> Surfaces)
 {
+    [Description("wholeFileAfterChange: every count is taken over the whole file as it would stand after acceptance.")]
     public string Scope { get; init; } = "wholeFileAfterChange";
 
     /// <summary>The minimum host version the file requires now.</summary>
+    [Description("The minimum Nendo version the file requires now.")]
     public string? MinimumHostVersionBefore { get; init; }
 
     /// <summary>
@@ -70,9 +88,11 @@ public sealed record NendoAgentPreviewSummary(
     /// different value is a durable compatibility change and carries its own
     /// <c>raiseMinimumHostVersion</c> entry in the semantic diff.
     /// </summary>
+    [Description("The minimum Nendo version the file would require after acceptance. A different value is a durable compatibility change with its own raiseMinimumHostVersion entry in semanticDiff.")]
     public string? MinimumHostVersionAfter { get; init; }
 
     /// <summary>What the file says it is for now, or null if it has never said.</summary>
+    [Description("What the file says it is for now, or null if it has never said.")]
     public string? PurposeBefore { get; init; }
 
     /// <summary>
@@ -81,25 +101,37 @@ public sealed record NendoAgentPreviewSummary(
     /// proposal that only says what the file is for would otherwise be reviewed as changing
     /// nothing at all — the mistake the front page taught.
     /// </summary>
+    [Description("What the file would say it is for after acceptance.")]
     public string? PurposeAfter { get; init; }
 
     /// <summary>
     /// What the proposal does to each custom-view package file, as the person will review it:
     /// changed lines with context for text, sizes for anything else.
     /// </summary>
+    [Description("What the proposal does to each custom-view package file, as the person reviews it: changed lines with context for text, sizes for anything else.")]
     public IReadOnlyList<NendoExtensionFileChange> PackageChanges { get; init; } = [];
 }
 
 public sealed record NendoAgentProposalPreview(
+    [property: Description("The proposal's ID, as nendo://application/proposals and Pending changes name it.")]
     string ProposalId,
+    [property: Description("The title the person sees.")]
     string Title,
+    [property: Description("previewable when it validated and waits for the person; invalid when diagnostics stop it (the draft stays open to amend); stale, failed, active or rejected afterwards.")]
     NendoProposalState State,
+    [property: Description("retainUntilExplicitCleanup: the proposal stays until it is accepted or rejected.")]
     NendoProposalRetention Retention,
+    [property: Description("The definition revision the proposal was built against.")]
     long CapturedDefinitionRevision,
+    [property: Description("Digest of the reviewed operations. Acceptance replays exactly these.")]
     string OperationDigest,
+    [property: Description("Canonical operations in the proposal.")]
     int OperationCount,
+    [property: Description("What stops the proposal compiling or deserves a look, each with its code, the node or property it concerns and a hint.")]
     IReadOnlyList<NendoCompilerDiagnostic> Diagnostics,
+    [property: Description("One line per change, as the person reads it under What changes, with the IDs it touches and how reversible it is.")]
     IReadOnlyList<NendoSemanticDiffEntry> SemanticDiff,
+    [property: Description("What the file would hold after acceptance: record types, surfaces, counts, purpose and package changes.")]
     NendoAgentPreviewSummary Preview);
 
 public sealed record NendoAgentProposalSummary(

@@ -188,6 +188,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
             unattended);
         agentAuthority.SetLeaseEndedHandler(authoring.DiscardSessionAsync);
         var discoveryStore = new NendoDiscoveryStore(options.DiscoveryRoot);
+        var queries = NendoResourceQuery.ForDeclaredResources();
         WebApplication? webApplication = null;
         var usedFallbackPort = false;
         string? discoveryPath = null;
@@ -208,10 +209,15 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                 });
                 builder.Logging.ClearProviders();
                 builder.WebHost.ConfigureKestrel(kestrel =>
+                {
+                    // Every response named the web server it came from. Nothing a client
+                    // does depends on it, and a loopback endpoint has no reason to say.
+                    kestrel.AddServerHeader = false;
                     kestrel.Listen(
                         IPAddress.Loopback,
                         port,
-                        listen => listen.Protocols = HttpProtocols.Http1));
+                        listen => listen.Protocols = HttpProtocols.Http1);
+                });
                 builder.Services.AddSingleton(applicationService);
                 builder.Services.AddSingleton(authority);
                 builder.Services.AddSingleton<INendoClock>(clock);
@@ -232,7 +238,10 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                         server.ServerInfo = new Implementation
                         {
                             Name = "nendo-local",
+                            Title = "Nendo",
                             Version = NendoProduct.Version,
+                            Description = "The file open in Nendo on this computer, at the access level its person chose.",
+                            WebsiteUrl = "https://thomasrohde.github.io/nendo/",
                         };
                         // ProtocolVersion is deliberately left null: the SDK then answers an initialize
                         // handshake on any version it supports and also serves the 2026-07-28 discover
@@ -299,9 +308,23 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             try
                             {
                                 authority.RequireActive();
+                                // A query is a set, not a sequence: either order, and an empty
+                                // value left out. The SDK matched the URI before this filter
+                                // ran, so a rewritten one is matched again here.
+                                var canonical = queries.Canonicalize(context.Params.Uri);
+                                if (!string.Equals(canonical, context.Params.Uri, StringComparison.Ordinal))
+                                {
+                                    context.Params.Uri = canonical;
+                                    context.MatchedPrimitive = context.Server.ServerOptions.ResourceCollection?
+                                        .FirstOrDefault(resource => resource.IsMatch(canonical));
+                                }
                                 var result = await next(context, token);
                                 result.CacheScope = CacheScope.Private;
-                                result.TimeToLive = TimeSpan.Zero;
+                                // The vocabulary and the examples describe this build, not the
+                                // open file, so a client may keep them for an hour.
+                                result.TimeToLive = NendoMcpResources.StaticForBuild.Contains(canonical)
+                                    ? NendoMcpResources.StaticTimeToLive
+                                    : TimeSpan.Zero;
                                 activity.Record("resource", name, context.Server, "completed");
                                 return result;
                             }

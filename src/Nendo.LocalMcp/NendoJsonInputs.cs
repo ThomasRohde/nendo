@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -68,7 +69,67 @@ internal static class NendoJsonInputs
         var type = context.TypeInfo.Type;
         if (type == typeof(NendoObjectInput)) return Merge(node, ObjectShape());
         if (type == typeof(NendoScalarInput)) return Merge(node, ScalarShape());
-        return OneTypePerNode(node);
+        NendoWireDescriptions.Describe(context, node);
+        var advertised = OneTypePerNode(node);
+        if (ClosedInputs.Contains(type))
+        {
+            // A list parameter that may be omitted exported its items, and their members,
+            // as nullable too: import_records advertised records whose entries and IDs could
+            // be null. No entry of any list a tool takes is null, and a closed record takes
+            // no key it does not declare.
+            advertised = WithoutNull(advertised);
+            if (advertised is JsonObject closed) closed["additionalProperties"] = false;
+        }
+        else if (context.PropertyInfo?.AttributeProvider is PropertyInfo member &&
+                 member.DeclaringType is { } declaring && ClosedInputs.Contains(declaring) &&
+                 !member.PropertyType.IsValueType &&
+                 new NullabilityInfoContext().Create(member).ReadState == NullabilityState.NotNull)
+        {
+            advertised = WithoutNull(advertised);
+        }
+        return advertised;
+    }
+
+    /// <summary>
+    /// The records a tool takes inside its arguments. Each is closed: the argument contract
+    /// refuses a key it does not declare, and the advertised schema says so.
+    /// </summary>
+    internal static readonly IReadOnlySet<Type> ClosedInputs = new HashSet<Type>
+    {
+        typeof(NendoRecordInput),
+        typeof(NendoCsvColumnMapping),
+        typeof(NendoAgentMutationInput),
+        typeof(NendoAgentOperationInput),
+    };
+
+    // The null branch goes; a single branch left is folded back into the node, so the node
+    // reads as it would have had the exporter never made it nullable.
+    private static JsonNode WithoutNull(JsonNode node)
+    {
+        if (node is not JsonObject target || target["anyOf"] is not JsonArray branches) return node;
+        var kept = branches
+            .Where(branch => !(branch is JsonObject candidate && candidate.Count == 1 &&
+                               candidate["type"]?.GetValue<string>() == "null"))
+            .ToList();
+        if (kept.Count == branches.Count) return node;
+        target.Remove("anyOf");
+        if (kept.Count == 1 && kept[0] is JsonObject only)
+        {
+            foreach (var (key, value) in only.ToList())
+            {
+                only.Remove(key);
+                target[key] = value;
+            }
+            return target;
+        }
+        var remaining = new JsonArray();
+        foreach (var branch in kept)
+        {
+            branch!.Parent?.AsArray().Remove(branch);
+            remaining.Add(branch);
+        }
+        target["anyOf"] = remaining;
+        return target;
     }
 
     internal static void Write(Utf8JsonWriter writer, JsonElement element)

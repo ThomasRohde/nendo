@@ -17,6 +17,7 @@ internal sealed class NendoHealthTools(
 {
     [McpServerTool(
         Name = "nendo.health.verify_integrity",
+        Title = "Verify file integrity now",
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,

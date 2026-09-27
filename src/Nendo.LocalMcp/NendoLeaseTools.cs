@@ -10,12 +10,13 @@ internal sealed class NendoLeaseTools(NendoAgentAuthority authority)
 {
     [McpServerTool(
         Name = "nendo.lease.acquire",
+        Title = "Acquire the edit lease",
         Destructive = false,
         Idempotent = false,
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Acquire the single edit lease and a private application handle for this open file. They are two things: the handle addresses this open file for the rest of your session and stays private; the lease is the edit authority, held by one agent at a time and revocable by the person. Owned calls take both.")]
+    [Description("Acquire the single edit lease and a private application handle for this open file. They are two things: the handle addresses this open file for the rest of your session and stays private; the lease is the edit authority, held by one agent at a time and revocable by the person. Owned calls take both. The lease lasts until you release it, the person revokes it, access is lowered or the file is closed or switched; closing your client does not end it. When the person has turned expiry on it also lapses unless renewed before expiresAt, and endsOn says which applies. Save receiptContext from the grant before writing.")]
     public Task<NendoLeaseGrant> AcquireAsync(
         RequestContext<CallToolRequestParams> context,
         CancellationToken cancellationToken = default) => TranslateAsync(() =>
@@ -26,6 +27,7 @@ internal sealed class NendoLeaseTools(NendoAgentAuthority authority)
 
     [McpServerTool(
         Name = "nendo.lease.status",
+        Title = "Read who holds the edit lease",
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,
@@ -40,6 +42,7 @@ internal sealed class NendoLeaseTools(NendoAgentAuthority authority)
 
     [McpServerTool(
         Name = "nendo.lease.renew",
+        Title = "Renew the edit lease",
         Destructive = false,
         Idempotent = false,
         OpenWorld = false,
@@ -58,6 +61,7 @@ internal sealed class NendoLeaseTools(NendoAgentAuthority authority)
 
     [McpServerTool(
         Name = "nendo.lease.release",
+        Title = "Release the edit lease",
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,

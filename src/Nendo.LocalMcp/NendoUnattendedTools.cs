@@ -20,6 +20,7 @@ internal sealed class NendoUnattendedTools(
 {
     [McpServerTool(
         Name = "nendo.change_set.accept",
+        Title = "Accept your own proposal",
         Destructive = true,
         Idempotent = true,
         OpenWorld = false,

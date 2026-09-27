@@ -11,6 +11,7 @@ internal sealed class NendoAuthoringTools(
 {
     [McpServerTool(
         Name = "nendo.change_set.begin",
+        Title = "Begin a change set",
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,
@@ -35,6 +36,7 @@ internal sealed class NendoAuthoringTools(
 
     [McpServerTool(
         Name = "nendo.change_set.add_operations",
+        Title = "Add operations to a change set",
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,
@@ -76,6 +78,7 @@ internal sealed class NendoAuthoringTools(
 
     [McpServerTool(
         Name = "nendo.change_set.amend",
+        Title = "Amend a change set",
         Destructive = true,
         Idempotent = true,
         OpenWorld = false,
@@ -111,6 +114,7 @@ internal sealed class NendoAuthoringTools(
 
     [McpServerTool(
         Name = "nendo.change_set.validate",
+        Title = "Validate a change set into a proposal",
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,
@@ -136,6 +140,7 @@ internal sealed class NendoAuthoringTools(
 
     [McpServerTool(
         Name = "nendo.change_set.preview",
+        Title = "Preview a proposal",
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,
@@ -159,6 +164,7 @@ internal sealed class NendoAuthoringTools(
 
     [McpServerTool(
         Name = "nendo.change_set.reject",
+        Title = "Reject a change set",
         Destructive = true,
         Idempotent = true,
         OpenWorld = false,

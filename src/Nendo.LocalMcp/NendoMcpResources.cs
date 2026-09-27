@@ -12,8 +12,19 @@ internal sealed class NendoMcpResources(
     NendoDiscoveryStore discovery,
     NendoHostAuthority hostAuthority)
 {
+    /// <summary>The reads that describe this host build rather than the open file.</summary>
+    internal static readonly IReadOnlySet<string> StaticForBuild = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "nendo://application/vocabulary",
+        "nendo://application/examples",
+    };
+
+    /// <summary>How long a client may keep a read in <see cref="StaticForBuild"/>.</summary>
+    internal static readonly TimeSpan StaticTimeToLive = TimeSpan.FromHours(1);
+
     [McpServerResource(
         Name = "nendo.host.instances",
+        Title = "Running Nendo instances",
         UriTemplate = "nendo://host/instances",
         MimeType = "application/json")]
     [Description("Every Nendo running on this device and which file each has open, with isThisOne marking the host answering the read. The only resource here that is not about the open file: use it to say which file you are connected to before writing, because every other call in this session acts on that one. Each entry carries the file's name and never a path. Switching is the person's action — a client reaches the address it was registered with and cannot redirect itself mid-session — so this tells you what to say to them, not somewhere else to write.")]
@@ -32,6 +43,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.manifest",
+        Title = "Application manifest",
         UriTemplate = "nendo://application/manifest",
         MimeType = "application/json")]
     [Description("Identity and semantic revision counters for the open Nendo application.")]
@@ -40,6 +52,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.vocabulary",
+        Title = "Authoring vocabulary",
         UriTemplate = "nendo://application/vocabulary",
         MimeType = "application/json")]
     [Description("Everything this host accepts from an authoring client: every node kind with its permitted properties, required properties, permitted children and how many roots of it one record type may own; the closed filter operators, value kinds, ordering directions and aggregates; how sibling filter clauses combine; the authoring limits; and operations — every canonical operation type with the payload fields it requires and accepts. Generated from the tables the compiler and the authoring boundary validate against, so authoring does not require probing, and a documented field is an accepted field. Static for a host build; it does not describe the open file.")]
@@ -52,6 +65,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.describe",
+        Title = "Whole application",
         UriTemplate = "nendo://application/describe",
         MimeType = "application/json")]
     [Description("The whole open application in one read: identity and revision counters, the authoring limits to plan batches against, every record type with its fields and references, every compiled screen, current health, and reads — every resource URI this host serves, including the templated ones that resources/list does not return. Equivalent to manifest plus entities plus one schema read per record type plus surfaces plus health, without the round trips. Read a record back at nendo://application/entity/{entityId}/records.")]
@@ -60,6 +74,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.examples",
+        Title = "Authoring examples",
         UriTemplate = "nendo://application/examples",
         MimeType = "application/json")]
     [Description("Complete contract version 3 change sets that can be sent as they stand, each carrying the authoring rule it exists to convey: creating a record type with its required fields, configuring a reference, building a record page with a section, a related list and an exact rollup, and defining a multi-step command. Static for a host build; it does not describe the open file. Every example is exercised against the real authoring boundary by this host's test suite.")]
@@ -68,6 +83,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.entities",
+        Title = "Record types",
         UriTemplate = "nendo://application/entities",
         MimeType = "application/json")]
     [Description("Stable semantic entities in the open Nendo application.")]
@@ -76,6 +92,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.entity.schema",
+        Title = "Record type schema",
         UriTemplate = "nendo://application/entity/{entityId}/schema",
         MimeType = "application/json")]
     [Description("The semantic field schema for one entity. storageKind reads back camelCase and is matched case-insensitively on write. options is the authoritative ordered set of stable choice IDs for a singleChoice field; choices carries display metadata only for the options given it by schema.setChoiceMetadata, so it is empty until one is; each entry names the option's tone, or null for no colour. scale carries a rating field's min and max, and is null for every other presentation.")]
@@ -84,6 +101,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.entity.records",
+        Title = "Records",
         UriTemplate = "nendo://application/entity/{entityId}/records{?cursor,limit}",
         MimeType = "application/json")]
     [Description("A bounded page of records in stable record-ID order. numericLexemes preserves exact numeric strings by field ID; use these with $nendoNumber envelopes when editing, not lossy numeric parsers. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
@@ -96,6 +114,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.entity.tree",
+        Title = "Record tree",
         UriTemplate = "nendo://application/entity/{entityId}/tree{?root,depth,cursor,limit}",
         MimeType = "application/json")]
     [Description("A window of a record type's declared hierarchy (ADR-0019), depth-first in sibling order: the records under root, or the whole tree from the top level when root is omitted, down to depth levels (1 to 32, default 1). Each item is a record with its parentRecordId, its depth below the root and its childCount. Refused past limits.hierarchy.maximumDescendants records; read fewer levels or a lower root. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
@@ -115,6 +134,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.entity.export",
+        Title = "Records as CSV",
         UriTemplate = "nendo://application/entity/{entityId}/export{?cursor,limit}",
         MimeType = "application/json")]
     [Description("A bounded page of one record type as faithful Nendo CSV -- the same profile the person's own Import and Export use, so what this returns can be handed back to nendo.data.import_records or opened in Nendo unchanged. Null is the cell written as a backslash followed by N; non-null text that starts with a backslash carries one extra; empty text, null and that two-character marker as literal text are three different values. Numbers are exact invariant strings, choices and references are stable IDs, and formula-like text is preserved rather than neutralised. The header row carries display names and appears on the first page only; fieldIds gives the stable ID behind each column, which is what an import maps by. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
@@ -127,6 +147,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.proposals",
+        Title = "Pending proposals",
         UriTemplate = "nendo://application/proposals",
         MimeType = "application/json")]
     [Description("Every validated proposal waiting for a person to accept it in Nendo, with its title, the definition revision it captured, its state, how many operations it carries and the most severe reversibility class in it. Read this after a reconnect or a lost response: a pending proposal is otherwise invisible, and each one captured a revision, so accepting any one of them advances that revision and invalidates the rest. A proposal is accepted or rejected by the person in Nendo. Only at Unattended access does nendo.change_set.accept apply your own validated proposal; below it there is no promotion tool.")]
@@ -135,6 +156,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.surfaces",
+        Title = "Compiled screens",
         UriTemplate = "nendo://application/surfaces",
         MimeType = "application/json")]
     [Description("Every compiled screen in the open file, or the diagnostics that stop them compiling. Each record type is listed under applications[] with its surfaces as an ordered contract version 3 node tree; the file's front page is reported under overview, not under a record type. A recordCommand root carries the commandId that nendo.data.execute_command takes. state is valid, invalid or noCustomSurfaces; a file with no custom screens is a deliberate shape, not a broken definition.")]
@@ -143,6 +165,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.history",
+        Title = "Revision history",
         UriTemplate = "nendo://application/history{?cursor,limit}",
         MimeType = "application/json")]
     [Description("Bounded revision summaries in ascending sequence order, with operation counts and paged operations URIs. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
@@ -154,6 +177,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.revision.operations",
+        Title = "Revision operations",
         UriTemplate = "nendo://application/revision/{revisionId}/operations{?cursor,limit}",
         MimeType = "application/json")]
     [Description("A bounded page of sanitized operation types, reversibility and affected semantic IDs for a revision. Ordered by operation ordinal; restart on NENDO_STALE_CURSOR. No raw operation payloads are exposed.")]
@@ -163,6 +187,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.health",
+        Title = "File health",
         UriTemplate = "nendo://application/health",
         MimeType = "application/json")]
     [Description("Sanitized lightweight health, durability state and the time and change sequence of the last integrity check. Reading status does not run a new integrity scan, so integrityResult describes the file as it stood at integrityChangeSequence: changesSinceIntegrityCheck and integrityStale say how far it has moved since. Call nendo.health.verify_integrity for a result measured now.")]
@@ -171,6 +196,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.extensions",
+        Title = "Custom-view packages",
         UriTemplate = "nendo://application/extensions",
         MimeType = "application/json")]
     [Description("Every custom-view package the open file carries: its ID, title, version, entry point and each file's path, media type, SHA-256 and size. A package is definition, written through extension.setPackage and extension.putFile in a change set; read a file's content at nendo://application/extension/{packageId}/file?path=... with the path percent-encoded. A view that names a package runs its code in the Workbench when the view is shown.")]
@@ -179,6 +205,7 @@ internal sealed class NendoMcpResources(
 
     [McpServerResource(
         Name = "nendo.application.extension.file",
+        Title = "Custom-view package file",
         UriTemplate = "nendo://application/extension/{packageId}/file{?path,offset,length}",
         MimeType = "application/json")]
     [Description("One file of a custom-view package, a page of its bytes at a time. path is percent-encoded, so tiles/world.bin is sent as tiles%2Fworld.bin. A text file arrives as text and anything else as base64; offset and length are byte positions (length at most 131072, default the rest up to that), and nextOffset is null on the last page. sha256 and byteLength describe the whole file, so a reader can check what it assembled. To change a file, send extension.putFile with text or base64 in a change set; a file larger than one operation's payload arrives as a first putFile followed by putFile operations with append true.")]

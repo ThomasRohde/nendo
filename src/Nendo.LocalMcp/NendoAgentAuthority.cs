@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Security.Cryptography;
 
 namespace Nendo.LocalMcp;
@@ -18,19 +19,31 @@ internal sealed class NendoAgentAuthorityException(string code, string message) 
 }
 
 public sealed record NendoLeaseGrant(
+    [property: Description("Opaque lease ID. Pass it with applicationHandle on every owned call.")]
     string LeaseId,
+    [property: Description("When the lease lapses unless renewed, or null when it has no expiry and lasts until released, revoked or the file closes.")]
     DateTimeOffset? ExpiresAt,
+    [property: Description("The access level of this file session: readOnly (Inspect), dataMutation (Edit data), applicationAuthoring (Shape app) or unattended.")]
     AgentAccessMode Mode,
+    [property: Description("The pseudonym History records as the author of this lease's writes.")]
     string Owner)
 {
+    [Description("Unprivileged locator for nendo.data.get_receipt. Save it before writing: after a lost response it reads a write's outcome, and it grants no edit authority.")]
     public string? ReceiptContext { get; init; }
+
+    [Description("Private handle that addresses this open file for the rest of the session. Keep it private and pass it with leaseId on every owned call.")]
     public string ApplicationHandle { get; init; } = string.Empty;
 
     /// <summary>"explicitRelease" when this lease never expires, "expiry" when ExpiresAt is enforced.</summary>
+    [Description("explicitRelease when the lease never expires, expiry when expiresAt is enforced.")]
     public string EndsOn { get; init; } = "explicitRelease";
 }
 
-public sealed record NendoLeaseRelease(string LeaseId, string State);
+public sealed record NendoLeaseRelease(
+    [property: Description("The lease released.")]
+    string LeaseId,
+    [property: Description("released: editing is free for any agent to acquire.")]
+    string State);
 
 /// <summary>
 /// Who holds the single edit lease, readable without holding it. This is the
@@ -39,18 +52,24 @@ public sealed record NendoLeaseRelease(string LeaseId, string State);
 /// that it is the holder.
 /// </summary>
 public sealed record NendoLeaseStatus(
+    [property: Description("Whether any agent holds the edit lease.")]
     bool HasLease,
+    [property: Description("The holder's pseudonym, as History records its writes, or null when no lease is held.")]
     string? Owner,
+    [property: Description("The holder's client name as it introduced itself (Local agent for a client that sent none), or null when no lease is held.")]
     string? ClientDisplayName,
+    [property: Description("When the held lease lapses unless renewed; null when it has no expiry or no lease is held.")]
     DateTimeOffset? ExpiresAt)
 {
     /// <summary>"explicitRelease" when the held lease never expires, "expiry" when ExpiresAt is enforced.</summary>
+    [Description("explicitRelease when the held lease never expires, expiry when expiresAt is enforced; null when no lease is held.")]
     public string? EndsOn { get; init; }
 
     /// <summary>
     /// True when the supplied application handle is the holder, false when it is
     /// not, null when no handle was supplied or no lease is held.
     /// </summary>
+    [Description("True when the applicationHandle you supplied holds the lease, false when it does not, null when you supplied none or no lease is held.")]
     public bool? IsYou { get; init; }
 }
 

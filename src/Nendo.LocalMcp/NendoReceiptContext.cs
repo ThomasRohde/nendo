@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text.Json;
 using Nendo.Engine;
 
@@ -51,4 +52,10 @@ internal static class NendoReceiptContext
     }
 }
 
-public sealed record NendoDataOutcome(string State, NendoApplyResult? Receipt, string Message);
+public sealed record NendoDataOutcome(
+    [property: Description("committed when the write reached the file; unresolved when this file state records no receipt for the key.")]
+    string State,
+    [property: Description("The original write's outcome when committed, else null.")]
+    NendoApplyResult? Receipt,
+    [property: Description("What the state means and what is safe to do next. An unresolved receipt is not permission to resubmit with a new key.")]
+    string Message);

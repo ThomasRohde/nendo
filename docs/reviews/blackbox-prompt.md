@@ -179,6 +179,9 @@ path, and say whether the text you were handed was cut short anywhere, and where
 host holds its instructions and every description to 2,000 characters, under the 2,048
 at which some clients stop reading: measure the longest yourself, and say whether the
 authoring rules the `add_operations` description sends you to were where it said.
+Every tool and read should carry a title and every field of every tool result a
+description; say where either is missing, and whether each tool's hints — read-only,
+destructive, idempotent — match what it did when you called it.
 
 Before you build anything, say what the file you opened is for, and where that came from.
 Then say what an empty file says about itself. A file whose author has never said should
@@ -541,7 +544,9 @@ problem, named the thing it was refusing, and offered a remedy you could act on:
 - Writing to a calculated field, through a single-field edit and through a create.
 - A form made only of calculated fields.
 - Adding to, amending or re-validating a change set after it validated.
-- A page limit that is not a whole number: letters, a fraction, nothing at all.
+- A page limit that is not a whole number: letters, a fraction, nothing at all. Then a
+  page query with its parameters in the other order, an empty cursor, a parameter the
+  read does not take, and one given twice.
 - Removing a definition that something else still reads.
 - Writing data after an action exists but before the person has approved it.
 - Finding *any* route — a tool, a resource, or a field on one — that lets you grant that

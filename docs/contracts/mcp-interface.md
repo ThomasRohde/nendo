@@ -58,7 +58,24 @@ process ID in the write-owner sidecar.
 an agent could open. Agents never receive a database path
 ([vision.md](../vision.md)). If a caller supplies one, the host reduces it to its
 last segment. File resources and catalogs carry private, zero-TTL cache hints.
-Tools are listed in stable name order.
+`nendo://application/vocabulary` and `nendo://application/examples` describe the
+host build rather than the open file, and carry a one-hour `ttlMs`. Tools are
+listed in stable name order.
+
+Every tool, resource and template carries a `title`, and `serverInfo` carries
+`title` (Nendo), `description` and `websiteUrl`. No response names the web server
+behind it. `destructiveHint` is true exactly where a tool overwrites or removes what
+is stored: `set_field`, `move_record`, `execute_command`, `delete_record`, `amend`,
+`reject` and `accept`. On 2026-09-27 the first three said false, which the
+specification reserves for additive updates. `nendo.lease.acquire` states the
+lease's lifetime in its own description. Every property of every output schema
+carries a description: the adapter's own result records through `[Description]`
+beside each member, and the Engine's records that reach the wire (the receipt,
+generated changes, assigned values, diagnostics, semantic diff entries and package
+changes) through `NendoWireDescriptions`, which the schema transform applies. Before,
+the twenty output schemas described no property at all, so what a null
+`recordVersion` meant lived in comments no client reads. `SurfaceMetadataTests`
+holds each of these, and each was seen to fail with its defect put back.
 
 The host serializes every tool result with nulls present. The output schema that
 is generated from a return type lists nullable members as required. A payload that
@@ -111,8 +128,12 @@ non-integer first, and the client saw a bare internal error with no code.
 
 If a data or definition change occurs between pages, the read returns
 `NENDO_STALE_CURSOR`. Restart the query. Foreign, tampered, reopened-file or
-earlier agent-access cursors fail. Follow the declared URI template parameter
-order (`cursor,limit`). See the [read and authority contract](reads-and-authority.md).
+earlier agent-access cursors fail. The query is a set: `cursor` and `limit` may
+come in either order, and an empty `cursor=` is the first page. Before, the SDK
+matched the template's expansion as written, so `?limit=2&cursor=` was an unknown
+resource URI and `?cursor=&limit=2` an invalid cursor. A query parameter that the
+template does not declare, or one given twice, is `NENDO_INVALID_REQUEST` naming the
+parameters it does take. See the [read and authority contract](reads-and-authority.md).
 
 The package-file read pages by bytes, not by records, and it has no cursor.
 `offset` and `length` must be whole numbers, and anything else is

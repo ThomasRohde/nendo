@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Security.Cryptography;
 using System.Text;
 using Nendo.Engine;
@@ -30,12 +31,19 @@ public sealed record NendoCsvColumnMapping(int Column, string FieldId);
 /// committed and attempts only the ones that did not.
 /// </param>
 public sealed record NendoImportResult(
+    [property: Description("The record type imported into.")]
     string EntityId,
+    [property: Description("How many records reached the file, exactly.")]
     int Committed,
+    [property: Description("How many rows of this call were not attempted. Zero on success.")]
     int Remaining,
+    [property: Description("Every record ID created, in the order the rows arrived.")]
     IReadOnlyList<string> RecordIds,
+    [property: Description("How many revisions the import took, one per batch of fifty, each with a key derived from yours.")]
     int RevisionCount,
+    [property: Description("The file's data revision after the last committed batch.")]
     long DataRevision,
+    [property: Description("The most rows one call may carry.")]
     int MaximumRowsPerCall);
 
 internal sealed class NendoImportPartialException(

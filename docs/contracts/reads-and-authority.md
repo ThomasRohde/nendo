@@ -57,7 +57,9 @@ public limit. It has sixteen resources:
   record limit. Each page carries the whole file's SHA-256 (see the
   [custom-view contract](custom-views.md#packages-in-the-file)).
 
-Clients must follow the declared URI template order (`cursor,limit`).
+A page query is read as a set: `cursor` and `limit` in either order, and an empty
+`cursor=` as the first page. A parameter the template does not declare, or one
+given twice, is refused naming the parameters it takes.
 
 Read-only recovery uses the immutable inspection snapshot that is already
 classified, and bounded projections of that snapshot. It cannot claim a

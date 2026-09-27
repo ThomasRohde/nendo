@@ -12,7 +12,7 @@ internal sealed class NendoDataTools(
     NendoActivityLog activity,
     NendoAgentProposalStore proposals)
 {
-    [McpServerTool(Name = "nendo.data.get_receipt", Destructive = false, Idempotent = true,
+    [McpServerTool(Name = "nendo.data.get_receipt", Title = "Read a write's receipt", Destructive = false, Idempotent = true,
         OpenWorld = false, ReadOnly = true, UseStructuredContent = true)]
     [Description("Read a prior data-operation receipt using the locator saved from its lease grant. Works after reconnect and grants no edit access. Missing evidence remains unresolved.")]
     public async Task<NendoDataOutcome> GetReceiptAsync(
@@ -33,6 +33,7 @@ internal sealed class NendoDataTools(
 
     [McpServerTool(
         Name = "nendo.data.create_record",
+        Title = "Create a record",
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,
@@ -63,6 +64,7 @@ internal sealed class NendoDataTools(
 
     [McpServerTool(
         Name = "nendo.data.create_records",
+        Title = "Create up to fifty records",
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,
@@ -91,6 +93,7 @@ internal sealed class NendoDataTools(
 
     [McpServerTool(
         Name = "nendo.data.import_records",
+        Title = "Import records from CSV or JSON",
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,
@@ -147,7 +150,8 @@ internal sealed class NendoDataTools(
 
     [McpServerTool(
         Name = "nendo.data.set_field",
-        Destructive = false,
+        Title = "Set a field",
+        Destructive = true,
         Idempotent = true,
         OpenWorld = false,
         ReadOnly = false,
@@ -181,7 +185,8 @@ internal sealed class NendoDataTools(
 
     [McpServerTool(
         Name = "nendo.data.move_record",
-        Destructive = false,
+        Title = "Move a record in its hierarchy",
+        Destructive = true,
         Idempotent = true,
         OpenWorld = false,
         ReadOnly = false,
@@ -216,7 +221,8 @@ internal sealed class NendoDataTools(
 
     [McpServerTool(
         Name = "nendo.data.execute_command",
-        Destructive = false,
+        Title = "Run a record command",
+        Destructive = true,
         Idempotent = true,
         OpenWorld = false,
         ReadOnly = false,
@@ -278,7 +284,7 @@ internal sealed class NendoDataTools(
         }
     }
 
-    [McpServerTool(Name = "nendo.data.delete_record", Destructive = true, Idempotent = true,
+    [McpServerTool(Name = "nendo.data.delete_record", Title = "Delete a record", Destructive = true, Idempotent = true,
         OpenWorld = false, ReadOnly = false, UseStructuredContent = true)]
     [Description("Delete one record at its exact current version. Incoming references block deletion. Values and the reserved ID are retained for guarded restoration through host History. recordVersion is null in the result because a deleted record holds no current version; the version it was deleted at is the expectedRecordVersion you sent.")]
     public Task<NendoDataApplyResult> DeleteRecordAsync(RequestContext<CallToolRequestParams> context,

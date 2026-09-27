@@ -31,21 +31,30 @@ public sealed record NendoRecordInput(
 /// saves a read on every reference-building write.
 /// </summary>
 public sealed record NendoDataApplyResult(
+    [property: Description("The History revision this write committed; on an idempotent replay, the original one.")]
     string RevisionId,
+    [property: Description("Digest of the canonical operations committed. An exact replay returns the same digest.")]
     string OperationDigest,
+    [property: Description("The file's definition revision after this write.")]
     long DefinitionRevision,
+    [property: Description("The file's data revision after this write.")]
     long DataRevision,
+    [property: Description("The file's change sequence after this write. A paged read begun before it restarts on NENDO_STALE_CURSOR.")]
     long ChangeSequence,
+    [property: Description("True when this idempotency key had already committed and this is that original outcome, not a second write.")]
     bool IsIdempotentReplay,
+    [property: Description("Every record this write created, changed or deleted, in the order the request named them.")]
     IReadOnlyList<string> RecordIds)
 {
     /// <summary>
     /// The version every listed record now holds, when this call can state it
     /// exactly: 1 after a create, the expected version plus one after a single
-    /// field edit. Null after a delete, after a command (which may set several
-    /// fields), and on an idempotent replay, where the record may have moved on
+    /// field edit, one more per step after a command. Null after a delete, when an
+    /// automatic action moved only some records of a batch, when a move wrote
+    /// siblings too, and on an idempotent replay, where the record may have moved on
     /// since the original write — read the record rather than assume.
     /// </summary>
+    [Description("The version the listed records now hold, when one number is exact: 1 after a create, the expected version plus one after a field edit, one more per step after a command. Null after a delete, when an automatic action moved only some records of a batch, when a move wrote siblings too, and on an idempotent replay: read the record instead.")]
     public long? RecordVersion { get; init; }
 
     /// <summary>
@@ -57,6 +66,7 @@ public sealed record NendoDataApplyResult(
     /// entry says what changed and not a number that would be read as current. Read
     /// the record before writing to it.
     /// </summary>
+    [Description("Each other record this write's automatic actions created, updated or deleted, with the version it now holds. Empty when no action ran. On an idempotent replay the versions are null, because the file may have moved since: read a record before writing to it.")]
     public IReadOnlyList<NendoGeneratedChange> AlsoChanged { get; init; } = [];
 
     /// <summary>
@@ -64,13 +74,18 @@ public sealed record NendoDataApplyResult(
     /// empty (ADR-0020): each record, field and code. Empty when nothing was numbered, and on an
     /// idempotent replay — read the record instead.
     /// </summary>
+    [Description("The codes the host wrote into numbered fields that a create left empty, one entry per record and field. Empty when nothing was numbered, and on an idempotent replay.")]
     public IReadOnlyList<NendoAssignedValue> Assigned { get; init; } = [];
 }
 
 public sealed record NendoChangeSetBeginResult(
+    [property: Description("Server-minted change-set ID. Pass it to add_operations, amend, validate, preview and reject.")]
     string ChangeSetId,
+    [property: Description("The title the person sees on the proposal.")]
     string Title,
+    [property: Description("The definition revision the draft is built against. If the file's definition moves before acceptance, the proposal goes stale.")]
     long CapturedDefinitionRevision,
+    [property: Description("draft: the change set takes operations until validate freezes it into a proposal.")]
     string State)
 {
     /// <summary>
@@ -78,22 +93,30 @@ public sealed record NendoChangeSetBeginResult(
     /// proposal captured a definition revision, and accepting any one of them
     /// advances that revision and invalidates the rest.
     /// </summary>
+    [Description("How many other change sets are already open against this file. Accepting any one of them advances the definition revision and makes the others stale.")]
     public int OutstandingProposals { get; init; }
 
     /// <summary>What to do about <see cref="OutstandingProposals"/>, when there are any.</summary>
+    [Description("What to do about outstandingProposals, or null when there are none.")]
     public string? Advisory { get; init; }
 }
 
 /// <param name="OperationCount">Operations submitted to this change set so far.</param>
 public sealed record NendoChangeSetAddResult(
+    [property: Description("The draft the operations were appended to.")]
     string ChangeSetId,
+    [property: Description("Mutations the draft holds now. Pass it to nendo.change_set.amend as dropFromMutationOrdinal to append without dropping.")]
     int MutationCount,
+    [property: Description("Operations submitted to this change set so far.")]
     int OperationCount,
+    [property: Description("draft: the change set still takes operations.")]
     string State)
 {
     /// <summary>The change-set ceiling, echoed so it is known before it is reached.</summary>
+    [Description("The most mutations one change set may hold.")]
     public int MutationLimit { get; init; }
 
+    [Description("The most operations that may be submitted to one change set.")]
     public int OperationLimit { get; init; }
 
     /// <summary>
@@ -101,14 +124,19 @@ public sealed record NendoChangeSetAddResult(
     /// <c>ui.addNode</c> becomes one <c>ui.setProperty</c> per property, so a
     /// UI-heavy change set spends this budget faster than the submitted one.
     /// </summary>
+    [Description("What the submitted operations expand to: an inline properties map on ui.addNode becomes one ui.setProperty per property, so this budget runs out faster than operationCount.")]
     public int CanonicalOperationCount { get; init; }
 
+    [Description("The most canonical operations one change set may expand to.")]
     public int CanonicalOperationLimit { get; init; }
 }
 
 public sealed record NendoChangeSetRejectResult(
+    [property: Description("The change set rejected.")]
     string ChangeSetId,
+    [property: Description("The proposal it had become, or null when it was still a draft.")]
     string? ProposalId,
+    [property: Description("rejected: the draft or proposal is gone and the file is as it was.")]
     string State);
 
 /// <summary>
@@ -134,10 +162,17 @@ public sealed record NendoChangeSetRejectResult(
 /// level that a person would most want to find in a log afterwards.
 /// </param>
 public sealed record NendoChangeSetAcceptResult(
+    [property: Description("The change set whose proposal was accepted.")]
     string ChangeSetId,
+    [property: Description("The proposal accepted, as nendo://application/proposals names it.")]
     string ProposalId,
+    [property: Description("Whether the change reached the file. False is an ordinary answer, not an error: state and message say why, and the proposal is still there.")]
     bool Applied,
+    [property: Description("active when it committed; otherwise stale (the file moved under it), failed (the reviewed plan no longer matches) or previewable (still waiting for a person).")]
     string State,
+    [property: Description("Why it was not applied and what to do, or null when it was.")]
     string? Message,
+    [property: Description("The definition revision the file reached, so the next change set can begin against it without a read. Null when nothing was applied.")]
     long? DefinitionRevision,
+    [property: Description("True when this acceptance also recorded this device's consent to run the automatic actions the change installs. The person can withdraw it under Agent and under Health.")]
     bool BehaviourApproved);
