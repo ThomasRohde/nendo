@@ -150,7 +150,8 @@ later. Details the code settled:
   removed, a duplicate is still stopped, but as a raw storage error rather than a refusal.
 - **Refusals name records, never values.** The MCP rule for audited messages allows stable
   IDs, display names and counts only, so `value-not-unique` names the record holding the value
-  and `field-values-not-unique` lists the colliding records group by group.
+  and `field-values-not-unique` lists the colliding records group by group. Studio, whose reader
+  owns the file, names the holder by its label instead (stage 4 note).
 - **A field added in the same mutation** gets its index when the mutation materializes.
 
 Evidence: `FieldUniqueTests` (7: the rung, reopen and layout; a file without it keeping its
@@ -220,8 +221,19 @@ first code as the inputs change. On a new record an empty numbered field is not 
 *Assigned when saved* and names the next code's shape; the form's own required check skips it. A
 compiled screen's field plan carries no sequence, so the form reads it from the open file's schema.
 
-Not done here: a duplicate refused on a form reads the Engine's sentence, which names the record
-holding the value by its ID rather than its label.
+A duplicate refused on a form first read the Engine's sentence, which names the record holding
+the value by its ID. Closed the same day: the refusal carries the holder's ID as its own field
+(`NendoPreconditionException.RecordId`, the bridge's `error.recordId`, left out when there is
+none), and the Workbench reads that record and puts its label in place of the ID, quoted. The
+label is the field references to the type are shown with, or else the type's first required
+single-line text; a unique field is passed over. MCP's sentence is unchanged and still carries
+no stored value. Evidence: `DesktopUniqueRefusalTests` (the holder's ID on the bridge, no stored
+value in the sentence, no `recordId` key on a refusal about no record), `FieldUniqueTests` (the
+ID on every write path) and `write-failure.test.mjs` (the naming field and the substitution).
+Falsified: without the ID, *"Assert.AreEqual failed. Expected:<t1>. Actual:<>. … The refusal does
+not say which record holds the value."* and *"Expected:<a>. Actual:<>. … The refusal names its
+holder for a person-facing host to label."*; without the substitution, `write-failure.test.mjs`
+failed 1 of 8. The read that fetches the label inside `runMutation` has no lane of its own.
 
 Evidence: `record-markup.test.mjs` (the numbered control on a new record and on a record with a
 code; `fieldSequence`, `sequenceExample`). Falsified: without the numbered branch, *"The input did

@@ -618,6 +618,8 @@ export class WorkbenchHostError extends Error {
   constructor(
     public readonly code: string,
     message: string,
+    /** The record the refusal is about, where the host names one: a duplicate's holder (ADR-0020). */
+    public readonly recordId: string | null = null,
   ) {
     super(message);
     this.name = 'WorkbenchHostError';

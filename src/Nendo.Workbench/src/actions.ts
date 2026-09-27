@@ -2,8 +2,8 @@ import type { ViewName } from './app-state';
 import type { ApplicationRecipe } from './application-recipes';
 import { client } from './client';
 import { announce, clearError, content, refreshChrome, requiredElement, rerender, setBusy, showError, showRetainedNotice } from './shell';
-import { messageFor, mutationKey } from './format';
-import { decideWriteFailure } from './write-failure';
+import { messageFor, mutationKey, valueDisplay } from './format';
+import { decideWriteFailure, nameHolder, namingFieldId } from './write-failure';
 import { refuseWhileDirty } from './draft-guard';
 import { decideDraftState, draftRetentionMessage, type DraftReason } from './draft-state';
 import { declaredQuery, emptyWindowQuery, windowRequest, type WindowQuery } from './record-window';
@@ -27,6 +27,25 @@ import {
  * is still the owner's intent and survives; only an unsettled outcome is worth
  * rebuilding the view for.
  */
+
+/**
+ * A duplicate refused on a write, said with the record that holds the value named by its label
+ * rather than its ID (ADR-0020). Null keeps the host's sentence: no holder, no field to name it
+ * by, or a read that failed.
+ */
+async function holderNamed(error: unknown, payload: Record<string, unknown>): Promise<string | null> {
+  if (!(error instanceof WorkbenchHostError) || error.code !== 'value-not-unique' || error.recordId === null ||
+    typeof payload.entityId !== 'string') return null;
+  const fieldId = namingFieldId(state.session.entities, payload.entityId);
+  if (fieldId === null) return null;
+  try {
+    const page = await client.request<ReadPage<RecordSnapshot>>('data.queryRecords', { entityId: payload.entityId, recordId: error.recordId, limit: 1 });
+    const holder = page.items[0];
+    return holder === undefined ? null : nameHolder(error.message, error.recordId, valueDisplay(holder.values[fieldId]));
+  } catch {
+    return null;
+  }
+}
 
 /**
  * <paramref name="restate" /> replaces the host's refusal with one the caller's screen can
@@ -64,7 +83,7 @@ export async function runMutation(
       if (refreshAfterFailure) await recoverAfterWriteFailure();
       else rerender();
     }
-    showError(restate?.(error) ?? messageFor(error));
+    showError(restate?.(error) ?? await holderNamed(error, payload) ?? messageFor(error));
   } finally {
     state.actionInFlight = false;
     setBusy(false);

@@ -105,6 +105,7 @@ public sealed class FieldUniqueTests
             Assert.AreEqual("value-not-unique", refusal.Code, path);
             StringAssert.Contains(refusal.Message, $"already used by {holder}", path);
             StringAssert.Contains(refusal.Message, "Code", path);
+            Assert.AreEqual(holder, refusal.RecordId, "The refusal names its holder for a person-facing host to label.");
         }
         Assert.HasCount(history, await service.GetHistoryAsync(), "Every refusal left the file as it was.");
 

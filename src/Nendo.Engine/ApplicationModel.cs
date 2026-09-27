@@ -328,6 +328,13 @@ public sealed class NendoValidationException(string message) : NendoException(me
 public sealed class NendoPreconditionException(string code, string message) : NendoException(message)
 {
     public string Code { get; } = code;
+
+    /// <summary>
+    /// The record the refusal is about, where a person should be shown which one. The message
+    /// names it by ID only, since an audited refusal never carries stored values; the host that
+    /// shows it to the file's own user may name the record by its label instead (ADR-0020).
+    /// </summary>
+    public string? RecordId { get; init; }
 }
 
 /// <summary>

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Nendo.Engine;
 
 namespace Nendo.Desktop;
@@ -49,7 +50,14 @@ internal static partial class WorkbenchMethods
     internal const string BehaviourRevoke = "behaviour.revoke";
 }
 
-internal sealed record WorkbenchError(string Code, string Message);
+/// <summary>
+/// A refusal. <c>RecordId</c> names the record it is about, where there is one the Workbench
+/// should name by its label (a duplicate unique value, ADR-0020); it is left out otherwise.
+/// </summary>
+internal sealed record WorkbenchError(
+    string Code,
+    string Message,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RecordId = null);
 
 internal sealed record WorkbenchResponse(
     int ProtocolVersion,
@@ -418,7 +426,7 @@ internal sealed partial class WorkbenchProtocolHandler
         }
         catch (NendoPreconditionException exception)
         {
-            return Failure(requestId, exception.Code, exception.Message, responseProtocolVersion);
+            return Failure(requestId, exception.Code, exception.Message, responseProtocolVersion, exception.RecordId);
         }
         catch (NendoCalculationException exception)
         {
@@ -708,12 +716,13 @@ internal sealed partial class WorkbenchProtocolHandler
         string requestId,
         string code,
         string message,
-        int protocolVersion = DesktopShellContract.BridgeProtocolVersion) => new(
+        int protocolVersion = DesktopShellContract.BridgeProtocolVersion,
+        string? recordId = null) => new(
         protocolVersion,
         requestId,
         false,
         null,
-        new WorkbenchError(code, message));
+        new WorkbenchError(code, message, recordId));
 
     private static bool IsMethodAvailable(int protocolVersion, string method) =>
         (protocolVersion >= DesktopShellContract.SnapshotBridgeProtocolVersion || method != WorkbenchMethods.DataDeleteRecord) &&

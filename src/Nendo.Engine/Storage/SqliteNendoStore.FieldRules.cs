@@ -206,6 +206,7 @@ internal sealed partial class SqliteNendoStore
         query.Parameters.AddWithValue("@record", recordId);
         if (await query.ExecuteScalarAsync(ct) is string holder)
             throw new NendoPreconditionException("value-not-unique",
-                $"That {field.DisplayName} is already used by {holder} in {entity.DisplayName}; each record needs its own.");
+                $"That {field.DisplayName} is already used by {holder} in {entity.DisplayName}; each record needs its own.")
+            { RecordId = holder };
     }
 }

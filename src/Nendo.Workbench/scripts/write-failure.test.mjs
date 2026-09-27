@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/write-failure.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {decideWriteFailure,errorCode} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
+const {decideWriteFailure,errorCode,nameHolder,namingFieldId} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
 class HostError extends Error {
   constructor(code, message = 'refused') { super(message); this.code = code; }
@@ -51,4 +51,27 @@ test('errorCode reads the host code and tolerates anything else', () => {
   assert.equal(errorCode(new Error('plain')), '');
   assert.equal(errorCode(null), '');
   assert.equal(errorCode('validation'), '');
+});
+
+// ADR-0020: a duplicate refused on a form names the record that holds the value by its label.
+const text = (fieldId, extra = {}) => ({ fieldId, displayName: fieldId, storageKind: 'Text', required: false, presentation: 'singleLine', options: [], ...extra });
+const checks = { entityId: 'check', displayName: 'Checks', fields: [text('notes', { presentation: 'longText', required: true }), text('ref', { required: true, unique: true }), text('title', { required: true })] };
+const work = { entityId: 'work', displayName: 'Work', fields: [text('code', { required: true, unique: true }), text('name', { required: true }), text('checkLink', { storageKind: 'Reference', reference: { targetEntityId: 'check', labelFieldId: 'ref' } })] };
+const finding = { entityId: 'finding', displayName: 'Findings', fields: [text('ref', { unique: true }), text('work', { storageKind: 'Reference', reference: { targetEntityId: 'work', labelFieldId: 'name' } })] };
+
+test('a record is named by the label field references to its type use', () => {
+  assert.equal(namingFieldId([checks, work, finding], 'work'), 'name');
+});
+
+test('without a usable reference label, a record is named by its first required single-line text that is not unique', () => {
+  // The only reference to Checks labels them by the unique ref, the very value refused.
+  assert.equal(namingFieldId([checks, work, finding], 'check'), 'title');
+  assert.equal(namingFieldId([checks, work, finding], 'finding'), null);
+});
+
+test('the holder\'s ID in the host\'s sentence is replaced by its label, and an empty label keeps the sentence', () => {
+  const message = 'That Reference is already used by nd.check.r.one in Checks; each record needs its own.';
+  assert.equal(nameHolder(message, 'nd.check.r.one', ' Setup lane runs '),
+    'That Reference is already used by “Setup lane runs” in Checks; each record needs its own.');
+  assert.equal(nameHolder(message, 'nd.check.r.one', '  '), message);
 });

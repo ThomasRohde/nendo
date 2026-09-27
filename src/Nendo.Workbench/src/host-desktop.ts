@@ -24,7 +24,7 @@ interface WorkbenchResponse<T> {
   requestId: string;
   ok: boolean;
   result: T | null;
-  error: { code: string; message: string } | null;
+  error: { code: string; message: string; recordId?: string } | null;
 }
 
 /**
@@ -231,6 +231,7 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
       pending.reject(new WorkbenchHostError(
         candidate.error?.code ?? 'host-error',
         candidate.error?.message ?? 'The Desktop host could not complete the request.',
+        candidate.error?.recordId ?? null,
       ));
       return;
     }
