@@ -229,6 +229,9 @@ itself or only the records. Then try to create a third record with a code alread
 through each route you have, and say whether every refusal named the record that holds it.
 Then have the host number the field, create records without a code, delete the newest and
 create another, and record which codes you were given and whether any came back twice.
+On a record type kept as a tree, add a calculated field that shows each record's place as 1.2.3,
+move a record, and say whether every code below it followed — and whether anything told you such
+a code is not one to write down.
 
 **Before you accept any of it, read the review and answer from it alone.** Cover the change
 set you sent and work only from the sentences the person accepting would see: which record

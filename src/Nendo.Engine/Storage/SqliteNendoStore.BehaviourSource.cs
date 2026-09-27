@@ -208,6 +208,9 @@ internal sealed partial class SqliteNendoStore
                 case NendoBindingKind.SubtreeAggregate:
                     return await SubtreeAggregateAsync(binding, recordId, budget, cancellationToken);
 
+                case NendoBindingKind.HierarchyPath:
+                    return await HierarchyPathAsync(binding, recordId, budget, cancellationToken);
+
                 case NendoBindingKind.RelatedAggregate:
                     return await AggregateAsync(binding, recordId, budget, cancellationToken);
 
@@ -349,6 +352,61 @@ internal sealed partial class SqliteNendoStore
             return await FoldAsync(command, binding, member, bound, chargePerRow: false,
                 $"More than {bound} records contribute to this calculation across the hierarchy, so no total is shown rather than an incomplete one.",
                 budget, cancellationToken);
+        }
+
+        /// <summary>
+        /// A record's dotted place in its declared hierarchy (ADR-0020): at each level, one plus
+        /// the number of siblings the hierarchy orders before it — by the order field, a missing
+        /// order last, then record ID, as the tree read orders them — from the record up to the
+        /// top, read nearest first and written top first. A level is one indexed count, so the
+        /// cost is the depth; each ancestor read is observed, so a reviewed plan that used a path
+        /// is only valid while the chain above the record is what it was.
+        /// </summary>
+        private async Task<BehaviourValue> HierarchyPathAsync(
+            NendoBehaviourBinding binding,
+            string recordId,
+            BehaviourBudget budget,
+            CancellationToken cancellationToken)
+        {
+            var owner = mappings.SingleOrDefault(candidate => candidate.EntityId == binding.EntityId);
+            if (owner?.Hierarchy is not { } hierarchy)
+                throw new NendoCalculationException(NendoCalculationCodes.RelatedUnavailable,
+                    "This calculation reads a hierarchy the record type no longer declares.");
+            var table = Quote(owner.PhysicalTableName);
+            var parent = Quote(Locate(binding.EntityId, hierarchy.ParentFieldId).Field.PhysicalColumnName);
+            var order = hierarchy.OrderFieldId is { } orderId ? Quote(Locate(binding.EntityId, orderId).Field.PhysicalColumnName) : null;
+            var id = Quote("__nendo_record_id");
+            // Siblings share the parent, or are both at the top; "before" is the tree read's order.
+            var before = order is null
+                ? $"s.{id} < r.{id}"
+                : $"((r.{order} IS NOT NULL AND s.{order} IS NOT NULL AND (s.{order} < r.{order} OR (s.{order} = r.{order} AND s.{id} < r.{id}))) " +
+                  $"OR (r.{order} IS NULL AND (s.{order} IS NOT NULL OR s.{id} < r.{id})))";
+            var positions = new List<long>();
+            var current = recordId;
+            for (var level = 0; level < NendoHierarchyLimits.MaximumDepth; level++)
+            {
+                budget.SpendScan();
+                await using var command = store.Command(
+                    $"SELECT r.{parent}, r.{Quote("__nendo_record_version")}, " +
+                    $"(SELECT count(*) FROM {table} s WHERE s.{parent} IS r.{parent} AND s.{id} <> r.{id} AND {before}) " +
+                    $"FROM {table} r WHERE r.{id} = @record;", transaction);
+                command.Parameters.AddWithValue("@record", current);
+                await using var rows = await command.ExecuteReaderAsync(cancellationToken);
+                if (!await rows.ReadAsync(cancellationToken))
+                    throw new NendoCalculationException(NendoCalculationCodes.RelatedUnavailable,
+                        "A record this calculation reads is no longer there.");
+                if (level > 0) observe?.Invoke(new RecordKey(binding.EntityId, current), rows.GetInt64(1));
+                positions.Add(rows.GetInt64(2) + 1);
+                if (rows.IsDBNull(0))
+                {
+                    positions.Reverse();
+                    var path = string.Join('.', positions.Select(position => position.ToString(CultureInfo.InvariantCulture)));
+                    return BehaviourValue.Text((binding.Prefix ?? string.Empty) + path, budget.Limits);
+                }
+                current = rows.GetString(0);
+            }
+            throw new NendoCalculationException(NendoCalculationCodes.LimitReached,
+                $"This record sits deeper than {NendoHierarchyLimits.MaximumDepth} levels, so it has no path.");
         }
 
         /// <summary>Counts or totals the rows a member query returns, refusing past its bound rather than answering in part.</summary>

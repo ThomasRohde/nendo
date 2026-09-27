@@ -27,6 +27,8 @@ public static class ReviewHierarchyCostFixture
         ["saveMoveRecord"] = 150, ["renumberWideSiblings"] = 1_000,
         // Stage 4: reads that evaluate a subtree Count for every record they return.
         ["calculatedPage"] = 150, ["calculatedTreeWindow"] = 150, ["calculatedSnapshot"] = 10_000,
+        // ADR-0020 stage 3: a HierarchyPath column instead of the subtree Count.
+        ["pathPage"] = 150, ["pathDeepestRecord"] = 150,
     };
 
     public static async Task<string> RunAsync(string filePath)
@@ -368,6 +370,25 @@ public static class ReviewHierarchyCostFixture
             var snapshot = await service.GetSnapshotAsync();
             return $"{snapshot.Records.Count} records; root inside {Inside(snapshot.Records.Single(record => record.RecordId == tree.RootA))}";
         }, 3);
+
+        // ADR-0020 stage 3: the subtree Count out, a path in its place, so the figures are the path's own.
+        revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("hierarchy-cost", "path", "experiment", "Path instead of count",
+        [
+            new RemoveBehaviourDefinitionOperation("inside-remove", "node.inside", NendoBehaviourKind.Calculation, revision),
+            new SetBehaviourDefinitionOperation("path-node", new NendoCalculationDefinition("node.path", "node", "path", "Path",
+                NendoBehaviourScalar.Text, false, "p", [NendoBehaviourBinding.HierarchyPath("p", "node", "N-")]), revision),
+        ]));
+        results["pathPage"] = await TimeAsync(async () =>
+        {
+            var page = await service.QueryRecordsAsync(new("node", 100));
+            return $"{page.Items.Count} records; first path {Inside(page.Items[0])}";
+        }, Samples);
+        results["pathDeepestRecord"] = await TimeAsync(async () =>
+        {
+            var page = await service.QueryRecordsAsync(new("node", 1) { RecordId = tree.SpineLeaf });
+            return $"depth {tree.Depth[tree.SpineLeaf]}; path {Inside(page.Items[0])}";
+        }, Samples);
         return results;
     }
 }

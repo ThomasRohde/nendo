@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-27
-- **Delivery:** Stages 1 (unique fields) and 2 (sequences) done 2026-09-27, at host 1.37.0; stages 3–5 not started. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24, "I pre-accept any ADR change - this is still an experimental project"), with the recommended option taken at every open point
+- **Delivery:** Stages 1 (unique fields), 2 (sequences) and 3 (`HierarchyPath`) done 2026-09-27, at host 1.37.0; stages 4–5 not started. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24, "I pre-accept any ADR change - this is still an experimental project"), with the recommended option taken at every open point
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** The code survey in Context (2026-09-27) and the planner's own duplicate codes (W-074 names them)
@@ -184,6 +184,31 @@ counter; the counter survives a reopen; a restore keeps its code; a required num
 the refused shapes; removal and its compensation) and `FieldUniqueProtocolTests` (a create
 without a code returns the assigned one over MCP). Falsified: without the raise, *"Expected
 F-051"* failed.
+
+## Stage 3 note — 2026-09-27: hierarchy paths
+
+`HierarchyPath` is a sixth binding kind, delivered within host 1.37.0: a calculation is
+evaluated on read, so the path needs no storage and no rung of its own. Details the code
+settled:
+
+- **Siblings count in the tree read's order** — the order field, a missing order last, then
+  record ID — so a path and the outline agree on which record is 1.2.
+- **One indexed count per level**, walking up from the record; the ancestors read are observed,
+  so a reviewed action plan that used a path is valid only while the chain above is unchanged.
+  A sibling's reorder is not observed: a path is for display, as the ADR says.
+- **It holds the hierarchy in place**, as a subtree aggregate does: removing the hierarchy under
+  one is `hierarchy-field-in-use`.
+- **`prefix` is written to a stored definition only when set**, so no earlier definition's
+  canonical bytes or digest change.
+
+Cost, measured with `tools/Review-HierarchyCost.ps1` (the ADR-0019 driver, extended) on 10,000
+records with the path in place of the subtree count: a page of 100 at 29.8 ms p50 / 40.9 ms p95,
+the deepest record (32 levels) at 1.3 ms p50 / 1.9 ms p95, against the 150 ms read target.
+
+Evidence: `HierarchyPathTests` (5: paths in order with missing orders last; a prefix, and a move
+followed at once; ordering by record ID without an order field; refused without a hierarchy, with
+a long prefix, and holding the hierarchy; the wire format and its refusals). Falsified: treating a
+missing order as ordinary made *"Expected 3"* fail for the unordered top-level record.
 
 ## Consequences
 

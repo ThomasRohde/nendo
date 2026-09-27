@@ -125,7 +125,7 @@ internal sealed partial class SqliteNendoStore
             ?? throw new NendoPreconditionException("hierarchy-not-declared", $"{entity.DisplayName} has no hierarchy to remove.");
         foreach (var definition in (await ReadBehaviourDefinitionsAsync(transaction, ct)).Values)
             if (BindingsOf(definition).Any(binding => binding.EntityId == entity.EntityId &&
-                    (binding.Kind == NendoBindingKind.SubtreeAggregate || binding.AcrossSubtree)))
+                    (binding.Kind is NendoBindingKind.SubtreeAggregate or NendoBindingKind.HierarchyPath || binding.AcrossSubtree)))
                 throw new NendoPreconditionException("hierarchy-field-in-use",
                     $"'{definition.DefinitionId}' reads {entity.DisplayName}'s hierarchy. Change or remove that calculation first.");
         // An outline is the hierarchy drawn, so without one it would not compile, and a surface

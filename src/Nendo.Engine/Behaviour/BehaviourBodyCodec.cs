@@ -263,6 +263,7 @@ internal static class NendoBehaviourCodec
                             Text(element, "fieldId"), Enum<NendoBehaviourScalar>(element, "resultType"), Flag(element, "nullable")),
                         NendoBindingKind.RelatedAggregate or NendoBindingKind.SubtreeAggregate =>
                             Aggregate(element, bindingId, entityId, kind, aggregate!.Value),
+                        NendoBindingKind.HierarchyPath => Path(element, bindingId, entityId),
                         _ => throw Refuse($"{_subject} has a binding kind this contract does not define."),
                     });
                 }
@@ -272,6 +273,23 @@ internal static class NendoBehaviourCodec
                 _subject = outer;
             }
             return bindings;
+        }
+
+        /// <summary>A path is Text and never empty; a body that states either must state it truthfully.</summary>
+        private NendoBehaviourBinding Path(JsonElement element, string bindingId, string entityId)
+        {
+            if (element.TryGetProperty("resultType", out _) && Enum<NendoBehaviourScalar>(element, "resultType") != NendoBehaviourScalar.Text)
+                throw Refuse($"{_subject} (HierarchyPath) always produces Text; leave resultType out or say Text.");
+            if (element.TryGetProperty("nullable", out _) && Flag(element, "nullable"))
+                throw Refuse($"{_subject} (HierarchyPath) is never empty: every record has a place. Leave nullable out or say false.");
+            string? prefix = null;
+            if (element.TryGetProperty("prefix", out var value))
+            {
+                if (value.ValueKind != JsonValueKind.String || value.GetString()!.Length > NendoBehaviourBinding.MaximumPathPrefixLength)
+                    throw Refuse($"{_subject} (HierarchyPath) takes prefix as text of at most {NendoBehaviourBinding.MaximumPathPrefixLength} characters.");
+                prefix = value.GetString();
+            }
+            return NendoBehaviourBinding.HierarchyPath(bindingId, entityId, prefix);
         }
 
         private NendoBehaviourBinding Aggregate(JsonElement element, string bindingId, string entityId, NendoBindingKind kind, NendoAggregateFunction aggregate)

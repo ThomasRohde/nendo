@@ -56,7 +56,7 @@ public sealed class BehaviourAuthoringProtocolTests
         CollectionAssert.Contains(behaviour.Operators.ToArray(), "?:");
         CollectionAssert.Contains(behaviour.Scalars.ToArray(), "Decimal");
         CollectionAssert.AreEquivalent(
-            new[] { "SameRecordField", "SameRecordCalculation", "ReferenceTraversal", "RelatedAggregate", "SubtreeAggregate" },
+            new[] { "SameRecordField", "SameRecordCalculation", "ReferenceTraversal", "RelatedAggregate", "SubtreeAggregate", "HierarchyPath" },
             behaviour.Bindings.Select(binding => binding.Kind).Distinct().ToArray());
         CollectionAssert.AreEquivalent(new[] { "Count", "FilteredCount", "Sum" },
             behaviour.Bindings.Where(binding => binding.Kind == "SubtreeAggregate").Select(shape => shape.Aggregate).ToArray());

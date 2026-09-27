@@ -64,6 +64,13 @@ public enum NendoBindingKind
     /// hierarchy (ADR-0019), optionally with the record itself.
     /// </summary>
     SubtreeAggregate,
+
+    /// <summary>
+    /// The record's place in its record type's declared hierarchy as a dotted path of 1-based
+    /// sibling positions, 1.2.3, with an optional literal prefix (ADR-0020). It changes when a
+    /// record moves, so it is never stored and is not an identity.
+    /// </summary>
+    HierarchyPath,
 }
 
 /// <summary>The initial aggregate catalogue. Widening it needs its own semantics and tests.</summary>
@@ -124,6 +131,12 @@ public sealed record NendoBindingShape(
             ["bindingId", "kind", "aggregate", "entityId", "relatedEntityId", "relatedReferenceFieldId", "valueFieldId", "resultType"], ["acrossSubtree", "nullable"],
             "Totals valueFieldId over the records pointing back at this one, exactly. resultType is Integer or Decimal " +
             "and matches the field; the result is never null, and an empty collection totals zero."),
+        new(NendoBindingKind.HierarchyPath, null,
+            ["bindingId", "kind", "entityId"], ["prefix", "resultType", "nullable"],
+            "The record's place in the record type's declared hierarchy: its 1-based position among its siblings, and each " +
+            "ancestor's, joined with dots from the top (1.2.3), after an optional literal prefix (CAP-1.2.3). Siblings count " +
+            "in the hierarchy's order. Always Text and never null. It changes when a record moves, so it is a display code, " +
+            "not an identity: a code people must repeat next week is a sequence (schema.setFieldSequence)."),
         new(NendoBindingKind.SubtreeAggregate, NendoAggregateFunction.Count,
             ["bindingId", "kind", "aggregate", "entityId"], ["includeSelf", "resultType", "nullable"],
             "Counts the records under this one in the record type's declared hierarchy, at every level; includeSelf counts " +
@@ -155,6 +168,7 @@ public sealed record NendoBindingShape(
         "nullable" => "whether the value may be empty",
         "includeSelf" => "true to count or total the record itself as well as everything under it",
         "acrossSubtree" => "true to fold the records pointing at this record or at anything under it in its declared hierarchy",
+        "prefix" => $"literal text before the path, at most {NendoBehaviourBinding.MaximumPathPrefixLength} characters",
         _ => "a key this contract defines",
     };
 
@@ -217,6 +231,19 @@ public sealed record NendoBehaviourBinding
 
     /// <summary>A related aggregate over the records pointing at this record or anything under it (ADR-0019).</summary>
     public bool AcrossSubtree { get; private init; }
+
+    /// <summary>The literal text a hierarchy path starts with, or null (ADR-0020).</summary>
+    public string? Prefix { get; private init; }
+
+    public const int MaximumPathPrefixLength = 16;
+
+    /// <summary>The record's dotted position in its declared hierarchy, 1.2.3, after an optional prefix (ADR-0020).</summary>
+    public static NendoBehaviourBinding HierarchyPath(string bindingId, string entityId, string? prefix = null) =>
+        new(bindingId, NendoBindingKind.HierarchyPath, NendoBehaviourScalar.Text, false)
+        {
+            EntityId = NendoOperation.Require(entityId, nameof(entityId)),
+            Prefix = string.IsNullOrEmpty(prefix) ? null : prefix,
+        };
 
     public static NendoBehaviourBinding SameRecordField(
         string bindingId, string entityId, string fieldId, NendoBehaviourScalar resultType, bool nullable) =>
@@ -344,6 +371,12 @@ public sealed record NendoBehaviourBinding
                 if (Nullable)
                     throw new NendoValidationException("An aggregate is never null; an empty subtree totals zero.");
                 break;
+            case NendoBindingKind.HierarchyPath:
+                if (ResultType != NendoBehaviourScalar.Text || Nullable)
+                    throw new NendoValidationException("A hierarchy path is Text and never empty.");
+                if (Prefix is { Length: > MaximumPathPrefixLength })
+                    throw new NendoValidationException($"A hierarchy path's prefix is at most {MaximumPathPrefixLength} characters.");
+                break;
             default:
                 throw new NendoValidationException("The binding kind is not supported by this contract.");
         }
@@ -362,6 +395,7 @@ public sealed record NendoBehaviourBinding
         writer.WriteString("kind", Kind.ToString());
         writer.WriteBoolean("nullable", Nullable);
         if (PredicateFieldId is not null) writer.WriteString("predicateFieldId", PredicateFieldId);
+        if (Prefix is not null) writer.WriteString("prefix", Prefix);
         if (ReferenceFieldId is not null) writer.WriteString("referenceFieldId", ReferenceFieldId);
         if (RelatedEntityId is not null) writer.WriteString("relatedEntityId", RelatedEntityId);
         if (RelatedReferenceFieldId is not null) writer.WriteString("relatedReferenceFieldId", RelatedReferenceFieldId);

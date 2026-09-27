@@ -133,6 +133,7 @@ A key that is published is accepted, and a key that is accepted is published.
 | `SubtreeAggregate` · `Count` | How many records sit under this one in its declared hierarchy | `aggregate`; optional `includeSelf`, `resultType`, `nullable` |
 | `SubtreeAggregate` · `FilteredCount` | How many of them have a Boolean field true | … and `predicateFieldId`; optional `includeSelf`, `resultType`, `nullable` |
 | `SubtreeAggregate` · `Sum` | The exact total of a numeric field over them | … and `valueFieldId`, `resultType`; optional `includeSelf`, `nullable` |
+| `HierarchyPath` | The record's dotted place in its declared hierarchy, 1.2.3 | optional `prefix`, `resultType` (Text), `nullable` (false) |
 
 **Subtrees** ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md), 2026-09-27
 amendment of ADR-0008). A `SubtreeAggregate` folds the record's descendants at every level
@@ -145,6 +146,18 @@ hierarchy's own limit of 10,000 records rather than the related-row budget, whic
 subtree would exceed; past it they are an error, never a partial total. The keys appear in
 a stored definition only when true, so every definition written before them keeps its
 canonical bytes and digest.
+
+**Paths** ([ADR-0020](../decisions/0020-unique-and-generated-fields.md), 2026-09-27
+amendment of ADR-0008). A `HierarchyPath` reads the record's 1-based position among its
+siblings and each ancestor's, joined with dots from the top (`1.2.3`), after an optional
+literal `prefix` of at most 16 characters (`CAP-1.2.3`). Siblings count in the tree read's
+order: the hierarchy's order field, a missing order last, then record ID. It is Text and
+never empty, is installed only on a record type that declares a hierarchy, and holds the
+hierarchy in place like a subtree aggregate. It is calculated on every read, so it follows a
+move at once — which is why it is a display code and not an identity; a code people repeat
+is a sequence ([relationships](relationships.md#unique-fields)). One level costs one indexed
+count: a page of 100 read in 41 ms at the 95th percentile on 10,000 records, and the deepest
+record, 32 levels down, in 2 ms.
 
 The initial aggregate catalogue is closed:
 

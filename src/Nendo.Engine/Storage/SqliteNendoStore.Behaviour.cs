@@ -376,6 +376,11 @@ internal sealed partial class SqliteNendoStore
                             $"'{binding.BindingId}' folds across a subtree of {entity.DisplayName}, which declares no hierarchy.");
                     break;
                 }
+                case NendoBindingKind.HierarchyPath:
+                    if (entity.Hierarchy is null)
+                        throw new NendoValidationException(
+                            $"'{binding.BindingId}' reads a {entity.DisplayName}'s place in its hierarchy, but it declares none.");
+                    break;
                 case NendoBindingKind.SubtreeAggregate:
                 {
                     if (entity.Hierarchy is null)

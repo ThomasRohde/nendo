@@ -31,7 +31,7 @@ existed. For this reason the numbering is contiguous by intent.
 | [0017](0017-production-composition-and-build-layout.md) | Accepted | Minimal Engine/Desktop/Workbench/LocalMcp composition and centralized build layout |
 | [0018](0018-public-website-and-deployment-lane.md) | Accepted | Public website at `site/`, outside the product boundary, with one CI lane that deploys only it; since 2026-09-23 it carries its own guides and does not render `docs/` |
 | [0019](0019-hierarchies-in-the-schema.md) | Accepted | Declare a self-reference as a hierarchy: the Engine refuses cycles for every client, sibling order, typed move, bounded tree reads, subtree aggregates, a Studio outline and an `outlineSurface`; stages 1 (cost), 2 (declaration, cycle rule, move, MCP), 3 (tree read, `descendantOf`, `records.tree`), 4 (subtree aggregates) and 5 (the Studio outline) delivered at host 1.35.0, 6 (`outlineSurface`) at 1.36.0, and 7 (the Capability Atlas on the declaration) |
-| [0020](0020-unique-and-generated-fields.md) | Accepted | A field can be declared unique, refused by the Engine from every client, and given a sequence the host allocates inside the write; path codes (1.2.3) are a calculated `HierarchyPath`; the planner drops its manual reference ledger. Stages 1 (unique fields) and 2 (sequences) delivered at host 1.37.0 |
+| [0020](0020-unique-and-generated-fields.md) | Accepted | A field can be declared unique, refused by the Engine from every client, and given a sequence the host allocates inside the write; path codes (1.2.3) are a calculated `HierarchyPath`; the planner drops its manual reference ledger. Stages 1 (unique fields), 2 (sequences) and 3 (`HierarchyPath`) delivered at host 1.37.0 |
 
 ## Amendments in force
 
@@ -59,6 +59,9 @@ existed. For this reason the numbering is contiguous by intent.
   `outlineSurface`, a root that draws a declared hierarchy as an expandable treegrid read a
   level at a time, with columns, a find box that opens a match's path, rows remembered on
   the device, and moves by keyboard and pointer when `reorder` is on. Host 1.36.0.
+- **ADR-0008, 2026-09-27 — hierarchy paths** ([ADR-0020](0020-unique-and-generated-fields.md)):
+  a `HierarchyPath` binding reads a record's dotted place in its declared hierarchy, 1.2.3,
+  with an optional literal prefix. Calculated on every read, never stored, not an identity.
 - **ADR-0008, 2026-09-27 — subtree aggregates** ([ADR-0019](0019-hierarchies-in-the-schema.md)):
   a `SubtreeAggregate` binding counts, counts where a Boolean holds, or totals a number
   over a record's descendants in its declared hierarchy, optionally with the record

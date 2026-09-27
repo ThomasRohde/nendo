@@ -36,12 +36,18 @@ A formula cannot name a field directly. Each name in a formula is a binding, and
 | `SameRecordCalculation` | Another calculated field on the same record |
 | `ReferenceTraversal` | A stored field on the record that one reference field points to |
 | `RelatedAggregate` | A total over the records that reference this one |
+| `SubtreeAggregate` | A total over the records under this one, at every level, in a record type kept as a tree |
+| `HierarchyPath` | The record's place in a record type kept as a tree, as 1.2.3, with an optional prefix such as `CAP-` |
 
 A related aggregate is one of three:
 
 - **Count** counts the related records. An empty set gives 0.
 - **FilteredCount** counts the related records whose Boolean field is true.
 - **Sum** adds an Integer or Decimal field over the related records. An empty set gives 0. The field must be required, because a missing value is an error and not a zero.
+
+A subtree aggregate is one of the same three, over the records under this one; `includeSelf` adds the record itself. A related aggregate with `acrossSubtree` counts or totals the records that point at this record or at anything under it.
+
+A hierarchy path follows a move at once, because it is worked out on every read. That makes it a display code, not a name to write down: a code people repeat belongs in a numbered field.
 
 An aggregate never returns a partial total. If there are more related rows than the limit, or the total does not fit exactly in the result type, the calculation fails.
 
