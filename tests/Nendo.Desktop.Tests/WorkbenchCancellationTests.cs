@@ -25,7 +25,7 @@ public sealed class WorkbenchCancellationTests
                  {
                      WorkbenchMethods.SessionGetSnapshot, WorkbenchMethods.DataQueryRecords,
                      WorkbenchMethods.DataSetField, WorkbenchMethods.DataSetFields,
-                     WorkbenchMethods.SemanticCompile, WorkbenchMethods.ProposalPromote,
+                     WorkbenchMethods.DataMoveRecord, WorkbenchMethods.SemanticCompile, WorkbenchMethods.ProposalPromote,
                      WorkbenchMethods.RequestCancel,
                  })
         {

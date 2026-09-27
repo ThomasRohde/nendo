@@ -208,6 +208,12 @@ one that totals a number over it, then one on a related type's links that folds 
 whole subtree. Check the root's figures by hand, and try to remove the hierarchy while they
 are in place.
 
+Then hand the tree to the person in Studio › Data, without saying how it is drawn. Ask them
+to put one record under another and back, and to move one up among its siblings, first with
+the mouse and buttons and then with the keyboard alone. Record whether they found the keys
+without being told, whether focus stayed on the record they moved, and whether what they
+saw matched what you read back through the tree afterwards.
+
 **Before you accept any of it, read the review and answer from it alone.** Cover the change
 set you sent and work only from the sentences the person accepting would see: which record
 types does this add, and which fields, of what kind? Which are required? What are the

@@ -70,6 +70,12 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
       case 'data.setFields':
         result = this.setFields(payload);
         break;
+      case 'data.moveRecord':
+        result = this.moveRecord(payload);
+        break;
+      case 'data.treeRecords':
+        result = this.treeRecords(payload);
+        break;
       case 'data.executeCommand':
         result = this.executeCommand(payload);
         break;
@@ -231,6 +237,74 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         return this.advance('data', `Edit ${entity.displayName}`, 'data.setField');
       },
     );
+  }
+
+  /** The children of a record, or the top level, in the hierarchy's sibling order (ADR-0019). */
+  private treeChildren(entityId: string, parent: string | null): RecordSnapshot[] {
+    const hierarchy = requireEntity(this.session, entityId).hierarchy;
+    if (!hierarchy) throw new WorkbenchHostError('hierarchy-not-declared', 'This record type declares no hierarchy.');
+    const order = (record: RecordSnapshot): number | null => {
+      const value = hierarchy.orderFieldId === null ? null : record.values[hierarchy.orderFieldId];
+      return typeof value === 'number' ? value : null;
+    };
+    return this.session.records
+      .filter(record => record.entityId === entityId && (record.values[hierarchy.parentFieldId] ?? null) === parent)
+      .sort((left, right) => (order(left) === null ? 1 : 0) - (order(right) === null ? 1 : 0) ||
+        (order(left) ?? 0) - (order(right) ?? 0) || (left.recordId < right.recordId ? -1 : left.recordId > right.recordId ? 1 : 0));
+  }
+
+  private treeRecords(payload: Record<string, unknown>): ReadPage<unknown> {
+    const entityId = requiredString(payload, 'entityId');
+    const root = typeof payload.rootRecordId === 'string' ? payload.rootRecordId : null;
+    const depth = typeof payload.depth === 'number' ? payload.depth : 1;
+    const nodes: unknown[] = [];
+    const visit = (parent: string | null, level: number): void => {
+      for (const child of this.treeChildren(entityId, parent)) {
+        nodes.push({ record: child, parentRecordId: parent, depth: level, childCount: this.treeChildren(entityId, child.recordId).length });
+        if (level < depth) visit(child.recordId, level + 1);
+      }
+    };
+    visit(root, 1);
+    return this.previewPage(nodes, payload, `tree:${entityId}:${root}:${depth}`);
+  }
+
+  /** A move in a declared hierarchy: the parent, then the siblings numbered afresh with the record in place. */
+  private moveRecord(payload: Record<string, unknown>): DesktopMutationView {
+    const idempotencyKey = requiredString(payload, 'idempotencyKey');
+    const entityId = requiredString(payload, 'entityId');
+    const recordId = requiredString(payload, 'recordId');
+    const expectedRecordVersion = requiredNumber(payload, 'expectedRecordVersion');
+    const parent = typeof payload.parentRecordId === 'string' ? payload.parentRecordId : null;
+    const before = typeof payload.beforeRecordId === 'string' ? payload.beforeRecordId : null;
+    return this.mutate('data.moveRecord', idempotencyKey, JSON.stringify(payload), () => {
+      const entity = requireEntity(this.session, entityId);
+      const hierarchy = entity.hierarchy;
+      if (!hierarchy) throw new WorkbenchHostError('hierarchy-not-declared', 'This record type declares no hierarchy.');
+      const record = this.session.records.find(candidate => candidate.entityId === entityId && candidate.recordId === recordId);
+      if (record === undefined) throw new WorkbenchHostError('record-missing', 'The record no longer exists.');
+      if (record.recordVersion !== expectedRecordVersion) throw new WorkbenchHostError('version-conflict', 'The record changed. Refresh and try again.');
+      for (let up: string | null = parent; up !== null;) {
+        if (up === recordId) throw new WorkbenchHostError('hierarchy-cycle', `${recordId} cannot sit under its own descendant.`);
+        const next = this.session.records.find(candidate => candidate.entityId === entityId && candidate.recordId === up);
+        up = (next?.values[hierarchy.parentFieldId] as string | null | undefined) ?? null;
+      }
+      record.values[hierarchy.parentFieldId] = parent;
+      record.referenceLabels = { ...record.referenceLabels, [hierarchy.parentFieldId]: parent === null ? null
+        : String(this.session.records.find(candidate => candidate.recordId === parent)?.values[entity.fields[0].fieldId] ?? parent) };
+      record.recordVersion += 1;
+      if (hierarchy.orderFieldId !== null) {
+        const siblings = this.treeChildren(entityId, parent).filter(candidate => candidate.recordId !== recordId);
+        const at = before === null ? siblings.length : siblings.findIndex(candidate => candidate.recordId === before);
+        siblings.splice(at < 0 ? siblings.length : at, 0, record);
+        siblings.forEach((sibling, index) => {
+          if (sibling.values[hierarchy.orderFieldId!] !== (index + 1) * 1024) {
+            sibling.values[hierarchy.orderFieldId!] = (index + 1) * 1024;
+            if (sibling !== record) sibling.recordVersion += 1;
+          }
+        });
+      }
+      return this.advance('data', `Move ${entity.displayName}`, 'data.setField');
+    });
   }
 
   private setFields(payload: Record<string, unknown>): DesktopMutationView {

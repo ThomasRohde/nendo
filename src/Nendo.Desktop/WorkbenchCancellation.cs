@@ -39,6 +39,7 @@ internal static partial class WorkbenchMethods
         DataDeleteRecord,
         DataSetField,
         DataSetFields,
+        DataMoveRecord,
         DataExecuteCommand,
         DataGetReceipt,
         DataQueryRecords,

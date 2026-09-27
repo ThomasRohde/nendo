@@ -274,6 +274,20 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
             entityId, recordId, expectedRecordVersion, values,
             new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "surface"), expectedTargetVersions), cancellationToken), cancellationToken, origin);
 
+    internal Task<DesktopMutationView> MoveRecordAsync(
+        string entityId,
+        string recordId,
+        long expectedRecordVersion,
+        string? parentRecordId,
+        long? expectedParentVersion,
+        string? beforeRecordId,
+        string idempotencyKey,
+        CancellationToken cancellationToken = default,
+        string? origin = null) =>
+        MutateAsync(async service => (await service.MoveRecordAsync(new NendoMoveRecordRequest(
+            entityId, recordId, expectedRecordVersion, parentRecordId, expectedParentVersion, beforeRecordId,
+            new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "surface")), cancellationToken)).Applied, cancellationToken, origin);
+
     internal async Task<DesktopMutationView> ExecuteCommandAsync(
         string commandId,
         string recordId,

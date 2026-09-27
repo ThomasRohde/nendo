@@ -78,6 +78,14 @@ The first MVP should provide:
 - accessible names, roles, errors and focus;
 - stable semantic test targets based on entity, field and record IDs.
 
+**An outline for a declared hierarchy** ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)).
+A record type that declares a hierarchy opens as an outline, with a switch to the flat
+table. The outline is a pinned first column: each record indented by its depth, a toggle
+and a child count on a record with children, and "Show more" where a level has more than
+the 200 read. Enter or Space opens or closes the focused record. Move up, Move down, Indent
+and Outdent — or Alt+Shift and an arrow — move it with `data.moveRecord`; a move that would
+pass siblings not yet read is not offered. The other columns edit as in the table.
+
 Saved views are desirable, but they are secondary to correct editing. The MVP may ship one default view plus one saved custom view per entity before it supports a general view-management system.
 
 ## 6. Field presentations
@@ -119,6 +127,7 @@ data.queryRecords
 data.createRecord
 data.setField
 data.setFields
+data.moveRecord
 data.deleteRecord
 data.executeCommand
 ```

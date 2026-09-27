@@ -1,6 +1,6 @@
 import type { ApplicationPlan, EntitySnapshot, RecordPlan, RecordSnapshot, SurfaceNodePlan, UiNodeSnapshot } from './host';
 
-export type PreviewFixtureName = 'idea' | 'decision';
+export type PreviewFixtureName = 'idea' | 'decision' | 'tree';
 
 export interface PreviewFixture {
   fileName: string;
@@ -11,17 +11,74 @@ export interface PreviewFixture {
 }
 
 export function previewFixture(name: PreviewFixtureName): PreviewFixture {
-  return name === 'decision' ? decisionLogFixture() : ideaGardenFixture();
+  return name === 'decision' ? decisionLogFixture() : name === 'tree' ? capabilityTreeFixture() : ideaGardenFixture();
 }
 
 export function previewFixtureName(value: string | null): PreviewFixtureName {
-  return value === 'decision' ? 'decision' : 'idea';
+  return value === 'decision' ? 'decision' : value === 'tree' ? 'tree' : 'idea';
 }
 
 export function previewFixtureForEntity(entityId: string): PreviewFixture | null {
   if (entityId === 'entity.idea') return ideaGardenFixture();
   if (entityId === 'entity.decision') return decisionLogFixture();
+  if (entityId === 'entity.capability') return capabilityTreeFixture();
   return null;
+}
+
+/**
+ * A record type that declares a hierarchy (ADR-0019), for Studio's outline: three levels of
+ * capabilities, one parent with more children than the others, and one child with no order.
+ */
+function capabilityTreeFixture(): PreviewFixture {
+  const entity: EntitySnapshot = {
+    entityId: 'entity.capability',
+    displayName: 'Capability',
+    hierarchy: { parentFieldId: 'field.capability.parent', orderFieldId: 'field.capability.order' },
+    fields: [
+      field('field.capability.name', 'Name', 'text', true, 'singleLine'),
+      { ...field('field.capability.parent', 'Part of', 'reference', false, null as unknown as string),
+        reference: { targetEntityId: 'entity.capability', labelFieldId: 'field.capability.name' } },
+      field('field.capability.order', 'Order', 'integer', false, null as unknown as string),
+      field('field.capability.status', 'Status', 'text', false, 'singleChoice', ['Proposed', 'Active', 'Retiring']),
+    ],
+  };
+  const rows: Array<[string, string, string | null, number | null, string]> = [
+    ['cap-strategy', 'Strategy & governance', null, 1024, 'Active'],
+    ['cap-planning', 'Enterprise planning', 'cap-strategy', 1024, 'Active'],
+    ['cap-portfolio', 'Portfolio planning', 'cap-planning', 1024, 'Active'],
+    ['cap-performance', 'Performance management', 'cap-planning', 2048, 'Proposed'],
+    ['cap-risk', 'Risk & compliance', 'cap-strategy', 2048, 'Active'],
+    ['cap-customer', 'Customer & market', null, 2048, 'Active'],
+    ['cap-insight', 'Customer insight', 'cap-customer', 1024, 'Active'],
+    ['cap-brand', 'Brand management', 'cap-customer', 2048, 'Active'],
+    ['cap-service', 'Customer service', 'cap-customer', 3072, 'Active'],
+    ['cap-loyalty', 'Loyalty programmes', 'cap-customer', null, 'Proposed'],
+    ['cap-operations', 'Operations & supply', null, 3072, 'Retiring'],
+  ];
+  const records: RecordSnapshot[] = rows.map(([id, name, parent, order, status]) => ({
+    ...record(entity.entityId, id, {
+      'field.capability.name': name, 'field.capability.parent': parent, 'field.capability.order': order, 'field.capability.status': status,
+    }),
+    referenceLabels: { 'field.capability.parent': rows.find(row => row[0] === parent)?.[1] ?? null },
+  }));
+  return fixture(
+    'Capabilities.nendo',
+    entity,
+    records,
+    ['surface.capability.form', 'surface.capability.list', 'surface.capability.board'],
+    ['node.capability.form.root', 'node.capability.list.root', 'node.capability.board.root'],
+    {
+      formTitle: 'Capability',
+      listTitle: 'All capabilities',
+      boardTitle: 'Capabilities by status',
+      formFields: entity.fields.map((candidate) => candidate.fieldId),
+      listFields: ['field.capability.name', 'field.capability.status'],
+      groupField: 'field.capability.status',
+      cardFields: ['field.capability.name'],
+      groups: ['Proposed', 'Active', 'Retiring'],
+      command: { nodeId: 'command.capability.activate', label: 'Activate', fieldId: 'field.capability.status', value: 'Active' },
+    },
+  );
 }
 
 function ideaGardenFixture(): PreviewFixture {

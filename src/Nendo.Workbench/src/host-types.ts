@@ -33,6 +33,8 @@ export interface EntitySnapshot {
   entityId: string;
   retired?: boolean;
   displayName: string;
+  /** The record type's declared hierarchy (ADR-0019), or null/absent when it declares none. */
+  hierarchy?: { parentFieldId: string; orderFieldId: string | null } | null;
   fields: Array<{
     fieldId: string;
     displayName: string;

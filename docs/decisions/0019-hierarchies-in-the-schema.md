@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-27
-- **Delivery:** Stages 1 (the cost experiment), 2 (declaration, cycle rule, move, MCP), 3 (tree read, `descendantOf`, `records.tree`) and 4 (subtree aggregates) done 2026-09-27; stages 5–7 not started. Proposed and accepted the same day, after the owner settled the open questions
+- **Delivery:** Stages 1 (the cost experiment), 2 (declaration, cycle rule, move, MCP), 3 (tree read, `descendantOf`, `records.tree`), 4 (subtree aggregates) and 5 (the Studio outline) done 2026-09-27; stages 6–7 not started. Proposed and accepted the same day, after the owner settled the open questions
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** The code survey in Context (2026-09-27) and the Capability Atlas review (W-072, planner findings F-154 to F-162). The costs were measured after acceptance as delivery stage 1, and every target was met; see the Stage 1 note
@@ -345,6 +345,35 @@ hierarchy; one past the bound makes the calculation an error and the tree read a
 `descendantOf` refuse; the wire format and unchanged canonical bytes). Ignoring
 `includeSelf` failed with `Expected:<5>. Actual:<4>` and ignoring `acrossSubtree` with
 `Expected:<4>. Actual:<1>`.
+
+## Stage 5 note — 2026-09-27: the Studio outline
+
+Studio › Data opens a record type that declares a hierarchy as an outline, with a Table
+switch beside it. The outline is a pinned first column in the same AG Grid Community table:
+each row indented by its depth, a toggle on a record with children, and a count of them.
+Every other column stays editable in place. Details the code settled:
+
+- **One level at a time.** The outline reads the top level, and each record's children when
+  it is opened, through `data.treeRecords` at depth 1 in pages of 200; a level with more
+  shows a "Show more" row. It reads again when the file's change sequence moves.
+- **The move.** The bridge gains `data.moveRecord`, which calls the Engine's
+  `MoveRecordAsync`, so the cycle rule and the renumbering are the Engine's. Buttons and
+  **Alt+Shift+arrow** move the focused record: up and down swap with a sibling, right
+  makes it the last child of the sibling above, left places it after its parent. Alt and an
+  arrow alone stay the app's Back and Forward. A move past siblings not yet read is not
+  offered, so a record never lands out of sight. Enter or Space opens or closes a record.
+- **Not here.** Moving by pointer, `reorder`, find-opens-ancestors and the page past 100 in
+  a surface belong to the outline surface (stage 6). A custom view's actor may not call
+  `data.moveRecord`; whether it may is decided with stage 6.
+
+Evidence: `scripts/outline-model.test.mjs` (the rows depth-first with the "more" row, each
+move's target and its refusals, the versions a move carries). Agent-observed in headless Edge
+against the Workbench preview's `tree` fixture: each of the four moves by keyboard gave the
+order and the indentation expected (20 px a level, measured as the cell's padding), focus
+stayed on the moved record, Enter closed an open record, the colours came from tokens in
+both themes, and the page logged no error. The Desktop half — the bridge method reaching
+the Engine — is covered by `WorkbenchCancellationTests` for its thread only; the move
+itself is the Engine's, under `HierarchyTests`.
 
 ## Consequences
 

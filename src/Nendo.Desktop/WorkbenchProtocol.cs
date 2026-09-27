@@ -31,6 +31,7 @@ internal static partial class WorkbenchMethods
     internal const string DataBucketAggregateRecords = "data.bucketAggregateRecords";
     internal const string DataCellAggregateRecords = "data.cellAggregateRecords";
     internal const string DataTreeRecords = "data.treeRecords";
+    internal const string DataMoveRecord = "data.moveRecord";
     internal const string HealthVerify = "health.verify";
     internal const string HistoryCompensate = "history.compensate";
     internal const string AppearanceSet = "appearance.set";
@@ -142,6 +143,15 @@ internal sealed record SetFieldsPayload(
     IReadOnlyDictionary<string, JsonElement> Values,
     string IdempotencyKey,
     IReadOnlyDictionary<string, long>? ExpectedTargetVersions = null);
+
+internal sealed record MoveRecordPayload(
+    string EntityId,
+    string RecordId,
+    long ExpectedRecordVersion,
+    string? ParentRecordId,
+    long? ExpectedParentVersion,
+    string? BeforeRecordId,
+    string IdempotencyKey);
 
 internal sealed record CanonicalMutationPayload(
     string IdempotencyKey,
@@ -357,6 +367,7 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.DataDeleteRecord => await DeleteGenericRecordAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataSetField => await SetGenericFieldAsync(payload, cancellationToken),
                     WorkbenchMethods.DataSetFields => await SetGenericFieldsAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataMoveRecord => await MoveGenericRecordAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataExecuteCommand => await ExecuteGenericCommandAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataGetReceipt => await _session.GetMutationReceiptAsync(RequiredString(payload, "idempotencyKey", 200), false, cancellationToken),
                     WorkbenchMethods.CompensationGetReceipt => await _session.GetMutationReceiptAsync(RequiredString(payload, "idempotencyKey", 200), true, cancellationToken),
@@ -552,6 +563,17 @@ internal sealed partial class WorkbenchProtocolHandler
         return await _session.SetFieldsAsync(request.EntityId, request.RecordId, request.ExpectedRecordVersion,
             request.Values.ToDictionary(pair => pair.Key, pair => (object?)pair.Value.Clone(), StringComparer.Ordinal),
             request.IdempotencyKey, cancellationToken, request.ExpectedTargetVersions, writer);
+    }
+
+    /// <summary>A move in a declared hierarchy (ADR-0019), from Studio's outline.</summary>
+    private async Task<DesktopMutationView> MoveGenericRecordAsync(
+        JsonElement payload,
+        string? writer,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<MoveRecordPayload>(payload);
+        return await _session.MoveRecordAsync(request.EntityId, request.RecordId, request.ExpectedRecordVersion,
+            request.ParentRecordId, request.ExpectedParentVersion, request.BeforeRecordId, request.IdempotencyKey, cancellationToken, writer);
     }
 
     private async Task<DesktopMutationView> ExecuteGenericCommandAsync(
