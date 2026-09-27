@@ -57,13 +57,22 @@ socket.addEventListener('message', event => {
   const value = JSON.parse(event.data);
   const item = pending.get(value.id); if (!item) return;
   pending.delete(value.id); clearTimeout(item.timer);
-  if (value.error) item.reject(new Error(value.error.message)); else item.resolve(value.result);
+  if (value.error) item.reject(item.refusal(value.error.message)); else item.resolve(value.result);
 });
+// A refusal names the method, the session and the step that sent it: the handler above runs on
+// the socket's stack, which says nothing about which step of the journey was refused.
 function command(method, params = {}, sessionId, timeout = 15000) {
+  const caller = new Error();
+  const refusal = message => {
+    const error = new Error(`${message} (${method}${sessionId ? ' in session ' + sessionId : ''})`);
+    error.cdpMessage = message;
+    error.stack = [error.message, ...caller.stack.split('\n').slice(1)].join('\n');
+    return error;
+  };
   return new Promise((resolve, reject) => {
     const id = ++next;
-    const timer = setTimeout(() => { pending.delete(id); reject(new Error('CDP timed out: ' + method)); }, timeout);
-    pending.set(id, { resolve, reject, timer });
+    const timer = setTimeout(() => { pending.delete(id); reject(refusal('CDP timed out')); }, timeout);
+    pending.set(id, { resolve, reject, timer, refusal });
     socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
   });
 }
@@ -464,12 +473,16 @@ try {
   const countRows = stateRows.filter(item => item.description.startsWith('Keep count')).length;
   assert(countRows === 1 && stateRows.length === 2 && kept.writes.every(write => write.version === 1),
     'Three writes to one key sent together did not reach the file as one, or History does not name the package: ' + JSON.stringify(stateRows.map(item => item.description)));
-  await inFrame(keeperFrame, 'location.reload()').catch(() => {});
+  // The document about to go is marked, and only a ready document without the mark counts as
+  // reloaded. reload() returns before the page unloads, so the old document can still answer
+  // "ready"; the next evaluate then landed mid-navigation and failed with "Cannot find default
+  // execution context" (about one run in six under load, 2026-09-27).
+  await inFrame(keeperFrame, 'window.journeyBeforeReload = true; location.reload()').catch(() => {});
   const reloaded = await waitFor(async () => {
     const running = (await frames()).find(f => f.view === 'probe' && f.state === 'running');
     if (!running) return null;
     const session = await frameSession(running.name);
-    return (await inFrame(session, 'probe.state.ready').catch(() => false)) ? session : null;
+    return (await inFrame(session, '!window.journeyBeforeReload && probe.state.ready').catch(() => false)) ? session : null;
   }, 'the probe view after reloading', 30000);
   const restored = await inFrame(reloaded, `(async () => ({ layout: await nendo.state.get('layout'), keys: await nendo.state.keys() }))()`, 30000);
   assert(restored.layout?.value?.zoom === 2 && restored.layout.value.pinned?.join() === 't1' && restored.keys.map(entry => entry.key).join() === 'count,layout',
