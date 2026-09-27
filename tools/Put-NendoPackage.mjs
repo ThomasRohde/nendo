@@ -2,7 +2,10 @@
 // a person accepts (ADR-0013, 2026-09-25). The folder holds a nendo-package.json and the
 // package's files; the manifest itself is not stored, because the package row holds it.
 //
-//   node tools/Put-NendoPackage.mjs <folder> [--application <applicationId>] [--title <title>] [--dry-run] [--accept]
+//   node tools/Put-NendoPackage.mjs <folder> [--application <applicationId>] [--endpoint <url>] [--title <title>] [--dry-run] [--accept]
+//
+// --endpoint names a Nendo by its MCP address, for one on a fixed port, which publishes no
+// discovery entry.
 //
 // Only what differs from the package the file already carries is proposed, and every put
 // and removal names the content it replaces, so a proposal prepared against an older
@@ -30,7 +33,7 @@ function fail(message) {
 
 const args = process.argv.slice(2);
 const option = name => { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : undefined; };
-const folder = args.find((value, index) => !value.startsWith('--') && !['--application', '--title'].includes(args[index - 1]));
+const folder = args.find((value, index) => !value.startsWith('--') && !['--application', '--endpoint', '--title'].includes(args[index - 1]));
 const dryRun = args.includes('--dry-run');
 const accept = args.includes('--accept');
 if (!folder) fail('Name the package folder: node tools/Put-NendoPackage.mjs extensions/gantt');
@@ -55,10 +58,13 @@ async function readPackage() {
 async function connect() {
   const root = path.join(process.env.LOCALAPPDATA ?? '', 'Nendo', 'Mcp', 'active');
   const names = await fs.readdir(root).then(all => all.filter(name => name.endsWith('.json')), () => []);
+  const entries = [];
+  if (option('--endpoint')) entries.push({ endpoint: option('--endpoint') });
+  else for (const name of names) {
+    try { entries.push(JSON.parse(await fs.readFile(path.join(root, name), 'utf8'))); } catch { /* not a discovery entry */ }
+  }
   const candidates = [];
-  for (const name of names) {
-    let entry;
-    try { entry = JSON.parse(await fs.readFile(path.join(root, name), 'utf8')); } catch { continue; }
+  for (const entry of entries) {
     if (!/^http:\/\/127\.0\.0\.1:\d+\/mcp\/?$/.test(entry.endpoint ?? '')) continue;
     const client = createNendoMcpClient(entry, 'nendo-put-package');
     try {

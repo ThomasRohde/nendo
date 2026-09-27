@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';import crypto from 'node:crypto';
+import {labOptions,layoutCapabilities} from '../../extensions/bcm-atlas/layout-profile.js';
+const proof=JSON.parse(fs.readFileSync(new URL('./lab-reference-proof.json',import.meta.url),'utf8'));
+const source=fs.readFileSync(new URL('../../extensions/bcm-atlas/layout.js',import.meta.url),'utf8');const ctx={window:{}};vm.runInNewContext(source,ctx);const engine=ctx.window.BcmLayout;
+const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
+test('engine and full options match the frozen lab reference',()=>{const prefix='window.BcmLayout = (() => { const exports = {};\n',suffix='\nreturn exports; })();\n';assert.ok(source.startsWith(prefix)&&source.endsWith(suffix));assert.equal(hash(source.slice(prefix.length,-suffix.length)),proof.compiledSha256);assert.deepEqual(labOptions,proof.options,'BCM layout options diverged from the reviewed lab preset');});
+for(const c of proof.cases)test('exact lab coordinates: '+c.name,()=>{const result=layoutCapabilities(engine,c.tree,c.mode);const geometry=result.nodes.map(n=>[n.id,n.parentId,n.x,n.y,n.width,n.height]);assert.equal(hash(JSON.stringify(geometry)),c.geometrySha256,'BCM layout coordinates diverged from the lab for '+c.name);assert.equal(result.width,c.width);assert.equal(result.height,c.height);assert.equal(result.nodes.length,c.nodeCount);});

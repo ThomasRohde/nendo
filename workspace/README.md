@@ -10,6 +10,7 @@ The demo files are tracked; the live planner is the owner's data and is ignored.
 | `Nendo graph demo (fitted).nendo` | A small record graph with a view of the [dependency-graph package](../extensions/dependency-graph/README.md). | Yes |
 | `Nendo custom-view demo.nendo` | The first custom-view demo, kept as the shape that slice produced. | Yes |
 | `Nendo Station.nendo` | [Nendo Station](../docs/nendo-station.md), the fourth reference application: a fictional habitat run as an operations room, with the [Systems Lens](../extensions/systems-lens/README.md) schematic. Rebuilt by `tools/Build-NendoStation.mjs` rather than edited. | Yes |
+| `BCM.nendo` | Capability Atlas: a business capability model of the fictional Northstar organisation, 635 capabilities with applications and initiatives, and the [Capability Atlas package](../extensions/bcm-atlas/README.md) in the file. | Yes |
 
 ## Rules
 
@@ -18,8 +19,8 @@ The demo files are tracked; the live planner is the owner's data and is ignored.
   the Nendo application, or the `nendo` MCP server against the file it has open.
 - Host-owned sidecars (`-wal`, `-shm`, journal, write-owner) belong to Nendo while
   it holds a file open. `.gitignore` keeps them out of git; leave them alone.
-- The demo files were built before custom views ran from the file (ADR-0013,
-  2026-09-25). Each view names its package, and no demo file carries one yet, so
+- The older demo files were built before custom views ran from the file (ADR-0013,
+  2026-09-25); only `BCM.nendo` carries its package. Each other view names its package, so
   each view says that its package is not in this file and offers **Add package to
   file…**. Importing the package from its folder under `extensions/` changes the
   file through a proposal you accept; do it in a Duplicate to keep the tracked file

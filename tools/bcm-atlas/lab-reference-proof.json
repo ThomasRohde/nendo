@@ -1,0 +1,1804 @@
+{
+  "source": "BCM layout lab reference v1.0.0, owner-preferred 2026-09-26",
+  "baselineSha256": "af2deaef639c779a03ab3714e2534b28866b9fe33c53d269e97399782881f686",
+  "compiledSha256": "a83017431ab1e821695493ecefa6f1f260264c828d8d9591d4345fb19fa25a5a",
+  "options": {
+    "mode": "compact",
+    "objective": "frame",
+    "aspectRatio": 1.7777777777777777,
+    "leafWidth": 160,
+    "leafHeight": 56,
+    "padding": 8,
+    "headerHeight": 24,
+    "gap": 8,
+    "gridSize": 8
+  },
+  "cases": [
+    {
+      "name": "bank / compact",
+      "mode": "compact",
+      "tree": {
+        "id": "root",
+        "name": "Northstar Mutual — fictional bank",
+        "children": [
+          {
+            "id": "g0",
+            "name": "Customer services",
+            "children": [
+              {
+                "id": "g0.0",
+                "name": "Plan quality"
+              },
+              {
+                "id": "g0.1",
+                "name": "Manage partners"
+              },
+              {
+                "id": "g0.2",
+                "name": "Deliver resources"
+              },
+              {
+                "id": "g0.3",
+                "name": "Monitor services"
+              },
+              {
+                "id": "g0.4",
+                "name": "Assess risk"
+              }
+            ]
+          },
+          {
+            "id": "g1",
+            "name": "Operations",
+            "children": [
+              {
+                "id": "ops-a",
+                "name": "Payments",
+                "children": [
+                  {
+                    "id": "ops-a.0",
+                    "name": "Plan services"
+                  },
+                  {
+                    "id": "ops-a.1",
+                    "name": "Manage risk"
+                  },
+                  {
+                    "id": "ops-a.2",
+                    "name": "Deliver performance"
+                  },
+                  {
+                    "id": "ops-a.3",
+                    "name": "Monitor assets"
+                  },
+                  {
+                    "id": "ops-a.4",
+                    "name": "Assess knowledge"
+                  },
+                  {
+                    "id": "ops-a.5",
+                    "name": "Coordinate channels"
+                  },
+                  {
+                    "id": "ops-a.6",
+                    "name": "Support workforce"
+                  },
+                  {
+                    "id": "ops-a.7",
+                    "name": "Improve demand"
+                  },
+                  {
+                    "id": "ops-a.8",
+                    "name": "Plan capacity"
+                  }
+                ]
+              },
+              {
+                "id": "ops-b",
+                "name": "Lending",
+                "children": [
+                  {
+                    "id": "ops-b.0",
+                    "name": "Plan services"
+                  },
+                  {
+                    "id": "ops-b.1",
+                    "name": "Manage risk"
+                  },
+                  {
+                    "id": "ops-b.2",
+                    "name": "Deliver performance"
+                  },
+                  {
+                    "id": "ops-b.3",
+                    "name": "Monitor assets"
+                  }
+                ]
+              },
+              {
+                "id": "ops-c",
+                "name": "Customer accounts",
+                "children": [
+                  {
+                    "id": "ops-c.0",
+                    "name": "Plan services"
+                  },
+                  {
+                    "id": "ops-c.1",
+                    "name": "Manage risk"
+                  },
+                  {
+                    "id": "ops-c.2",
+                    "name": "Deliver performance"
+                  },
+                  {
+                    "id": "ops-c.3",
+                    "name": "Monitor assets"
+                  },
+                  {
+                    "id": "ops-c.4",
+                    "name": "Assess knowledge"
+                  },
+                  {
+                    "id": "ops-c.5",
+                    "name": "Coordinate channels"
+                  },
+                  {
+                    "id": "ops-c.6",
+                    "name": "Support workforce"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "g2",
+            "name": "Products & markets",
+            "children": [
+              {
+                "id": "g2.0",
+                "name": "Plan quality"
+              },
+              {
+                "id": "g2.1",
+                "name": "Manage partners"
+              },
+              {
+                "id": "g2.2",
+                "name": "Deliver resources"
+              },
+              {
+                "id": "g2.3",
+                "name": "Monitor services"
+              },
+              {
+                "id": "g2.4",
+                "name": "Assess risk"
+              },
+              {
+                "id": "g2.5",
+                "name": "Coordinate performance"
+              },
+              {
+                "id": "g2.6",
+                "name": "Support assets"
+              }
+            ]
+          },
+          {
+            "id": "g3",
+            "name": "Finance",
+            "children": [
+              {
+                "id": "g3.0",
+                "name": "Plan quality"
+              },
+              {
+                "id": "g3.1",
+                "name": "Manage partners"
+              },
+              {
+                "id": "g3.2",
+                "name": "Deliver resources"
+              }
+            ]
+          },
+          {
+            "id": "g4",
+            "name": "People & culture",
+            "children": [
+              {
+                "id": "g4.0",
+                "name": "Plan quality"
+              },
+              {
+                "id": "g4.1",
+                "name": "Manage partners"
+              },
+              {
+                "id": "g4.2",
+                "name": "Deliver resources"
+              },
+              {
+                "id": "g4.3",
+                "name": "Monitor services"
+              },
+              {
+                "id": "g4.4",
+                "name": "Assess risk"
+              },
+              {
+                "id": "g4.5",
+                "name": "Coordinate performance"
+              },
+              {
+                "id": "g4.6",
+                "name": "Support assets"
+              },
+              {
+                "id": "g4.7",
+                "name": "Improve knowledge"
+              },
+              {
+                "id": "g4.8",
+                "name": "Plan channels"
+              }
+            ]
+          },
+          {
+            "id": "g5",
+            "name": "Technology",
+            "children": [
+              {
+                "id": "g5.0",
+                "name": "Plan quality"
+              },
+              {
+                "id": "g5.1",
+                "name": "Manage partners"
+              },
+              {
+                "id": "g5.2",
+                "name": "Deliver resources"
+              },
+              {
+                "id": "g5.3",
+                "name": "Monitor services"
+              },
+              {
+                "id": "g5.4",
+                "name": "Assess risk"
+              },
+              {
+                "id": "g5.5",
+                "name": "Coordinate performance"
+              },
+              {
+                "id": "g5.6",
+                "name": "Support assets"
+              },
+              {
+                "id": "g5.7",
+                "name": "Improve knowledge"
+              },
+              {
+                "id": "g5.8",
+                "name": "Plan channels"
+              },
+              {
+                "id": "g5.9",
+                "name": "Manage workforce"
+              },
+              {
+                "id": "g5.10",
+                "name": "Deliver demand"
+              },
+              {
+                "id": "g5.11",
+                "name": "Monitor capacity"
+              },
+              {
+                "id": "g5.12",
+                "name": "Assess quality"
+              }
+            ]
+          },
+          {
+            "id": "g6",
+            "name": "Risk & assurance",
+            "children": [
+              {
+                "id": "g6.0",
+                "name": "Plan quality"
+              },
+              {
+                "id": "g6.1",
+                "name": "Manage partners"
+              },
+              {
+                "id": "g6.2",
+                "name": "Deliver resources"
+              },
+              {
+                "id": "g6.3",
+                "name": "Monitor services"
+              }
+            ]
+          }
+        ]
+      },
+      "geometrySha256": "1627bd60377dc361fc908153c1491b3aadb5514d38f00e4723765b5cf2b412e0",
+      "width": 1280,
+      "height": 768,
+      "nodeCount": 72
+    },
+    {
+      "name": "bank / ordered",
+      "mode": "ordered",
+      "tree": {
+        "id": "root",
+        "name": "Northstar Mutual — fictional bank",
+        "children": [
+          {
+            "id": "g0",
+            "name": "Customer services",
+            "children": [
+              {
+                "id": "g0.0",
+                "name": "Plan quality"
+              },
+              {
+                "id": "g0.1",
+                "name": "Manage partners"
+              },
+              {
+                "id": "g0.2",
+                "name": "Deliver resources"
+              },
+              {
+                "id": "g0.3",
+                "name": "Monitor services"
+              },
+              {
+                "id": "g0.4",
+                "name": "Assess risk"
+              }
+            ]
+          },
+          {
+            "id": "g1",
+            "name": "Operations",
+            "children": [
+              {
+                "id": "ops-a",
+                "name": "Payments",
+                "children": [
+                  {
+                    "id": "ops-a.0",
+                    "name": "Plan services"
+                  },
+                  {
+                    "id": "ops-a.1",
+                    "name": "Manage risk"
+                  },
+                  {
+                    "id": "ops-a.2",
+                    "name": "Deliver performance"
+                  },
+                  {
+                    "id": "ops-a.3",
+                    "name": "Monitor assets"
+                  },
+                  {
+                    "id": "ops-a.4",
+                    "name": "Assess knowledge"
+                  },
+                  {
+                    "id": "ops-a.5",
+                    "name": "Coordinate channels"
+                  },
+                  {
+                    "id": "ops-a.6",
+                    "name": "Support workforce"
+                  },
+                  {
+                    "id": "ops-a.7",
+                    "name": "Improve demand"
+                  },
+                  {
+                    "id": "ops-a.8",
+                    "name": "Plan capacity"
+                  }
+                ]
+              },
+              {
+                "id": "ops-b",
+                "name": "Lending",
+                "children": [
+                  {
+                    "id": "ops-b.0",
+                    "name": "Plan services"
+                  },
+                  {
+                    "id": "ops-b.1",
+                    "name": "Manage risk"
+                  },
+                  {
+                    "id": "ops-b.2",
+                    "name": "Deliver performance"
+                  },
+                  {
+                    "id": "ops-b.3",
+                    "name": "Monitor assets"
+                  }
+                ]
+              },
+              {
+                "id": "ops-c",
+                "name": "Customer accounts",
+                "children": [
+                  {
+                    "id": "ops-c.0",
+                    "name": "Plan services"
+                  },
+                  {
+                    "id": "ops-c.1",
+                    "name": "Manage risk"
+                  },
+                  {
+                    "id": "ops-c.2",
+                    "name": "Deliver performance"
+                  },
+                  {
+                    "id": "ops-c.3",
+                    "name": "Monitor assets"
+                  },
+                  {
+                    "id": "ops-c.4",
+                    "name": "Assess knowledge"
+                  },
+                  {
+                    "id": "ops-c.5",
+                    "name": "Coordinate channels"
+                  },
+                  {
+                    "id": "ops-c.6",
+                    "name": "Support workforce"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "g2",
+            "name": "Products & markets",
+            "children": [
+              {
+                "id": "g2.0",
+                "name": "Plan quality"
+              },
+              {
+                "id": "g2.1",
+                "name": "Manage partners"
+              },
+              {
+                "id": "g2.2",
+                "name": "Deliver resources"
+              },
+              {
+                "id": "g2.3",
+                "name": "Monitor services"
+              },
+              {
+                "id": "g2.4",
+                "name": "Assess risk"
+              },
+              {
+                "id": "g2.5",
+                "name": "Coordinate performance"
+              },
+              {
+                "id": "g2.6",
+                "name": "Support assets"
+              }
+            ]
+          },
+          {
+            "id": "g3",
+            "name": "Finance",
+            "children": [
+              {
+                "id": "g3.0",
+                "name": "Plan quality"
+              },
+              {
+                "id": "g3.1",
+                "name": "Manage partners"
+              },
+              {
+                "id": "g3.2",
+                "name": "Deliver resources"
+              }
+            ]
+          },
+          {
+            "id": "g4",
+            "name": "People & culture",
+            "children": [
+              {
+                "id": "g4.0",
+                "name": "Plan quality"
+              },
+              {
+                "id": "g4.1",
+                "name": "Manage partners"
+              },
+              {
+                "id": "g4.2",
+                "name": "Deliver resources"
+              },
+              {
+                "id": "g4.3",
+                "name": "Monitor services"
+              },
+              {
+                "id": "g4.4",
+                "name": "Assess risk"
+              },
+              {
+                "id": "g4.5",
+                "name": "Coordinate performance"
+              },
+              {
+                "id": "g4.6",
+                "name": "Support assets"
+              },
+              {
+                "id": "g4.7",
+                "name": "Improve knowledge"
+              },
+              {
+                "id": "g4.8",
+                "name": "Plan channels"
+              }
+            ]
+          },
+          {
+            "id": "g5",
+            "name": "Technology",
+            "children": [
+              {
+                "id": "g5.0",
+                "name": "Plan quality"
+              },
+              {
+                "id": "g5.1",
+                "name": "Manage partners"
+              },
+              {
+                "id": "g5.2",
+                "name": "Deliver resources"
+              },
+              {
+                "id": "g5.3",
+                "name": "Monitor services"
+              },
+              {
+                "id": "g5.4",
+                "name": "Assess risk"
+              },
+              {
+                "id": "g5.5",
+                "name": "Coordinate performance"
+              },
+              {
+                "id": "g5.6",
+                "name": "Support assets"
+              },
+              {
+                "id": "g5.7",
+                "name": "Improve knowledge"
+              },
+              {
+                "id": "g5.8",
+                "name": "Plan channels"
+              },
+              {
+                "id": "g5.9",
+                "name": "Manage workforce"
+              },
+              {
+                "id": "g5.10",
+                "name": "Deliver demand"
+              },
+              {
+                "id": "g5.11",
+                "name": "Monitor capacity"
+              },
+              {
+                "id": "g5.12",
+                "name": "Assess quality"
+              }
+            ]
+          },
+          {
+            "id": "g6",
+            "name": "Risk & assurance",
+            "children": [
+              {
+                "id": "g6.0",
+                "name": "Plan quality"
+              },
+              {
+                "id": "g6.1",
+                "name": "Manage partners"
+              },
+              {
+                "id": "g6.2",
+                "name": "Deliver resources"
+              },
+              {
+                "id": "g6.3",
+                "name": "Monitor services"
+              }
+            ]
+          }
+        ]
+      },
+      "geometrySha256": "ec707ad3c4fd8c3344d9c98592c06f7472299636ca37f82c30a0beb895a8a2dc",
+      "width": 1448,
+      "height": 792,
+      "nodeCount": 72
+    },
+    {
+      "name": "seed137 / compact",
+      "mode": "compact",
+      "tree": {
+        "id": "root",
+        "name": "Synthetic enterprise 137",
+        "children": [
+          {
+            "id": "n1",
+            "name": "Manage performance",
+            "children": [
+              {
+                "id": "n8",
+                "name": "Plan assets",
+                "children": [
+                  {
+                    "id": "n27",
+                    "name": "Monitor knowledge"
+                  },
+                  {
+                    "id": "n28",
+                    "name": "Assess resources"
+                  },
+                  {
+                    "id": "n114",
+                    "name": "Deliver risk"
+                  },
+                  {
+                    "id": "n115",
+                    "name": "Monitor capacity"
+                  },
+                  {
+                    "id": "n116",
+                    "name": "Assess assets"
+                  },
+                  {
+                    "id": "n117",
+                    "name": "Coordinate partners"
+                  }
+                ]
+              },
+              {
+                "id": "n9",
+                "name": "Manage partners",
+                "children": [
+                  {
+                    "id": "n97",
+                    "name": "Manage performance"
+                  },
+                  {
+                    "id": "n98",
+                    "name": "Deliver quality"
+                  },
+                  {
+                    "id": "n99",
+                    "name": "Monitor knowledge"
+                  }
+                ]
+              },
+              {
+                "id": "n10",
+                "name": "Deliver channels"
+              },
+              {
+                "id": "n11",
+                "name": "Monitor services"
+              },
+              {
+                "id": "n12",
+                "name": "Assess demand"
+              },
+              {
+                "id": "n13",
+                "name": "Coordinate performance",
+                "children": [
+                  {
+                    "id": "n29",
+                    "name": "Coordinate workforce"
+                  },
+                  {
+                    "id": "n30",
+                    "name": "Support risk",
+                    "children": []
+                  },
+                  {
+                    "id": "n31",
+                    "name": "Improve capacity"
+                  },
+                  {
+                    "id": "n32",
+                    "name": "Plan assets",
+                    "children": []
+                  },
+                  {
+                    "id": "n33",
+                    "name": "Manage partners"
+                  },
+                  {
+                    "id": "n39",
+                    "name": "Improve knowledge",
+                    "children": [
+                      {
+                        "id": "n58",
+                        "name": "Deliver channels"
+                      },
+                      {
+                        "id": "n59",
+                        "name": "Monitor services"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "n40",
+                    "name": "Plan resources"
+                  },
+                  {
+                    "id": "n41",
+                    "name": "Manage workforce",
+                    "children": [
+                      {
+                        "id": "n76",
+                        "name": "Assess resources"
+                      },
+                      {
+                        "id": "n77",
+                        "name": "Coordinate workforce"
+                      },
+                      {
+                        "id": "n78",
+                        "name": "Support risk"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "n42",
+                    "name": "Deliver risk"
+                  },
+                  {
+                    "id": "n43",
+                    "name": "Monitor capacity"
+                  },
+                  {
+                    "id": "n44",
+                    "name": "Assess assets"
+                  },
+                  {
+                    "id": "n45",
+                    "name": "Coordinate partners",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "n14",
+                "name": "Support quality"
+              },
+              {
+                "id": "n15",
+                "name": "Improve knowledge"
+              },
+              {
+                "id": "n16",
+                "name": "Plan resources",
+                "children": [
+                  {
+                    "id": "n118",
+                    "name": "Support channels"
+                  },
+                  {
+                    "id": "n119",
+                    "name": "Improve services"
+                  },
+                  {
+                    "id": "n120",
+                    "name": "Plan demand"
+                  },
+                  {
+                    "id": "n121",
+                    "name": "Manage performance"
+                  },
+                  {
+                    "id": "n122",
+                    "name": "Deliver quality"
+                  },
+                  {
+                    "id": "n123",
+                    "name": "Monitor knowledge"
+                  },
+                  {
+                    "id": "n124",
+                    "name": "Assess resources"
+                  }
+                ]
+              },
+              {
+                "id": "n17",
+                "name": "Manage workforce",
+                "children": [
+                  {
+                    "id": "n22",
+                    "name": "Support channels"
+                  },
+                  {
+                    "id": "n23",
+                    "name": "Improve services"
+                  }
+                ]
+              },
+              {
+                "id": "n18",
+                "name": "Deliver risk",
+                "children": [
+                  {
+                    "id": "n34",
+                    "name": "Deliver channels"
+                  },
+                  {
+                    "id": "n35",
+                    "name": "Monitor services"
+                  },
+                  {
+                    "id": "n36",
+                    "name": "Assess demand",
+                    "children": [
+                      {
+                        "id": "n74",
+                        "name": "Deliver quality"
+                      },
+                      {
+                        "id": "n75",
+                        "name": "Monitor knowledge"
+                      },
+                      {
+                        "id": "n87",
+                        "name": "Improve knowledge"
+                      },
+                      {
+                        "id": "n88",
+                        "name": "Plan resources"
+                      },
+                      {
+                        "id": "n89",
+                        "name": "Manage workforce"
+                      },
+                      {
+                        "id": "n90",
+                        "name": "Deliver risk"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "n37",
+                    "name": "Coordinate performance",
+                    "children": [
+                      {
+                        "id": "n91",
+                        "name": "Monitor capacity"
+                      },
+                      {
+                        "id": "n92",
+                        "name": "Assess assets"
+                      },
+                      {
+                        "id": "n93",
+                        "name": "Coordinate partners"
+                      },
+                      {
+                        "id": "n94",
+                        "name": "Support channels"
+                      },
+                      {
+                        "id": "n95",
+                        "name": "Improve services"
+                      },
+                      {
+                        "id": "n96",
+                        "name": "Plan demand"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "n67",
+                    "name": "Monitor capacity"
+                  },
+                  {
+                    "id": "n68",
+                    "name": "Assess assets"
+                  },
+                  {
+                    "id": "n69",
+                    "name": "Coordinate partners"
+                  },
+                  {
+                    "id": "n70",
+                    "name": "Support channels"
+                  },
+                  {
+                    "id": "n71",
+                    "name": "Improve services"
+                  },
+                  {
+                    "id": "n72",
+                    "name": "Plan demand"
+                  },
+                  {
+                    "id": "n73",
+                    "name": "Manage performance"
+                  }
+                ]
+              },
+              {
+                "id": "n19",
+                "name": "Monitor capacity",
+                "children": [
+                  {
+                    "id": "n51",
+                    "name": "Monitor knowledge",
+                    "children": [
+                      {
+                        "id": "n79",
+                        "name": "Improve capacity"
+                      },
+                      {
+                        "id": "n80",
+                        "name": "Plan assets"
+                      },
+                      {
+                        "id": "n81",
+                        "name": "Manage partners"
+                      },
+                      {
+                        "id": "n82",
+                        "name": "Deliver channels"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "n52",
+                    "name": "Assess resources",
+                    "children": [
+                      {
+                        "id": "n105",
+                        "name": "Manage partners"
+                      },
+                      {
+                        "id": "n106",
+                        "name": "Deliver channels"
+                      },
+                      {
+                        "id": "n107",
+                        "name": "Monitor services"
+                      },
+                      {
+                        "id": "n108",
+                        "name": "Assess demand"
+                      },
+                      {
+                        "id": "n109",
+                        "name": "Coordinate performance"
+                      },
+                      {
+                        "id": "n110",
+                        "name": "Support quality"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "n53",
+                    "name": "Coordinate workforce"
+                  },
+                  {
+                    "id": "n54",
+                    "name": "Support risk",
+                    "children": []
+                  },
+                  {
+                    "id": "n55",
+                    "name": "Improve capacity",
+                    "children": []
+                  },
+                  {
+                    "id": "n56",
+                    "name": "Plan assets"
+                  },
+                  {
+                    "id": "n57",
+                    "name": "Manage partners"
+                  },
+                  {
+                    "id": "n100",
+                    "name": "Assess resources"
+                  },
+                  {
+                    "id": "n101",
+                    "name": "Coordinate workforce"
+                  },
+                  {
+                    "id": "n102",
+                    "name": "Support risk"
+                  },
+                  {
+                    "id": "n103",
+                    "name": "Improve capacity"
+                  },
+                  {
+                    "id": "n104",
+                    "name": "Plan assets"
+                  }
+                ]
+              },
+              {
+                "id": "n20",
+                "name": "Assess assets"
+              },
+              {
+                "id": "n21",
+                "name": "Coordinate partners"
+              },
+              {
+                "id": "n65",
+                "name": "Manage workforce"
+              },
+              {
+                "id": "n66",
+                "name": "Deliver risk"
+              }
+            ]
+          },
+          {
+            "id": "n2",
+            "name": "Deliver quality",
+            "children": [
+              {
+                "id": "n24",
+                "name": "Plan demand",
+                "children": []
+              },
+              {
+                "id": "n25",
+                "name": "Manage performance"
+              },
+              {
+                "id": "n26",
+                "name": "Deliver quality"
+              },
+              {
+                "id": "n38",
+                "name": "Support quality",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "n3",
+            "name": "Monitor knowledge"
+          },
+          {
+            "id": "n4",
+            "name": "Assess resources"
+          },
+          {
+            "id": "n5",
+            "name": "Coordinate workforce"
+          },
+          {
+            "id": "n6",
+            "name": "Support risk",
+            "children": [
+              {
+                "id": "n46",
+                "name": "Support channels",
+                "children": [
+                  {
+                    "id": "n85",
+                    "name": "Coordinate performance"
+                  },
+                  {
+                    "id": "n86",
+                    "name": "Support quality"
+                  },
+                  {
+                    "id": "n111",
+                    "name": "Improve knowledge"
+                  },
+                  {
+                    "id": "n112",
+                    "name": "Plan resources"
+                  }
+                ]
+              },
+              {
+                "id": "n47",
+                "name": "Improve services"
+              },
+              {
+                "id": "n48",
+                "name": "Plan demand"
+              },
+              {
+                "id": "n49",
+                "name": "Manage performance"
+              },
+              {
+                "id": "n50",
+                "name": "Deliver quality"
+              },
+              {
+                "id": "n60",
+                "name": "Assess demand"
+              },
+              {
+                "id": "n61",
+                "name": "Coordinate performance"
+              },
+              {
+                "id": "n62",
+                "name": "Support quality"
+              },
+              {
+                "id": "n63",
+                "name": "Improve knowledge"
+              },
+              {
+                "id": "n64",
+                "name": "Plan resources"
+              },
+              {
+                "id": "n83",
+                "name": "Monitor services"
+              },
+              {
+                "id": "n84",
+                "name": "Assess demand"
+              }
+            ]
+          },
+          {
+            "id": "n7",
+            "name": "Improve capacity"
+          },
+          {
+            "id": "n113",
+            "name": "Manage workforce"
+          },
+          {
+            "id": "n125",
+            "name": "Coordinate workforce"
+          },
+          {
+            "id": "n126",
+            "name": "Support risk"
+          },
+          {
+            "id": "n127",
+            "name": "Improve capacity"
+          },
+          {
+            "id": "n128",
+            "name": "Plan assets"
+          },
+          {
+            "id": "n129",
+            "name": "Manage partners"
+          },
+          {
+            "id": "n130",
+            "name": "Deliver channels"
+          }
+        ]
+      },
+      "geometrySha256": "19f683d036a52d8cf999e3669ebd6f74ae656077bb5db43d71535c46d37571db",
+      "width": 1920,
+      "height": 1104,
+      "nodeCount": 131
+    },
+    {
+      "name": "seed137 / ordered",
+      "mode": "ordered",
+      "tree": {
+        "id": "root",
+        "name": "Synthetic enterprise 137",
+        "children": [
+          {
+            "id": "n1",
+            "name": "Manage performance",
+            "children": [
+              {
+                "id": "n8",
+                "name": "Plan assets",
+                "children": [
+                  {
+                    "id": "n27",
+                    "name": "Monitor knowledge"
+                  },
+                  {
+                    "id": "n28",
+                    "name": "Assess resources"
+                  },
+                  {
+                    "id": "n114",
+                    "name": "Deliver risk"
+                  },
+                  {
+                    "id": "n115",
+                    "name": "Monitor capacity"
+                  },
+                  {
+                    "id": "n116",
+                    "name": "Assess assets"
+                  },
+                  {
+                    "id": "n117",
+                    "name": "Coordinate partners"
+                  }
+                ]
+              },
+              {
+                "id": "n9",
+                "name": "Manage partners",
+                "children": [
+                  {
+                    "id": "n97",
+                    "name": "Manage performance"
+                  },
+                  {
+                    "id": "n98",
+                    "name": "Deliver quality"
+                  },
+                  {
+                    "id": "n99",
+                    "name": "Monitor knowledge"
+                  }
+                ]
+              },
+              {
+                "id": "n10",
+                "name": "Deliver channels"
+              },
+              {
+                "id": "n11",
+                "name": "Monitor services"
+              },
+              {
+                "id": "n12",
+                "name": "Assess demand"
+              },
+              {
+                "id": "n13",
+                "name": "Coordinate performance",
+                "children": [
+                  {
+                    "id": "n29",
+                    "name": "Coordinate workforce"
+                  },
+                  {
+                    "id": "n30",
+                    "name": "Support risk",
+                    "children": []
+                  },
+                  {
+                    "id": "n31",
+                    "name": "Improve capacity"
+                  },
+                  {
+                    "id": "n32",
+                    "name": "Plan assets",
+                    "children": []
+                  },
+                  {
+                    "id": "n33",
+                    "name": "Manage partners"
+                  },
+                  {
+                    "id": "n39",
+                    "name": "Improve knowledge",
+                    "children": [
+                      {
+                        "id": "n58",
+                        "name": "Deliver channels"
+                      },
+                      {
+                        "id": "n59",
+                        "name": "Monitor services"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "n40",
+                    "name": "Plan resources"
+                  },
+                  {
+                    "id": "n41",
+                    "name": "Manage workforce",
+                    "children": [
+                      {
+                        "id": "n76",
+                        "name": "Assess resources"
+                      },
+                      {
+                        "id": "n77",
+                        "name": "Coordinate workforce"
+                      },
+                      {
+                        "id": "n78",
+                        "name": "Support risk"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "n42",
+                    "name": "Deliver risk"
+                  },
+                  {
+                    "id": "n43",
+                    "name": "Monitor capacity"
+                  },
+                  {
+                    "id": "n44",
+                    "name": "Assess assets"
+                  },
+                  {
+                    "id": "n45",
+                    "name": "Coordinate partners",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "n14",
+                "name": "Support quality"
+              },
+              {
+                "id": "n15",
+                "name": "Improve knowledge"
+              },
+              {
+                "id": "n16",
+                "name": "Plan resources",
+                "children": [
+                  {
+                    "id": "n118",
+                    "name": "Support channels"
+                  },
+                  {
+                    "id": "n119",
+                    "name": "Improve services"
+                  },
+                  {
+                    "id": "n120",
+                    "name": "Plan demand"
+                  },
+                  {
+                    "id": "n121",
+                    "name": "Manage performance"
+                  },
+                  {
+                    "id": "n122",
+                    "name": "Deliver quality"
+                  },
+                  {
+                    "id": "n123",
+                    "name": "Monitor knowledge"
+                  },
+                  {
+                    "id": "n124",
+                    "name": "Assess resources"
+                  }
+                ]
+              },
+              {
+                "id": "n17",
+                "name": "Manage workforce",
+                "children": [
+                  {
+                    "id": "n22",
+                    "name": "Support channels"
+                  },
+                  {
+                    "id": "n23",
+                    "name": "Improve services"
+                  }
+                ]
+              },
+              {
+                "id": "n18",
+                "name": "Deliver risk",
+                "children": [
+                  {
+                    "id": "n34",
+                    "name": "Deliver channels"
+                  },
+                  {
+                    "id": "n35",
+                    "name": "Monitor services"
+                  },
+                  {
+                    "id": "n36",
+                    "name": "Assess demand",
+                    "children": [
+                      {
+                        "id": "n74",
+                        "name": "Deliver quality"
+                      },
+                      {
+                        "id": "n75",
+                        "name": "Monitor knowledge"
+                      },
+                      {
+                        "id": "n87",
+                        "name": "Improve knowledge"
+                      },
+                      {
+                        "id": "n88",
+                        "name": "Plan resources"
+                      },
+                      {
+                        "id": "n89",
+                        "name": "Manage workforce"
+                      },
+                      {
+                        "id": "n90",
+                        "name": "Deliver risk"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "n37",
+                    "name": "Coordinate performance",
+                    "children": [
+                      {
+                        "id": "n91",
+                        "name": "Monitor capacity"
+                      },
+                      {
+                        "id": "n92",
+                        "name": "Assess assets"
+                      },
+                      {
+                        "id": "n93",
+                        "name": "Coordinate partners"
+                      },
+                      {
+                        "id": "n94",
+                        "name": "Support channels"
+                      },
+                      {
+                        "id": "n95",
+                        "name": "Improve services"
+                      },
+                      {
+                        "id": "n96",
+                        "name": "Plan demand"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "n67",
+                    "name": "Monitor capacity"
+                  },
+                  {
+                    "id": "n68",
+                    "name": "Assess assets"
+                  },
+                  {
+                    "id": "n69",
+                    "name": "Coordinate partners"
+                  },
+                  {
+                    "id": "n70",
+                    "name": "Support channels"
+                  },
+                  {
+                    "id": "n71",
+                    "name": "Improve services"
+                  },
+                  {
+                    "id": "n72",
+                    "name": "Plan demand"
+                  },
+                  {
+                    "id": "n73",
+                    "name": "Manage performance"
+                  }
+                ]
+              },
+              {
+                "id": "n19",
+                "name": "Monitor capacity",
+                "children": [
+                  {
+                    "id": "n51",
+                    "name": "Monitor knowledge",
+                    "children": [
+                      {
+                        "id": "n79",
+                        "name": "Improve capacity"
+                      },
+                      {
+                        "id": "n80",
+                        "name": "Plan assets"
+                      },
+                      {
+                        "id": "n81",
+                        "name": "Manage partners"
+                      },
+                      {
+                        "id": "n82",
+                        "name": "Deliver channels"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "n52",
+                    "name": "Assess resources",
+                    "children": [
+                      {
+                        "id": "n105",
+                        "name": "Manage partners"
+                      },
+                      {
+                        "id": "n106",
+                        "name": "Deliver channels"
+                      },
+                      {
+                        "id": "n107",
+                        "name": "Monitor services"
+                      },
+                      {
+                        "id": "n108",
+                        "name": "Assess demand"
+                      },
+                      {
+                        "id": "n109",
+                        "name": "Coordinate performance"
+                      },
+                      {
+                        "id": "n110",
+                        "name": "Support quality"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "n53",
+                    "name": "Coordinate workforce"
+                  },
+                  {
+                    "id": "n54",
+                    "name": "Support risk",
+                    "children": []
+                  },
+                  {
+                    "id": "n55",
+                    "name": "Improve capacity",
+                    "children": []
+                  },
+                  {
+                    "id": "n56",
+                    "name": "Plan assets"
+                  },
+                  {
+                    "id": "n57",
+                    "name": "Manage partners"
+                  },
+                  {
+                    "id": "n100",
+                    "name": "Assess resources"
+                  },
+                  {
+                    "id": "n101",
+                    "name": "Coordinate workforce"
+                  },
+                  {
+                    "id": "n102",
+                    "name": "Support risk"
+                  },
+                  {
+                    "id": "n103",
+                    "name": "Improve capacity"
+                  },
+                  {
+                    "id": "n104",
+                    "name": "Plan assets"
+                  }
+                ]
+              },
+              {
+                "id": "n20",
+                "name": "Assess assets"
+              },
+              {
+                "id": "n21",
+                "name": "Coordinate partners"
+              },
+              {
+                "id": "n65",
+                "name": "Manage workforce"
+              },
+              {
+                "id": "n66",
+                "name": "Deliver risk"
+              }
+            ]
+          },
+          {
+            "id": "n2",
+            "name": "Deliver quality",
+            "children": [
+              {
+                "id": "n24",
+                "name": "Plan demand",
+                "children": []
+              },
+              {
+                "id": "n25",
+                "name": "Manage performance"
+              },
+              {
+                "id": "n26",
+                "name": "Deliver quality"
+              },
+              {
+                "id": "n38",
+                "name": "Support quality",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "n3",
+            "name": "Monitor knowledge"
+          },
+          {
+            "id": "n4",
+            "name": "Assess resources"
+          },
+          {
+            "id": "n5",
+            "name": "Coordinate workforce"
+          },
+          {
+            "id": "n6",
+            "name": "Support risk",
+            "children": [
+              {
+                "id": "n46",
+                "name": "Support channels",
+                "children": [
+                  {
+                    "id": "n85",
+                    "name": "Coordinate performance"
+                  },
+                  {
+                    "id": "n86",
+                    "name": "Support quality"
+                  },
+                  {
+                    "id": "n111",
+                    "name": "Improve knowledge"
+                  },
+                  {
+                    "id": "n112",
+                    "name": "Plan resources"
+                  }
+                ]
+              },
+              {
+                "id": "n47",
+                "name": "Improve services"
+              },
+              {
+                "id": "n48",
+                "name": "Plan demand"
+              },
+              {
+                "id": "n49",
+                "name": "Manage performance"
+              },
+              {
+                "id": "n50",
+                "name": "Deliver quality"
+              },
+              {
+                "id": "n60",
+                "name": "Assess demand"
+              },
+              {
+                "id": "n61",
+                "name": "Coordinate performance"
+              },
+              {
+                "id": "n62",
+                "name": "Support quality"
+              },
+              {
+                "id": "n63",
+                "name": "Improve knowledge"
+              },
+              {
+                "id": "n64",
+                "name": "Plan resources"
+              },
+              {
+                "id": "n83",
+                "name": "Monitor services"
+              },
+              {
+                "id": "n84",
+                "name": "Assess demand"
+              }
+            ]
+          },
+          {
+            "id": "n7",
+            "name": "Improve capacity"
+          },
+          {
+            "id": "n113",
+            "name": "Manage workforce"
+          },
+          {
+            "id": "n125",
+            "name": "Coordinate workforce"
+          },
+          {
+            "id": "n126",
+            "name": "Support risk"
+          },
+          {
+            "id": "n127",
+            "name": "Improve capacity"
+          },
+          {
+            "id": "n128",
+            "name": "Plan assets"
+          },
+          {
+            "id": "n129",
+            "name": "Manage partners"
+          },
+          {
+            "id": "n130",
+            "name": "Deliver channels"
+          }
+        ]
+      },
+      "geometrySha256": "5b5d16e6ca4f6107a02bd4caff796affc65dc0b2c6bf678b9b8f89e45cd4b9de",
+      "width": 2120,
+      "height": 1184,
+      "nodeCount": 131
+    }
+  ]
+}

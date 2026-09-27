@@ -22,7 +22,9 @@ dependencies:
 - [`extensions/systems-lens/`](../extensions/systems-lens/README.md), the Nendo
   Station schematic;
 - [`extensions/gantt/`](../extensions/gantt/README.md), a record set on a time line,
-  which also works on a record page.
+  which also works on a record page;
+- [`extensions/bcm-atlas/`](../extensions/bcm-atlas/README.md), a business capability
+  map over a five-level hierarchy, with editing, carried by `workspace/BCM.nendo`.
 
 ## What a view can do
 
@@ -601,8 +603,10 @@ node tools/Put-NendoPackage.mjs extensions/gantt --dry-run   # say what it would
 The script reads `nendo-package.json` and every other file in the folder, except
 paths with a segment that starts with `.` or is `node_modules`. It finds the
 running Nendo through the files a running Nendo writes under
-`%LOCALAPPDATA%\Nendo\Mcp\active`, and proposes only the files that differ. It
-prints the proposal's title; accept it in Nendo. It never accepts anything.
+`%LOCALAPPDATA%\Nendo\Mcp\active`, or at the address `--endpoint` names, which a
+Nendo on a fixed port needs because it writes no such file. It proposes only the files
+that differ and prints the proposal's title; accept it in Nendo. `--accept` accepts it
+only while that file's agent access is **Unattended**; below that it waits for you.
 
 With more than one Nendo running, name the file by its application ID with
 `--application <applicationId>`. `--title` sets the proposal's title. The script

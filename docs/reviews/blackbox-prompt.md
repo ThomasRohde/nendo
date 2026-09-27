@@ -727,6 +727,21 @@ vocabulary, the examples and the resources — and not from the person.
   the other, and ask the person to group it by a field, hide a status, find an item and
   mark the longest chain. Record what they reported, and whether those choices were still
   there after they reopened the file.
+- Open `workspace/BCM.nendo` and choose Capability map. The fictional model has 635
+  capabilities up to five levels deep. Step Levels through 1 to 5 and All, and compare
+  the cards shown with the counts the view states and with the records Nendo reports.
+  Focus Enterprise enablement at one level, then one of its groups: each must show its
+  immediate children, and the breadcrumbs must lead back. Search for Payroll calculation
+  at two levels: the view must say the match is deeper, and All must reveal it. Type
+  quickly at All levels and record whether typing keeps up. Zoom in, change a capability
+  in its record page, return, and record whether the map kept your place. Pan by dragging
+  the background, by Ctrl-dragging from a card, and with the Pan toggle; none of these
+  may select a card. Select a group and confirm its children stay visible and clickable.
+  Use Fit on a large window. Create a temporary capability, move it under another, and
+  confirm its own descendants are not offered as its parent. Change it elsewhere while
+  its editor is open: the save must name the stale version and keep the draft. Delete
+  only that record. Check both themes and a narrow window, and record readability apart
+  from counts.
 - Open the planner's Work dependencies view, select a work item, and ask the person to
   press Complete there. Record what the line below the drawing said, whether the graph
   showed it Done without a reload, and what History names as the author. Then change the

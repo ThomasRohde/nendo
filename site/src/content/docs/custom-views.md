@@ -69,7 +69,7 @@ Studio is there in every case, and your records stay editable.
 
 ## The examples
 
-The repository has four MIT-licensed example packages under [`extensions/`](https://github.com/ThomasRohde/nendo/tree/main/extensions). Three have no dependencies; `work-dependencies` carries elkjs, the Eclipse Layout Kernel, unchanged in its `vendor` folder under the Eclipse Public License 2.0. Each folder has a `nendo-package.json`, so you import it as it is.
+The repository has five MIT-licensed example packages under [`extensions/`](https://github.com/ThomasRohde/nendo/tree/main/extensions). Four have no dependencies; `work-dependencies` carries elkjs, the Eclipse Layout Kernel, unchanged in its `vendor` folder under the Eclipse Public License 2.0. Each folder has a `nendo-package.json`, so you import it as it is.
 
 | Package | Shows |
 | --- | --- |
@@ -77,8 +77,9 @@ The repository has four MIT-licensed example packages under [`extensions/`](http
 | [`work-dependencies`](https://github.com/ThomasRohde/nendo/tree/main/extensions/work-dependencies) | Work items and what blocks what, laid out by the Eclipse Layout Kernel in the order the work must happen, with links routed at right angles. It groups items by any field, filters by status, finds by title, marks cycles and the longest chain, and dims everything not connected to the selection |
 | [`systems-lens`](https://github.com/ThomasRohde/nendo/tree/main/extensions/systems-lens) | Components and the feeds between them, for the Nendo Station demo file. It marks loops, and **Take out** shows which components lose every declared supply path when one is removed. It writes nothing |
 | [`gantt`](https://github.com/ThomasRohde/nendo/tree/main/extensions/gantt) | One record type on a time line, from a start date to an end date; a record with only a start is a diamond. It also works on a record page, for one record |
+| [`bcm-atlas`](https://github.com/ThomasRohde/nendo/tree/main/extensions/bcm-atlas) | A business capability map over a five-level hierarchy of 635 fictional capabilities: nested packing with fixed-size cards, levels, focus, search, heatmaps, and editing with version checks. `workspace/BCM.nendo` carries it |
 
-The demo files in the repository were made before views ran from the file. Their views name a package that the file does not carry yet, and offer **Add package to file…**.
+Apart from `BCM.nendo`, the demo files in the repository were made before views ran from the file. Their views name a package that the file does not carry yet, and offer **Add package to file…**.
 
 ## Build your own
 

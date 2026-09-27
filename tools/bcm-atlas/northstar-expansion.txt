@@ -1,0 +1,90 @@
+# Fictional capability catalogue. Parent code | direct child capabilities.
+# Existing records are retained; later lines can extend children created above.
+1.1.1 | Investment prioritisation; Portfolio scenario modelling; Funding allocation; Benefits planning; Portfolio balancing; Strategic dependency management; Portfolio performance review; Investment exit planning
+1.1.2 | Objective setting; Enterprise scorecards; Performance indicator design; Management reporting; Performance variance analysis; Corrective action planning; Benchmark analysis
+1.2.1 | Risk identification; Risk appetite management; Risk assessment; Risk treatment planning; Risk exposure monitoring; Emerging risk surveillance; Risk aggregation; Risk reporting; Third-party risk assessment
+1.2.2 | Regulatory obligation management; Compliance policy management; Compliance control design; Compliance monitoring; Regulatory reporting; Compliance breach management; Regulatory change assessment
+1.3.1 | Capability taxonomy management; Capability assessment; Capability gap analysis; Capability dependency mapping; Capability roadmapping; Capability ownership management
+1.3.2 | Organisation design; Decision rights design; Governance model design; Service delivery model design; Sourcing model design; Operating model transition; Value stream design; Role accountability design
+2.1.1 | Customer research planning; Customer interviews; Customer segmentation; Customer journey research; Needs analysis; Voice of customer analysis; Customer behaviour analysis; Research insight synthesis
+2.1.2 | Market sizing; Market trend analysis; Competitor intelligence; Industry monitoring; Demand signal analysis; Competitive positioning; Emerging opportunity assessment
+2.2.1 | Brand strategy; Brand identity management; Brand standards management; Brand reputation monitoring; Brand asset management; Brand experience design
+2.2.2 | Campaign planning; Audience targeting; Campaign content management; Channel coordination; Campaign execution; Campaign measurement; Marketing attribution; Campaign experimentation; Marketing budget management
+2.3.1 | Account planning; Account segmentation; Stakeholder relationship mapping; Account health monitoring; Account growth planning; Strategic account governance; Contact information management
+2.3.2 | Customer onboarding; Adoption enablement; Customer value realisation; Retention management; Renewal planning; Customer advocacy; Customer engagement monitoring; Customer education
+3.1.1 | Customer problem framing; Value hypothesis development; Proposition prototyping; Proposition testing; Business case development; Proposition positioning
+3.1.2 | Product portfolio analysis; Product investment planning; Product roadmap alignment; Product rationalisation; Portfolio profitability analysis; Product lifecycle strategy; Portfolio dependency assessment
+3.2.1 | Service research; Service blueprinting; Service prototyping; Service accessibility design; Service interaction design; Service usability evaluation; Service specification; Service readiness assessment
+3.2.2 | Product requirements management; Product solution design; Product prototyping; Product integration; Product verification; Product safety engineering; Product configuration management; Product technical documentation; Design change management
+3.3.1 | Release planning; Release readiness assessment; Release coordination; Deployment scheduling; Release communication; Release validation; Release rollback planning
+3.3.2 | Product usage analysis; Product outcome measurement; Product quality monitoring; Product cost analysis; Product feedback management; Product improvement planning
+4.1.1 | Lead qualification; Opportunity discovery; Opportunity scoring; Sales pipeline management; Solution qualification; Proposal management; Deal negotiation; Sales forecasting
+4.1.2 | Order entry; Order validation; Customer eligibility checking; Product configuration; Price confirmation; Order acknowledgement; Order change management; Order cancellation
+4.2.1 | Demand prioritisation; Delivery capacity planning; Delivery scheduling; Delivery dependency management; Delivery commitment management; Delivery exception planning
+4.2.2 | Service provisioning; Fulfilment orchestration; Field service dispatch; Delivery tracking; Service activation; Delivery acceptance; Fulfilment exception management; Proof of delivery
+4.3.1 | Enquiry triage; Case classification; Case assignment; Case investigation; Resolution knowledge retrieval; Case escalation; Case closure; Resolution quality review
+4.3.2 | Service failure assessment; Customer remediation; Compensation management; Complaint recovery; Recovery communication; Service restoration coordination; Recovery effectiveness review
+5.1.1 | Supplier onboarding; Supplier information management; Supplier performance review; Supplier development; Supplier innovation collaboration; Supplier dispute resolution
+5.1.2 | Spend analysis; Sourcing strategy; Supply market analysis; Sourcing event management; Bid evaluation; Supplier selection; Sourcing negotiation; Sourcing award management
+5.2.1 | Workforce demand planning; Resource availability management; Skills matching; Shift planning; Resource allocation; Schedule optimisation; Schedule exception management
+5.2.2 | Quality standards management; Quality planning; Quality inspection; Quality testing; Defect management; Root cause analysis; Corrective and preventive action; Quality audit management; Quality measurement
+5.3.1 | Business impact analysis; Continuity strategy; Continuity plan management; Recovery resource planning; Continuity exercise management; Crisis communication planning; Continuity readiness review
+5.3.2 | Incident detection; Incident classification; Incident coordination; Incident escalation; Incident containment; Incident recovery; Post-incident review; Incident communication
+6.1.1 | Workforce requisition management; Talent sourcing; Candidate screening; Candidate assessment; Interview coordination; Employment offer management; Pre-employment checks; Recruitment analytics
+6.1.2 | Learning needs assessment; Learning programme design; Learning delivery; Coaching enablement; Leadership development; Career planning; Succession planning; Skills assessment; Learning effectiveness measurement
+6.2.1 | Budget preparation; Financial forecasting; Cost centre planning; Capital expenditure planning; Cash flow planning; Financial scenario modelling; Budget variance management
+6.2.2 | Financial close management; Financial consolidation; Statutory reporting; Management accounting; Financial disclosure management; Reporting controls; Financial reconciliation; Audit evidence preparation
+6.3.1 | Data ownership management; Data policy management; Data catalogue management; Data quality governance; Data lineage management; Data access governance; Data retention governance; Data issue stewardship
+6.3.2 | Infrastructure monitoring; Platform administration; Technology capacity management; Technology availability management; Configuration inventory management; Technology patch management; Backup and recovery; Operational automation; Technology service reporting
+# Additional L2 groups under the existing six enterprise domains.
+1 | Corporate development; Sustainability governance; Legal services; Internal assurance
+1.4 | Acquisition strategy; Acquisition target screening; Commercial due diligence; Deal structuring; Integration planning; Divestiture planning; Strategic partnership development; Joint venture governance
+1.5 | Sustainability strategy; Emissions accounting; Sustainability target setting; Environmental impact assessment; Sustainability disclosure; Responsible business policy; Social impact measurement
+1.6 | Legal advisory; Contract legal review; Legal matter management; Intellectual property protection; Litigation management; Corporate secretariat; Legal obligation tracking; External counsel management
+1.7 | Audit planning; Audit scoping; Audit fieldwork; Audit finding management; Control effectiveness testing; Remediation tracking
+2 | Channel management; Digital experience; Commercial intelligence; Community engagement
+2.4 | Channel strategy; Channel partner recruitment; Partner enablement; Channel performance management; Partner incentives; Channel conflict management; Channel coverage planning
+2.5 | Digital journey design; Experience personalisation; Digital content publishing; Digital accessibility; Digital experimentation; Experience analytics; Digital conversion optimisation; Consent experience management
+2.6 | Revenue opportunity analysis; Customer profitability analysis; Commercial benchmark analysis; Win and loss analysis; Price sensitivity research; Commercial data enrichment
+2.7 | Community strategy; Community moderation; Community event management; Advocacy programme management; Social listening; Community content curation; Community health measurement; Member relationship management
+3 | Innovation management; Product commercialisation; Product assurance; Product information
+3.4 | Innovation scouting; Idea collection; Idea evaluation; Innovation experimentation; Prototype funding; Innovation portfolio management; Research partnership management; Innovation knowledge transfer
+3.5 | Go-to-market planning; Launch readiness; Sales enablement content; Product positioning; Packaging strategy; Product training; Launch performance review
+3.6 | Product certification; Product compliance assessment; Reliability engineering; Product hazard analysis; Product traceability; Product assurance evidence
+3.7 | Product master data; Product catalogue management; Product specification publishing; Digital asset coordination; Product information quality; Product localisation; Product taxonomy management; Product content syndication
+4 | Pricing and contracting; Revenue operations; Partner sales; Returns management
+4.4 | Pricing strategy; Price list management; Discount policy management; Quote generation; Commercial contract drafting; Contract approval; Contract obligation monitoring; Contract renewal management; Rebate management
+4.5 | Sales territory planning; Sales quota management; Sales incentive management; Sales enablement; Sales performance analysis; Sales operations planning; Revenue leakage detection
+4.6 | Partner opportunity registration; Co-selling coordination; Partner deal support; Partner sales forecasting; Referral management; Partner commission management
+4.7 | Return authorisation; Return receipt; Return inspection; Refund processing; Exchange fulfilment; Repair routing; Return disposition; Return cause analysis
+5 | Inventory and logistics; Asset management; Procurement operations; Operational excellence
+5.4 | Inventory planning; Inventory replenishment; Inventory accuracy management; Warehouse operations; Transport planning; Freight execution; Shipment visibility; Customs clearance; Distribution network planning
+5.5 | Asset lifecycle planning; Asset register management; Preventive maintenance; Predictive maintenance; Maintenance work management; Asset condition monitoring; Asset retirement; Spare parts management
+5.6 | Purchase requisition management; Purchase order management; Goods receipt; Supplier invoice matching; Procurement catalogue management; Procurement policy enforcement; Purchasing exception management
+5.7 | Process discovery; Process modelling; Process measurement; Process improvement; Standard work management; Lean improvement; Operational knowledge management; Automation opportunity assessment
+6 | Information security; Enterprise technology; Employee services; Treasury and tax
+6.4 | Security strategy; Identity and access management; Threat intelligence; Security monitoring; Vulnerability management; Security incident management; Security awareness; Security architecture; Security assurance
+6.5 | Technology strategy; Enterprise architecture; Application portfolio management; Solution architecture; Software delivery; Integration management; Cloud platform management; Technology vendor management
+6.6 | Employee onboarding; Payroll administration; Employee benefits administration; Employee relations; Employee wellbeing; Workplace services; Employee records management; Employee offboarding
+6.7 | Cash management; Liquidity management; Treasury risk management; Banking relationship management; Tax planning; Tax compliance; Transfer pricing; Accounts payable; Accounts receivable
+# Selected fourth-level specialisations: deliberately mixed depths and fan-out.
+1.1.1.2 | Baseline scenario definition; Investment sensitivity analysis; Constraint scenario evaluation; Portfolio scenario comparison
+1.2.1.3 | Risk likelihood estimation; Risk impact estimation; Inherent risk scoring; Residual risk evaluation; Risk assessment calibration
+1.4.5 | Integration milestone planning; Integration synergy tracking; Integration dependency assessment; Integration readiness review
+2.1.1.3 | Segment hypothesis design; Segment discovery; Segment validation; Segment refresh; Segment opportunity sizing
+2.2.2.7 | Attribution model design; Touchpoint data preparation; Conversion attribution; Attribution quality assessment
+2.5.5 | Experiment hypothesis design; Experiment assignment; Experiment outcome analysis; Experiment decision recording
+3.2.2.5 | Verification planning; Verification execution; Verification evidence review; Verification anomaly resolution
+3.4.4 | Experiment selection; Experiment design; Experiment delivery; Innovation learning capture; Experiment portfolio review
+3.7.6 | Translation coordination; Local content adaptation; Local product terminology; Localisation quality review
+4.1.2.2 | Order completeness checking; Order duplicate detection; Order policy checking; Order exception routing
+4.4.6 | Approval policy definition; Approval routing; Approval evidence capture; Commercial exception review
+4.7.3 | Return condition assessment; Return authenticity checking; Warranty eligibility checking; Return inspection recording
+5.2.2.6 | Cause hypothesis generation; Cause evidence collection; Cause verification; Corrective action recommendation; Recurrence analysis
+5.4.4 | Inbound receiving; Put-away management; Storage location management; Picking; Packing; Dispatch preparation; Cycle counting
+5.5.3 | Maintenance interval planning; Maintenance checklist management; Maintenance execution scheduling; Maintenance compliance monitoring
+6.3.1.4 | Data quality rule management; Data quality profiling; Data quality issue triage; Data quality remediation; Data quality trend analysis
+6.4.2 | Identity lifecycle management; Access request management; Access provisioning; Access certification; Privileged access management; Authentication policy management
+6.5.5 | Software requirements analysis; Software construction; Code review; Build automation; Software testing; Deployment automation; Software release assurance
+6.6.2 | Payroll input validation; Payroll calculation; Payroll reconciliation; Payroll payment preparation; Payroll statutory submission
+6.7.9 | Customer credit management; Invoice issuance; Payment allocation; Collections management; Receivables dispute management; Bad debt assessment
