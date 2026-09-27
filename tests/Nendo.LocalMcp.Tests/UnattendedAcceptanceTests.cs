@@ -33,7 +33,8 @@ public sealed class UnattendedAcceptanceTests
 
         // Not listed is not the same as not reachable, so a client that knows the name
         // sends it anyway. It is refused before it reaches Nendo at all: the tool is not
-        // registered at this level, so the SDK has nothing to dispatch to.
+        // registered at this level, and the boundary names the level that serves it, as a
+        // protocol error, where the SDK used to answer only "Unknown tool" (F-173).
         var session = await AcquireAsync(client);
         var validated = await ValidateNotesAsync(client, session);
         var refused = await Assert.ThrowsExactlyAsync<McpProtocolException>(() =>
@@ -43,6 +44,9 @@ public sealed class UnattendedAcceptanceTests
                 ["idempotencyKey"] = "accept-at-shape-app",
             }).AsTask());
         StringAssert.Contains(refused.Message, "nendo.change_set.accept", StringComparison.Ordinal);
+        StringAssert.Contains(refused.Message, "NENDO_UNATTENDED_REQUIRED", StringComparison.Ordinal);
+        StringAssert.Contains(refused.Message, "Ask the person to raise agent access to Unattended", StringComparison.Ordinal);
+        Assert.AreEqual(McpErrorCode.InvalidParams, refused.ErrorCode);
 
         // And it changed nothing: the proposal is still waiting for somebody.
         Assert.HasCount(1, host.GetPendingProposals());
@@ -133,7 +137,10 @@ public sealed class UnattendedAcceptanceTests
         // The wire is where the agent reads it. Without a case of its own, this code
         // reached the client as the generic "Agent authority rejected the request."
         var translated = NendoToolErrors.Translate(refused);
-        Assert.AreEqual("NENDO_UNATTENDED_REQUIRED: Unattended access is required.", translated.Message);
+        Assert.AreEqual(
+            "NENDO_UNATTENDED_REQUIRED: Unattended access is required. Ask the person to raise agent access to " +
+            "Unattended on the Agent page in Nendo.",
+            translated.Message);
     }
 
     [TestMethod]

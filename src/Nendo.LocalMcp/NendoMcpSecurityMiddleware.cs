@@ -22,15 +22,27 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
             await RejectAsync(context, StatusCodes.Status403Forbidden, "NENDO_NON_LOOPBACK", "Only this computer may connect.");
             return;
         }
+        // Each refusal says what to send instead: "The request host is invalid" left a
+        // client configured with localhost with nothing to change (F-175).
         if (!IsExactHost(context.Request.Host, authority.Port))
         {
-            await RejectAsync(context, StatusCodes.Status400BadRequest, "NENDO_INVALID_HOST", "The request host is invalid.");
+            await RejectAsync(
+                context,
+                StatusCodes.Status400BadRequest,
+                "NENDO_INVALID_HOST",
+                $"Send requests to http://127.0.0.1:{authority.Port}/mcp, with exactly that Host header. localhost and " +
+                "every other name are refused by design, so that a web page cannot reach this endpoint by DNS rebinding.");
             return;
         }
         var origin = context.Request.Headers.Origin.ToString();
         if (!string.IsNullOrEmpty(origin) && !IsExactOrigin(origin, authority.Port))
         {
-            await RejectAsync(context, StatusCodes.Status403Forbidden, "NENDO_INVALID_ORIGIN", "The request origin is invalid.");
+            await RejectAsync(
+                context,
+                StatusCodes.Status403Forbidden,
+                "NENDO_INVALID_ORIGIN",
+                $"A request that carries an Origin must come from http://127.0.0.1:{authority.Port}. A page served from " +
+                "anywhere else is refused, so that a browser cannot be used to reach this endpoint.");
             return;
         }
         if (context.Request.ContentLength > MaximumRequestBodyBytes)
@@ -67,13 +79,13 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
                         new JsonDocumentOptions { MaxDepth = MaximumJsonDepth },
                         context.RequestAborted);
                 }
-                catch (JsonException)
+                catch (JsonException error)
                 {
                     await RejectAsync(
                         context,
                         StatusCodes.Status400BadRequest,
                         "NENDO_INVALID_JSON",
-                        "The request body is not valid bounded JSON.");
+                        InvalidJsonMessage(buffered, error));
                     return;
                 }
             }
@@ -84,7 +96,13 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
             // perimeter earlier is not admission after a lifecycle boundary.
             if (!authority.IsActive)
             {
-                await RejectAsync(context, StatusCodes.Status401Unauthorized, "NENDO_HOST_CLOSED", "This agent endpoint is closed.");
+                await RejectAsync(
+                    context,
+                    StatusCodes.Status401Unauthorized,
+                    "NENDO_HOST_CLOSED",
+                    "This agent endpoint is closed: the file was closed, switched or entered recovery, or agent access " +
+                    "was turned off. Every handle and lease from it has ended. Ask the person which file is open; Nendo " +
+                    "shows the current address on the Agent page.");
                 return;
             }
             await next(context);
@@ -93,6 +111,53 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
         {
             context.Request.Body = originalBody;
         }
+    }
+
+    /// <summary>
+    /// Why a body was refused. A body nested past the cap is valid JSON that the host will not
+    /// read, and says so with both numbers; it used to share one sentence with a body that was
+    /// not JSON at all, so an agent whose change set was one level too rich had nothing to
+    /// correct (F-182).
+    /// </summary>
+    internal static string InvalidJsonMessage(MemoryStream body, JsonException error)
+    {
+        if (MeasureDepth(body) is { } depth && depth > MaximumJsonDepth)
+        {
+            return $"The request body nests {depth} levels deep, and this host reads at most {MaximumJsonDepth}. " +
+                "Send a shallower payload, or split the change set over more calls.";
+        }
+        var position = error.LineNumber is { } line && error.BytePositionInLine is { } column
+            ? $" at line {line + 1}, byte {column + 1}"
+            : string.Empty;
+        return $"The request body is not valid JSON{position}. Send one JSON-RPC message per request.";
+    }
+
+    /// <summary>
+    /// How many containers deep a body nests, or null when it is not JSON. The reader's own
+    /// ceiling is the body limit, which no 256 KiB body can nest past, so a failure here is
+    /// the text itself and never the measurement.
+    /// </summary>
+    internal static int? MeasureDepth(MemoryStream body)
+    {
+        var reader = new Utf8JsonReader(
+            body.GetBuffer().AsSpan(0, (int)body.Length),
+            new JsonReaderOptions { MaxDepth = (int)MaximumRequestBodyBytes });
+        var deepest = 0;
+        try
+        {
+            while (reader.Read())
+            {
+                if (reader.TokenType is JsonTokenType.StartObject or JsonTokenType.StartArray)
+                {
+                    deepest = Math.Max(deepest, reader.CurrentDepth + 1);
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        return deepest;
     }
 
     internal static bool IsExactHost(HostString host, int port) =>

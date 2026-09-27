@@ -544,6 +544,12 @@ problem, named the thing it was refusing, and offered a remedy you could act on:
 - Writing to a calculated field, through a single-field edit and through a create.
 - A form made only of calculated fields.
 - Adding to, amending or re-validating a change set after it validated.
+- A call with a required argument left out, a misspelt key at the top and another inside
+  a record, a value of the wrong kind, a tool from the level above yours, and a tool that
+  exists at no level. Record, for each, whether the refusal named the argument, the key,
+  the level or the tool, and whether it came back as a tool error or a protocol error.
+- A request addressed to `localhost` instead of `127.0.0.1`, and one nested deeper than
+  the host reads: did the refusal say what to send instead?
 - A page limit that is not a whole number: letters, a fraction, nothing at all. Then a
   page query with its parameters in the other order, an empty cursor, a parameter the
   read does not take, and one given twice.

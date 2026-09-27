@@ -132,6 +132,14 @@ internal static class NendoJsonInputs
         return target;
     }
 
+    /// <summary>A tool's arguments object, declared closed.</summary>
+    internal static JsonElement Closed(JsonElement inputSchema)
+    {
+        var schema = JsonNode.Parse(inputSchema.GetRawText())!.AsObject();
+        schema["additionalProperties"] = false;
+        return JsonSerializer.SerializeToElement(schema);
+    }
+
     internal static void Write(Utf8JsonWriter writer, JsonElement element)
     {
         if (element.ValueKind == JsonValueKind.Undefined) writer.WriteNullValue();

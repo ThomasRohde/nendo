@@ -219,6 +219,11 @@ public sealed class LeaseProtocolTests
         var contention = await second.CallToolAsync("nendo.lease.acquire");
         Assert.IsTrue(contention.IsError);
         StringAssert.Contains(JsonSerializer.Serialize(contention), "NENDO_LEASE_HELD");
+        // F-175: the refusal says how to find out whether the holder is you, and what else to do.
+        var held = string.Join(' ', contention.Content.OfType<ModelContextProtocol.Protocol.TextContentBlock>().Select(block => block.Text));
+        StringAssert.Contains(held, "nendo.lease.status names its client");
+        StringAssert.Contains(held, "says whether the holder is you");
+        StringAssert.Contains(held, "ask the person to revoke it on the Agent page in Nendo");
         var copied = await second.CallToolAsync(
             "nendo.lease.renew",
             new Dictionary<string, object?> { ["applicationHandle"] = "unknown-handle", ["leaseId"] = lease.LeaseId });

@@ -142,9 +142,9 @@ Use it while an agent builds a new file from nothing, where there is nothing yet
 A refused call returns `CODE: message`. The code is stable. The message names what was refused and what to do. It never contains a file path or a stored value. Examples:
 
 ```text
-NENDO_SHAPE_APP_REQUIRED: Shape app access is required.
-NENDO_LEASE_HELD: Another local agent currently has edit access.
-NENDO_UNKNOWN_OPERATION: Operation type 'sql.execute' is not one this host implements; nendo://application/vocabulary lists the 24 it accepts under operations.
+NENDO_SHAPE_APP_REQUIRED: nendo.change_set.begin is served from Shape app, and this file session is at Edit data. Ask the person to raise agent access to Shape app on the Agent page in Nendo.
+NENDO_INVALID_REQUEST: nendo.data.create_records was not called. records[0] does not take 'expectedTargetVersionz'; a record takes recordId and values, and optionally expectedTargetVersions.
+NENDO_UNKNOWN_OPERATION: Operation type 'sql.execute' is not one this host implements; nendo://application/vocabulary lists the 28 it accepts under operations.
 ```
 
 The last one is the same for SQL as for a typing error. There is no other way in.

@@ -60,12 +60,13 @@ export const agentSurface: { resources: readonly SurfaceEntry[]; editDataTools: 
 const asTerms = (entries: readonly SurfaceEntry[]): HelpTerm[] => entries.map(entry => ({ term: entry.name, meaning: entry.meaning, code: true }));
 
 const refusalCodes: HelpTerm[] = [
-  { term: 'NENDO_EDIT_DATA_REQUIRED', meaning: 'The access level is Inspect. Ask the person to raise it.' },
-  { term: 'NENDO_SHAPE_APP_REQUIRED', meaning: 'The access level is below Shape app, so no change set can be opened.' },
+  { term: 'NENDO_EDIT_DATA_REQUIRED', meaning: 'The access level is Inspect and the tool needs Edit data. The message names the tool and both levels; raise the level if you want the agent to write.' },
+  { term: 'NENDO_SHAPE_APP_REQUIRED', meaning: 'The access level is below Shape app, so no change set can be opened. The message names the tool and both levels.' },
   { term: 'NENDO_UNATTENDED_REQUIRED', meaning: 'The access level is below Unattended, so the agent cannot accept its own proposal. Accept it yourself under Pending changes.' },
+  { term: 'NENDO_TOOL_UNAVAILABLE', meaning: 'No tool by that name exists at any level. The agent’s tool list names every tool the current level serves.' },
   { term: 'NENDO_CHANGE_SET_NOT_VALIDATED', meaning: 'An accept arrived for a change set that is still a draft. It must validate first, so there is something to accept.' },
   { term: 'NENDO_HOST_CLOSED', meaning: 'The file was closed, switched or entered recovery; the address and every handle from before are gone.' },
-  { term: 'NENDO_LEASE_HELD', meaning: 'Another agent holds the editing lease. Wait, or ask the person to revoke it.' },
+  { term: 'NENDO_LEASE_HELD', meaning: 'Another agent holds the editing lease. nendo.lease.status tells an agent whether the holder is itself after a lost answer; otherwise it waits, or you revoke the lease on the Agent page.' },
   { term: 'NENDO_LEASE_EXPIRED', meaning: 'The lease lapsed because expiry is on and it was not renewed. Acquire again.' },
   { term: 'NENDO_INVALID_LEASE', meaning: 'The handle or lease does not belong to this run of this file.' },
   { term: 'NENDO_RECORD_VERSION_CONFLICT', meaning: 'The record moved since it was read. Read it again and retry with the current version.' },
@@ -74,7 +75,9 @@ const refusalCodes: HelpTerm[] = [
   { term: 'NENDO_ENTITY_NOT_FOUND', meaning: 'No such record type in the file. When a waiting proposal would create it, the message names that proposal.' },
   { term: 'NENDO_FIELD_CALCULATED', meaning: 'The field is calculated, not stored, and cannot be written; the message names the calculation. Write the stored fields its formula reads.' },
   { term: 'NENDO_UNKNOWN_OPERATION', meaning: 'Not one of the twenty operation types. There is no escape hatch: the refusal is the same for SQL as for a typo.' },
-  { term: 'NENDO_INVALID_REQUEST', meaning: 'A payload the host cannot bind. The message names the operation, the key, and what the key is for.' },
+  { term: 'NENDO_INVALID_REQUEST', meaning: 'A call or a payload the host cannot bind, refused before anything is written. The message names the argument, or the key inside a record, that is missing, misspelt or of the wrong kind, and what is accepted there; for an operation it names the operation, the key and what the key is for.' },
+  { term: 'NENDO_INVALID_HOST', meaning: 'The request was not addressed to http://127.0.0.1 and this port. localhost is refused by design, so a web page cannot reach the server by renaming itself.' },
+  { term: 'NENDO_INVALID_JSON', meaning: 'The request was not JSON, or nested deeper than the host reads. The message says which, with the depth and the cap or the place the text stopped being JSON.' },
   { term: 'NENDO_CHANGE_SET_LIMIT', meaning: 'A per-call or per-change-set ceiling was reached; the message names which, and the current usage.' },
   { term: 'NENDO_CHANGE_SET_STALE', meaning: 'The file’s definition moved since the draft began. Begin again on the new revision.' },
   { term: 'NENDO_DRAFT_LIMIT', meaning: 'Eight drafts are already open in this session. Validate or reject one first.' },

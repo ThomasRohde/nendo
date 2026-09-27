@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
+using ModelContextProtocol;
 using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -284,7 +285,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             try
                             {
                                 authority.RequireActive();
-                                NendoToolBoundary.Validate(context.Params);
+                                NendoToolBoundary.Validate(context.Params, mode);
                                 var result = await next(context, token);
                                 activity.Record(
                                     "tool",
@@ -338,33 +339,24 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                     .WithHttpTransport(transport => transport.SessionMode = HttpServerSessionMode.Stateless)
                     .WithResources<NendoMcpResources>();
 
-                if (mode >= AgentAccessMode.DataMutation)
+                // One table says which tool class each level serves; the boundary refuses
+                // from the same table, so a level code names exactly what is not here.
+                foreach (var (tools, minimum) in NendoToolBoundary.ToolClasses)
                 {
-                    WithNendoTools<NendoLeaseTools>(mcp);
-                    WithNendoTools<NendoDataTools>(mcp);
-                    WithNendoTools<NendoHealthTools>(mcp);
+                    if (mode >= minimum) WithNendoTools(mcp, tools);
                 }
-                else
+                if (mode < AgentAccessMode.DataMutation)
                 {
                     // Installed clients may initialize every configured server with tools/list.
-                    // Keep Inspect's allowlist genuinely empty while returning a successful page.
+                    // Keep Inspect's allowlist genuinely empty while returning a successful page,
+                    // and answer a call so the boundary can name the level it needs.
                     mcp.WithListToolsHandler((_, _) => ValueTask.FromResult(new ListToolsResult
                     {
                         Tools = [],
                     }));
-                }
-
-                if (mode >= AgentAccessMode.ApplicationAuthoring)
-                {
-                    WithNendoTools<NendoAuthoringTools>(mcp);
-                }
-
-                // The level at which the agent accepts its own work. One tool, registered
-                // in its own block, so what this level adds is readable in one line
-                // (ADR-0009, 2026-09-22 amendment).
-                if (mode >= AgentAccessMode.Unattended)
-                {
-                    WithNendoTools<NendoUnattendedTools>(mcp);
+                    mcp.WithCallToolHandler((_, _) => throw new McpProtocolException(
+                        "NENDO_TOOL_UNAVAILABLE: Inspect serves no tools.",
+                        McpErrorCode.InvalidParams));
                 }
 
                 var application = builder.Build();
@@ -503,16 +495,14 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
     /// <summary>
     /// The SDK's <c>WithTools</c>, with one addition: the schema options that give every
     /// advertised input node a type. The SDK overload takes serializer options only, so
-    /// the four tool classes are registered here the way it registers them — one
+    /// the tool classes are registered here the way it registers them — one
     /// <see cref="McpServerTool"/> per attributed method, the instance constructed from
     /// the host's services on each call.
     /// </summary>
-    private static void WithNendoTools<TTools>(IMcpServerBuilder mcp) where TTools : class
+    private static void WithNendoTools(IMcpServerBuilder mcp, Type tools)
     {
-        foreach (var method in typeof(TTools).GetMethods(
-                     BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static))
+        foreach (var method in NendoToolBoundary.ToolMethods(tools))
         {
-            if (method.GetCustomAttribute<McpServerToolAttribute>() is null) continue;
             mcp.Services.AddSingleton<McpServerTool>(services =>
             {
                 var options = new McpServerToolCreateOptions
@@ -521,9 +511,13 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                     SerializerOptions = NendoMcpJson.ToolOptions,
                     SchemaCreateOptions = NendoMcpJson.ToolSchemaOptions,
                 };
-                return method.IsStatic
+                var tool = method.IsStatic
                     ? McpServerTool.Create(method, target: null, options)
-                    : McpServerTool.Create(method, _ => ActivatorUtilities.CreateInstance(services, typeof(TTools)), options);
+                    : McpServerTool.Create(method, _ => ActivatorUtilities.CreateInstance(services, tools), options);
+                // The arguments object is closed: the boundary refuses a key the method does
+                // not declare, and the schema says so rather than leaving it to be found out.
+                tool.ProtocolTool.InputSchema = NendoJsonInputs.Closed(tool.ProtocolTool.InputSchema);
+                return tool;
             });
         }
     }

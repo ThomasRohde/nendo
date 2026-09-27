@@ -55,7 +55,60 @@ public sealed class McpSecurityTests
             expectedCode: "NENDO_INVALID_JSON");
     }
 
-    private static async Task AssertRejectedAsync(
+    /// <summary>
+    /// F-175: "The request host is invalid" left a client configured with localhost with
+    /// nothing to change, and a body one level too deep read the same as one that was not
+    /// JSON. Each perimeter refusal now says what to send instead.
+    /// </summary>
+    [TestMethod]
+    public async Task EachPerimeterRefusalSaysWhatToSendInstead()
+    {
+        var host = await AssertRejectedAsync(
+            configure: context => context.Request.Host = new HostString("localhost", Port),
+            expectedStatus: StatusCodes.Status400BadRequest,
+            expectedCode: "NENDO_INVALID_HOST");
+        StringAssert.Contains(host, $"Send requests to http://127.0.0.1:{Port}/mcp, with exactly that Host header.");
+        StringAssert.Contains(host, "localhost and every other name are refused by design");
+
+        var origin = await AssertRejectedAsync(
+            configure: context => context.Request.Headers.Origin = "https://example.test",
+            expectedStatus: StatusCodes.Status403Forbidden,
+            expectedCode: "NENDO_INVALID_ORIGIN");
+        StringAssert.Contains(origin, $"must come from http://127.0.0.1:{Port}.");
+
+        var invalid = await AssertRejectedAsync(
+            configure: Body("{\"jsonrpc\": \"2.0\", \"id\": 1,"),
+            expectedStatus: StatusCodes.Status400BadRequest,
+            expectedCode: "NENDO_INVALID_JSON");
+        StringAssert.Contains(invalid, "The request body is not valid JSON at line 1");
+
+        var depth = NendoMcpSecurityMiddleware.MaximumJsonDepth + 1;
+        var deep = await AssertRejectedAsync(
+            configure: Body(string.Concat(Enumerable.Repeat("[", depth)) + new string(']', depth)),
+            expectedStatus: StatusCodes.Status400BadRequest,
+            expectedCode: "NENDO_INVALID_JSON");
+        StringAssert.Contains(deep,
+            $"The request body nests {depth} levels deep, and this host reads at most {NendoMcpSecurityMiddleware.MaximumJsonDepth}.");
+
+        // Exactly at the cap is read, not refused.
+        var dispatched = false;
+        var authority = new NendoHostAuthority("depth-run", AgentAccessMode.ReadOnly, new byte[32], "application", "instance");
+        authority.SetPort(Port);
+        var middleware = new NendoMcpSecurityMiddleware(_ => { dispatched = true; return Task.CompletedTask; });
+        var atCap = NewContext();
+        Body(string.Concat(Enumerable.Repeat("[", depth - 1)) + new string(']', depth - 1))(atCap);
+        await middleware.InvokeAsync(atCap, authority);
+        Assert.IsTrue(dispatched, "A body exactly at the depth cap was refused.");
+    }
+
+    private static Action<DefaultHttpContext> Body(string json) => context =>
+    {
+        context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        context.Request.ContentLength = context.Request.Body.Length;
+    };
+
+    /// <returns>The refusal's message, as the client reads it.</returns>
+    private static async Task<string> AssertRejectedAsync(
         Action<DefaultHttpContext> configure,
         int expectedStatus,
         string expectedCode)
@@ -83,6 +136,9 @@ public sealed class McpSecurityTests
         context.Response.Body.Position = 0;
         var response = await new StreamReader(context.Response.Body).ReadToEndAsync();
         StringAssert.Contains(response, expectedCode);
+        using var document = System.Text.Json.JsonDocument.Parse(response);
+        Assert.AreEqual(expectedCode, document.RootElement.GetProperty("error").GetString());
+        return document.RootElement.GetProperty("message").GetString()!;
     }
 
     // No credential means passing the perimeter is the only admission a request has; a closed host must

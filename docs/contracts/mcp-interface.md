@@ -25,8 +25,9 @@ Two of those tools came with the [ADR-0009](../decisions/0009-local-mcp-transpor
 amendment of 2026-09-22. *Data mutation* serves `nendo.data.import_records`.
 `nendo.change_set.accept` is served only at **Unattended**, the fifth access
 level. At every level below Unattended, the tool is not registered at all. If a
-client sends it by name, the SDK refuses it as an unknown tool. The service's own
-mode check is the second lock behind that refusal.
+client sends it by name, the boundary refuses it as `NENDO_UNATTENDED_REQUIRED`, a
+`-32602` protocol error that names the level. The service's own mode check is the
+second lock behind that refusal.
 
 ADR-0008 is delivered as bounded behaviour architecture. It does not add MCP
 authoring tools. The `behaviour.setDefinition` operation installs a definition
@@ -298,6 +299,36 @@ the engine wrote the message that names the cause, and the boundary discarded it
 
 What each now says:
 
+- A call that does not fit its tool is refused before the SDK binds it, as a tool
+  error that begins `NENDO_INVALID_REQUEST: {tool} was not called.` and then names
+  each problem: an argument left out (`It requires idempotencyKey.`); a key the tool
+  does not take, with the ones it does; a key inside a record, a mutation, an
+  operation or a column mapping that it does not declare (`records[0] does not take
+  'expectedTargetVersionz'; a record takes recordId and values, and optionally
+  expectedTargetVersions.`); a value of the wrong kind (`expectedRecordVersion must
+  be a whole number; it was a string.`). Before 2026-09-27 the binder answered a
+  missing argument with `An error occurred invoking` and nothing else, and it bound
+  a record with a misspelt key by dropping the key, so the write went ahead without
+  it. The contract is read from the tool methods by reflection, through the same
+  serializer options the binder uses, and `ToolRefusalTests` holds it equal to the
+  schema every tool advertises, key by key. Every advertised arguments object and
+  closed record declares `additionalProperties: false`. A whole number sent as a
+  string still binds, as it did: a refusal here is never stricter than the call.
+- A tool that a higher level serves is a `-32602` protocol error carrying that
+  level's code, and the message names both levels and the person's remedy:
+  `NENDO_SHAPE_APP_REQUIRED: nendo.change_set.begin is served from Shape app, and
+  this file session is at Edit data. Ask the person to raise agent access to Shape
+  app on the Agent page in Nendo.` Before, the SDK answered `Unknown tool`, so the
+  three level codes could not occur from a real client. A name that no level serves
+  is `-32602` `NENDO_TOOL_UNAVAILABLE`, as the specification asks of an unknown tool;
+  it was a tool error.
+- The perimeter's refusals say what to send instead. `NENDO_INVALID_HOST` names
+  `http://127.0.0.1:{port}/mcp` and says that `localhost` is refused by design;
+  `NENDO_INVALID_ORIGIN` names the one origin accepted; `NENDO_INVALID_JSON` names the
+  depth a body reached and the cap, or the line and byte where it stopped being JSON;
+  `NENDO_HOST_CLOSED` says why an endpoint closes and where the current one is shown.
+  `NENDO_LEASE_HELD` points at `nendo.lease.status`, which says whether the holder is
+  the caller after a lost acquire response, and at the person's revoke.
 - An unknown operation type is `NENDO_UNKNOWN_OPERATION`. The refusal names the
   type and the number of operations that the vocabulary lists. It answers the
   question "is there an escape hatch": there is not, and the refusal is the same
@@ -329,11 +360,12 @@ What each now says:
 - A page limit that is not a whole number from 1 to 100 is `NENDO_INVALID_LIMIT`
   on the resource read, with JSON-RPC `-32602`. Before, it was `-32603` with no
   code, because the SDK's binder refused it before Nendo could.
-- `NENDO_UNATTENDED_REQUIRED` is the service's answer to an accept below that
-  level. A client normally meets the SDK's unknown-tool refusal first, because the
-  tool is not registered at those levels. This code exists as the second lock, for
-  a build that registered the tool one level too low.
-  Its message is *Unattended access is required.*
+- `NENDO_UNATTENDED_REQUIRED` is what a client meets when it sends
+  `nendo.change_set.accept` below that level: the boundary names the level, as
+  above. The service keeps its own check as the second lock, for a build that
+  registered the tool one level too low. Its message is *Unattended access is
+  required. Ask the person to raise agent access to Unattended on the Agent page in
+  Nendo.*
 - `NENDO_CHANGE_SET_NOT_VALIDATED` is an accept for a change set that is still a
   draft. Its message passes through and tells the agent to validate first.
 - `NENDO_INTERNAL_ERROR` names the exception type and nothing else.

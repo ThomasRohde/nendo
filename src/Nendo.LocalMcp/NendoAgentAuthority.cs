@@ -393,19 +393,14 @@ internal sealed class NendoAgentAuthority(
         host.RequireActive();
         if (host.Mode < requiredMode)
         {
-            // A table, not a ternary. The previous two-way test read "authoring or else
-            // data", so a fourth level added above it would have been refused by the name
-            // of a level two rungs below -- an agent told to ask for Edit data when it
-            // already had Shape app and needed something else entirely.
-            var (code, message) = requiredMode switch
-            {
-                AgentAccessMode.Unattended =>
-                    ("UNATTENDED_REQUIRED", "Unattended access is required."),
-                AgentAccessMode.ApplicationAuthoring =>
-                    ("SHAPE_APP_REQUIRED", "Shape app access is required."),
-                _ => ("EDIT_DATA_REQUIRED", "Edit data access is required."),
-            };
-            throw new NendoAgentAuthorityException(code, message);
+            // A table, not a ternary: NendoAccessLevels names each level. The previous
+            // two-way test read "authoring or else data", so a fourth level added above it
+            // would have been refused by the name of a level two rungs below -- an agent
+            // told to ask for Edit data when it already had Shape app and needed something
+            // else entirely.
+            throw new NendoAgentAuthorityException(
+                NendoAccessLevels.RequiredCode(requiredMode),
+                NendoAccessLevels.RequiredMessage(requiredMode));
         }
     }
 

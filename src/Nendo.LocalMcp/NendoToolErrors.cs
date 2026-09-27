@@ -117,14 +117,22 @@ internal static class NendoToolErrors
     private static McpException Error(string code, string message) =>
         new($"{code}: {message}");
 
+    // Each says what the agent can do next. NENDO_LEASE_HELD used to stop at "another
+    // agent has edit access", which left an agent whose own acquire response was lost
+    // unable to tell that the holder was itself (F-175).
     private static string AuthorityMessage(string code) => code switch
     {
-        "EDIT_DATA_REQUIRED" => "Edit data access is required.",
-        "SHAPE_APP_REQUIRED" => "Shape app access is required.",
-        "UNATTENDED_REQUIRED" => "Unattended access is required.",
-        "LEASE_HELD" => "Another local agent currently has edit access.",
-        "LEASE_EXPIRED" => "The edit lease expired.",
-        "INVALID_LEASE" => "A valid application handle and edit lease are required.",
+        "EDIT_DATA_REQUIRED" => NendoAccessLevels.RequiredMessage(AgentAccessMode.DataMutation),
+        "SHAPE_APP_REQUIRED" => NendoAccessLevels.RequiredMessage(AgentAccessMode.ApplicationAuthoring),
+        "UNATTENDED_REQUIRED" => NendoAccessLevels.RequiredMessage(AgentAccessMode.Unattended),
+        "LEASE_HELD" =>
+            "Another local agent currently has edit access. nendo.lease.status names its client and, given your " +
+            "applicationHandle, says whether the holder is you, as it is after a lost acquire response. Otherwise " +
+            "wait for it to release the lease, or ask the person to revoke it on the Agent page in Nendo.",
+        "LEASE_EXPIRED" => "The edit lease expired because it was not renewed in time. Acquire a new one.",
+        "INVALID_LEASE" =>
+            "A valid application handle and edit lease are required. Pass the applicationHandle and leaseId from " +
+            "nendo.lease.acquire; a lease released, revoked or from before the file was reopened no longer counts.",
         _ => "Agent authority rejected the request.",
     };
 
