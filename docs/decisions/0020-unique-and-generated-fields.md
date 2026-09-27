@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-27
-- **Delivery:** Stages 1 (unique fields), 2 (sequences), 3 (`HierarchyPath`) and 4 (Studio and forms) done 2026-09-27, at host 1.37.0; stage 5 not started. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24, "I pre-accept any ADR change - this is still an experimental project"), with the recommended option taken at every open point
+- **Delivery:** Stages 1 (unique fields), 2 (sequences), 3 (`HierarchyPath`) and 4 (Studio and forms) done 2026-09-27, at host 1.37.0; stage 5 (planner adoption) accepted by the owner 2026-09-27. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24, "I pre-accept any ADR change - this is still an experimental project"), with the recommended option taken at every open point
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** The code survey in Context (2026-09-27) and the planner's own duplicate codes (W-074 names them)
@@ -229,6 +229,24 @@ not match /placeholder="Assigned when saved"/"*. Agent-observed in headless Edge
 preview's `tree` fixture (not the real host): the tags and actions per field, the disabled Allow
 duplicates and its reason, the dialog's example (`O-001`, then `OWN-0001`), a trailing digit
 refused, and a new record's code field not required with the note; no console error.
+
+## Stage 5 note — 2026-09-27: the planner adopts it
+
+The five duplicated finding codes were renumbered through the data lane: F-070 → F-165,
+F-071 → F-166, F-072 → F-167, F-081 → F-168, F-132 → F-169. In each pair the record that
+other records link to, or that was written first, kept the code; the renumbered record
+carries its old code at the head of its context text. The proposal *Number References
+automatically (W-074)* declares Reference unique and numbered on Work items (`W-`),
+Findings (`F-`), Checks (`C-`) and Initiatives (`I-`), three digits each, and raises the
+planner's minimum host from 1.33.0 to 1.37.0. It validated with no diagnostics, which is
+also the check that no other code in the four types is held twice. Dependencies has no
+Reference. `docs/dogfooding.md` no longer asks a client to scan for the highest code.
+
+The owner accepted it the same day: the planner is at definition revision 59 with minimum host
+1.37.0. Agent-observed over MCP (C-241): a check created without a Reference was assigned
+`C-241`, one past the highest; setting it to `C-240` was refused with *"NENDO_VALUE_NOT_UNIQUE:
+That Reference is already used by nd.check.r.unique-stage4 in Checks; each record needs its
+own."*
 
 ## Consequences
 

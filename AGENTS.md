@@ -73,7 +73,7 @@ make a task easier.
   it. Never describe a proposal as applied before they have accepted it.
 - Nendo Development is the primary work planner. Read
   [`docs/dogfooding.md`](docs/dogfooding.md) for rollout status, semantic IDs, the
-  reference ledger and how to read the file without paying for it twice.
+  reference codes and how to read the file without paying for it twice.
   Connect through the registered `nendo` MCP server and inspect the open
   application before writing. Do not open its SQLite storage directly.
 - Find or create the relevant Work item; read its acceptance criteria, linked
@@ -81,8 +81,8 @@ make a task easier.
   expresses execution. A planner entry never grants ADR or remote-write authority.
 - Name records by their short Reference and title in conversation (for example,
   W-001), then resolve the reference to the semantic ID/current version for MCP
-  writes. Follow the allocation and uniqueness checks in `docs/dogfooding.md`;
-  the host does not assign these codes automatically.
+  writes. Leave Reference empty on a new record: Nendo numbers it and returns
+  the code (`docs/dogfooding.md`).
 - Record actual progress, new observations and exact check outcomes. Distinguish
   Automated, Agent-observed and Owner-reported evidence; preserve Not run,
   Blocked and Accepted exception outcomes. Check passes never automatically

@@ -1829,7 +1829,7 @@ async function assertAPickerSearchLeavesNothingUnsaved(label) {
  * A related row whose record has gone says so (W-051).
  *
  * The sentence was there, and a `return` inside the try stepped over the line that showed
- * it: the click cleared busy, redrew the same page and said nothing. F-070 had claimed the
+ * it: the click cleared busy, redrew the same page and said nothing. F-165 had claimed the
  * related sites fixed by inspection, and its guard covered only the trail's path; this one
  * reaches the branch itself. The row is pointed at a record ID that does not exist rather
  * than deleted from another client between the draw and the click, because that race

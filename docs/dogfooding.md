@@ -243,29 +243,28 @@ relationship pickers still search the configured title field and show internal
 IDs. A short code typed there is not a promised lookup path. Calendar/timeline
 cards keep their concise fields. To see the reference, open the record.
 
-### The reference ledger, and what it costs to read
+### Reference codes are numbered by Nendo
 
-**The ledger is the file, not this document.** There is no ordered or filtered
-read resource. `nendo://application/entity/{id}/records` returns the records of
-a type, fifty to a page by default (`?limit=` takes 1 to 100), with a `nextCursor` that the same URI takes as
-`?cursor=`. To find the highest code issued, you must therefore scan that type,
-every page of it. If you read a first page as the whole type, you allocate a
-code that is already taken. This happened on 2026-09-19, when findings ran to
-87.
+**Leave Reference empty when you create a record.** Since 2026-09-27 the Reference field
+of Work items, Findings, Checks and Initiatives is unique and numbered
+([ADR-0020](decisions/0020-unique-and-generated-fields.md), W-074): Nendo gives a new record
+the next code for its type (`W-`, `F-`, `C-` or `I-` and at least three digits) when it
+is saved. `nendo.data.create_record` returns the code under `assigned`; a form says
+*Assigned when saved*. Do not scan a type for its highest code first. The number carries
+on after the highest code of that shape, and a number is never given out twice, even
+after its record is deleted.
 
-**Scan a type at most once per session.** Take the highest `.ref` from that one
-read. Then allocate locally, and increment for every further record that you
-create in the same session. Four separate scans of the same entity to allocate
-four codes is the mistake that this paragraph exists to prevent.
+A code you type is kept if no other record of the type holds it; a duplicate is refused
+with `value-not-unique`, whoever writes it. Nothing stops a code being changed later, so
+when titles, priorities or relationships change, keep codes unchanged. Retain historical
+records (use Done, Dropped or Resolved as appropriate) rather than deleting them.
 
-By intent, this document does not record the highest code per type, and it
-does not record the record counts. This section carried both until 2026-09-15.
-On the day it was written, its finding code was already one behind the file. A
-copied number is correct until the next record is created. A stale number is
-worse than no number: it reads as an authority to allocate against, but the
-codes that it gives are already taken. Dated census figures elsewhere in this
-document state what was true on a date, and you read them as history. A ledger
-claims to state what is true now, and only the live file can do that.
+Before numbering, the file held five finding codes twice, each written by a client that
+had scanned for the highest code. On 2026-09-27 one record of each pair was renumbered:
+F-070 → F-165, F-071 → F-166, F-072 → F-167, F-081 → F-168 and F-132 → F-169. Each keeps
+its old code in its context text, and the record that keeps the old code is the one
+the other records link to or that came first. A commit or document before that date that
+names one of these five codes may mean either record.
 
 ### Reading the file without paying for it twice
 
@@ -286,25 +285,6 @@ claims to state what is true now, and only the live file can do that.
   write, and do not compute one. Otherwise the next write is refused as stale.
 - The front page is not one of the applications. It is `surfaces.overview`, and
   each tile under it names the record type that it reads.
-
-For a new record, allocate the next unused number for its type, padded to at
-least three digits. Enter it explicitly. Agents must do these steps:
-
-1. Acquire the edit lease.
-2. Read current codes.
-3. Check that the proposed code is absent.
-4. Create the record.
-5. Release the lease.
-
-When titles, priorities or relationships change, keep codes unchanged. Retain
-historical planner records (use Done, Dropped or Resolved as appropriate), so
-that issued codes are not reused.
-
-This is an application convention. The host requires a nonempty Reference, but
-it does not allocate codes, enforce uniqueness or prevent changes to them.
-People who create records must also check existing references. Neither client
-may claim automatic numbering, immutable fields or deep links. A broader host
-feature needs its own design and acceptance work.
 
 A schema change can require native behavior approval again, even when the
 action's intent is unchanged. If a write returns `NENDO_BEHAVIOUR_NOT_APPROVED`,
@@ -370,10 +350,8 @@ versioned, so you do not have to find the reference in the picker. Save returns
 to the work page, with the new record in the list. When you open a row, Nendo
 moves to that record's page and offers one step back to the work item.
 
-You still pick the Reference code. The host requires the field, but it does not
-allocate a code, enforce uniqueness or prevent changes to it. Before you save,
-allocate `C-0nn` or `F-0nn` by the ledger rules in
-[The reference ledger, and what it costs to read](#the-reference-ledger-and-what-it-costs-to-read). **C-044 remains an
+Leave Reference empty: Nendo gives the record its code when you save (see
+[Reference codes are numbered by Nendo](#reference-codes-are-numbered-by-nendo)). **C-044 remains an
 Owner-reported Accepted exception and must not be converted into a pass**: it
 records what was true when W-001 closed.
 
