@@ -138,6 +138,9 @@ public sealed record NendoMcpField(
 
     /// <summary>Whether no two records may hold equal values in this field (ADR-0020).</summary>
     public bool Unique { get; init; }
+
+    /// <summary>The prefix and width the host numbers new records with (ADR-0020), or null.</summary>
+    public NendoFieldSequence? Sequence { get; init; }
 }
 
 public sealed record NendoMcpRecord(

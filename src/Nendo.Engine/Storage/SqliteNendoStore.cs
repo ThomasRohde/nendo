@@ -229,6 +229,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                 false)
             {
                 GeneratedChanges = GeneratedChanges(chain),
+                AssignedValues = AssignedValues(evidence),
             };
             // Capture exactly our transaction's authority while it still owns
             // the SQLite write lock. No cancellable refresh follows COMMIT.

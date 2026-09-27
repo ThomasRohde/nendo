@@ -58,6 +58,13 @@ public sealed record NendoDataApplyResult(
     /// the record before writing to it.
     /// </summary>
     public IReadOnlyList<NendoGeneratedChange> AlsoChanged { get; init; } = [];
+
+    /// <summary>
+    /// The codes the host wrote into new records because their creates left a numbered field
+    /// empty (ADR-0020): each record, field and code. Empty when nothing was numbered, and on an
+    /// idempotent replay — read the record instead.
+    /// </summary>
+    public IReadOnlyList<NendoAssignedValue> Assigned { get; init; } = [];
 }
 
 public sealed record NendoChangeSetBeginResult(

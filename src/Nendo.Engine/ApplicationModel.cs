@@ -81,6 +81,9 @@ public sealed record NendoFieldSnapshot(
 
     /// <summary>Whether no two records may hold equal values in this field (ADR-0020).</summary>
     public bool Unique { get; init; }
+
+    /// <summary>The sequence that fills this field on a create that leaves it empty (ADR-0020), or null.</summary>
+    public NendoFieldSequence? Sequence { get; init; }
 }
 
 /// <summary>
@@ -236,6 +239,12 @@ public sealed record NendoApplyResult(
     /// original write and not what the file holds now — read the record instead.
     /// </summary>
     public IReadOnlyList<NendoGeneratedChange> GeneratedChanges { get; init; } = [];
+
+    /// <summary>
+    /// The codes the host wrote into new records because their creates left a sequence field
+    /// empty (ADR-0020). Empty on an idempotent replay — read the record instead.
+    /// </summary>
+    public IReadOnlyList<NendoAssignedValue> AssignedValues { get; init; } = [];
 
     /// <summary>
     /// The version the touched record now holds, where the applying service can

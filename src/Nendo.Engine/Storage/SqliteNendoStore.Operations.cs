@@ -59,6 +59,7 @@ internal sealed partial class SqliteNendoStore
                 cancellationToken),
             DeclareHierarchyOperation declare => await ExecuteDeclareHierarchyAsync(declare, transaction, cancellationToken),
             SetFieldUniqueOperation setUnique => await ExecuteSetFieldUniqueAsync(setUnique, transaction, cancellationToken),
+            SetFieldSequenceOperation setSequence => await ExecuteSetFieldSequenceAsync(setSequence, transaction, cancellationToken),
             RemoveHierarchyOperation remove => await ExecuteRemoveHierarchyAsync(remove, transaction, cancellationToken),
             SetApplicationPurposeOperation setPurpose => await ExecuteSetApplicationPurposeAsync(
                 setPurpose,
@@ -351,6 +352,11 @@ internal sealed partial class SqliteNendoStore
         // the whole type. A fresh create still refuses a value for a retired field.
         if (!restoring)
             foreach (var field in entity.Fields.Where(field => operation.Values.ContainsKey(field.FieldId))) RequireActive(entity, field);
+        // ADR-0020: an empty sequence field is filled before anything is checked, so the code
+        // meets the required and unique rules like a value the client typed. A restore brings
+        // its retained code back and is never given a new one.
+        IReadOnlyList<NendoAssignedValue> assigned = [];
+        if (!restoring) (operation, assigned) = await AssignSequencesAsync(entity, operation, transaction, cancellationToken);
         if (operation.ExpectedTargetVersions.Keys.Any(id => !operation.Values.ContainsKey(id)))
             throw new NendoValidationException("Target versions must identify supplied reference fields.");
         foreach (var pair in operation.Values)
@@ -363,6 +369,7 @@ internal sealed partial class SqliteNendoStore
                 await RequireHierarchyPlacementAsync(entity, referenceField, operation.RecordId, pair.Value, newRecord: true,
                     transaction, cancellationToken);
                 await RequireUniqueValueAsync(entity, referenceField, operation.RecordId, pair.Value, transaction, cancellationToken);
+                await RaiseSequenceAsync(referenceField, pair.Value, transaction, cancellationToken);
             }
         var unknownField = operation.Values.Keys.FirstOrDefault(key => !fieldsById.ContainsKey(key));
         if (unknownField is not null)
@@ -406,7 +413,13 @@ internal sealed partial class SqliteNendoStore
                 $"Record {operation.RecordId} already exists or violates the entity constraints.");
         }
 
-        return new OperationEvidence(operation, Evidence(new { createdVersion = 1 }))
+        return new OperationEvidence(operation, assigned.Count == 0
+            ? Evidence(new { createdVersion = 1 })
+            : Evidence(new
+            {
+                createdVersion = 1,
+                assigned = assigned.Select(value => new { entityId = value.EntityId, recordId = value.RecordId, fieldId = value.FieldId, value = value.Value }),
+            }))
         {
             RequiredHostVersion = entity.Fields.Any(field => field.StorageKind == NendoStorageKind.Decimal)
                 ? NendoFormat.ScalarMinimumHostVersion : NendoFormat.MinimumHostVersion,
@@ -474,6 +487,7 @@ internal sealed partial class SqliteNendoStore
         await ValidateReferenceValueAsync(field, operation.Value, operation.ExpectedTargetRecordVersion, transaction, cancellationToken);
         await RequireHierarchyPlacementAsync(entity, field, operation.RecordId, operation.Value, newRecord: false, transaction, cancellationToken);
         await RequireUniqueValueAsync(entity, field, operation.RecordId, operation.Value, transaction, cancellationToken);
+        await RaiseSequenceAsync(field, operation.Value, transaction, cancellationToken);
         ValidateChoiceAssignment(field, operation.Value, previousValue);
         var previousTargetRecordVersion = await ReadReferenceVersionAsync(field, previousValue, transaction, cancellationToken);
         var updateSql = $"UPDATE {Quote(entity.PhysicalTableName)} SET {Quote(field.PhysicalColumnName)} = @value, {Quote("__nendo_record_version")} = {Quote("__nendo_record_version")} + 1 WHERE {Quote("__nendo_record_id")} = @recordId AND {Quote("__nendo_record_version")} = @expectedVersion;";
@@ -650,6 +664,7 @@ internal sealed partial class SqliteNendoStore
         await PopulateChoicesAsync(fields, transaction, cancellationToken);
         await PopulateRatingScalesAsync(fields, transaction, cancellationToken);
         await PopulateFieldRulesAsync(fields, transaction, cancellationToken);
+        await PopulateFieldSequencesAsync(fields, transaction, cancellationToken);
         var retiredFields = await RetiredIdsAsync("field", transaction, cancellationToken);
         for (var index = 0; index < fields.Count; index++) fields[index] = fields[index] with { Retired = retiredFields.Contains(fields[index].FieldId) };
         return new EntityMapping(entityId, displayName, physicalTableName, fields)

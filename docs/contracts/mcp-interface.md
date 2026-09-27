@@ -229,7 +229,8 @@ audited list in `NendoToolErrors`: `definition-version-conflict`,
 `hierarchy-already-declared`, `hierarchy-not-declared`, `hierarchy-field-in-use`,
 `hierarchy-order-not-declared`, `hierarchy-sibling-not-found` and `move-unchanged`), the
 uniqueness codes of ADR-0020 (`value-not-unique`, `field-values-not-unique`,
-`field-unique-invalid`, `field-unique-unchanged`),
+`field-unique-invalid`, `field-unique-unchanged`, `field-sequence-invalid`,
+`field-sequence-unchanged`, `field-sequence-in-use`),
 whose messages name records by stable ID and a loop as the chain of IDs it would close. `aggregate-not-exact` echoes a stored float, and it stays
 withheld. A calculation failure passes through as `NENDO_CALCULATION_*`.
 
@@ -292,13 +293,13 @@ that table serves two purposes. It is published at
 `nendo://application/vocabulary`, and `NendoAgentAuthoringService` builds its
 enforcement from it. Before, the payload specification was prose inside the
 `add_operations` tool description. That prose grew so long that a real client's
-tool listing truncated it mid-token. The union permits twenty-seven of the Engine's
-twenty-nine canonical operations. `data.restoreDeletedRecord` and
+tool listing truncated it mid-token. The union permits twenty-eight of the Engine's
+thirty canonical operations. `data.restoreDeletedRecord` and
 `identity.transition` are native-only: lifecycle identity operations remain host
 services and are not MCP authoring primitives.
 
 `extension.setPackage`, `extension.putFile`, `extension.removeFile` and
-`extension.removePackage` are among the twenty-seven. An agent therefore writes a
+`extension.removePackage` are among the twenty-eight. An agent therefore writes a
 custom view's code into the file through ordinary proposals, and the person reviews
 it as code before accepting. Once accepted, the code runs in the Workbench whenever
 a view that names its package is shown, and reaches the file only through
@@ -315,20 +316,22 @@ publishes the package bounds under `limits.extensions`:
 
 The bounds of a declared hierarchy are under `limits.hierarchy`: `maximumDepth` 32,
 `maximumDescendants` 10,000 and `orderGap` 1,024. `schema.declareHierarchy` and
-`schema.removeHierarchy` are among the twenty-seven, and a record type's schema read carries
+`schema.removeHierarchy` are among the twenty-eight, and a record type's schema read carries
 its `hierarchy` (`parentFieldId`, `orderFieldId`), or null.
 
-`schema.setFieldUnique` is among them too ([ADR-0020](../decisions/0020-unique-and-generated-fields.md)).
-Each field in a schema read carries `unique`, and a write that would duplicate a unique value
-is refused as `NENDO_VALUE_NOT_UNIQUE`, naming the record that already holds it — never the
-value.
+`schema.setFieldUnique` and `schema.setFieldSequence` are among them too
+([ADR-0020](../decisions/0020-unique-and-generated-fields.md)). Each field in a schema read
+carries `unique` and `sequence` (`prefix`, `width`, or null), and a write that would duplicate
+a unique value is refused as `NENDO_VALUE_NOT_UNIQUE`, naming the record that already holds it
+— never the value. A create may leave a numbered field out; the write result's `assigned`
+lists each record, field and code the host wrote.
 
 A change set past the content bound, or a file past 4 MiB once its parts are
 joined, is refused at validation as `NENDO_INVALID_REQUEST`, and nothing reaches
 the clone. A package precondition met on the clone, one of the `extension-*` codes,
 arrives as a validation diagnostic, `NPROP010`, with the Engine's sentence.
 
-`behaviour.setDefinition` and `behaviour.removeDefinition` are among the twenty-seven,
+`behaviour.setDefinition` and `behaviour.removeDefinition` are among the twenty-eight,
 so an agent authors calculations, reusable functions, actions and triggers through
 ordinary proposals. The vocabulary's `behaviour.bindings` publishes every binding
 shape with the keys that it takes, from the same table that the codec refuses

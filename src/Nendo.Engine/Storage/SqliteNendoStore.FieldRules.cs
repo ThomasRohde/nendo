@@ -65,6 +65,8 @@ internal sealed partial class SqliteNendoStore
         var fields = entities.SelectMany(entity => entity.Fields).ToDictionary(field => field.FieldId, StringComparer.Ordinal);
         foreach (var id in await ReadUniqueFieldsAsync(null, ct))
             if (!fields.TryGetValue(id, out var field) || !CanBeUnique(field)) return false;
+        foreach (var id in (await ReadSequencesAsync(null, ct)).Keys)
+            if (!fields.TryGetValue(id, out var field) || field.StorageKind != NendoStorageKind.Text) return false;
         return true;
     }
 
@@ -101,6 +103,9 @@ internal sealed partial class SqliteNendoStore
         if (operation.Unique && !CanBeUnique(field))
             throw new NendoPreconditionException("field-unique-invalid",
                 $"{field.DisplayName} is {UniqueShape(field)}. Only a single-line Text field or a plain Integer field can be unique.");
+        if (!operation.Unique && field.Sequence is not null)
+            throw new NendoPreconditionException("field-sequence-in-use",
+                $"{field.DisplayName} has a sequence, which needs it unique. Remove the sequence first.");
         if (operation.Unique == field.Unique)
             throw new NendoPreconditionException("field-unique-unchanged",
                 $"{field.DisplayName} is already {(field.Unique ? "unique" : "not unique")}.");

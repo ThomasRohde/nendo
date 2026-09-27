@@ -50,6 +50,8 @@ export interface EntitySnapshot {
     retired?: boolean;
     /** No two records may hold equal values in this field (ADR-0020). */
     unique?: boolean;
+    /** The host numbers a new record's empty value: prefix then width digits (ADR-0020). */
+    sequence?: { prefix: string; width: number } | null;
   }>;
   /** Calculated fields this record type shows. Never editable. */
   derivedFields?: Array<{

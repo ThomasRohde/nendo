@@ -94,7 +94,25 @@ host 1.37.0.
 
 Declaring and removing are definition-lane operations of class
 `ReversibleWithRetainedState`; removing leaves every value, and compensating a removal over
-new duplicates is refused like declaring.
+new duplicates is refused like declaring. A field with a sequence cannot stop being unique
+(`field-sequence-in-use`).
+
+**Numbered fields.** `schema.setFieldSequence { entityId, fieldId, prefix, width }` gives a
+unique Text field a sequence: a create that leaves the field empty (or empty text) gets
+`prefix` and the next number, zero-padded to `width` digits (`W-` and 3 give `W-001`), inside
+the same write. Anything else is `field-sequence-invalid`; a prefix is 1 to 16 characters with
+no spaces and no final digit, and a width 1 to 9.
+
+- The next number is one past the highest ever seen: values of that shape already stored (the
+  prefix ignoring ASCII case, then only digits) set it on declaration, a code a client writes
+  itself raises it, and it is never lowered, so a deleted record's number stays spent. The
+  counter is stored with the rule and survives a reopen.
+- History records the create with the code in it, and a restored record gets its own code
+  back, never a new one.
+- A numbered field may be required: the code is written before the required check.
+- The write result's `assigned` (`AssignedValues` in the Engine) names each code the host wrote.
+- `prefix` and `width` null remove the sequence and leave every code. Compensating a removal
+  puts the sequence back no lower than the number it had reached.
 
 ## Labels, choices and retirement
 

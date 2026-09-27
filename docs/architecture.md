@@ -224,7 +224,7 @@ An edit to an unrelated record does not invalidate a UI-only proposal
 
 ### Typed operations
 
-Twenty-nine operation types are the primitive: every type that a revision can
+Thirty operation types are the primitive: every type that a revision can
 record, including the two that only host services create. Semantic diff, undo
 evidence and replay all derive from the same operation stream.
 
@@ -240,12 +240,13 @@ schema.configureReference                               application.setPurpose
 schema.declareHierarchy
 schema.removeHierarchy
 schema.setFieldUnique
+schema.setFieldSequence
 
 extension.setPackage     extension.removeFile
 extension.putFile        extension.removePackage
 ```
 
-`*` marks a native-only operation. The other twenty-seven are the closed union that
+`*` marks a native-only operation. The other twenty-eight are the closed union that
 the canonical change-set parser accepts and an MCP client may author (see
 `NendoAuthoringOperations.cs`). Whole-definition
 convenience APIs must expand into typed operations before the host records, diffs

@@ -227,6 +227,8 @@ to have the host keep it unique. Before you declare it, give two records the sam
 different case, and record what the declaration told you — and whether it told you the code
 itself or only the records. Then try to create a third record with a code already in use,
 through each route you have, and say whether every refusal named the record that holds it.
+Then have the host number the field, create records without a code, delete the newest and
+create another, and record which codes you were given and whether any came back twice.
 
 **Before you accept any of it, read the review and answer from it alone.** Cover the change
 set you sent and work only from the sentences the person accepting would see: which record

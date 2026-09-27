@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-27
-- **Delivery:** Stage 1 (unique fields) done 2026-09-27, at host 1.37.0; stages 2–5 not started. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24, "I pre-accept any ADR change - this is still an experimental project"), with the recommended option taken at every open point
+- **Delivery:** Stages 1 (unique fields) and 2 (sequences) done 2026-09-27, at host 1.37.0; stages 3–5 not started. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24, "I pre-accept any ADR change - this is still an experimental project"), with the recommended option taken at every open point
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** The code survey in Context (2026-09-27) and the planner's own duplicate codes (W-074 names them)
@@ -161,6 +161,29 @@ and the refusal an agent sees). Falsified: with the per-write check skipped, *"E
 exception type:<NendoPreconditionException>. Actual exception type:<SqliteException>"*; without
 the audited code, the agent read only *"NENDO_VALUE_NOT_UNIQUE: The semantic precondition was
 not met."*
+
+## Stage 2 note — 2026-09-27: sequences
+
+Delivered within host 1.37.0, on the rung stage 1 laid. Details the code settled:
+
+- **History records the code.** The create a sequence fills is rewritten with the code before it
+  is recorded, so history, a replay of it and a restored record all carry the same one. A
+  restore never draws a new number.
+- **The counter is raised by any code of its shape**, including the one just assigned, so the
+  advance and the raise are one rule seen twice: a test that removes only the advance still
+  passes, and removing the raise fails it.
+- **`minimumNext`** is a payload key only compensation sets, so undoing a removal cannot go below
+  the number the removed sequence had reached.
+- **A prefix cannot end in a digit**, or `V2` and `001` would read back as `V` and `2001`.
+- **The result names the codes.** `NendoApplyResult.AssignedValues`, and `assigned` on an MCP
+  write result, list each record, field and code the host wrote.
+
+Evidence: `FieldSequenceTests` (6: the next after the highest existing, ignoring other shapes;
+a batch numbered in order; a deleted number stays spent; explicit codes and case raise the
+counter; the counter survives a reopen; a restore keeps its code; a required numbered field;
+the refused shapes; removal and its compensation) and `FieldUniqueProtocolTests` (a create
+without a code returns the assigned one over MCP). Falsified: without the raise, *"Expected
+F-051"* failed.
 
 ## Consequences
 

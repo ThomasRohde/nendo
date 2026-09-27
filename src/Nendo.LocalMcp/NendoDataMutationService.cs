@@ -321,6 +321,7 @@ internal sealed class NendoDataMutationService(
         {
             RecordVersion = reported,
             AlsoChanged = result.GeneratedChanges,
+            Assigned = result.AssignedValues,
         };
     }
 

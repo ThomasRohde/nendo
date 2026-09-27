@@ -26,7 +26,7 @@ A stable semantic property of an entity. It maps to a physical column or a relat
 
 ## Unique field
 
-A field no two records of its type may share a value in ([ADR-0020](decisions/0020-unique-and-generated-fields.md)). The host refuses a duplicate from every client and names the record that holds the value. Text compares ignoring ASCII case; an empty value never collides.
+A field no two records of its type may share a value in ([ADR-0020](decisions/0020-unique-and-generated-fields.md)). The host refuses a duplicate from every client and names the record that holds the value. Text compares ignoring ASCII case; an empty value never collides. A unique Text field can also be numbered: the host writes the next code (W-001) into a new record that leaves it empty, and never hands out a number twice.
 
 ## Relationship
 

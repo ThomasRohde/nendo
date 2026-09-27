@@ -34,6 +34,7 @@ internal sealed record FieldMapping(
     internal NendoRatingScale? Scale { get; init; }
     internal bool Retired { get; init; }
     internal bool Unique { get; init; }
+    internal NendoFieldSequence? Sequence { get; init; }
 }
 
 internal sealed record OperationEvidence(

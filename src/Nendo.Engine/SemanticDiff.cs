@@ -203,6 +203,14 @@ internal static class SemanticDiff
                     value.Reversibility,
                     value.EntityId,
                     value.FieldId),
+                SetFieldSequenceOperation value => Entry(
+                    "setFieldSequence",
+                    value.Prefix is { } prefix
+                        ? $"Number new {EntityName(names, value.EntityId)} records' {FieldName(names, value.FieldId)} automatically: {prefix} then {value.Width} digits, as in {prefix}{"1".PadLeft(value.Width!.Value, '0')}. A number is never used twice."
+                        : $"Stop numbering {FieldName(names, value.FieldId)} automatically. Every code stays as it is.",
+                    value.Reversibility,
+                    value.EntityId,
+                    value.FieldId),
                 RemoveHierarchyOperation value => Entry(
                     "removeHierarchy",
                     $"Stop keeping {EntityName(names, value.EntityId)} a tree. Its parent field keeps every value.",
