@@ -97,26 +97,23 @@ internal sealed class NendoDataTools(
         ReadOnly = false,
         UseStructuredContent = true)]
     [Description("""
-        Create many records of one record type from faithful CSV text or typed JSON, without a file picker.
-        This is how a new application is given its data: nendo.data.create_records takes fifty at a time and a
-        demonstration dataset is twenty round trips of it.
-        format is "csv" or "json". For csv, send the text itself in csv -- never a path, which this host does not
-        accept anywhere -- and map its columns with columnMappings, each {column, fieldId}, column being the
-        zero-based position in the header row. Set csvProfile to "nendo" for text that came out of
-        nendo://application/entity/{entityId}/export or the person's own Export, where a backslash followed by N means null and a
-        non-null value starting with a backslash carries one extra; leave it "external" for ordinary CSV, where
-        every cell is literal. emptyIsNull applies to external CSV only and is off by default, so empty text stays
-        empty text. Record IDs are derived for you and are stable across an exact retry.
-        For json, send records as [{recordId, values}], the same shape nendo.data.create_records takes, with
-        exact numbers as {"$nendoNumber":"lexeme"} and reference targets in expectedTargetVersions.
-        Bounds: 500 rows per call, echoed back as maximumRowsPerCall, and the usual 256 KiB request body, which is
-        the limit you will meet first. It commits in batches of fifty, each one revision, each all or nothing, each
-        with its own key derived from yours -- so a batch that is refused stops the run and leaves the batches
-        before it committed. On success, committed and remaining state the counts. If a later batch is refused,
-        NENDO_IMPORT_PARTIAL names the number committed, the number remaining, the first uncommitted data row,
-        the committed revision IDs and the refusal cause. Retry the identical call with the same idempotencyKey:
-        earlier batches replay without duplicates. Bad CSV mappings and mixed CSV/JSON payloads are refused before
-        any write. Nothing here claims the whole call is atomic.
+        Create many records of one record type from CSV text or typed JSON: the way a new application is given its
+        data, where nendo.data.create_records takes fifty at a time.
+        format is "csv" or "json". For csv, send the text itself in csv, never a path, and map its columns with
+        columnMappings, each {column, fieldId}, column being the zero-based position in the header row. csvProfile
+        "nendo" reads text from nendo://application/entity/{entityId}/export or the person's own Export, where a
+        backslash followed by N means null and a value starting with a backslash carries one extra; the default,
+        "external", reads every cell literally, and emptyIsNull (off by default) makes its empty cells null.
+        Record IDs are derived for you and are stable across an exact retry.
+        For json, send records as [{recordId, values}], the shape nendo.data.create_records takes, with exact
+        numbers as {"$nendoNumber":"lexeme"} and reference targets in expectedTargetVersions.
+        Bounds: 500 rows per call, echoed as maximumRowsPerCall, and the 256 KiB request body, which you will meet
+        first. It commits in batches of fifty, each one revision and all or nothing, each with a key derived from
+        yours, so a refused batch stops the run and leaves the batches before it committed. On success, committed
+        and remaining state the counts. If a later batch is refused, NENDO_IMPORT_PARTIAL names the number
+        committed, the number remaining, the first uncommitted data row, the committed revision IDs and the cause.
+        Retry the identical call with the same idempotencyKey: earlier batches replay without duplicates. Bad
+        mappings and mixed CSV/JSON payloads are refused before any write; the call as a whole is not atomic.
         Create the record type first: a write into one an unaccepted proposal would create names that proposal.
         """)]
     public Task<NendoImportResult> ImportRecordsAsync(

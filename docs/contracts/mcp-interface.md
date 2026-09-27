@@ -1,8 +1,25 @@
 # MCP interface contract
 
-This contract lists the sixteen resources and nineteen tools that an external
+This contract lists the seventeen resources and twenty tools that an external
 agent sees, and the authority rules behind them. `Test-Production.ps1` asserts
 both surfaces by name.
+
+The server instructions, and every tool, parameter and resource description, are
+held to 2,000 characters. Claude Code shows each of them only up to 2,048
+characters and drops the rest with nothing on the wire to say so, so the host
+cannot see the cut and holds the bound itself. On 2026-09-27 the instructions were
+2,755 characters and lost the sentence that says no SQL, file, process or network
+access exists; `add_operations` (2,179) lost its amend remedy and `import_records`
+(2,056) its retry sentence. The instructions now say what the file is, the first
+read, how to take the lease and keep the handle private, to save `receiptContext`,
+what does not exist, and who accepts a proposal at the current level, in 1,714 to
+1,760 characters across their variants. The paragraph for someone writing a
+2026-07-28 client by hand left them: `server/discover` and this contract carry it.
+The rules that were the second half of the `add_operations` description are the
+vocabulary's `authoringRules`, which the description names.
+`SurfaceTextBoundTests` reads every variant back through both handshakes and every
+description through the lists; with the old text restored it failed at 2,752,
+2,179 and 2,056 characters.
 
 Two of those tools came with the [ADR-0009](../decisions/0009-local-mcp-transport-authority-and-change-sets.md)
 amendment of 2026-09-22. *Data mutation* serves `nendo.data.import_records`.
@@ -70,7 +87,7 @@ physical mappings or arbitrary host invocation.
 | `nendo://application/describe` | `GetDescriptionAsync` → the projections below | What the file is for, then the manifest, authoring limits, every record type with its fields, every compiled screen, health, `extensions` (every custom-view package the file carries, with its files but not their bytes), and `reads`: every resource URI this host serves, generated from the declared resources. It answers the reconnaissance phase without 1 + N round trips. `resources/list` returns only the parameterless resources, so the read path for records was reachable only through `resources/templates/list`. A review concluded from the seven listed entries that the data API was write-only, and it opened the SQLite file directly to check its own writes. |
 | `nendo://application/examples` | `NendoAuthoringExamples.Description` | Seventeen complete contract version 3 change sets that can be sent without change: `create-entity-with-required-fields`, `configure-a-reference`, `a-breakdown-and-a-ring`, `a-trend-and-an-activity-grid`, `a-matrix-and-a-ranking`, `a-board-with-a-lane-per-project`, `build-a-detail-surface`, `define-a-command`, `two-commands-and-a-filtered-list`, `several-views-tabs-and-a-calendar`, `a-timeline-of-spans`, `a-gallery-and-a-rating`, `a-front-page-for-the-file`, `say-what-the-file-is-for`, `calculate-and-act-automatically`, `show-a-custom-graph`, `put-a-custom-view-in-the-file`. Each example carries the authoring rule that it conveys. Static for a host build. [The example tests](../../tests/Nendo.LocalMcp.Tests/AuthoringExampleTests.cs) replay every example through the real authoring boundary, so an example that stops validating fails the build. |
 | `nendo://application/manifest` | `NendoResourceProjection.GetManifestAsync` → `GetDefinitionSnapshotAsync` | What the file is for, plus identity and revision counters, without record/history reads. |
-| `nendo://application/vocabulary` | `NendoSemanticVocabulary.Description` + `NendoAuthoringOperations.All` | Every contract version 3 node kind with its permitted properties, required properties, permitted children and root ceiling: `maxRootsPerEntity`, or `maxRootsPerFile` for a root that belongs to the file and not to a record type. The closed filter operators, value kinds, ordering directions and aggregates. The `and` combinator that joins sibling `filterClause` children, and the note that version 3 has no OR and no grouping. The closed `choiceTones` that a choice option may carry. The `charts` rule with its closed groupings and its ceiling on groups. The `overview` rule with the one front page that a file may own and the ceiling on a recent list. The authoring limits. `operations`: every canonical operation with the payload fields that it requires and accepts. It is generated from the tables that the compiler and the authoring boundary validate against. `NendoAgentAuthoringService` builds its accepted field sets from the published table, so a documented field is an accepted field. Static for a host build: it describes the host, not the open file. |
+| `nendo://application/vocabulary` | `NendoSemanticVocabulary.Description` + `NendoAuthoringOperations.All` | Every contract version 3 node kind with its permitted properties, required properties, permitted children and root ceiling: `maxRootsPerEntity`, or `maxRootsPerFile` for a root that belongs to the file and not to a record type. The closed filter operators, value kinds, ordering directions and aggregates. The `and` combinator that joins sibling `filterClause` children, and the note that version 3 has no OR and no grouping. The closed `choiceTones` that a choice option may carry. The `charts` rule with its closed groupings and its ceiling on groups. The `overview` rule with the one front page that a file may own and the ceiling on a recent list. The authoring limits. `operations`: every canonical operation with the payload fields that it requires and accepts. `authoringRules`: the rules that are easy to break and expensive to discover — identifiers global to the file, a required field in the same mutation as its entity, the omitted revision the host fills in, inline node properties and what they cost, one contract version across roots, where a payload is refused, amend after a failed validate, and who accepts — from `NendoAuthoringOperations.Rules`. It is generated from the tables that the compiler and the authoring boundary validate against. `NendoAgentAuthoringService` builds its accepted field sets from the published table, so a documented field is an accepted field. Static for a host build: it describes the host, not the open file. |
 | `nendo://application/entities` | `GetEntitiesAsync` → `GetDefinitionSnapshotAsync` | Stable entity IDs and display labels; no record projection. |
 | `nendo://host/instances` | `NendoDiscoveryStore.ReadLiveEntries` | Every Nendo that runs on this device and the file that each one has open. `isThisOne` marks the host that answers the read. This is the only resource here that is not about the open file. The host has written this directory since discovery existed, but nothing read it. An agent therefore could not tell a person which file it was about to write to, and a second Nendo was unreachable in practice (F-064). An entry is admitted on the same terms that the stale sweep uses to keep one, so a dead host is never offered as a place to work. Each entry carries the name of the file and never a path. The resource does not make another endpoint reachable. A client reaches the address that it was registered with and cannot redirect itself. Switching therefore stays the action of the person, and the resource states this in its own `note`. |
 | `nendo://application/entity/{entityId}/schema` | `GetSchemaAsync` → `GetDefinitionSnapshotAsync` | Semantic fields, storage kinds, required/presentation/options, and a rating field's `scale` with its `min` and `max`. |
@@ -305,7 +322,8 @@ that table serves two purposes. It is published at
 `nendo://application/vocabulary`, and `NendoAgentAuthoringService` builds its
 enforcement from it. Before, the payload specification was prose inside the
 `add_operations` tool description. That prose grew so long that a real client's
-tool listing truncated it mid-token. The union permits twenty-eight of the Engine's
+tool listing truncated it mid-token. The rules that stayed behind went the same
+way on 2026-09-27 and are now `authoringRules`. The union permits twenty-eight of the Engine's
 thirty canonical operations. `data.restoreDeletedRecord` and
 `identity.transition` are native-only: lifecycle identity operations remain host
 services and are not MCP authoring primitives.

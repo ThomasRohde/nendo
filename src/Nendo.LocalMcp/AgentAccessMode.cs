@@ -26,3 +26,34 @@ public enum AgentAccessMode
     /// </summary>
     Unattended,
 }
+
+/// <summary>
+/// The names a person sees for each level, and the refusal an agent gets below one. One
+/// table, so the instructions, the tool boundary and the lease service cannot name a level
+/// differently from the Agent page that sets it.
+/// </summary>
+internal static class NendoAccessLevels
+{
+    internal static string DisplayName(AgentAccessMode mode) => mode switch
+    {
+        AgentAccessMode.Disabled => "Off",
+        AgentAccessMode.ReadOnly => "Inspect",
+        AgentAccessMode.DataMutation => "Edit data",
+        AgentAccessMode.ApplicationAuthoring => "Shape app",
+        AgentAccessMode.Unattended => "Unattended",
+        _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+    };
+
+    /// <summary>The code for a request that needs <paramref name="required"/>, without the NENDO_ prefix.</summary>
+    internal static string RequiredCode(AgentAccessMode required) => required switch
+    {
+        AgentAccessMode.Unattended => "UNATTENDED_REQUIRED",
+        AgentAccessMode.ApplicationAuthoring => "SHAPE_APP_REQUIRED",
+        _ => "EDIT_DATA_REQUIRED",
+    };
+
+    /// <summary>What the agent can do about it: the person raises the level, on the Agent page.</summary>
+    internal static string RequiredMessage(AgentAccessMode required) =>
+        $"{DisplayName(required)} access is required. Ask the person to raise agent access to " +
+        $"{DisplayName(required)} on the Agent page in Nendo.";
+}

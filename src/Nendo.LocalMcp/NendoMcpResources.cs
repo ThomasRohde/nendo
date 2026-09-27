@@ -47,6 +47,7 @@ internal sealed class NendoMcpResources(
         TranslateAsync(() => Task.FromResult(Nendo.Engine.NendoSemanticVocabulary.Description() with
         {
             Operations = NendoAuthoringOperations.All,
+            AuthoringRules = NendoAuthoringOperations.Rules,
         }));
 
     [McpServerResource(

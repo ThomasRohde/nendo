@@ -43,24 +43,15 @@ internal sealed class NendoAuthoringTools(
     [Description("""
         Append bounded canonical semantic operations to an owned draft. Each mutation has description and operations;
         each operation has operationType and payload. The host supplies operation IDs. Use stable semantic IDs, never SQL or physical names.
-        Families: schema.* (record types, fields, references, choices), ui.* (screens), behaviour.setDefinition/removeDefinition
-        (calculations, functions, actions, triggers), data.* (records). A payload the host cannot bind is
-        refused here, naming the mutation, operation and key; nothing enters the draft.
-        The contract lives in two resources, not in this description: nendo://application/vocabulary carries every canonical
-        operation with the payload fields it requires and accepts, every node kind with its properties, permitted children
-        and root cardinality, the closed operator, value, ordering and aggregate sets, and the authoring limits;
-        nendo://application/examples carries complete change sets you can send as they stand.
-        Four rules that are easy to violate and expensive to discover:
-        Identifiers are global to the file. entityId, fieldId, recordId and nodeId are each unique across the whole file, not
-        scoped to a parent, so prefix them with their owner: task, taskTitle.
-        A mutation is the materialization boundary for the definition lane: a required field must sit in the same mutation as
-        its schema.createEntity, or be added optional and made required later. UI nodes are exempt.
-        expectedDefinitionRevision may be omitted wherever the vocabulary lists it, and the host fills in the value for that
-        operation's position; send it and it is honoured exactly.
-        ui.addNode takes an inline properties map, so a node and its configuration cost one operation rather than one per
-        property. Each property still expands to one canonical ui.setProperty, counted against the canonicalOperationLimit
-        the response echoes beside the submitted count.
-        Contract version 3 declares definitionVersion=3 on every root; mixing versions across roots fails closed.
+        Families: schema.* (record types, fields, references, choices, hierarchies), ui.* (screens),
+        behaviour.setDefinition/removeDefinition (calculations, functions, actions, triggers), extension.* (custom-view
+        packages), application.setPurpose, and data.* (records).
+        A payload the host cannot bind is refused here, naming the mutation, operation and key; nothing enters the draft.
+        The contract lives in nendo://application/vocabulary, not in this description: operations carries every canonical
+        operation with the payload fields it requires and accepts, authoringRules the rules that are easy to break and
+        expensive to discover (identifiers are global to the file; a required field sits in the same mutation as its
+        schema.createEntity), and limits the bounds. nendo://application/examples carries complete change sets you can
+        send as they stand.
         A failed validate leaves the draft open: correct it with nendo.change_set.amend rather than starting again.
         Active data remains unchanged until the person accepts the validated proposal in Nendo.
         """)]

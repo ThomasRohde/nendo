@@ -263,47 +263,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             result.TimeToLive = TimeSpan.Zero;
                             return result;
                         });
-                        // The first sentence says what the product is. A reviewer who read only
-                        // the tool list could not tell this host had calculations at all, and the
-                        // transport paragraph — written for someone building an HTTP client —
-                        // stood where that sentence should have been.
-                        server.ServerInstructions =
-                            "This is a Nendo file: record types and records, screens (lists, boards, calendars, record pages and " +
-                            "commands), calculated fields, reusable functions, and automatic actions that run on a trigger. " +
-                            "Everything but records is authored through a change set — begin, add_operations, validate — that " +
-                            "the person accepts in Nendo; calculations, functions, actions and triggers are the " +
-                            "behaviour.setDefinition operation. " +
-                            "Read nendo://application/describe first: it returns the whole open application in one call, and its " +
-                            "reads block names every resource URI this host serves. resources/list returns only the parameterless " +
-                            "ones; the read paths that take a parameter are templates, returned by resources/templates/list. " +
-                            "Read a record back, with exact numericLexemes, at nendo://application/entity/{entityId}/records. " +
-                            "nendo://application/vocabulary carries every node kind, the closed operator and value sets, every " +
-                            "canonical operation with the payload it takes, the behaviour catalogue with every binding shape's keys, " +
-                            "and the authoring limits; nendo://application/examples " +
-                            "carries complete change sets you can send as they stand. " +
-                            "nendo://application/proposals lists what is already waiting for the person to accept. " +
-                            "Acquire a lease and keep its applicationHandle private. Pass it with leaseId on all owned operations. " +
-                            (options.LeaseTtl is { } ttl
-                                ? $"Renew within {(int)ttl.TotalSeconds} seconds; release explicitly when finished. "
-                                : "The lease has no expiry: release it explicitly when finished. ") +
-                            "nendo.lease.status reports who holds the lease and needs none itself; use it after a lost " +
-                            "acquire response or a reconnect rather than assuming the lease is free. " +
-                            "Closing your client does not release editing, and the person may revoke it at any time. " +
-                            "Entity, field, record and node IDs are unique across the whole file, not scoped to a parent. " +
-                            "Compiled screens are exercised in the Use view, not Studio. " +
-                            "Save receiptContext from the lease grant before writing. After a lost response, " +
-                            "nendo.data.get_receipt can read the original outcome without restoring edit authority. " +
-                            "An unresolved receipt is not permission to resubmit with a new key. " +
-                            "No SQL, file access, process access, network access or generic invocation is " +
-                            "available. A validated change set is accepted by the person in Nendo; " +
-                            (mode >= AgentAccessMode.Unattended
-                                ? "this file session is set to Unattended, so nendo.change_set.accept applies your own validated proposal and records this device's consent for any automatic actions it installs. "
-                                : "there is no promotion tool at this access level. ") +
-                            "There is no credential and no session header. A standard MCP client sends initialize and " +
-                            "proceeds. If you are building your own 2026-07-28 client: call server/discover, then send each " +
-                            "request with MCP-Protocol-Version, Mcp-Method and Mcp-Name headers and params._meta keys " +
-                            "io.modelcontextprotocol/protocolVersion, io.modelcontextprotocol/clientCapabilities and " +
-                            "io.modelcontextprotocol/clientInfo, camelCase exactly as written.";
+                        server.ServerInstructions = NendoServerInstructions.For(mode, options.LeaseTtl);
                         // The signal brackets the call; the log records it afterwards. Both
                         // are here because this is the one place that sees every request,
                         // its name and its client, and neither holds a gate.

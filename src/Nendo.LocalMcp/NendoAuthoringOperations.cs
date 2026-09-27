@@ -117,6 +117,24 @@ internal static class NendoAuthoringOperations
             ["entityId", "fieldId", "targetEntityId", "labelFieldId", "records"], RevisionScoped),
     ];
 
+    /// <summary>
+    /// The rules that are easy to break and expensive to discover, published in the
+    /// vocabulary as <c>authoringRules</c>. They were the second half of
+    /// <c>nendo.change_set.add_operations</c>'s description until a client's 2,048-character
+    /// cut took its last two sentences; the description now names this list instead.
+    /// </summary>
+    internal static IReadOnlyList<string> Rules { get; } =
+    [
+        "Identifiers are global to the file: entityId, fieldId, recordId and nodeId are each unique across the whole file, not scoped to a parent, so prefix them with their owner (task, taskTitle).",
+        "A mutation is the materialization boundary for definitions: a required field sits in the same mutation as its schema.createEntity, or is added optional and made required later. UI nodes are exempt.",
+        "expectedDefinitionRevision may be omitted wherever an operation lists it: the host fills in the value for that operation's position. Sent, it is honoured exactly.",
+        "ui.addNode takes an inline properties map, so a node and its configuration cost one operation. Each property still expands to one canonical ui.setProperty, counted against the canonicalOperationLimit that every response echoes beside the submitted count.",
+        "Contract version 3 declares definitionVersion=3 on every root; mixing versions across roots fails closed.",
+        "A payload the host cannot bind is refused by add_operations itself, naming the mutation, the operation and the key, and nothing enters the draft.",
+        "A failed validate leaves the draft open: correct it with nendo.change_set.amend rather than starting again.",
+        "Nothing in a change set touches the file until the person accepts the validated proposal in Nendo, or, at Unattended only, nendo.change_set.accept applies it.",
+    ];
+
     /// <summary>The accepted payload field names per operation type, taken from the published table.</summary>
     internal static IReadOnlyDictionary<string, IReadOnlySet<string>> AllowedPayloads { get; } =
         All.ToDictionary(

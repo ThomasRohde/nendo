@@ -136,14 +136,14 @@ public sealed class AuthoringErgonomicsTests
 
         // The instructions open with what a file holds. A reviewer who had only the
         // tool names could not tell the product had calculations, and the transport
-        // paragraph stood first, addressed to someone building an HTTP client.
+        // paragraph stood first, addressed to someone building an HTTP client. It is gone
+        // now: it pushed the sentences an agent needs past a client's 2,048-character cut,
+        // and server/discover and the MCP contract already carry it (W-082).
         var instructions = client.ServerInstructions ?? string.Empty;
         StringAssert.StartsWith(instructions, "This is a Nendo file");
         StringAssert.Contains(instructions, "calculated fields");
         StringAssert.Contains(instructions, "behaviour.setDefinition");
-        Assert.IsGreaterThan(instructions.IndexOf("behaviour.setDefinition", StringComparison.Ordinal),
-            instructions.IndexOf("server/discover", StringComparison.Ordinal),
-            "The transport paragraph belongs after the product, not before it.");
+        Assert.DoesNotContain("Mcp-Method", instructions, StringComparison.Ordinal);
 
         var vocabulary = ProtocolResourceTests.Deserialize<NendoVocabularyDescription>(
             await ProtocolResourceTests.ReadTextAsync(client, "nendo://application/vocabulary"));
@@ -170,7 +170,7 @@ public sealed class AuthoringErgonomicsTests
         var description = tools
             .Single(tool => tool.Name == "nendo.change_set.add_operations")
             .Description ?? string.Empty;
-        Assert.IsLessThan(2_200, description.Length,
+        Assert.IsLessThanOrEqualTo(NendoServerInstructions.MaximumCharacters, description.Length,
             "A tool listing is where a schema gets truncated, not where it belongs.");
         StringAssert.Contains(description, "nendo://application/vocabulary");
         StringAssert.Contains(description, "nendo://application/examples");

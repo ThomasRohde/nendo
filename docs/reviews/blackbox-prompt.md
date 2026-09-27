@@ -175,7 +175,10 @@ Before you trust the tool list, lint it the way the reference tool does. Run
 to capture what the wire says, then open the same address in the Inspector's web client
 and read the *Schema portability* panel on every tool. The host claims it shows no
 warning and no error on any of them; report each one you find with the tool and the
-path, and say whether the text you were handed was cut short anywhere, and where.
+path, and say whether the text you were handed was cut short anywhere, and where. The
+host holds its instructions and every description to 2,000 characters, under the 2,048
+at which some clients stop reading: measure the longest yourself, and say whether the
+authoring rules the `add_operations` description sends you to were where it said.
 
 Before you build anything, say what the file you opened is for, and where that came from.
 Then say what an empty file says about itself. A file whose author has never said should

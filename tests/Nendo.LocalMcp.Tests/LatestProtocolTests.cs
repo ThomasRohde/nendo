@@ -89,7 +89,7 @@ public sealed class LatestProtocolTests
         Assert.DoesNotContain(grant.LeaseId, visible);
     }
 
-    private static HttpClient Client(NendoLocalMcpHost host)
+    internal static HttpClient Client(NendoLocalMcpHost host)
     {
         var client = new HttpClient { BaseAddress = host.Endpoint, Timeout = TimeSpan.FromSeconds(10) };
         client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
@@ -97,7 +97,7 @@ public sealed class LatestProtocolTests
         return client;
     }
 
-    private static async Task<JsonElement> Send(HttpClient http, string method, Dictionary<string, object?> parameters,
+    internal static async Task<JsonElement> Send(HttpClient http, string method, Dictionary<string, object?> parameters,
         bool legacy = false, string? headerMethod = null)
     {
         if (!legacy) parameters["_meta"] = new Dictionary<string, object?>

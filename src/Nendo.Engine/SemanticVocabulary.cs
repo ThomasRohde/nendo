@@ -1046,6 +1046,13 @@ public sealed record NendoVocabularyDescription(
     /// </summary>
     public IReadOnlyList<NendoOperationDescription> Operations { get; init; } = [];
 
+    /// <summary>
+    /// The authoring rules that are easy to break and expensive to discover, one sentence
+    /// each. Supplied by the adapter, like <see cref="Operations"/>: a tool description is
+    /// cut short in a client's listing, and this is the read the description points at.
+    /// </summary>
+    public IReadOnlyList<string> AuthoringRules { get; init; } = [];
+
     /// <summary>The closed colours a choice option may carry, in picker order, with the rule.</summary>
     public NendoChoiceToneDescription? ChoiceTones { get; init; }
 
