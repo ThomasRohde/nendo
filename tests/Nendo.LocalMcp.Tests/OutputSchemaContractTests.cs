@@ -303,6 +303,23 @@ public sealed class OutputSchemaContractTests
     private static void AssertSatisfies(JsonElement root, JsonElement schema, JsonElement value, string path)
     {
         schema = Resolve(root, schema);
+        // A nullable member is one anyOf branch per type. The payload must match at
+        // least one, and the keywords of the matching branch then apply to it.
+        if (schema.TryGetProperty("anyOf", out var alternatives) && alternatives.ValueKind == JsonValueKind.Array)
+        {
+            var matching = alternatives.EnumerateArray()
+                .Select(alternative => Resolve(root, alternative))
+                .Where(alternative => Accepts(alternative, value))
+                .ToArray();
+            Assert.IsNotEmpty(
+                matching,
+                $"{path} advertises {alternatives.GetRawText()} and no branch accepts {value.ValueKind}. " +
+                $"Payload: {value.GetRawText()}");
+            foreach (var branch in matching)
+            {
+                AssertSatisfies(root, branch, value, path);
+            }
+        }
         if (schema.TryGetProperty("required", out var required) && value.ValueKind == JsonValueKind.Object)
         {
             foreach (var name in required.EnumerateArray().Select(item => item.GetString()).OfType<string>())
@@ -331,6 +348,27 @@ public sealed class OutputSchemaContractTests
                 AssertSatisfies(root, items, element, $"{path}/{index++}");
             }
         }
+    }
+
+    /// <summary>Whether a single-type branch admits the payload's JSON kind; a branch without a type admits anything.</summary>
+    private static bool Accepts(JsonElement branch, JsonElement value)
+    {
+        if (branch.ValueKind != JsonValueKind.Object ||
+            !branch.TryGetProperty("type", out var type) ||
+            type.ValueKind != JsonValueKind.String)
+        {
+            return true;
+        }
+        return type.GetString() switch
+        {
+            "object" => value.ValueKind == JsonValueKind.Object,
+            "array" => value.ValueKind == JsonValueKind.Array,
+            "string" => value.ValueKind == JsonValueKind.String,
+            "boolean" => value.ValueKind is JsonValueKind.True or JsonValueKind.False,
+            "null" => value.ValueKind == JsonValueKind.Null,
+            "integer" or "number" => value.ValueKind == JsonValueKind.Number,
+            _ => false,
+        };
     }
 
     /// <summary>

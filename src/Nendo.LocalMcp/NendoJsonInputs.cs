@@ -56,7 +56,11 @@ public readonly record struct NendoScalarInput(JsonElement Element)
     }
 }
 
-/// <summary>The shapes the two argument types advertise, applied through the schema exporter's transform hook.</summary>
+/// <summary>
+/// What the advertised schemas say, applied through the schema exporter's transform hook,
+/// which visits every node of every input and output schema: the shapes of the two
+/// argument types above, and one rule for every other node — it names one type.
+/// </summary>
 internal static class NendoJsonInputs
 {
     internal static JsonNode Advertise(AIJsonSchemaCreateContext context, JsonNode node)
@@ -64,7 +68,7 @@ internal static class NendoJsonInputs
         var type = context.TypeInfo.Type;
         if (type == typeof(NendoObjectInput)) return Merge(node, ObjectShape());
         if (type == typeof(NendoScalarInput)) return Merge(node, ScalarShape());
-        return node;
+        return OneTypePerNode(node);
     }
 
     internal static void Write(Utf8JsonWriter writer, JsonElement element)
@@ -73,16 +77,97 @@ internal static class NendoJsonInputs
         else element.WriteTo(writer);
     }
 
+    /// <summary>
+    /// The exporter writes a nullable member as <c>"type": ["integer", "null"]</c>. That is
+    /// valid JSON Schema, and the MCP Inspector warns on every such node: a client that maps
+    /// tool schemas onto a single-type dialect, as the OpenAPI subset some model providers
+    /// use does, drops the constraint or refuses the whole tool. Seventy-seven nodes across
+    /// the twenty tools carried it, in and out. The array becomes one <c>anyOf</c> branch per
+    /// type, each carrying the keywords that belong to that type, while the description and
+    /// the default stay on the node.
+    /// </summary>
+    internal static JsonNode OneTypePerNode(JsonNode node)
+    {
+        if (node is not JsonObject target ||
+            !target.TryGetPropertyValue("type", out var declared) ||
+            declared is not JsonArray types)
+        {
+            return node;
+        }
+        var names = types
+            .Select(entry => entry is JsonValue value && value.TryGetValue<string>(out var name) ? name : null)
+            .ToArray();
+        if (names.Length == 0 || names.Any(name => name is null))
+        {
+            return node;
+        }
+        target.Remove("type");
+        var branches = new JsonArray();
+        foreach (var name in names.Distinct(StringComparer.Ordinal))
+        {
+            var branch = new JsonObject { ["type"] = name };
+            foreach (var keyword in KeywordsOf(name!))
+            {
+                if (target.TryGetPropertyValue(keyword, out var owned))
+                {
+                    target.Remove(keyword);
+                    branch[keyword] = owned;
+                }
+            }
+            branches.Add(branch);
+        }
+        target["anyOf"] = branches;
+        return target;
+    }
+
+    // The keywords JSON Schema 2020-12 scopes to one type. Each moves into the branch of
+    // that type, so a branch says everything about the instance it accepts.
+    private static readonly string[] ObjectKeywords =
+    [
+        "properties", "required", "additionalProperties", "patternProperties", "propertyNames",
+        "minProperties", "maxProperties", "dependentRequired", "dependentSchemas", "unevaluatedProperties",
+    ];
+
+    private static readonly string[] ArrayKeywords =
+    [
+        "items", "prefixItems", "contains", "minItems", "maxItems", "uniqueItems",
+        "minContains", "maxContains", "unevaluatedItems",
+    ];
+
+    private static readonly string[] StringKeywords =
+    [
+        "minLength", "maxLength", "pattern", "format", "contentEncoding", "contentMediaType",
+    ];
+
+    private static readonly string[] NumberKeywords =
+    [
+        "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+    ];
+
+    private static string[] KeywordsOf(string type) => type switch
+    {
+        "object" => ObjectKeywords,
+        "array" => ArrayKeywords,
+        "string" => StringKeywords,
+        "number" or "integer" => NumberKeywords,
+        _ => [],
+    };
+
     private static JsonObject ObjectShape() => new()
     {
         ["type"] = "object",
         ["additionalProperties"] = true,
     };
 
+    // One type per branch here too: a client that reads type as a single string
+    // takes each alternative as written.
     private static JsonObject ScalarShape() => new()
     {
         ["anyOf"] = new JsonArray(
-            new JsonObject { ["type"] = new JsonArray("string", "number", "boolean", "null") },
+            new JsonObject { ["type"] = "string" },
+            new JsonObject { ["type"] = "number" },
+            new JsonObject { ["type"] = "boolean" },
+            new JsonObject { ["type"] = "null" },
             new JsonObject
             {
                 ["type"] = "object",

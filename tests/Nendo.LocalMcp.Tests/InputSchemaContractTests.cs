@@ -57,17 +57,141 @@ public sealed class InputSchemaContractTests
         }
 
         // A field value advertises exactly what the runtime takes: a scalar, null, or
-        // the exact-number envelope — not an object of anything.
+        // the exact-number envelope — not an object of anything. One type per branch,
+        // so a client that reads type as a single string takes each as written.
         var value = Node(schemas["nendo.data.set_field"], "value");
         var alternatives = value.GetProperty("anyOf").EnumerateArray().ToArray();
-        Assert.HasCount(2, alternatives);
-        CollectionAssert.AreEquivalent(
+        Assert.HasCount(5, alternatives);
+        CollectionAssert.AreEqual(
             new[] { "string", "number", "boolean", "null" },
-            alternatives[0].GetProperty("type").EnumerateArray().Select(item => item.GetString()).ToArray());
-        Assert.AreEqual("object", alternatives[1].GetProperty("type").GetString());
-        Assert.IsTrue(alternatives[1].GetProperty("properties").TryGetProperty("$nendoNumber", out _));
-        Assert.IsFalse(alternatives[1].GetProperty("additionalProperties").GetBoolean());
+            alternatives.Take(4).Select(alternative => alternative.GetProperty("type").GetString()).ToArray());
+        Assert.AreEqual("object", alternatives[4].GetProperty("type").GetString());
+        Assert.IsTrue(alternatives[4].GetProperty("properties").TryGetProperty("$nendoNumber", out _));
+        Assert.IsFalse(alternatives[4].GetProperty("additionalProperties").GetBoolean());
         Assert.IsFalse(string.IsNullOrWhiteSpace(value.GetProperty("description").GetString()));
+    }
+
+    /// <summary>
+    /// The MCP Inspector lints every tool's input and output schema with four rules:
+    /// a bare boolean where a schema belongs (an error), a <c>type</c> array, a node with
+    /// no validation keyword, and a <c>$ref</c> outside the document. On 2026-09-27 the
+    /// twenty tools carried seventy-seven type arrays — every nullable member, in and
+    /// out, exported as <c>["integer", "null"]</c> — and the Inspector warned on each.
+    /// The same four rules run here over the same schemas, so a warning cannot return
+    /// without failing the build. The rules are the Inspector's own
+    /// (<c>core/json/schemaLint.ts</c>), ported rather than approximated.
+    /// </summary>
+    [TestMethod]
+    public async Task EveryAdvertisedSchemaPassesTheInspectorLint()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        // Unattended lists every tool, including the one served only there.
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service,
+            AgentAccessMode.Unattended,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+
+        var tools = await client.ListToolsAsync();
+        Assert.HasCount(20, tools);
+        var findings = new List<string>();
+        var nullableMembers = 0;
+        foreach (var tool in tools)
+        {
+            Lint(tool.ProtocolTool.InputSchema, $"{tool.Name}:inputSchema", underNot: false, findings);
+            var output = tool.ProtocolTool.OutputSchema;
+            Assert.IsNotNull(output, $"{tool.Name} advertises no output schema.");
+            Lint(output.Value, $"{tool.Name}:outputSchema", underNot: false, findings);
+            nullableMembers += CountNullBranches(output.Value);
+        }
+        Assert.IsEmpty(findings, "The Inspector would report:\n" + string.Join("\n", findings));
+        // The split kept the nullable members nullable rather than dropping the null
+        // alternative: a lint that passed because every member became required would
+        // have traded one refusal for another.
+        Assert.IsGreaterThan(50, nullableMembers, "Output schemas no longer advertise their nullable members.");
+    }
+
+    private static readonly string[] InspectorConstraining =
+    [
+        "type", "$ref", "enum", "const", "anyOf", "oneOf", "allOf", "not", "properties", "items", "prefixItems",
+        "additionalProperties", "patternProperties", "contains", "minimum", "maximum", "exclusiveMinimum",
+        "exclusiveMaximum", "multipleOf", "minLength", "maxLength", "pattern", "format", "minItems", "maxItems",
+        "uniqueItems", "required", "minProperties", "maxProperties", "if", "then", "else", "dependentSchemas",
+        "dependentRequired", "propertyNames", "unevaluatedProperties", "unevaluatedItems", "$dynamicRef",
+    ];
+
+    private static void Lint(JsonElement node, string path, bool underNot, List<string> findings)
+    {
+        if (node.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            findings.Add($"{path}: boolean-schema (error): a bare {node.GetRawText()} where a schema object belongs.");
+            return;
+        }
+        if (node.ValueKind != JsonValueKind.Object) return;
+        if (node.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.Array)
+        {
+            findings.Add($"{path}: type-union (warning): type is the array {type.GetRawText()}.");
+        }
+        if (!underNot && !InspectorConstraining.Any(keyword => node.TryGetProperty(keyword, out _)))
+        {
+            findings.Add($"{path}: untyped-schema (warning): no validation keyword.");
+        }
+        if (node.TryGetProperty("$ref", out var reference) &&
+            reference.ValueKind == JsonValueKind.String &&
+            reference.GetString() is { Length: > 0 } pointer &&
+            !pointer.StartsWith('#'))
+        {
+            findings.Add($"{path}: remote-ref (warning): {pointer}.");
+        }
+        foreach (var property in node.EnumerateObject())
+        {
+            switch (property.Name)
+            {
+                case "properties" or "patternProperties" or "$defs" or "definitions" or "dependentSchemas":
+                    if (property.Value.ValueKind != JsonValueKind.Object) break;
+                    foreach (var child in property.Value.EnumerateObject())
+                    {
+                        Lint(child.Value, $"{path}/{property.Name}/{child.Name}", underNot, findings);
+                    }
+                    break;
+                case "additionalProperties" or "unevaluatedProperties" or "unevaluatedItems" or "additionalItems"
+                    when property.Value.ValueKind is JsonValueKind.True or JsonValueKind.False:
+                    // Boolean-valued by the specification; the Inspector exempts these.
+                    break;
+                case "items" or "contains" or "not" or "if" or "then" or "else" or "propertyNames"
+                    or "additionalProperties" or "unevaluatedProperties" or "unevaluatedItems" or "additionalItems":
+                    Lint(property.Value, $"{path}/{property.Name}", underNot || property.Name == "not", findings);
+                    break;
+                case "anyOf" or "oneOf" or "allOf" or "prefixItems":
+                    if (property.Value.ValueKind != JsonValueKind.Array) break;
+                    var index = 0;
+                    foreach (var alternative in property.Value.EnumerateArray())
+                    {
+                        Lint(alternative, $"{path}/{property.Name}/{index++}", underNot, findings);
+                    }
+                    break;
+            }
+        }
+    }
+
+    /// <summary>How many <c>anyOf</c> groups in the schema carry a <c>{"type": "null"}</c> branch.</summary>
+    private static int CountNullBranches(JsonElement node)
+    {
+        if (node.ValueKind == JsonValueKind.Array) return node.EnumerateArray().Sum(CountNullBranches);
+        if (node.ValueKind != JsonValueKind.Object) return 0;
+        var count = 0;
+        if (node.TryGetProperty("anyOf", out var alternatives) &&
+            alternatives.ValueKind == JsonValueKind.Array &&
+            alternatives.EnumerateArray().Any(alternative =>
+                alternative.ValueKind == JsonValueKind.Object &&
+                alternative.TryGetProperty("type", out var type) &&
+                type.ValueKind == JsonValueKind.String &&
+                type.GetString() == "null"))
+        {
+            count++;
+        }
+        return count + node.EnumerateObject().Sum(property => CountNullBranches(property.Value));
     }
 
     /// <summary>

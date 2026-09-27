@@ -207,9 +207,21 @@ Those arguments are now `NendoObjectInput` and `NendoScalarInput`. Each still
 binds any JSON. Nendo therefore refuses a wrong shape with a sentence that names
 the operation or the rule, and the binder does not refuse it with no sentence. Each
 argument advertises its shape through the SDK's schema transform hook: `object`
-for the maps, and a scalar, `null` or the `$nendoNumber` envelope for a field
-value. `InputSchemaContractTests` walks every advertised node and sends the wrong
-shapes.
+for the maps, and one branch each for a string, a number, a boolean, `null` and the
+`$nendoNumber` envelope for a field value. `InputSchemaContractTests` walks every
+advertised node and sends the wrong shapes.
+
+Every advertised node names one type. The exporter writes a nullable member as
+`"type": ["integer", "null"]`, which is valid JSON Schema and which the MCP
+Inspector warns on at every such node (its `type-union` rule): a client that maps
+tool schemas onto a single-type dialect drops the constraint or refuses the tool.
+On 2026-09-27 the twenty tools carried seventy-seven such nodes, every nullable
+member in and out. The same transform hook now splits each into one `anyOf`
+branch per type, each branch carrying the keywords that belong to that type, with
+the description and the default left on the node. The Inspector's four rules
+(`boolean-schema`, `type-union`, `untyped-schema`, `remote-ref`) are ported into
+`EveryAdvertisedSchemaPassesTheInspectorLint`, which runs them over every input and
+output schema and was seen to fail with 76 findings when the split was withheld.
 
 ## What a refusal says
 

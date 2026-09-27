@@ -170,6 +170,13 @@ return. Then answer honestly: could you build an application from what you just 
 without guessing at a shape? Wherever the answer is no, write down the exact thing you
 would have had to invent, and the call you made that should have told you.
 
+Before you trust the tool list, lint it the way the reference tool does. Run
+`npx @modelcontextprotocol/inspector --cli http://127.0.0.1:41763/mcp --transport http --method tools/list --format json`
+to capture what the wire says, then open the same address in the Inspector's web client
+and read the *Schema portability* panel on every tool. The host claims it shows no
+warning and no error on any of them; report each one you find with the tool and the
+path, and say whether the text you were handed was cut short anywhere, and where.
+
 Before you build anything, say what the file you opened is for, and where that came from.
 Then say what an empty file says about itself. A file whose author has never said should
 read as having said nothing — if you find a sentence there, say where you think it came
