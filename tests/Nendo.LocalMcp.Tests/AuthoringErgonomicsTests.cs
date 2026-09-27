@@ -245,13 +245,15 @@ public sealed class AuthoringErgonomicsTests
     }
 
     [TestMethod]
-    public async Task AWriteBlockedByAnUnacceptedProposalNamesTheProposal()
+    [DataRow(AgentAccessMode.ApplicationAuthoring)]
+    [DataRow(AgentAccessMode.Unattended)]
+    public async Task AWriteBlockedByAnUnacceptedProposalNamesTheProposal(AgentAccessMode mode)
     {
         await using var workspace = new LocalMcpTestWorkspace();
         await workspace.CreateEmptyAsync();
         await using var host = await NendoLocalMcpHost.StartAsync(
             workspace.Service,
-            AgentAccessMode.ApplicationAuthoring,
+            mode,
             new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
         var session = await AcquireAsync(client);
@@ -284,6 +286,17 @@ public sealed class AuthoringErgonomicsTests
         StringAssert.Contains(refused, "Create the CRM record types");
         StringAssert.Contains(refused, validated.ProposalId);
         StringAssert.Contains(refused, "accept");
+        // The remedy is the one this level offers: at Unattended the agent accepts its own
+        // proposal, and below it only the person can (W-083).
+        if (mode >= AgentAccessMode.Unattended)
+        {
+            StringAssert.Contains(refused, "If this session validated it, nendo.change_set.accept applies it");
+            Assert.DoesNotContain("There is no promotion tool", refused, StringComparison.Ordinal);
+        }
+        else
+        {
+            StringAssert.Contains(refused, "There is no promotion tool at this access level");
+        }
 
         // The pending proposal is also discoverable on its own, which is what a
         // reconnecting agent has instead of the response it lost.

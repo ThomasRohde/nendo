@@ -10,7 +10,8 @@ namespace Nendo.LocalMcp;
 internal sealed class NendoDataTools(
     NendoDataMutationService mutations,
     NendoActivityLog activity,
-    NendoAgentProposalStore proposals)
+    NendoAgentProposalStore proposals,
+    NendoHostAuthority host)
 {
     [McpServerTool(Name = "nendo.data.get_receipt", Title = "Read a write's receipt", Destructive = false, Idempotent = true,
         OpenWorld = false, ReadOnly = true, UseStructuredContent = true)]
@@ -282,7 +283,9 @@ internal sealed class NendoDataTools(
         }
         catch (Exception exception)
         {
-            throw NendoToolErrors.Translate(exception, () => proposals.PendingCause(names));
+            throw NendoToolErrors.Translate(
+                exception,
+                () => proposals.PendingCause(host.Mode >= AgentAccessMode.Unattended, names));
         }
     }
 

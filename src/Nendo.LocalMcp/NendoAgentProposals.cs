@@ -292,7 +292,12 @@ public sealed class NendoAgentProposalStore
     /// bad identifier and invites the wrong repair. The likely cause is that the
     /// proposal is still waiting for a person, and the host already knows that.
     /// </summary>
-    internal string? PendingCause(params string?[] semanticIds)
+    /// <param name="acceptServed">
+    /// Whether this session is at Unattended, where the agent may accept its own proposal.
+    /// The advisory said "there is no promotion tool" at every level, which at Unattended sent
+    /// an agent to ask a person for something it could do itself.
+    /// </param>
+    internal string? PendingCause(bool acceptServed, params string?[] semanticIds)
     {
         var wanted = semanticIds
             .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -312,8 +317,12 @@ public sealed class NendoAgentProposalStore
         return named is not null
             ? $"A validated proposal that changes this ID is waiting for someone to accept it in Nendo: " +
               $"\"{named.Preview.Title}\" ({named.Preview.ProposalId}). Definition changes reach the file only on " +
-              "acceptance, so a write that depends on one fails until then. There is no promotion tool; ask the person " +
-              "to accept it, or reject it with nendo.change_set.reject."
+              "acceptance, so a write that depends on one fails until then. " +
+              (acceptServed
+                  ? "If this session validated it, nendo.change_set.accept applies it; otherwise ask the person to accept " +
+                    "it in Nendo, or reject it with nendo.change_set.reject."
+                  : "There is no promotion tool at this access level; ask the person to accept it, or reject it with " +
+                    "nendo.change_set.reject.")
             : $"{pending.Length} validated {(pending.Length == 1 ? "proposal is" : "proposals are")} waiting for " +
               "someone to accept them in Nendo. If this write depends on a definition change one of them makes, it " +
               "fails until that proposal is accepted.";

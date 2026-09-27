@@ -244,7 +244,11 @@ compatibility change, and the person who approved it was not shown it.
 
 A data write can be refused because the record type, field or command that it
 names is not in the file. The refusal then names the outstanding proposal that
-creates it, with the title of that proposal and the required action.
+creates it, with the title of that proposal and the required action: below
+Unattended, the person's acceptance; at Unattended, `nendo.change_set.accept` for a
+proposal this session validated. Until 2026-09-27 it said "there is no promotion
+tool" at every level, which at Unattended sent an agent to ask for something it
+could do itself.
 `NENDO_ENTITY_NOT_FOUND` on its own reads as a bad identifier and invites the
 wrong repair. Immediately after a validate, the likely cause is that nobody has
 accepted the proposal yet.
