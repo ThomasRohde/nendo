@@ -20,7 +20,8 @@ import { closeInspector, executeTreeCommand, wireRecordForm, wireRelatedPager } 
 import { fieldMarkup, recordFormMarkup } from './record-markup';
 import { content, focusWithoutInteraction, requiredElement, rerender, setBusy, showError } from './shell';
 import { drillPillMarkup, recordPagerMarkup, surfaceBodyMarkup, surfaceSelectorMarkup, surfaceTileMarkup } from './surface-markup';
-import { type BoardView, accumulatesPages, isCustomViewKind, surfaceById } from './surface-model';
+import { type BoardView, isCustomViewKind, readsOwnRecords, surfaceById } from './surface-model';
+import { wireOutlineSurface } from './outline-surface';
 import { renderSurfaces } from './view-surfaces';
 import { wireViewFrames } from './view-frames';
 /**
@@ -52,7 +53,7 @@ export async function selectSurface(surfaceId: string): Promise<void> {
   surfaceErrors.delete(surfaceId);
   // A calendar or a timeline reads its own pages when it renders, keyed by the
   // range and mode in view.
-  if (accumulatesPages(node.kind)) { rerender(); return; }
+  if (readsOwnRecords(node.kind)) { rerender(); return; }
   // A window loaded earlier in this revision is still the answer, so returning
   // to a surface does not re-read it.
   if (surfaceWindows.get(surfaceId)?.page.changeSequence === state.session.manifest?.changeSequence) { rerender(); return; }
@@ -155,10 +156,10 @@ export function renderUse(): void {
   const entityName = plan.entity.displayName;
   const restorePickerFocus = document.activeElement?.matches('.surface-picker summary') ?? false;
   content.innerHTML = `<div class="use-page" data-testid="semantic-application">
-    <header class="use-toolbar"><div class="toolbar-group"><label class="select-field">${overview === null ? 'Record type' : 'Showing'}<select id="use-entity">${overview === null ? '' : `<option value="">${escapeHtml(overviewTitle(overview))}</option>`}${applicationPlans().map(app => `<option value="${escapeAttribute(app.entity.semanticId)}" ${app.entity.semanticId === plan.entity.semanticId ? 'selected' : ''}>${escapeHtml(app.entity.displayName)}</option>`).join('')}</select></label>${surfaceSelectorMarkup(plan)}${drillPillMarkup(plan)}${state.returnTo === null ? '' : `<button id="related-back" class="text-button related-back" type="button"><span aria-hidden="true">←</span> Back to ${escapeHtml(state.returnTo.label)}</button>`}</div><div class="toolbar-group">${surface !== null && (accumulatesPages(surface.kind) || isCustomViewKind(surface.kind)) ? '' : recordPagerMarkup(plan.entity.semanticId, surface?.semanticId ?? null)}<button id="new-record" class="primary-button" data-action type="button"><span class="button-glyph" aria-hidden="true">+</span>Add ${escapeHtml(entityName)}</button></div></header>
+    <header class="use-toolbar"><div class="toolbar-group"><label class="select-field">${overview === null ? 'Record type' : 'Showing'}<select id="use-entity">${overview === null ? '' : `<option value="">${escapeHtml(overviewTitle(overview))}</option>`}${applicationPlans().map(app => `<option value="${escapeAttribute(app.entity.semanticId)}" ${app.entity.semanticId === plan.entity.semanticId ? 'selected' : ''}>${escapeHtml(app.entity.displayName)}</option>`).join('')}</select></label>${surfaceSelectorMarkup(plan)}${drillPillMarkup(plan)}${state.returnTo === null ? '' : `<button id="related-back" class="text-button related-back" type="button"><span aria-hidden="true">←</span> Back to ${escapeHtml(state.returnTo.label)}</button>`}</div><div class="toolbar-group">${surface !== null && readsOwnRecords(surface.kind) ? '' : recordPagerMarkup(plan.entity.semanticId, surface?.semanticId ?? null)}<button id="new-record" class="primary-button" data-action type="button"><span class="button-glyph" aria-hidden="true">+</span>Add ${escapeHtml(entityName)}</button></div></header>
     <div class="message-slot use-message" role="alert" hidden></div>
     <div class="use-layout ${selected !== null || state.creatingRecord || relatedTarget !== null ? 'has-inspector' : ''}">
-      <section class="use-surface${surface?.kind === 'calendarSurface' ? ' calendar-surface' : surface?.kind === 'timelineSurface' ? ' timeline-surface' : surface?.kind === 'gallerySurface' ? ' gallery-surface' : surface?.kind === 'matrixSurface' ? ' matrix-surface' : isCustomViewKind(surface?.kind) ? ' custom-view-surface' : ''}"${surface === null ? '' : ` data-surface="${escapeAttribute(surface.semanticId)}"`}>${surfaceTileMarkup(plan)}${surfaceBodyMarkup(plan)}</section>
+      <section class="use-surface${surface?.kind === 'calendarSurface' ? ' calendar-surface' : surface?.kind === 'timelineSurface' ? ' timeline-surface' : surface?.kind === 'gallerySurface' ? ' gallery-surface' : surface?.kind === 'matrixSurface' ? ' matrix-surface' : surface?.kind === 'outlineSurface' ? ' outline-surface' : isCustomViewKind(surface?.kind) ? ' custom-view-surface' : ''}"${surface === null ? '' : ` data-surface="${escapeAttribute(surface.semanticId)}"`}>${surfaceTileMarkup(plan)}${surfaceBodyMarkup(plan)}</section>
       ${created !== null && relatedTarget !== null ? relatedCreateInspector(created, relatedTarget)
         : state.creatingRecord ? `<aside class="record-inspector"><header><span>New ${escapeHtml(entityName)}</span><button id="close-inspector" class="icon-button" type="button" aria-label="Close" data-dismiss>${icon('close')}</button></header>${recordFormMarkup(null, formFields(plan), `Add ${entityName}`, pageFormBody(plan, null, false), '', pageHasTabs(plan))}</aside>` : selected !== null ? inspectorMarkup(plan, selected) : ''}
     </div>
@@ -258,6 +259,7 @@ export function renderUse(): void {
   }
   if (surface?.kind === 'calendarSurface') wireCalendar(plan, surface);
   if (surface?.kind === 'timelineSurface') wireTimeline(plan, surface);
+  if (surface?.kind === 'outlineSurface') wireOutlineSurface(plan, surface);
   if (surface !== null && board !== null) wireBoardDrag(plan, surface, board);
   if (created !== null && relatedTarget !== null) {
     wireRecordForm(null, created.targetEntityId, relatedCreateFields(relatedTarget, created.viaFieldId), closeRelatedCreate, relatedTarget);

@@ -10,7 +10,7 @@ import { chartKey, groupScopedCharts, pageScopedCharts, surfaceScopedCharts, typ
 import { groupScopedTiles, groupTileScope, pageScopedTiles, surfaceScopedTiles, tileKey, type ScopedTile } from './summary-tiles';
 import { cssToken } from './format';
 import {
-  accumulatedWindows, boardColumns, calendarModes, calendarMonths, chartStates, drills, recordWindows, selectedSurfaces,
+  accumulatedWindows, boardColumns, calendarModes, calendarMonths, chartStates, drills, outlineSurfaces, recordWindows, selectedSurfaces,
   selectedTabs, state, studioQueries, studioWindows, summaryCounts, surfaceWindows, tabStateKey,
   timelineModes, timelineYears, type BoardColumn, type DrillState, type RecordWindow,
 } from './app-state';
@@ -56,6 +56,7 @@ export function activePlan(): ApplicationPlan | null {
   // the entries it has loaded for the range in view rather than one bounded window.
   const records = surface !== null && accumulatesPages(surface.kind)
     ? accumulatedRecords(surface)
+    : surface?.kind === 'outlineSurface' ? outlineRecords(surface)
     : recordsForEntity(definition.entity.semanticId, surface?.semanticId ?? null);
   return { ...definition, records };
 }
@@ -169,6 +170,13 @@ export function recordPlanOf(record: RecordSnapshot): RecordPlan {
     referenceLabels: record.referenceLabels,
     calculations: calculationsOf(record),
   };
+}
+
+/** The records an outline has read, every open level of it, as record plans. */
+function outlineRecords(node: SurfaceNodePlan): RecordPlan[] {
+  const entry = outlineSurfaces.get(node.semanticId);
+  if (entry === undefined) return [];
+  return [...entry.state.levels.values()].flatMap(level => level.items.map(item => recordPlanOf(item.record as RecordSnapshot)));
 }
 
 /** The records a calendar or a timeline has actually loaded, as record plans. */

@@ -45,6 +45,7 @@ a total.
 | Calendar | up to 8 | Records on a month grid by one date field, plus an **Undated** view. | Date fields only. A date-and-time field is refused. |
 | Timeline | up to 8 | Records under month headings on a one-year spine, plus an **Undated** view. An optional end date draws a span. | Date fields only. A record is placed by its start date. |
 | Matrix | up to 8 | A grid that crosses two fields, with an exact count and the cards in each cell. | At most 366 cells, so about 19 by 19. |
+| Outline | up to 8 | A record type kept as a tree, as rows you open and close, with columns beside each title. Can let people move records. | Only for a record type kept as a tree. No filters. |
 | Custom graph | up to 8 | Records as a node-and-edge graph, drawn by a custom view whose code the file carries. | See [Custom views](/nendo/docs/custom-views). |
 | Custom view | up to 8 | One record type, drawn by a custom view whose code the file carries: a Gantt chart, a map. A custom view can also sit on a record page. | See [Custom views](/nendo/docs/custom-views). |
 | Record page | 1 | One record: a header, fields in sections and tabs, related lists, tiles and commands. | |
@@ -91,6 +92,18 @@ columns, plus one unset lane on each axis, exceeds 366 is refused when it is
 authored. If the option lists grow past that later, the matrix states that it
 cannot draw the grid. It never draws part of a grid. You cannot drag cards
 between cells.
+
+### Outline
+
+An outline shows a record type that is kept as a tree: each record indented under its
+parent, with the number of records directly under it. It opens two levels by itself (or
+between one and four, as the screen says), and remembers on your computer which rows you
+opened or closed. The find box opens the path to each record whose title matches, up to 20.
+When the screen allows moving, drag a row onto another row, or select it and press Alt,
+Shift and an arrow key, or use **Move up**, **Move down**, **Outdent** and **Indent**.
+Nendo refuses a move that would put a record under itself and says why. An outline has no
+filters: a filtered tree would hide the parents that give a record its place. While an
+outline shows the tree, the tree cannot be removed from the record type.
 
 ### Record page and form
 

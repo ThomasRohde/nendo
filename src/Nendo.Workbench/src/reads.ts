@@ -56,6 +56,7 @@ export async function loadRecordWindow(entityId: string, direction: number, surf
 
 export async function loadSurfaceWindow(entityId: string, node: SurfaceNodePlan): Promise<void> {
   if (isCustomViewKind(node.kind)) return; // A custom view reads its own records, through the extension API.
+  if (node.kind === 'outlineSurface') return; // An outline reads its tree a level at a time (outline-surface.ts).
   const query = effectiveSurfaceQuery(entityId, node);
   const page = await client.request<ReadPage<RecordSnapshot>>('data.queryRecords', windowRequest(entityId, query));
   if (page.changeSequence !== state.session.manifest?.changeSequence)

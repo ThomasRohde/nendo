@@ -102,6 +102,11 @@ export function treeSurfaceCard(plan: ApplicationPlan, root: SurfaceNodePlan): s
       if (typeof root.properties.dateFieldId === 'string') parts.push(`by ${fieldName(plan, root.properties.dateFieldId)}`);
       if (typeof root.properties.endDateFieldId === 'string') parts.push(`spans to ${fieldName(plan, root.properties.endDateFieldId)}`);
       break;
+    case 'outlineSurface':
+      parts.push('Outline', `${bindings} ${bindings === 1 ? 'column' : 'columns'} beside the title`);
+      if (typeof root.properties.titleFieldId === 'string') parts.push(`titled by ${fieldName(plan, root.properties.titleFieldId)}`);
+      if (root.properties.reorder === true) parts.push('records can be moved');
+      break;
     case 'gallerySurface':
       parts.push('Gallery', `${bindings} ${bindings === 1 ? 'field' : 'fields'} on each card`);
       if (typeof root.properties.titleFieldId === 'string') parts.push(`titled by ${fieldName(plan, root.properties.titleFieldId)}`);
@@ -138,6 +143,7 @@ export function cardKindFor(kind: string): string {
     case 'calendarSurface': return 'Calendar';
     case 'timelineSurface': return 'Timeline';
     case 'gallerySurface': return 'Gallery';
+    case 'outlineSurface': return 'Outline';
     case 'overviewSurface': return 'Front page';
     case 'recordCommand': return 'Command';
     default: return 'Surfaces';

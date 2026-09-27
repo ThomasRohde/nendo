@@ -615,6 +615,7 @@ internal static class SemanticDiff
         "extensionRecordsSurface" => "the custom record view",
         "extensionRecordPanel" => "the custom view on the record page",
         "gallerySurface" => "the gallery",
+        "outlineSurface" => "the outline",
         "detailSurface" => "the record page",
         "recordCommand" => "the record command",
         "tabGroup" => "the tab group",
@@ -745,6 +746,7 @@ internal static class SemanticDiff
         "extensionRecordsSurface" => "Add a custom view of these records as typed columns. It runs its package's code from this file when shown; records remain available in Studio.",
         "extensionRecordPanel" => "Add a custom view of each record to its page. It runs its package's code from this file when the page shows it, and the page stays editable.",
         "gallerySurface" => "Add a gallery of cards, one per record.",
+        "outlineSurface" => "Add an outline of these records as their tree, a level at a time.",
         "detailSurface" => "Add a record page.",
         "recordCommand" => "Add record command.",
         "tabGroup" => "Add a tab group whose sections become the named tabs.",
@@ -921,6 +923,7 @@ internal static class SemanticDiff
             {
                 "timelineSurface" => $"Title each entry with {FieldName(names, Text(operation.Value, "field"))}.",
                 "gallerySurface" => $"Title each card with {FieldName(names, Text(operation.Value, "field"))}.",
+                "outlineSurface" => $"Title each row with {FieldName(names, Text(operation.Value, "field"))}.",
                 _ => $"Head the page with {FieldName(names, Text(operation.Value, "field"))}.",
             },
             "subtitleFieldId" => $"Show {FieldName(names, Text(operation.Value, "field"))} under the page title.",
@@ -928,6 +931,7 @@ internal static class SemanticDiff
             {
                 "timelineSurface" => $"Colour each entry by {FieldName(names, Text(operation.Value, "field"))}.",
                 "gallerySurface" => $"Colour each card by {FieldName(names, Text(operation.Value, "field"))}.",
+                "outlineSurface" => $"Colour each row by {FieldName(names, Text(operation.Value, "field"))}.",
                 _ => $"Colour the page by {FieldName(names, Text(operation.Value, "field"))}.",
             },
             // Visibility reads a calculation; the line names it so the reviewer can see
@@ -968,6 +972,12 @@ internal static class SemanticDiff
             "orderDirection" => kind == "rankedList"
                 ? Text(operation.Value, "descending") == "ascending" ? "Rank smallest first." : "Rank largest first."
                 : $"Order {Text(operation.Value, "ascending")}.",
+            "expandDepth" => operation.Value.ValueKind == JsonValueKind.Number && operation.Value.TryGetInt32(out var levels) && levels == 1
+                ? "Show only the top level when the outline opens."
+                : $"Open {operation.Value.GetRawText()} levels when the outline opens.",
+            "reorder" => operation.Value.ValueKind == JsonValueKind.True
+                ? "Let people move records in the outline, by drag and by keyboard."
+                : "Keep the outline read-only.",
             "definitionVersion" => $"Use semantic contract version {operation.Value.GetRawText()}.",
             _ => $"Set {HumanId(operation.PropertyName)}.",
         };

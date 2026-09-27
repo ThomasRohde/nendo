@@ -110,7 +110,7 @@ public sealed class SemanticDiffSummaryTests
     [TestMethod]
     public void EveryContractVersionThreeKindHasItsOwnEntry()
     {
-        var kinds = new[] { "detailSurface", "section", "tabGroup", "relatedList", "fieldBinding", "recordCommand", "commandStep", "filterClause", "summaryTile", "calendarSurface", "timelineSurface", "gallerySurface" };
+        var kinds = new[] { "detailSurface", "section", "tabGroup", "relatedList", "fieldBinding", "recordCommand", "commandStep", "filterClause", "summaryTile", "calendarSurface", "timelineSurface", "gallerySurface", "outlineSurface" };
         var operations = kinds.Select((kind, index) =>
             (NendoOperation)new AddUiNodeOperation($"op-{index}", "surface.task", $"node.task.{kind}", index == 0 ? null : "node.task.detailSurface", kind, index)).ToArray();
 
@@ -454,6 +454,30 @@ public sealed class SemanticDiffSummaryTests
         StringAssert.Contains(entries[0], "gallery");
         Assert.AreEqual("Title each card with Title.", entries[1]);
         Assert.AreEqual("Colour each card by Project.", entries[2]);
+    }
+
+    /// <summary>An outline's roles and choices, said as a person sees the tree (ADR-0019 stage 6).</summary>
+    [TestMethod]
+    public void OutlinePropertiesHaveTheirOwnEntries()
+    {
+        var changeSet = ChangeSet(
+            new AddUiNodeOperation("op-outline", "surface.task", "node.outline", null, "outlineSurface", 0),
+            new SetUiPropertyOperation("op-title", "surface.task", "node.outline", "titleFieldId", "field.task.title"),
+            new SetUiPropertyOperation("op-accent", "surface.task", "node.outline", "accentFieldId", "field.task.project"),
+            new SetUiPropertyOperation("op-depth", "surface.task", "node.outline", "expandDepth", 3),
+            new SetUiPropertyOperation("op-top", "surface.task", "node.outline", "expandDepth", 1),
+            new SetUiPropertyOperation("op-reorder", "surface.task", "node.outline", "reorder", true),
+            new SetUiPropertyOperation("op-still", "surface.task", "node.outline", "reorder", false));
+
+        var entries = SemanticDiff.From(changeSet, Active()).Select(entry => entry.Summary).ToArray();
+
+        StringAssert.Contains(entries[0], "outline of these records as their tree");
+        Assert.AreEqual("Title each row with Title.", entries[1]);
+        Assert.AreEqual("Colour each row by Project.", entries[2]);
+        Assert.AreEqual("Open 3 levels when the outline opens.", entries[3]);
+        Assert.AreEqual("Show only the top level when the outline opens.", entries[4]);
+        Assert.AreEqual("Let people move records in the outline, by drag and by keyboard.", entries[5]);
+        Assert.AreEqual("Keep the outline read-only.", entries[6]);
     }
 
     /// <summary>

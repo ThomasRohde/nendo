@@ -214,6 +214,14 @@ the mouse and buttons and then with the keyboard alone. Record whether they foun
 without being told, whether focus stayed on the record they moved, and whether what they
 saw matched what you read back through the tree afterwards.
 
+Then find out from the vocabulary how to put the tree on a screen of its own, and give it a
+column that totals something over each record's subtree. Before it can move anything, ask the
+person whether they can tell it only reads. Then turn moving on and ask them to restructure a
+branch with the mouse alone and then the keyboard alone, and to find one record deep in the
+tree while its branch is closed. Close a few rows, reopen the file, and record which rows
+came back open. Finally try to remove the hierarchy while the screen shows it, and say what
+you were told.
+
 **Before you accept any of it, read the review and answer from it alone.** Cover the change
 set you sent and work only from the sentences the person accepting would see: which record
 types does this add, and which fields, of what kind? Which are required? What are the

@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-27
-- **Delivery:** Stages 1 (the cost experiment), 2 (declaration, cycle rule, move, MCP), 3 (tree read, `descendantOf`, `records.tree`), 4 (subtree aggregates) and 5 (the Studio outline) done 2026-09-27; stages 6–7 not started. Proposed and accepted the same day, after the owner settled the open questions
+- **Delivery:** Stages 1 (the cost experiment), 2 (declaration, cycle rule, move, MCP), 3 (tree read, `descendantOf`, `records.tree`), 4 (subtree aggregates), 5 (the Studio outline) and 6 (the outline surface, at host 1.36.0) done 2026-09-27; stage 7 not started. Proposed and accepted the same day, after the owner settled the open questions
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** The code survey in Context (2026-09-27) and the Capability Atlas review (W-072, planner findings F-154 to F-162). The costs were measured after acceptance as delivery stage 1, and every target was met; see the Stage 1 note
@@ -374,6 +374,45 @@ stayed on the moved record, Enter closed an open record, the colours came from t
 both themes, and the page logged no error. The Desktop half — the bridge method reaching
 the Engine — is covered by `WorkbenchCancellationTests` for its thread only; the move
 itself is the Engine's, under `HierarchyTests`.
+
+## Stage 6 note — 2026-09-27: the outline surface
+
+Delivered as point 9 describes, at host **1.36.0** rather than within 1.35.0: installers of
+1.35.0 had already been built without the kind, and a host never advertises a later feature
+than it has. ADR-0013's views anywhere, which the documents had reserved 1.36.0 for, move to
+the next rung. ADR-0004 records the kind as its 2026-09-27 amendment. Details the code
+settled:
+
+- **Codes** `NUI430` (no hierarchy), `NUI431` (title), `NUI432` (accent), `NUI433`
+  (`expandDepth`), `NUI434` (`reorder`). A `filterClause` or an ordering property is refused
+  by the vocabulary's own child and property rules.
+- **Removal is guarded.** `schema.removeHierarchy` is refused as `hierarchy-field-in-use`
+  while an outline shows the hierarchy, as it is under a subtree calculation.
+- **Reads.** The top level, then each open record's children, in pages of 100; the first
+  draw opens `expandDepth` levels with at most 40 level reads, and rows past that start
+  closed. Every level of one pass is read at one change sequence or the pass starts again.
+- **Moves.** Keyboard as in Studio, plus a pointer drag that uses the board's pointer
+  capture: the top and bottom quarters of a row place the record beside it, the middle as its
+  last child. A drop under the record itself, or where it already is, is not offered. With no
+  order field only indent, outdent and a drop onto a row exist.
+- **Find** reads at most 20 matches of the title field (`contains`), walks each match's
+  parents, and opens the path from the top, reading further pages of a level until the next
+  record on the path is there.
+- **A custom view's actor still cannot call `data.moveRecord`.** A view can set the parent
+  field with `data.setFields`, under the same cycle rule; a view move is decided when a view
+  needs one.
+
+Evidence: `OutlineSurfaceTests` (compile, every refusal, the rung, the removal guard, the
+vocabulary) and review sentences in `SemanticDiffSummaryTests`; `scripts/outline-surface.test.mjs`
+(drop targets and their refusals, a tree without order, which rows start open, the device
+store, and the real markup: treegrid levels, positions, open state, counts, the move buttons
+offered, the reading, failed and found states). Falsified: without the `NUI430` check
+`Assert.IsFalse failed. 'condition' expression: 'compiled.IsValid'`; without the removal guard
+`Assert.ThrowsExactlyAsync failed ... but no exception was thrown`; without the self-drop rule
+`AssertionError [ERR_ASSERTION]: under its own child`. Agent-observed in headless Edge
+against the preview's `tree` fixture, not the real host: depth-first rows at 20 px a level,
+the keyboard walk, Alt+Shift+Up, a pointer drag onto a row, Enter opening the record page,
+find opening a closed path, both themes from tokens, and no console error.
 
 ## Consequences
 

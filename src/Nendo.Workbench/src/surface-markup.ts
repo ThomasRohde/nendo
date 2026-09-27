@@ -21,6 +21,7 @@ import {
 import { accentDot, fieldValueMarkup, recordCardMarkup, recordFieldDisplay, summaryTileGroupMarkup } from './record-markup';
 import { viewPlaceholderMarkup, viewSpecFor } from './view-frame-markup';
 import type { ApplicationPlan, FieldPlan, RecordPlan, SurfaceNodePlan } from './host';
+import { outlineSurfaceMarkup } from './outline-surface-markup';
 
 /**
  * What one selected surface looks like: a list, a board, a calendar, the totals
@@ -57,6 +58,7 @@ export function surfaceSelectorMarkup(plan: ApplicationPlan): string {
     if (node.kind === 'timelineSurface') return ' id="show-timeline"';
     if (node.kind === 'gallerySurface') return ' id="show-gallery"';
     if (node.kind === 'matrixSurface') return ' id="show-matrix"';
+    if (node.kind === 'outlineSurface') return ' id="show-outline"';
     return '';
   };
   return `<details class="surface-picker"><summary><span class="surface-picker-label">View</span><strong>${escapeHtml(selected === null ? 'Choose a view' : surfaceLabel(selected, surfaces))}</strong><span class="surface-picker-chevron" aria-hidden="true">${icon('chevron')}</span></summary><div class="surface-picker-options" role="group" aria-label="${escapeAttribute(plan.entity.displayName)} views">${surfaces.map(node => `<button type="button"${alias(node)} data-select-surface="${escapeAttribute(node.semanticId)}" aria-pressed="${node.semanticId === selected?.semanticId}">${escapeHtml(surfaceLabel(node, surfaces))}<small>${escapeHtml(surfaceKindLabel(node.kind))}</small></button>`).join('')}</div></details>`;
@@ -81,6 +83,8 @@ export function surfaceBodyMarkup(plan: ApplicationPlan): string {
   if (isCustomViewKind(node.kind)) return viewPlaceholderMarkup(viewSpecFor(node, 'screen',
     typeof node.properties.entityId === 'string' ? node.properties.entityId : plan.entity.semanticId, null));
   if (node.kind === 'timelineSurface') return timelineMarkup(plan, node);
+  // An outline reads its tree a level at a time, and draws what it has while it reads again.
+  if (node.kind === 'outlineSurface') return outlineSurfaceMarkup(plan, node);
   if (surfaceWindows.get(node.semanticId)?.page.changeSequence !== state.session.manifest?.changeSequence)
     return '<div class="first-record-state" aria-busy="true"><div class="record-glyph" aria-hidden="true">…</div><h3>Loading this view</h3><p>Reading the records this view shows.</p></div>';
   // A gallery reads a list's window, so it waits on the same staleness guard and only

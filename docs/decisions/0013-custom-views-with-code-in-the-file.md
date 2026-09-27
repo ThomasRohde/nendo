@@ -383,7 +383,7 @@ denied.
   `filterClause` may use any value kind. The panel cap goes. A view whose package
   is not in the file gets the warning NUI452, with one step: "Add package to
   file…". NUI451 and the binding digest are retired.
-- **`extensionView` and `extensionTile` (rung 1.36.0; 1.35.0 went to ADR-0019's hierarchies, delivered first).** `extensionView` is a root
+- **`extensionView` and `extensionTile` (rung 1.37.0; 1.35.0 and 1.36.0 went to ADR-0019's hierarchies and outline, delivered first).** `extensionView` is a root
   with a package, a title, a configuration and an optional `entityId`. It appears
   in the Use "Showing" picker. `extensionTile` is a child of `overviewSurface`,
   `section` or `tabGroup`, sized `tile` or `wide`, with a height.
@@ -485,7 +485,7 @@ before a view runs a command.
 
 - A file that carries packages needs host 1.33.0. A view definition that only the
   open rules accept needs 1.34.0. A definition that the earlier rules accept keeps
-  its rung, 1.29.0 to 1.32.0. `extensionView` and `extensionTile` need 1.36.0.
+  its rung, 1.29.0 to 1.32.0. `extensionView` and `extensionTile` need 1.37.0.
 - An older host refuses writable open of such a file by the rung rule of
   ADR-0012. There is no downgrade-in-place.
 - A file without packages gains no table and keeps its layout.
@@ -529,7 +529,7 @@ contained helper is deleted.
 | 2 | Views run inline from the file, and the helper is deleted: serving, the read API, the kill switches, open definitions, package import and export as folders, and the four packages ported | 1.34.0 |
 | 3 | Views that write: records and commands, proposals to prepare, and state (delivered 2026-09-26) | — |
 | 4 | Develop from a folder: a device-local link, reload on save, and saving the folder as proposals (delivered 2026-09-26) | — |
-| 5 | Views anywhere: `extensionView` and `extensionTile` | 1.36.0 |
+| 5 | Views anywhere: `extensionView` and `extensionTile` | 1.37.0 |
 
 ## Evidence and validation obligations
 

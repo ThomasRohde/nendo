@@ -13,7 +13,7 @@ import {
 import { loadOpenedRecordPanels } from './related-actions';
 import { loadFocusedRecord, loadSurfaceWindow } from './reads';
 import { refreshChrome, rerender, setBusy, showError } from './shell';
-import { accumulatesPages, surfaceById } from './surface-model';
+import { readsOwnRecords, surfaceById } from './surface-model';
 
 /**
  * Going back, and coming forward again, from anywhere in the file.
@@ -241,7 +241,7 @@ async function settle(place: Place): Promise<void> {
     const node = surfaceById(plan, place.surfaceId);
     // A calendar and a timeline read their own pages as they draw, keyed by the range
     // this place has just put back.
-    if (node !== null && !accumulatesPages(node.kind)) {
+    if (node !== null && !readsOwnRecords(node.kind)) {
       // The window has to match the query this place asks for, not just the revision.
       // refreshDerived has just reloaded the selected surface under its DECLARED query,
       // so a window at the current change sequence is sitting there holding the whole

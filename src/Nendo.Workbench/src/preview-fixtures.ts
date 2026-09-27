@@ -77,6 +77,14 @@ function capabilityTreeFixture(): PreviewFixture {
       cardFields: ['field.capability.name'],
       groups: ['Proposed', 'Active', 'Retiring'],
       command: { nodeId: 'command.capability.activate', label: 'Activate', fieldId: 'field.capability.status', value: 'Active' },
+      outline: {
+        surfaceId: 'surface.capability.outline',
+        nodeId: 'node.capability.outline.root',
+        title: 'Capability map',
+        accentFieldId: 'field.capability.status',
+        reorder: true,
+        fields: ['field.capability.status'],
+      },
     },
   );
 }
@@ -231,6 +239,15 @@ interface FixtureSurfaces {
     accentFieldId?: string;
     fields: string[];
   };
+  outline?: {
+    surfaceId: string;
+    nodeId: string;
+    title: string;
+    accentFieldId?: string;
+    expandDepth?: number;
+    reorder?: boolean;
+    fields: string[];
+  };
 }
 
 // One authored shape drives both the stored nodes and the compiled tree, so the
@@ -295,6 +312,16 @@ function fixture(
     if (gallery.accentFieldId !== undefined) extra.accentFieldId = gallery.accentFieldId;
     root(gallery.surfaceId, gallery.nodeId, 'gallerySurface', gallery.title, extra,
       bindings(gallery.surfaceId, gallery.nodeId, gallery.fields));
+  }
+
+  const outline = surfaces.outline;
+  if (outline !== undefined) {
+    const extra: Record<string, unknown> = {};
+    if (outline.accentFieldId !== undefined) extra.accentFieldId = outline.accentFieldId;
+    if (outline.expandDepth !== undefined) extra.expandDepth = outline.expandDepth;
+    if (outline.reorder !== undefined) extra.reorder = outline.reorder;
+    root(outline.surfaceId, outline.nodeId, 'outlineSurface', outline.title, extra,
+      bindings(outline.surfaceId, outline.nodeId, outline.fields));
   }
 
   // Two custom-view screens: one whose package the preview file carries, and a graph whose

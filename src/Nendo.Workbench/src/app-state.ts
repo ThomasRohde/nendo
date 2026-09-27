@@ -3,6 +3,7 @@ import type { BucketResult, CellResult, GroupedResult } from './charts';
 import type { CalendarMode, CivilMonth } from './calendar-model';
 import { cacheKey, type ReadWindow, type WindowQuery } from './record-window';
 import type { DraftSession } from './draft-state';
+import type { OutlineState } from './outline-model';
 
 /**
  * Everything the renderer remembers about the open file, in one place.
@@ -334,6 +335,17 @@ export const timelineModes = fileScopedMap<string, CalendarMode>();
 // The pages a calendar or a timeline has accumulated, under the namespaced
 // window key each surface builds for its range and mode.
 export const accumulatedWindows = fileScopedMap<string, PageAccumulator>();
+
+/** What an outline surface has read and where its focus is (ADR-0019 stage 6), by node ID. */
+export interface SurfaceOutline {
+  state: OutlineState;
+  error: string | null;
+  focus: string | null;
+  found: { text: string; ids: Set<string>; more: boolean } | null;
+}
+export const outlineSurfaces = fileScopedMap<string, SurfaceOutline>();
+/** Why an outline surface could not be read, by node ID, until Try again. */
+export const outlineErrors = fileScopedMap<string, string>();
 
 /** Which tab is open, per file, record type, page and group. */
 export function tabStateKey(entityId: string, pageId: string, groupId: string): string {

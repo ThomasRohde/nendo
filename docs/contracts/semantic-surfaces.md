@@ -42,7 +42,8 @@ kind declares both. A client that read only `maxRootsPerEntity` would find no
 ceiling at all on the front page, so the vocabulary publishes both.
 Under the ADR-0004 2026-09-12 amendment, `recordList`, `boardSurface`,
 `calendarSurface` and `recordCommand` each declare **eight**. `timelineSurface`
-(the 2026-09-14 amendment, S3) and `gallerySurface` (S2) declare the same.
+(the 2026-09-14 amendment, S3), `gallerySurface` (S2) and `outlineSurface` (the
+2026-09-27 amendment) declare the same.
 `matrixSurface` (the 2026-09-17 amendment, S6) and the two custom-view roots,
 `extensionGraphSurface` and `extensionRecordsSurface` (ADR-0013), also declare eight. `detailSurface` and `recordForm` keep one, with their existing page precedence:
 detail first, otherwise form. Eight is a bounded initial product choice. It is
@@ -80,7 +81,7 @@ return a partial app.
 ## Selecting a surface, not a kind
 
 Use offers every `recordList`, `boardSurface`, `gallerySurface`, `calendarSurface`,
-`timelineSurface`, `matrixSurface`, `extensionGraphSurface` and
+`timelineSurface`, `matrixSurface`, `outlineSurface`, `extensionGraphSurface` and
 `extensionRecordsSurface` root of the selected record type, in compiled order, each by
 its own title. The file's `overviewSurface` is not among them. It belongs to the
 file, so Use offers it beside the record types and not among the surfaces of one
@@ -478,6 +479,47 @@ Proposal preview draws the same cards over the validated clone's sample and
 labels it. The diff reads *Add a gallery of cards, one per record.*, *Title each
 card with Title* and *Colour each card by State*. A gallery raises the file's
 minimum host to 1.22.
+
+## The outline
+
+`outlineSurface` (ADR-0004, 2026-09-27 amendment; [ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)
+stage 6) draws a record type's declared hierarchy as an expandable outline. It is a root
+with `definitionVersion`, `entityId`, an optional `title` and the properties below. Its only
+children are `fieldBinding`, drawn as columns beside the title. It owns eight roots per
+entity.
+
+| Property | Accepts | Refused by |
+| --- | --- | --- |
+| `entityId` | a record type that declares a hierarchy | `NUI430` |
+| `titleFieldId` | an active stored Text field that is not a single choice; without it, the label field of the hierarchy's parent reference | `NUI431` |
+| `accentFieldId` | an active single-choice field, toning each row's marker | `NUI432` |
+| `expandDepth` | a whole number from 1 to 4, the levels open when it first shows; 2 without it | `NUI433` |
+| `reorder` | `true` to let a person move records, `false` or absent to only read | `NUI434` |
+
+**It takes no filter and no ordering.** The tree is read in the hierarchy's own sibling
+order, and a filtered tree would hide the ancestors that give a match its meaning. A find box
+reads up to 20 records whose title contains the text and opens each one's path instead.
+
+**Reads.** The top level, then each open record's children, through `data.treeRecords` in
+pages of 100, each record with its child count; a level with more says *Show more*. The first
+draw opens `expandDepth` levels with at most 40 level reads. A calculated field bound as a
+column reads as it does anywhere, so a subtree aggregate there is the outline's rollup.
+
+**The person's rows.** What a person opens or closes is kept on the device under
+`nendo.outlineRows.<applicationId>`, by node ID and record ID, and wins over `expandDepth`.
+The file is unchanged by it.
+
+**Keys.** The rows are an ARIA treegrid with one tab stop: Up and Down move between rows,
+Right opens a record or steps into it, Left closes it or steps out, Space opens or closes, and
+Enter opens the record page. With `reorder` on and the file editable, Alt, Shift and an arrow
+move the focused record, Move up, Move down, Outdent and Indent do the same, and a row can be
+dragged: onto the top or bottom quarter of another row to sit beside it, onto the middle to
+become its last child. Each move is `data.moveRecord`, so the Engine's cycle rule and sibling
+numbering apply, and a refusal leaves the rows as they were and says why. Without the
+hierarchy's order field only Outdent, Indent and a drop onto a row are offered.
+
+**The hierarchy stays while an outline shows it.** `schema.removeHierarchy` is refused as
+`hierarchy-field-in-use` until the outline is removed.
 
 ## The overview page
 
@@ -1092,11 +1134,13 @@ the shape cannot show (below). The ladder is:
 | An `extensionRecordsSurface` (one record type as typed columns) | 1.31 |
 | An `extensionRecordPanel` (a custom view on a record page) | 1.32 |
 | A custom view that only the open rules accept: no package pin, a configuration with anything in it, a calculated label or field, a filter whose value kind is not `literal`, more fields or panels than the 1.32 rules allowed | 1.34 |
+| An `outlineSurface` | 1.36 |
 
-The gaps at 1.17, 1.24 and 1.33 are rungs that are not shapes of the node tree.
+The gaps at 1.17, 1.24, 1.33 and 1.35 are rungs that are not shapes of the node tree.
 `1.17.0` goes to a file that stores behaviour definitions (ADR-0008), `1.24.0`
 goes to a file that carries a purpose (the ADR-0004 2026-09-15 amendment), and
-`1.33.0` goes to a file that carries a custom-view package (ADR-0013). Each
+`1.33.0` goes to a file that carries a custom-view package (ADR-0013), and `1.35.0` to a
+file that declares a hierarchy (ADR-0019). Each
 operation declares that version on its own evidence.
 
 Every row except the 1.27 and 1.34 rows is a shape of the node tree. At 1.19 and 1.22 a

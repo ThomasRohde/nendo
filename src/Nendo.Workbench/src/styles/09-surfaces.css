@@ -1257,3 +1257,37 @@
   font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
 }
+
+/* The outline surface (ADR-0019 stage 6): a declared hierarchy as a treegrid in Use. The
+   toggle and the child count are Studio's outline's own classes, so the two read as one
+   thing; everything here is the table around them. */
+.outline-surface { padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.outline-surface-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.outline-find { display: flex; gap: 6px; }
+.outline-find input { width: 220px; max-width: 100%; }
+.outline-moves { display: flex; flex-wrap: wrap; gap: 6px; }
+.outline-surface-toolbar .query-status { margin: 0; }
+.outline-surface-frame { overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.outline-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.outline-table th { position: sticky; top: 0; z-index: 1; padding: 8px 12px; border-bottom: 1px solid var(--line); color: var(--muted); background: var(--surface); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-align: left; text-transform: uppercase; }
+.outline-table td { padding: 6px 12px; border-bottom: 1px solid var(--line); color: var(--ink); vertical-align: middle; }
+.outline-table tr:last-child td { border-bottom: 0; }
+.outline-row:hover td { background: var(--surface-soft); }
+.outline-row:focus { outline: none; }
+.outline-row:focus-visible td { background: var(--cobalt-soft); }
+.outline-row:focus-visible td:first-child { box-shadow: inset 2px 0 0 var(--cobalt); }
+.outline-row.is-selected td { background: var(--cobalt-soft); }
+.outline-row.is-found .outline-open { box-shadow: inset 0 -2px 0 var(--warning); }
+.outline-row.can-drag { touch-action: none; }
+.outline-row.is-dragging td { opacity: 0.55; }
+.outline-row.drop-before td { box-shadow: inset 0 2px 0 var(--cobalt); }
+.outline-row.drop-after td { box-shadow: inset 0 -2px 0 var(--cobalt); }
+.outline-row.drop-inside td { background: var(--cobalt-soft); }
+.outline-table td.outline-title-cell { padding-left: calc(12px + var(--outline-depth, 0) * 20px); }
+.outline-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.outline-title .status-dot { flex: none; }
+.outline-open { overflow: hidden; min-width: 0; padding: 2px 4px; border: 0; border-radius: 4px; color: var(--ink); background: transparent; font: inherit; font-weight: 600; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.outline-open:hover { color: var(--cobalt); }
+.outline-open:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; }
+.outline-table .outline-more-row td { padding-left: calc(38px + var(--outline-depth, 0) * 20px); }
+.outline-more-count { color: var(--muted); }

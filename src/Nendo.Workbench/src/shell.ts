@@ -70,7 +70,7 @@ function scrollPositions(): HTMLElement[] {
   // its column, so a person reads down it — and every redraw put them back at the top,
   // which is how a screen refreshing behind a failed tile was reported as scrolling on
   // its own.
-  return [content, ...content.querySelectorAll<HTMLElement>('.use-surface, .card-stack, .record-inspector')];
+  return [content, ...content.querySelectorAll<HTMLElement>('.use-surface, .card-stack, .outline-surface-frame, .record-inspector')];
 }
 
 export function rerender(): void {

@@ -128,6 +128,13 @@ internal sealed partial class SqliteNendoStore
                     (binding.Kind == NendoBindingKind.SubtreeAggregate || binding.AcrossSubtree)))
                 throw new NendoPreconditionException("hierarchy-field-in-use",
                     $"'{definition.DefinitionId}' reads {entity.DisplayName}'s hierarchy. Change or remove that calculation first.");
+        // An outline is the hierarchy drawn, so without one it would not compile, and a surface
+        // that does not compile switches every custom screen off. Refused here instead.
+        foreach (var node in await ReadUiNodesAsync(transaction, ct))
+            if (node.Kind == "outlineSurface" && node.Properties.TryGetValue("entityId", out var target) &&
+                target.ValueKind == JsonValueKind.String && target.GetString() == entity.EntityId)
+                throw new NendoPreconditionException("hierarchy-field-in-use",
+                    $"The outline '{node.NodeId}' shows {entity.DisplayName}'s hierarchy. Remove that outline first.");
         await using (var delete = Command("DELETE FROM __nendo_hierarchy WHERE entity_id=@entity;", transaction))
         {
             delete.Parameters.AddWithValue("@entity", entity.EntityId);

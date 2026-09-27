@@ -152,6 +152,19 @@ public static class NendoSemanticVocabulary
                     Set("fieldBinding", "filterClause", "summaryTile", "breakdownChart", "progressTile", "rangeTile", "trendChart", "activityGrid"),
                     CanBeRoot: true,
                     MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
+                // A declared hierarchy as an expandable outline (ADR-0019 stage 6, ADR-0004's
+                // B6). It reads the tree a level at a time in sibling order, so it takes no
+                // ordering, and no filterClause: a filtered tree hides the ancestors that give a
+                // match its meaning, and the outline's find box opens a match's path instead.
+                // Its bound fields are columns beside the title; a subtree aggregate bound there
+                // is how it shows a rollup.
+                ["outlineSurface"] = new(
+                    "outlineSurface",
+                    Set("definitionVersion", "entityId", "title", "titleFieldId", "accentFieldId", "expandDepth", "reorder"),
+                    Set("definitionVersion", "entityId"),
+                    Set("fieldBinding"),
+                    CanBeRoot: true,
+                    MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
                 // The file's front page (ADR-0004 2026-09-14 amendment, S4). The first
                 // root that belongs to the file rather than to a record type: it carries
                 // no entityId, so every tile, chart and recent list under it names the
@@ -421,11 +434,18 @@ public static class NendoSemanticVocabulary
         ["titleFieldId"] = "On a detailSurface, the stored Text field whose value heads the record page. Optional; the page " +
             "is unchanged without it. Neither a single-choice field nor a calculated field can be the title. " +
             "On a timelineSurface, the stored Text field whose value titles each entry; without it the first bound field does. " +
-            "On a gallerySurface, the same for each card.",
+            "On a gallerySurface, the same for each card. " +
+            "On an outlineSurface, the same for each row; without it the label field of the hierarchy's parent reference does.",
+        ["expandDepth"] = $"On an outlineSurface, how many levels are open when it first shows, from 1 (the top level only) to {MaximumOutlineExpandDepth}; " +
+            $"{DefaultOutlineExpandDepth} without it. What a person opens or closes afterwards is kept on their device, never in the file.",
+        ["reorder"] = "On an outlineSurface, true to let a person move records by drag and by keyboard (up, down, indent, outdent) " +
+            "through the hierarchy's typed move, which refuses a loop by name. False or absent, the outline only reads. " +
+            "Up, down and a drop between rows need the hierarchy's order field; indent and outdent do not.",
         ["subtitleFieldId"] = "On a detailSurface, a stored or calculated field shown under the page title. It must differ from titleFieldId.",
         ["accentFieldId"] = "On a detailSurface, a single-choice field whose option colours the page header with that option's tone. " +
             "On a timelineSurface, the single-choice field whose option tones each entry's dot. " +
-            "On a gallerySurface, the single-choice field whose option tones each card's edge.",
+            "On a gallerySurface, the single-choice field whose option tones each card's edge. " +
+            "On an outlineSurface, the single-choice field whose option tones each row's marker.",
         ["dateFieldId"] = "On a calendarSurface or a timelineSurface, the active Date field that places each record. On a trendChart " +
             "or an activityGrid, the active Date field whose value decides which bucket a record counts in. A DateTime is " +
             "refused by name: placing one on a civil date means choosing a time zone to group by, which this contract version does not define.",
@@ -488,6 +508,12 @@ public static class NendoSemanticVocabulary
     /// make the stored definition and the screen say different things.
     /// </summary>
     internal const int MaximumRecentListRows = 10;
+
+    /// <summary>The most levels an outline opens by itself when it first shows (ADR-0019).</summary>
+    internal const int MaximumOutlineExpandDepth = 4;
+
+    /// <summary>The levels an outline opens by itself when it declares none.</summary>
+    internal const int DefaultOutlineExpandDepth = 2;
 
     /// <summary>
     /// How many records a <c>rankedList</c> ranks. Five times a recent list, because a

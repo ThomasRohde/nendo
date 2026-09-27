@@ -183,6 +183,7 @@ export function reviewKindLabel(kind: string): string {
     case 'calendarSurface': return 'Calendar';
     case 'timelineSurface': return 'Timeline';
     case 'gallerySurface': return 'Gallery';
+    case 'outlineSurface': return 'Outline';
     case 'overviewSurface': return 'Front page';
     case 'recentList': return 'Recent records';
     case 'rangeTile': return 'Range';

@@ -80,9 +80,16 @@ export interface MoveTarget {
  * Where a keyboard move sends a record, or null when there is nowhere to go: up and down swap
  * with the neighbouring sibling, indent makes the record the last child of the sibling above,
  * and outdent places it after its parent. A move past siblings not yet read is refused, so it
- * never lands somewhere the person cannot see.
+ * never lands somewhere the person cannot see. Without an order field (`ordered` false) there
+ * is no sibling position to choose: up and down are refused, and indent and outdent only
+ * change the parent.
  */
-export function moveTarget(state: OutlineState, recordId: string, direction: MoveDirection): MoveTarget | null {
+export function moveTarget(state: OutlineState, recordId: string, direction: MoveDirection, ordered = true): MoveTarget | null {
+  if (!ordered) {
+    if (direction === 'up' || direction === 'down') return null;
+    const target = moveTarget(state, recordId, direction, true);
+    return target === null ? null : { parentRecordId: target.parentRecordId, beforeRecordId: null };
+  }
   const node = findNode(state, recordId);
   if (node === null) return null;
   const parentKey = node.parentRecordId ?? TOP;
@@ -128,4 +135,94 @@ export function movePayload(state: OutlineState, recordId: string, target: MoveT
     beforeRecordId: target.beforeRecordId,
     idempotencyKey,
   };
+}
+
+/** Whether `recordId` is `ancestorId` or sits under it, as far as the outline has read. */
+export function isWithin(state: OutlineState, recordId: string, ancestorId: string): boolean {
+  for (let current: string | null = recordId, hops = 0; current !== null && hops <= 32; hops++) {
+    if (current === ancestorId) return true;
+    current = findNode(state, current)?.parentRecordId ?? null;
+  }
+  return false;
+}
+
+/** Where on a row a dragged record is dropped: above it, below it, or onto it as its last child. */
+export type DropZone = 'before' | 'after' | 'inside';
+
+/** The zone a pointer at `offset` down a row of `height` names: the top and bottom quarters are between rows. */
+export function dropZoneAt(offset: number, height: number, ordered: boolean): DropZone {
+  if (!ordered || height <= 0) return 'inside';
+  return offset < height / 4 ? 'before' : offset > height * 3 / 4 ? 'after' : 'inside';
+}
+
+/**
+ * Where a drop sends a record, or null when it would change nothing, land it under itself, or
+ * land past siblings not yet read. The Engine refuses a loop on its own; this only declines the
+ * drops the outline can already see are wrong, so the row does not look as if it could land.
+ */
+export function dropTarget(state: OutlineState, draggedId: string, targetId: string, zone: DropZone, ordered = true): MoveTarget | null {
+  const dragged = findNode(state, draggedId);
+  const target = findNode(state, targetId);
+  if (dragged === null || target === null || isWithin(state, targetId, draggedId)) return null;
+  if (zone === 'inside') {
+    if (dragged.parentRecordId === targetId) {
+      // Already its child: only a record that is not yet last has somewhere to go.
+      const level = state.levels.get(targetId);
+      if (!ordered || (level !== undefined && level.nextCursor === null && level.items.at(-1)?.record.recordId === draggedId)) return null;
+    }
+    return { parentRecordId: targetId, beforeRecordId: null };
+  }
+  if (!ordered) return null;
+  const level = state.levels.get(target.parentRecordId ?? TOP);
+  if (level === undefined) return null;
+  const siblings = level.items.filter(item => item.record.recordId !== draggedId);
+  const at = siblings.findIndex(item => item.record.recordId === targetId);
+  const before = zone === 'before' ? targetId : siblings[at + 1]?.record.recordId ?? null;
+  if (before === null && level.nextCursor !== null) return null;
+  // Dropped where it already is: directly above the sibling it already precedes.
+  const own = level.items.findIndex(item => item.record.recordId === draggedId);
+  if (own >= 0 && (level.items[own + 1]?.record.recordId ?? null) === before) return null;
+  return { parentRecordId: target.parentRecordId, beforeRecordId: before };
+}
+
+export type RowFold = 'open' | 'closed';
+
+/**
+ * Whether a record starts open in an outline surface: what the person last did with it on this
+ * device, else the author's `expandDepth` (a record at depth 1 is open when two levels are).
+ */
+export function startsOpen(depth: number, expandDepth: number, remembered: RowFold | undefined): boolean {
+  return remembered === undefined ? depth < expandDepth : remembered === 'open';
+}
+
+/** The device key for one file's outline rows, by application ID as section folds are. */
+export function outlineRowsKey(applicationId: string): string {
+  return `nendo.outlineRows.${applicationId}`;
+}
+
+/** What this device remembers of one outline's rows. Anything unreadable is simply not remembered. */
+export function rememberedRows(storage: Pick<Storage, 'getItem'>, applicationId: string, nodeId: string): Record<string, RowFold> {
+  const rows: Record<string, RowFold> = {};
+  try {
+    const parsed: unknown = JSON.parse(storage.getItem(outlineRowsKey(applicationId)) ?? '{}');
+    const node: unknown = parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>)[nodeId] : null;
+    if (node === null || typeof node !== 'object' || Array.isArray(node)) return rows;
+    for (const [recordId, value] of Object.entries(node as Record<string, unknown>))
+      if (value === 'open' || value === 'closed') rows[recordId] = value;
+  } catch {
+    // Storage that refuses to answer leaves the author's expandDepth in charge.
+  }
+  return rows;
+}
+
+/** Record one row's fold for one outline, keeping every other outline's. */
+export function rememberRow(storage: Pick<Storage, 'getItem' | 'setItem'>, applicationId: string, nodeId: string, recordId: string, fold: RowFold): void {
+  try {
+    const parsed: unknown = JSON.parse(storage.getItem(outlineRowsKey(applicationId)) ?? '{}');
+    const all = parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+    all[nodeId] = { ...rememberedRows(storage, applicationId, nodeId), [recordId]: fold };
+    storage.setItem(outlineRowsKey(applicationId), JSON.stringify(all));
+  } catch {
+    // The fold still holds for this session when device persistence is unavailable.
+  }
 }

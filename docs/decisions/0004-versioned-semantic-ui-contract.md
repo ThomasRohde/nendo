@@ -10,6 +10,34 @@
 
 ## Context
 
+### Accepted amendment — 2026-09-27 (an outline of a declared hierarchy)
+
+[ADR-0019](0019-hierarchies-in-the-schema.md) point 9 decided this kind, the B6 outline
+that the design plan had parked; this entry records it here, where the vocabulary lives,
+as delivered at host 1.36.0 (stage 6).
+
+`outlineSurface` is a root, eight per entity, with `definitionVersion`, `entityId`,
+`title`, `titleFieldId`, `accentFieldId`, `expandDepth` and `reorder`. Its only children
+are `fieldBinding`, drawn as columns beside the title; a subtree aggregate bound there is
+how an outline shows a rollup. It takes no ordering and no `filterClause`: the tree is read
+in the hierarchy's own sibling order, and a filtered tree hides the ancestors that give a
+match its meaning, so a find box opens a match's path instead.
+
+- The record type must declare a hierarchy (`NUI430`). The title is a stored Text field
+  that is not a single choice (`NUI431`), defaulting to the parent reference's label field;
+  the accent is a single-choice field (`NUI432`); `expandDepth` is 1 to 4, default 2
+  (`NUI433`); `reorder` is a Boolean (`NUI434`).
+- While an outline shows a hierarchy, `schema.removeHierarchy` is refused as
+  `hierarchy-field-in-use`: an outline without its tree would not compile, and a surface
+  that does not compile switches every custom screen off.
+- A person's open and closed rows are kept for the device, as section folds are (the
+  2026-09-24 entry), under `nendo.outlineRows.<applicationId>`, by node ID and then record
+  ID. The file is unchanged by them.
+- With `reorder: true` a person moves records with the Engine's typed move, by keyboard
+  (Alt, Shift and an arrow) and by pointer. The pointer gesture is the board's pointer
+  capture, not native drag and drop, which does not complete reliably in WebView2. Without
+  the hierarchy's order field only indent, outdent and a drop onto a row are offered.
+
 ### Accepted amendment — 2026-09-24 (a fold is remembered on this device)
 
 The owner asked for this on 2026-09-20, the day W-040 shipped ("remembering across

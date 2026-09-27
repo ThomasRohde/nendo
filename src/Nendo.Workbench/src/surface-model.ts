@@ -9,7 +9,7 @@ export function surfaceRoot(plan: ApplicationPlan, kind: string): SurfaceNodePla
 }
 
 /** Every root kind Use can show as a whole surface, in the order they appear. */
-const useKinds = ['recordList', 'boardSurface', 'calendarSurface', 'timelineSurface', 'gallerySurface', 'matrixSurface', 'extensionGraphSurface', 'extensionRecordsSurface'];
+const useKinds = ['recordList', 'boardSurface', 'calendarSurface', 'timelineSurface', 'gallerySurface', 'matrixSurface', 'outlineSurface', 'extensionGraphSurface', 'extensionRecordsSurface'];
 
 /**
  * A custom view of either shape (ADR-0013): a graph, or one record type as typed columns.
@@ -27,6 +27,15 @@ export function isCustomViewKind(kind: string | undefined): boolean {
  */
 export function accumulatesPages(kind: string): boolean {
   return kind === 'calendarSurface' || kind === 'timelineSurface';
+}
+
+/**
+ * A surface that reads its own records rather than one declared window: a calendar, a
+ * timeline, an outline (which reads its tree a level at a time) or a custom view. The shared
+ * refresh opens no window for one, and Use draws no pager beside it.
+ */
+export function readsOwnRecords(kind: string): boolean {
+  return accumulatesPages(kind) || kind === 'outlineSurface' || isCustomViewKind(kind);
 }
 
 /**
@@ -336,6 +345,7 @@ export function kindLabel(kind: string): string {
     case 'timelineSurface': return 'Timeline';
     case 'gallerySurface': return 'Gallery';
     case 'matrixSurface': return 'Matrix';
+    case 'outlineSurface': return 'Outline';
     case 'extensionGraphSurface': return 'Custom graph';
     case 'extensionRecordsSurface': return 'Custom view';
     case 'rankedList': return 'Ranking';

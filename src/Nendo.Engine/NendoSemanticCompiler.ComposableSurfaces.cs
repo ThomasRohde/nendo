@@ -492,6 +492,8 @@ public sealed partial class NendoSemanticCompiler
 
         if (node.Kind == "gallerySurface") ValidateGalleryBinding(node, fields, derived, diagnostics);
 
+        if (node.Kind == "outlineSurface") ValidateOutlineSurface(node, entity, fields, derived, diagnostics);
+
         if (node.Kind == "boardSurface") ValidateBoardGrouping(node, source, fields, derived, diagnostics);
 
         if (node.Kind == "detailSurface") ValidateRecordPageHeader(node, fields, derived, diagnostics);
@@ -1277,6 +1279,39 @@ public sealed partial class NendoSemanticCompiler
     }
 
     /// <summary>
+    /// An outline (ADR-0019 stage 6): a tree the Engine keeps, so the record type must declare
+    /// one. What the outline reads is the hierarchy's own order, which is why it names no
+    /// ordering; how far it opens and whether it moves records are the only choices it makes.
+    /// </summary>
+    private static void ValidateOutlineSurface(
+        NendoUiNodeSnapshot node,
+        NendoEntitySnapshot entity,
+        IReadOnlyDictionary<string, NendoFieldSnapshot> fields,
+        IReadOnlyDictionary<string, NendoDerivedFieldSnapshot> derived,
+        ICollection<NendoCompilerDiagnostic> diagnostics)
+    {
+        if (entity.Hierarchy is null)
+            AddError(diagnostics, "NUI430", $"{entity.DisplayName} declares no hierarchy, so there is no tree to outline.", node.NodeId, "entityId",
+                "Declare one with schema.declareHierarchy, in the same change set if you like, or show these records in a recordList.");
+
+        ValidateTitleField(node, fields, derived, RowTitle, diagnostics);
+        ValidateAccentField(node, fields, derived, RowAccent, diagnostics);
+
+        if (node.Properties.TryGetValue("expandDepth", out var depth) &&
+            (depth.ValueKind != JsonValueKind.Number || !depth.TryGetInt32(out var levels) ||
+             levels < 1 || levels > NendoSemanticVocabulary.MaximumOutlineExpandDepth))
+            AddError(diagnostics, "NUI433",
+                $"An outline opens between 1 and {NendoSemanticVocabulary.MaximumOutlineExpandDepth} levels by itself.",
+                node.NodeId, "expandDepth",
+                $"Declare a whole number from 1 to {NendoSemanticVocabulary.MaximumOutlineExpandDepth}, or leave expandDepth out to open " +
+                $"{NendoSemanticVocabulary.DefaultOutlineExpandDepth}. A person can still open any row further.");
+
+        if (node.Properties.TryGetValue("reorder", out var reorder) && reorder.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            AddError(diagnostics, "NUI434", "Whether the outline moves records must be true or false.", node.NodeId, "reorder",
+                "Declare reorder as true to let a person move records, or false or absent to keep the outline read-only.");
+    }
+
+    /// <summary>
     /// The record-page header, ADR-0004 2026-09-14 amendment (S0). Three optional
     /// properties on a <c>detailSurface</c>: the stored Text field that heads the
     /// page, a field shown under it, and the single-choice field whose option's tone
@@ -1335,6 +1370,14 @@ public sealed partial class NendoSemanticCompiler
     private static readonly FieldRoleWording CardAccent = new("NUI381", "The card accent", "colour each card",
         "Colour each card by a stored single-choice field whose options carry tones.",
         "Colour each card by a single-choice field; each option's tone is set with schema.setChoiceMetadata.");
+
+    private static readonly FieldRoleWording RowTitle = new("NUI431", "The row title", "title each row",
+        "Title each row with a stored Text field, and bind the calculated field as a column of the outline instead.",
+        "Title each row with a stored Text field. A choice can tone each row's marker through accentFieldId instead.");
+
+    private static readonly FieldRoleWording RowAccent = new("NUI432", "The row accent", "colour each row",
+        "Colour each row by a stored single-choice field whose options carry tones.",
+        "Colour each row by a single-choice field; each option's tone is set with schema.setChoiceMetadata.");
 
     private static readonly FieldRoleWording EntryAccent = new("NUI374", "The entry accent", "colour each entry",
         "Colour each entry by a stored single-choice field whose options carry tones.",

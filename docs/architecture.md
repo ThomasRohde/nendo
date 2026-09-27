@@ -707,7 +707,7 @@ This table gives the current locations, so that you do not need to search.
 | Plan-shape resolution | `Workbench/src/surface-model.ts`: resolves selectable surfaces, roots, fields and commands from the version 3 node tree |
 | Read windows | `Workbench/src/record-window.ts`: the query snapshot that a window owns, its page requests and structured cache keys |
 | Totals | `Workbench/src/summary-tiles.ts`: tile scopes and the exact read that each one composes |
-| Outline | `Workbench/src/outline-model.ts`: the levels read of a declared hierarchy, the visible rows and where a keyboard move sends a record, pure; `view-data.ts` draws it |
+| Outline | `Workbench/src/outline-model.ts`: the levels read of a declared hierarchy, the visible rows, where a keyboard move or a drop sends a record, and the device's remembered rows, pure; `view-data.ts` draws Studio's outline, `outline-surface-markup.ts` and `outline-surface.ts` the Use `outlineSurface` (markup, then reads and gestures) |
 | Calendars | `Workbench/src/calendar-model.ts`: civil-date arithmetic, the Monday-first month grid and month/undated queries |
 | Timelines | `Workbench/src/timeline-model.ts`: civil-year bounds, month grouping, integer day arithmetic and spans cut at the year end. The calendar's page accumulator in `reads.ts` serves both |
 | Ratings | `Workbench/src/rating.ts`: the dots, their accessible name and the radio control. `Engine/Storage/SqliteNendoStore.Scales.cs` stores the scale itself, two rungs below the last |

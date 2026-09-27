@@ -231,7 +231,15 @@ public static class NendoFormat
     /// </summary>
     public const string HierarchyMinimumHostVersion = "1.35.0";
 
-    public const string CurrentHostVersion = HierarchyMinimumHostVersion;
+    /// <summary>
+    /// An <c>outlineSurface</c> (ADR-0019 stage 6, ADR-0004's B6): a declared hierarchy drawn as
+    /// an expandable outline in Use. Its own rung rather than the hierarchy's: installers of
+    /// 1.35.0 were built before the kind existed, and a host never advertises a later feature
+    /// than it has.
+    /// </summary>
+    public const string OutlineSurfaceMinimumHostVersion = "1.36.0";
+
+    public const string CurrentHostVersion = OutlineSurfaceMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

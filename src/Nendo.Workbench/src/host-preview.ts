@@ -97,12 +97,18 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
       case 'history.get':
         result = this.history;
         break;
-      case 'data.queryRecords':
-        if (payload.sortFieldId || payload.descending || (Array.isArray(payload.filters) && payload.filters.length))
+      case 'data.queryRecords': {
+        // The preview answers the outline's find box -- `contains` on text, and one record by ID --
+        // and nothing else; every other sort and filter needs the native host.
+        const filters = Array.isArray(payload.filters) ? payload.filters as Array<{ fieldId: string; operator: string; value: unknown }> : [];
+        if (payload.sortFieldId || payload.descending || filters.some(filter => filter.operator !== 'contains'))
           throw new WorkbenchHostError('native-query-required', 'Open the native Nendo app to use typed sorting and filtering.');
-        result = this.previewPage(this.session.records.filter(row => row.entityId === payload.entityId)
-          .sort((left, right) => left.recordId < right.recordId ? -1 : left.recordId > right.recordId ? 1 : 0), payload, `records:${String(payload.entityId)}`);
+        const matches = (row: RecordSnapshot): boolean => (typeof payload.recordId !== 'string' || row.recordId === payload.recordId) &&
+          filters.every(filter => String(row.values[filter.fieldId] ?? '').toLowerCase().includes(String(filter.value).toLowerCase()));
+        result = this.previewPage(this.session.records.filter(row => row.entityId === payload.entityId && matches(row))
+          .sort((left, right) => left.recordId < right.recordId ? -1 : left.recordId > right.recordId ? 1 : 0), payload, `records:${String(payload.entityId)}:${JSON.stringify(filters)}:${String(payload.recordId ?? '')}`);
         break;
+      }
       case 'history.query':
         result = this.previewPage([...this.history].sort((left, right) => right.changeSequence - left.changeSequence)
           .map(row => ({ ...row, operations: undefined, operationCount: row.operations.length, canRequestCompensation: false })), payload, 'history');

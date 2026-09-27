@@ -233,6 +233,9 @@ internal static class NendoSemanticCapability
         new(NendoFormat.OpenCustomViewsMinimumHostVersion,
             "a custom view defined beyond what earlier hosts read",
             tree => tree.Nodes.Any(view => NendoExtensionViewDefinition.IsViewKind(view.Kind) && BeyondEarlierHosts(tree, view))),
+        new(NendoFormat.OutlineSurfaceMinimumHostVersion,
+            "an outline",
+            tree => tree.HasKind("outlineSurface")),
     ];
 
     private static readonly string[] EarlierPins = ["packageVersion", "packageDigest", "protocolVersion", "configurationVersion", "configuration"];

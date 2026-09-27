@@ -30,7 +30,7 @@ existed. For this reason the numbering is contiguous by intent.
 | [0016](0016-vendor-pinned-dotnet-agent-skills.md) | Accepted | Pinned curated first-party .NET agent skills |
 | [0017](0017-production-composition-and-build-layout.md) | Accepted | Minimal Engine/Desktop/Workbench/LocalMcp composition and centralized build layout |
 | [0018](0018-public-website-and-deployment-lane.md) | Accepted | Public website at `site/`, outside the product boundary, with one CI lane that deploys only it; since 2026-09-23 it carries its own guides and does not render `docs/` |
-| [0019](0019-hierarchies-in-the-schema.md) | Accepted | Declare a self-reference as a hierarchy: the Engine refuses cycles for every client, sibling order, typed move, bounded tree reads, subtree aggregates, a Studio outline and an `outlineSurface`; stages 1 (cost), 2 (declaration, cycle rule, move, MCP), 3 (tree read, `descendantOf`, `records.tree`), 4 (subtree aggregates) and 5 (the Studio outline) delivered at host 1.35.0 |
+| [0019](0019-hierarchies-in-the-schema.md) | Accepted | Declare a self-reference as a hierarchy: the Engine refuses cycles for every client, sibling order, typed move, bounded tree reads, subtree aggregates, a Studio outline and an `outlineSurface`; stages 1 (cost), 2 (declaration, cycle rule, move, MCP), 3 (tree read, `descendantOf`, `records.tree`), 4 (subtree aggregates) and 5 (the Studio outline) delivered at host 1.35.0, and 6 (`outlineSurface`) at 1.36.0 |
 
 ## Amendments in force
 
@@ -54,6 +54,10 @@ existed. For this reason the numbering is contiguous by intent.
 - **ADR-0004, 2026-09-24 — a fold is remembered on this device**: a person's folds
   are kept in the Workbench's local storage, keyed by the file's application ID and
   the section's node ID, so they survive a reopen. The file is unchanged by them.
+- **ADR-0004, 2026-09-27 — an outline of a declared hierarchy** ([ADR-0019](0019-hierarchies-in-the-schema.md)):
+  `outlineSurface`, a root that draws a declared hierarchy as an expandable treegrid read a
+  level at a time, with columns, a find box that opens a match's path, rows remembered on
+  the device, and moves by keyboard and pointer when `reorder` is on. Host 1.36.0.
 - **ADR-0008, 2026-09-27 — subtree aggregates** ([ADR-0019](0019-hierarchies-in-the-schema.md)):
   a `SubtreeAggregate` binding counts, counts where a Boolean holds, or totals a number
   over a record's descendants in its declared hierarchy, optionally with the record
