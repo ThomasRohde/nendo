@@ -235,6 +235,8 @@ internal sealed partial class SqliteNendoStore
             }
 
             var findings = new List<NendoOpenFinding>();
+            if (layout.Contains("-hierarchy-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.HierarchyMinimumHostVersion))
+                return Unreadable("layout-version-mismatch", "A declared hierarchy requires the declared hierarchy-capable host version.", observedAt);
             if (layout.Contains("-extension-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.ExtensionPackagesMinimumHostVersion))
                 return Unreadable("layout-version-mismatch", "Custom-view packages require the declared package-capable host version.", observedAt);
             if (layout.Contains("-purpose-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.ApplicationPurposeMinimumHostVersion))
@@ -296,7 +298,8 @@ internal sealed partial class SqliteNendoStore
             var mappingDrift = await store.ValidateReadableMappingsAsync(mappings, cancellationToken) || !ReferenceMetadataIsValid(mappings) || !ChoiceMetadataIsValid(mappings) ||
                 !RatingScaleMetadataIsValid(mappings) || !ApplicationPurposeIsValid(manifest.Purpose) ||
                 !await store.RetirementMetadataIsValidAsync(cancellationToken) ||
-                !await store.ExtensionPackagesAreValidAsync(cancellationToken);
+                !await store.ExtensionPackagesAreValidAsync(cancellationToken) ||
+                !await store.HierarchyMetadataIsValidAsync(mappings, cancellationToken);
             if (mappingDrift)
             {
                 coreValid = false;
@@ -350,6 +353,7 @@ internal sealed partial class SqliteNendoStore
                 {
                     Retired = mapping.Retired,
                     DerivedFields = derivedFields.TryGetValue(mapping.EntityId, out var calculated) ? calculated : [],
+                    Hierarchy = mapping.Hierarchy,
                 }).ToArray();
 
             recordsTiming?.Dispose();
@@ -688,6 +692,9 @@ internal sealed partial class SqliteNendoStore
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(ExtensionPackageSchemaSql, null, CancellationToken.None);
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(HierarchySchemaSql, null, CancellationToken.None);
+        layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync("DROP TABLE __nendo_hierarchy;", null, CancellationToken.None);
         await store.NonQueryAsync("""
             DROP TABLE __nendo_extension_state;
             DROP TABLE __nendo_extension_file;
@@ -733,6 +740,8 @@ internal sealed partial class SqliteNendoStore
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(ExtensionPackageSchemaSql, null, CancellationToken.None);
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(HierarchySchemaSql, null, CancellationToken.None);
+        layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         return layouts;
     }
 

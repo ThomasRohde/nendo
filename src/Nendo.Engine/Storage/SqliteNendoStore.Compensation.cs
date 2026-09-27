@@ -139,6 +139,8 @@ internal sealed partial class SqliteNendoStore
                 exactReplay,
                 cancellationToken),
             "application.setPurpose" => CreatePurposeInverse(original.Canonical, original.Evidence, idempotencyKey),
+            "schema.declareHierarchy" => CreateDeclareHierarchyInverse(original.Canonical, original.Evidence, idempotencyKey),
+            "schema.removeHierarchy" => CreateRemoveHierarchyInverse(original.Canonical, original.Evidence, idempotencyKey),
             _ => throw new NendoCompensationNotSupportedException(
                 $"Compensation is not implemented for {original.Type}."),
         };

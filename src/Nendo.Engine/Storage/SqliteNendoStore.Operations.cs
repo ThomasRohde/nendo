@@ -57,6 +57,8 @@ internal sealed partial class SqliteNendoStore
                 removeUiNode,
                 transaction,
                 cancellationToken),
+            DeclareHierarchyOperation declare => await ExecuteDeclareHierarchyAsync(declare, transaction, cancellationToken),
+            RemoveHierarchyOperation remove => await ExecuteRemoveHierarchyAsync(remove, transaction, cancellationToken),
             SetApplicationPurposeOperation setPurpose => await ExecuteSetApplicationPurposeAsync(
                 setPurpose,
                 transaction,
@@ -357,6 +359,8 @@ internal sealed partial class SqliteNendoStore
                 await ValidateReferenceValueAsync(referenceField, pair.Value,
                     operation.ExpectedTargetVersions.TryGetValue(pair.Key, out var targetVersion) ? targetVersion : null,
                     transaction, cancellationToken);
+                await RequireHierarchyPlacementAsync(entity, referenceField, operation.RecordId, pair.Value, newRecord: true,
+                    transaction, cancellationToken);
             }
         var unknownField = operation.Values.Keys.FirstOrDefault(key => !fieldsById.ContainsKey(key));
         if (unknownField is not null)
@@ -466,6 +470,7 @@ internal sealed partial class SqliteNendoStore
         }
 
         await ValidateReferenceValueAsync(field, operation.Value, operation.ExpectedTargetRecordVersion, transaction, cancellationToken);
+        await RequireHierarchyPlacementAsync(entity, field, operation.RecordId, operation.Value, newRecord: false, transaction, cancellationToken);
         ValidateChoiceAssignment(field, operation.Value, previousValue);
         var previousTargetRecordVersion = await ReadReferenceVersionAsync(field, previousValue, transaction, cancellationToken);
         var updateSql = $"UPDATE {Quote(entity.PhysicalTableName)} SET {Quote(field.PhysicalColumnName)} = @value, {Quote("__nendo_record_version")} = {Quote("__nendo_record_version")} + 1 WHERE {Quote("__nendo_record_id")} = @recordId AND {Quote("__nendo_record_version")} = @expectedVersion;";
@@ -635,7 +640,10 @@ internal sealed partial class SqliteNendoStore
         var retiredFields = await RetiredIdsAsync("field", transaction, cancellationToken);
         for (var index = 0; index < fields.Count; index++) fields[index] = fields[index] with { Retired = retiredFields.Contains(fields[index].FieldId) };
         return new EntityMapping(entityId, displayName, physicalTableName, fields)
-        { Retired = (await RetiredIdsAsync("entity", transaction, cancellationToken)).Contains(entityId) };
+        {
+            Retired = (await RetiredIdsAsync("entity", transaction, cancellationToken)).Contains(entityId),
+            Hierarchy = (await ReadHierarchiesAsync(transaction, cancellationToken)).GetValueOrDefault(entityId),
+        };
     }
 
     private static object ConvertValue(FieldMapping field, JsonElement value)

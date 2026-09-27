@@ -50,6 +50,7 @@ internal sealed partial class SqliteNendoStore
         var entity = await GetEntityMappingAsync(operation.EntityId, transaction, ct);
         var field = operation.FieldId is null ? null : entity.Fields.SingleOrDefault(field => field.FieldId == operation.FieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The field does not belong to this record type.");
+        if (operation.Retired) RequireNotHierarchyField(entity, operation.FieldId, "retired");
         var previous = field?.Retired ?? entity.Retired;
         if (field is not null && entity.Retired) throw new NendoPreconditionException("entity-retired", "Reactivate the record type before changing field retirement.");
         if (field is null && operation.Retired)

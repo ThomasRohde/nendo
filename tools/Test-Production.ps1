@@ -259,6 +259,7 @@ try {
         'nendo.data.execute_command',
         'nendo.data.get_receipt',
         'nendo.data.import_records',
+        'nendo.data.move_record',
         'nendo.data.set_field',
         'nendo.health.verify_integrity',
         'nendo.lease.acquire',

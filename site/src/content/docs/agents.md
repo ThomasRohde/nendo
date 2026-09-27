@@ -84,6 +84,7 @@ At Edit data and above, the agent changes records with these tools:
 | `nendo.data.create_records` | Creates 1 to 50 records of one type as one revision, all or nothing. |
 | `nendo.data.import_records` | Imports up to 500 rows from CSV text or JSON, committed 50 to a revision. If a later batch is refused, `NENDO_IMPORT_PARTIAL` names the committed and remaining counts, the first uncommitted row and the committed revisions. Retry the identical call and key to replay earlier batches without duplicates. Invalid CSV mappings or a mixed CSV/JSON payload are refused before writing. |
 | `nendo.data.set_field` | Sets one field on one record. |
+| `nendo.data.move_record` | Moves a record in a record type that is kept as a tree: under another parent, to the top level, or before a sibling. |
 | `nendo.data.delete_record` | Deletes one record. Refused while other records refer to it. |
 | `nendo.data.execute_command` | Runs a command that a screen defines. |
 | `nendo.data.get_receipt` | Reads the outcome of an earlier write. |
@@ -110,9 +111,9 @@ A change set holds at most 128 submitted operations in 32 mutations, and at most
 
 A proposal appears on the Agent page under **Pending changes**, with its title, the number of changes and how reversible they are. **Review changes** shows **What changes**, a line per change, and **What this builds**: record types, fields, screens and records as the file would be. **Accept changes** applies it. **Reject** leaves the file as it was. When you accept one proposal, other waiting proposals become stale, because they were made against the earlier file.
 
-A change set may contain 24 operation types, and nothing else:
+A change set may contain 26 operation types, and nothing else:
 
-- `schema.*` (8): create, rename and retire record types and fields; make a field required; configure a reference; name and colour a choice.
+- `schema.*` (10): create, rename and retire record types and fields; make a field required; configure a reference; name and colour a choice; keep a record type a tree, and stop keeping it one.
 - `behaviour.setDefinition` and `behaviour.removeDefinition`: calculations, reusable functions, automatic actions and triggers.
 - `application.setPurpose`: say what the file is for.
 - `ui.*` (4): add, set a property on, move and remove a screen node.

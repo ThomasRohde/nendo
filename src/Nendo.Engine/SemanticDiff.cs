@@ -187,6 +187,19 @@ internal static class SemanticDiff
                 // person does on purpose, and a review that reads "Say what this file is
                 // for:" with nothing after it describes neither what was asked nor what
                 // will happen.
+                DeclareHierarchyOperation value => Entry(
+                    "declareHierarchy",
+                    value.OrderFieldId is null
+                        ? $"Keep {EntityName(names, value.EntityId)} a tree by {FieldName(names, value.ParentFieldId)}: no record may sit under itself or deeper than {NendoHierarchyLimits.MaximumDepth} levels."
+                        : $"Keep {EntityName(names, value.EntityId)} a tree by {FieldName(names, value.ParentFieldId)}, siblings ordered by {FieldName(names, value.OrderFieldId)}: no record may sit under itself or deeper than {NendoHierarchyLimits.MaximumDepth} levels.",
+                    value.Reversibility,
+                    value.EntityId,
+                    value.ParentFieldId),
+                RemoveHierarchyOperation value => Entry(
+                    "removeHierarchy",
+                    $"Stop keeping {EntityName(names, value.EntityId)} a tree. Its parent field keeps every value.",
+                    value.Reversibility,
+                    value.EntityId),
                 SetApplicationPurposeOperation value => Entry(
                     "setApplicationPurpose",
                     value.Purpose is null

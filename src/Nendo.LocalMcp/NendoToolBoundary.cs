@@ -33,6 +33,15 @@ internal static class NendoToolBoundary
                 "value",
                 "expectedTargetRecordVersion",
                 "idempotencyKey"),
+            ["nendo.data.move_record"] = Allowed(
+                "applicationHandle", "leaseId",
+                "entityId",
+                "recordId",
+                "expectedRecordVersion",
+                "parentRecordId",
+                "expectedParentVersion",
+                "beforeRecordId",
+                "idempotencyKey"),
             ["nendo.data.execute_command"] = Allowed(
                 "applicationHandle", "leaseId",
                 "commandId",

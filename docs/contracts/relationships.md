@@ -27,6 +27,41 @@ rule: clear or reassign them before the deletion. Required cycles must be
 repaired through an explicit reviewed schema and data change. An implicit
 deletion side effect must not repair them.
 
+## A declared hierarchy
+
+A self-reference is an ordinary reference until the record type declares it as its
+hierarchy with `schema.declareHierarchy { entityId, parentFieldId, orderFieldId? }`
+([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)). The parent field must be an
+optional reference configured to the same record type; the order field, if named, an
+Integer field of it. A record type has at most one hierarchy. The declaration is stored in
+`__nendo_hierarchy`, the last rung of the layout ladder, and a file that carries one needs
+host 1.35.0.
+
+- **Declaring checks the data.** Every record must be reachable from a top-level record
+  within 32 levels. A record on a loop, including one that is its own parent, is refused as
+  `hierarchy-cycle-present` with each loop written out (`a → c → b → a`); a branch deeper
+  than 32 as `hierarchy-too-deep`. Nothing is repaired, and the file is unchanged.
+- **Every parent write obeys the rule.** Once declared, a create, a field write, a form
+  save, an import, a command step or an automatic action that would put a record under
+  itself or one of its descendants is refused as `hierarchy-cycle`, naming the chain it
+  would close; one that would put anything deeper than 32 levels as `hierarchy-too-deep`.
+  The check walks up from the proposed parent inside the write's transaction.
+- **The fields stay ordinary.** The parent and order are columns that the table, CSV and
+  every read show as they are. While declared, the parent cannot be made required
+  (`hierarchy-parent-required`), and neither field nor the record type can be retired
+  (`hierarchy-field-in-use`). `schema.removeHierarchy` lifts the rule and keeps every value.
+- **A move** (`nendo.data.move_record`, `NendoApplicationService.MoveRecordAsync`) sets
+  the parent and, with an order field, places the record before a named sibling or last.
+  It expands into `data.setField` operations in one revision: the parent, the order, and,
+  only when the neighbours leave no integer gap, every sibling renumbered in steps of
+  1,024, each against the version the move read. Each operation keeps its prior value;
+  the revision is undone by compensating its operations, since the one-click
+  compensation covers single-operation revisions only.
+
+Declaring and removing are definition-lane operations of class
+`ReversibleWithRetainedState`, and each compensates the other. A record with children is
+still refused deletion as `record-referenced`.
+
 ## Labels, choices and retirement
 
 Entity and field renames change display labels only. They keep stable IDs and

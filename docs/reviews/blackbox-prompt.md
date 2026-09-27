@@ -192,6 +192,14 @@ Then push on the shape itself: rename a field that already holds data; point a r
 a record and then try to delete that record; retire a field and see what happens to what it
 held. Record what each refusal or acceptance told you.
 
+Give one record type a reference to itself and fill it as a tree several levels deep. Then
+find out from the vocabulary, and nowhere else, how to have the host keep it a tree. Before
+you declare it, put one record under its own grandchild, and record what the declaration
+told you and whether the file changed. Repair it, declare it, and try again: through a single
+field write, through a create, and through the move tool, and put something deeper than the
+published bound. Record whether each refusal named the records involved, and whether a
+move before a sibling left the order you asked for when you read the records back.
+
 **Before you accept any of it, read the review and answer from it alone.** Cover the change
 set you sent and work only from the sentences the person accepting would see: which record
 types does this add, and which fields, of what kind? Which are required? What are the

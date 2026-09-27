@@ -71,6 +71,31 @@ internal static class CrmAuthoringFixture
         Reference(DealEntityId, DealAccountFieldId, expectedDefinitionRevision),
     ];
 
+    internal const string RegionEntityId = "crm.region";
+    internal const string RegionNameFieldId = "crm.region.name";
+    internal const string RegionParentFieldId = "crm.region.parent";
+    internal const string RegionOrderFieldId = "crm.region.order";
+
+    /// <summary>
+    /// A small tree of sales regions, declared as a hierarchy (ADR-0019) in the same mutation
+    /// that creates it: the reference is bound before the declaration names it.
+    /// </summary>
+    internal static IReadOnlyList<NendoAgentOperationInput> RegionOperations() =>
+    [
+        Operation("schema.createEntity", new { entityId = RegionEntityId, displayName = "Region" }),
+        Field(RegionEntityId, RegionNameFieldId, "Region name", "Text", true, "singleLine", []),
+        Field(RegionEntityId, RegionParentFieldId, "Part of", "Reference", false, null, []),
+        Field(RegionEntityId, RegionOrderFieldId, "Order", "Integer", false, null, []),
+        Operation("schema.configureReference", new
+        {
+            entityId = RegionEntityId, fieldId = RegionParentFieldId, targetEntityId = RegionEntityId, labelFieldId = RegionNameFieldId,
+        }),
+        Operation("schema.declareHierarchy", new
+        {
+            entityId = RegionEntityId, parentFieldId = RegionParentFieldId, orderFieldId = RegionOrderFieldId,
+        }),
+    ];
+
     /// <summary>
     /// The UI lane. Nodes may be split across mutations; only the definition lane
     /// materializes per mutation.

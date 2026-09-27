@@ -106,6 +106,31 @@ internal sealed class NendoDataMutationService(
                 expectedRecordVersion + 1),
             cancellationToken);
 
+    internal Task<NendoDataApplyResult> MoveRecordAsync(
+        string sessionId,
+        string leaseId,
+        string entityId,
+        string recordId,
+        long expectedRecordVersion,
+        string? parentRecordId,
+        long? expectedParentVersion,
+        string? beforeRecordId,
+        string idempotencyKey,
+        CancellationToken cancellationToken) => AdmitAsync(
+            leaseId,
+            sessionId,
+            // A move may renumber siblings, so the host states which records it wrote and the
+            // moved record's version rather than this adapter guessing from the request.
+            async _ =>
+            {
+                var moved = await application.MoveRecordAsync(
+                    new NendoMoveRecordRequest(entityId, recordId, expectedRecordVersion, parentRecordId, expectedParentVersion,
+                        beforeRecordId, Context(sessionId, idempotencyKey)),
+                    cancellationToken);
+                return Touched(moved.Applied, moved.TouchedRecordIds, moved.TouchedRecordIds.Count == 1 ? moved.RecordVersion : null);
+            },
+            cancellationToken);
+
     internal Task<NendoDataApplyResult> ExecuteCommandAsync(
         string sessionId,
         string leaseId,

@@ -69,9 +69,9 @@ public sealed class LeaseProtocolTests
 
     [TestMethod]
     [DataRow(AgentAccessMode.ReadOnly, 0)]
-    [DataRow(AgentAccessMode.DataMutation, 12)]
-    [DataRow(AgentAccessMode.ApplicationAuthoring, 18)]
-    [DataRow(AgentAccessMode.Unattended, 19)]
+    [DataRow(AgentAccessMode.DataMutation, 13)]
+    [DataRow(AgentAccessMode.ApplicationAuthoring, 19)]
+    [DataRow(AgentAccessMode.Unattended, 20)]
     public async Task OfficialClientSeesOnlyModeAllowlistedLeaseTools(
         AgentAccessMode mode,
         int expectedCount)
@@ -98,9 +98,9 @@ public sealed class LeaseProtocolTests
         var expectedNames = expectedCount switch
         {
             0 => [],
-            12 => DataToolNames,
-            18 => DataToolNames.Concat(AuthoringToolNames).Order(StringComparer.Ordinal).ToArray(),
-            19 => DataToolNames.Concat(AuthoringToolNames).Concat(UnattendedToolNames).Order(StringComparer.Ordinal).ToArray(),
+            13 => DataToolNames,
+            19 => DataToolNames.Concat(AuthoringToolNames).Order(StringComparer.Ordinal).ToArray(),
+            20 => DataToolNames.Concat(AuthoringToolNames).Concat(UnattendedToolNames).Order(StringComparer.Ordinal).ToArray(),
             _ => throw new AssertFailedException($"Unexpected tool count {expectedCount}."),
         };
         CollectionAssert.AreEqual(
@@ -148,6 +148,8 @@ public sealed class LeaseProtocolTests
             ["leaseId", "entityId", "recordId", "fieldId", "expectedRecordVersion", "value", "idempotencyKey", "expectedTargetRecordVersion"],
         "nendo.data.execute_command" =>
             ["leaseId", "commandId", "recordId", "expectedRecordVersion", "idempotencyKey"],
+        "nendo.data.move_record" =>
+            ["leaseId", "entityId", "recordId", "expectedRecordVersion", "idempotencyKey", "parentRecordId", "expectedParentVersion", "beforeRecordId"],
         "nendo.change_set.begin" => ["leaseId", "title", "idempotencyKey"],
         "nendo.change_set.add_operations" =>
             ["leaseId", "changeSetId", "mutations", "idempotencyKey"],
@@ -170,6 +172,7 @@ public sealed class LeaseProtocolTests
         "nendo.data.execute_command",
         "nendo.data.get_receipt",
         "nendo.data.import_records",
+        "nendo.data.move_record",
         "nendo.data.set_field",
         "nendo.health.verify_integrity",
         "nendo.lease.acquire",

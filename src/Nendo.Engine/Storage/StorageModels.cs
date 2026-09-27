@@ -15,6 +15,7 @@ internal sealed record EntityMapping(
     IReadOnlyList<FieldMapping> Fields)
 {
     internal bool Retired { get; init; }
+    internal NendoHierarchy? Hierarchy { get; init; }
 }
 
 internal sealed record FieldMapping(

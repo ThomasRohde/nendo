@@ -1180,7 +1180,7 @@ before any write. View code needs no approval of its own.
 ## Compatibility
 
 - A file that carries packages needs host 1.33.0. A view that only the open rules
-  accept needs 1.34.0. `extensionView` and `extensionTile` will need 1.35.0, and
+  accept needs 1.34.0. `extensionView` and `extensionTile` will need 1.36.0, and
   are not yet delivered.
 - An older host refuses writable open of such a file by the rung rule of
   [ADR-0012](../decisions/0012-safe-mode-compatibility-and-migration.md). There is

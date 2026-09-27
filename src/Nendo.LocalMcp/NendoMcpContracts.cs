@@ -84,6 +84,13 @@ public sealed record NendoMcpEntitySchema(
     /// a mutation naming one is refused.
     /// </summary>
     public IReadOnlyList<NendoMcpDerivedField> DerivedFields { get; init; } = [];
+
+    /// <summary>
+    /// The record type's declared hierarchy (ADR-0019): the self-reference that names each
+    /// record's parent and, if declared, the Integer field that orders siblings. Null when
+    /// the record type declares none.
+    /// </summary>
+    public NendoHierarchy? Hierarchy { get; init; }
 }
 
 /// <summary>One calculated field, with the formula that produces it.</summary>

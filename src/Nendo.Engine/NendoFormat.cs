@@ -222,7 +222,16 @@ public static class NendoFormat
     /// </summary>
     public const string OpenCustomViewsMinimumHostVersion = "1.34.0";
 
-    public const string CurrentHostVersion = OpenCustomViewsMinimumHostVersion;
+    /// <summary>
+    /// A declared hierarchy (ADR-0019, 2026-09-27): a record type whose self-reference the
+    /// Engine keeps a tree. A protected table the node ladder cannot see, so the declare and
+    /// remove operations state this version on their evidence and the layout rung states it
+    /// at open. 1.35.0 had been reserved in the documents for ADR-0013's views anywhere; rungs
+    /// follow delivery order, so this takes it and that phase moves to the next one.
+    /// </summary>
+    public const string HierarchyMinimumHostVersion = "1.35.0";
+
+    public const string CurrentHostVersion = HierarchyMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

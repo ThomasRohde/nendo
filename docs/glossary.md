@@ -28,6 +28,10 @@ A stable semantic property of an entity. It maps to a physical column or a relat
 
 A typed association between records. Multi-valued relationships are not scalar fields.
 
+## Hierarchy
+
+A record type's self-reference declared as a tree ([ADR-0019](decisions/0019-hierarchies-in-the-schema.md)). The host refuses any write that would put a record under itself or one of its descendants, or deeper than 32 levels. The parent and order stay ordinary fields.
+
 ## Record
 
 One entity instance with a stable record ID and an optimistic record version.

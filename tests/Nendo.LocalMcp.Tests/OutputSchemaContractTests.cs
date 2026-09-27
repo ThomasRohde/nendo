@@ -88,6 +88,7 @@ public sealed class OutputSchemaContractTests
         // No expectedDefinitionRevision: the host resolves it from the mutation's
         // position, so the caller does not model the host's counter.
         await AddAsync("Bind the CRM references", CrmAuthoringFixture.ReferenceOperations());
+        await AddAsync("A tree of regions", CrmAuthoringFixture.RegionOperations());
         await AddAsync("Shape the CRM surfaces", CrmAuthoringFixture.SurfaceOperations());
 
         // Replace the tail with itself: amend returns the same shape as an append
@@ -226,6 +227,40 @@ public sealed class OutputSchemaContractTests
             ["expectedRecordVersion"] = 2L,
             ["idempotencyKey"] = "contract-delete",
         });
+
+        // The declaration is part of the record type's schema, so an agent reading it cold
+        // knows the tree is kept and by which fields.
+        var regions = ProtocolResourceTests.Deserialize<NendoMcpEntitySchema>(
+            await ProtocolResourceTests.ReadTextAsync(client, $"nendo://application/entity/{CrmAuthoringFixture.RegionEntityId}/schema"));
+        Assert.AreEqual(new NendoHierarchy(CrmAuthoringFixture.RegionParentFieldId, CrmAuthoringFixture.RegionOrderFieldId), regions.Hierarchy);
+
+        // A move in the declared region tree: its result names the records it wrote.
+        await CallAsync("nendo.data.create_records", new(owned)
+        {
+            ["entityId"] = CrmAuthoringFixture.RegionEntityId,
+            ["records"] = new[]
+            {
+                new NendoRecordInput("region-emea", JsonSerializer.SerializeToElement(new Dictionary<string, object?>
+                {
+                    [CrmAuthoringFixture.RegionNameFieldId] = "EMEA",
+                })),
+                new NendoRecordInput("region-nordics", JsonSerializer.SerializeToElement(new Dictionary<string, object?>
+                {
+                    [CrmAuthoringFixture.RegionNameFieldId] = "Nordics",
+                })),
+            },
+            ["idempotencyKey"] = "contract-regions",
+        });
+        var moved = Result<NendoDataApplyResult>(await CallAsync("nendo.data.move_record", new(owned)
+        {
+            ["entityId"] = CrmAuthoringFixture.RegionEntityId,
+            ["recordId"] = "region-nordics",
+            ["expectedRecordVersion"] = 1L,
+            ["parentRecordId"] = "region-emea",
+            ["expectedParentVersion"] = 1L,
+            ["idempotencyKey"] = "contract-move",
+        }));
+        Assert.AreEqual(3L, moved.RecordVersion);
 
         // A committed receipt carries a nested apply result; the unresolved branch
         // carries null, which must still satisfy the schema rather than vanish.

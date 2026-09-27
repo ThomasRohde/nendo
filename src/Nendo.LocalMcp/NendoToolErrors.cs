@@ -93,6 +93,12 @@ internal static class NendoToolErrors
             "reference-unbound", "target-version-required", "target-not-found", "target-version-conflict",
             "record-version-conflict", "record-not-found", "field-not-found", "field-calculated",
             "aggregate-not-representable",
+            // ADR-0019: a hierarchy's refusals name records by stable ID and record types by
+            // display name, and a loop as the chain of IDs that would close it.
+            "hierarchy-cycle", "hierarchy-cycle-present", "hierarchy-too-deep", "hierarchy-too-wide",
+            "hierarchy-parent-invalid", "hierarchy-parent-required", "hierarchy-order-invalid",
+            "hierarchy-already-declared", "hierarchy-not-declared", "hierarchy-field-in-use",
+            "hierarchy-order-not-declared", "hierarchy-sibling-not-found", "move-unchanged",
         ], StringComparer.Ordinal);
 
     // These authoring messages are written here and carry only bounded counters and

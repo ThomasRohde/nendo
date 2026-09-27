@@ -224,7 +224,7 @@ An edit to an unrelated record does not invalidate a UI-only proposal
 
 ### Typed operations
 
-Twenty-six operation types are the primitive: every type that a revision can
+Twenty-eight operation types are the primitive: every type that a revision can
 record, including the two that only host services create. Semantic diff, undo
 evidence and replay all derive from the same operation stream.
 
@@ -237,12 +237,14 @@ schema.setFieldRequired  data.backfillRetiredField
 schema.setRetired        data.convertLegacyReference    behaviour.setDefinition
 schema.setChoiceMetadata identity.transition *          behaviour.removeDefinition
 schema.configureReference                               application.setPurpose
+schema.declareHierarchy
+schema.removeHierarchy
 
 extension.setPackage     extension.removeFile
 extension.putFile        extension.removePackage
 ```
 
-`*` marks a native-only operation. The other twenty-four are the closed union that
+`*` marks a native-only operation. The other twenty-six are the closed union that
 the canonical change-set parser accepts and an MCP client may author (see
 `NendoAuthoringOperations.cs`). Whole-definition
 convenience APIs must expand into typed operations before the host records, diffs
@@ -709,6 +711,7 @@ This table gives the current locations, so that you do not need to search.
 | Timelines | `Workbench/src/timeline-model.ts`: civil-year bounds, month grouping, integer day arithmetic and spans cut at the year end. The calendar's page accumulator in `reads.ts` serves both |
 | Ratings | `Workbench/src/rating.ts`: the dots, their accessible name and the radio control. `Engine/Storage/SqliteNendoStore.Scales.cs` stores the scale itself, two rungs below the last |
 | View failures | `Desktop/DesktopViewFailureLog.cs`: the kind, how long the view was up, whether the window was out of sight and what Windows said about memory. Capped at 50 and switched from the tray. Device state, never in the file |
+| Declared hierarchies | `Engine/HierarchyOperations.cs` (the declare and remove operations and the bounds), `Engine/Storage/SqliteNendoStore.Hierarchy.cs` (the table on the layout ladder's last rung, the scan on declaration and the placement rule every parent write passes), `Engine/NendoApplicationService.Hierarchy.cs` (a move, expanded into `data.setField` operations) ([ADR-0019](decisions/0019-hierarchies-in-the-schema.md)) |
 | Custom-view packages in the file | `Engine/Extensions/ExtensionPackageOperations.cs` (the four operations), `ExtensionPackageModel.cs` (the bounds, the path rules and the media types), `ExtensionPackageDiff.cs` (the review's line diff), `ExtensionArchive.cs` (reading a folder, a zip or a `.nendoview`, the import change set and the exported manifest). `Engine/Storage/SqliteNendoStore.ExtensionPackages.cs` stores them on the layout ladder's last rung. `Workbench/src/package-diff-markup.ts` draws the review's Code section |
 | Custom-view definitions | `Engine/Extensions/ExtensionViewDefinition.cs` (the three kinds and their properties), `NendoSemanticCompiler.Extensions.cs` (`NUI450`, `NUI452`), `SemanticCapability.cs` (which rung a view needs, 1.29.0 to 1.34.0), `SemanticDiff.cs` (the review sentences and the line that code runs) |
 | Custom views: the host | `Desktop/Extensions/ExtensionOrigins.cs` (an origin per package per file), `ExtensionAssetServer.cs` (answers every view origin from the open file), `DesktopSessionController.Extensions.cs` (what each origin serves, the switches, the content cache, import and removal proposals), `DesktopExtensionSettingsStore.cs` (`extension-settings.json`), `ExtensionWebViewPolicy.cs` (menus, DevTools, permissions, new windows, frame navigation), `WorkbenchProtocol.Extensions.cs` (the `extension.*` bridge methods), `ExtensionFrameDiagnostics.cs` (`diagnostics.frameProcesses`). `MainPage.xaml.cs` turns a view renderer's exit into `extensionFramesFailed` and holds Restart without custom views; `MainPage.Extensions.cs` holds the import and export pickers |

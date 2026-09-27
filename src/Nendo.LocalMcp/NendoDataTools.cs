@@ -183,6 +183,41 @@ internal sealed class NendoDataTools(
             entityId, fieldId);
 
     [McpServerTool(
+        Name = "nendo.data.move_record",
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        ReadOnly = false,
+        UseStructuredContent = true)]
+    [Description("Move a record in its record type's declared hierarchy (schema.declareHierarchy): under another parent, or to the top level with parentRecordId null, and, when the hierarchy declares an order field, before a named sibling or last. One revision of data.setField operations: the parent, the order, and only when no gap is left the siblings renumbered. The host refuses a move under the record's own descendants or deeper than the hierarchy allows. recordIds names every record written; recordVersion is stated when only the moved record was written — otherwise read the records back.")]
+    public Task<NendoDataApplyResult> MoveRecordAsync(
+        RequestContext<CallToolRequestParams> context,
+        [Description("Private application handle returned by nendo.lease.acquire.")] string applicationHandle,
+        [Description("Opaque lease ID returned by nendo.lease.acquire.")] string leaseId,
+        [Description("Stable entity ID of a record type that declares a hierarchy.")] string entityId,
+        [Description("The record to move.")] string recordId,
+        [Description("The record's current version.")] long expectedRecordVersion,
+        [Description("Stable key used to make exact retries safe.")] string idempotencyKey,
+        [Description("The new parent's record ID, or null for the top level.")] string? parentRecordId = null,
+        [Description("The new parent's current version; required with a parentRecordId.")] long? expectedParentVersion = null,
+        [Description("A sibling under the new parent to place the record before; omit to place it last. Needs an order field.")] string? beforeRecordId = null,
+        CancellationToken cancellationToken = default) => ExecuteAsync(
+            context,
+            "nendo.data.move_record",
+            () => mutations.MoveRecordAsync(
+                applicationHandle,
+                leaseId,
+                entityId,
+                recordId,
+                expectedRecordVersion,
+                parentRecordId,
+                expectedParentVersion,
+                beforeRecordId,
+                idempotencyKey,
+                cancellationToken),
+            entityId);
+
+    [McpServerTool(
         Name = "nendo.data.execute_command",
         Destructive = false,
         Idempotent = true,

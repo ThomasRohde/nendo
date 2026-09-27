@@ -120,6 +120,7 @@ upward.
 | `nendo.data.import_records` | Same | `ImportAsync` → `NendoImportService` → `CreateRecordsAsync`. Takes CSV text or typed JSON; a mixed payload is refused before writing. The native importer's routine decodes CSV, and the same canonical `data.createRecord` operations commit it, fifty to a revision. Unknown, duplicate or out-of-range CSV mappings are typed validation refusals. At most 500 rows per call; the 256 KiB body is the limit met first. `maximumRowsPerCall` echoes the limit on success. Each batch derives its idempotency key from the caller's key (the key, `#` and the ordinal, or `import.sha256.` and the key's SHA-256 when that would pass 200 characters); a CSV record ID derives from that key and its row position. A retry gives the rows of batches its key already committed the reference target versions their revision recorded, so an exact retry replays after a referenced record is edited; uncommitted rows resolve against the current file. If a later batch is refused, `NENDO_IMPORT_PARTIAL` names the committed and remaining counts, first uncommitted data row, committed revision IDs and cause. Retry the identical call and key to replay the earlier batches without duplicates. No response implies the whole call was atomic. |
 | `nendo.data.set_field` | Same | `SetFieldAsync` → `data.setField`, expected touched-record version. `alsoChanged` as above. `recordVersion` is the version that the record holds after the revision. If an action wrote back to the same record in that revision, the version is past expected + 1, and `alsoChanged` also names that record. A text or choice value is the JSON string itself. A choice is refused with the declared options and an echo of the value that arrived. A calculated field (`derivedFields` in the schema read) is refused as `NENDO_FIELD_CALCULATED`, which names the calculation. It is not refused as a field that does not exist. |
 | `nendo.data.delete_record` | Same | `DeleteRecordAsync` → `data.deleteRecord`, expected touched-record version. Incoming references block deletion, and the refusal names the referring records. Exact retries return the committed outcome. `alsoChanged` as above. |
+| `nendo.data.move_record` | Same | `MoveRecordAsync` expands into typed `data.setField` operations in one revision: the parent, the order, and only when no gap is left the siblings renumbered (ADR-0019). Needs a declared hierarchy; `parentRecordId` null moves to the top level, `beforeRecordId` needs an order field. `recordIds` names every record written; `recordVersion` is stated when the moved record was the only one. The Engine's rule refuses a move under the record's own descendants as `NENDO_HIERARCHY_CYCLE`, naming the loop. |
 | `nendo.data.execute_command` | Same | `ExecuteCommandAsync` resolves the stored command, then typed `data.setField`. MCP does not implement domain commands. Returns the resulting `recordVersion`. A command advances the record by one version per `commandStep`, and the steps are in the stored definition. The caller therefore cannot derive the version, and without this value the next optimistic write had nothing to pin to. Null on an idempotent replay, where the version of the original write may have moved since. |
 | `nendo.data.get_receipt` | Current endpoint, no modifying lease needed | `GetMutationReceiptAsync`. The saved locator binds the original app/instance/run/scope. A committed receipt carries `generatedChanges`: the records that the write's automatic actions changed, rebuilt from the revision's attributed operations, with `recordVersion` null. A lost response is therefore recovered without a re-read of every record. A missing receipt remains unresolved, and no write authority is granted. |
 | `nendo.health.verify_integrity` | Current endpoint, no lease needed | `VerifyIntegrityAsync`. Scans the file and returns the health measured now. The scan also reads every stored custom-view package content and compares it with its SHA-256. An unchanged file is not rescanned: `rescanned` is false, and the recorded result already describes the file. A call after every batch therefore costs nothing. A failed scan puts the host into recovery. That is the protection of the file, not a failure of this call. |
@@ -220,8 +221,13 @@ audited list in `NendoToolErrors`: `definition-version-conflict`,
 `required-field-needs-migration`, `required-backfill-needed`, `record-referenced`,
 `entity-referenced`, `behaviour-not-approved`, `choice-retired`, `reference-unbound`,
 `target-version-required`, `target-not-found`, `target-version-conflict`,
-`record-version-conflict`, `record-not-found`, `field-not-found`, `field-calculated`
-and `aggregate-not-representable`. `aggregate-not-exact` echoes a stored float, and it stays
+`record-version-conflict`, `record-not-found`, `field-not-found`, `field-calculated`,
+`aggregate-not-representable`, and the hierarchy codes of ADR-0019 (`hierarchy-cycle`,
+`hierarchy-cycle-present`, `hierarchy-too-deep`, `hierarchy-too-wide`,
+`hierarchy-parent-invalid`, `hierarchy-parent-required`, `hierarchy-order-invalid`,
+`hierarchy-already-declared`, `hierarchy-not-declared`, `hierarchy-field-in-use`,
+`hierarchy-order-not-declared`, `hierarchy-sibling-not-found` and `move-unchanged`),
+whose messages name records by stable ID and a loop as the chain of IDs it would close. `aggregate-not-exact` echoes a stored float, and it stays
 withheld. A calculation failure passes through as `NENDO_CALCULATION_*`.
 
 An outside review measured the cost of the alternative. One uninformative
@@ -283,13 +289,13 @@ that table serves two purposes. It is published at
 `nendo://application/vocabulary`, and `NendoAgentAuthoringService` builds its
 enforcement from it. Before, the payload specification was prose inside the
 `add_operations` tool description. That prose grew so long that a real client's
-tool listing truncated it mid-token. The union permits twenty-four of the Engine's
-twenty-six canonical operations. `data.restoreDeletedRecord` and
+tool listing truncated it mid-token. The union permits twenty-six of the Engine's
+twenty-eight canonical operations. `data.restoreDeletedRecord` and
 `identity.transition` are native-only: lifecycle identity operations remain host
 services and are not MCP authoring primitives.
 
 `extension.setPackage`, `extension.putFile`, `extension.removeFile` and
-`extension.removePackage` are among the twenty-four. An agent therefore writes a
+`extension.removePackage` are among the twenty-six. An agent therefore writes a
 custom view's code into the file through ordinary proposals, and the person reviews
 it as code before accepting. Once accepted, the code runs in the Workbench whenever
 a view that names its package is shown, and reaches the file only through
@@ -304,12 +310,17 @@ publishes the package bounds under `limits.extensions`:
 - `pathCharacters` and `packageIdCharacters`: 240 and 80;
 - `putFilePayloadBytes`: 96 KiB for one `putFile` payload.
 
+The bounds of a declared hierarchy are under `limits.hierarchy`: `maximumDepth` 32,
+`maximumDescendants` 10,000 and `orderGap` 1,024. `schema.declareHierarchy` and
+`schema.removeHierarchy` are among the twenty-six, and a record type's schema read carries
+its `hierarchy` (`parentFieldId`, `orderFieldId`), or null.
+
 A change set past the content bound, or a file past 4 MiB once its parts are
 joined, is refused at validation as `NENDO_INVALID_REQUEST`, and nothing reaches
 the clone. A package precondition met on the clone, one of the `extension-*` codes,
 arrives as a validation diagnostic, `NPROP010`, with the Engine's sentence.
 
-`behaviour.setDefinition` and `behaviour.removeDefinition` are among the twenty-four,
+`behaviour.setDefinition` and `behaviour.removeDefinition` are among the twenty-six,
 so an agent authors calculations, reusable functions, actions and triggers through
 ordinary proposals. The vocabulary's `behaviour.bindings` publishes every binding
 shape with the keys that it takes, from the same table that the codec refuses

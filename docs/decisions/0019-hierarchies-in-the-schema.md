@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-27
-- **Delivery:** Stage 1 (the cost experiment) done 2026-09-27; stages 2–7 not started. Proposed and accepted the same day, after the owner settled the open questions
+- **Delivery:** Stages 1 (the cost experiment) and 2 (declaration, cycle rule, move, MCP) done 2026-09-27; stages 3–7 not started. Proposed and accepted the same day, after the owner settled the open questions
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** The code survey in Context (2026-09-27) and the Capability Atlas review (W-072, planner findings F-154 to F-162). The costs were measured after acceptance as delivery stage 1, and every target was met; see the Stage 1 note
@@ -259,6 +259,35 @@ tree (a whole-subtree page, aggregate or related fold) stay under half the read 
 at the bound. Renumbering is the one cost that grows with a sibling list; ordering by gaps
 of 1,024 makes it rare, and at 1,005 siblings it still stays under half a second. These are
 Engine numbers on one machine, without MCP or Workbench, and not a guarantee.
+
+## Stage 2 note — 2026-09-27: declaration, the rule and the move
+
+Delivered at host 1.35.0, as decided, with three refinements that the code taught:
+
+- **A move is a convenience, not a stored operation type.** The architecture requires
+  whole-document conveniences to expand into typed operations before history, so
+  `data.moveRecord` became `NendoApplicationService.MoveRecordAsync` and the MCP tool
+  `nendo.data.move_record`, which write `data.setField` operations in one revision. The
+  store's placement rule is what refuses a loop, whoever writes the parent.
+- **Reversibility.** Declare and remove are `ReversibleWithRetainedState`, the class of
+  their neighbours, and each compensates the other. A move's operations each keep their
+  prior value; the one-click compensation covers single-operation revisions, so a move
+  that also sets order is undone operation by operation. Point 5's "compensation restores
+  every touched record" holds for the operations, not as one click.
+- **Declaring requires an optional parent**, and while declared the parent cannot be made
+  required and neither field nor the record type can be retired. A required parent would
+  leave a tree with no top level.
+
+Evidence: `HierarchyTests` (12 Engine tests: the rung, reopen and host version; the
+parent and order rules; refusal over loops and too-deep branches with the file unchanged;
+the rule on a field write, a form save and a raw mutation; the depth bound on create and
+move; retirement and requirement; compensation both ways; moves into a gap, last, with
+renumbering in one revision, and the refusals). Removing the placement call from the field
+write and the scan from the declaration made five of them fail ("no exception was
+thrown"). `HierarchyProtocolTests` shows the refusal reaching an MCP client with the loop;
+without the audited code it read only `NENDO_HIERARCHY_CYCLE: The semantic precondition was
+not met.` The output-schema contract exercises the move tool and the schema read's
+`hierarchy`.
 
 ## Consequences
 

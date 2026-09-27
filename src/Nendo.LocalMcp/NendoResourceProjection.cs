@@ -60,6 +60,7 @@ internal sealed class NendoResourceProjection(
                 .ToArray())
         {
             Retired = entity.Retired,
+            Hierarchy = entity.Hierarchy,
             DerivedFields = entity.DerivedFields
                 .OrderBy(field => field.FieldId, StringComparer.Ordinal)
                 .Select(field => new NendoMcpDerivedField(

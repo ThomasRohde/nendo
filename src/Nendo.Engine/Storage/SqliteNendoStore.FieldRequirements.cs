@@ -23,6 +23,9 @@ internal sealed partial class SqliteNendoStore
         var field = entity.Fields.SingleOrDefault(field => field.FieldId == operation.FieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The field does not belong to this record type.");
         RequireActive(entity, field);
+        if (operation.Required && entity.Hierarchy?.ParentFieldId == field.FieldId)
+            throw new NendoPreconditionException("hierarchy-parent-required",
+                "A tree needs top-level records, so the parent field of a declared hierarchy stays optional.");
         var materialized = await TableExistsAsync(entity.PhysicalTableName, transaction, ct) &&
             await ColumnExistsAsync(entity.PhysicalTableName, field.PhysicalColumnName, transaction, ct);
         if (!materialized && await TableExistsAsync(entity.PhysicalTableName, transaction, ct))

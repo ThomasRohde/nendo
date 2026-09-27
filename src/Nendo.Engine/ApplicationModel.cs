@@ -125,6 +125,9 @@ public sealed record NendoEntitySnapshot(
 
     /// <summary>The calculated fields declared on this record type, ordered by stable ID.</summary>
     public IReadOnlyList<NendoDerivedFieldSnapshot> DerivedFields { get; init; } = [];
+
+    /// <summary>The record type's declared hierarchy (ADR-0019), or null when it declares none.</summary>
+    public NendoHierarchy? Hierarchy { get; init; }
 }
 
 public sealed record NendoRecordSnapshot(

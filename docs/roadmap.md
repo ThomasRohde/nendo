@@ -124,7 +124,7 @@ Next, in order:
   delivered (2026-09-26, W-063).
 - **Phase 5, views anywhere**: the `extensionView` root, which the Use "Showing"
   picker offers, and the `extensionTile` on the front page and dashboards, at host
-  1.35.0. Not yet.
+  1.36.0 (1.35.0 went to ADR-0019's hierarchies). Not yet.
 
 **Accepted limitation: a received file's code runs.** A view that is shown runs,
 and a file somebody else wrote brings its views' code with it. Nobody on this device

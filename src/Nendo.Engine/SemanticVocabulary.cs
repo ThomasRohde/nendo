@@ -951,11 +951,22 @@ public sealed record NendoAuthoringLimits(
             NendoExtensionLimits.PathCharacters,
             NendoExtensionLimits.PackageIdCharacters,
             PutFilePayloadBytes: 96 * 1024),
+        Hierarchy = new(NendoHierarchyLimits.MaximumDepth, NendoHierarchyLimits.MaximumDescendants, NendoHierarchyLimits.OrderGap),
     };
 
     /// <summary>The bounds a custom-view package in the file keeps (ADR-0013).</summary>
     public NendoExtensionAuthoringLimits? Extensions { get; init; }
+
+    /// <summary>The bounds a declared hierarchy keeps (ADR-0019).</summary>
+    public NendoHierarchyAuthoringLimits? Hierarchy { get; init; }
 }
+
+/// <summary>
+/// The bounds a declared hierarchy keeps, as <see cref="NendoHierarchyLimits"/> enforces them: the
+/// deepest a record may sit (a top-level record is at depth 1), the most records one subtree read
+/// or one parent's sibling list holds, and the spacing a move leaves between sibling order values.
+/// </summary>
+public sealed record NendoHierarchyAuthoringLimits(int MaximumDepth, int MaximumDescendants, long OrderGap);
 
 /// <summary>
 /// The bounds a custom-view package keeps, as <see cref="NendoExtensionLimits"/> enforces them:
