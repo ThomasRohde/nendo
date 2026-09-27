@@ -2,7 +2,7 @@ namespace Nendo.LocalMcp;
 
 /// <summary>
 /// What the host tells a client before its first call. A client shows this only up to
-/// its own cut: Claude Code stops at 2,048 characters and says nothing on the wire, so
+/// its own cut: a widely used client stops at 2,048 characters and says nothing on the wire, so
 /// the sentences past that point are never read. Measured on 2026-09-27, the text was
 /// 2,755 characters and lost the one that says no SQL, file, process or network access
 /// exists. It is written to fit under <see cref="MaximumCharacters"/> in every variant,

@@ -126,6 +126,28 @@ way the reference tool does) were updated in the same change.
   carries the unbounded replay caches, the unguarded `ProposalAdded` handler,
   the absence of an in-flight bound, and the analyzer items worth keeping.
 
+## Remediated the same day — W-082 to W-086
+
+All five items were implemented on 2026-09-27, each guard seen to fail with its
+defect put back before it was trusted. The commits and the falsification quotes
+are in the planner's Checks C-242 to C-246; the numbers are here.
+
+| Item | Commit | What changed | Guard, and what it said with the defect back |
+| --- | --- | --- | --- |
+| W-082 | 3e4928a | Instructions 1,714–1,760 characters across variants; `add_operations` 1,279 and its rules in the vocabulary's `authoringRules`; `import_records` 1,779 | `SurfaceTextBoundTests`: 2,752, 2,628 and 2,625 characters for the instructions, 2,179 and 2,056 for the two descriptions |
+| W-084 | eff0a5c | Titles on 20 tools, 17 resources and `serverInfo`; every output property described; three overwriting tools `destructiveHint` true; lease lifetime stated; no `Server` header; one-hour TTL on vocabulary and examples; a page query read as a set | `SurfaceMetadataTests`, eight cases: 37 untitled, 119 undescribed, 7 expected destructive and 4 found, `Server: Kestrel`, ttl 0, the query refused as an unknown URI |
+| W-083 | bb14ff4 | An argument contract read from the tool methods and checked before the SDK binds; level codes as `-32602` naming both levels; unknown tool `-32602`; every closed object `additionalProperties: false`; perimeter and lease refusals name the remedy | `ToolRefusalTests` and the perimeter tests, ten cases: the binder's bare sentence back, a misspelt nested key silently dropped, 20 schemas not closed, 11 required flags drifting |
+| W-085 | 63c6e20 | One activity entry per call; imports attributed to the session, committed batches replayed under their recorded origin; a failure reference and one device line per internal failure (ADR-0002 amendment) | `ActivityAndFailureTests`, the Unattended failure test and `DesktopAgentFailureLogTests`, seven cases: two entries per call, origin `agent`, a cross-lease retry refused as a conflict, no line, a path in the frames |
+| W-086 | 61ee03a | Depth cap 32 with eight levels of headroom; replay caches bounded to 256 per kind; the proposal event guarded; 16 requests in flight and five minutes each; gates disposed; CA1001, CA2213, CA1068, CA2000 and CA1835 gone for the project at `latest-all` | `HostHardeningTests`, six cases: 14 levels within 8 of 16, 300 cached, a plain dictionary of replays, the handler's failure reaching the agent, the 17th request answered 200, Kestrel's own 408 where the named timeout was expected |
+
+One consequence was found while fixing W-085 and is recorded because it was not in
+the review: the Engine digests a mutation's origin, so attributing an import to its
+session would have turned a retry from a new lease — after a restart, say — into
+`NENDO_IDEMPOTENCY_CONFLICT`, and so would every retry of an import committed before
+the change. A committed batch is now resubmitted under the origin its receipt
+records, which the receipt carries for that reason, and a test retries from a new
+lease.
+
 ## What was read and found sound
 
 So the next reviewer does not spend the same hours:
