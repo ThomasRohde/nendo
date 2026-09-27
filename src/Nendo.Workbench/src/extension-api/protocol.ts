@@ -164,7 +164,17 @@ export interface SchemaField {
   scale: { min: number; max: number } | null;
 }
 
-export interface SchemaEntity { entityId: string; displayName: string; fields: SchemaField[] }
+/**
+ * A record type. `hierarchy` is the tree it declares (ADR-0019): the self-reference that holds
+ * each record's parent, and the whole-number field that orders siblings, if any. Null when it
+ * declares none.
+ */
+export interface SchemaEntity {
+  entityId: string;
+  displayName: string;
+  fields: SchemaField[];
+  hierarchy: { parentFieldId: string; orderFieldId: string | null } | null;
+}
 
 /** A screen the file defines: a root node, by its node ID and the surface that holds it. */
 export interface SchemaScreen { id: string; surfaceId: string; kind: string; title: string | null; entityId: string | null }

@@ -2,7 +2,12 @@
 // a person accepts (ADR-0013, 2026-09-25). The folder holds a nendo-package.json and the
 // package's files; the manifest itself is not stored, because the package row holds it.
 //
-//   node tools/Put-NendoPackage.mjs <folder> [--application <applicationId>] [--endpoint <url>] [--title <title>] [--dry-run] [--accept]
+//   node tools/Put-NendoPackage.mjs <folder> [--application <applicationId>] [--endpoint <url>] [--title <title>]
+//                                   [--operations <file.json>] [--dry-run] [--accept]
+//
+// --operations names a JSON array of further canonical operations, such as the configuration a
+// view needs once it runs the new package. They go in the same proposal, as its last mutation,
+// so the person accepts the package and the view together and never sees one without the other.
 //
 // --endpoint names a Nendo by its MCP address, for one on a fixed port, which publishes no
 // discovery entry.
@@ -33,7 +38,7 @@ function fail(message) {
 
 const args = process.argv.slice(2);
 const option = name => { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : undefined; };
-const folder = args.find((value, index) => !value.startsWith('--') && !['--application', '--endpoint', '--title'].includes(args[index - 1]));
+const folder = args.find((value, index) => !value.startsWith('--') && !['--application', '--endpoint', '--title', '--operations'].includes(args[index - 1]));
 const dryRun = args.includes('--dry-run');
 const accept = args.includes('--accept');
 if (!folder) fail('Name the package folder: node tools/Put-NendoPackage.mjs extensions/gantt');
@@ -86,8 +91,20 @@ async function connect() {
 
 const op = (operationType, payload) => ({ operationType, payload });
 
+async function readOperations() {
+  const file = option('--operations');
+  if (file === undefined) return [];
+  const operations = JSON.parse(await fs.readFile(file, 'utf8').catch(() => fail(`${file} cannot be read.`)));
+  if (!Array.isArray(operations) || operations.some(item => typeof item?.operationType !== 'string' || typeof item.payload !== 'object' || item.payload === null)) {
+    fail(`${file} must hold a JSON array of canonical operations, each { operationType, payload }.`);
+  }
+  if (operations.length > OPERATIONS_PER_MUTATION) fail(`${file} holds ${operations.length} operations; one mutation takes at most ${OPERATIONS_PER_MUTATION}.`);
+  return operations;
+}
+
 async function main() {
   const { manifest, files } = await readPackage();
+  const extra = await readOperations();
   const { client, manifest: file } = await connect();
   const read = await client.rpc('resources/read', { uri: 'nendo://application/extensions' });
   const parsed = JSON.parse(read.contents[0].text);
@@ -115,12 +132,12 @@ async function main() {
   const unchanged = current && operations.length === 1 && current.title === (manifest.title ?? manifest.packageId) &&
     (current.version ?? null) === (manifest.version ?? null) && current.entryPoint === (manifest.entryPoint ?? 'index.html') &&
     (current.description ?? null) === (manifest.description ?? null);
-  if (unchanged) fail(`The file already carries ${manifest.packageId} exactly as ${folder} has it.`);
+  if (unchanged && extra.length === 0) fail(`The file already carries ${manifest.packageId} exactly as ${folder} has it.`);
 
   const title = option('--title') ?? `${current ? 'Update' : 'Add'} the custom view package ${manifest.title ?? manifest.packageId}`;
   console.log(`File            ${file.applicationId}`);
   console.log(`Package         ${manifest.packageId}${current ? ' (update)' : ' (new)'}`);
-  console.log(`Operations      ${operations.length}`);
+  console.log(`Operations      ${operations.length}${extra.length ? ` and ${extra.length} for the views that show it` : ''}`);
   if (dryRun) { console.log('Dry run: nothing was sent.'); return; }
 
   const lease = await client.tool('nendo.lease.acquire');
@@ -136,6 +153,9 @@ async function main() {
         mutations.push({ description: mutations.length === 0 ? `Describe the package ${manifest.packageId} and put its files` : `Put more of ${manifest.packageId}`,
           operations: [operation], size });
       } else { last.operations.push(operation); last.size += size; }
+    }
+    if (extra.length > 0) {
+      mutations.push({ description: `Adjust the views that show ${manifest.packageId}`, operations: extra, size: JSON.stringify(extra).length });
     }
     let batch = [], characters = 0;
     const send = async () => {

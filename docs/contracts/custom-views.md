@@ -681,11 +681,14 @@ A record, from `records.query`, `records.get` and the loaders below:
 
 `schema.describe` answers `{purpose, changeSequence, entities, screens, commands}`:
 
-- Each entity is `{entityId, displayName, fields}`. Each field is `{fieldId,
-  displayName, storageKind, required, presentation, calculated, expression, choices,
-  reference, scale}`. A calculated field has `calculated: true`, its formula in
-  `expression` and its result type as `storageKind`. Each choice is `{id,
-  displayName, retired, tone}`. Retired record types and fields are left out.
+- Each entity is `{entityId, displayName, fields, hierarchy}`. `hierarchy` is the tree
+  the record type declares ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)),
+  `{parentFieldId, orderFieldId}` with a null order when it has none, or null when it
+  declares no tree. Each field is `{fieldId, displayName, storageKind, required,
+  presentation, calculated, expression, choices, reference, scale}`. A calculated field
+  has `calculated: true`, its formula in `expression` and its result type as
+  `storageKind`. Each choice is `{id, displayName, retired, tone}`. Retired record types
+  and fields are left out.
 - Each screen is `{id, surfaceId, kind, title, entityId}`: a root node of the file.
 - Each command is `{id, entityId, label, steps}`. Each step is `{fieldId, valueKind,
   value}`, in the order it runs: `valueKind` is `literal` (the value is `value`),
@@ -1326,3 +1329,6 @@ passed. Each guard below was falsified, seen to fail and then restored:
 - 2026-09-26 — each filter binding carries its field's `storageKind`, and `today` on a
   DateTime field resolves to the zoned instant the person's day begins rather than a
   bare date the host refuses (R-003).
+- 2026-09-27 — `schema.describe` names each record type's declared `hierarchy`, so a view
+  that writes a parent knows which field holds it rather than guessing among the record
+  type's references to itself. A view on an earlier host finds the key missing (W-077).

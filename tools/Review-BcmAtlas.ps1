@@ -15,14 +15,16 @@ if (-not (Test-Path -LiteralPath $api)) {
 $tests = @('model.test.mjs', 'syntax.test.mjs', 'layout-parity.test.mjs') | ForEach-Object { Join-Path $PSScriptRoot "bcm-atlas/$_" }
 & node --experimental-vm-modules --test @tests
 if ($LASTEXITCODE -ne 0) { throw 'Capability Atlas node tests failed.' }
-# The shipped Northstar model, generated as the live file was: 635 capabilities and their links.
-$northstar = [Uri]::new((Join-Path $PSScriptRoot 'bcm-atlas/northstar.mjs')).AbsoluteUri
+# The two files the package is shown (bcm-atlas/fixtures.mjs): BCM.nendo's Northstar model, 635
+# capabilities with the file's own schema and Capability map view, generated as the live file was,
+# and a second file whose record types, fields and parts are all different (W-077).
+$fixtureModule = [Uri]::new((Join-Path $PSScriptRoot 'bcm-atlas/fixtures.mjs')).AbsoluteUri
 $run = [Guid]::NewGuid().ToString('N')
-$modelPath = Join-Path $output "bcm-atlas-model-$run.json"
-& node --input-type=module -e "import fs from 'node:fs'; import {northstarModel} from '$northstar'; fs.writeFileSync(process.argv[1], JSON.stringify(northstarModel()));" $modelPath
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $modelPath)) { throw 'The Northstar model could not be generated.' }
-$model = [IO.File]::ReadAllText($modelPath)
-Remove-Item -LiteralPath $modelPath
+$fixturePath = Join-Path $output "bcm-atlas-fixtures-$run.json"
+& node --input-type=module -e "import fs from 'node:fs'; import {atlasFixtures} from '$fixtureModule'; fs.writeFileSync(process.argv[1], JSON.stringify(atlasFixtures()));" $fixturePath
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $fixturePath)) { throw 'The Capability Atlas fixtures could not be generated.' }
+$fixtures = [IO.File]::ReadAllText($fixturePath)
+Remove-Item -LiteralPath $fixturePath
 $infoPath = Join-Path $output "bcm-atlas-server-$run.json"
 $probePath = Join-Path $output "bcm-atlas-probe-$run.mjs"
 $serverScript = Join-Path $PSScriptRoot 'Graph-FixtureServer.mjs'
@@ -38,7 +40,7 @@ try {
     $info = Get-Content -LiteralPath $infoPath -Raw | ConvertFrom-Json
     if ($info.pid -ne $server.Id) { throw 'Capability Atlas fixture process identity differs.' }
     $probe = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Gate-BcmAtlas.mjs'))
-    $probe = $probe.Replace("'__NENDO_REPOSITORY__'", ($repoRoot.Replace('\', '/') | ConvertTo-Json -Compress)).Replace('__BROKER_URL__', $info.brokerUrl).Replace("'__BCM_FIXTURE__'", $model)
+    $probe = $probe.Replace("'__NENDO_REPOSITORY__'", ($repoRoot.Replace('\', '/') | ConvertTo-Json -Compress)).Replace('__BROKER_URL__', $info.brokerUrl).Replace("'__ATLAS_FIXTURES__'", $fixtures)
     [IO.File]::WriteAllText($probePath, $probe, [Text.UTF8Encoding]::new($false))
     & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" open about:blank --browser msedge
     if ($LASTEXITCODE -ne 0) { throw 'Capability Atlas browser did not start.' }

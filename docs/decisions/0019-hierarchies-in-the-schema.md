@@ -435,6 +435,12 @@ putting back the local build from stored links: `A file without the hierarchy di
 there is no map. The view says: "48 shown · 635 in scope · 635 total"`. The four other lanes on
 the same broker (Gantt, Nendo graph, Systems Lens, Work dependencies) pass.
 
+Later the same day (W-077) the view API names the declaration outright: `schema.describe` gives
+each record type its `hierarchy`, `{parentFieldId, orderFieldId}` or null. The Atlas no longer
+names a record type or a field. It draws the view's own record type, writes the declared parent,
+and takes every other part from the view's configuration; a host that does not name the
+declaration yet leaves the parent to the record type's one reference to itself.
+
 ## Consequences
 
 ### Positive

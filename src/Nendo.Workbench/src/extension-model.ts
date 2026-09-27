@@ -140,7 +140,8 @@ function describeEntity(entity: EntitySnapshot): SchemaEntity {
     reference: null,
     scale: null,
   }));
-  return { entityId: entity.entityId, displayName: entity.displayName, fields: [...stored, ...derived] };
+  const hierarchy = entity.hierarchy ? { parentFieldId: entity.hierarchy.parentFieldId, orderFieldId: entity.hierarchy.orderFieldId ?? null } : null;
+  return { entityId: entity.entityId, displayName: entity.displayName, fields: [...stored, ...derived], hierarchy };
 }
 
 /** The root a node sits under, through its parents in the same surface. */

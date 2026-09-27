@@ -810,6 +810,13 @@ vocabulary, the examples and the resources — and not from the person.
   its editor is open: the save must name the stale version and keep the draft. Delete
   only that record. Check both themes and a narrow window, and record readability apart
   from counts.
+- Put the repository's `extensions/bcm-atlas` package into the empty review file. Give a
+  record type a reference to itself, declare it as the hierarchy, and add records three
+  levels deep. Show the package over that record type with a view whose configuration
+  names only some of the Atlas's parts, as its README describes, and one part whose field
+  the view does not bind. Record what the map offered and what it left out, what it said
+  about the unbound part, and whether a capability created in its editor landed under the
+  right parent with only the fields the view binds.
 - Open the planner's Work dependencies view, select a work item, and ask the person to
   press Complete there. Record what the line below the drawing said, whether the graph
   showed it Done without a reload, and what History names as the author. Then change the

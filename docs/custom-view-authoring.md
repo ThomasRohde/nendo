@@ -24,7 +24,10 @@ dependencies:
 - [`extensions/gantt/`](../extensions/gantt/README.md), a record set on a time line,
   which also works on a record page;
 - [`extensions/bcm-atlas/`](../extensions/bcm-atlas/README.md), a business capability
-  map over a five-level hierarchy, with editing, carried by `workspace/BCM.nendo`.
+  map over any record type a file keeps as a tree, with editing, carried by
+  `workspace/BCM.nendo`. It names no record type or field: its view's configuration says
+  which bound field plays which part, and it finds the related record types in the
+  schema.
 
 ## What a view can do
 

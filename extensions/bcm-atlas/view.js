@@ -1,26 +1,26 @@
 // Capability Atlas: a business capability map over one hierarchical record type (ADR-0013).
 //
-// Everything arrives through window.nendo. The capabilities are read as the tree the file
-// declares (nendo.records.treeAll, ADR-0019), so the Engine keeps it free of loops and orders
-// each level; the applications, support links and initiatives are read to show
-// what supports and changes the selected capability. The map is packed by the owner's BCM
-// reference layout (layout.js, loaded as window.BcmLayout) with the lab preset in
-// layout-profile.js; Assessment and Outline are tables of the same rows. The only writes are
-// capability creates and updates, sent with the parent's version so a stale parent is refused,
-// and a parent that would close a loop is refused by the Engine in words the editor shows.
-// Nothing leaves Nendo.
-import {
-  CAPABILITY, FIELD, value, title, gap, hierarchy, projectHierarchy,
-  maturityLabels, importanceOptions, investmentOptions, lifecycleOptions,
-} from './model.js';
+// Everything arrives through window.nendo. Which record type the map draws, and which of its
+// fields plays which part, come from the view that shows the Atlas and from the file's schema
+// (bindAtlas in model.js), so nothing here names a record type or a field. The capabilities are
+// read as the tree the file declares (nendo.records.treeAll, ADR-0019), so the Engine keeps it
+// free of loops and orders each level; the record types that refer to it are read to show what
+// supports and changes the selected capability. The map is packed by the owner's BCM reference
+// layout (layout.js, loaded as window.BcmLayout) with the lab preset in layout-profile.js;
+// Assessment and Outline are tables of the same rows. The only writes are capability creates and
+// updates, sent with the parent's version so a stale parent is refused, and a parent that would
+// close a loop is refused by the Engine in words the editor shows. Nothing leaves Nendo.
+import { bindAtlas, hierarchy, projectHierarchy, maturityLabels, relatedName, relatedRow } from './model.js';
 import { layoutCapabilities, fitViewport } from './layout-profile.js';
 
 // ---------------------------------------------------------------------------------------------
 // State
 
-// The records as last read, and the hierarchy built from the capabilities (model.js).
-let records = [], applications = [], supports = [], initiatives = [];
-let model = hierarchy([]);
+// What the view binds (model.js), the capabilities as last read, the related records by record
+// type, and the hierarchy built from the capabilities.
+let binding = bindAtlas(null, null);
+let records = [], relatedRecords = new Map();
+let model = hierarchy([], binding.title);
 // Whether the file declares no capability hierarchy, which is the one thing the map needs.
 let undeclared = false;
 
@@ -78,32 +78,34 @@ function say(message) {
 
 /** "3 · Defined", or the fallback when there is no assessment. */
 function maturityText(level, fallback) {
-  return level == null ? fallback : `${level} · ${maturityLabels[level]}`;
+  if (level == null) return fallback;
+  return level > 0 && maturityLabels[level] ? `${level} · ${maturityLabels[level]}` : String(level);
 }
 
 // ---------------------------------------------------------------------------------------------
 // Colour. Cards use the Workbench's tone tokens (--nendo-tone-*), set per card as --tone.
 
+// Maturity has its own scale of tones; a choice part takes each choice's tone from the schema.
 const maturityTones = ['grey', 'red', 'orange', 'amber', 'teal', 'green']; // by level 0-5
-const importanceTones = { Supporting: 'grey', Core: 'blue', Differentiating: 'violet' };
-const investmentTones = { Tolerate: 'blue', Invest: 'teal', Migrate: 'amber', Eliminate: 'red' };
+
+/** The parts each colour mode needs the view to bind. Neutral needs none. */
+const colourNeeds = { maturity: ['maturity'], gap: ['maturity', 'target'], importance: ['importance'], investment: ['investment'], none: [] };
 
 function toneFor(record) {
   switch (colour) {
-    case 'none':
-      return 'grey';
     case 'maturity':
-      return maturityTones[Number(value(record, 'maturity'))] || 'grey';
+      return maturityTones[Number(binding.value(record, 'maturity'))] || 'grey';
     case 'gap': {
-      const g = gap(record);
+      const g = binding.gap(record);
       if (g == null) return 'grey';
       if (g <= 0) return 'teal';
       return g === 1 ? 'amber' : g === 2 ? 'orange' : 'red';
     }
     case 'importance':
-      return importanceTones[value(record, 'importance')] || 'grey';
+    case 'investment':
+      return binding.tone(colour, binding.value(record, colour)) || 'grey';
     default:
-      return investmentTones[value(record, 'investment')] || 'grey';
+      return 'grey';
   }
 }
 
@@ -118,9 +120,8 @@ function legendEntries() {
     case 'gap':
       return [['At / above target', 'teal'], ['1 level', 'amber'], ['2 levels', 'orange'], ['3+ levels', 'red'], ['Unassessed', 'grey']];
     case 'importance':
-      return Object.entries(importanceTones);
     case 'investment':
-      return Object.entries(investmentTones);
+      return binding.choices[colour].map(choice => [choice.displayName, choice.tone || 'grey']);
     default:
       return [['Neutral', 'grey']];
   }
@@ -141,7 +142,7 @@ function legend() {
 /** Whether a capability matches the search, by name, reference, owner or definition. */
 function matches(record) {
   if (!query) return true;
-  const text = [title(record), value(record, 'code'), value(record, 'owner'), value(record, 'description')].join(' ');
+  const text = [binding.title(record), binding.value(record, 'code'), binding.value(record, 'owner'), binding.value(record, 'description')].join(' ');
   return text.toLowerCase().includes(query);
 }
 
@@ -173,8 +174,8 @@ function stats() {
   const inScope = recordsInScope();
   $('total').textContent = inScope.length;
   $('leaves').textContent = inScope.filter(record => !model.children.get(record.recordId)?.length).length;
-  $('gaps').textContent = inScope.filter(record => gap(record) > 0).length;
-  $('unassessed').textContent = inScope.filter(record => value(record, 'maturity') == null).length;
+  $('gaps').textContent = inScope.filter(record => binding.gap(record) > 0).length;
+  $('unassessed').textContent = inScope.filter(record => binding.value(record, 'maturity') == null).length;
 }
 
 function breadcrumbs() {
@@ -182,7 +183,7 @@ function breadcrumbs() {
   nav.replaceChildren(button('Enterprise', () => scopeTo(null)));
   const ancestors = [];
   for (let id = scope; id && model.byId.has(id); id = model.parents.get(id)) ancestors.unshift(id);
-  for (const id of ancestors) nav.append(el('span', 'muted', '/'), button(title(model.byId.get(id)), () => scopeTo(id)));
+  for (const id of ancestors) nav.append(el('span', 'muted', '/'), button(binding.title(model.byId.get(id)), () => scopeTo(id)));
 }
 
 /** One button per level the scope has, then All. A focused button keeps focus across the redraw. */
@@ -291,14 +292,15 @@ function card(node, lit) {
 
   const b = button('', () => select(node.id), classes.join(' '));
   b.dataset.id = node.id;
+  const maturity = binding.has('maturity') ? `, ${maturityText(binding.value(record, 'maturity'), 'Unassessed').replace(/^\d+ · /, '')}` : '';
   b.setAttribute('aria-label',
-    `${title(record)}, ${maturityLabels[value(record, 'maturity') || 0]}${isGroup ? ', group' : ''}${hidden ? ', ' + hidden + ' capabilities inside' : ''}`);
+    `${binding.title(record)}${maturity}${isGroup ? ', group' : ''}${hidden ? ', ' + hidden + ' capabilities inside' : ''}`);
   b.setAttribute('aria-pressed', String(selected === node.id));
-  b.title = `${value(record, 'code') || ''} ${title(record)}\n${isGroup ? 'Double-click to focus this group' : 'Select to inspect'}`;
+  b.title = `${binding.value(record, 'code') || ''} ${binding.title(record)}\n${isGroup ? 'Double-click to focus this group' : 'Select to inspect'}`;
   Object.assign(b.style, { left: `${node.x}px`, top: `${node.y}px`, width: `${node.width}px`, height: `${node.height}px` });
   setTone(b, toneFor(record));
-  b.append(el('span', 'cap-title', title(record)));
-  if (node.isLeaf) b.append(el('span', 'cap-meta', String(value(record, 'code') || '')), score(record, hidden));
+  b.append(el('span', 'cap-title', binding.title(record)));
+  if (node.isLeaf) b.append(el('span', 'cap-meta', String(binding.value(record, 'code') || '')), score(record, hidden));
   b.addEventListener('dblclick', () => {
     if (isGroup) scopeTo(node.id);
   });
@@ -308,25 +310,30 @@ function card(node, lit) {
 /** A leaf card's corner figure: what a collapsed group holds, the gap, or the maturity. */
 function score(record, hidden) {
   if (hidden) return el('span', 'score cap-count', `${hidden} inside`);
-  let text;
-  if (colour === 'gap') text = gap(record) == null ? '—' : `Δ ${gap(record)}`;
-  else text = value(record, 'maturity') == null ? '—' : `${value(record, 'maturity')} / 5`;
+  let text = '';
+  if (colour === 'gap') text = binding.gap(record) == null ? '—' : `Δ ${binding.gap(record)}`;
+  else if (binding.has('maturity')) text = binding.value(record, 'maturity') == null ? '—' : `${binding.value(record, 'maturity')} / ${binding.scale.max}`;
   return el('span', 'score', text);
 }
 
 // ---------------------------------------------------------------------------------------------
 // Assessment and Outline tables
 
-const columns = ['Capability', 'Maturity', 'Target', 'Gap', 'Importance', 'Direction'];
+/** The columns after the name, each with the parts it needs the view to bind. */
+const columns = [
+  ['Maturity', ['maturity']], ['Target', ['target']], ['Gap', ['maturity', 'target']],
+  ['Importance', ['importance']], ['Direction', ['investment']],
+];
+const shownColumns = () => columns.filter(([, needs]) => needs.every(binding.has));
 
 function renderTable() {
   const rows = projection.rows.filter(({ record }) => matches(record));
   // Assessment puts the largest gap first; Outline keeps hierarchy order and indents by depth.
   if (mode === 'assessment') {
-    rows.sort((a, b) => (gap(b.record) ?? -99) - (gap(a.record) ?? -99) || title(a.record).localeCompare(title(b.record)));
+    rows.sort((a, b) => (binding.gap(b.record) ?? -99) - (binding.gap(a.record) ?? -99) || binding.title(a.record).localeCompare(binding.title(b.record)));
   }
   const table = el('table'), head = el('thead'), headings = el('tr');
-  for (const text of columns) headings.append(el('th', null, text));
+  for (const text of ['Capability', ...shownColumns().map(([heading]) => heading)]) headings.append(el('th', null, text));
   head.append(headings);
   table.append(head);
   const body = el('tbody');
@@ -341,23 +348,23 @@ function tableRow(record, depth) {
   row.dataset.id = record.recordId;
 
   const name = el('td', 'name');
-  const b = button(title(record), () => select(record.recordId));
+  const b = button(binding.title(record), () => select(record.recordId));
   b.style.border = '0';
   b.style.background = 'transparent';
   b.style.textAlign = 'left';
   if (mode === 'outline') b.style.marginLeft = `${depth * 18}px`;
-  name.append(b, el('div', 'eyebrow', String(value(record, 'code') || '')));
+  name.append(b, el('div', 'eyebrow', String(binding.value(record, 'code') || '')));
   row.append(name);
 
-  const g = gap(record);
-  const cells = [
-    ['maturity', maturityText(value(record, 'maturity'), '—')],
-    ['target', value(record, 'target') ?? '—'],
-    ['gap', g == null ? '—' : g > 0 ? `+${g}` : String(g)],
-    ['importance', value(record, 'importance') || '—'],
-    ['investment', value(record, 'investment') || '—'],
-  ];
-  for (const [key, text] of cells) row.append(el('td', key === 'gap' && g > 0 ? 'gap numeric' : 'numeric', String(text)));
+  const g = binding.gap(record);
+  const cells = {
+    Maturity: maturityText(binding.value(record, 'maturity'), '—'),
+    Target: binding.value(record, 'target') ?? '—',
+    Gap: g == null ? '—' : g > 0 ? `+${g}` : String(g),
+    Importance: binding.choiceName('importance', binding.value(record, 'importance')) || '—',
+    Direction: binding.choiceName('investment', binding.value(record, 'investment')) || '—',
+  };
+  for (const [heading] of shownColumns()) row.append(el('td', heading === 'Gap' && g > 0 ? 'gap numeric' : 'numeric', String(cells[heading])));
   row.addEventListener('click', () => select(record.recordId));
   return row;
 }
@@ -388,8 +395,7 @@ function inspector() {
     ...assessment(record),
     actions(record),
     ...childList(record),
-    ...applicationSupport(record),
-    ...changePortfolio(record));
+    ...relatedSections(record));
 }
 
 /** What the inspector says while nothing is selected. */
@@ -409,48 +415,54 @@ function introduction() {
 function summary(record) {
   const badges = el('div');
   for (const key of ['lifecycle', 'importance', 'investment']) {
-    if (value(record, key)) badges.append(el('span', 'badge', value(record, key)));
+    if (binding.value(record, key)) badges.append(el('span', 'badge', binding.choiceName(key, binding.value(record, key))));
   }
-  return [
-    el('div', 'eyebrow', String(value(record, 'code') || 'CAPABILITY')),
-    el('h2', null, title(record)),
+  const nodes = [
+    el('div', 'eyebrow', String(binding.value(record, 'code') || 'CAPABILITY')),
+    el('h2', null, binding.title(record)),
     badges,
-    el('p', null, value(record, 'description') || 'No definition yet. Describe the business outcome this capability enables.'),
   ];
+  if (binding.has('description')) {
+    nodes.push(el('p', null, binding.value(record, 'description') || 'No definition yet. Describe the business outcome this capability enables.'));
+  }
+  return nodes;
 }
 
 function assessment(record) {
   const facts = el('div', 'facts');
   const rows = [
-    ['Current', maturityText(value(record, 'maturity'), 'Unassessed')],
-    ['Target', maturityText(value(record, 'target'), 'Unassessed')],
-    ['Owner', value(record, 'owner') || 'Unassigned'],
-    ['Reviewed', value(record, 'reviewed') || 'Not yet'],
-  ];
-  for (const [label, text] of rows) {
+    ['maturity', 'Current', maturityText(binding.value(record, 'maturity'), 'Unassessed')],
+    ['target', 'Target', maturityText(binding.value(record, 'target'), 'Unassessed')],
+    ['owner', 'Owner', binding.value(record, 'owner') || 'Unassigned'],
+    ['reviewed', 'Reviewed', binding.value(record, 'reviewed') || 'Not yet'],
+  ].filter(([part]) => binding.has(part));
+  for (const [, label, text] of rows) {
     const fact = el('div');
-    fact.append(el('span', null, label), el('strong', null, text));
+    fact.append(el('span', null, label), el('strong', null, String(text)));
     facts.append(fact);
   }
+  const nodes = rows.length ? [facts] : [];
 
-  // Five pips, filled up to the current maturity, in the colour the map is using.
-  const scale = el('div', 'scale');
-  setTone(scale, toneFor(record));
-  for (let level = 1; level <= 5; level++) scale.append(el('i', level <= Number(value(record, 'maturity')) ? 'filled' : ''));
-
-  const nodes = [el('h3', null, 'Assessment'), facts, scale];
-  const g = gap(record);
+  // One pip a level, filled up to the current maturity, in the colour the map is using.
+  if (binding.has('maturity')) {
+    const scale = el('div', 'scale');
+    setTone(scale, toneFor(record));
+    for (let level = binding.scale.min; level <= binding.scale.max; level++) {
+      scale.append(el('i', level <= Number(binding.value(record, 'maturity')) ? 'filled' : ''));
+    }
+    nodes.push(scale);
+  }
+  const g = binding.gap(record);
   if (g > 0) nodes.push(el('p', 'gap', `${g} maturity level${g === 1 ? '' : 's'} below target.`));
-  if (value(record, 'evidence')) nodes.push(el('p', null, value(record, 'evidence')));
-  return nodes;
+  if (binding.value(record, 'evidence')) nodes.push(el('p', null, binding.value(record, 'evidence')));
+  return nodes.length ? [el('h3', null, 'Assessment'), ...nodes] : [];
 }
 
 function actions(record) {
   const bar = el('div', 'inspector-actions');
-  bar.append(
-    button('Edit', () => edit(record)),
-    button('+ Child', () => edit(null, record.recordId)),
-    button('Open record', () => nendo.ui.openRecord(CAPABILITY, record.recordId)));
+  bar.append(button('Edit', () => edit(record)));
+  if (binding.parentFieldId) bar.append(button('+ Child', () => edit(null, record.recordId)));
+  bar.append(button('Open record', () => nendo.ui.openRecord(binding.entityId, record.recordId)));
   if (model.children.get(record.recordId)?.length) bar.append(button('Focus group', () => scopeTo(record.recordId)));
   return bar;
 }
@@ -460,34 +472,27 @@ function childList(record) {
   if (!children.length) return [];
   return [
     el('h3', null, `${children.length} child capabilities`),
-    ...children.map(child => button(title(child), () => select(child.recordId), 'relation')),
+    ...children.map(child => button(binding.title(child), () => select(child.recordId), 'relation')),
   ];
 }
 
-/** The applications that support this capability, through its support records. */
-function applicationSupport(record) {
-  const links = supports.filter(link => link.values['support.capability'] === record.recordId);
-  const nodes = [el('h3', null, 'Application support')];
-  if (!links.length) nodes.push(el('p', null, 'No applications linked. Add support links in the record page.'));
-  for (const link of links) {
-    const application = applications.find(candidate => candidate.recordId === link.values['support.application']);
-    const b = button(application?.values['app.name'] || 'Missing application',
-      () => nendo.ui.openRecord('bcm.support', link.recordId), 'relation');
-    b.append(el('small', null, `${link.values['support.fit'] || 'Unassessed'} fit · ${link.values['support.role'] || 'Support'}`));
-    nodes.push(b);
-  }
-  return nodes;
-}
-
-/** The initiatives whose primary capability this is. */
-function changePortfolio(record) {
-  const projects = initiatives.filter(initiative => initiative.values['initiative.capability'] === record.recordId);
-  const nodes = [el('h3', null, 'Change portfolio')];
-  if (!projects.length) nodes.push(el('p', null, 'No initiatives linked.'));
-  for (const project of projects) {
-    const b = button(project.values['initiative.name'], () => nendo.ui.openRecord('bcm.initiative', project.recordId), 'relation');
-    b.append(el('small', null, `${project.values['initiative.stage'] || 'Proposed'} · ${project.values['initiative.end'] || 'No target date'}`));
-    nodes.push(b);
+/**
+ * The record types that refer to this one, as the schema shows them (model.js): what links to it,
+ * such as the applications that support it, and what points at it, such as the initiatives that
+ * change it. Each row opens its own record.
+ */
+function relatedSections(record) {
+  const nodes = [];
+  for (const entry of binding.related) {
+    const rows = (relatedRecords.get(entry.entityId) ?? []).filter(item => item.values?.[entry.viaFieldId] === record.recordId);
+    nodes.push(el('h3', null, entry.title));
+    if (!rows.length) nodes.push(el('p', null, entry.empty));
+    for (const item of rows) {
+      const b = button(relatedName(entry, item), () => nendo.ui.openRecord(entry.entityId, item.recordId), 'relation');
+      const line = relatedRow(entry, item);
+      if (line) b.append(el('small', null, line));
+      nodes.push(b);
+    }
   }
   return nodes;
 }
@@ -498,6 +503,7 @@ function changePortfolio(record) {
 /** Redraw everything from state; refit also fits the camera to the map. */
 function render(refit = false) {
   projection = projectHierarchy(model, scope, levels);
+  applyBinding();
   levelControls();
   stats();
   breadcrumbs();
@@ -511,10 +517,39 @@ function render(refit = false) {
   else renderTable();
   inspector();
   say(statusLine());
-  $('notice').hidden = !undeclared;
-  $('notice').textContent = undeclared
-    ? 'This file does not keep capabilities as a tree, so there is no map to draw. Declare Parent capability as the hierarchy (with Display order as its order) in Studio or through an agent.'
-    : '';
+  const notices = [...(undeclared ? [undeclaredNotice()] : []), ...binding.problems];
+  $('notice').hidden = notices.length === 0;
+  $('notice').textContent = notices.join(' ');
+}
+
+/** What to declare when the record type keeps no tree: its reference to itself, if it has one. */
+function undeclaredNotice() {
+  const remedy = binding.selfReferences.length === 1
+    ? `Declare ${binding.selfReferences[0]} as the hierarchy of ${binding.typeName}`
+    : `Give ${binding.typeName} a reference to itself for each capability's parent, and declare it as the hierarchy`;
+  return `This file does not keep capabilities as a tree, so there is no map to draw. ${remedy} in Studio or through an agent.`;
+}
+
+/**
+ * Show only what the view binds: the colour modes, the figures, the banner and the editor's
+ * inputs. A colour mode whose parts are missing gives way to the first one the view can show.
+ */
+function applyBinding() {
+  const available = mode => colourNeeds[mode].every(binding.has);
+  for (const option of $('colour').options) {
+    option.hidden = !available(option.value);
+    option.disabled = !available(option.value);
+  }
+  if (!available(colour)) {
+    colour = Object.keys(colourNeeds).find(available);
+    $('colour').value = colour;
+  }
+  document.querySelectorAll('[data-needs]').forEach(node => {
+    node.hidden = !node.dataset.needs.split(' ').every(part => part === 'parent' ? binding.parentFieldId !== null : binding.has(part));
+  });
+  $('banner').hidden = binding.banner === null;
+  $('banner-title').textContent = binding.banner?.title ?? '';
+  $('banner-note').textContent = binding.banner?.note ?? '';
 }
 
 /** The footer separates what is shown from what is in scope and in the model. */
@@ -529,20 +564,23 @@ function statusLine() {
 async function refresh() {
   const request = ++loading;
   try {
-    const loaded = await Promise.all([
-      nendo.records.treeAll({ entityId: CAPABILITY, depth: 32 }, { max: 10000 }),
-      nendo.records.queryAll({ entityId: 'bcm.application' }, { max: 5000 }),
-      nendo.records.queryAll({ entityId: 'bcm.support' }, { max: 5000 }),
-      nendo.records.queryAll({ entityId: 'bcm.initiative' }, { max: 5000 }),
+    // The view's context names the record type and what it binds; the schema says what each
+    // field holds and which record types refer to it. Either can change while the Atlas runs.
+    const schema = await nendo.schema.describe();
+    if (request !== loading) return;
+    binding = bindAtlas(nendo.context, schema);
+    const relatedTypes = [...new Set(binding.related.map(entry => entry.entityId))];
+    const [nodes, ...lists] = await Promise.all([
+      nendo.records.treeAll({ entityId: binding.entityId, depth: 32 }, { max: 10000 }),
+      ...relatedTypes.map(entityId => nendo.records.queryAll({ entityId }, { max: 5000 })),
     ]);
     if (request !== loading) return;
     // The first map is fitted. After that a change keeps the camera where the person put it,
     // unless the focused group has gone.
     const first = layout === null;
-    let nodes;
-    [nodes, applications, supports, initiatives] = loaded;
+    relatedRecords = new Map(relatedTypes.map((entityId, index) => [entityId, lists[index]]));
     modelGeneration++;
-    model = hierarchy(nodes);
+    model = hierarchy(nodes, binding.title);
     records = model.records;
     undeclared = false;
     if (!model.byId.has(selected)) selected = null;
@@ -554,7 +592,7 @@ async function refresh() {
     if (error.code === 'hierarchy-not-declared') {
       undeclared = true;
       records = [];
-      model = hierarchy([]);
+      model = hierarchy([], binding.title);
       render(false);
       return;
     }
@@ -567,8 +605,13 @@ async function refresh() {
 // ---------------------------------------------------------------------------------------------
 // Editor
 
-const maturityChoices = maturityLabels.slice(1).map((label, i) => [i + 1, `${i + 1} · ${label}`]);
-const textFields = ['name', 'code', 'owner', 'description', 'evidence', 'reviewed', 'parent', 'importance', 'investment', 'lifecycle'];
+/** The levels the maturity field's scale allows, as [3, '3 · Defined']. */
+const maturityChoices = () => Array.from({ length: binding.scale.max - binding.scale.min + 1 },
+  (_, i) => binding.scale.min + i).map(level => [level, maturityText(level, '')]);
+/** The editor's inputs by part. The name is the view's label field and the parent the tree's. */
+const textParts = ['code', 'owner', 'description', 'evidence', 'reviewed'];
+const choiceParts = ['importance', 'investment', 'lifecycle'];
+const choiceOptions = part => (binding.choices[part] ?? []).map(choice => [choice.id, choice.displayName]);
 
 /** Fill one select: an optional empty choice, then [value, label] pairs or plain strings. */
 function fillSelect(name, options, current, empty = 'Not assessed') {
@@ -590,20 +633,21 @@ function edit(record, parent) {
   form.reset();
   $('form-error').textContent = '';
   $('edit-title').textContent = record ? 'Edit capability' : 'New capability';
-  for (const key of ['name', 'code', 'owner', 'description', 'evidence', 'reviewed']) form.elements[key].value = value(record, key) || '';
-  fillSelect('maturity', maturityChoices, value(record, 'maturity'));
-  fillSelect('target', maturityChoices, value(record, 'target'));
-  fillSelect('importance', importanceOptions, value(record, 'importance'));
-  fillSelect('investment', investmentOptions, value(record, 'investment'));
-  fillSelect('lifecycle', lifecycleOptions, value(record, 'lifecycle') || 'Proposed', null);
+  form.elements.name.value = (binding.labelFieldId !== null && record?.values?.[binding.labelFieldId]) || '';
+  for (const part of textParts) form.elements[part].value = binding.value(record, part) || '';
+  fillSelect('maturity', maturityChoices(), binding.value(record, 'maturity'));
+  fillSelect('target', maturityChoices(), binding.value(record, 'target'));
+  fillSelect('importance', choiceOptions('importance'), binding.value(record, 'importance'));
+  fillSelect('investment', choiceOptions('investment'), binding.value(record, 'investment'));
+  fillSelect('lifecycle', choiceOptions('lifecycle'), binding.value(record, 'lifecycle') ?? binding.choices.lifecycle?.[0]?.id ?? null, null);
   // Only places a capability can go are offered: not itself, and not anything under it. The
   // Engine refuses the rest anyway; this keeps the list to choices that can succeed.
   const beneath = new Set(record ? [record.recordId, ...model.descendants(record.recordId).map(item => item.recordId)] : []);
   const parents = records
     .filter(candidate => !beneath.has(candidate.recordId))
-    .sort((a, b) => title(a).localeCompare(title(b)))
-    .map(candidate => [candidate.recordId, `${value(candidate, 'code') || ''} ${title(candidate)}`]);
-  fillSelect('parent', parents, record ? value(record, 'parent') : parent, 'Enterprise / top level');
+    .sort((a, b) => binding.title(a).localeCompare(binding.title(b)))
+    .map(candidate => [candidate.recordId, `${binding.value(candidate, 'code') || ''} ${binding.title(candidate)}`]);
+  fillSelect('parent', parents, record ? model.parents.get(record.recordId) ?? null : parent, 'Enterprise / top level');
   $('editor').showModal();
   form.elements.name.focus();
 }
@@ -616,18 +660,27 @@ function closeEditor() {
 async function save(event) {
   event.preventDefault();
   const form = event.target, values = {};
-  for (const key of textFields) values[FIELD[key]] = form.elements[key].value.trim() || null;
-  for (const key of ['maturity', 'target']) values[FIELD[key]] = form.elements[key].value ? Number(form.elements[key].value) : null;
-  if (!values[FIELD.name]) return;
+  const name = form.elements.name.value.trim();
+  if (!name || binding.labelFieldId === null) return;
+  // Only what the view binds is written: its label, the tree's parent and each part it gives.
+  values[binding.labelFieldId] = name;
+  for (const part of [...textParts, ...choiceParts]) {
+    if (binding.has(part)) values[binding.fields[part]] = form.elements[part].value.trim() || null;
+  }
+  for (const part of ['maturity', 'target']) {
+    if (binding.has(part)) values[binding.fields[part]] = form.elements[part].value ? Number(form.elements[part].value) : null;
+  }
+  const parentId = binding.parentFieldId === null ? null : form.elements.parent.value || null;
+  if (binding.parentFieldId !== null) values[binding.parentFieldId] = parentId;
   $('save').disabled = true;
   try {
     // The parent's version goes with the write, so a parent changed meanwhile is refused. An
     // update carries the version the editor opened at, so a stale capability is refused too.
-    const parent = values[FIELD.parent] ? await nendo.records.get(CAPABILITY, values[FIELD.parent]) : null;
-    const options = parent ? { targetVersions: { [FIELD.parent]: parent.version } } : {};
+    const parent = parentId ? await nendo.records.get(binding.entityId, parentId) : null;
+    const options = parent ? { targetVersions: { [binding.parentFieldId]: parent.version } } : {};
     const saved = editing
       ? await nendo.records.update(editing, values, options)
-      : await nendo.records.create(CAPABILITY, values, options);
+      : await nendo.records.create(binding.entityId, values, options);
     selected = saved.recordId;
     dirty = false;
     $('editor').close();

@@ -579,8 +579,9 @@ test('a view’s context is built from the stored nodes: its bindings, filters, 
     capabilities: { mutate: false },
     manifest: { purpose: 'Plan work', changeSequence: 7 },
     entities: [
-      { entityId: 'work', displayName: 'Work', fields: [
+      { entityId: 'work', displayName: 'Work', hierarchy: { parentFieldId: 'parent' }, fields: [
         { fieldId: 'title', displayName: 'Title', storageKind: 0, required: true, presentation: null, options: [] },
+        { fieldId: 'parent', displayName: 'Part of', storageKind: 7, required: false, presentation: null, options: [], reference: { targetEntityId: 'work', labelFieldId: 'title' } },
         { fieldId: 'status', displayName: 'Status', storageKind: 0, required: false, presentation: 'singleChoice', options: [], choices: [{ id: 'open', displayName: 'Open', retired: false, tone: 'blue' }] },
         { fieldId: 'due', displayName: 'Due', storageKind: 4, required: false, presentation: null, options: [] },
         { fieldId: 'old', displayName: 'Old', storageKind: 0, required: false, presentation: null, options: [], retired: true },
@@ -632,7 +633,11 @@ test('a view’s context is built from the stored nodes: its bindings, filters, 
   assert.equal(schema.purpose, 'Plan work');
   assert.deepEqual(schema.entities.map((entity) => entity.entityId), ['work', 'link'], 'A retired record type was described.');
   const work = schema.entities[0];
-  assert.deepEqual(work.fields.map((field) => field.fieldId), ['title', 'status', 'due', 'age'], 'A retired field was described, or a calculated one left out.');
+  assert.deepEqual(work.fields.map((field) => field.fieldId), ['title', 'parent', 'status', 'due', 'age'], 'A retired field was described, or a calculated one left out.');
+  // The tree a record type declares (ADR-0019), so a view can write a parent without guessing
+  // which self-reference holds it. A record type that declares none says so with null.
+  assert.deepEqual(work.hierarchy, { parentFieldId: 'parent', orderFieldId: null }, 'schema.describe did not name the declared hierarchy.');
+  assert.equal(schema.entities[1].hierarchy, null, 'A record type without a hierarchy was described with one.');
   assert.deepEqual(work.fields.find((field) => field.fieldId === 'age'), {
     fieldId: 'age', displayName: 'Age', storageKind: 'integer', required: false, presentation: null, calculated: true,
     expression: 'today() - created', choices: [], reference: null, scale: null,
