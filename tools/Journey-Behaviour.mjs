@@ -42,6 +42,12 @@ async function connect() {
   socket.addEventListener('message', event => {
     const message = JSON.parse(event.data);
     if (message.method === 'Runtime.exceptionThrown') pageErrors.push(message.params.exceptionDetails.text);
+    // AG Grid reports an option whose module is not registered on the console and then
+    // ignores the option, so the grid draws without it and nothing throws.
+    if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') {
+      const words = message.params.args.map(arg => arg.value ?? arg.description ?? '').join(' ');
+      if (words.includes('AG Grid')) pageErrors.push(words.slice(0, 400));
+    }
     const item = pending.get(message.id);
     if (!item) return;
     pending.delete(message.id);
@@ -114,6 +120,19 @@ async function openHealth() { await click('#nav-health'); await ready(); }
 async function openProjectRecord(recordId) {
   await click('#nav-data'); await ready();
   await click('[data-entity-id="projects"]'); await ready();
+  // The grid's own cell classes, measured by what their rules do: a calculated column
+  // carries the accent, and the Open button is centred in its cell.
+  const cells = await evaluate(`(() => {
+    const row = document.querySelector('.ag-row[row-id="${recordId}"]');
+    const open = row?.querySelector('.ag-cell[col-id="openRecord"]');
+    const calculated = row?.querySelector('.ag-cell[col-id="taskCount"]');
+    return { open: open ? { classed: open.classList.contains('record-open-cell'), display: getComputedStyle(open).display } : null,
+      calculated: calculated ? { classed: calculated.classList.contains('calculated-cell'), shadow: getComputedStyle(calculated).boxShadow } : null };
+  })()`);
+  assert(cells.open?.classed === true && cells.open.display === 'flex',
+    `Studio's Open cell lost its class, so its rule never applies: ${JSON.stringify(cells.open)}`);
+  assert(cells.calculated?.classed === true && cells.calculated.shadow !== 'none',
+    `Studio's calculated column lost its class, so it reads like a stored one: ${JSON.stringify(cells.calculated)}`);
   await click(`.ag-row[row-id="${recordId}"] .record-open-button`);
   await waitFor(() => evaluate(`!!document.querySelector('#record-form')`), `the ${recordId} record page`);
 }

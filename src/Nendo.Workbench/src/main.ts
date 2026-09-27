@@ -25,10 +25,12 @@ import { state } from './app-state';
 import { installViewFrames, parkViewFrames, releaseViewFrames } from './view-frames';
 import { capitalise, messageFor } from './format';
 import {
+  CellStyleModule,
   ClientSideRowModelModule,
   DateEditorModule,
   ModuleRegistry,
   RenderApiModule,
+  ScrollApiModule,
   SelectEditorModule,
   TextEditorModule,
 } from 'ag-grid-community';
@@ -41,10 +43,15 @@ import { openPalette } from './command-palette';
 import { matchShortcut, shortcut, shortcutsShownFrom, shortcutsStorageKey, type ShortcutId } from './shortcuts';
 import './styles.css';
 
+// An option or API call whose module is missing is ignored after a console error, so the
+// grid still draws: `cellClass` needs CellStyle, `ensureIndexVisible` needs ScrollApi.
+// Journey-Behaviour.mjs fails on either the error or a missing cell class.
 ModuleRegistry.registerModules([
+  CellStyleModule,
   ClientSideRowModelModule,
   DateEditorModule,
   RenderApiModule,
+  ScrollApiModule,
   SelectEditorModule,
   TextEditorModule,
 ]);
