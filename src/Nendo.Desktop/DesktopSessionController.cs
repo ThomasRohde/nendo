@@ -51,6 +51,12 @@ internal sealed record DesktopSessionView(
     public DesktopExtensionRuntimeView? Extensions { get; init; }
 
     /// <summary>
+    /// How this file is told apart from the others open beside it: the tone and letter of its
+    /// icon's badge, chosen or by default (W-089). Null when no file is open or it is in recovery.
+    /// </summary>
+    public NendoResolvedLook? Look { get; init; }
+
+    /// <summary>
     /// Which build this is. Present on every view, including the empty one: a
     /// version that disappears when no file is open cannot answer the question it
     /// exists for.
@@ -534,7 +540,22 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
             "no-file-open",
             "Open or create a Nendo file before using Studio.");
 
+    /// <summary>
+    /// The open file's look as the last view read it, for the window: its icon, the title bar,
+    /// the notification area and notifications all draw it. Null with no file, or in recovery.
+    /// </summary>
+    internal NendoResolvedLook? CurrentLook => _currentLook;
+
+    private volatile NendoResolvedLook? _currentLook;
+
     private async Task<DesktopSessionView> ReadViewAsync(CancellationToken cancellationToken)
+    {
+        var view = await ReadViewCoreAsync(cancellationToken);
+        _currentLook = view.Look;
+        return view;
+    }
+
+    private async Task<DesktopSessionView> ReadViewCoreAsync(CancellationToken cancellationToken)
     {
         if (_service is null)
         {
@@ -579,6 +600,7 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
             LocationWarning = _currentPath is null ? null : _locationPolicy.Inspect(_currentPath),
             BehaviourTrust = DescribeBehaviourTrust(),
             Extensions = DescribeExtensions(snapshot, health),
+            Look = NendoLook.Resolve(snapshot.Manifest.ApplicationId, snapshot.FileName, snapshot.Manifest.Look),
         };
     }
 

@@ -26,6 +26,7 @@ const stubs = {
     export const requiredElement = (selector) => selector === '#file-notice' ? p().notice : { open: false, addEventListener() {} };`,
   './actions': `const p = () => globalThis.fileActionPage;
     export const openHelp = async () => {}; export const refreshDerived = async () => {}; export const resetFileView = () => {};
+    export const prepareApplication = async () => {};
     export const showOutcomeRefreshNotice = () => {};
     export const recoverAfterWriteFailure = async () => { p().recovered += 1; };
     export const retainDraftReadOnly = (reason) => { p().retained.push(reason); };`,

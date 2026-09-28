@@ -102,7 +102,7 @@ internal sealed class DesktopTrayIcon : IDisposable
     private readonly ushort _classAtom;
     private readonly uint _taskbarCreated;
     private readonly IntPtr _hwnd;
-    private readonly IntPtr _icon;
+    private IntPtr _icon;
     private string _tip = "Nendo";
     private bool _added;
     private bool _disposed;
@@ -153,6 +153,22 @@ internal sealed class DesktopTrayIcon : IDisposable
         _icon = LoadTrayIcon();
         _added = Notify(NIM_ADD, NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP);
         if (_added) Notify(NIM_SETVERSION, 0, version: NOTIFYICON_VERSION_4);
+    }
+
+    /// <summary>
+    /// Shows another icon: the open file's own, which is how two open files are told apart
+    /// in the notification area before anybody reads a tooltip (W-089).
+    /// </summary>
+    internal void SetIcon(string path)
+    {
+        if (_hwnd == IntPtr.Zero || !File.Exists(path)) return;
+        var loaded = LoadImageW(IntPtr.Zero, path, IMAGE_ICON,
+            GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_LOADFROMFILE);
+        if (loaded == IntPtr.Zero) return;
+        var previous = _icon;
+        _icon = loaded;
+        if (_added) Notify(NIM_MODIFY, NIF_ICON);
+        if (previous != IntPtr.Zero) DestroyIcon(previous);
     }
 
     /// <summary>The tooltip, which is how two open files are told apart in the notification area.</summary>

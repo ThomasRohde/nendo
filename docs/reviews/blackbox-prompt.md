@@ -92,7 +92,12 @@ gets a pass; spend your extra time on these, which changed most recently:
   again: did each come back where it was left? With one closed to the notification area,
   have them double-click its file in Explorer, and say what came forward and whether a
   second window appeared. Then leave a change waiting in each file and ask whether the
-  notification centre kept both, and where a click on each one took them.
+  notification centre kept both, and where a click on each one took them. Ask what told
+  the two windows apart before either was read: the icon in Alt+Tab, in the notification
+  area and on each notification. Read `look` from the manifest, give your file a look of
+  its own with `application.setLook`, and record whether the person's window changed
+  icon once they accepted it, and what the review said. Have them do the same from About
+  this file and say whether the picture on that page matched the one on the taskbar.
 - A screen with an agent writing underneath it (Phase 3). Put a front page or a board with
   totals on screen, have your agent write records steadily for a few minutes, and say what
   the numbers do, whether the app stays usable, and whether you can still work the Showing

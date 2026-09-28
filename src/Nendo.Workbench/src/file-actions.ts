@@ -4,8 +4,9 @@ import { escapeAttribute, escapeHtml, messageFor } from './format';
 import { icon, type IconName } from './icons';
 import type { DesktopFileActionView, DesktopSessionView, RecentFiles } from './host';
 import { state } from './app-state';
-import { openHelp, recoverAfterWriteFailure, refreshDerived, resetFileView, retainDraftReadOnly, showOutcomeRefreshNotice } from './actions';
+import { openHelp, prepareApplication, recoverAfterWriteFailure, refreshDerived, resetFileView, retainDraftReadOnly, showOutcomeRefreshNotice } from './actions';
 import { openCustomViews } from './view-packages';
+import { aboutLookMarkup, chosenLook, lookIconMarkup, lookProposal, lookSentence, normaliseLetter } from './file-look';
 import { recordFormIsDirty, refuseWhileDirty } from './draft-guard';
 import { decideDraftState } from './draft-state';
 
@@ -107,6 +108,10 @@ export function renderNoFile(): void {
 export function openAboutFile(): void {
   const fileName = state.session.fileName ?? 'No file open';
   const purpose = state.session.manifest?.purpose ?? null;
+  const look = state.session.look ?? null;
+  // A new look is a change to the file like any other, so it is offered only where the file
+  // can be changed, and it arrives as a proposal the person reviews.
+  const canChange = look !== null && state.session.capabilities.mutate && client.mode !== 'unavailable';
   const dialog = document.createElement('dialog');
   dialog.className = 'about-file-dialog';
   dialog.setAttribute('aria-labelledby', 'about-file-heading');
@@ -114,11 +119,66 @@ export function openAboutFile(): void {
     ${purpose === null
       ? '<p class="about-file-empty">Nobody has said what this file is for.</p>'
       : `<p class="about-file-purpose">${escapeHtml(purpose)}</p>`}
+    ${look === null ? '' : aboutLookMarkup(look, canChange)}
     <div class="form-actions"><button class="primary-button" data-close type="button" autofocus>Close</button></div>`;
   document.body.append(dialog);
   dialog.addEventListener('close', () => dialog.remove(), { once: true });
   dialog.querySelector('[data-close]')?.addEventListener('click', () => dialog.close());
+  if (look !== null && canChange) wireLookEditor(dialog, look);
   dialog.showModal();
+}
+
+/**
+ * The tone and letter on the About page. The picture follows what is chosen before anything is
+ * sent; Review change prepares the proposal and opens its review, where the person accepts it.
+ */
+function wireLookEditor(dialog: HTMLDialogElement, look: NonNullable<DesktopSessionView['look']>): void {
+  let tone = look.tone;
+  let letter = look.letter;
+  let next: { tone: string | null; letter: string | null } = chosenLook(look, tone, letter);
+  const review = dialog.querySelector<HTMLButtonElement>('[data-look-review]')!;
+  const letterInput = dialog.querySelector<HTMLInputElement>('input[name="look-letter"]')!;
+  const redraw = (): void => {
+    const shownTone = next.tone ?? look.defaultTone ?? tone;
+    const shownLetter = next.letter ?? look.defaultLetter ?? letter;
+    const icon = dialog.querySelector('.look-icon');
+    if (icon !== null) icon.outerHTML = lookIconMarkup(shownTone, shownLetter);
+    const sentence = dialog.querySelector('[data-look-sentence]');
+    if (sentence !== null) sentence.textContent = lookSentence(shownTone, shownLetter, next.tone !== null || next.letter !== null);
+    review.disabled = lookProposal(look, next, 0) === null;
+  };
+  for (const swatch of dialog.querySelectorAll<HTMLInputElement>('input[name="look-tone"]')) {
+    swatch.addEventListener('change', () => {
+      tone = swatch.value;
+      next = chosenLook(look, tone, letter);
+      redraw();
+    });
+  }
+  letterInput.addEventListener('input', () => {
+    const normalised = normaliseLetter(letterInput.value);
+    letterInput.setAttribute('aria-invalid', normalised === null ? 'true' : 'false');
+    if (normalised === null) { review.disabled = true; return; }
+    letter = normalised;
+    next = chosenLook(look, tone, letter);
+    redraw();
+  });
+  dialog.querySelector('[data-look-defaults]')?.addEventListener('click', () => {
+    next = { tone: null, letter: null };
+    tone = look.defaultTone ?? look.tone;
+    letter = look.defaultLetter ?? look.letter;
+    letterInput.value = letter;
+    for (const swatch of dialog.querySelectorAll<HTMLInputElement>('input[name="look-tone"]')) swatch.checked = swatch.value === tone;
+    redraw();
+  });
+  review.addEventListener('click', () => {
+    const revision = state.session.manifest?.definitionRevision;
+    if (revision === undefined) return;
+    const proposal = lookProposal(look, next, revision);
+    if (proposal === null) return;
+    dialog.close();
+    void prepareApplication({ actionLabel: String(proposal.title), applicationName: state.session.fileName ?? 'This file', proposalPayload: proposal }, state.view);
+  });
+  redraw();
 }
 
 export function renderFileMenu(): void {

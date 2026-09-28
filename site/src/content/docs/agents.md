@@ -116,11 +116,12 @@ A change set holds at most 128 submitted operations in 32 mutations, and at most
 
 A proposal appears on the Agent page under **Pending changes**, with its title, the number of changes and how reversible they are. **Review changes** shows **What changes**, a line per change, and **What this builds**: record types, fields, screens and records as the file would be. **Accept changes** applies it. **Reject** leaves the file as it was. When you accept one proposal, other waiting proposals become stale, because they were made against the earlier file.
 
-A change set may contain 28 operation types, and nothing else:
+A change set may contain 29 operation types, and nothing else:
 
 - `schema.*` (12): create, rename and retire record types and fields; make a field required; make a field unique, so no two records can share a value, and have Nendo number it (W-001, W-002…) when a record is created without one; configure a reference; name and colour a choice; keep a record type a tree, and stop keeping it one.
 - `behaviour.setDefinition` and `behaviour.removeDefinition`: calculations, reusable functions, automatic actions and triggers.
 - `application.setPurpose`: say what the file is for.
+- `application.setLook`: give the file its own icon colour and letter, the badge that tells it apart from other open files.
 - `ui.*` (4): add, set a property on, move and remove a screen node.
 - `data.*` (5): create, change and delete records, fill a value on a retired field, and convert an old text reference, carried in the same proposal.
 - `extension.*` (4): put a custom view's code into the file as a package and its files, and take them out again. See [Custom views](/nendo/docs/custom-views).
@@ -148,7 +149,7 @@ A refused call returns `CODE: message`. The code is stable. The message names wh
 ```text
 NENDO_SHAPE_APP_REQUIRED: nendo.change_set.begin is served from Shape app, and this file session is at Edit data. Ask the person to raise agent access to Shape app on the Agent page in Nendo.
 NENDO_INVALID_REQUEST: nendo.data.create_records was not called. records[0] does not take 'expectedTargetVersionz'; a record takes recordId and values, and optionally expectedTargetVersions.
-NENDO_UNKNOWN_OPERATION: Operation type 'sql.execute' is not one this host implements; nendo://application/vocabulary lists the 28 it accepts under operations.
+NENDO_UNKNOWN_OPERATION: Operation type 'sql.execute' is not one this host implements; nendo://application/vocabulary lists the 29 it accepts under operations.
 ```
 
 The last one is the same for SQL as for a typing error. There is no other way in.

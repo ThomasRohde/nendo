@@ -22,6 +22,13 @@ application. You can open it and enter data before any screen exists. See
 A file can also carry a sentence that says what it is for. Nendo shows it under
 the file name in About this file, in the File menu, and an agent reads it first.
 
+Every file has an icon of its own: the Nendo mark with a coloured badge carrying a
+letter, on its window, in Alt+Tab, in the notification area and on its
+notifications, so several open files are easy to tell apart. By default the colour
+comes from the file's identity and the letter from its name. To choose another,
+open About this file, pick a colour and a letter, and choose **Review change**; the
+change is a proposal you accept like any other.
+
 ### Record type
 
 A record type is one kind of thing that the file tracks, for example *Task* or

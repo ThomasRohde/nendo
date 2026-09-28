@@ -24,6 +24,37 @@
 /* Prose, so it wraps and keeps the breaks the author typed. */
 .about-file-purpose { margin: 0 0 20px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .about-file-empty { margin: 0 0 20px; color: var(--muted); line-height: 1.55; }
+/* The file's icon and, where the file can change, its colour and letter (W-089). The badge
+   keeps the icon's proportions at 48px: DesktopFileIcon.BadgeFor. */
+.about-file-look { display: grid; gap: 14px; margin: 0 0 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.look-summary { display: flex; gap: 14px; align-items: center; }
+.look-summary p { display: grid; gap: 2px; margin: 0; }
+.look-summary small { color: var(--muted); line-height: 1.45; }
+.look-icon { position: relative; flex: 0 0 48px; width: 48px; height: 48px; }
+.look-icon img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.look-badge { position: absolute; left: 1%; bottom: 1%; display: grid; place-items: center; box-sizing: border-box; width: 46%; height: 46%; border: 2.4px solid var(--look-ring); border-radius: 50%; color: var(--look-letter); font-size: 11px; font-weight: 600; line-height: 1; }
+.look-badge[data-tone="red"], .look-swatch [data-tone="red"] { background: var(--look-red); }
+.look-badge[data-tone="orange"], .look-swatch [data-tone="orange"] { background: var(--look-orange); }
+.look-badge[data-tone="amber"], .look-swatch [data-tone="amber"] { background: var(--look-amber); }
+.look-badge[data-tone="green"], .look-swatch [data-tone="green"] { background: var(--look-green); }
+.look-badge[data-tone="teal"], .look-swatch [data-tone="teal"] { background: var(--look-teal); }
+.look-badge[data-tone="blue"], .look-swatch [data-tone="blue"] { background: var(--look-blue); }
+.look-badge[data-tone="violet"], .look-swatch [data-tone="violet"] { background: var(--look-violet); }
+.look-badge[data-tone="grey"], .look-swatch [data-tone="grey"] { background: var(--look-grey); }
+.look-tones { margin: 0; padding: 0; border: 0; }
+.look-tones legend { margin-bottom: 8px; padding: 0; font-weight: 600; }
+.look-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.look-swatch { position: relative; display: block; width: 30px; height: 30px; }
+.look-swatch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.look-swatch [data-tone] { display: block; width: 100%; height: 100%; box-sizing: border-box; border: 3px solid var(--surface); border-radius: 50%; box-shadow: 0 0 0 1px var(--line-strong); }
+.look-swatch input:checked + [data-tone] { box-shadow: 0 0 0 2px var(--cobalt); }
+.look-swatch input:focus-visible + [data-tone] { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+.look-letter { display: grid; grid-template-columns: auto 3.5rem; gap: 4px 10px; align-items: center; justify-content: start; }
+.look-letter span { font-weight: 600; }
+.look-letter input { text-align: center; text-transform: uppercase; }
+.look-letter input[aria-invalid="true"] { border-color: var(--danger); }
+.look-letter small { grid-column: 1 / -1; color: var(--muted); }
+.look-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .outline-icon { display: block; width: 21px; height: 21px; flex: 0 0 21px; }
 .file-menu-panel button:not(:disabled):hover { background: var(--surface-soft); }
 .file-menu-divider { height: 1px; margin: 5px; background: var(--line); }

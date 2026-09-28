@@ -39,6 +39,19 @@
   --tone-blue: #2f63d6;
   --tone-violet: #7446d4;
   --tone-grey: #677080;
+  /* A file's look (W-089): the colours its icon's badge is drawn in on the taskbar, in the
+     notification area and on notifications. A raster icon cannot follow the theme, so these
+     are the light choice tones in both themes, and DesktopFileIcon draws the same values. */
+  --look-red: #c93a3a;
+  --look-orange: #c75a17;
+  --look-amber: #a37608;
+  --look-green: #1f8a52;
+  --look-teal: #16837e;
+  --look-blue: #2f63d6;
+  --look-violet: #7446d4;
+  --look-grey: #677080;
+  --look-ring: #ffffff;
+  --look-letter: #ffffff;
 }
 
 :root[data-theme="dark"] {

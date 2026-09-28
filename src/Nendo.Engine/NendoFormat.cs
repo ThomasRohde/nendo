@@ -247,7 +247,15 @@ public static class NendoFormat
     /// </summary>
     public const string FieldRuleMinimumHostVersion = "1.37.0";
 
-    public const string CurrentHostVersion = FieldRuleMinimumHostVersion;
+    /// <summary>
+    /// A file's own look (W-089): a protected table the node ladder cannot see, so the
+    /// operation states this version on its evidence and the layout rung states it at open.
+    /// 1.38.0 had been reserved in the documents for ADR-0013's views anywhere; rungs follow
+    /// delivery order, so this takes it and that phase moves to the next one.
+    /// </summary>
+    public const string ApplicationLookMinimumHostVersion = "1.38.0";
+
+    public const string CurrentHostVersion = ApplicationLookMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

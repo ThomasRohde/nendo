@@ -27,6 +27,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
   private agentStatus = emptyAgentStatus(false);
   private plan: ApplicationPlan | null = null;
   private proposedFixture: PreviewFixture | null = null;
+  private pendingLook: { tone: string | null; letter: string | null } | null = null;
   private readonly fixtureName: PreviewFixtureName;
   // Custom views (ADR-0013): the two device switches, the file's packages, and a package
   // proposal waiting for review. Frames cannot load here, so placeholders say where views run.
@@ -378,6 +379,32 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
     if (operations.length === 0) {
       throw new WorkbenchHostError('validation', 'A proposal must contain at least one operation.');
     }
+    if (operations.every((operation) => operation.operationType === 'application.setLook')) {
+      const last = operations[operations.length - 1].payload;
+      const look = { tone: optionalString(last.tone), letter: optionalString(last.letter) };
+      this.pendingLook = look;
+      this.previewProposal = {
+        proposalId,
+        title,
+        state: 'previewable',
+        retention: 'retainUntilExplicitCleanup',
+        sourceApplicationId: this.session.manifest!.applicationId,
+        sourceInstanceId: this.session.manifest!.instanceId,
+        capturedDefinitionRevision: this.session.manifest!.definitionRevision,
+        touchedRecords: [],
+        operationDigest: `preview-proposal-digest-${this.session.manifest!.changeSequence}`,
+        operationCount: operations.length,
+        diagnostics: [],
+        semanticDiff: [{ kind: 'setApplicationLook', summary: look.tone === null && look.letter === null
+          ? 'Give this file back its default icon.'
+          : `Give this file its own icon: ${look.tone ?? 'its default colour'}, ${look.letter === null ? 'its default letter' : `the letter ${look.letter}`}.`,
+          semanticIds: [], reversibility: 'reversibleWithRetainedState' }],
+        previewApplications: this.plan === null ? [] : [this.currentPlan()],
+        lookBefore: this.session.manifest?.look ?? null,
+        lookAfter: look.tone === null && look.letter === null ? null : look,
+      };
+      return this.previewProposal;
+    }
     const entityId = operations
       .map((operation) => optionalString(operation.payload.entityId))
       .find((candidate): candidate is string => candidate !== null);
@@ -440,6 +467,19 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
     }
     if (this.previewProposal === null || this.previewProposal.proposalId !== proposalId) {
       throw new WorkbenchHostError('proposal-missing', 'The proposal is no longer available.');
+    }
+    if (this.pendingLook !== null) {
+      const look = this.pendingLook;
+      const chosen = look.tone === null && look.letter === null ? null : look;
+      this.session.manifest = { ...this.session.manifest!, look: chosen };
+      this.session.look = previewLook(this.session.fileName, chosen);
+      const mutation = this.advance('definition', this.previewProposal.title, 'application.setLook');
+      this.previewProposal = null;
+      this.pendingLook = null;
+      return {
+        promotion: { proposalId, state: 'active', applied: true, message: 'The proposal is active.', result: { revisions: [mutation] } },
+        session: structuredClone(this.session),
+      };
     }
     if (this.proposedFixture !== null) {
       this.installFixture(this.proposedFixture, true);
@@ -1106,6 +1146,22 @@ function previewFile(fileName: string): DesktopSessionView {
       integrityResult: 'ok',
       operationalSidecars: [],
     },
+    look: previewLook(fileName, null),
+  };
+}
+
+// The preview's stand-in for the host's look (W-089): violet by default, and the first letter
+// or digit of the file's name. The host works the tone out from the application ID.
+function previewLook(fileName: string | null, chosen: { tone: string | null; letter: string | null } | null): DesktopSessionView['look'] {
+  const defaultTone = 'violet';
+  const defaultLetter = (fileName ?? '').replace(/\.nendo$/i, '').match(/[\p{L}\p{N}]/u)?.[0]?.toUpperCase() ?? 'N';
+  return {
+    tone: chosen?.tone ?? defaultTone,
+    letter: chosen?.letter ?? defaultLetter,
+    toneChosen: (chosen?.tone ?? null) !== null,
+    letterChosen: (chosen?.letter ?? null) !== null,
+    defaultTone,
+    defaultLetter,
   };
 }
 

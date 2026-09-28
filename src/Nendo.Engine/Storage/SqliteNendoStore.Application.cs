@@ -93,6 +93,100 @@ internal sealed partial class SqliteNendoStore
     private static bool ApplicationPurposeIsValid(string? purpose) =>
         purpose is null || (purpose.Length >= 1 && purpose.Length <= SetApplicationPurposeOperation.MaximumCharacters);
 
+    /// <summary>
+    /// The file's own look (W-089), the last rung of the ladder. A singleton like the purpose:
+    /// a row exists only for a file that chose something, and a part it did not choose is null
+    /// rather than a copy of the default, so the default can follow the file's name.
+    /// </summary>
+    private const string ApplicationLookSchemaSql = """
+        CREATE TABLE __nendo_application_look (
+            singleton_id INTEGER NOT NULL PRIMARY KEY CHECK (singleton_id = 1),
+            tone TEXT NULL CHECK (tone IS NULL OR tone IN ('red', 'orange', 'amber', 'green', 'teal', 'blue', 'violet', 'grey')),
+            letter TEXT NULL CHECK (letter IS NULL OR length(letter) = 1),
+            CHECK (tone IS NOT NULL OR letter IS NOT NULL)
+        );
+        """;
+
+    /// <summary>Brings the protected layout up to the look rung: the whole ladder, then the look table.</summary>
+    private async Task EnsureApplicationLookLayoutAsync(SqliteTransaction transaction, CancellationToken ct)
+    {
+        await EnsureFieldRuleLayoutAsync(transaction, ct);
+        if (!await TableExistsAsync("__nendo_application_look", transaction, ct))
+            await NonQueryAsync(ApplicationLookSchemaSql, transaction, ct);
+    }
+
+    /// <summary>The look the file chose, if it chose one. A file that never did carries no table.</summary>
+    private async Task<NendoApplicationLook?> ReadApplicationLookAsync(SqliteTransaction? transaction, CancellationToken ct)
+    {
+        if (!await TableExistsAsync("__nendo_application_look", transaction, ct)) return null;
+        await using var query = Command("SELECT tone, letter FROM __nendo_application_look WHERE singleton_id = 1;", transaction);
+        await using var reader = await query.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return null;
+        return new NendoApplicationLook(
+            reader.IsDBNull(0) ? null : reader.GetString(0),
+            reader.IsDBNull(1) ? null : reader.GetString(1));
+    }
+
+    private async Task<OperationEvidence> ExecuteSetApplicationLookAsync(
+        SetApplicationLookOperation operation,
+        SqliteTransaction transaction,
+        CancellationToken ct)
+    {
+        var manifest = await ReadManifestAsync(transaction, ct);
+        if (manifest.DefinitionRevision != operation.ExpectedDefinitionRevision)
+            throw DefinitionVersionConflict(operation.ExpectedDefinitionRevision, manifest.DefinitionRevision);
+        var chooses = operation.Tone is not null || operation.Letter is not null;
+
+        // Choosing creates the rung; returning to the defaults never does, for the purpose's
+        // reason: a file told to look as it already looks must not gain a table, nor be told
+        // it needs a newer host to open what it does not carry.
+        if (chooses) await EnsureApplicationLookLayoutAsync(transaction, ct);
+        if (await TableExistsAsync("__nendo_application_look", transaction, ct))
+        {
+            await using var save = Command(chooses
+                ? """
+                  INSERT INTO __nendo_application_look(singleton_id,tone,letter) VALUES(1,@tone,@letter)
+                  ON CONFLICT(singleton_id) DO UPDATE SET tone=excluded.tone, letter=excluded.letter;
+                  """
+                : "DELETE FROM __nendo_application_look WHERE singleton_id = 1;", transaction);
+            if (chooses)
+            {
+                save.Parameters.AddWithValue("@tone", (object?)operation.Tone ?? DBNull.Value);
+                save.Parameters.AddWithValue("@letter", (object?)operation.Letter ?? DBNull.Value);
+            }
+            await save.ExecuteNonQueryAsync(ct);
+        }
+
+        return new OperationEvidence(operation, Evidence(new
+        {
+            previousTone = manifest.Look?.Tone,
+            previousLetter = manifest.Look?.Letter,
+            appliedDefinitionRevision = manifest.DefinitionRevision + 1,
+        }))
+        {
+            RequiredHostVersion = chooses ? NendoFormat.ApplicationLookMinimumHostVersion : NendoFormat.MinimumHostVersion,
+        };
+    }
+
+    /// <summary>A stored look is a tone the vocabulary names and a single letter or digit, and at least one of them.</summary>
+    private static bool ApplicationLookIsValid(NendoApplicationLook? look) =>
+        look is null || ((look.Tone is not null || look.Letter is not null) &&
+            (look.Tone is null || NendoLook.IsTone(look.Tone)) &&
+            (look.Letter is null || NendoLook.IsLetter(look.Letter)));
+
+    private static SetApplicationLookOperation CreateLookInverse(string evidenceJson, string key)
+    {
+        using var evidence = JsonDocument.Parse(evidenceJson);
+        var prior = evidence.RootElement;
+        static string? Text(JsonElement element, string name) =>
+            element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        return new(
+            NendoCanonical.DeterministicId("operation", "application.look.compensation", key, 0),
+            Text(prior, "previousTone"),
+            Text(prior, "previousLetter"),
+            prior.GetProperty("appliedDefinitionRevision").GetInt64());
+    }
+
     private static SetApplicationPurposeOperation CreatePurposeInverse(string canonicalJson, string evidenceJson, string key)
     {
         using var canonical = JsonDocument.Parse(canonicalJson);

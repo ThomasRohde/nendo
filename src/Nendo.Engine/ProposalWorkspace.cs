@@ -59,6 +59,8 @@ internal sealed class ProposalContext(
     internal string? MinimumHostVersionAfter { get; set; }
     internal string? PurposeBefore { get; set; }
     internal string? PurposeAfter { get; set; }
+    internal NendoApplicationLook? LookBefore { get; set; }
+    internal NendoApplicationLook? LookAfter { get; set; }
     internal IReadOnlyList<NendoExtensionFileChange> PackageChanges { get; set; } = [];
 
     internal NendoProposalPreview ToPreview() => new(
@@ -84,6 +86,8 @@ internal sealed class ProposalContext(
         MinimumHostVersionAfter = MinimumHostVersionAfter,
         PurposeBefore = PurposeBefore,
         PurposeAfter = PurposeAfter,
+        LookBefore = LookBefore,
+        LookAfter = LookAfter,
         PackageChanges = PackageChanges,
     };
 }

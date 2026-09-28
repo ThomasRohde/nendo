@@ -216,6 +216,12 @@ internal static class SemanticDiff
                     $"Stop keeping {EntityName(names, value.EntityId)} a tree. Its parent field keeps every value.",
                     value.Reversibility,
                     value.EntityId),
+                SetApplicationLookOperation value => Entry(
+                    "setApplicationLook",
+                    value.Tone is null && value.Letter is null
+                        ? "Give this file back its default icon."
+                        : $"Give this file its own icon: {value.Tone ?? "its default colour"}, {(value.Letter is { } letter ? $"the letter {letter}" : "its default letter")}.",
+                    value.Reversibility),
                 SetApplicationPurposeOperation value => Entry(
                     "setApplicationPurpose",
                     value.Purpose is null

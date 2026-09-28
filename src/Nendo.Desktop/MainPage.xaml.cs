@@ -272,7 +272,7 @@ public sealed partial class MainPage : Page
             }
             // Every open, create, close and replacement answers through here, so the
             // title bar follows the session without a dedicated protocol message.
-            App.CurrentWindow?.ApplyFileName(_session.CurrentFileName);
+            App.CurrentWindow?.ApplyFileName(_session.CurrentFileName, _session.CurrentLook);
         }
 
         if (DispatcherQueue.HasThreadAccess)

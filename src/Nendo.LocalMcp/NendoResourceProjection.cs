@@ -9,7 +9,9 @@ internal sealed class NendoResourceProjection(
 {
     internal async Task<NendoMcpManifest> GetManifestAsync(CancellationToken cancellationToken)
     {
-        var value = (await application.GetDefinitionSnapshotAsync(cancellationToken)).Manifest;
+        var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
+        var value = snapshot.Manifest;
+        var look = NendoLook.Resolve(value.ApplicationId, snapshot.FileName, value.Look);
         return new NendoMcpManifest(
             "nendo.application",
             value.FormatVersion,
@@ -23,6 +25,7 @@ internal sealed class NendoResourceProjection(
             value.ChangeSequence)
         {
             Purpose = value.Purpose,
+            Look = new NendoMcpLook(look.Tone, look.Letter, look.ToneChosen, look.LetterChosen),
         };
     }
 

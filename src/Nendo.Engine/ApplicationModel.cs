@@ -63,6 +63,14 @@ public sealed record NendoManifestSnapshot(
     /// </para>
     /// </summary>
     public string? Purpose { get; init; }
+
+    /// <summary>
+    /// The look this file chose for itself, or null when it chose none. Only what was chosen:
+    /// the defaults are worked out where the look is drawn (<see cref="NendoLook.Resolve"/>),
+    /// because the letter comes from the file's name, and a copy validated under another name
+    /// must not read as a file that changed its look.
+    /// </summary>
+    public NendoApplicationLook? Look { get; init; }
 }
 
 public sealed record NendoFieldSnapshot(

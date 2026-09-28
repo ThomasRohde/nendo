@@ -61,6 +61,7 @@ internal sealed partial class SqliteNendoStore
             SetFieldUniqueOperation setUnique => await ExecuteSetFieldUniqueAsync(setUnique, transaction, cancellationToken),
             SetFieldSequenceOperation setSequence => await ExecuteSetFieldSequenceAsync(setSequence, transaction, cancellationToken),
             RemoveHierarchyOperation remove => await ExecuteRemoveHierarchyAsync(remove, transaction, cancellationToken),
+            SetApplicationLookOperation setLook => await ExecuteSetApplicationLookAsync(setLook, transaction, cancellationToken),
             SetApplicationPurposeOperation setPurpose => await ExecuteSetApplicationPurposeAsync(
                 setPurpose,
                 transaction,

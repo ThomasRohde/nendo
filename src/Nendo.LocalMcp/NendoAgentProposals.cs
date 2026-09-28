@@ -104,6 +104,17 @@ public sealed record NendoAgentPreviewSummary(
     [Description("What the file would say it is for after acceptance.")]
     public string? PurposeAfter { get; init; }
 
+    /// <summary>The look the file chose before the proposal, or null when it chose none.</summary>
+    [Description("The look the file chose before this proposal, or null when it chose none and has the defaults.")]
+    public NendoAgentLook? LookBefore { get; init; }
+
+    /// <summary>
+    /// The look it would have chosen after acceptance: named here for the purpose's reason, since a
+    /// look is neither a record type nor a surface this summary would otherwise list.
+    /// </summary>
+    [Description("The look the file would have chosen after acceptance, or null when it would have the defaults.")]
+    public NendoAgentLook? LookAfter { get; init; }
+
     /// <summary>
     /// What the proposal does to each custom-view package file, as the person will review it:
     /// changed lines with context for text, sizes for anything else.
@@ -502,6 +513,8 @@ public sealed class NendoAgentProposalStore
             MinimumHostVersionAfter = preview.MinimumHostVersionAfter,
             PurposeBefore = preview.PurposeBefore,
             PurposeAfter = preview.PurposeAfter,
+            LookBefore = NendoAgentLook.From(preview.LookBefore),
+            LookAfter = NendoAgentLook.From(preview.LookAfter),
             PackageChanges = preview.PackageChanges,
         };
     }

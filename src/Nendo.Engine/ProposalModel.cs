@@ -102,6 +102,15 @@ public sealed record NendoProposalPreview(
     /// </summary>
     public string? PurposeAfter { get; init; }
 
+    /// <summary>The look the file chose before the proposal, or null when it chose none.</summary>
+    public NendoApplicationLook? LookBefore { get; init; }
+
+    /// <summary>
+    /// The look it would have chosen after acceptance: its own pair for the purpose's reason,
+    /// because a look has no record type and no node to be found through.
+    /// </summary>
+    public NendoApplicationLook? LookAfter { get; init; }
+
     /// <summary>
     /// What the proposal does to each custom-view package file (ADR-0013), compared between
     /// the active file and the validated clone. Code is reviewed as its lines, not as a

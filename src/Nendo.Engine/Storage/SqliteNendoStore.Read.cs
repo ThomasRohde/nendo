@@ -163,7 +163,11 @@ internal sealed partial class SqliteNendoStore
         // The purpose is read here rather than beside it, because it lives in its own
         // protected table: every caller that reads the manifest is a caller that should be
         // able to say what the file is for, and there is only this one place to add it.
-        return manifest with { Purpose = await ReadApplicationPurposeAsync(transaction, cancellationToken) };
+        return manifest with
+        {
+            Purpose = await ReadApplicationPurposeAsync(transaction, cancellationToken),
+            Look = await ReadApplicationLookAsync(transaction, cancellationToken),
+        };
     }
 
     private async Task<IReadOnlyList<EntityMapping>> ReadEntityMappingsAsync(

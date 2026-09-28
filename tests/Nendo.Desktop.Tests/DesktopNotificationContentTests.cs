@@ -176,6 +176,26 @@ public sealed class DesktopNotificationContentTests
         Assert.IsNull(DesktopNotificationContent.WindowFrom("route=agent&window=abc"));
     }
 
+    /// <summary>
+    /// W-089. Every notification carried the same picture whichever file it was about. It now
+    /// shows the file's icon from this device's icon cache, a picture of the look and nothing
+    /// about the file itself.
+    /// </summary>
+    [TestMethod]
+    public void ANotificationShowsTheFilesIconAndNothingAboutWhereTheFileIs()
+    {
+        var notification = DesktopNotificationContent.ProposalWaiting("Ideas.nendo", 1);
+        var logo = @"C:\Users\someone\AppData\Local\Nendo\icons\file-v1-violet-50-96.png";
+        var document = XDocument.Parse(DesktopNotificationContent.ToXml(notification, 4242, logo));
+        var image = document.Descendants("image").Single();
+        Assert.AreEqual("appLogoOverride", image.Attribute("placement")!.Value);
+        Assert.AreEqual("file:///C:/Users/someone/AppData/Local/Nendo/icons/file-v1-violet-50-96.png", image.Attribute("src")!.Value);
+        Assert.HasCount(2, document.Descendants("text"), "The picture is an addition, not a third line.");
+        Assert.IsFalse(DesktopNotificationContent.ToXml(notification, 4242, "relative/icon.png").Contains("<image", StringComparison.Ordinal),
+            "Only a picture this device drew, at a full path, is shown.");
+        Assert.IsFalse(DesktopNotificationContent.ToXml(notification).Contains("<image", StringComparison.Ordinal));
+    }
+
     [TestMethod]
     public void EveryNotificationHasItsOwnTagSoARepeatReplacesRatherThanStacks()
     {

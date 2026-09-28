@@ -139,6 +139,7 @@ internal sealed partial class SqliteNendoStore
                 exactReplay,
                 cancellationToken),
             "application.setPurpose" => CreatePurposeInverse(original.Canonical, original.Evidence, idempotencyKey),
+            "application.setLook" => CreateLookInverse(original.Evidence, idempotencyKey),
             "schema.declareHierarchy" => CreateDeclareHierarchyInverse(original.Canonical, original.Evidence, idempotencyKey),
             "schema.setFieldUnique" => CreateSetFieldUniqueInverse(original.Canonical, original.Evidence, idempotencyKey),
             "schema.setFieldSequence" => CreateSetFieldSequenceInverse(original.Canonical, original.Evidence, idempotencyKey),

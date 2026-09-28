@@ -24,6 +24,12 @@ internal sealed class DesktopNotifier : IDisposable
     internal bool IsAvailable => _registered;
 
     /// <summary>
+    /// The open file's icon as a picture, shown on every notification this window raises, or
+    /// null for none. Every Nendo notification looked the same whichever file it was about.
+    /// </summary>
+    internal string? Logo { get; set; }
+
+    /// <summary>
     /// The route name a click asked for is handed back raw. Marshalling to the UI
     /// thread belongs to the caller: the invoked event arrives on a pool thread, and
     /// this type has no dispatcher of its own to be right about.
@@ -52,7 +58,7 @@ internal sealed class DesktopNotifier : IDisposable
         if (!_registered) return;
         try
         {
-            var payload = new AppNotification(DesktopNotificationContent.ToXml(notification, Environment.ProcessId))
+            var payload = new AppNotification(DesktopNotificationContent.ToXml(notification, Environment.ProcessId, Logo))
             {
                 Tag = notification.Tag,
                 Group = DesktopNotificationContent.Group,

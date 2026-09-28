@@ -611,7 +611,10 @@ test('a toast is one line of at most 300 characters, one a second, and a height 
 test('the colours a view is handed are exactly the tokens the Workbench declares for both themes', async () => {
   const css = await readFile(new URL('../src/styles/02-tokens.css', import.meta.url), 'utf8');
   const [light, dark] = css.split(':root[data-theme="dark"]');
-  const declared = (block) => [...new Set([...block.matchAll(/--([a-z0-9-]+)\s*:/g)].map((match) => match[1]))].sort();
+  // A file's icon colours (--look-*, W-089) are the same in both themes: they are the raster
+  // icon's, not a theme, so a view that follows the person's theme is not handed them.
+  const declared = (block) => [...new Set([...block.matchAll(/--([a-z0-9-]+)\s*:/g)].map((match) => match[1]))]
+    .filter((name) => !name.startsWith('look-')).sort();
   assert.deepEqual([...model.themeTokenNames].sort(), declared(light));
   assert.deepEqual([...model.themeTokenNames].sort(), declared(dark));
   const theme = model.viewTheme('dark', (name) => ` value-of-${name} `);

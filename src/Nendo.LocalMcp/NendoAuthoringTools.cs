@@ -47,7 +47,7 @@ internal sealed class NendoAuthoringTools(
         each operation has operationType and payload. The host supplies operation IDs. Use stable semantic IDs, never SQL or physical names.
         Families: schema.* (record types, fields, references, choices, hierarchies), ui.* (screens),
         behaviour.setDefinition/removeDefinition (calculations, functions, actions, triggers), extension.* (custom-view
-        packages), application.setPurpose, and data.* (records).
+        packages), application.setPurpose and setLook, and data.* (records).
         A payload the host cannot bind is refused here, naming the mutation, operation and key; nothing enters the draft.
         The contract lives in nendo://application/vocabulary, not in this description: operations carries every canonical
         operation with the payload fields it requires and accepts, authoringRules the rules that are easy to break and

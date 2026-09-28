@@ -68,7 +68,16 @@ public sealed record NendoMcpManifest(
 {
     /// <summary>What this file is for, in the author's words, or null if nobody has said.</summary>
     public string? Purpose { get; init; }
+
+    /// <summary>
+    /// How a person tells this file from others open beside it: the tone and the letter of the
+    /// badge its icons carry, whether the file chose them or has them by default.
+    /// </summary>
+    public NendoMcpLook? Look { get; init; }
 }
+
+/// <summary>A file's look as it is drawn, and which parts the file chose rather than has by default.</summary>
+public sealed record NendoMcpLook(string Tone, string Letter, bool ToneChosen, bool LetterChosen);
 
 public sealed record NendoMcpEntity(string EntityId, string DisplayName) { public bool Retired { get; init; } }
 

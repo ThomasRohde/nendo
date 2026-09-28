@@ -118,7 +118,11 @@ internal static class DesktopNotificationContent
     /// activation, not to the one that posted it, so the click has to say whose it was; that
     /// process number is all it says.
     /// </param>
-    internal static string ToXml(DesktopNotification notification, int? window = null)
+    /// <param name="logo">
+    /// The file's icon as a picture from this device's icon cache, or null. It names the look it
+    /// draws and nothing about the file: not its name, not where it is.
+    /// </param>
+    internal static string ToXml(DesktopNotification notification, int? window = null, string? logo = null)
     {
         var launch = window is { } processId ? $"route={notification.Route}&window={processId}" : $"route={notification.Route}";
         var builder = new StringBuilder();
@@ -126,6 +130,10 @@ internal static class DesktopNotificationContent
         builder.Append("<visual><binding template=\"ToastGeneric\">");
         builder.Append("<text>").Append(Escape(notification.Title)).Append("</text>");
         builder.Append("<text>").Append(Escape(notification.Body)).Append("</text>");
+        if (logo is not null && Path.IsPathFullyQualified(logo))
+        {
+            builder.Append("<image placement=\"appLogoOverride\" src=\"").Append(Escape(new Uri(logo).AbsoluteUri)).Append("\"/>");
+        }
         builder.Append("</binding></visual>");
         if (notification.ButtonLabel is { } label)
         {

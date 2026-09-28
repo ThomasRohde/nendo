@@ -451,7 +451,7 @@ internal sealed partial class SqliteNendoStore
                             'schema.setChoiceMetadata', 'schema.setRetired', 'schema.setFieldRequired',
                             'schema.renameEntity', 'schema.renameField',
                             'behaviour.setDefinition', 'behaviour.removeDefinition',
-                            'ui.setProperty', 'application.setPurpose', 'schema.declareHierarchy', 'schema.removeHierarchy',
+                            'ui.setProperty', 'application.setPurpose', 'application.setLook', 'schema.declareHierarchy', 'schema.removeHierarchy',
                             'extension.setPackage', 'extension.putFile', 'extension.removeFile', 'extension.removePackage')
                             OR (o.operation_type = 'ui.removeNode'
                                 AND json_extract(o.inverse_evidence_json, '$.retainedSubtree[0].kind') IN ('extensionGraphSurface', 'extensionRecordsSurface')

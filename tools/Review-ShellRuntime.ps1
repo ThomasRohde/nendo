@@ -99,6 +99,77 @@ public static class NendoWindowIdentity
 }
 '@
 
+# Reading the icon a window carries, from outside it (W-089). The window's own icon is
+# what Alt+Tab and the taskbar's thumbnails draw; it is fetched with WM_GETICON and its
+# pixels read back, so what is measured is the picture, not the call that set it.
+Add-Type -Language CSharp -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class NendoWindowIcon
+{
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ICONINFO { public bool fIcon; public int xHotspot; public int yHotspot; public IntPtr hbmMask; public IntPtr hbmColor; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BITMAP { public int bmType; public int bmWidth; public int bmHeight; public int bmWidthBytes; public ushort bmPlanes; public ushort bmBitsPixel; public IntPtr bmBits; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BITMAPINFOHEADER { public uint biSize; public int biWidth; public int biHeight; public ushort biPlanes; public ushort biBitCount; public uint biCompression; public uint biSizeImage; public int biXPelsPerMeter; public int biYPelsPerMeter; public uint biClrUsed; public uint biClrImportant; }
+
+    [DllImport("user32.dll")] private static extern IntPtr SendMessageTimeoutW(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
+    [DllImport("user32.dll")] private static extern bool GetIconInfo(IntPtr hIcon, out ICONINFO info);
+    [DllImport("gdi32.dll")] private static extern int GetObjectW(IntPtr h, int size, out BITMAP bitmap);
+    [DllImport("gdi32.dll")] private static extern int GetDIBits(IntPtr dc, IntPtr bitmap, uint start, uint lines, byte[] bits, ref BITMAPINFOHEADER info, uint usage);
+    [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr hWnd, IntPtr dc);
+    [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr h);
+
+    private static readonly int[] Tones = { 0xC93A3A, 0xC75A17, 0xA37608, 0x1F8A52, 0x16837E, 0x2F63D6, 0x7446D4, 0x677080 };
+
+    // The share of opaque pixels in the icon's bottom-left quarter that are one of the file
+    // tones, and the icon's size. The plain mark's leg sits there in its own blues.
+    public static string BadgeShare(IntPtr window)
+    {
+        IntPtr icon;
+        SendMessageTimeoutW(window, 0x007F, new IntPtr(1), IntPtr.Zero, 2, 2000, out icon);
+        if (icon == IntPtr.Zero) SendMessageTimeoutW(window, 0x007F, IntPtr.Zero, IntPtr.Zero, 2, 2000, out icon);
+        if (icon == IntPtr.Zero) return "no icon";
+        ICONINFO info;
+        if (!GetIconInfo(icon, out info)) return "no icon info";
+        try
+        {
+            BITMAP bitmap;
+            GetObjectW(info.hbmColor, Marshal.SizeOf(typeof(BITMAP)), out bitmap);
+            int size = bitmap.bmWidth;
+            BITMAPINFOHEADER header = new BITMAPINFOHEADER { biSize = (uint)Marshal.SizeOf(typeof(BITMAPINFOHEADER)), biWidth = size, biHeight = -size, biPlanes = 1, biBitCount = 32 };
+            byte[] pixels = new byte[size * size * 4];
+            IntPtr dc = GetDC(IntPtr.Zero);
+            GetDIBits(dc, info.hbmColor, 0, (uint)size, pixels, ref header, 0);
+            ReleaseDC(IntPtr.Zero, dc);
+            int opaque = 0, toned = 0;
+            for (int y = size / 2; y < size; y++)
+            for (int x = 0; x < size / 2; x++)
+            {
+                int i = (y * size + x) * 4;
+                if (pixels[i + 3] < 250) continue;
+                opaque++;
+                foreach (int tone in Tones)
+                {
+                    if (Math.Abs(pixels[i + 2] - ((tone >> 16) & 0xFF)) <= 10 && Math.Abs(pixels[i + 1] - ((tone >> 8) & 0xFF)) <= 10 && Math.Abs(pixels[i] - (tone & 0xFF)) <= 10) { toned++; break; }
+                }
+            }
+            return size + " " + (opaque == 0 ? 0 : toned * 100 / opaque);
+        }
+        finally
+        {
+            DeleteObject(info.hbmColor);
+            DeleteObject(info.hbmMask);
+        }
+    }
+}
+'@
+
 # A shell identity of this run's own. Windows stores a custom Jump List in a file
 # named after a hash of the identity, so without this the lane would be writing
 # entries into the person's real taskbar menu and then asserting against them.
@@ -234,6 +305,13 @@ try {
     }
     $results['windowCarriesTheShellIdentity'] = $laneAppId
 
+    # The file's icon (W-089): the window carries the mark with a badge in the file's tone.
+    # Drawn once the file is open, off the window's thread, so it is waited for.
+    $script:badge = 'not read yet'
+    Wait-For { $script:badge = [NendoWindowIcon]::BadgeShare($handle); $script:badge -match '^\d+ (\d+)$' -and [int]$Matches[1] -ge 20 } `
+        -TimeoutMs 20000 -What "the window's icon to carry the file's badge" | Out-Null
+    $results['windowCarriesTheFilesIcon'] = $script:badge
+
     # The Jump List, measured as the shell storing one: a file that was not there
     # before, under this run's own identity, carrying the path of the open file.
     $openFile = Join-Path $evidenceRoot 'shell-lane.nendo'
@@ -311,6 +389,7 @@ $results | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $eviden
 Write-Host 'OK       the close button hides the window and leaves the file open; the exit pin still exits.'
 Write-Host 'OK       opening the same file again brings the hidden window back, and the second launch ends.'
 Write-Host "OK       the window carries the shell identity it was given, and Windows stored a Jump List naming the open file."
+Write-Host "OK       the window's icon carries the open file's badge (size and share of tone pixels: $($results['windowCarriesTheFilesIcon']))."
 Write-Host "         Evidence: $evidenceRoot"
 Write-Host '         Not covered here: the tray icon, its menu, the notifications, and the taskbar drawing either the'
 Write-Host '         Jump List or an overlay badge. Those are owner-reported.'

@@ -10,6 +10,38 @@
 
 ## Context
 
+### Accepted amendment — 2026-09-28 (a file's own look)
+
+Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24: "I pre-accept
+any ADR change - this is still an experimental project."), for W-089. The owner chose the
+style on the Per-file icons canvas on 2026-09-28 ("D, and build the first bundle").
+
+Every open Nendo looked the same: the same icon in Alt+Tab, the same icon in the
+notification area, the same picture on every notification. The 2026-09-15 purpose entry
+made the file say what it is for; this one makes it recognisable before anybody reads.
+
+A file has a **look**: one of the eight choice tones and one letter or digit, drawn as a
+badge on the Nendo mark wherever the file has an icon. Every file has one without choosing
+it. The tone comes from the application ID (FNV-1a over its UTF-8, into orange, amber,
+green, teal, blue or violet: red reads as an alert on a badge, grey as switched off), so a
+copy keeps its original's and a Fork, which is a new application, gets its own. The letter
+is the first letter or digit of the file's name. Unlike the purpose, the default is derived
+from the name, because a look exists to tell files apart and a file nobody has styled must
+already differ from the next one.
+
+A file may choose either part or both through one canonical operation on the definition
+lane, `application.setLook` (`tone`, `letter`, null for a part's default). The choice is
+stored in its own protected table, `__nendo_application_look`, as the new last rung of the
+layout ladder (`-look-`), and only what was chosen is stored: a part left to its default
+follows the file's name. Returning both parts to their defaults deletes the row; a file
+that never chose takes no rung. The minimum host is **1.38.0**, declared by the operation's
+evidence; ADR-0013's views anywhere, which the documents had reserved 1.38.0 for, move to
+1.39.0. The manifest carries the chosen look, and the Desktop and MCP resolve it with the
+defaults (`NendoLook.Resolve`). A review names it as its own `lookBefore`/`lookAfter` pair
+and says "Give this file its own icon: violet, the letter P." A person chooses it on
+**About this file**, where the picture follows the choice before anything is sent and
+**Review change** opens the ordinary proposal review.
+
 ### Accepted amendment — 2026-09-27 (an outline of a declared hierarchy)
 
 [ADR-0019](0019-hierarchies-in-the-schema.md) point 9 decided this kind, the B6 outline

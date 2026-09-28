@@ -69,6 +69,10 @@ The file format gained these rungs and operations:
   custom-view package tables.
   The describe resource leads with it, and it belongs to no record type and no
   node.
+- A rung for a file's own look (1.38.0, ADR-0004's 2026-09-28 amendment): the tone
+  and letter of the badge its icons carry, in its own protected table as the last
+  rung of the layout ladder. Only what a file chose is stored; the defaults come
+  from the application ID and the file's name.
 
 Every other boundary below is unchanged.
 
@@ -224,7 +228,7 @@ An edit to an unrelated record does not invalidate a UI-only proposal
 
 ### Typed operations
 
-Thirty operation types are the primitive: every type that a revision can
+Thirty-one operation types are the primitive: every type that a revision can
 record, including the two that only host services create. Semantic diff, undo
 evidence and replay all derive from the same operation stream.
 
@@ -237,7 +241,7 @@ schema.setFieldRequired  data.backfillRetiredField
 schema.setRetired        data.convertLegacyReference    behaviour.setDefinition
 schema.setChoiceMetadata identity.transition *          behaviour.removeDefinition
 schema.configureReference                               application.setPurpose
-schema.declareHierarchy
+schema.declareHierarchy                                 application.setLook
 schema.removeHierarchy
 schema.setFieldUnique
 schema.setFieldSequence
@@ -246,7 +250,7 @@ extension.setPackage     extension.removeFile
 extension.putFile        extension.removePackage
 ```
 
-`*` marks a native-only operation. The other twenty-eight are the closed union that
+`*` marks a native-only operation. The other twenty-nine are the closed union that
 the canonical change-set parser accepts and an MCP client may author (see
 `NendoAuthoringOperations.cs`). Whole-definition
 convenience APIs must expand into typed operations before the host records, diffs
@@ -493,6 +497,21 @@ have several open (W-089).
   the refusal still offers read-only, Duplicate and Fork. A request names the window
   and at most one of the views a notification can route to. It carries no file and
   nothing to approve, so it can do no more than a click on the tray icon.
+- **Each file has its own icon.** Every window carried the same icon, so several
+  open files were identical in Alt+Tab, in the notification area and on
+  notifications. `DesktopFileIcon` draws the file's look as the Nendo mark with a
+  badge bottom left, in the file's tone with its letter from 24 pixels up (a dot
+  below), and keeps the result by look under `icons/` in the device state. The
+  badge sits bottom left because Windows draws a taskbar button's status badge
+  bottom right. The mark comes from the shipped icon's own frames, the badge is
+  computed with exact coverage, and the letter is set in Segoe UI Semibold at four
+  times the size and scaled down. The window icon, the title bar, the
+  notification-area icon and a notification's `appLogoOverride` picture all carry
+  it; the tones are the light theme's choice tones, which a test holds to
+  `02-tokens.css`. `Review-ShellRuntime.ps1` reads the running window's icon back
+  through `WM_GETICON` and checks the badge. Taskbar buttons still group under one
+  Nendo identity, so the grouped button shows one icon; a button per file needs a
+  shell identity per file, which is not built.
 - **Each window's notifications are its own.** Every process posted under one
   notification group with the same tags, so a second file's *A change is waiting*
   replaced the first file's, and bringing back any window cleared every file's. The

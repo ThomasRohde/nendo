@@ -1,6 +1,8 @@
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Nendo.Engine;
 
 namespace Nendo.Desktop;
@@ -56,10 +58,11 @@ public sealed partial class MainWindow : Window
 
     /// <summary>
     /// Reports the open file beside the product name, where a document name belongs,
-    /// so the Workbench header is free to name the page instead.
+    /// so the Workbench header is free to name the page instead, and draws its look.
     /// </summary>
-    internal void ApplyFileName(string? fileName)
+    internal void ApplyFileName(string? fileName, NendoResolvedLook? look = null)
     {
+        ApplyLook(fileName is null ? null : look);
         var subtitle = fileName ?? string.Empty;
         if (!string.Equals(AppTitleBar.Subtitle, subtitle, StringComparison.Ordinal))
         {
@@ -92,6 +95,55 @@ public sealed partial class MainWindow : Window
             _placementFile = openFile;
         }
         RefreshShellState();
+    }
+
+    private string? _appliedLook = "";
+
+    /// <summary>
+    /// Puts the file's look on everything that shows this window without its content: the
+    /// window icon (the taskbar thumbnail and Alt+Tab), the title bar, the notification area
+    /// and the picture on a notification (W-089). Drawn off the UI thread, once per look on a
+    /// device, and put back to the plain mark when no file is open.
+    /// </summary>
+    private void ApplyLook(NendoResolvedLook? look)
+    {
+        var key = look is null ? null : DesktopFileIcon.KeyFor(look);
+        if (string.Equals(_appliedLook, key, StringComparison.Ordinal)) return;
+        _appliedLook = key;
+        if (look is null)
+        {
+            ApplyIcons(null);
+            return;
+        }
+        var cache = DesktopFileIcon.CacheRoot(DesktopAppearanceStore.DefaultRoot);
+        var mark = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
+        _ = Task.Run(async () =>
+        {
+            DesktopFileIconFiles? files = null;
+            // A missing icon is a missing convenience; the plain mark stays until one is drawn.
+            try { files = await DesktopFileIcon.EnsureAsync(cache, look, mark); }
+            catch (Exception) { }
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (files is not null && string.Equals(_appliedLook, key, StringComparison.Ordinal)) ApplyIcons(files);
+            });
+        });
+    }
+
+    private void ApplyIcons(DesktopFileIconFiles? files)
+    {
+        var plain = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
+        try
+        {
+            AppWindow.SetIcon(files?.Icon ?? plain);
+            AppTitleBar.IconSource = new ImageIconSource { ImageSource = new BitmapImage(new Uri(files?.TitleBarImage ?? plain)) };
+        }
+        catch (Exception)
+        {
+            // The window keeps whatever icon it had; nothing about the file depends on it.
+        }
+        _tray?.SetIcon(files?.Icon ?? plain);
+        if (_notifier is { } notifier) notifier.Logo = files?.NotificationImage;
     }
 
     private void CaptureWindowState()

@@ -177,17 +177,25 @@ export function agentPreviewMarkup(summary: AgentPreviewSummary, operationCount:
   const purposeRow = purposeChanged
     ? `<div><dt>What this file is for</dt><dd>${escapeHtml(summary.purposeAfter ?? 'Cleared')}</dd></div>`
     : '';
+  // The file's look is the file's own too, and is named here for the same reason.
+  const lookBefore = summary.lookBefore ?? null;
+  const lookAfter = summary.lookAfter ?? null;
+  const lookChanged = lookBefore?.tone !== lookAfter?.tone || lookBefore?.letter !== lookAfter?.letter;
+  const lookRow = lookChanged
+    ? `<div><dt>Icon</dt><dd>${escapeHtml(lookAfter === null ? 'Back to its default' : `${lookAfter.tone ?? 'Default colour'}, ${lookAfter.letter === null ? 'default letter' : `the letter ${lookAfter.letter}`}`)}</dd></div>`
+    : '';
   const rows = `<dl>
     <div><dt>Record ${summary.entities.length === 1 ? 'type' : 'types'}</dt><dd>${escapeHtml(entities)}</dd></div>
     <div><dt>Fields</dt><dd>${summary.fieldCount}</dd></div>
     <div><dt>Screens</dt><dd>${summary.surfaces.length}</dd></div>
     <div><dt>Records</dt><dd>${summary.recordCount}</dd></div>
     ${purposeRow}
+    ${lookRow}
     <div><dt>Proposed changes</dt><dd>${operationCount}</dd></div>
   </dl>`;
   // Saying "structure and data only" to someone reviewing a change to what the file is
   // for describes a different proposal than the one in front of them.
-  if (summary.surfaces.length === 0 && purposeChanged) return rows;
+  if (summary.surfaces.length === 0 && (purposeChanged || lookChanged)) return rows;
   if (summary.surfaces.length === 0) return `${rows}<p>This proposal changes structure and data only. Review it in Studio after accepting.</p>`;
   return `${rows}<ul class="proposal-surfaces">${summary.surfaces.map((surface) => {
     const entity = summary.entities.find((candidate) => candidate.entityId === surface.entityId);

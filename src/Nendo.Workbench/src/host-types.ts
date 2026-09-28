@@ -27,6 +27,24 @@ export interface ManifestSnapshot {
   // What the file is for, in the author's words, or null when nobody has said. The
   // file's own, not the front page's: a file with no overview still carries one.
   purpose: string | null;
+  /** The look the file chose (W-089): a tone and a letter, either null for its default. Null when it chose none. */
+  look?: ChosenLook | null;
+}
+
+/** A look as a file stores it: each part, or null where it keeps the default. */
+export interface ChosenLook {
+  tone: string | null;
+  letter: string | null;
+}
+
+/** A file's look as its icon draws it, which parts it chose, and what it would have by default. */
+export interface ResolvedLook {
+  tone: string;
+  letter: string;
+  toneChosen: boolean;
+  letterChosen: boolean;
+  defaultTone: string | null;
+  defaultLetter: string | null;
 }
 
 export interface EntitySnapshot {
@@ -122,6 +140,8 @@ export interface DesktopSessionView {
   hostVersion?: string;
   /** Whether this file's custom views may run here, and the packages it carries. Absent without a file. */
   extensions?: ExtensionRuntimeView | null;
+  /** The file's look as its icon draws it (W-089). Absent without a file, and in recovery. */
+  look?: ResolvedLook | null;
 }
 
 /** Why custom views may not run now (ADR-0013): each is one of the kill switches. */
@@ -266,6 +286,9 @@ export interface AgentPreviewSummary {
   // built by walking entities and surfaces would review it as changing nothing.
   purposeBefore: string | null;
   purposeAfter: string | null;
+  // Named for the purpose's reason: a look has no record type and no node either.
+  lookBefore?: ChosenLook | null;
+  lookAfter?: ChosenLook | null;
   /** What the proposal does to each custom-view package file, as lines to read. */
   packageChanges?: ExtensionFileChange[];
 }
@@ -504,6 +527,9 @@ export interface ProposalPreview {
   previewOverview?: OverviewPlan | null;
   /** What the proposal does to each custom-view package file, as lines to read. */
   packageChanges?: ExtensionFileChange[];
+  /** The look the file chose before and would choose after (W-089); both absent when the proposal does not touch it. */
+  lookBefore?: ChosenLook | null;
+  lookAfter?: ChosenLook | null;
 }
 
 export interface PromotionOutcome {
