@@ -462,6 +462,21 @@ adds this: an unsolicited `{protocolVersion, event, payload}` message that carri
 a route name. The message has no `requestId`. Thus a renderer at versions 2–6
 drops it, as it drops any other message that it did not request.
 
+### Several files at once
+
+Each open file is its own process and its own window (ADR-0002), and a person can
+have several open (W-089).
+
+- **Each file reopens where its window was.** `DesktopWindowStore` keeps the device's
+  last place in `window.json` and each file's own in `window-files.json`, keyed by a
+  digest of where the file is and capped at the 64 most recently placed. A launch
+  that names a file opens on that file's place, and any other launch, or a file with
+  no place yet, opens on the device's last one. Before, there was only the device's
+  place, so a second file opened exactly on top of the first. A file opened into an
+  existing window leaves the window where it is. `DesktopDeviceStateLock` is the
+  named mutex that stops two processes from overwriting each other's writes to a
+  device-state document they share.
+
 **Agent work is now visible from every screen.** The MCP host brackets every tool
 and resource call and sends `(busy, client, what)` to the shell. The shell
 forwards it as the third unsolicited event. The status bar draws a pill after the

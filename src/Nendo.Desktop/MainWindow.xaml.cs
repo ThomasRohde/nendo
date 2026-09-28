@@ -20,6 +20,7 @@ public sealed partial class MainWindow : Window
     private readonly DesktopViewFailureLog _viewFailures = new(DesktopViewFailureLog.DefaultRoot);
     private DesktopNotifier? _notifier;
     private DesktopWindowState? _windowState;
+    private string? _placementFile;
 
     public MainWindow() : this(null)
     {
@@ -32,7 +33,10 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
-        var savedWindow = _windowStore.Load();
+        // Where this file's window was, when the launch names a file: two files no longer
+        // open on the same rectangle, one exactly on top of the other.
+        _placementFile = startupRequest?.Path;
+        var savedWindow = _windowStore.Load(_placementFile);
         // Establish normal bounds before maximizing so Restore retains the saved size.
         DesktopWindowPolicy.Apply(AppWindow, savedWindow is null ? null : savedWindow with { Maximized = false });
         CaptureWindowState();
@@ -78,6 +82,14 @@ public sealed partial class MainWindow : Window
         {
             _jumpListFile = openFile;
             RefreshJumpList();
+        }
+        if (!string.Equals(_placementFile, openFile, StringComparison.OrdinalIgnoreCase))
+        {
+            // The place this window had belongs to the file it showed until now. The window
+            // itself stays where it is: moving it under the pointer because another file
+            // opened in it would be worse than the stacking this avoids.
+            if (_placementFile is not null && _windowState is not null) _windowStore.Save(_windowState, _placementFile);
+            _placementFile = openFile;
         }
         RefreshShellState();
     }
@@ -380,7 +392,7 @@ public sealed partial class MainWindow : Window
         if (DesktopCloseAction.Resolve(CloseAction, _exitRequested, _tray?.IsPresent ?? false)
             == DesktopCloseOutcome.Hide)
         {
-            if (_windowState is not null) _windowStore.Save(_windowState);
+            if (_windowState is not null) _windowStore.Save(_windowState, _placementFile);
             AppWindow.Hide();
             // Said once per device. The window has just vanished from the taskbar with
             // the file still open and an agent still able to reach it; somebody who was
@@ -407,7 +419,7 @@ public sealed partial class MainWindow : Window
         }
 
         _closing = true;
-        if (_windowState is not null) _windowStore.Save(_windowState);
+        if (_windowState is not null) _windowStore.Save(_windowState, _placementFile);
         try
         {
             if (RootFrame.Content is MainPage page)
