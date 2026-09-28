@@ -10,6 +10,14 @@ On a record page it draws that page's one record as a chart of one: no title or
 instructions, the label above its bar, and the span in days. That record is the page's
 own, so selecting it opens nothing.
 
+## In Nendo's toolbar
+
+On a Nendo that offers it, the chart's title gives way to Nendo's breadcrumb, and on a
+screen Nendo's toolbar carries a Find box (Ctrl F, and in Ctrl K under the view's title).
+Rows whose label or group does not hold the text step back; Enter opens the first row that
+does. A right-click on a row opens Nendo's menu, with Open record. A chart of one on a
+record page declares nothing. On an older Nendo the chart is as it always was.
+
 ## What it reads
 
 Everything arrives through `window.nendo`, which `<script src="/_nendo/api.js">` installs:
@@ -29,7 +37,9 @@ Everything arrives through `window.nendo`, which `<script src="/_nendo/api.js">`
 - the `changes` event, and the `context` event when the view's definition changes: the
   chart reads again a quarter of a second later, and keeps the selected record selected
   while it is still on the time line;
-- `nendo.ui.openRecord(entityId, recordId)`: opening the selected record.
+- `nendo.ui.openRecord(entityId, recordId)`: opening the selected record;
+- where the host offers them, `nendo.ui.setToolbar`, `nendo.ui.showMenu` and the `command`
+  event, for the Find box and the row menu above.
 
 It writes nothing. A read that Nendo refuses is shown in the summary line, and a record
 type with no records says so.
@@ -57,5 +67,8 @@ keeps the selection, one read for a burst of changes, a re-read under new fields
 `context` event, the no-date empty state, the record page reading only its own record
 through `records.get` and opening nothing when it is selected, the record page's compact
 380×360 layout, a dark `theme` event and a canvas token changing the measured colour, a
-refused read shown as text, the no-records state and a 512×384 window. It runs inside
-`Test-Production.ps1`.
+refused read shown as text, the no-records state and a 512×384 window. Then it measures
+the chart again on a broker that offers Nendo's toolbar: no title of its own, the Find box
+it declares, which the broker reads by the Workbench's own rules, the rows Find dims, Enter
+opening the first match once, Open from the row menu, and nothing declared on a record page.
+It runs inside `Test-Production.ps1`.

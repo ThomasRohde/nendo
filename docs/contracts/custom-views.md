@@ -1301,6 +1301,46 @@ before any write. View code needs no approval of its own.
 
 ## Evidence
 
+### Nendo's chrome in the other three views (W-091)
+
+Measured on 2026-09-28. `Review-SystemsLens.ps1`, `Review-NendoGraph.ps1` and
+`Review-Gantt.ps1` measure each view twice, as the W-090 lanes do: every earlier measurement
+on a fixture broker that does not offer the chrome, then the view again on one that does.
+There the Systems Lens and the Dependency graph draw no controls of their own and no page
+title, and declare them: Focus and Take out in the Lens, zoom with Fit on Ctrl -, Ctrl 0 and
+Ctrl +, and the text view. Commands from the toolbar do what the view's own buttons did,
+and the Lens's take-out answers the same question from Nendo's toolbar and from its menu. A
+right-click on a component, a record or a Gantt row asks for Nendo's menu and not the
+browser's, and each pick is carried out. The Gantt's title gives way on a screen, where it
+declares a Find box with Ctrl F; a chart of one on a record page declares nothing and asks
+for no menu. The Dependency graph draws with the Workbench's colour tokens: a canvas and a
+surface token it is sent are the colours it draws with.
+
+The fixture broker now reads each toolbar and menu by the Workbench's own rules, from
+`view-toolbar-model.ts` built by `Graph-FixtureServer.mjs`, and refuses what Nendo would
+refuse. That holds for all five lanes, so the Capability Atlas and Work dependencies are
+measured against the rules too.
+
+Each guard was seen to fail with its defect put back:
+
+- An icon outside Nendo's set: `Nendo would refuse what the view declared:
+  [{"method":"ui.setToolbar","code":"invalid-params","message":"items[0].icon must be one of
+  Nendo's icons: plus, minus, …"}]`.
+- The Lens's own controls left showing: `The view still draws its own controls or title on
+  a host that draws them: {"native":true,"tools":"flex","title":"block"}`. The same for the
+  graph: `The graph still draws its own controls or title on a host that draws them:
+  {"native":true,"tools":"flex","title":"block"}`.
+- The Gantt's title left showing: `The chart still draws its own title on a host that names
+  the screen: {"native":true,"title":"block"}`.
+- Take it out from the Lens's menu doing nothing: `Take it out from the menu took nothing
+  out.`
+- Find in the Gantt dimming nothing: `Find in Nendo’s toolbar dimmed no row.`
+- The graph back on its own palette: `The graph does not draw with the Workbench's canvas
+  token.`
+
+Not measured in a product lane: the three views in the real app. The fixture does not draw
+Nendo's strip; the W-090 journey measures the strip itself with its probe.
+
 ### Nendo's chrome (W-090)
 
 Measured on 2026-09-28 against a Debug build. The journey (`DesktopExtensionViewJourneyTests`

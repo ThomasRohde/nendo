@@ -115,10 +115,9 @@ Nendo has no built-in agent. A coding agent such as Claude Code or Codex connect
 
 Nendo Station is a demonstration file: a fictional orbital habitat with nine record types (Modules, Systems, Components, Feeds, Readings, Incidents, Maintenance, Experiments, Crew), about 500 records and every kind of screen Nendo draws. It is in the repository at [`workspace/Nendo Station.nendo`](https://github.com/ThomasRohde/nendo/blob/main/workspace/Nendo%20Station.nendo).
 
-To look around, open the file. It starts on the **Station status** front page. Two things need a step before they work:
+To look around, open the file. It starts on the **Station status** front page. The file has automatic actions, so editing stays off until you choose **Approve automatic actions** under **Health**. Reading works without it.
 
-- The file has automatic actions. Editing stays off until you choose **Approve automatic actions** under **Health**. Reading works without it.
-- The **Systems Lens** schematic is a custom view, a screen of Components. The tracked file was made before views ran from the file, so it does not carry the view's code yet: the screen offers **Add package to file…**. Pick `extensions/systems-lens/nendo-package.json` from the repository and accept the proposal, and the schematic runs. See [Custom views](/nendo/docs/custom-views).
+The **Systems Lens** schematic is a custom view, a screen of Components, and the file carries its code as it was when the file was last updated. To bring the view up to the repository's version, pick `extensions/systems-lens/nendo-package.json` in **Studio › Surfaces › Custom views › Import package…** and accept the proposal. See [Custom views](/nendo/docs/custom-views).
 
 To keep the tracked file unchanged, open it and use **Duplicate…** from the file menu, then work in the copy. A copy asks for the approval of automatic actions again.
 

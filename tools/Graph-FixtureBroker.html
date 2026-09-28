@@ -9,6 +9,13 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
 </style>
 </head>
 <body>
+<script type="module">
+// The Workbench's own rules for a view's toolbar and menu (view-toolbar-model.ts), which
+// Graph-FixtureServer.mjs builds and serves. A module runs after the page's own script and
+// before its load event, so the rules are here before a probe mounts a view (W-091).
+import { readToolbar, readMenu } from '/toolbar-rules.js';
+window.toolbarRules = Object.freeze({ readToolbar, readMenu });
+</script>
 <script>
 // The Workbench's side of a custom view's protocol (ADR-0013), answered from fixture data for
 // the package measurement lanes. Graph-FixtureServer.mjs serves this page on one origin and the
@@ -24,7 +31,8 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
 //   fail(method, { code, message }, times)     refuse the next requests of one method
 //   remount()                                   a fresh frame, as a new placeholder would start one
 //   offerChrome(on)                             offer ui.setToolbar and ui.showMenu from the next
-//                                               connect on (W-090); toolbars and menus record them
+//                                               connect on (W-090); toolbars and menus record them,
+//                                               and chromeRefusals what Nendo's rules refused (W-091)
 //   pickNext(pick), command(id, value, source)  the next menu's answer; a press on the toolbar
 //   requests, events, hellos, refused, connects what happened, in order
 (() => {
@@ -38,7 +46,17 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
   // lane measures a view both on a host that draws its controls and on one that does not.
   const CHROME = ['ui.setToolbar', 'ui.showMenu'];
   let chrome = false, menuPick = null;
-  const toolbars = [], menus = [];
+  const toolbars = [], menus = [], chromeRefusals = [];
+  // A declaration is read by the Workbench's own rules before it is recorded, and refused as
+  // Nendo refuses it, so a lane never passes a toolbar or a menu that Nendo would not draw.
+  function byNendosRules(method, read, params) {
+    const rules = window.toolbarRules;
+    if (rules === undefined) throw refusal('failed', 'The fixture has not loaded the Workbench’s toolbar rules.');
+    try { rules[read](params); } catch (error) {
+      chromeRefusals.push({ method, code: error.code ?? 'failed', message: error.message });
+      throw refusal(error.code ?? 'failed', error.message);
+    }
+  }
   // The Workbench's colour tokens for both themes, as src/Nendo.Workbench/src/styles/02-tokens.css
   // declares them and extension-model.ts names them.
   const themes = {
@@ -165,10 +183,12 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
         return { opened: true };
       case 'ui.setToolbar':
         if (!chrome) throw refusal('unknown-method', 'ui.setToolbar is not a method this fixture answers.');
+        byNendosRules(method, 'readToolbar', params);
         toolbars.push(clone(params));
         return null;
       case 'ui.showMenu': {
         if (!chrome) throw refusal('unknown-method', 'ui.showMenu is not a method this fixture answers.');
+        byNendosRules(method, 'readMenu', params);
         menus.push(clone(params));
         const pick = menuPick;
         menuPick = null;
@@ -335,7 +355,7 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
     fail(method, error, times = 1) { failures.push({ method, error: clone(error), times }); return true; },
     remount() { mount(); return true; },
     offerChrome(on) { chrome = on === true; return chrome; },
-    toolbars, menus,
+    toolbars, menus, chromeRefusals,
     pickNext(pick) { menuPick = clone(pick); return true; },
     command(id, value = null, source = 'toolbar') { emit('command', { id, value, source }); return events.length; },
     ping() { const id = nextPing++; post({ t: 'ping', id }); return id; },

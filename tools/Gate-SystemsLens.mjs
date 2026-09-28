@@ -53,9 +53,9 @@ async (page) => {
   };
 
   let view = null;
-  const frameOf = async () => {
+  const frameOf = async (previous = null) => {
     for (let attempt = 0; attempt < 200; attempt += 1) {
-      const frame = page.frames().find(candidate => candidate.url().startsWith(origin + '/'));
+      const frame = page.frames().find(candidate => candidate !== previous && !candidate.isDetached() && candidate.url().startsWith(origin + '/'));
       if (frame !== undefined) { await frame.waitForSelector('#summary'); return frame; }
       await page.waitForTimeout(25);
     }
@@ -365,6 +365,102 @@ async (page) => {
   });
   assert(!compact.overflow, 'The view overflows horizontally at 512x384.');
   assert(compact.controls.every(Boolean), 'A control left the window at 512x384: ' + JSON.stringify(compact.controls));
+
+  // ---- Nendo's own chrome (W-091). Everything above ran on a host that does not draw a view's
+  // controls. On one that does, the view draws none of its own and no page title: it declares
+  // them, Nendo sends a press back as a command, and a right-click on a component asks for
+  // Nendo's menu. The fixture reads each declaration by the Workbench's own rules and refuses
+  // what Nendo would refuse. The take-out claim is asked again from Nendo's toolbar and menu.
+  await page.setViewportSize({ width: 1024, height: 700 });
+  const plain = view;
+  await page.evaluate(value => { window.broker.offerChrome(true); window.broker.setFixture(value); window.broker.remount(); }, fixture(projection));
+  view = await frameOf(plain);
+  await until(() => document.querySelectorAll('.node').length === 12, undefined, 'With Nendo drawing its controls, the schematic never drew its components.');
+  const refusals = () => page.evaluate(() => window.broker.chromeRefusals);
+  const lastToolbar = () => page.evaluate(() => window.broker.toolbars.at(-1) ?? null);
+  const declaredWhere = async (test, message) => {
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const last = await lastToolbar();
+      if (last !== null && test(last)) return last;
+      await page.waitForTimeout(25);
+    }
+    throw new Error(message + ' The last toolbar declared: ' + JSON.stringify(await lastToolbar()).slice(0, 600)
+      + ' Refused by Nendo’s rules: ' + JSON.stringify(await refusals()));
+  };
+  const item = (toolbar, id) => toolbar.items.find(entry => entry.id === id);
+  const shape = toolbar => toolbar.items.map(entry => entry.kind === 'group'
+    ? `group:${entry.items.map(child => child.id + (child.keys ? '@' + child.keys : '')).join(',')}`
+    : `${entry.kind}${entry.id ? ':' + entry.id : ''}${entry.keys ? '@' + entry.keys : ''}`);
+  let declared = await declaredWhere(() => true, 'The view declared no toolbar.');
+  assert((await refusals()).length === 0, 'Nendo would refuse what the view declared: ' + JSON.stringify(await refusals()));
+  assert(JSON.stringify(shape(declared)) === JSON.stringify(['toggle:focus', 'toggle:takeout', 'spacer',
+    'group:zoom-out@Ctrl+-,fit@Ctrl+0,zoom-in@Ctrl+Plus', 'separator', 'toggle:text']), 'The view declared another toolbar: ' + JSON.stringify(shape(declared)));
+  assert(item(declared, 'takeout').disabled === true, 'Take out was offered with nothing selected.');
+  const own = await view.evaluate(() => ({ native: document.documentElement.classList.contains('native-chrome'),
+    tools: getComputedStyle(document.querySelector('.tools')).display, title: getComputedStyle(document.querySelector('h1')).display }));
+  assert(JSON.stringify(own) === JSON.stringify({ native: true, tools: 'none', title: 'none' }),
+    'The view still draws its own controls or title on a host that draws them: ' + JSON.stringify(own));
+
+  // A command is a press of the control it stands for, and the toolbar follows.
+  const command = (id, value = null, source = 'toolbar') => page.evaluate(([id, value, source]) => window.broker.command(id, value, source), [id, value, source]);
+  exactlyOne(await opens(() => view.locator('.node[data-id="pumpA"]').click()), 'pumpA', 'Selecting pump A did not open it once:');
+  await declaredWhere(last => item(last, 'takeout')?.disabled === false, 'Take out stayed unavailable with a component selected.');
+  await command('takeout', true);
+  await until(() => document.querySelector('.node[data-id="pumpA"]').classList.contains('removed'), undefined, 'Take out in Nendo’s toolbar took nothing out.');
+  const fromToolbar = await verdicts();
+  assert(JSON.stringify(fromToolbar.exposed) === JSON.stringify(['chiller', 'plate']) && JSON.stringify(fromToolbar.reduced) === JSON.stringify(['hx', 'manifold', 'rad', 'rad2', 'valve']),
+    'Take out from Nendo’s toolbar did not ask the same question: ' + JSON.stringify(fromToolbar));
+  assert(await view.locator('#caveat').isVisible(), 'Take out from Nendo’s toolbar did not show what it does and does not claim.');
+  await declaredWhere(last => item(last, 'takeout')?.pressed === true && item(last, 'takeout')?.label === 'Put back', 'The toolbar did not follow the take-out.');
+  await command('takeout', false);
+  await until(() => document.querySelectorAll('.node.removed').length === 0, undefined, 'Put back in Nendo’s toolbar did not put the component back.');
+  await command('focus', true);
+  await until(() => document.getElementById('drawing').classList.contains('focused'), undefined, 'Focus in Nendo’s toolbar did not focus.');
+  await declaredWhere(last => item(last, 'focus')?.pressed === true, 'The toolbar did not follow Focus.');
+  await command('focus', false);
+  await command('text', true);
+  await until(() => !document.getElementById('text-view').hidden, undefined, 'The text command did not show the text view.');
+  declared = await declaredWhere(last => item(last, 'text')?.pressed === true, 'The toolbar did not follow the text view.');
+  assert(!declared.items.some(entry => entry.kind === 'group'), 'The text view still declares the zoom.');
+  await command('text', false);
+  await until(() => document.getElementById('text-view').hidden, undefined, 'The text command did not return to the schematic.');
+  const unzoomed = await view.locator('#drawing').getAttribute('transform');
+  await command('zoom-in');
+  await until(before => document.getElementById('drawing').getAttribute('transform') !== before, unzoomed, 'Zoom in from Nendo’s toolbar did not zoom.');
+  await command('fit');
+
+  // A right-click on a component asks Nendo for its menu, and each pick does what it says.
+  const menuAt = async (id, pick) => {
+    const before = (await page.evaluate(() => window.broker.menus)).length;
+    await page.evaluate(value => window.broker.pickNext(value), pick);
+    const browserMenu = await view.evaluate(id => {
+      const node = document.querySelector(`.node[data-id="${id}"]`), box = node.getBoundingClientRect();
+      return node.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: box.left + 12, clientY: box.top + 12, button: 2 }));
+    }, id);
+    assert(browserMenu === false, 'The browser’s own menu was left to open over Nendo’s.');
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const all = await page.evaluate(() => window.broker.menus);
+      if (all.length > before) return all.at(-1).items.map(entry => [entry.id ?? entry.kind, entry.label ?? null]);
+      await page.waitForTimeout(25);
+    }
+    throw new Error('A right-click on a component asked Nendo for no menu. Refused by Nendo’s rules: ' + JSON.stringify(await refusals()));
+  };
+  let menu = await menuAt('manifold', { id: 'take-out', value: null });
+  assert(JSON.stringify(menu) === JSON.stringify([['open', 'Open component'], ['separator', null], ['take-out', 'Take it out']]),
+    'The component menu is not Open and Take it out: ' + JSON.stringify(menu));
+  await until(() => document.querySelector('.node[data-id="manifold"]').classList.contains('removed'), undefined, 'Take it out from the menu took nothing out.');
+  const fromMenu = await verdicts();
+  assert(JSON.stringify(fromMenu.exposed) === JSON.stringify(['hx', 'rad', 'rad2', 'valve']) && fromMenu.reduced.length === 0,
+    'Take it out from the menu did not ask the question about the manifold: ' + JSON.stringify(fromMenu));
+  menu = await menuAt('manifold', { id: 'put-back', value: null });
+  assert(JSON.stringify(menu.at(-1)) === JSON.stringify(['put-back', 'Put it back']), 'The taken-out component’s menu does not offer to put it back: ' + JSON.stringify(menu));
+  await until(() => document.querySelectorAll('.node.removed').length === 0, undefined, 'Put it back from the menu did not put the component back.');
+  let pickedOpen = null;
+  exactlyOne(await opens(async () => { pickedOpen = await menuAt('chiller', { id: 'open', value: null }); }), 'chiller', 'Open picked from the menu did not open the component, once:');
+  assert(pickedOpen[0][0] === 'open', 'The component menu does not start with Open: ' + JSON.stringify(pickedOpen));
+  assert((await refusals()).length === 0, 'Nendo would refuse what the view declared or asked for: ' + JSON.stringify(await refusals()));
+  await page.screenshot({ path: root + '/artifacts/extension-runtime-results/systems-lens-native-chrome.png' });
+  await page.evaluate(() => window.broker.offerChrome(false));
 
   assert(errors.length === 0, 'The view raised: ' + errors.join(' | '));
   return 'systems lens ok ' + JSON.stringify({ themes: { light: lightColour, dark: darkColour }, burstReads: burst, continuationPages: continued });

@@ -231,6 +231,76 @@ async (page) => {
   const methods = [...new Set((await requests()).map(r => r.m))].sort();
   assert(JSON.stringify(methods) === JSON.stringify(['records.get', 'records.query', 'schema.describe', 'ui.openRecord']),
     'The chart asked for something other than reads and opening a record: ' + JSON.stringify(methods));
+
+  // ---- Nendo's own chrome (W-091). Everything above ran on a host that does not draw a view's
+  // controls. On one that does, the chart's title gives way to Nendo's breadcrumb, Nendo's
+  // toolbar carries a Find box, and a right-click on a row asks for Nendo's menu. The fixture
+  // reads each declaration by the Workbench's own rules and refuses what Nendo would refuse.
+  await page.setViewportSize({ width: 1024, height: 700 });
+  previous = view;
+  await page.evaluate(value => { window.broker.offerChrome(true); window.broker.setFixture(value); window.broker.remount(); }, fixture({ records: set }));
+  view = await frameOf(previous);
+  await showing(setSummary, 'With Nendo drawing its controls, the chart never drew its records.');
+  const refusals = () => page.evaluate(() => window.broker.chromeRefusals);
+  const lastToolbar = () => page.evaluate(() => window.broker.toolbars.at(-1) ?? null);
+  const declaredWhere = async (test, message) => {
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const last = await lastToolbar();
+      if (last !== null && test(last)) return last;
+      await page.waitForTimeout(25);
+    }
+    throw new Error(message + ' The last toolbar declared: ' + JSON.stringify(await lastToolbar()).slice(0, 600)
+      + ' Refused by Nendo’s rules: ' + JSON.stringify(await refusals()));
+  };
+  const shape = toolbar => (Array.isArray(toolbar) ? toolbar : toolbar.items).map(item => `${item.kind}${item.id ? ':' + item.id : ''}${item.keys ? '@' + item.keys : ''}`);
+  const declared = await declaredWhere(last => last.items.length > 0, 'The chart declared no toolbar on a screen.');
+  assert((await refusals()).length === 0, 'Nendo would refuse what the chart declared: ' + JSON.stringify(await refusals()));
+  assert(JSON.stringify(shape(declared)) === JSON.stringify(['search:find@Ctrl+F']), 'The chart declared another toolbar: ' + JSON.stringify(shape(declared)));
+  const own = await view.evaluate(() => ({ native: document.documentElement.classList.contains('native-chrome'), title: getComputedStyle(document.querySelector('h1')).display }));
+  assert(JSON.stringify(own) === JSON.stringify({ native: true, title: 'none' }), 'The chart still draws its own title on a host that names the screen: ' + JSON.stringify(own));
+
+  // Find is Nendo's search box: rows that do not hold the text step back, and the same text
+  // again, which is what Enter sends, opens the first row that does.
+  const command = (id, value, source = 'toolbar') => page.evaluate(([id, value, source]) => window.broker.command(id, value, source), [id, value, source]);
+  const dimmed = () => view.evaluate(() => [...document.querySelectorAll('.row.dimmed')].map(row => row.dataset.id).sort());
+  await command('find', 'task');
+  await until(() => document.querySelectorAll('.row.dimmed').length > 0, undefined, 'Find in Nendo’s toolbar dimmed no row.');
+  assert(JSON.stringify(await dimmed()) === JSON.stringify(['markup', 'moment']), 'Find dimmed the wrong rows: ' + JSON.stringify(await dimmed()));
+  exactlyOne(await opens(() => command('find', 'task')), 'long', 'The same text again did not open the first row that holds it, once:');
+  await command('find', '');
+  await until(() => document.querySelectorAll('.row.dimmed').length === 0, undefined, 'Clearing Find left rows dimmed.');
+
+  // A right-click on a row asks Nendo for its menu instead of the browser's, and Open opens it.
+  const menusBefore = (await page.evaluate(() => window.broker.menus)).length;
+  await page.evaluate(() => window.broker.pickNext({ id: 'open', value: null }));
+  let browserMenu = null;
+  const fromMenu = await opens(async () => {
+    browserMenu = await view.evaluate(() => {
+      const row = document.querySelector('.row[data-id="late"]'), box = row.getBoundingClientRect();
+      return row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: box.left + 12, clientY: box.top + 8, button: 2 }));
+    });
+  });
+  assert(browserMenu === false, 'The browser’s own menu was left to open over Nendo’s.');
+  const menus = await page.evaluate(() => window.broker.menus);
+  assert(menus.length === menusBefore + 1 && JSON.stringify(menus.at(-1).items.map(item => [item.id, item.label])) === JSON.stringify([['open', 'Open record']]),
+    'A right-click on a row did not ask Nendo for its menu with Open: ' + JSON.stringify(menus.slice(menusBefore)));
+  exactlyOne(fromMenu, 'late', 'Open picked from Nendo’s menu did not open the row, once:');
+  assert((await refusals()).length === 0, 'Nendo would refuse the menu the chart asked for: ' + JSON.stringify(await refusals()));
+  await page.screenshot({ path: root + '/artifacts/extension-runtime-results/gantt-native-chrome.png' });
+
+  // A chart of one on a record page has nothing to find: it declares nothing, and a right-click
+  // there asks for no menu.
+  previous = view;
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.remount(); },
+    fixture({ records: [job('solo', 'Solo', '2026-12-01', '2026-12-10')], recordId: 'solo' }));
+  view = await frameOf(previous);
+  await showing('2026-12-01 to 2026-12-10 · 10 days', 'With Nendo drawing its controls, the record page never drew its record.');
+  await declaredWhere(last => last.items.length === 0, 'The chart of one on a record page declared a toolbar.');
+  const pageMenusBefore = (await page.evaluate(() => window.broker.menus)).length;
+  const pageMenu = await view.evaluate(() => document.querySelector('.row').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 })));
+  await page.waitForTimeout(200);
+  assert(pageMenu === true && (await page.evaluate(() => window.broker.menus)).length === pageMenusBefore, 'A right-click on the record page’s own record asked Nendo for a menu.');
+  await page.evaluate(() => window.broker.offerChrome(false));
   assert(errors.length === 0, 'The view raised: ' + errors.join(' | '));
   return 'gantt ok ' + JSON.stringify({ themes: { light: lightColour, dark: darkColour }, burstReads: burst });
 }

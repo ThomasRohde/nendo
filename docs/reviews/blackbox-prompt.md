@@ -849,6 +849,14 @@ vocabulary, the examples and the resources — and not from the person.
 - Author a view that declares its toolbar through `nendo.ui.setToolbar`, with a label that
   looks like markup, a key Nendo already uses, and 33 controls. Record what the wire told
   you before you wrote it, what Nendo said about each, and what it kept drawing.
+- Bring Nendo Station's Systems Lens up to the repository's version, and put the
+  repository's `dependency-graph` and `gantt` packages into the empty review file with a
+  view of each. Record, for each view, whether any control or title of its own is left
+  inside its frame, what Nendo's toolbar offers for it, and what a right-click on a
+  component, a record or a Gantt row offers. In the Lens, select a component and press Take
+  out in Nendo's toolbar, then take out another from its right-click menu, and record
+  whether the caveat and the verdicts read the same both ways. In the Gantt, type in Find,
+  press Enter, and record what dimmed and what opened.
 - Put the repository's `extensions/bcm-atlas` package into the empty review file. Give a
   record type a reference to itself, declare it as the hierarchy, and add records three
   levels deep. Show the package over that record type with a view whose configuration

@@ -10,6 +10,8 @@
   let width = 800, height = 500, scale = 1, offsetX = 0, offsetY = 0, drag = null;
   // Reads are numbered so an answer that arrives after a newer read has started is dropped.
   let latest = 0, pending = null;
+  // True where Nendo draws this view's controls in its own toolbar (W-091).
+  let nativeChrome = false;
   const positions = new Map();
   function shape(name, attributes, text) {
     const item = document.createElementNS('http://www.w3.org/2000/svg', name);
@@ -164,14 +166,16 @@
   function applyTheme(theme) {
     if (theme?.mode === 'light' || theme?.mode === 'dark') document.documentElement.dataset.theme = theme.mode;
   }
+  function setTextShown(show) {
+    element('text-view').hidden = !show; canvas.hidden = show;
+    element('text-toggle').setAttribute('aria-expanded', String(show)); element('text-toggle').textContent = show ? 'Graph view' : 'Text view';
+    if (!show) fit();
+    declareToolbar();
+  }
   element('zoom-in').addEventListener('click', () => zoom(1.25));
   element('zoom-out').addEventListener('click', () => zoom(.8));
   element('reset').addEventListener('click', fit);
-  element('text-toggle').addEventListener('click', () => {
-    const show = element('text-view').hidden; element('text-view').hidden = !show; canvas.hidden = show;
-    element('text-toggle').setAttribute('aria-expanded', String(show)); element('text-toggle').textContent = show ? 'Graph view' : 'Text view';
-    if (!show) fit();
-  });
+  element('text-toggle').addEventListener('click', () => setTextShown(element('text-view').hidden));
   canvas.addEventListener('wheel', event => { event.preventDefault(); const r = canvas.getBoundingClientRect(); zoom(event.deltaY < 0 ? 1.1 : 1 / 1.1, event.clientX - r.left, event.clientY - r.top); }, { passive: false });
   canvas.addEventListener('pointerdown', event => {
     if (event.button !== 0 || event.target.closest('.node')) return;
@@ -190,12 +194,78 @@
     event.preventDefault();
   });
   new ResizeObserver(() => { if (loaded && !canvas.hidden) fit(); }).observe(canvas);
+
+  // --- Nendo's own chrome (W-091) ---------------------------------------------------------
+  //
+  // Where the host offers it, this view does not draw its controls: it declares them, and
+  // Nendo draws them in the toolbar every screen has, lists them in Ctrl K with their keys and
+  // sends a press back as a command. A right-click on a record opens Nendo's menu. The page's
+  // title gives way to Nendo's own breadcrumb.
+
+  function declareToolbar() {
+    if (!nativeChrome) return;
+    const textShown = !element('text-view').hidden;
+    const items = [{ kind: 'spacer' }];
+    if (!textShown) {
+      items.push({ kind: 'group', label: 'Zoom', items: [
+        { kind: 'button', id: 'zoom-out', label: 'Zoom out', icon: 'minus', iconOnly: true, keys: 'Ctrl+-' },
+        { kind: 'button', id: 'fit', label: 'Fit', keys: 'Ctrl+0' },
+        { kind: 'button', id: 'zoom-in', label: 'Zoom in', icon: 'plus', iconOnly: true, keys: 'Ctrl+Plus' },
+      ] }, { kind: 'separator' });
+    }
+    items.push({ kind: 'toggle', id: 'text', label: 'Text view', icon: 'list', pressed: textShown });
+    nendo.ui.setToolbar(items).catch(error => leaveNativeChrome(describe(error)));
+  }
+
+  // A Nendo that refuses the declaration leaves the view its own controls, and says why.
+  function leaveNativeChrome(reason) {
+    if (!nativeChrome) return;
+    nativeChrome = false;
+    document.documentElement.classList.remove('native-chrome');
+    nendo.ui.setToolbar([]).catch(() => undefined);
+    element('selection').textContent = `Nendo could not show this graph's controls, so the graph shows its own: ${reason}`;
+  }
+
+  function runCommand({ id, value }) {
+    if (id === 'zoom-in') zoom(1.25);
+    else if (id === 'zoom-out') zoom(.8);
+    else if (id === 'fit') fit();
+    else if (id === 'text') setTextShown(value === true);
+  }
+
+  canvas.addEventListener('contextmenu', event => {
+    if (!nativeChrome || !nendo.has('ui.showMenu')) return;
+    const group = event.target.closest('.node');
+    if (group === null) return;
+    event.preventDefault();
+    let at = event;
+    // The keyboard's menu key names no point: the menu opens at the record.
+    if (event.clientX === 0 && event.clientY === 0) {
+      const box = group.getBoundingClientRect();
+      at = { x: box.left + 8, y: box.bottom - 4 };
+    }
+    const id = group.dataset.id;
+    highlight(id);
+    nendo.ui.showMenu([{ id: 'open', label: 'Open record', icon: 'external' }], at)
+      .then(pick => { if (pick?.id === 'open') select(id); })
+      .catch(error => { element('selection').textContent = describe(error); });
+  });
+
+  function adoptNativeChrome() {
+    if (typeof nendo.has !== 'function' || !nendo.has('ui.setToolbar')) return;
+    nativeChrome = true;
+    document.documentElement.classList.add('native-chrome');
+    nendo.on('command', command => { try { runCommand(command); } catch (error) { element('selection').textContent = describe(error); } });
+    declareToolbar();
+  }
+
   if (nendo === undefined) {
     element('summary').textContent = 'This graph runs inside Nendo. Open the screen that shows it.';
     return;
   }
   nendo.ready.then(context => {
     document.documentElement.lang = context.locale || 'en';
+    adoptNativeChrome();
     applyTheme(nendo.ui.theme);
     nendo.on('theme', applyTheme);
     // A new context can name other fields or another record type: read again under it.

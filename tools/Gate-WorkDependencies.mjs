@@ -507,6 +507,9 @@ async (page) => {
   const ranFromMenu = (await page.evaluate(() => window.broker.commandsRun())).slice(ranBeforeMenu);
   assert(ranFromMenu.length === 1 && ranFromMenu[0].commandId === 'cmd.plan' && ranFromMenu[0].recordId === 'a',
     'Plan now picked from the menu did not run on the item: ' + JSON.stringify(ranFromMenu));
+  // The fixture read every toolbar and menu above by the Workbench's own rules (W-091).
+  const refused = await page.evaluate(() => window.broker.chromeRefusals);
+  assert(refused.length === 0, 'Nendo would refuse what the view declared or asked for: ' + JSON.stringify(refused));
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/work-dependencies-native-chrome.png' });
   await page.evaluate(() => window.broker.offerChrome(false));
   assert(errors.length === 0, 'The view raised: ' + errors.join(' | '));

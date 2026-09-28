@@ -1,12 +1,14 @@
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 // Two origins for one custom-view package, as a package meets them in Nendo (ADR-0013):
 //  - the view origin serves the package folder the way the host serves a package from a file,
 //    with /_nendo/api.js from the Workbench build (src/Nendo.Workbench/dist/_nendo/api.js);
 //  - the broker origin serves Graph-FixtureBroker.html, which frames the view origin and
-//    answers it from fixture data as the Workbench's broker does.
+//    answers it from fixture data as the Workbench's broker does, and /toolbar-rules.js: the
+//    Workbench's own rules for a view's toolbar and menu (view-toolbar-model.ts), built here,
+//    so the broker refuses a declaration exactly as Nendo would (W-091).
 // argv[2] is where to write {pid, viewOrigin, brokerUrl}; argv[3] names the package folder,
 // relative to this file, defaulting to the offline dependency graph.
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -22,6 +24,22 @@ if (typeof manifest.packageId !== 'string' || typeof manifest.title !== 'string'
 const entryPoint = manifest.entryPoint ?? 'index.html';
 const brokerPage = await fs.readFile(path.join(here, 'Graph-FixtureBroker.html'), 'utf8');
 if (!brokerPage.includes("'__FIXTURE_CONFIG__'")) throw new Error('Graph-FixtureBroker.html has no configuration placeholder.');
+
+// The module the Workbench's broker reads a declaration with, bundled with the Workbench's own
+// Vite as its tests bundle it. Started now and awaited by the first request for it, so the
+// server announces itself without waiting for the build.
+const workbench = path.join(repository, 'src', 'Nendo.Workbench');
+const toolbarRules = (async () => {
+  const { build } = await import(pathToFileURL(path.join(workbench, 'node_modules', 'vite', 'dist', 'node', 'index.js')).href);
+  const bundle = await build({
+    root: workbench, configFile: false, logLevel: 'error',
+    build: { ssr: path.join(workbench, 'src', 'view-toolbar-model.ts'), write: false, rollupOptions: { output: { codeSplitting: false } } },
+  });
+  const chunk = (Array.isArray(bundle) ? bundle[0] : bundle).output.find(item => item.type === 'chunk');
+  if (chunk === undefined || !/\breadToolbar\b/.test(chunk.code) || !/\breadMenu\b/.test(chunk.code)) throw new Error('The toolbar rules did not build.');
+  return chunk.code;
+})();
+toolbarRules.catch(error => console.error(`The toolbar rules could not be built: ${error.message}`));
 
 const types = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
@@ -56,10 +74,11 @@ async function serveView(request, response) {
   }
 }
 
-function serveBroker(request, response, config) {
+async function serveBroker(request, response, config) {
   const pathname = new URL(request.url, 'http://broker').pathname;
   if (pathname === '/' || pathname === '/broker.html')
     return send(response, 200, 'text/html', brokerPage.replace("'__FIXTURE_CONFIG__'", JSON.stringify(config)));
+  if (pathname === '/toolbar-rules.js') return send(response, 200, 'text/javascript', await toolbarRules);
   if (pathname === '/favicon.ico') { response.writeHead(204); response.end(); return undefined; }
   return send(response, 404, 'text/plain', 'Not found');
 }

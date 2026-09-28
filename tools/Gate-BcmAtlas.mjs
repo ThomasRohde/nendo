@@ -558,6 +558,9 @@ async (page) => {
     'The card menu holds ' + JSON.stringify(results.chrome.menu));
   assert(menu.x > 0 && menu.y > 0, 'The menu was not asked for at the pointer: ' + JSON.stringify([menu.x, menu.y]));
   await until(() => document.getElementById('breadcrumbs').textContent.includes('Customer & market'), null, 'Picking Focus this group did not focus it.');
+  // The fixture read every toolbar and menu above by the Workbench's own rules (W-091).
+  const refused = await page.evaluate(() => window.broker.chromeRefusals);
+  assert(refused.length === 0, 'Nendo would refuse what the Atlas declared or asked for: ' + JSON.stringify(refused));
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/bcm-atlas-native-chrome.png' });
   await page.evaluate(() => window.broker.offerChrome(false));
   assert(errors.length === 0, 'The view raised with Nendo\u2019s chrome: ' + errors.join(' | '));

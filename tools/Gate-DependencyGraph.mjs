@@ -37,9 +37,9 @@ async (page) => {
   };
 
   let view = null;
-  const frameOf = async () => {
+  const frameOf = async (previous = null) => {
     for (let attempt = 0; attempt < 200; attempt += 1) {
-      const frame = page.frames().find(candidate => candidate.url().startsWith(origin + '/'));
+      const frame = page.frames().find(candidate => candidate !== previous && !candidate.isDetached() && candidate.url().startsWith(origin + '/'));
       if (frame !== undefined) { await frame.waitForSelector('#summary'); return frame; }
       await page.waitForTimeout(25);
     }
@@ -151,6 +151,13 @@ async (page) => {
   assert(await view.locator('html').getAttribute('data-theme') === 'dark', 'Theme update was ignored.');
   const darkColour = await view.evaluate(() => getComputedStyle(document.body).backgroundColor);
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/graph-dark-text.png' });
+  // The colours are the Workbench's own (W-091): a token the Workbench sends is the colour the
+  // graph draws with, as it is for the Gantt and the Systems Lens.
+  await page.evaluate(() => window.broker.pushTheme({ mode: 'dark', tokens: { ...window.broker.themes.dark, canvas: '#010203', 'surface-raised': '#040506' } }));
+  await until(() => getComputedStyle(document.body).backgroundColor === 'rgb(1, 2, 3)', undefined, 'The graph does not draw with the Workbench\'s canvas token.');
+  assert(await view.evaluate(() => getComputedStyle(document.getElementById('text-view')).backgroundColor) === 'rgb(4, 5, 6)',
+    'The graph\'s panel does not draw with the Workbench\'s surface token.');
+  await page.evaluate(() => window.broker.pushTheme('dark'));
   await view.getByRole('button', { name: 'Graph view', exact: true }).click();
 
   // The file changes. The graph reads again only when Nendo says so, keeps the selected record
@@ -219,6 +226,72 @@ async (page) => {
   const methods = [...new Set((await requests()).map(r => r.m))].sort();
   assert(JSON.stringify(methods) === JSON.stringify(['records.query', 'schema.describe', 'ui.openRecord']),
     'The graph asked for something other than reads and opening a record: ' + JSON.stringify(methods));
+
+  // ---- Nendo's own chrome (W-091). Everything above ran on a host that does not draw a view's
+  // controls. On one that does, the graph draws none of its own and no page title: it declares
+  // them, Nendo sends a press back as a command, and a right-click on a record asks for Nendo's
+  // menu. The fixture reads each declaration by the Workbench's own rules and refuses what
+  // Nendo would refuse.
+  await page.setViewportSize({ width: 960, height: 640 });
+  const plain = view;
+  await page.evaluate(value => { window.broker.offerChrome(true); window.broker.setFixture(value); window.broker.remount(); }, fixture(projection));
+  view = await frameOf(plain);
+  await until(() => document.querySelectorAll('.node').length === 3, undefined, 'With Nendo drawing its controls, the graph never drew its records.');
+  const refusals = () => page.evaluate(() => window.broker.chromeRefusals);
+  const lastToolbar = () => page.evaluate(() => window.broker.toolbars.at(-1) ?? null);
+  const declaredWhere = async (test, message) => {
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const last = await lastToolbar();
+      if (last !== null && test(last)) return last;
+      await page.waitForTimeout(25);
+    }
+    throw new Error(message + ' The last toolbar declared: ' + JSON.stringify(await lastToolbar()).slice(0, 600)
+      + ' Refused by Nendo’s rules: ' + JSON.stringify(await refusals()));
+  };
+  const shape = toolbar => toolbar.items.map(entry => entry.kind === 'group'
+    ? `group:${entry.items.map(child => child.id + (child.keys ? '@' + child.keys : '')).join(',')}`
+    : `${entry.kind}${entry.id ? ':' + entry.id : ''}${entry.keys ? '@' + entry.keys : ''}`);
+  let declared = await declaredWhere(() => true, 'The graph declared no toolbar.');
+  assert((await refusals()).length === 0, 'Nendo would refuse what the graph declared: ' + JSON.stringify(await refusals()));
+  assert(JSON.stringify(shape(declared)) === JSON.stringify(['spacer', 'group:zoom-out@Ctrl+-,fit@Ctrl+0,zoom-in@Ctrl+Plus', 'separator', 'toggle:text']),
+    'The graph declared another toolbar: ' + JSON.stringify(shape(declared)));
+  const own = await view.evaluate(() => ({ native: document.documentElement.classList.contains('native-chrome'),
+    tools: getComputedStyle(document.querySelector('.tools')).display, title: getComputedStyle(document.querySelector('h1')).display }));
+  assert(JSON.stringify(own) === JSON.stringify({ native: true, tools: 'none', title: 'none' }),
+    'The graph still draws its own controls or title on a host that draws them: ' + JSON.stringify(own));
+
+  // A command is a press of the control it stands for, and the toolbar follows.
+  const command = (id, value = null, source = 'toolbar') => page.evaluate(([id, value, source]) => window.broker.command(id, value, source), [id, value, source]);
+  const unzoomed = await view.locator('#drawing').getAttribute('transform');
+  await command('zoom-in');
+  await until(before => document.getElementById('drawing').getAttribute('transform') !== before, unzoomed, 'Zoom in from Nendo’s toolbar did not zoom.');
+  await command('fit');
+  await until(before => document.getElementById('drawing').getAttribute('transform') === before, unzoomed, 'Fit from Nendo’s toolbar did not fit the graph again.');
+  await command('text', true);
+  await until(() => !document.getElementById('text-view').hidden, undefined, 'The text command did not show the text view.');
+  declared = await declaredWhere(last => last.items.find(entry => entry.id === 'text')?.pressed === true, 'The toolbar did not follow the text view.');
+  assert(!declared.items.some(entry => entry.kind === 'group'), 'The text view still declares the zoom.');
+  await command('text', false);
+  await until(() => document.getElementById('text-view').hidden, undefined, 'The text command did not return to the graph.');
+
+  // A right-click on a record asks Nendo for its menu instead of the browser's, and Open opens it.
+  const menusBefore = (await page.evaluate(() => window.broker.menus)).length;
+  await page.evaluate(() => window.broker.pickNext({ id: 'open', value: null }));
+  let browserMenu = null;
+  const fromMenu = await opens(async () => {
+    browserMenu = await view.evaluate(() => {
+      const node = document.querySelector('.node[data-id="b"]'), box = node.getBoundingClientRect();
+      return node.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: box.left + 12, clientY: box.top + 12, button: 2 }));
+    });
+  });
+  assert(browserMenu === false, 'The browser’s own menu was left to open over Nendo’s.');
+  const menus = await page.evaluate(() => window.broker.menus);
+  assert(menus.length === menusBefore + 1 && JSON.stringify(menus.at(-1).items.map(entry => [entry.id, entry.label])) === JSON.stringify([['open', 'Open record']]),
+    'A right-click on a record did not ask Nendo for its menu with Open: ' + JSON.stringify(menus.slice(menusBefore)));
+  exactlyOne(fromMenu, 'b', 'Open picked from Nendo’s menu did not open the record, once:');
+  assert((await refusals()).length === 0, 'Nendo would refuse the menu the graph asked for: ' + JSON.stringify(await refusals()));
+  await page.screenshot({ path: root + '/artifacts/extension-runtime-results/graph-native-chrome.png' });
+  await page.evaluate(() => window.broker.offerChrome(false));
   assert(errors.length === 0, 'Graph raised browser errors: ' + errors.join('; '));
   return JSON.stringify({ nodes: 3, edges: 4, handshake: true, openRecord: true, keyboard: true, zoom: true, textAlternative: true,
     themes: { light: lightColour, dark: darkColour }, rereadAfterChange: true, burstReads: burst, selectionKept: true,

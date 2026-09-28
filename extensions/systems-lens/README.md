@@ -19,6 +19,15 @@ What it shows that a list cannot:
 
 Selecting a component asks Nendo to open it.
 
+## In Nendo's toolbar
+
+On a Nendo that offers it, this view draws no controls and no title of its own. Focus,
+Take out (Put back while a component is out), the zoom (Ctrl − and Ctrl + zoom, Ctrl 0
+fits) and Text view are in Nendo's toolbar above the schematic, in Ctrl K under the view's
+title, and on their keys. A right-click on a component opens Nendo's menu, with Open
+component and Take it out, or Put it back for the one that is out. The caveat stays the
+view's own. On an older Nendo the view shows its own controls, as it always has.
+
 ## Take out, and the line it does not cross
 
 Select a component and press **Take out**. The lens recomputes what the declared sources
@@ -40,7 +49,8 @@ it did. A banner states, while the mode is on and not dismissibly:
 Three refusals hold that line:
 
 - **Nothing is written.** Take-out is page state, cleared by Escape and by every re-read of
-  the file, and the view asks Nendo for reads and for opening a record, nothing else.
+  the file, and the view asks Nendo for reads, for opening a record and, where Nendo offers
+  them, for its toolbar and menu, nothing else.
 - **Stored state does not propagate.** A component already Offline is outlined so it can
   be seen, and is *not* treated as removed. Colour is what the file says; take-out is what
   somebody asked. Merging the two would make the lens assert a failure model it has not got.
@@ -69,7 +79,9 @@ Everything arrives through `window.nendo`, which `<script src="/_nendo/api.js">`
   `lens.css` are used only when the page runs without them.
 - The `changes` event: the lens reads again a quarter of a second after the file changes,
   ends any take-out, and keeps the selected component selected while it is still there.
-- `nendo.ui.openRecord(entityId, recordId)`: opening the selected component.
+- `nendo.ui.openRecord(entityId, recordId)`: opening the selected component;
+- where the host offers them, `nendo.ui.setToolbar`, `nendo.ui.showMenu` and the `command`
+  event, for the controls and the menu above.
 
 A read that Nendo refuses is shown in the summary line.
 
@@ -99,7 +111,10 @@ a record, Focus dimming, keyboard traversal, non-selectable chrome, a re-read on
 `changes` event that ends a take-out and keeps the selection, one read for a burst of
 changes, a dark `theme` event and a canvas token changing the measured colour, the empty
 state, 500 components and 999 feeds read in pages, a refused read shown as text and a
-512×384 window. It runs inside `Test-Production.ps1`.
+512×384 window. Then it measures the view again on a broker that offers Nendo's toolbar:
+no controls or title of its own, the toolbar it declares, which the broker reads by the
+Workbench's own rules, each command, both take-out verdicts asked from the toolbar and from
+the component menu, and Open from that menu. It runs inside `Test-Production.ps1`.
 
 When the verdict assertion was written it was falsified: with every component downstream of
 the removed one counted as exposed, the lane reported seven exposed and none still fed,

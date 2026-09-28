@@ -8,7 +8,9 @@
   // Nendo to open it.
   const DAY = 86400000;
   const nendo = window.nendo;
-  let selected = null, records = [];
+  let selected = null, records = [], single = false, query = '';
+  // True where Nendo draws this view's controls in its own toolbar (W-091).
+  let nativeChrome = false;
   // Reads are numbered so an answer that arrives after a newer read has started is dropped.
   let latest = 0, pending = null;
   const element = id => document.getElementById(id);
@@ -34,8 +36,9 @@
     records = projection.records;
     // On a record page the box is small and the record is already the page's: no title,
     // no instructions about selecting, and the label above its bar rather than cut beside it.
-    const single = projection.single;
+    single = projection.single;
     document.body.classList.toggle('single', single);
+    declareToolbar();
     element('rows').replaceChildren();
     element('axis').replaceChildren();
     element('selection').textContent = 'No record selected';
@@ -113,6 +116,22 @@
       element('rows').append(item);
     }
     if (keep !== null && placed.some(p => p.record.id === keep)) highlight(keep);
+    find();
+  }
+
+  // Rows whose label or detail holds the text stay as they are, and the rest step back. Nothing
+  // is hidden, so a row can still be picked while it does not match.
+  function matches() {
+    const text = query.trim().toLowerCase();
+    if (text === '') return [];
+    return [...document.querySelectorAll('.row')].filter(row => row.querySelector('.label').textContent.toLowerCase().includes(text));
+  }
+  function find() {
+    const found = new Set(matches());
+    const searching = query.trim() !== '';
+    for (const row of document.querySelectorAll('.row')) row.classList.toggle('dimmed', searching && !found.has(row));
+    const first = [...found][0];
+    if (first !== undefined) first.scrollIntoView({ block: 'nearest' });
   }
 
   function highlight(id) {
@@ -193,12 +212,74 @@
     if (theme?.mode === 'light' || theme?.mode === 'dark') document.documentElement.dataset.theme = theme.mode;
   }
 
+  // --- Nendo's own chrome (W-091) ---------------------------------------------------------
+  //
+  // Where the host offers it, the chart's title gives way to Nendo's breadcrumb, Nendo's
+  // toolbar carries a Find box with Ctrl F, and a right-click on a row opens Nendo's menu. A
+  // chart of one on a record page has nothing to find and declares nothing.
+
+  function declareToolbar() {
+    if (!nativeChrome) return;
+    const items = single ? [] : [{ kind: 'search', id: 'find', label: 'Find a record', placeholder: 'Find…', value: query.slice(0, 256), keys: 'Ctrl+F' }];
+    nendo.ui.setToolbar(items).catch(error => leaveNativeChrome(describe(error)));
+  }
+
+  // A Nendo that refuses the declaration leaves the chart as it was, and says why.
+  function leaveNativeChrome(reason) {
+    if (!nativeChrome) return;
+    nativeChrome = false;
+    document.documentElement.classList.remove('native-chrome');
+    query = ''; find();
+    nendo.ui.setToolbar([]).catch(() => undefined);
+    element('selection').textContent = `Nendo could not show this chart's controls: ${reason}`;
+  }
+
+  function runCommand({ id, value }) {
+    if (id !== 'find') return;
+    const text = String(value ?? '');
+    // Enter sends the text again: the same text twice opens the first row it matches.
+    if (text === query && text.trim() !== '') {
+      const first = matches()[0];
+      if (first !== undefined) select(first.dataset.id);
+      return;
+    }
+    query = text; find();
+  }
+
+  document.addEventListener('contextmenu', event => {
+    if (!nativeChrome || single || !nendo.has('ui.showMenu')) return;
+    const row = event.target.closest('.row');
+    if (row === null) return;
+    event.preventDefault();
+    let at = event;
+    // The keyboard's menu key names no point: the menu opens at the row.
+    if (event.clientX === 0 && event.clientY === 0) {
+      const box = row.getBoundingClientRect();
+      at = { x: box.left + 8, y: box.bottom - 4 };
+    }
+    const id = row.dataset.id;
+    highlight(id);
+    nendo.ui.showMenu([{ id: 'open', label: 'Open record', icon: 'external' }], at)
+      .then(pick => { if (pick?.id === 'open') select(id); })
+      .catch(error => { element('selection').textContent = describe(error); });
+  });
+
+  function adoptNativeChrome() {
+    if (typeof nendo.has !== 'function' || !nendo.has('ui.setToolbar')) return;
+    nativeChrome = true;
+    document.documentElement.classList.add('native-chrome');
+    nendo.on('command', command => { try { runCommand(command); } catch (error) { element('selection').textContent = describe(error); } });
+    declareToolbar();
+  }
+
   if (nendo === undefined) {
     element('summary').textContent = 'This chart runs inside Nendo. Open the screen that shows it.';
     return;
   }
   nendo.ready.then(context => {
     document.documentElement.lang = context.locale || 'en';
+    single = context.recordId !== null;
+    adoptNativeChrome();
     applyTheme(nendo.ui.theme);
     nendo.on('theme', applyTheme);
     // A new context can name other fields or another record type: read again under it.

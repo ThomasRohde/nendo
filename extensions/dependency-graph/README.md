@@ -9,6 +9,14 @@ a label that looks like markup stays text.
 Selecting a record, with the pointer, Enter or the text view, highlights its links and
 asks Nendo to open it.
 
+## In Nendo's toolbar
+
+On a Nendo that offers it, this view draws no controls and no title of its own. The zoom
+(Ctrl − and Ctrl + zoom, Ctrl 0 fits) and Text view are in Nendo's toolbar above the graph,
+in Ctrl K under the view's title, and on their keys. A right-click on a record opens
+Nendo's menu, with Open record. On an older Nendo the view shows its own controls, as it
+always has.
+
 ## What it reads
 
 Everything arrives through `window.nendo`, which `<script src="/_nendo/api.js">`
@@ -18,10 +26,15 @@ installs:
   label field, and its link records as edges;
 - `nendo.schema.describe()`: to show a status by its choice's name rather than its
   stored ID;
-- `nendo.ui.theme` and the `theme` event: light or dark;
+- `nendo.ui.theme` and the `theme` event. The palette is Nendo's own: `api.js` sets the
+  Workbench's colour tokens on the page as `--nendo-*`, and `graph.css` draws with them.
+  The values after each token in `graph.css` are used only when the page runs without
+  them;
 - the `changes` event: the graph reads again a quarter of a second after the file
   changes, and keeps the selected record selected while it is still there;
-- `nendo.ui.openRecord(entityId, recordId)`: opening the selected record.
+- `nendo.ui.openRecord(entityId, recordId)`: opening the selected record;
+- where the host offers them, `nendo.ui.setToolbar`, `nendo.ui.showMenu` and the `command`
+  event, for the controls and the menu above.
 
 It writes nothing. A read that Nendo refuses is shown in the summary line.
 
@@ -45,6 +58,9 @@ measures the node, edge and parallel-edge geometry, that nodes open inside the c
 status names read from the schema, markup-shaped labels, exactly one `ui.openRecord`
 per selection from the pointer, the keyboard and the text view, zoom, non-selectable
 chrome, a re-read only after a `changes` event that keeps the selection, one read for a
-burst of changes, a measured colour change on a dark `theme` event, 480×320 and
-512×384 windows, exact summary counts, the empty state and a refused read shown as
-text. It runs inside `Test-Production.ps1`.
+burst of changes, a measured colour change on a dark `theme` event, a canvas and a
+surface token changing the measured colours, 480×320 and 512×384 windows, exact summary
+counts, the empty state and a refused read shown as text. Then it measures the view again
+on a broker that offers Nendo's toolbar: no controls or title of its own, the toolbar it
+declares, which the broker reads by the Workbench's own rules, each command, and Open from
+the record menu. It runs inside `Test-Production.ps1`.

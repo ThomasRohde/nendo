@@ -38,6 +38,8 @@ main{flex:1;min-height:120px;overflow:auto;border:1px solid var(--line);border-r
 .row[aria-pressed=true] .bar{background:var(--violet)}
 .milestone{position:absolute;top:2px;width:13px;height:13px;margin-left:-6.5px;transform:rotate(45deg);border-radius:2px;background:var(--cobalt)}
 .row[aria-pressed=true] .milestone{background:var(--violet)}
+/* A row that does not hold what Find is looking for steps back, and stays selectable. */
+.row.dimmed{opacity:.38}
 #empty{padding:18px 6px}
 footer{font-size:.85rem;color:var(--muted)}
 /* One record on its own page: the chart is the whole box, and the label sits above its bar. */
@@ -48,3 +50,6 @@ body.single #axis{margin-left:0}
 body.single .row{flex-direction:column;align-items:stretch;cursor:default}
 body.single .row:hover,body.single .row[aria-pressed=true]{background:none}
 body.single .label{flex:none;padding:2px 0 4px;white-space:normal}
+/* Nendo draws this chart's controls in its own toolbar where the host offers it (W-091), and
+   its breadcrumb names the screen: the page title goes. */
+.native-chrome h1{display:none}

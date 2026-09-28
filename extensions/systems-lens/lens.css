@@ -80,3 +80,6 @@ footer{min-height:24px;color:var(--muted);font-size:.9rem;overflow-wrap:anywhere
 [hidden]{display:none!important}
 @media(max-width:560px){body{padding:12px}.hint{display:none}h1{font-size:1.1rem}.tools button{padding:6px 10px;font-size:.82rem}}
 header,.tools,.hint,#caveat,footer,#canvas,#summary,#empty{user-select:none}#text-view{user-select:text}
+/* Nendo draws this view's controls in its own toolbar where the host offers it (W-091): the
+   view's own controls go, and so does the page title, which Nendo's breadcrumb gives. */
+.native-chrome h1,.native-chrome .tools{display:none!important}

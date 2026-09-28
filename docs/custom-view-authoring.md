@@ -481,6 +481,11 @@ if (nendo.has('ui.setToolbar')) declare(); else showOwnToolbar();
   Nendo keeps drawing the last one it accepted. The Capability Atlas then shows its own
   toolbar again and says why.
 
+All five example packages declare their controls this way and keep their own on an older
+Nendo: the Capability Atlas and Work dependencies since W-090, and the Systems Lens, the
+Dependency graph and the Gantt since W-091. The Gantt has no controls of its own, so on a
+screen it declares only a Find box.
+
 ### A menu at the pointer
 
 `nendo.ui.showMenu(items, at)` draws Nendo's menu at a point in your view. `at` is
@@ -876,10 +881,14 @@ Nendo does not interpret it. It is not the place for data.
   views. If a view brings the whole window down, the recovery panel offers **Restart
   without custom views**, which keeps views off until you turn them on again or
   start Nendo again.
-- **Test outside Nendo.** The four packages are measured in Playwright by their
+- **Test outside Nendo.** The five packages are measured in Playwright by their
   `Review-*.ps1` lanes, which serve the package on one origin and a fixture broker,
   `tools/Graph-FixtureBroker.html`, on another, with the real `api.js` between them.
-  Copy one of those lanes for your own package.
+  The broker offers Nendo's toolbar and menus only when the probe asks
+  (`broker.offerChrome(true)`), so a lane measures the view on both kinds of host, and it
+  reads each toolbar and menu by the Workbench's own rules: a declaration Nendo would
+  refuse is refused there too, and named in `broker.chromeRefusals`. Copy one of those
+  lanes for your own package.
 
 ## What a view can and cannot reach
 
