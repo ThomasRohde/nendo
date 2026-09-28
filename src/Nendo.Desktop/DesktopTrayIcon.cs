@@ -95,6 +95,7 @@ internal sealed class DesktopTrayIcon : IDisposable
 
     private readonly Action<DesktopTrayCommand> _invoke;
     private readonly Action? _taskbarRecreated;
+    private readonly Action<string?>? _showRequested;
     private readonly Func<DesktopTrayMenuState> _describe;
     private readonly WndProcDelegate _wndProc;
     private readonly string _className;
@@ -119,12 +120,18 @@ internal sealed class DesktopTrayIcon : IDisposable
     /// overlay and progress on the window's button — so whoever owns those has to put
     /// them back. Raised on the message-pumping thread, like the rest of this class.
     /// </param>
+    /// <param name="showRequested">
+    /// Another Nendo asked this window to come forward, and to go to a view when it names one
+    /// (<see cref="DesktopWindowHandoff"/>). Raised on the message-pumping thread, inside that
+    /// process's send, so it must be quick; it is what the tray's own Open does.
+    /// </param>
     internal DesktopTrayIcon(Func<DesktopTrayMenuState> describe, Action<DesktopTrayCommand> invoke,
-        Action? taskbarRecreated = null)
+        Action? taskbarRecreated = null, Action<string?>? showRequested = null)
     {
         _describe = describe;
         _invoke = invoke;
         _taskbarRecreated = taskbarRecreated;
+        _showRequested = showRequested;
         _wndProc = WindowProcedure;
         _className = $"NendoTray.{Environment.ProcessId}.{Interlocked.Increment(ref _instances)}";
         _taskbarCreated = RegisterWindowMessageW("TaskbarCreated");
@@ -228,6 +235,17 @@ internal sealed class DesktopTrayIcon : IDisposable
                     break;
             }
             return IntPtr.Zero;
+        }
+
+        if (msg == DesktopWindowHandoff.WM_COPYDATA)
+        {
+            // Another Nendo was asked for a file this window has open, or a notification this
+            // process raised was clicked in that one. Answered 1 only once the window has been
+            // asked to come forward, so the sender knows whether to go on opening it itself.
+            if (_showRequested is null || !DesktopWindowHandoff.TryRead(lParam, out var route)) return IntPtr.Zero;
+            try { _showRequested(route); }
+            catch (Exception) { return IntPtr.Zero; }
+            return 1;
         }
 
         if (msg == WM_DESTROY) return IntPtr.Zero;

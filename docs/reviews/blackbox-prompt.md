@@ -83,6 +83,13 @@ gets a pass; spend your extra time on these, which changed most recently:
   expect each to do, including the two that are switched on — one decides what the close
   button does, the other whether a view failure is written down. Turn the second off and
   say whether anything told you what you had just stopped keeping.
+- Several files at once (Phase 7), new on 2026-09-28. Ask the person to open a second
+  .nendo file beside yours, in a window of its own, and to say where it opened. Have them
+  move the two windows apart, close both to the notification area and open each file
+  again: did each come back where it was left? With one closed to the notification area,
+  have them double-click its file in Explorer, and say what came forward and whether a
+  second window appeared. Then leave a change waiting in each file and ask whether the
+  notification centre kept both, and where a click on each one took them.
 - A screen with an agent writing underneath it (Phase 3). Put a front page or a board with
   totals on screen, have your agent write records steadily for a few minutes, and say what
   the numbers do, whether the app stays usable, and whether you can still work the Showing

@@ -118,6 +118,19 @@ function Get-CustomDestinationNames {
 }
 $destinationsBefore = Get-CustomDestinationNames
 
+# Every process of this run registers the lane's identity, the first phase's included, so
+# both phases remove it on the way out: a first phase that failed used to leave the pair
+# behind, because only the second phase's teardown removed it.
+function Remove-LaneRegistration {
+    if (-not (Test-Path -LiteralPath $laneIdentityKey)) { return }
+    $leftover = (Get-ItemProperty -LiteralPath $laneIdentityKey -ErrorAction SilentlyContinue).CustomActivator
+    if ($leftover) {
+        $clsid = "HKCU:\Software\Classes\CLSID\$leftover"
+        if (Test-Path -LiteralPath $clsid) { Remove-Item -LiteralPath $clsid -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+    Remove-Item -LiteralPath $laneIdentityKey -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 function Wait-For {
     param([scriptblock] $Condition, [int] $TimeoutMs = 30000, [string] $What = 'condition')
     $deadline = [Diagnostics.Stopwatch]::StartNew()
@@ -170,6 +183,28 @@ try {
         throw 'The file the hidden process is holding open does not exist.'
     }
     $results['fileStillOpen'] = $true
+
+    # --- Opening the same file again brings this window back (W-089) --------------
+    # Before, the second process could only refuse the file and offer a read-only copy,
+    # while the window that had it stayed hidden. Measured as a person would see it: the
+    # hidden window becomes visible, and the second launch ends without one of its own.
+    $second = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) -PassThru -Environment @{
+        NENDO_STARTUP_CREATE = ''
+        NENDO_STARTUP_OPEN = (Join-Path $evidenceRoot 'shell-lane.nendo')
+        NENDO_DEVICE_STATE_ROOT = (Join-Path $evidenceRoot 'device-state')
+        WEBVIEW2_USER_DATA_FOLDER = (Join-Path $evidenceRoot 'webview-profile-second')
+        NENDO_DESKTOP_APP_ID = $laneAppId
+    }
+    try {
+        Wait-For { [NendoShellLane.Win]::IsWindowVisible($handle) } -TimeoutMs 20000 `
+            -What 'the hidden window to come back when its file was opened a second time' | Out-Null
+        if (-not $second.WaitForExit(15000)) { throw 'The second launch did not end after handing its file to the window that had it.' }
+        if ($second.ExitCode -ne 0) { throw "The second launch handed its file over but exited with $($second.ExitCode)." }
+        $results['secondLaunchBringsTheOwnerBack'] = $true
+    }
+    finally {
+        if (-not $second.HasExited) { $second.Kill(); [void] $second.WaitForExit(15000) }
+    }
 }
 finally {
     if ($null -ne $target -and -not $target.HasExited) {
@@ -178,6 +213,8 @@ finally {
         $target.Kill()
         [void] $target.WaitForExit(15000)
     }
+    # Only when this phase failed: the second one reads the registration before it removes it.
+    if (-not $results.Contains('secondLaunchBringsTheOwnerBack')) { Remove-LaneRegistration }
 }
 
 # --- The shell identity, and the taskbar menu filed under it ------------------
@@ -244,14 +281,7 @@ finally {
     }
     # And the registrations Windows made for it. In the finally block rather than
     # after the assertions, so a failed run leaves nothing behind either.
-    if (Test-Path -LiteralPath $laneIdentityKey) {
-        $leftover = (Get-ItemProperty -LiteralPath $laneIdentityKey -ErrorAction SilentlyContinue).CustomActivator
-        if ($leftover) {
-            $clsid = "HKCU:\Software\Classes\CLSID\$leftover"
-            if (Test-Path -LiteralPath $clsid) { Remove-Item -LiteralPath $clsid -Recurse -Force -ErrorAction SilentlyContinue }
-        }
-        Remove-Item -LiteralPath $laneIdentityKey -Recurse -Force -ErrorAction SilentlyContinue
-    }
+    Remove-LaneRegistration
 }
 
 # The cleanup is itself measured, because nothing else would notice it stopping. A
@@ -279,6 +309,7 @@ $results['leftBehind'] = @(@(
 if ($results['leftBehind'].Count -eq 0) { $results['leftBehind'] = @('none') }
 $results | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $evidenceRoot 'results.json')
 Write-Host 'OK       the close button hides the window and leaves the file open; the exit pin still exits.'
+Write-Host 'OK       opening the same file again brings the hidden window back, and the second launch ends.'
 Write-Host "OK       the window carries the shell identity it was given, and Windows stored a Jump List naming the open file."
 Write-Host "         Evidence: $evidenceRoot"
 Write-Host '         Not covered here: the tray icon, its menu, the notifications, and the taskbar drawing either the'

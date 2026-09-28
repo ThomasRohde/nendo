@@ -159,6 +159,8 @@ public sealed partial class MainPage
     private async Task OpenNativeFileAsync(string? path)
     {
         if (path is null) return;
+        // Open in another window already: go there, and leave this window's file open.
+        if (await Task.Run(() => DesktopWindowHandoff.TryShowOwnerOf(path))) return;
         if (_session.HasFile)
         {
             if (!await ConfirmNativeAsync("Open another file?", "The current file will close. Saved changes remain; agent access stops and pending proposals are discarded.", "Continue")) return;
@@ -177,6 +179,8 @@ public sealed partial class MainPage
 
     private async Task OpenRecentNativeFileAsync(string recentId)
     {
+        if (await _session.ResolveRecentPathAsync(recentId) is { } path
+            && await Task.Run(() => DesktopWindowHandoff.TryShowOwnerOf(path))) return;
         if (_session.HasFile)
         {
             if (!await ConfirmNativeAsync("Open another file?", "The current file will close. Saved changes remain; agent access stops and pending proposals are discarded.", "Continue")) return;

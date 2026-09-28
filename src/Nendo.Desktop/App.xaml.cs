@@ -23,7 +23,15 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         DesktopStartupTiming.Mark("app.launched");
-        CurrentWindow = new MainWindow(DesktopStartupRequest.FromStartup());
+        var request = DesktopStartupRequest.FromStartup();
+        // A file another Nendo already has open for editing goes to that window, rather than
+        // to a second one that could only refuse it and offer a read-only copy.
+        if (request is { Mode: DesktopStartupMode.Open } && DesktopWindowHandoff.TryShowOwnerOf(request.Path))
+        {
+            Exit();
+            return;
+        }
+        CurrentWindow = new MainWindow(request);
         DesktopStartupTiming.Mark("window.constructed");
         _window = CurrentWindow;
         _window.Activate();

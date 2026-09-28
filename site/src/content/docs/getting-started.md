@@ -64,6 +64,7 @@ A `.nendo` file is one application: its record types, records, screens and histo
 | Open a file you have | Double-click it in Explorer, choose **Open Nendo file** on the start screen, or choose **Open file…** from the file menu. |
 | Open a recent file | The start screen lists up to four recent files. Right-click Nendo's taskbar button for the same list. |
 | Drag a file in | Drop one `.nendo` file on the window. Nendo opens one file at a time and refuses a drop of several. |
+| Get back to a file that is already open | Open it again any of these ways. Each file has its own window, and Nendo brings that window forward, from the notification area if it was closed there, instead of opening the file a second time. |
 
 Keep the file in a local folder. Nendo warns when a file is in a folder that OneDrive, Dropbox or Google Drive syncs, and does not support writable use there.
 

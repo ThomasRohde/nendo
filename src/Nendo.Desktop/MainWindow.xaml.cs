@@ -153,7 +153,8 @@ public sealed partial class MainWindow : Window
     {
         // The third argument is Explorer having restarted: the tray icon puts itself
         // back, and the taskbar button needs its badge back for the same reason.
-        _tray = new DesktopTrayIcon(DescribeTray, OnTrayCommand, RestoreTaskbarState);
+        _tray = new DesktopTrayIcon(DescribeTray, OnTrayCommand, RestoreTaskbarState,
+            route => RouteFromNotification(route ?? DesktopNotificationContent.RouteOpen));
         var hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         DesktopShellIdentity.ApplyToWindow(hwnd);
         _taskbar = new DesktopTaskbarStatus(hwnd);

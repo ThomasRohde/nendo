@@ -49,8 +49,17 @@ internal static class DesktopNotificationContent
     internal const string TagUnwritable = "file-unwritable";
     internal const string TagRenderer = "renderer-failed";
 
-    /// <summary>The group every Nendo notification joins, so restoring the window can clear them all.</summary>
-    internal const string Group = "nendo";
+    /// <summary>
+    /// The group this process's notifications join, so restoring its window clears them all.
+    /// <para>
+    /// One per process, because each open file is one. It was one "nendo" for every process,
+    /// with the same tags, so a second file's "A change is waiting" replaced the first file's in
+    /// the notification centre, and bringing back any window cleared every file's.
+    /// </para>
+    /// </summary>
+    internal static string Group { get; } = GroupFor(Environment.ProcessId);
+
+    internal static string GroupFor(int processId) => $"nendo-{processId}";
 
     /// <summary>Shown once per device, the first time the close button hides the window.</summary>
     internal static DesktopNotification TrayIntro(string? fileName) => new(
@@ -103,9 +112,15 @@ internal static class DesktopNotificationContent
     /// the exact document is assertable, and so the routing argument is the only
     /// thing that ever leaves this file.
     /// </summary>
-    internal static string ToXml(DesktopNotification notification)
+    /// <param name="notification">What to say.</param>
+    /// <param name="window">
+    /// The process that raised it. Windows hands a click to whichever Nendo holds the
+    /// activation, not to the one that posted it, so the click has to say whose it was; that
+    /// process number is all it says.
+    /// </param>
+    internal static string ToXml(DesktopNotification notification, int? window = null)
     {
-        var launch = $"route={notification.Route}";
+        var launch = window is { } processId ? $"route={notification.Route}&window={processId}" : $"route={notification.Route}";
         var builder = new StringBuilder();
         builder.Append("<toast launch=\"").Append(Escape(launch)).Append("\" activationType=\"foreground\">");
         builder.Append("<visual><binding template=\"ToastGeneric\">");
@@ -120,6 +135,19 @@ internal static class DesktopNotificationContent
         }
         builder.Append("</toast>");
         return builder.ToString();
+    }
+
+    /// <summary>The process that raised a notification, or null when the argument does not say.</summary>
+    internal static int? WindowFrom(string? arguments)
+    {
+        if (string.IsNullOrEmpty(arguments)) return null;
+        foreach (var part in arguments.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (!part.StartsWith("window=", StringComparison.Ordinal)) continue;
+            return int.TryParse(part["window=".Length..], System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var processId) && processId > 0 ? processId : null;
+        }
+        return null;
     }
 
     /// <summary>The view a click should land on, or null when the argument is not one of ours.</summary>

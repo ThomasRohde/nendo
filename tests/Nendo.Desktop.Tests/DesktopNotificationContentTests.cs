@@ -141,6 +141,41 @@ public sealed class DesktopNotificationContentTests
         Assert.IsNull(DesktopNotificationContent.RouteFrom(argument));
     }
 
+    /// <summary>
+    /// W-089. Every Nendo process posted under one "nendo" group with the same tags, so a
+    /// second file's "A change is waiting" replaced the first file's, and bringing back any
+    /// window cleared every file's notifications.
+    /// </summary>
+    [TestMethod]
+    public void EachProcessPostsUnderAGroupOfItsOwn()
+    {
+        Assert.AreNotEqual(DesktopNotificationContent.GroupFor(4242), DesktopNotificationContent.GroupFor(4343),
+            "Two files open in two processes must not share a group.");
+        Assert.AreEqual(DesktopNotificationContent.GroupFor(Environment.ProcessId), DesktopNotificationContent.Group);
+        Assert.IsLessThanOrEqualTo(16, DesktopNotificationContent.GroupFor(int.MaxValue).Length,
+            "A group Windows would refuse is a notification nobody sees.");
+    }
+
+    /// <summary>
+    /// W-089. Windows hands a click to whichever Nendo holds the activation, so the click says
+    /// which process raised it, and nothing more: no path, no file session, no proposal.
+    /// </summary>
+    [TestMethod]
+    public void AClickSaysWhichWindowRaisedItAndStillOnlyWhichView()
+    {
+        var notification = DesktopNotificationContent.ProposalWaiting("Ideas.nendo", 1);
+        var xml = DesktopNotificationContent.ToXml(notification, 4242);
+        var argument = ArgumentOf(xml);
+        Assert.AreEqual("route=agent&window=4242", argument);
+        Assert.AreEqual(DesktopNotificationContent.RouteAgent, DesktopNotificationContent.RouteFrom(argument));
+        Assert.AreEqual(4242, DesktopNotificationContent.WindowFrom(argument));
+        var action = XDocument.Parse(xml).Descendants("action").Single().Attribute("arguments")!.Value;
+        Assert.AreEqual(argument, action, "The button says the same as the body.");
+        Assert.IsNull(DesktopNotificationContent.WindowFrom("route=agent"));
+        Assert.IsNull(DesktopNotificationContent.WindowFrom("route=agent&window=-1"));
+        Assert.IsNull(DesktopNotificationContent.WindowFrom("route=agent&window=abc"));
+    }
+
     [TestMethod]
     public void EveryNotificationHasItsOwnTagSoARepeatReplacesRatherThanStacks()
     {

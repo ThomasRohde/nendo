@@ -52,7 +52,7 @@ internal sealed class DesktopNotifier : IDisposable
         if (!_registered) return;
         try
         {
-            var payload = new AppNotification(DesktopNotificationContent.ToXml(notification))
+            var payload = new AppNotification(DesktopNotificationContent.ToXml(notification, Environment.ProcessId))
             {
                 Tag = notification.Tag,
                 Group = DesktopNotificationContent.Group,
@@ -81,6 +81,15 @@ internal sealed class DesktopNotifier : IDisposable
     {
         var route = DesktopNotificationContent.RouteFrom(args.Argument);
         if (route is null) return;
+        // With several files open, Windows hands the click to whichever Nendo registered the
+        // activation, which need not be the one whose file the notification was about. That
+        // one is asked to come forward instead; only when it has gone does the click land here.
+        if (DesktopNotificationContent.WindowFrom(args.Argument) is { } window
+            && window != Environment.ProcessId
+            && DesktopWindowHandoff.TryShow(window, route))
+        {
+            return;
+        }
         try { _routeInvoked(route); }
         catch (Exception) { }
     }

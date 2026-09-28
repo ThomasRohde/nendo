@@ -112,6 +112,20 @@ internal sealed partial class DesktopSessionController
         finally { _gate.Release(); }
     }
 
+    /// <summary>
+    /// Where a recent file is, without opening it: asked first, so a file another window has
+    /// open can be handed to that window. Null for an entry that no longer resolves, which the
+    /// open that follows reports in its own words.
+    /// </summary>
+    internal async Task<string?> ResolveRecentPathAsync(string recentId, CancellationToken cancellationToken = default)
+    {
+        try { return (await _fileHistory.ResolveAsync(recentId, cancellationToken)).Path; }
+        catch (Exception exception) when (exception is NendoException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     internal async Task<DesktopFileOpenAssessment> AssessRecentAsync(string recentId, CancellationToken cancellationToken = default)
     {
         await EnterRequestGateAsync(cancellationToken);

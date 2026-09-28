@@ -392,7 +392,8 @@ or minimised:
 - the open file stopped being writable;
 - the workspace failed.
 
-The activation argument of a notification carries a view name and nothing else.
+The activation argument of a notification carries a view name and the number of the
+process that raised it, and nothing else (see *Several files at once*).
 The text names the open file, but it carries no path, no digest and no proposal
 id. Notifications **route; they do not grant**. A click on a notification
 opens the page where the person answers. No notification carries the answer,
@@ -476,6 +477,29 @@ have several open (W-089).
   existing window leaves the window where it is. `DesktopDeviceStateLock` is the
   named mutex that stops two processes from overwriting each other's writes to a
   device-state document they share.
+- **A file another window has open goes to that window.** Opening it again, by a
+  double-click, the taskbar's Recent list, *Open file*, the recent list or a drop,
+  used to start a second process that could only refuse it ("already open for editing
+  in another Nendo session") and offer read-only, Duplicate or Fork, while the window
+  that had it stayed where it was, often hidden. `DesktopWindowHandoff` reads the
+  owner's process from the write-owner sidecar the Engine keeps beside every file it
+  holds for editing. It then sends that process's notification-area window a
+  `WM_COPYDATA` request, which every Nendo window has and which exists while the main
+  window is hidden. The request is sent with a three-second timeout and after
+  `AllowSetForegroundWindow`. The owner shows its window exactly as the tray's
+  *Open* does and answers 1. A second launch then exits without drawing anything;
+  an open from inside a window leaves that window's own file open. When nothing
+  answers (the owner is hung, elevated or gone), the open goes ahead as before, and
+  the refusal still offers read-only, Duplicate and Fork. A request names the window
+  and at most one of the views a notification can route to. It carries no file and
+  nothing to approve, so it can do no more than a click on the tray icon.
+- **Each window's notifications are its own.** Every process posted under one
+  notification group with the same tags, so a second file's *A change is waiting*
+  replaced the first file's, and bringing back any window cleared every file's. The
+  group is now `nendo-<process>`. Windows hands a click to whichever Nendo holds the
+  notification activation, which need not be the one whose file it was about, so a
+  click carries `window=<process>`. A process that receives another's click forwards
+  it with the same request, and routes it itself only when that process has gone.
 
 **Agent work is now visible from every screen.** The MCP host brackets every tool
 and resource call and sends `(busy, client, what)` to the shell. The shell
@@ -800,8 +824,9 @@ pwsh ./tools/Test-JourneyDrag.ps1  -Executable <Nendo.Desktop.exe>  # drag journ
 `Test-NendoInstaller.ps1` runs one of the two journey lanes against the installed
 copy.
 
-`Review-ShellRuntime.ps1` covers the close behaviour, the shell identity of the
-window and the Jump List that Windows stores. No script can enumerate the tray icon
+`Review-ShellRuntime.ps1` covers the close behaviour, a second launch of an open
+file bringing the hidden window back, the shell identity of the window and the Jump
+List that Windows stores. No script can enumerate the tray icon
 of another process or observe a shell notification. Thus the icon, its menu, the
 notifications and the taskbar drawing of the Jump List and the overlay badge stay
 owner-reported. The lane prints
