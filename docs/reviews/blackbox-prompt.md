@@ -863,6 +863,14 @@ vocabulary, the examples and the resources — and not from the person.
   custom view's screen, record whether the view's controls and Add share one row, what the
   row says in its middle, what About shows and how it goes away, and what a view says when
   it cannot read the file.
+- The window's top row (W-093). Ask the person to describe the top row of the window, from
+  left to right, and to say where the file is named. Have them drag the window by an empty
+  part of that row, double-click it, right-click it, hover over Maximise and press Alt
+  Space, and say what each did. Then have them press each control in the row, with the
+  mouse, with a finger on a touch screen if they have one, and with Tab and Enter, and say
+  which of them moved the window instead of working. Have them narrow the window until the
+  navigation moves to the top and do the same there. Record whether any control sat under
+  Minimise, Maximise or Close, in either theme.
 - Put the repository's `extensions/bcm-atlas` package into the empty review file. Give a
   record type a reference to itself, declare it as the hierarchy, and add records three
   levels deep. Show the package over that record type with a view whose configuration

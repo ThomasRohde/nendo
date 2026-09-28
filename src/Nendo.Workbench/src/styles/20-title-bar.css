@@ -1,0 +1,44 @@
+/* Nendo's top bar as the window's title bar (W-093), and the file's icon in the status bar.
+   Slice 20 of styles.css; see that file for why the order matters.
+
+   In the Desktop host there is no Windows title bar above the page. The page starts at the
+   window's top edge and Windows draws its own Minimise, Maximise and Close over the right end of
+   the top bar, as tall as the bar. title-bar.ts says so with data-title-bar="window", and gives
+   the bar's height as --title-bar-height and the width of those buttons as --title-bar-right.
+   The bar keeps that width free, so no control sits under a window button, and its surface runs
+   on under them, so the buttons sit on the bar rather than on a strip of their own. Outside the
+   Desktop host the attribute is never set and the top bar is as it was. */
+
+/* Wherever the rail runs down the side, the top bar is the title bar: exactly the bar's height,
+   whatever a short window's own rules asked for, so Windows' buttons end on its hairline and the
+   rail's head beside it lines up. The rail runs down the side except in a window at most 840px
+   wide and more than 600px tall. */
+@media (min-width: 841px), (max-height: 600px) {
+  :root[data-title-bar="window"] .workspace-header {
+    min-height: var(--title-bar-height, 48px);
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-right: calc(12px + var(--title-bar-right, 0px));
+  }
+}
+
+/* There the rail is the bar across the top of the window, above the top bar, so the rail is the
+   title bar and keeps the width free instead. */
+@media (max-width: 840px) and (min-height: 601px) {
+  :root[data-title-bar="window"] .rail {
+    padding-right: calc(14px + var(--title-bar-right, 0px));
+  }
+}
+
+/* The file's icon beside its name in the status bar: the look the taskbar shows (W-089). At this
+   size the badge is a dot in the file's tone, as the icon draws it below 24 pixels. */
+.status-file .look-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.status-file .look-badge {
+  border-width: 1px;
+  font-size: 0;
+}

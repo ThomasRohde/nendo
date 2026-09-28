@@ -8,8 +8,11 @@ using Windows.Storage.Streams;
 
 namespace Nendo.Desktop;
 
-/// <summary>The icon files drawn for one look: the icon itself, and the two pictures that are not icons.</summary>
-internal sealed record DesktopFileIconFiles(string Icon, string TitleBarImage, string NotificationImage);
+/// <summary>
+/// The files drawn for one look: the icon itself, and the picture a notification carries. The
+/// window has no title bar of its own to draw one on (W-093); the status bar draws the look.
+/// </summary>
+internal sealed record DesktopFileIconFiles(string Icon, string NotificationImage);
 
 /// <summary>
 /// Draws a file's icon: the Nendo mark with a badge in the file's tone carrying its letter
@@ -76,9 +79,8 @@ internal static class DesktopFileIcon
         var key = KeyFor(look);
         var files = new DesktopFileIconFiles(
             Path.Combine(cacheRoot, key + ".ico"),
-            Path.Combine(cacheRoot, key + "-32.png"),
             Path.Combine(cacheRoot, key + "-96.png"));
-        if (File.Exists(files.Icon) && File.Exists(files.TitleBarImage) && File.Exists(files.NotificationImage)) return files;
+        if (File.Exists(files.Icon) && File.Exists(files.NotificationImage)) return files;
 
         var mark = ReadIconFrames(await File.ReadAllBytesAsync(markIconPath, cancellationToken));
         var frames = new List<(int Size, byte[] Png)>();
@@ -88,7 +90,6 @@ internal static class DesktopFileIcon
         }
         Directory.CreateDirectory(cacheRoot);
         WriteAtomically(files.Icon, IconFile(frames));
-        WriteAtomically(files.TitleBarImage, await EncodePngAsync(await RenderAsync(mark, look, 32, cancellationToken), 32));
         WriteAtomically(files.NotificationImage, await EncodePngAsync(await RenderAsync(mark, look, 96, cancellationToken), 96));
         return files;
     }

@@ -12,23 +12,10 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <TitleBar x:Name="AppTitleBar" Title="Nendo">
-            <TitleBar.IconSource>
-                <ImageIconSource ImageSource="Assets/AppIcon.ico" />
-            </TitleBar.IconSource>
-        </TitleBar>
-
-        <!--
-            The Frame hosts pages for your application content. Add your UI to
-            MainPage.xaml rather than here so you can use Page features such as
-            navigation events and the Loaded lifecycle.
-        -->
-        <Frame x:Name="RootFrame" Grid.Row="1" />
-    </Grid>
+    <!--
+        The page fills the window from its top edge. Nendo's top bar is the window's title
+        bar (W-093), and Windows draws its own buttons over the bar's right end: see
+        MainWindow.TitleBar.cs. MainPage holds the Workbench and the recovery panel.
+    -->
+    <Frame x:Name="RootFrame" />
 </Window>

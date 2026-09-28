@@ -1,8 +1,6 @@
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Windowing;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media.Imaging;
 using Nendo.Engine;
 
 namespace Nendo.Desktop;
@@ -32,8 +30,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
 
-        ExtendsContentIntoTitleBar = true;
-        SetTitleBar(AppTitleBar);
+        AttachTitleBar();
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
         // Where this file's window was, when the launch names a file: two files no longer
         // open on the same rectangle, one exactly on top of the other.
@@ -57,19 +54,13 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Reports the open file beside the product name, where a document name belongs,
-    /// so the Workbench header is free to name the page instead, and draws its look.
+    /// Names the open file where Windows shows the window without its content, the taskbar
+    /// and Alt+Tab, and draws its look there. Inside the window the top bar names the page and
+    /// the status bar the file (W-093).
     /// </summary>
     internal void ApplyFileName(string? fileName, NendoResolvedLook? look = null)
     {
         ApplyLook(fileName is null ? null : look);
-        var subtitle = fileName ?? string.Empty;
-        if (!string.Equals(AppTitleBar.Subtitle, subtitle, StringComparison.Ordinal))
-        {
-            AppTitleBar.Subtitle = subtitle;
-        }
-        // The TitleBar control draws its own Title/Subtitle; Window.Title is what the
-        // taskbar and Alt+Tab read, so both need the open file to stay in step.
         var caption = fileName is null ? "Nendo" : $"Nendo — {fileName}";
         if (!string.Equals(Title, caption, StringComparison.Ordinal))
         {
@@ -101,9 +92,9 @@ public sealed partial class MainWindow : Window
 
     /// <summary>
     /// Puts the file's look on everything that shows this window without its content: the
-    /// window icon (the taskbar thumbnail and Alt+Tab), the title bar, the notification area
-    /// and the picture on a notification (W-089). Drawn off the UI thread, once per look on a
-    /// device, and put back to the plain mark when no file is open.
+    /// window icon (the taskbar thumbnail and Alt+Tab), the notification area and the picture
+    /// on a notification (W-089). Inside the window the status bar draws it. Drawn off the UI
+    /// thread, once per look on a device, and put back to the plain mark when no file is open.
     /// </summary>
     private void ApplyLook(NendoResolvedLook? look)
     {
@@ -136,7 +127,6 @@ public sealed partial class MainWindow : Window
         try
         {
             AppWindow.SetIcon(files?.Icon ?? plain);
-            AppTitleBar.IconSource = new ImageIconSource { ImageSource = new BitmapImage(new Uri(files?.TitleBarImage ?? plain)) };
         }
         catch (Exception)
         {
@@ -217,6 +207,7 @@ public sealed partial class MainWindow : Window
         RefreshJumpList();
 
         if (Page is not { } page) return;
+        TitleBarChanged += page.TitleBarChanged;
         page.RendererFailed += (kind, viewUpSeconds) => DispatcherQueue.TryEnqueue(() =>
         {
             RecordViewFailure(kind, viewUpSeconds);

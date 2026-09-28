@@ -212,6 +212,17 @@ export interface AgentWork {
   activity: string;
 }
 
+/**
+ * The window's title bar in CSS pixels (W-093): how tall it is, and how much of its width
+ * Windows keeps for its own Minimise, Maximise and Close at the left and at the right. Nendo's
+ * top bar is the title bar, so it keeps that width free.
+ */
+export interface WindowTitleBar {
+  height: number;
+  left: number;
+  right: number;
+}
+
 export interface AgentActivity {
   timestamp: string;
   client: string;
@@ -621,6 +632,8 @@ export interface WorkbenchClient {
    * gate and the window cannot answer anything else.
    */
   onAgentActivity?(listener: (activity: AgentWork) => void): () => void;
+  /** Listen for the window's title bar changing shape: a new display scale, so new sizes (W-093). */
+  onTitleBarChanged?(listener: (bar: WindowTitleBar) => void): () => void;
   pendingMutation?(): PendingMutation | null;
   retryPendingMutation?(): Promise<DesktopOperationView | null>;
   checkPendingMutation?(): Promise<DesktopOperationView | null>;

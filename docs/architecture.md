@@ -470,6 +470,46 @@ adds this: an unsolicited `{protocolVersion, event, payload}` message that carri
 a route name. The message has no `requestId`. Thus a renderer at versions 2–6
 drops it, as it drops any other message that it did not request.
 
+### The top bar is the title bar
+
+Since W-093 the window draws no title bar of its own
+([console direction](design/console-direction.md)). `MainWindow.TitleBar.cs`
+extends the page into the title bar and asks Windows for the tall title bar, 48
+pixels, the top bar's own height. The page fills the window from its top edge, so the
+top bar and the rail's head are the window's top row, and 48 pixels stand above every
+screen's content where 80 did (114 in a window 720 pixels tall or less, whose top bar
+was 82). Windows draws Minimise, Maximise and Close over the right end of the top bar,
+and holds the rest of those 48 pixels as the caption: a drag moves the window, a
+double-click maximises it, a right-click opens its menu, and Maximise offers the snap
+layouts.
+
+The page's controls in that band would be caption too, so the page claims them.
+`title-bar.ts` measures every control in the top bar and the rail that shows in the band,
+and sends their boxes with `window.setTitleBarControls` whenever one moves, appears or
+goes. The host hands them to Windows as passthrough regions
+(`InputNonClientPointerSource`) in the screen's own pixels. Its answer is the title bar:
+its height and the width Windows keeps for its buttons, 144 pixels in the tall bar. The
+page keeps that width free (`styles/20-title-bar.css`). `titleBarChanged`, a member of the
+closed unsolicited-event set, carries the same answer when a new display scale changes
+it. While a menu or a dialog is open the page claims the whole bar up to Windows'
+buttons, so a press there closes the menu as it did before. The file is named in the
+status bar, with its icon, and on the taskbar. In a window at most 840 pixels wide and
+more than 600 tall the rail is the bar across the top, and it is the title bar instead.
+
+The recovery panel loads the Nendo mark when it is shown, not with the page. Once the
+TitleBar control's icon was gone, that picture in the collapsed panel was the first the
+window loaded, and it brought the process down inside XAML at every start (F-202).
+
+`diagnostics.titleBar` and `diagnostics.resizeWindow` answer only under
+`NENDO_NATIVE_DIAGNOSTICS=1`: the regions Windows holds, what Windows answers at points
+of the page, and a window of a given size. The extension-view journey measures with them
+(G32): the page starts at the window's top edge and 48 pixels stand above the content on a
+Use screen and in Studio; every control is passed through and none sits under Windows'
+buttons, which answer as Minimise, Maximise and Close; an open menu takes the bar and gives
+it back; and a 760 × 700 window's rail is the title bar. Windows answers `WM_NCHITTEST` over
+a passed-through control as caption all the same, so only a real pointer shows that a press
+there reaches the page.
+
 ### Several files at once
 
 Each open file is its own process and its own window (ADR-0002), and a person can
@@ -508,9 +548,10 @@ have several open (W-089).
   badge sits bottom left because Windows draws a taskbar button's status badge
   bottom right. The mark comes from the shipped icon's own frames, the badge is
   computed with exact coverage, and the letter is set in Segoe UI Semibold at four
-  times the size and scaled down. The window icon, the title bar, the
-  notification-area icon and a notification's `appLogoOverride` picture all carry
-  it; the tones are the light theme's choice tones, which a test holds to
+  times the size and scaled down. The window icon, the notification-area icon and a
+  notification's `appLogoOverride` picture carry it, and inside the window the status
+  bar draws it beside the file's name (the title bar that carried it is Nendo's top
+  bar since W-093); the tones are the light theme's choice tones, which a test holds to
   `02-tokens.css`. `Review-ShellRuntime.ps1` reads the running window's icon back
   through `WM_GETICON` and checks the badge. Taskbar buttons still group under one
   Nendo identity, so the grouped button shows one icon; a button per file needs a
@@ -772,6 +813,7 @@ This table gives the current locations, so that you do not need to search.
 | Notification area | `Desktop/DesktopTrayIcon.cs`: one hidden top-level window, `Shell_NotifyIcon`, one popup menu |
 | Notifications | `Desktop/DesktopNotifier.cs` (the OS side), `DesktopNotificationContent.cs` (the wording and routes, pure), `DesktopNotificationTrigger.cs` (transition, never condition) |
 | Close behaviour | `Desktop/DesktopShellStore.cs` (device state), `DesktopCloseAction.cs` (the decision, pure), `MainWindow.xaml.cs` |
+| Title bar | `Desktop/MainWindow.TitleBar.cs` (the tall bar, the passthrough regions, the diagnostics), `MainPage.TitleBar.cs` (where the page is in the window), `WorkbenchProtocol.TitleBar.cs` (`window.setTitleBarControls` and its checks, pure); `Workbench/src/title-bar.ts` (measuring the bar's controls), `title-bar-model.ts` (what the page claims, pure), `styles/20-title-bar.css` |
 | Renderer entry point | `Workbench/src/main.ts`: the router and the frame. It gives `render` and `updateChrome` to `shell.ts`, so that a view never imports it back |
 | One view per file | `Workbench/src/view-*.ts` (Use surfaces are hand-rolled DOM; AG Grid stays in `view-data.ts`, and `main.ts` registers its modules) |
 | Renderer state | `Workbench/src/app-state.ts`: one `state` object and the caches. It imports no view, so nothing cycles through it |

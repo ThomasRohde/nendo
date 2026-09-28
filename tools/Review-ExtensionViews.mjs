@@ -142,6 +142,58 @@ async function frameSession(name) {
   }, 'frame target ' + name);
 }
 const inFrame = (frame, expression, timeout) => evaluateIn(frame.session, expression, timeout);
+
+// W-093: the title bar as the page draws it and as Windows holds it, on the screen showing. The
+// controls are every one in the bar a person can see; the host's diagnostics answer where the page
+// starts in the window, the regions Windows holds and what Windows answers at a point: an empty
+// part of the bar, Minimise, Maximise, Close and the content. In a narrow, tall window the rail is
+// the bar across the top and the top bar sits under it, so only there may more than the bar stand
+// above the content.
+async function measureTitleBar(where, narrow = false) {
+  let last = null;
+  const settled = await waitFor(async () => {
+    const drawn = await evaluate(`(() => {
+      if (document.documentElement.dataset.titleBar !== 'window') return null;
+      const visible = (element, band) => { let r = element.getBoundingClientRect(), left = r.left, top = r.top, right = r.right, bottom = r.bottom;
+        for (let a = element.parentElement; a && band.contains(a); a = a.parentElement) { const s = getComputedStyle(a);
+          if (s.overflowX === 'visible' && s.overflowY === 'visible') continue; const c = a.getBoundingClientRect();
+          left = Math.max(left, c.left); top = Math.max(top, c.top); right = Math.min(right, c.right); bottom = Math.min(bottom, c.bottom); }
+        return right > left && bottom > top ? { x: left, y: top, width: right - left, height: bottom - top } : null; };
+      const controls = [...document.querySelectorAll('.workspace-header, .rail')].flatMap(band =>
+        [...band.querySelectorAll('button, a[href], input, select, textarea, summary, label, [tabindex]:not([tabindex="-1"])')]
+          .filter(e => e.getBoundingClientRect().top < 48).map(e => ({ name: e.id || e.getAttribute('aria-label') || e.className || e.tagName, box: visible(e, band) })))
+        .filter(c => c.box !== null).map(c => ({ name: c.name, ...c.box }));
+      return { controls, width: document.documentElement.clientWidth, content: document.querySelector('.workbench').getBoundingClientRect().top };
+    })()`);
+    if (drawn === null) return null;
+    const probe = await gate('diagnostics.titleBar', { points: [] });
+    const { bar, clientWidth } = probe;
+    // An empty part of the bar: the first point along its middle that no control covers.
+    let empty = null;
+    for (let x = 24; x < clientWidth - bar.right - 8 && empty === null; x += 4)
+      if (!drawn.controls.some(c => x >= c.x - 4 && x <= c.x + c.width + 4)) empty = { x, y: bar.height / 2 };
+    const points = [empty ?? { x: 0, y: 0 }, ...[5, 3, 1].map(sixths => ({ x: clientWidth - bar.right * sixths / 6, y: bar.height / 2 })),
+      { x: clientWidth / 2, y: Math.min(probe.clientHeight - 8, drawn.content + 120) }];
+    const d = await gate('diagnostics.titleBar', { points });
+    const within = (c, r) => r.x <= c.x + 1 && r.y <= c.y + 1 && r.x + r.width >= c.x + c.width - 1 && r.y + r.height >= Math.min(c.y + c.height, d.bar.height) - 1;
+    last = {
+      where, pageTop: d.pageTop, pageLeft: d.pageLeft, bar: d.bar, content: drawn.content, empty,
+      codes: d.hits.map(h => h.code),
+      caption: d.caption.some(r => r.x <= 0.5 && r.y <= 0.5 && r.height >= d.bar.height - 0.5 && r.width >= d.clientWidth - d.bar.right - 1),
+      uncovered: drawn.controls.filter(c => !d.passthrough.some(r => within(c, r))).map(c => c.name),
+      underButtons: drawn.controls.filter(c => c.x + c.width > d.clientWidth - d.bar.right + 0.5).map(c => c.name),
+      controls: drawn.controls.length,
+    };
+    return last.uncovered.length === 0 ? last : null;
+  }, 'every control in the title bar passed through on ' + where).catch(error => { throw new Error(error.message + ' ' + JSON.stringify(last)); });
+  assert(settled.pageTop === 0 && settled.pageLeft === 0, `The page does not start at the window's top edge on ${where}: ` + JSON.stringify(settled));
+  assert(Math.abs(settled.bar.height - 48) < 0.5, `Windows' title bar is not the tall one on ${where}: ` + JSON.stringify(settled));
+  assert(narrow || settled.content <= settled.bar.height + 0.5, `More than the title bar stands above the content on ${where}: ` + JSON.stringify(settled));
+  assert(settled.caption && settled.empty !== null, `Windows does not hold the bar as the caption on ${where}: ` + JSON.stringify(settled));
+  assert(settled.underButtons.length === 0, `A control sits under Windows' own buttons on ${where}: ` + JSON.stringify(settled));
+  assert(settled.codes.join() === '2,8,9,20,1', `Windows does not answer caption, Minimise, Maximise, Close and content on ${where}: ` + JSON.stringify(settled));
+  return { above: Math.round(settled.pageTop + settled.content), controls: settled.controls };
+}
 const processOf = (list, name) => list.find(p => p.frames.some(f => f.name === name));
 const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
 const median = values => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
@@ -552,6 +604,26 @@ try {
   report.measurements.betweenTopBarAndView = oneRow.between;
   check(`G31 one row above a view: the breadcrumb holds the record type and the view, and the view's controls share the Use toolbar's row with Add, so ${oneRow.between} px stand between the top bar and the view's frame, the height of that one row`);
 
+  // G32 (W-093): Nendo's top bar is the window's title bar. Measured in the window by the host's
+  // own diagnostics: the page starts at the window's top edge, so the height above a screen's
+  // content is the bar's alone, where Windows' title bar stood over it; Windows holds the bar as
+  // the caption, which drags, and passes each of its controls through to the page; no control
+  // sits under Windows' Minimise, Maximise and Close, which answer as those (the snap layouts
+  // hang on Maximise). An open menu takes the whole bar up to them, so a press there closes it.
+  const titleBar = await measureTitleBar('the probe screen');
+  report.measurements.aboveContent = titleBar.above;
+  await click('#file-menu summary');
+  const menuBar = await waitFor(async () => {
+    const d = await gate('diagnostics.titleBar', { points: [] });
+    return d.passthrough.some(r => r.x <= 0.5 && r.y <= 0.5 && r.width >= d.clientWidth - d.bar.right - 1 && r.height >= d.bar.height - 0.5) ? d : null;
+  }, 'the open File menu taking the whole bar');
+  await click('#file-menu summary');
+  await waitFor(async () => {
+    const d = await gate('diagnostics.titleBar', { points: [] });
+    return d.passthrough.length > 1 && !d.passthrough.some(r => r.width >= d.clientWidth - d.bar.right - 1) ? true : null;
+  }, 'the closed File menu giving the bar back to the window');
+  check(`G32 the top bar is the window's title bar: the page starts at the window's top edge and ${titleBar.above} px stand above the content, the bar's own ${menuBar.bar.height}; Windows holds it as the caption and passes each of its ${titleBar.controls} controls through, none under Windows' own ${Math.round(menuBar.bar.right)} px of buttons, which answer as Minimise, Maximise and Close; an open menu takes the whole bar and gives it back`);
+
   // G28: a press in the strip, Nendo's own Add and a Ctrl K entry each reach the view as a command.
   const heard = () => inFrame(chromeFrame, 'probe.state.commands.map(c => [c.id, c.value, c.source].join(":"))');
   await evaluate(`${probeStrip}.querySelector('[data-view-command="mode"][data-view-value="two"]').click()`);
@@ -617,6 +689,16 @@ try {
   await press('0', 'Digit0', 48, 2);
   await waitFor(async () => (await heard()).slice(beforeKey).filter(line => line === 'fit::key').length === 2 ? true : null, 'the declared key pressed in the Workbench running its command');
   check('G30 Ctrl K pressed inside a view opens the palette before the view hears it, a key the view keeps reaches it, and a declared key runs its command from inside the view and from the Workbench');
+
+  // G32, on every kind of screen and in a narrow window: a Studio page holds the same bar, and in a
+  // window at most 840px wide the rail is the bar across the top, which keeps Windows' buttons free
+  // and passes its own controls through as the top bar does.
+  await click('#nav-data'); await idle();
+  const studioBar = await measureTitleBar('Studio › Data');
+  await gate('diagnostics.resizeWindow', { width: 760, height: 700 });
+  await waitFor(() => evaluate(`document.documentElement.clientWidth <= 840 && getComputedStyle(document.querySelector('.app-shell')).gridTemplateRows.split(' ').length === 2`), 'the rail across the top of a narrow window');
+  const narrowBar = await measureTitleBar('a 760 × 700 window', true);
+  check(`G32 on Studio › Data ${studioBar.above} px stand above the content, and in a 760 × 700 window the rail is the title bar, its ${narrowBar.controls} controls passed through and none under Windows' buttons`);
 
   console.log('extension views ok');
 } catch (error) {

@@ -113,6 +113,13 @@ internal static class WorkbenchEvents
     /// view's own place and offers Reload. The Workbench itself is unaffected.
     /// </summary>
     internal const string ExtensionFramesFailed = "extensionFramesFailed";
+
+    /// <summary>
+    /// The window's title bar changed shape (W-093): a new display scale, and so a new height or a
+    /// new width kept for Windows' own buttons. Payload is the title bar in CSS pixels, the same
+    /// answer <c>window.setTitleBarControls</c> gives.
+    /// </summary>
+    internal const string TitleBarChanged = "titleBarChanged";
 }
 
 internal sealed record ExtensionFramesFailedPayload(string FileSessionId, IReadOnlyList<string> Frames);
@@ -218,6 +225,7 @@ internal sealed partial class WorkbenchProtocolHandler
     private readonly Func<DesktopAppearanceView>? _getAppearance;
     private readonly Func<WorkbenchFileActionRequest, Task<DesktopFileActionView>>? _fileActions;
     private readonly IWorkbenchExtensionHost? _extensionHost;
+    private readonly IWorkbenchWindowHost? _windowHost;
     private string? _legacyFileSessionId;
 
     internal WorkbenchProtocolHandler(
@@ -227,9 +235,11 @@ internal sealed partial class WorkbenchProtocolHandler
         Action<AppearancePayload> applyAppearance,
         Func<WorkbenchFileActionRequest, Task<DesktopFileActionView>>? fileActions = null,
         Func<DesktopAppearanceView>? getAppearance = null,
-        IWorkbenchExtensionHost? extensionHost = null)
+        IWorkbenchExtensionHost? extensionHost = null,
+        IWorkbenchWindowHost? windowHost = null)
     {
         _extensionHost = extensionHost;
+        _windowHost = windowHost;
         _session = session;
         _pickCreatePath = pickCreatePath;
         _pickOpenPath = pickOpenPath;
@@ -310,7 +320,8 @@ internal sealed partial class WorkbenchProtocolHandler
             // renderers are pinned once and cannot silently follow a native file
             // switch. The controller checks this under its gate, including after
             // every interactive picker/confirmation wait.
-            var independent = method is WorkbenchMethods.SessionGetSnapshot or WorkbenchMethods.AppearanceSet or WorkbenchMethods.AppearanceGet or WorkbenchMethods.SessionGetRecentFiles;
+            var independent = method is WorkbenchMethods.SessionGetSnapshot or WorkbenchMethods.AppearanceSet or WorkbenchMethods.AppearanceGet or WorkbenchMethods.SessionGetRecentFiles
+                or WorkbenchMethods.WindowSetTitleBarControls or WorkbenchMethods.DiagnosticsTitleBar or WorkbenchMethods.DiagnosticsResizeWindow;
             string? expectedSession = null;
             if (protocolVersion < DesktopShellContract.OutcomeBridgeProtocolVersion)
             {
@@ -399,6 +410,9 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.HistoryCompensate => await CompensateRevisionAsync(payload, cancellationToken),
                     WorkbenchMethods.AppearanceSet => ApplyAppearance(payload),
                     WorkbenchMethods.AppearanceGet => _getAppearance?.Invoke() ?? new DesktopAppearanceView("system", "light", false, "Native appearance is unavailable."),
+                    WorkbenchMethods.WindowSetTitleBarControls => SetTitleBarControls(payload),
+                    WorkbenchMethods.DiagnosticsTitleBar when DesktopRuntimeConfiguration.NativeDiagnostics => DiagnoseTitleBar(payload),
+                    WorkbenchMethods.DiagnosticsResizeWindow when DesktopRuntimeConfiguration.NativeDiagnostics => ResizeWindow(payload),
                     WorkbenchMethods.AgentGetStatus => await _session.GetAgentStatusAsync(cancellationToken),
                     WorkbenchMethods.AgentSetMode => await SetAgentModeAsync(payload, cancellationToken),
                     WorkbenchMethods.AgentRevokeEditing => await _session.RevokeAgentEditingAsync(cancellationToken),
@@ -725,6 +739,8 @@ internal sealed partial class WorkbenchProtocolHandler
         new WorkbenchError(code, message, recordId));
 
     private static bool IsMethodAvailable(int protocolVersion, string method) =>
+        (protocolVersion >= DesktopShellContract.EventBridgeProtocolVersion || method is not
+            (WorkbenchMethods.WindowSetTitleBarControls or WorkbenchMethods.DiagnosticsTitleBar or WorkbenchMethods.DiagnosticsResizeWindow)) &&
         (protocolVersion >= DesktopShellContract.SnapshotBridgeProtocolVersion || method != WorkbenchMethods.DataDeleteRecord) &&
         (protocolVersion >= DesktopShellContract.OutcomeBridgeProtocolVersion || method is not
             (WorkbenchMethods.DataGetReceipt or WorkbenchMethods.CompensationGetReceipt or WorkbenchMethods.ProposalGetReceipt or WorkbenchMethods.DataSetFields or

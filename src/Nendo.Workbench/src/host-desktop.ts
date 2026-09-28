@@ -1,6 +1,7 @@
-import { type AgentWork, type DesktopFileActionView, type DesktopSessionView } from './host-types';
+import { type AgentWork, type DesktopFileActionView, type DesktopSessionView, type WindowTitleBar } from './host-types';
 import { protocolVersion } from './host';
 import { PendingMutationJournal, isJournaledMutation, type PendingMutation } from './pending-mutations';
+import { readTitleBar } from './title-bar-model';
 import {
   WorkbenchHostError, isHostRoute,
   type CancelledRequests, type DesktopOperationView, type HostFramesFailed, type HostRoute, type WorkbenchClient,
@@ -8,6 +9,12 @@ import {
 
 /** A custom-view frame's name: `nendo-view-` and the mount ID the Workbench gave it. */
 const frameNamePattern = /^nendo-view-[0-9a-f]{12}$/;
+
+/**
+ * Requests about the device and the window rather than the open file: they carry no file
+ * session, and their answers are not checked against one.
+ */
+const independentMethods = new Set(['appearance.set', 'appearance.get', 'session.getRecentFiles', 'window.setTitleBarControls']);
 
 /**
  * The real client, and the one that fails closed.
@@ -80,6 +87,7 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
   private readonly fileChangedListeners = new Set<(changeSequence: number) => void>();
   private readonly developmentListeners = new Set<(packageId: string) => void>();
   private readonly agentActivityListeners = new Set<(work: AgentWork) => void>();
+  private readonly titleBarListeners = new Set<(bar: WindowTitleBar) => void>();
   private readonly journal = new PendingMutationJournal({
     getItem: key => window.localStorage.getItem(key),
     setItem: (key, value) => window.localStorage.setItem(key, value),
@@ -235,7 +243,7 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
       ));
       return;
     }
-    if (pending.method !== 'appearance.set' && pending.method !== 'appearance.get' && pending.method !== 'session.getRecentFiles') {
+    if (!independentMethods.has(pending.method)) {
       if (pending.fileSessionId !== this.fileSessionId) {
         pending.reject(new WorkbenchHostError('stale-file-session', 'The file changed while this action was running. Refresh the view.'));
         return;
@@ -276,6 +284,11 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     return () => { this.agentActivityListeners.delete(listener); };
   }
 
+  onTitleBarChanged(listener: (bar: WindowTitleBar) => void): () => void {
+    this.titleBarListeners.add(listener);
+    return () => { this.titleBarListeners.delete(listener); };
+  }
+
   private receiveHostEvent(message: HostEvent): void {
     if (message.protocolVersion !== protocolVersion) {
       return;
@@ -303,6 +316,19 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
       for (const listener of this.agentActivityListeners) {
         try {
           listener({ busy: work.busy, client: work.client, activity: work.activity });
+        } catch {
+          // Nothing here can report a failure the person would act on.
+        }
+      }
+      return;
+    }
+    if (message.event === 'titleBarChanged') {
+      // Drawn into the page's layout, so bounded here as well as at the host.
+      const bar = readTitleBar(message.payload);
+      if (bar === null) return;
+      for (const listener of this.titleBarListeners) {
+        try {
+          listener(bar);
         } catch {
           // Nothing here can report a failure the person would act on.
         }

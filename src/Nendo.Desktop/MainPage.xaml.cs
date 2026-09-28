@@ -33,6 +33,7 @@ public sealed partial class MainPage : Page
             ApplyAppearance,
             RunWorkbenchFileActionAsync,
             () => App.CurrentWindow?.GetAppearance() ?? new("system", "light", false, "The native window is unavailable."),
+            this,
             this);
     }
 
@@ -381,6 +382,10 @@ public sealed partial class MainPage : Page
         RendererFailed?.Invoke(
             kind ?? "unspecified",
             (int)Math.Max(0, (DateTimeOffset.UtcNow - _viewStartedUtc).TotalSeconds));
+        // Loaded here, not in the markup. Once the TitleBar control's icon was gone (W-093), a picture
+        // in the collapsed panel was the first this window loaded, and loading it at startup brought
+        // the process down inside XAML with E_UNEXPECTED (F-202).
+        RecoveryMark.Source ??= new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Assets/NendoMark.png"));
         RecoveryReason.Text = reason;
         RecoverySession.Text = "Checking the file session…";
         RecoveryActions.IsEnabled = false;
@@ -408,6 +413,7 @@ public sealed partial class MainPage : Page
 
         WebHost.Children.Clear();
         webView?.Close();
+        ForgetTitleBarControls();
     }
 
     private async Task<bool> InitializeStartupSessionAsync()

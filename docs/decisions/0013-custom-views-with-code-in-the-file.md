@@ -451,7 +451,8 @@ for less of it and chose A with C from the canvas
   `extensions/` do. Nothing new crosses the frame: both are ordinary `text` and `toggle`
   items.
 
-The title bar holding the top bar (option E) is later work (W-093).
+The title bar holding the top bar (option E) was built as W-093 on 2026-09-28; the Console
+direction and the architecture describe it.
 
 ### No install, no consent, no pins
 

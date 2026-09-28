@@ -52,13 +52,23 @@ read a CSS variable. Change them together.
 - **Rail:** 196px open, with dense 32px items, the Studio group under a mono
   small-caps label, and Help at the foot. Folded, it is a 56px icon rail. The fold
   is kept for the device.
-- **Top bar:** 48px. On the left, where you are, as a breadcrumb (`Use · Crew /
-  By role`). The page names itself here and nowhere larger. On the right are Back
-  and Forward, File, and System / Light / Dark.
+- **Top bar:** 48px, and it is the window's title bar (W-093; option E on the canvas
+  <https://claude.ai/artifact/BqQj31q6FRmeHAk2BzBKc1>). There is no Windows title bar
+  above it. On the left, where you are, as a breadcrumb (`Use · Crew / By role`). The
+  page names itself here and nowhere larger. On the right are Ctrl K, Back and Forward,
+  File, System / Light / Dark and the keys. Windows draws its own Minimise, Maximise and
+  Close at the bar's right end, 48px tall on the bar's `--surface`, and the bar keeps
+  their width free (144px). The rail's head, with the mark, is the bar's left end. Every part
+  of the bar that is not a control moves the window: a drag moves it, a double-click
+  maximises it, and a right-click opens the window's menu.
 - **Work area:** edge to edge on `--canvas`, with no floating card around it. A
   page toolbar is a 46px strip on `--surface`. A list is a table of hairline rows.
-- **Status bar:** 26px, mono, with the file name on the left and the agent pill,
-  health and version on the right.
+- **Status bar:** 26px, mono, with the file's icon and name on the left and the agent
+  pill, health and version on the right. The file is named here and in the taskbar,
+  not at the top of the window.
+- **A narrow window:** below 841px the rail is a bar across the top, above the top bar.
+  That bar is then the window's title bar, and it keeps the width of the window's
+  buttons free.
 
 ## Fonts
 

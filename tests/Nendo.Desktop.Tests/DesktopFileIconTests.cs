@@ -25,7 +25,6 @@ public sealed class DesktopFileIconTests
 
         var frames = DesktopFileIcon.ReadIconFrames(await File.ReadAllBytesAsync(files.Icon));
         CollectionAssert.AreEqual(DesktopFileIcon.IconSizes.ToArray(), frames.Keys.Order().ToArray());
-        Assert.IsGreaterThan(0L, new FileInfo(files.TitleBarImage).Length);
         Assert.IsGreaterThan(0L, new FileInfo(files.NotificationImage).Length);
         StringAssert.Contains(Path.GetFileName(files.Icon), "violet", "Kept by look, so every file with this look shares it.");
 

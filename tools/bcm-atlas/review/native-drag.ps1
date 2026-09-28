@@ -8,7 +8,7 @@ public delegate bool Callback(IntPtr h,IntPtr l);
 [DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetClassName(IntPtr h,StringBuilder b,int n);
 [DllImport("user32.dll")]public static extern bool GetWindowRect(IntPtr h,out Rect r);
 public struct Rect{public int left,top,right,bottom;}
-public static Rect Caption(IntPtr h){Rect found=new Rect();EnumChildWindows(h,(w,l)=>{var b=new StringBuilder(256);GetClassName(w,b,256);if(b.ToString()=="InputNonClientPointerSource"){GetWindowRect(w,out found);return false;}return true;},IntPtr.Zero);if(found.bottom<=found.top)throw new Exception("Caption geometry unavailable");return found;}
+public static Rect Page(IntPtr h){Rect found=new Rect();EnumChildWindows(h,(w,l)=>{var b=new StringBuilder(256);GetClassName(w,b,256);if(b.ToString()=="Microsoft.UI.Content.DesktopChildSiteBridge"){GetWindowRect(w,out found);return false;}return true;},IntPtr.Zero);if(found.bottom<=found.top)throw new Exception("Page geometry unavailable");return found;}
 
 [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
 [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint dx,uint dy,uint data,UIntPtr extra);
@@ -26,7 +26,8 @@ Start-Sleep -Milliseconds 200
 [uint32]$taskForegroundProcess=0
 [void][BcmMouseProbe]::GetWindowThreadProcessId([BcmMouseProbe]::GetForegroundWindow(),[ref]$taskForegroundProcess)
 if($taskForegroundProcess -ne $ProcessId){throw 'BCM did not become the foreground window'}
-if($ClientCoordinates){$taskCaption=[BcmMouseProbe]::Caption($taskProcess.MainWindowHandle);$X=$taskCaption.left+[int]($ClientX*$Dpr);$Y=$taskCaption.bottom+[int]($ClientY*$Dpr)}
+# The page's origin is the XAML island's, which is the window's top edge since the top bar became the title bar (W-093).
+if($ClientCoordinates){$taskPage=[BcmMouseProbe]::Page($taskProcess.MainWindowHandle);$X=$taskPage.left+[int]($ClientX*$Dpr);$Y=$taskPage.top+[int]($ClientY*$Dpr)}
 [void][BcmMouseProbe]::SetCursorPos($X,$Y)
 try {
   if($ModifierTiming -eq 'Before'){[BcmMouseProbe]::keybd_event(0x11,0,0,[UIntPtr]::Zero)}

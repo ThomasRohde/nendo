@@ -24,6 +24,8 @@ import { backTarget, forwardTarget, goBack, goForward, placeName, recordPlace } 
 import { state } from './app-state';
 import { installViewFrames, onHostKey, parkViewFrames, releaseViewFrames, runViewKey } from './view-frames';
 import { beginPlacePickers, endPlacePickers } from './place-pickers';
+import { startTitleBar } from './title-bar';
+import { lookIconMarkup } from './file-look';
 import { chordOf } from './extension-api/protocol';
 import { capitalise, messageFor } from './format';
 import {
@@ -272,6 +274,14 @@ function updateChrome(): void {
   sessionContext.hidden = !named;
 
   sessionFile.textContent = state.session.fileName ?? '';
+  // The file's icon beside its name (W-089). It was on the window's title bar, which is Nendo's
+  // top bar now (W-093), so the status bar, where the file is named, carries it instead.
+  const look = state.session.look ?? null;
+  const lookKey = look === null ? 'file' : `${look.tone}:${look.letter}`;
+  if (statusFileIcon.dataset.look !== lookKey) {
+    statusFileIcon.innerHTML = look === null ? icon('file') : lookIconMarkup(look.tone, look.letter);
+    statusFileIcon.dataset.look = lookKey;
+  }
   // The status bar stays up without a file so the build is always answerable;
   // only the file half of it depends on one being open.
   sessionFile.parentElement!.hidden = !named;
@@ -356,7 +366,7 @@ historyForward.addEventListener('click', () => { void goForward(); });
 applyRail(readRailCollapsed());
 railToggle.addEventListener('click', () => { applyRail(root.dataset.rail !== 'collapsed', true); });
 requiredElement<HTMLElement>('#file-icon').innerHTML = icon('file');
-requiredElement<HTMLElement>('#status-file-icon').innerHTML = icon('file');
+const statusFileIcon = requiredElement<HTMLElement>('#status-file-icon');
 requiredElement<HTMLElement>('.file-chevron').innerHTML = icon('chevron');
 for (const button of themeButtons) {
   button.innerHTML = icon(button.dataset.themeOption as 'system' | 'light' | 'dark');
@@ -666,6 +676,9 @@ function followTheFile(): void {
 // Drawn by the shell itself rather than through a render pass: it must appear while a
 // request is queued behind an agent's write, which is exactly when a render cannot run.
 client.onAgentActivity?.((work) => { setAgentWork(work); });
+
+// Nendo's top bar is the window's title bar in the Desktop host (W-093).
+startTitleBar(client);
 
 client.onFileChanged?.((changeSequence) => {
   if (!state.session.hasFile) return;

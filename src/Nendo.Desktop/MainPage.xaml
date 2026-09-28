@@ -24,7 +24,8 @@
                 VerticalAlignment="Center"
                 Spacing="16">
                 <StackPanel Orientation="Horizontal" Spacing="16">
-                    <Image Source="ms-appx:///Assets/NendoMark.png" Width="48" Height="48"
+                    <!-- The mark is loaded when the panel is shown (ShowRecovery). -->
+                    <Image x:Name="RecoveryMark" Width="48" Height="48"
                            AutomationProperties.Name="Nendo" />
                     <TextBlock FontFamily="Segoe UI Variable Display" FontSize="32" FontWeight="SemiBold"
                                VerticalAlignment="Center" Text="Studio recovery" />

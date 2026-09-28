@@ -146,6 +146,11 @@ try {
   });
   await waitFor(() => evaluate(`document.querySelector('#nav-use') && !document.querySelector('#nav-use').disabled`), 'an open file');
   await ready();
+  // The picture is the page at an emulated size, not the window, so Windows' own Minimise,
+  // Maximise and Close are not in it. The top bar keeps no width free for them (W-093), and
+  // looks as it does in a browser.
+  await waitFor(() => evaluate(`document.documentElement.dataset.titleBar === 'window'`), 'the title bar the host answered with');
+  await evaluate(`delete document.documentElement.dataset.titleBar`);
   const measured = await evaluate('`${innerWidth}x${innerHeight}@${devicePixelRatio}`');
   console.log(`Capturing at ${measured} (${layoutWidth * deviceScale}x${layoutHeight * deviceScale} pixels).`);
 
