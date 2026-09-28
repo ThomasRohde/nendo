@@ -109,7 +109,7 @@ Every record type gets its table and record editor in Studio. Other screens, suc
 
 ## Connect an agent
 
-Nendo has no built-in agent. A coding agent such as Claude Code or Codex connects to the open file over MCP at `http://127.0.0.1:41763/mcp`, after you turn agent access on in the **Agent** area and choose a level: Off, Inspect, Edit data, Shape app or Unattended. There is no key or password, so any program on this computer can connect at the level you chose; set access to Off when no agent is working. A clone of this repository already registers the server for both clients. The agent writes proposals, and you accept them in Nendo. The [agents guide](/nendo/docs/agents) covers the access levels, the connection commands and what an agent can and cannot do.
+Nendo has no built-in agent. A coding agent such as Claude Code or Codex connects to the open file over MCP at `http://127.0.0.1:41763/mcp` (each further file keeps a port of its own), after you turn agent access on in the **Agent** area and choose a level: Off, Inspect, Edit data, Shape app or Unattended. There is no key or password, so any program on this computer can connect at the level you chose; set access to Off when no agent is working. A clone of this repository already registers the server for both clients. The agent writes proposals, and you accept them in Nendo. The [agents guide](/nendo/docs/agents) covers the access levels, the connection commands and what an agent can and cannot do.
 
 ## Try Nendo Station
 

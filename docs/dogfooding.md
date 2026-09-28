@@ -181,8 +181,12 @@ does not prove that a fresh agent session loaded the instructions or used the
 planner. In Claude, `/context` lists loaded memory files. Check that the
 repository `CLAUDE.md` and the imported `AGENTS.md` are present.
 
-Both registrations name the local host at port 41763. On another device, first
-open the intended planner in Nendo and confirm the application identity. The
+Both registrations name the local host at port 41763. Each file keeps its own
+agent port on a device (W-089), and 41763 belongs to the planner because it was the
+first file to claim one on this machine. If Agent → Connection in the planner shows
+another port, set it back to 41763 there; the refusal names the file that has it.
+On another device, first open the intended planner in Nendo and confirm the
+application identity. The
 working `.nendo` file is owner data and is git-ignored, so a Git checkout alone
 does not supply the planner. If the planner is absent, do not create an empty
 replacement. If a Git worktree is used, its repository configuration can reach

@@ -20,9 +20,11 @@ claude mcp add --transport http nendo http://127.0.0.1:41763/mcp
 codex mcp add nendo --url http://127.0.0.1:41763/mcp
 ```
 
-The address is the whole configuration. Nendo listens on the loopback address `127.0.0.1`, port `41763`, only while a file is open and access is not Off. **Agent → Connection** shows the live address and has a copy button for each client. Claude Code and Codex are the tested clients. Other MCP clients that support Streamable HTTP may work, but they are not tested.
+The address is the whole configuration. Nendo listens on the loopback address `127.0.0.1` only while a file is open and access is not Off. **Agent → Connection** shows the live address and has a copy button for each client. Claude Code and Codex are the tested clients. Other MCP clients that support Streamable HTTP may work, but they are not tested.
 
-If port 41763 is taken when access starts, Nendo does not fail. It listens on a temporary port for that session, and **Agent → Connection** shows a warning and the address to use. You can change the port, or turn **Fixed port** off to use a new port each time.
+Each file keeps a port of its own on your computer. The first file you switch access on for keeps `41763`, and each further file keeps the next free one, whatever order you open them in later. So you can work with several files at once: register each one once, from its own **Agent → Connection**. The copy buttons name the server after the file, `nendo` for `Nendo.nendo` and `nendo-bcm` for `BCM.nendo`, so the second registration does not replace the first. To give a file a different port, change **Port for this file** there. A port that another file keeps is refused, and the message names that file.
+
+If a file's port is taken by another program when access starts, Nendo does not fail. It listens on a temporary port for that session, and **Agent → Connection** shows a warning and the address to use. Turn **Fixed port** off to use a new port each time.
 
 There is no credential. While access is on, any program on this computer can connect at the level you chose. On your own computer that is a reasonable trade. On a shared computer it is not. Set access to **Off** when no agent is working.
 

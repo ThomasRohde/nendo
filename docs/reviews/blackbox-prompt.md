@@ -26,11 +26,14 @@ The Nendo MCP server should already be registered — its tools should be listed
 `/mcp`. Ask the person to confirm all of this and to tell you when it is done:
 
 1. Nendo is running with a **new, empty** file open, created from File → New **in the same
-   window** — a second window moves the endpoint out from under you.
+   window**. Each file keeps its own port, so a new file may not be on the address you
+   registered: have the person copy this file's command from Agent → Connection and
+   register that, or confirm the address it shows is the one you have.
 2. Agent access is set to **Shape app**. You will ask them to raise it to **Unattended**
    in Phase 4b and to lower it again afterwards; do not ask for it before then.
 3. Under Agent → Connection, **Fixed port** is on (it is the default), so your registration
-   survives the restart in Phase 6.
+   survives the restart in Phase 6. Record whether the copied command's server name told
+   you which file it was for.
 4. The window stays open for the whole session.
 
 If the tools are missing or every call fails, say so and stop. Do not work around it: a

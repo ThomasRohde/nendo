@@ -1,7 +1,7 @@
 import { openHelp, refreshAfterOutcome, showOutcomeRefreshNotice } from './actions';
 import { state } from './app-state';
 import { client } from './client';
-import { type ConnectionClient, connectionClients, connectionCommand } from './client-help';
+import { type ConnectionClient, connectionClients, connectionCommand, serverNameFor } from './client-help';
 import { activityLabel, agentModeLabel, escapeAttribute, escapeHtml, formatDateTime, isAgentAccessMode, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel, reviewKindLabel, shortId } from './format';
 import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentStatus, type DesktopPromotionView, type ProposalPreview } from './host';
 import { announce, clearError, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
@@ -74,12 +74,12 @@ export function renderAgent(): void {
       </section>
       <section class="agent-connection" aria-labelledby="connection-title">
         <div class="permission-intro"><h2 id="connection-title">Connection</h2></div>
-        <div class="connection-endpoint"><span class="presence-label">Address</span><code id="agent-endpoint">${status.endpoint === null ? 'Shown while agent access is on' : escapeHtml(status.endpoint)}</code><small>No credential. Register it with your client once.</small><div class="connection-copy">${connectionClients.map((item) => `<button class="secondary-button" data-connection-client="${item.id}" data-action type="button" ${status.endpoint === null ? 'disabled' : ''}>${escapeHtml(item.label)}</button>`).join('')}</div></div>
+        <div class="connection-endpoint"><span class="presence-label">Address</span><code id="agent-endpoint">${status.endpoint === null ? 'Shown while agent access is on' : escapeHtml(status.endpoint)}</code><small>No credential. Register it with your client once, as <code>${escapeHtml(serverNameFor(state.session.fileName))}</code>.</small><div class="connection-copy">${connectionClients.map((item) => `<button class="secondary-button" data-connection-client="${item.id}" data-action type="button" ${status.endpoint === null ? 'disabled' : ''}>${escapeHtml(item.label)}</button>`).join('')}</div></div>
         ${status.usingPreferredPort ? '' : `<p class="connection-warning">Port ${status.portPreference} was in use. Nendo is listening on a temporary port for this session, so a pinned client address must be re-read from the connection entry.</p>`}
         <div class="connection-settings">
           <div class="connection-setting">
             <button class="connection-toggle" type="button" data-agent-setting="fixedPort" aria-pressed="${status.fixedPort}" ${!status.available ? 'disabled' : ''}><span class="switch-glyph" aria-hidden="true"></span><span class="toggle-text"><strong>Fixed port</strong><small>${status.fixedPort ? 'A saved client address keeps working' : 'A new port each time this starts'}</small></span></button>
-            <label class="connection-field"><span>Port</span><input id="agent-port" type="number" min="1024" max="65535" value="${status.portPreference}" ${!status.fixedPort || !status.available ? 'disabled' : ''}></label>
+            <label class="connection-field"><span>Port for this file</span><input id="agent-port" type="number" min="1024" max="65535" value="${status.portPreference}" ${!status.fixedPort || !status.available ? 'disabled' : ''}></label>
           </div>
           <div class="connection-setting">
             <button class="connection-toggle" type="button" data-agent-setting="leaseExpiry" aria-pressed="${status.leaseExpiry}" ${!status.available ? 'disabled' : ''}><span class="switch-glyph" aria-hidden="true"></span><span class="toggle-text"><strong>Lease expiry</strong><small>${status.leaseExpiry ? 'Editing lapses without renewal' : 'Editing ends only on release or revoke'}</small></span></button>
@@ -292,7 +292,7 @@ export async function saveAgentSettings(change: AgentSettingsChange): Promise<vo
 export async function copyConnectionCommand(target: ConnectionClient): Promise<void> {
   const endpoint = state.agentStatus?.endpoint;
   if (!endpoint) return;
-  const command = connectionCommand(target, endpoint);
+  const command = connectionCommand(target, endpoint, serverNameFor(state.session.fileName));
   try {
     await navigator.clipboard.writeText(command);
     announce(`Copied. Run it once in a terminal: ${command}`);

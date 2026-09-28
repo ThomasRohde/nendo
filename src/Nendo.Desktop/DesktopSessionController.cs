@@ -405,6 +405,11 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
         finally
         {
             _gate.Release();
+            if (_ownedDeviceStateRoot is not null && Directory.Exists(_ownedDeviceStateRoot))
+            {
+                try { Directory.Delete(_ownedDeviceStateRoot, recursive: true); }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
+            }
         }
     }
 

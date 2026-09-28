@@ -628,7 +628,8 @@ no warning as a file approaches a ceiling
 MCP is an adapter over application services. It is not the authority model.
 
 The transport is loopback, stateless Streamable HTTP with no credential. The
-address `http://127.0.0.1:41763/mcp` is the whole client configuration. The host
+address, `http://127.0.0.1:41763/mcp` for the first file on a device, is the whole
+client configuration. The host
 serves both MCP eras: the `initialize` handshake on any version that the SDK
 supports, and the 2026-07-28 `server/discover` path. Thus Claude Code and Codex
 can both connect. Lease acquisition mints an opaque `applicationHandle` together
@@ -682,12 +683,23 @@ anti-malware boundary, and it is the wrong posture for a shared machine.**
 
 The local defaults suit single-user work:
 
-- a fixed loopback port (41763). If it cannot use that port, the host falls back
-  to an ephemeral port and reports it.
+- a fixed loopback port for each file, kept by `DesktopAgentPortStore` under its
+  application ID (ADR-0009, 2026-09-28 amendment). The first file keeps 41763 and
+  each further file the next free port, so several open files can be registered
+  side by side and an agent reaches the same file whatever order they open in.
+  Before, the first file to switch access on took 41763 and every other file got
+  a new temporary port each run. If the host cannot use the file's port, it falls
+  back to an ephemeral port and reports it.
 - an edit lease with no expiry, which ends on explicit release or owner revocation.
 
-The person can change both in Agent → Connection. That page also shows the live
-address and copies the registration command for Claude Code or Codex. Closing an
+The person can change both in Agent → Connection, where the Port field is this
+file's own and a port another file keeps is refused by that file's name. That page
+also shows the live address and copies the registration command for Claude Code or
+Codex, under a server name made from the file (`nendo` for Nendo.nendo, `nendo-bcm`
+for BCM.nendo), so a second registration does not replace the first. A controller
+built without a device-state root, which only a test does, keeps its settings,
+grants and ports in a folder of its own that goes with it; it used to fall back to
+the person's real device state. Closing an
 agent does not end a lease. Closing, switching, replacing or recovering the file
 invalidates all authority. A healthy renderer-only restart preserves it.
 

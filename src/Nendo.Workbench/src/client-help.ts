@@ -4,11 +4,25 @@ export const standardEndpoint = 'http://127.0.0.1:41763/mcp';
 
 export type ConnectionClient = 'claude' | 'codex';
 
+/**
+ * The name a client registers this file's server under: "nendo" for Nendo.nendo, "nendo-bcm"
+ * for BCM.nendo, "nendo-station" for Nendo Station.nendo. Each file keeps a port of its own, so
+ * two files registered side by side need two names; one made from the file keeps them apart in
+ * the client's tool names as well.
+ */
+export function serverNameFor(fileName: string | null | undefined): string {
+  const stem = (fileName ?? '').replace(/\.nendo$/i, '');
+  const slug = stem.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/g, '');
+  if (slug === '' || slug === 'nendo') return 'nendo';
+  return slug.startsWith('nendo-') ? slug : `nendo-${slug}`;
+}
+
 /** The whole client configuration is the address: no credential, no discovery file to read. */
-export function connectionCommand(client: ConnectionClient, endpoint: string): string {
+export function connectionCommand(client: ConnectionClient, endpoint: string, serverName = 'nendo'): string {
   return client === 'claude'
-    ? `claude mcp add --transport http nendo ${endpoint}`
-    : `codex mcp add nendo --url ${endpoint}`;
+    ? `claude mcp add --transport http ${serverName} ${endpoint}`
+    : `codex mcp add ${serverName} --url ${endpoint}`;
 }
 
 /** The copy buttons on the Agent page. Client names live in this file only; the page renders the list. */
@@ -25,17 +39,18 @@ export const clientHelp: HelpProvider = () => [
     { heading: 'Connect your agent', steps: [
       'Open your .nendo file and leave Nendo running.',
       'Click Agent in the sidebar. Select Inspect for a first, read-only connection.',
-      `Register the address with your client once. The address is the whole configuration; there is no credential. Claude Code: ${connectionCommand('claude', standardEndpoint)} — Codex: ${connectionCommand('codex', standardEndpoint)} — Agent → Connection shows the live address and copies either command.`,
+      `Register the address with your client once. The address is the whole configuration; there is no credential. Claude Code: ${connectionCommand('claude', standardEndpoint)} — Codex: ${connectionCommand('codex', standardEndpoint)} — Agent → Connection shows this file's address and copies either command, under a name made from the file.`,
       'Ask your agent to list your record types. In Nendo → Agent, check Recent activity for the reads. Most recent agent shows request activity, not a persistent connection. Editing ownership lasts until explicit release or revocation. Lease expiry is off unless the person turns it on.',
     ] },
     { heading: 'Choose what the agent may do', paragraphs: ['Inspect can read. Edit data can change existing records, create records and import them in bulk. Shape app also allows proposals for record types, fields and screens. Unattended lets the agent accept those proposals itself and run the automatic actions they install, without showing you first. Off stops local connections. Higher levels include the earlier abilities, and none of them is remembered when the file closes.', 'To request a screen, select Shape app, then ask: “Propose a simple screen for my records. Keep the existing records and titles, and wait for me to review.” Open Agent → Pending changes to inspect the proposal. Accept changes applies it; Reject leaves your active data unchanged.', 'Revoke edit access ends the current editing lease. Set access to Off to prevent the client from requesting access again. Closing or switching files also ends every lease.'] },
     { heading: 'If it does not connect', paragraphs: [
       'Confirm both apps are on the same computer, the file is still open and Agent access is not Off. “Ready for local agents” means Nendo is listening, not that an agent has used it.',
-      'If port 41763 was already taken when access was switched on, Nendo listens on a temporary port for that session and Agent → Connection shows the address to use instead. Turning Fixed port off always uses a temporary port.',
+      'Each file keeps a port of its own. The first file you switch access on for keeps 41763, and each further file the next free one, so several files can be registered side by side, each under its own name (nendo-bcm for BCM.nendo). Agent → Connection shows the port this file keeps; change it there. A port another file keeps is refused, naming that file.',
+      'If this file\'s port was already taken by another program when access was switched on, Nendo listens on a temporary port for that session and Agent → Connection shows the address to use instead. Turning Fixed port off always uses a temporary port.',
       'Closing or switching files keeps the address but ends every lease; the agent acquires a new one. Another agent may own the editing lease; wait for it to finish or revoke editing in Nendo.',
     ] },
     { heading: 'Connection requirements', paragraphs: [
-      `The server is loopback Streamable HTTP at ${standardEndpoint} while a file is open with access on. There is no credential: anything running on this computer can connect at the chosen access level, so leave access Off when no agent is working. A client may use the standard initialize handshake or MCP 2026-07-28; a handshake client appears as “Local agent” in Recent activity because its name travels only in the handshake. Editing requires the private application handle and lease returned by Nendo; release it when finished, and renew only if lease expiry has been turned on. Closing the agent alone does not release editing.`,
+      `The server is loopback Streamable HTTP at ${standardEndpoint}, or at the port the file keeps, while a file is open with access on. There is no credential: anything running on this computer can connect at the chosen access level, so leave access Off when no agent is working. A client may use the standard initialize handshake or MCP 2026-07-28; a handshake client appears as “Local agent” in Recent activity because its name travels only in the handshake. Editing requires the private application handle and lease returned by Nendo; release it when finished, and renew only if lease expiry has been turned on. Closing the agent alone does not release editing.`,
     ] },
   ] },
 ];

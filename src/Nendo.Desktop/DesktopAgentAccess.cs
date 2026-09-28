@@ -25,7 +25,11 @@ internal sealed partial class DesktopSessionController
 {
     private readonly NendoLocalMcpHostOptions? _agentOptions;
     private readonly string _deviceStateRoot;
+    private readonly string? _ownedDeviceStateRoot;
     private DesktopAgentSettingsStore? _agentSettings;
+    private DesktopAgentPortStore? _agentPorts;
+    private string? _agentApplicationId;
+    private string? _agentFileName;
     private NendoLocalMcpHost? _agentHost;
     private NendoAgentProposalStore? _agentProposals;
     private AgentAccessMode _agentMode = AgentAccessMode.Disabled;
@@ -34,10 +38,19 @@ internal sealed partial class DesktopSessionController
     private string _fileSessionId = $"file-session-{Guid.NewGuid():N}";
     private string? _agentCleanupNotice;
 
+    /// <param name="deviceStateRoot">
+    /// Where this device's settings, grants and agent ports are kept. The window always names
+    /// one. A controller built without one is a test's, and gets a folder of its own that goes
+    /// when it is disposed: it used to fall back to the person's real device state, so a test
+    /// that switched agent access on could keep a port there that a real file then lost.
+    /// </param>
     internal DesktopSessionController(NendoLocalMcpHostOptions? agentOptions = null, string? fileHistoryRoot = null, DesktopLocationPolicy? locationPolicy = null, string? deviceStateRoot = null)
     {
         _agentOptions = agentOptions;
-        _deviceStateRoot = deviceStateRoot ?? DesktopAppearanceStore.DefaultRoot;
+        _ownedDeviceStateRoot = deviceStateRoot is null
+            ? Path.Combine(Path.GetTempPath(), "nendo-device-state", Guid.NewGuid().ToString("N"))
+            : null;
+        _deviceStateRoot = deviceStateRoot ?? _ownedDeviceStateRoot!;
         _fileHistory = new DesktopFileHistory(fileHistoryRoot ?? DesktopFileHistory.DefaultRoot);
         _locationPolicy = locationPolicy ?? DesktopLocationPolicy.ForDevice();
     }
@@ -46,7 +59,11 @@ internal sealed partial class DesktopSessionController
     // relaunch. These are the single-user local defaults: a predictable port keeps an agent's saved
     // configuration working, and no lease expiry stops an in-flight draft dying mid-conversation. The
     // hardened behaviour remains available by choosing it.
-    internal NendoLocalMcpHostOptions CurrentHostOptions()
+    /// <param name="preferredPort">
+    /// The port the open file keeps (<see cref="DesktopAgentPortStore"/>), or null for the
+    /// device's own, which is what a controller with no file asks for.
+    /// </param>
+    internal NendoLocalMcpHostOptions CurrentHostOptions(int? preferredPort = null)
     {
         var settings = Settings();
         // A device-state root named by NENDO_DEVICE_STATE_ROOT is a whole profile, discovery
@@ -57,7 +74,7 @@ internal sealed partial class DesktopSessionController
             ?? NendoLocalMcpHostOptions.CreateDefault().DiscoveryRoot;
         return new NendoLocalMcpHostOptions(discoveryRoot)
         {
-            PreferredPort = settings.FixedPort ? settings.Port : 0,
+            PreferredPort = settings.FixedPort ? preferredPort ?? settings.Port : 0,
             LeaseTtl = settings.LeaseExpiry ? TimeSpan.FromSeconds(settings.LeaseExpirySeconds) : null,
             RecordFailure = RecordAgentFailure,
         };
@@ -84,6 +101,39 @@ internal sealed partial class DesktopSessionController
     private DesktopAgentSettingsStore Settings() =>
         _agentSettings ??= new DesktopAgentSettingsStore(_deviceStateRoot);
 
+    private DesktopAgentPortStore Ports() =>
+        _agentPorts ??= new DesktopAgentPortStore(_deviceStateRoot);
+
+    /// <summary>
+    /// Which application the open file is, read once per file session: the port it keeps is
+    /// filed under it, so a moved or renamed file keeps its port and a Fork gets its own.
+    /// </summary>
+    private async Task<string> AgentApplicationIdAsync(NendoApplicationService service, CancellationToken cancellationToken)
+    {
+        if (_agentApplicationId is { } known) return known;
+        var snapshot = await service.GetDefinitionSnapshotAsync(cancellationToken);
+        _agentFileName = snapshot.FileName;
+        return _agentApplicationId = snapshot.Manifest.ApplicationId;
+    }
+
+    /// <summary>The port this file listens on: its own kept port, or a new one each time with Fixed port off.</summary>
+    private async Task<int?> FilePortAsync(NendoApplicationService service, CancellationToken cancellationToken) =>
+        Settings().FixedPort
+            ? Ports().Claim(await AgentApplicationIdAsync(service, cancellationToken), _agentFileName, Settings().Port)
+            : null;
+
+    /// <summary>
+    /// What the Port field shows: the port this file keeps, or would be given, when a file is
+    /// open; the device's first port when none is. Never claims one: reading the page must not
+    /// hand out a port.
+    /// </summary>
+    private async Task<int> PortPreferenceAsync(CancellationToken cancellationToken)
+    {
+        if (_service is not { } service) return Settings().Port;
+        try { return Ports().Peek(await AgentApplicationIdAsync(service, cancellationToken), Settings().Port); }
+        catch (NendoException) { return Settings().Port; }
+    }
+
     internal async Task<DesktopAgentStatus> SetAgentSettingsAsync(
         bool leaseExpiry,
         int leaseExpirySeconds,
@@ -94,7 +144,17 @@ internal sealed partial class DesktopSessionController
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            Settings().Save(leaseExpiry, leaseExpirySeconds, fixedPort, port);
+            if (_service is { Capabilities.AgentAccess: true } open)
+            {
+                // With a file open the Port field is that file's own port. Kept first, because it
+                // is the part that can be refused, and a refused port must change nothing else.
+                if (fixedPort) Ports().Set(await AgentApplicationIdAsync(open, cancellationToken), _agentFileName, port);
+                Settings().Save(leaseExpiry, leaseExpirySeconds, fixedPort, Settings().Port);
+            }
+            else
+            {
+                Settings().Save(leaseExpiry, leaseExpirySeconds, fixedPort, port);
+            }
             // Restart an already-running host so a changed setting takes effect now rather than silently
             // waiting for the next enable.
             if (_agentHost is not null)
@@ -105,7 +165,7 @@ internal sealed partial class DesktopSessionController
                 {
                     EnsureProposalStore();
                     _agentHost = await NendoLocalMcpHost.StartAsync(
-                        service, mode, CurrentHostOptions(), _agentProposals,
+                        service, mode, CurrentHostOptions(await FilePortAsync(service, cancellationToken)), _agentProposals,
                         UnattendedConsent(mode), cancellationToken);
                     _agentMode = mode;
                     AttachWorkSignal(_agentHost);
@@ -168,7 +228,7 @@ internal sealed partial class DesktopSessionController
                 _agentHost = await NendoLocalMcpHost.StartAsync(
                     service,
                     requested,
-                    CurrentHostOptions(),
+                    CurrentHostOptions(await FilePortAsync(service, cancellationToken)),
                     _agentProposals,
                     UnattendedConsent(requested),
                     cancellationToken);
@@ -242,6 +302,8 @@ internal sealed partial class DesktopSessionController
     {
         _agentHost = null;
         _agentMode = AgentAccessMode.Disabled;
+        _agentApplicationId = null;
+        _agentFileName = null;
         _agentProposals = null;
         _agentProposals = EnsureProposalStore();
         RotateFileSession();
@@ -355,7 +417,7 @@ internal sealed partial class DesktopSessionController
                 [],
                 _agentProposals?.Snapshot() ?? [],
                 Settings().LeaseExpiry, Settings().LeaseExpirySeconds, Settings().FixedPort,
-                Settings().Port, null, true, Settings().Persisted, Settings().Notice);
+                await PortPreferenceAsync(cancellationToken), null, true, Settings().Persisted, Settings().Notice);
         }
 
         // Peek, not the gated read: the gated one waits on the same semaphore an agent
@@ -376,7 +438,7 @@ internal sealed partial class DesktopSessionController
             Settings().LeaseExpiry,
             Settings().LeaseExpirySeconds,
             Settings().FixedPort,
-            Settings().Port,
+            await PortPreferenceAsync(cancellationToken),
             _agentHost.Endpoint.AbsoluteUri,
             !_agentHost.UsedFallbackPort,
             Settings().Persisted,

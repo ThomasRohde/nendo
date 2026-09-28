@@ -15,6 +15,38 @@
   model and ADR-0007 proposal lifecycle
 - **Related design:** [`../architecture.md`](../architecture.md)
 
+### Accepted amendment — 2026-09-28 (each file keeps its own port)
+
+Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24: "I
+pre-accept any ADR change - this is still an experimental project."), for W-089. It
+changes the port bullet under *Transport and perimeter* and nothing else.
+
+**What is wrong.** The device had one port, 41763, and the first file to switch
+agent access on took it. Every other open file fell back to a temporary port that
+changed on every run. An agent registered as `nendo` therefore reached whichever
+file had opened first, and a second file could not be registered for good at all.
+With the planner and a product file open together, which file an agent wrote to
+depended on the order the person had opened them.
+
+**Decision.** Each file keeps a port on this device, filed under its application ID
+in `agent-ports.json` beside the other agent settings. The first time a file
+switches access on with Fixed port on, it keeps the device's port (41763 unless the
+person chose another) if no file keeps that already, and otherwise the next port no
+file keeps. From then on it asks for that port every time. The Port field in Agent →
+Connection is this file's port. A port that another file keeps is refused, and the
+refusal names that file. The copy buttons register the file under a name made from
+it: `nendo` for Nendo.nendo, `nendo-bcm` for BCM.nendo. A port that another program
+holds still falls back to a temporary one, as before. The list is device state. The
+file never carries a port, and a Fork, which is a new application, keeps a port of
+its own.
+
+**What it costs.** A file that opens first no longer takes 41763 from the file that
+kept it, and a client registered at 41763 keeps reaching the file that kept it.
+That is the purpose. The cost is on a device where a file other than the intended
+one happened to switch access on first after this change: that file keeps 41763,
+and the person gives the ports back in Agent → Connection. Nothing reads the list
+except this host.
+
 ### Accepted amendment — 2026-09-22 (a fifth access level that accepts its own work)
 
 The owner accepted this amendment on 2026-09-22. In the same sitting, the owner
@@ -163,9 +195,11 @@ services, at a static loopback address, with no credential.
 ### Transport and perimeter
 
 - Stateless Streamable HTTP through the official .NET MCP SDK, bound only to
-  IPv4 loopback. The default port is 41763. If the host cannot bind a port, it
-  falls back to an ephemeral port and reports it; this is never fatal. The owner
-  can choose a different fixed port or always-ephemeral in Agent → Connection.
+  IPv4 loopback. Each file keeps a port on this device (2026-09-28 amendment): the
+  first file keeps the device's port, 41763 by default, and each further file the
+  next free one. If the host cannot bind a port, it falls back to an ephemeral port
+  and reports it; this is never fatal. The owner can choose this file's port or
+  always-ephemeral in Agent → Connection.
 - **Both MCP eras are served.** The server pins no protocol version. It answers
   an `initialize` handshake on any version that the SDK supports. The 2026-07-28
   `server/discover` path with per-request metadata works alongside it. Neither
@@ -328,3 +362,6 @@ services, at a static loopback address, with no credential.
   promotes the session's own validated proposal and the host grants the open file's
   automatic-action consent; and bulk data in and out through a CSV export resource
   and one import tool at Edit data.
+- 2026-09-28 — amended: each file keeps its own port, so several files can be
+  registered side by side and an agent reaches the same file whatever order they
+  open in.
