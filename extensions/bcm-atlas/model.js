@@ -72,7 +72,9 @@ function labelFieldOf(entity, entities) {
  * that supports a capability); any other type that refers to it is a list of related records (the
  * initiatives that change it). One section per reference to the Atlas's type. The view's
  * configuration may give a section its title, its row as a template of {fieldId} placeholders,
- * and what it says when it is empty; the schema decides which sections there are.
+ * and what it says when it is empty; the schema decides which sections there are. Sections come
+ * in the order the configuration lists them, then links before lists: the host lists record
+ * types by ID, which says nothing about how the inspector should read.
  */
 function relatedTypes(entityId, entities, presentation, typeName, problems) {
   const related = [];
@@ -99,7 +101,13 @@ function relatedTypes(entityId, entities, presentation, typeName, problems) {
       });
     }
   }
-  for (const described of Object.keys(presentation)) {
+  const listed = Object.keys(presentation);
+  const rank = entry => {
+    const place = listed.indexOf(entry.entityId);
+    return place !== -1 ? place : listed.length + (entry.farFieldId === null ? 1 : 0);
+  };
+  related.sort((a, b) => rank(a) - rank(b));
+  for (const described of listed) {
     if (!related.some(entry => entry.entityId === described)) {
       problems.push(`The configuration describes ${described}, which does not refer to ${typeName}.`);
     }

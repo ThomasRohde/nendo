@@ -56,9 +56,9 @@ async (page) => {
   assert(await view.evaluate(() => document.getElementById('notice').hidden), 'BCM shows a notice: ' + await view.evaluate(() => document.getElementById('notice').textContent));
   await select('bcm-cap-3-3');
   results.bcmInspector = await inspector();
-  for (const expected of ['Application support', 'Change portfolio']) {
-    assert(results.bcmInspector.headings.includes(expected), `The inspector has no ${expected} section: ${JSON.stringify(results.bcmInspector.headings)}`);
-  }
+  // In BCM's order, which its configuration gives; the host lists record types by ID, initiatives first.
+  assert(JSON.stringify(results.bcmInspector.headings) === JSON.stringify(['Assessment', '2 child capabilities', 'Application support', 'Change portfolio']),
+    'The inspector’s sections are not in BCM’s order: ' + JSON.stringify(results.bcmInspector.headings));
   for (const expected of ['Strong fit · Primary', 'Delivery · 2026-08-28']) {
     assert(results.bcmInspector.relations.some(text => text.endsWith(expected)), `No related row reads "${expected}": ${JSON.stringify(results.bcmInspector.relations)}`);
   }

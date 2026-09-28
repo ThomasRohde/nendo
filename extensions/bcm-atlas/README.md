@@ -74,7 +74,9 @@ their label (BCM's Application support). Any other record type that refers to it
 its own records (BCM's initiatives). Each row opens its record. By default a section is
 titled with the record type's name, and each row shows its choices. `configuration.related`
 may give a record type's section a `title`, a `row` template of `{fieldId}` placeholders
-and an `empty` line.
+and an `empty` line. Sections come in the order `configuration.related` lists them; record
+types it does not name follow, links before lists. Nendo lists record types by ID, so that
+order is never the inspector's.
 
 **The banner** at the right of the figures is `configuration.banner`, `{title, note}`.
 Without one there is no banner.

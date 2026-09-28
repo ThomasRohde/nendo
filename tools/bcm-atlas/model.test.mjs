@@ -110,3 +110,14 @@ test('a host that does not name the hierarchy yet leaves the parent to the one s
   assert.equal(undeclared.parentFieldId,null,'a host that says there is no tree is believed');
   assert.deepEqual(undeclared.selfReferences,['Part of']);
 });
+test('related sections read in the configuration’s order, then links before lists, whatever order the host lists types in',()=>{
+  // The host lists record types by entity ID, so BCM's initiatives come before its support links.
+  // Found on the live file on 2026-09-28: the inspector read Change portfolio before Application support.
+  for(const [fixture,expected] of [[bcmFixture(),['bcm.support','bcm.initiative']],[otherFixture(),['org.use','org.project']]]){
+    const {context,schema}=fixture;
+    for(const entities of [schema.entities,[...schema.entities].reverse()]){
+      const order=bindAtlas(context,{entities}).related.map(e=>e.entityId);
+      assert.deepEqual(order,expected,`The inspector's sections follow the host's listing (${entities.map(e=>e.entityId).join(', ')}), not the configuration and link-first order`);
+    }
+  }
+});

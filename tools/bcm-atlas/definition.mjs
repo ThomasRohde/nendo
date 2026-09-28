@@ -73,10 +73,13 @@ export const mapView = {
   },
 };
 
-/** The file's record types as nendo.schema.describe() answers them. */
+/**
+ * The file's record types as nendo.schema.describe() answers them: by entity ID, as the host
+ * lists them, and each type's fields in the order they were authored.
+ */
 export function schemaDescription() {
   return {
-    entities: defs.map(([id, displayName, prefix, fields]) => ({
+    entities: [...defs].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([id, displayName, prefix, fields]) => ({
       entityId: `bcm.${id}`,
       displayName,
       hierarchy: `bcm.${id}` === tree.entityId ? { parentFieldId: tree.parentFieldId, orderFieldId: tree.orderFieldId } : null,

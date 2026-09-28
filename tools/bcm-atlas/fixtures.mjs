@@ -47,6 +47,7 @@ const pointsAt = (targetEntityId, labelFieldId) => ({ reference: { targetEntityI
 
 /** A business-area map with nothing in common with BCM.nendo but the shape of a tree. */
 export function otherFixture() {
+  // Record types in the order the host lists them, by entity ID.
   const schema = {
     entities: [
       { entityId: 'org.area', displayName: 'Business area', hierarchy: { parentFieldId: 'area.up', orderFieldId: 'area.rank' }, fields: [
@@ -73,6 +74,7 @@ export function otherFixture() {
       ] },
     ],
   };
+  schema.entities.sort((a, b) => (a.entityId < b.entityId ? -1 : a.entityId > b.entityId ? 1 : 0));
 
   // Three areas, three children each, and two grandchildren under each first child: 3, 12, 18.
   const areas = [];
