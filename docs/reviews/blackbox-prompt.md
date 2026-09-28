@@ -810,6 +810,11 @@ vocabulary, the examples and the resources — and not from the person.
   its editor is open: the save must name the stale version and keep the draft. Delete
   only that record. Check both themes and a narrow window, and record readability apart
   from counts.
+- In the same map, at two levels, export an SVG and a PNG, then zoom in, pan and export the
+  SVG again. Open the SVGs in a browser and the first in PowerPoint. Record whether every
+  card, its text and colour, the title and the legend arrived, whether PowerPoint kept the
+  text as text, whether the two SVGs differ, and what Light colours for print changed in the
+  dark theme.
 - Put the repository's `extensions/bcm-atlas` package into the empty review file. Give a
   record type a reference to itself, declare it as the hierarchy, and add records three
   levels deep. Show the package over that record type with a view whose configuration

@@ -44,6 +44,55 @@ async (page) => {
   const select = id => view.evaluate(value => document.querySelector(`.cap[data-id="${value}"]`).click(), id);
   const results = {};
 
+  // W-078: an export hands its file to an anchor with a download name. The view's anchors are
+  // caught before the browser saves anything, and each file is read back from its blob in the view.
+  const catchDownloads = () => view.evaluate(() => {
+    window.__exports = [];
+    const click = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      if (this.download) { window.__exports.push({ name: this.download, href: this.href }); return; }
+      return click.call(this);
+    };
+  });
+  const exported = (format, light) => view.evaluate(async ({ format, light }) => {
+    const before = window.__exports.length;
+    document.getElementById('export').open = true;
+    document.getElementById('export-light').checked = light;
+    document.querySelector(`[data-export="${format}"]`).click();
+    for (let i = 0; i < 200 && window.__exports.length === before; i += 1) await new Promise(resolve => setTimeout(resolve, 25));
+    if (window.__exports.length === before) return null;
+    const file = window.__exports.at(-1);
+    const blob = await (await fetch(file.href)).blob();
+    if (format === 'png') {
+      const bitmap = await createImageBitmap(blob);
+      return { name: file.name, type: blob.type, width: bitmap.width, height: bitmap.height };
+    }
+    const text = await blob.text();
+    const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+    const shapes = [...doc.querySelectorAll('g.card rect.card-shape')].map(r => ['x', 'y', 'width', 'height'].map(k => Number(r.getAttribute(k))));
+    return {
+      name: file.name, type: blob.type, text, broken: doc.querySelector('parsererror') !== null,
+      width: Number(doc.documentElement.getAttribute('width')), height: Number(doc.documentElement.getAttribute('height')),
+      names: [...doc.querySelectorAll('g.card > title')].map(node => node.textContent),
+      span: [Math.max(...shapes.map(s => s[0] + s[2])) - Math.min(...shapes.map(s => s[0])), Math.max(...shapes.map(s => s[1] + s[3])) - Math.min(...shapes.map(s => s[1]))],
+      legend: [...doc.querySelectorAll('g.legend text')].map(node => node.textContent),
+      background: doc.querySelector('rect.background')?.getAttribute('fill') ?? null,
+      heading: doc.querySelector('text.heading')?.textContent ?? null,
+      texts: doc.querySelectorAll('text').length,
+    };
+  }, { format, light });
+  // What the map packs, read off its cards' own coordinates rather than the screen's.
+  const packed = () => view.evaluate(() => {
+    const cards = [...document.querySelectorAll('.cap')];
+    const at = key => cards.map(card => parseFloat(card.style[key]));
+    const lefts = at('left'), tops = at('top'), widths = at('width'), heights = at('height');
+    return {
+      names: cards.map(card => card.querySelector('.cap-title').textContent),
+      span: [Math.max(...lefts.map((l, i) => l + widths[i])) - Math.min(...lefts), Math.max(...tops.map((top, i) => top + heights[i])) - Math.min(...tops)],
+      legend: [...document.querySelectorAll('#legend span')].map(span => span.textContent),
+    };
+  });
+
   // The shipped model opens at two levels, and each level shows the cards it should.
   await until(() => /635 total$/.test(document.getElementById('status').textContent), null, 'The map never loaded the 635-capability model.');
   assert(await status() === '48 shown · 635 in scope · 635 total', 'The map did not open at two levels: ' + await status());
@@ -91,6 +140,42 @@ async (page) => {
   await view.selectOption('#colour', 'maturity');
   await view.click('[data-level="2"]');
   assert(await view.evaluate(() => window.__bcmLayouts) === 1, 'Changing the level did not pack the map once.');
+
+  // W-078: Export writes what the map packs, with its legend and title, as SVG and PNG.
+  await catchDownloads();
+  const map = await packed();
+  const svg = await exported('svg', false);
+  assert(svg !== null, 'Export SVG handed no file to the browser.');
+  assert(!svg.broken && svg.type === 'image/svg+xml' && /^capability-map-enterprise-\d{4}-\d{2}-\d{2}\.svg$/.test(svg.name), `The export is not a well-formed SVG file: ${svg.type} ${svg.name}`);
+  assert(JSON.stringify(svg.names) === JSON.stringify(map.names), `The SVG holds ${svg.names.length} cards; the map shows ${map.names.length}.`);
+  assert(JSON.stringify(svg.span) === JSON.stringify(map.span), `The SVG's cards span ${svg.span}; the map's span ${map.span}.`);
+  assert(JSON.stringify(svg.legend) === JSON.stringify(map.legend), 'The SVG\u2019s legend is not the map\u2019s: ' + JSON.stringify(svg.legend));
+  assert(svg.heading === 'Capability map' && svg.texts > map.names.length, `The SVG's text is not text: ${svg.texts} text elements.`);
+  assert(!/var\(|<style|foreignObject/.test(svg.text), 'The SVG uses what a slide editor may not keep.');
+  assert(svg.background === '#f3f4f6', 'The light theme\u2019s export is not on the light canvas: ' + svg.background);
+  results.export = { name: svg.name, width: svg.width, height: svg.height, cards: svg.names.length };
+  // The camera plays no part: zoomed in and panned, the same file.
+  await view.click('#zoom-in');
+  await view.click('#zoom-in');
+  await view.focus('#map');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowUp');
+  assert((await exported('svg', false)).text === svg.text, 'Zooming and panning changed the exported SVG; the export follows the camera.');
+  await view.click('#fit');
+  // PNG: the same document drawn at twice its size, for a slide.
+  const png = await exported('png', false);
+  assert(png !== null && png.type === 'image/png' && /\.png$/.test(png.name), `The PNG export is ${png?.type} ${png?.name}.`);
+  assert(png.width === Math.round(svg.width * 2) && png.height === Math.round(svg.height * 2), `The PNG is ${png.width}\u00d7${png.height}, not twice ${svg.width}\u00d7${svg.height}.`);
+  results.export.png = [png.width, png.height];
+  // In the dark theme the export takes the dark canvas; Light colours for print, white paper and dark ink.
+  await page.evaluate(value => window.broker.pushTheme(value), 'dark');
+  await until(value => getComputedStyle(document.documentElement).backgroundColor === value, 'rgb(15, 17, 21)', 'The dark theme never reached the view.');
+  const dark = await exported('svg', false), print = await exported('svg', true);
+  assert(dark.background === '#0f1115', 'The dark theme\u2019s export is not on the dark canvas: ' + dark.background);
+  assert(print.background === '#ffffff' && print.text.includes('fill="#14171c"'), 'Light colours for print did not give white paper and dark ink.');
+  await page.evaluate(value => window.broker.pushTheme(value), 'light');
+  await until(value => getComputedStyle(document.documentElement).backgroundColor === value, 'rgb(243, 244, 246)', 'The light theme never came back.');
+  assert(await view.evaluate(() => window.__bcmLayouts) === 1, 'Exporting packed the map again; it must write the packing it has.');
 
   // A change made elsewhere refreshes the cards but leaves the camera where the person put it.
   await view.click('#zoom-in');
@@ -188,6 +273,13 @@ async (page) => {
   assert(results.other.legend === 'CommodityCoreEdge', 'The legend does not name the file’s own choices: ' + results.other.legend);
   assert(await view.evaluate(() => document.querySelector('.cap[data-id="org-a-2"]').style.getPropertyValue('--tone')) === 'var(--nendo-tone-violet)',
     'An Edge area is not drawn in the tone the schema gives Edge.');
+  // The second file exports under its own view's title, with its own choices in the legend.
+  await catchDownloads();
+  const areas = await exported('svg', false), areaMap = await packed();
+  assert(areas !== null && /^area-map-enterprise-/.test(areas.name) && areas.heading === 'Area map', `The second file's export is ${areas?.name} titled ${areas?.heading}.`);
+  assert(JSON.stringify(areas.names) === JSON.stringify(areaMap.names) && JSON.stringify(areas.legend) === JSON.stringify(['Commodity', 'Core', 'Edge']),
+    'The second file\u2019s export does not hold its map: ' + JSON.stringify({ names: areas.names.length, legend: areas.legend }));
+  results.other.export = { name: areas.name, cards: areas.names.length };
 
   // The inspector finds what refers to an area through the schema: a link type and a record list.
   await select('org-a-1');
@@ -227,5 +319,12 @@ async (page) => {
   const everything = [...new Set((await page.evaluate(() => window.broker.requests)).slice(readFrom).map(r => r.p?.entityId).filter(Boolean))];
   assert(everything.every(entityId => entityId.startsWith('org.')), 'The second file was asked about BCM’s record types: ' + JSON.stringify(everything));
   assert(errors.length === 0, 'The view raised: ' + errors.join(' | '));
+
+  // W-078: the exported SVG opens in a browser as it stands, at its own size, and is kept for a look.
+  await page.setViewportSize({ width: Math.min(svg.width, 1600), height: Math.min(svg.height, 1200) });
+  await page.setContent(`<body style="margin:0">${svg.text.replace(/^<\?xml[^>]*>\s*/, '')}</body>`);
+  const opened = await page.evaluate(() => { const box = document.querySelector('svg').getBoundingClientRect(); return [box.width, box.height, document.querySelectorAll('svg g.card').length]; });
+  assert(opened[0] === svg.width && opened[1] === svg.height && opened[2] === svg.names.length, `The exported SVG opened at ${opened}, not ${svg.width}×${svg.height} with ${svg.names.length} cards.`);
+  await page.screenshot({ path: root + '/artifacts/extension-runtime-results/bcm-atlas-export.png' });
   return 'bcm-atlas ok ' + JSON.stringify(results);
 }

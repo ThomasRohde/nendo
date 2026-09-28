@@ -11,6 +11,7 @@
 // updates, sent with the parent's version so a stale parent is refused, and a parent that would
 // close a loop is refused by the Engine in words the editor shows. Nothing leaves Nendo.
 import { bindAtlas, hierarchy, projectHierarchy, maturityLabels, relatedName, relatedRow } from './model.js';
+import { mapSvg, printPalette, paletteTokens } from './export.js';
 import { layoutCapabilities, fitViewport } from './layout-profile.js';
 
 // ---------------------------------------------------------------------------------------------
@@ -283,7 +284,7 @@ function renderMap(refit) {
 function card(node, lit) {
   const record = model.byId.get(node.id);
   const isGroup = !!model.children.get(node.id)?.length;
-  const hidden = node.isLeaf && isGroup ? projection.hiddenCounts.get(node.id) : 0;
+  const hidden = collapsedCount(node);
 
   const classes = ['cap', node.isLeaf ? 'leaf' : 'branch'];
   if (selected === node.id) classes.push('selected');
@@ -307,13 +308,133 @@ function card(node, lit) {
   return b;
 }
 
+/** How many capabilities a card holds out of sight: a group the level choice has collapsed. */
+function collapsedCount(node) {
+  return node.isLeaf && model.children.get(node.id)?.length ? projection.hiddenCounts.get(node.id) : 0;
+}
+
 /** A leaf card's corner figure: what a collapsed group holds, the gap, or the maturity. */
+function scoreText(record, hidden) {
+  if (hidden) return `${hidden} inside`;
+  if (colour === 'gap') return binding.gap(record) == null ? '—' : `Δ ${binding.gap(record)}`;
+  if (binding.has('maturity')) return binding.value(record, 'maturity') == null ? '—' : `${binding.value(record, 'maturity')} / ${binding.scale.max}`;
+  return '';
+}
+
 function score(record, hidden) {
-  if (hidden) return el('span', 'score cap-count', `${hidden} inside`);
-  let text = '';
-  if (colour === 'gap') text = binding.gap(record) == null ? '—' : `Δ ${binding.gap(record)}`;
-  else if (binding.has('maturity')) text = binding.value(record, 'maturity') == null ? '—' : `${binding.value(record, 'maturity')} / ${binding.scale.max}`;
-  return el('span', 'score', text);
+  return el('span', hidden ? 'score cap-count' : 'score', scoreText(record, hidden));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Export (W-078)
+//
+// The map as a file: SVG to edit, PNG for a slide. export.js builds both from the packed layout,
+// so a file holds every card of the scope at the chosen levels in the chosen colour, whatever
+// the camera shows. Search and selection are the person's working state and stay out of it.
+
+let measuring = null;
+
+function canvasContext() {
+  measuring ??= document.createElement('canvas').getContext('2d');
+  return measuring;
+}
+
+/** A width in pixels in one of the fonts the export sets, measured as the browser draws it. */
+function measure(text, font) {
+  const context = canvasContext();
+  context.font = font;
+  return context.measureText(text).width;
+}
+
+/** The theme in effect, from the tokens api.js sets on the page, each as the browser resolves it. */
+function themePalette() {
+  const style = getComputedStyle(document.documentElement);
+  const context = canvasContext();
+  return Object.fromEntries(paletteTokens.map(name => {
+    const value = style.getPropertyValue(`--nendo-${name}`).trim();
+    if (!value) return [name, printPalette[name]];
+    context.fillStyle = printPalette[name];
+    context.fillStyle = value;
+    return [name, context.fillStyle];
+  }));
+}
+
+function exportDocument() {
+  const cards = layout.nodes.filter(node => !node.synthetic).map(node => {
+    const record = model.byId.get(node.id);
+    return {
+      x: node.x, y: node.y, width: node.width, height: node.height, isLeaf: node.isLeaf,
+      title: binding.title(record),
+      meta: node.isLeaf ? String(binding.value(record, 'code') || '') : '',
+      score: node.isLeaf ? scoreText(record, collapsedCount(node)) : '',
+      tone: toneFor(record),
+    };
+  });
+  const place = scope && model.byId.has(scope) ? binding.title(model.byId.get(scope)) : 'Enterprise';
+  const depth = Number.isFinite(levels) ? `${levels} level${levels === 1 ? '' : 's'}` : 'all levels';
+  return mapSvg({
+    cards,
+    title: nendo.context?.title || 'Capability map',
+    subtitle: `${place} · ${depth} · Colour: ${$('colour').selectedOptions[0]?.textContent ?? ''} · ${cards.length} capabilities`,
+    note: binding.banner ? [binding.banner.title, binding.banner.note].filter(Boolean).join(' · ') : null,
+    legend: legendEntries(),
+    palette: $('export-light').checked ? printPalette : themePalette(),
+    measure,
+  });
+}
+
+/** capability-map-enterprise-2026-09-28: the view's title and the scope, dated. */
+function exportName() {
+  const now = new Date();
+  const day = [now.getFullYear(), now.getMonth() + 1, now.getDate()].map(n => String(n).padStart(2, '0')).join('-');
+  const place = scope && model.byId.has(scope) ? binding.title(model.byId.get(scope)) : 'enterprise';
+  const slug = `${nendo.context?.title || 'capability map'} ${place}`.toLowerCase().normalize('NFKD')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return `${slug || 'capability-map'}-${day}`;
+}
+
+/** Hand a file to the browser's own download handling, which the view's frame allows. */
+function download(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+async function exportMap(format) {
+  $('export').open = false;
+  if (!layout) {
+    say('There is no map to export.');
+    return;
+  }
+  const file = exportDocument();
+  const svg = new Blob([file.svg], { type: 'image/svg+xml' });
+  if (format === 'svg') {
+    download(svg, `${exportName()}.svg`);
+  } else {
+    // Twice the size for a sharp slide, within what one canvas can hold.
+    const scale = Math.min(2, 8192 / Math.max(file.width, file.height), Math.sqrt(40e6 / (file.width * file.height)));
+    const url = URL.createObjectURL(svg);
+    try {
+      const image = new Image();
+      image.src = url;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(file.width * scale);
+      canvas.height = Math.round(file.height * scale);
+      canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+      const png = await new Promise((resolve, reject) =>
+        canvas.toBlob(blob => (blob ? resolve(blob) : reject(new Error('the image could not be drawn'))), 'image/png'));
+      download(png, `${exportName()}.png`);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+  say(`Exported ${file.cards} capabilities as ${format.toUpperCase()}.`);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -722,6 +843,13 @@ $('layout').onchange = event => {
 $('add').onclick = () => edit(null, scope);
 $('empty-add').onclick = () => edit(null, null);
 $('fit').onclick = fit;
+document.querySelectorAll('[data-export]').forEach(b => {
+  b.onclick = () => exportMap(b.dataset.export).catch(error => say(`Could not export the map: ${error.message}`));
+});
+// The export menu closes when the person clicks anywhere else.
+document.addEventListener('click', event => {
+  if ($('export').open && !$('export').contains(event.target)) $('export').open = false;
+});
 $('zoom-in').onclick = () => zoomBy(1.2);
 $('zoom-out').onclick = () => zoomBy(1 / 1.2);
 

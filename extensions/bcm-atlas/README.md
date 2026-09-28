@@ -26,6 +26,11 @@ importance, investment, neutral) and the compact and ordered reference layouts.
   editing data, here or anywhere else, keeps the camera where it is.
 - **Edit** and **+ Child** change the model; **Open record** opens Nendo's own record page
   with the related application support and initiatives.
+- **Export** writes the map as **SVG**, to edit, or **PNG**, twice the size, for a slide: the
+  scope at the chosen levels in the chosen colour, with a title, the file's banner and the
+  legend, whatever part of it the camera shows. The SVG is plain shapes and text with hex
+  colours, so a slide editor keeps the text as text. **Light colours for print** puts it on
+  white paper in the light theme's colours. Search and selection are not exported.
 
 The other screens are Capability register, Investment directions, Strategic positioning,
 Application landscape, Application coverage, Change portfolio and Transformation roadmap.
@@ -151,6 +156,9 @@ The tooling lives in [`tools/bcm-atlas/`](../../tools/bcm-atlas/), outside the p
   635. The live file's records equal its output.
 - `fixtures.mjs` hands the package two files as the Workbench would: BCM.nendo, and a
   business-area map whose record types, field IDs, choice IDs and parts are all different.
+- `export.test.mjs` tests `export.js`, which builds the exported SVG from the packed layout:
+  its size and cards, escaping, wrapping, and that it uses nothing but hex colours and
+  presentation attributes.
 - `model.test.mjs`, `syntax.test.mjs` and `layout-parity.test.mjs` test the bindings, the
   hierarchy and level rules, module syntax, and the frozen lab coordinates in
   `lab-reference-proof.json`.
@@ -164,7 +172,10 @@ package in Edge through the fixture broker. Over BCM it measures level counts, e
 colour mode, the banner and the related rows in BCM's own words, no repacking while
 searching or recolouring, the camera kept across a data change, Ctrl-drag from a card, a
 definition change binding again, the notice without a declared tree, both themes and a
-600px pane. Over the second file it measures that only that file's record types are read,
+600px pane, and the exports: an SVG holding exactly the map's cards, span and legend, the
+same file after zooming and panning, no packing, a PNG at twice the SVG's size, the dark
+canvas and the white print palette, and the SVG opened on a page of its own. Over the second
+file it measures that only that file's record types are read,
 that the parts it does not bind are not offered, that the unbound one is named, that
 scores and tones follow its own fields, that its related sections are found, and that the
 editor writes only its own bound fields with the parent's version.
