@@ -42,6 +42,22 @@ The other screens are Capability register, Investment directions, Strategic posi
 Application landscape, Application coverage, Change portfolio and Transformation roadmap.
 All four record types have authored detail screens.
 
+**In Nendo's toolbar.** On a Nendo that offers it, the Atlas draws no toolbar of its own.
+Nendo shows these controls in the toolbar above the map, lists them in Ctrl K under the view's
+title, and runs their keys:
+
+- Map, Assessment and Outline;
+- Levels, Colour and Find (Ctrl F);
+- Pan, and the zoom: Ctrl − and Ctrl + zoom, and Ctrl 0 fits;
+- the layout, under the settings button;
+- Export.
+
+Nendo's own **Add Capability** adds a capability under the selected card, or else under the
+focused group. A right-click on a card opens Nendo's menu, with Open record, Edit, Add a
+capability under it, Rename, Focus this group and the four moves, each greyed where it cannot
+happen. The breadcrumbs join the summary line. On an older Nendo the Atlas shows its own
+toolbar, as it always has.
+
 ## Showing it in a file
 
 The package names no record type and no field. It takes both from the view that shows it,

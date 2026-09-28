@@ -75,3 +75,6 @@ footer p{margin:0}#selection{flex:1 1 240px;min-width:0}
 @media(max-width:640px){body{padding:12px;gap:8px}.hint{display:none}h1{font-size:18px}.tools button{padding:5px 8px}input[type=search]{width:112px}.select span{display:none}.select select{max-width:120px}}
 /* Chrome is not prose: dragging across it must pan or select items, never select text. The text alternative stays selectable. */
 header,.tools,.hint,footer,#canvas,#summary,#empty,#filters{user-select:none}#outcome{user-select:text}#text-view{user-select:text}
+/* Nendo draws this view's controls in its own toolbar where the host offers it (W-090): the
+   view's own controls, its filter row and the page title, which Nendo's breadcrumb gives, go. */
+.native-chrome h1,.native-chrome .tools,.native-chrome #filters{display:none!important}

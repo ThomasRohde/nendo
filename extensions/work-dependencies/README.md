@@ -52,6 +52,16 @@ it. Nendo asks nothing first: the change
 is in History under this package's name, where you can undo it. A file open read-only
 offers nothing to press.
 
+## In Nendo's toolbar
+
+On a Nendo that offers it, this view draws no controls and no title of its own. Find
+(Ctrl F), Group by, Filter, Linked only, Longest chain, Focus, the zoom (Ctrl − and Ctrl +
+zoom, Ctrl 0 fits) and Text view are in Nendo's toolbar above the drawing, in Ctrl K under
+the view's title, and on their keys. Enter in Nendo's search box opens the first match. A
+right-click on a work item opens Nendo's menu, with Open work item and the item's record
+commands, a spent one greyed. On an older Nendo the view shows its own controls, as it
+always has.
+
 ## What it reads
 
 Everything arrives through `window.nendo`, which `<script src="/_nendo/api.js">`

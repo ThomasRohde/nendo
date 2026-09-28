@@ -23,6 +23,9 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
 //   pushChanges(), pushTheme(mode | theme), pushContext()   the three events a view hears
 //   fail(method, { code, message }, times)     refuse the next requests of one method
 //   remount()                                   a fresh frame, as a new placeholder would start one
+//   offerChrome(on)                             offer ui.setToolbar and ui.showMenu from the next
+//                                               connect on (W-090); toolbars and menus record them
+//   pickNext(pick), command(id, value, source)  the next menu's answer; a press on the toolbar
 //   requests, events, hellos, refused, connects what happened, in order
 (() => {
   'use strict';
@@ -31,6 +34,11 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
   const SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-pointer-lock allow-presentation';
   // The methods this fixture answers, which is what the context lists and nendo.has reads.
   const METHODS = ['schema.describe', 'records.query', 'records.get', 'records.tree', 'records.update', 'records.move', 'ui.openRecord', 'commands.run'];
+  // A view's controls in Nendo's own chrome (W-090), offered only when a probe asks, so each
+  // lane measures a view both on a host that draws its controls and on one that does not.
+  const CHROME = ['ui.setToolbar', 'ui.showMenu'];
+  let chrome = false, menuPick = null;
+  const toolbars = [], menus = [];
   // The Workbench's colour tokens for both themes, as src/Nendo.Workbench/src/styles/02-tokens.css
   // declares them and extension-model.ts names them.
   const themes = {
@@ -62,7 +70,7 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
     const context = fixture.context;
     return {
       apiVersion: config.apiVersion, packageId: config.packageId, configuration: {}, locale: 'en', readOnly: false,
-      ...clone(context), theme: themeOf(context.theme ?? 'light'), methods: [...METHODS],
+      ...clone(context), theme: themeOf(context.theme ?? 'light'), methods: chrome ? [...METHODS, ...CHROME] : [...METHODS],
     };
   }
 
@@ -155,6 +163,17 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
         text(params, 'entityId');
         text(params, 'recordId');
         return { opened: true };
+      case 'ui.setToolbar':
+        if (!chrome) throw refusal('unknown-method', 'ui.setToolbar is not a method this fixture answers.');
+        toolbars.push(clone(params));
+        return null;
+      case 'ui.showMenu': {
+        if (!chrome) throw refusal('unknown-method', 'ui.showMenu is not a method this fixture answers.');
+        menus.push(clone(params));
+        const pick = menuPick;
+        menuPick = null;
+        return pick;
+      }
       case 'records.update': {
         // As the host writes a person's edit: at the version the view read, or not at all.
         const entityId = text(params, 'entityId'), recordId = text(params, 'recordId');
@@ -315,6 +334,10 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
     pushContext() { emit('context', contextOf()); return events.length; },
     fail(method, error, times = 1) { failures.push({ method, error: clone(error), times }); return true; },
     remount() { mount(); return true; },
+    offerChrome(on) { chrome = on === true; return chrome; },
+    toolbars, menus,
+    pickNext(pick) { menuPick = clone(pick); return true; },
+    command(id, value = null, source = 'toolbar') { emit('command', { id, value, source }); return events.length; },
     ping() { const id = nextPing++; post({ t: 'ping', id }); return id; },
     opened() { return requests.filter(request => request.m === 'ui.openRecord').map(request => request.p); },
     commandsRun() { return requests.filter(request => request.m === 'commands.run').map(request => request.p); },

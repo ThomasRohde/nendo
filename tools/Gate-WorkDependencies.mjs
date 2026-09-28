@@ -44,7 +44,7 @@ async (page) => {
   let view = null;
   const frameOf = async () => {
     for (let attempt = 0; attempt < 200; attempt += 1) {
-      const frame = page.frames().find(candidate => candidate.url().startsWith(origin + '/'));
+      const frame = page.frames().find(candidate => !candidate.isDetached() && candidate.url().startsWith(origin + '/'));
       if (frame !== undefined) { await frame.waitForSelector('#summary'); return frame; }
       await page.waitForTimeout(25);
     }
@@ -426,6 +426,89 @@ async (page) => {
   const methods = [...new Set((await requests()).map(r => r.m))].sort();
   assert(JSON.stringify(methods) === JSON.stringify(['commands.run', 'records.query', 'schema.describe', 'ui.openRecord']),
     'The view asked for something other than reads, opening a record and running its commands: ' + JSON.stringify(methods));
+
+  // ---- Nendo's own chrome (W-090). Everything above ran on a host that does not draw a view's
+  // controls. On one that does, the view draws none of its own and no page title: it declares
+  // its controls, Nendo sends a press back as a command, and a right-click on an item asks for
+  // Nendo's menu with the item's record commands.
+  await page.setViewportSize({ width: 1024, height: 700 });
+  await page.evaluate(value => { window.broker.offerChrome(true); window.broker.setFixture(value); window.broker.remount(); }, withCommands);
+  await page.waitForTimeout(300);
+  view = await frameOf();
+  await until(() => document.querySelectorAll('.node').length === 8, undefined, 'With Nendo drawing its controls, the view never drew its work items.');
+  const own = await view.evaluate(() => ({ native: document.documentElement.classList.contains('native-chrome'),
+    tools: getComputedStyle(document.querySelector('.tools')).display, title: getComputedStyle(document.querySelector('h1')).display }));
+  assert(JSON.stringify(own) === JSON.stringify({ native: true, tools: 'none', title: 'none' }),
+    'The view still draws its own controls or title on a host that draws them: ' + JSON.stringify(own));
+  const lastToolbar = () => page.evaluate(() => window.broker.toolbars.at(-1) ?? null);
+  const declaredWhere = async (test, message) => {
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const last = await lastToolbar();
+      if (last !== null && test(last)) return last;
+      await page.waitForTimeout(25);
+    }
+    throw new Error(message + ' The last toolbar declared: ' + JSON.stringify(await lastToolbar()).slice(0, 600));
+  };
+  const shape = toolbar => (Array.isArray(toolbar) ? toolbar : toolbar.items).map(item => item.kind === 'group'
+    ? `group:${item.items.map(child => child.id + (child.keys ? '@' + child.keys : '')).join(',')}`
+    : `${item.kind}${item.id ? ':' + item.id : ''}${item.keys ? '@' + item.keys : ''}`);
+  let declared = await declaredWhere(() => true, 'The view declared no toolbar.');
+  const chromeShape = shape(declared);
+  assert(JSON.stringify(chromeShape) === JSON.stringify(['search:find@Ctrl+F', 'select:group-by', 'menu:filter', 'separator', 'toggle:linked', 'toggle:chain',
+    'toggle:focus', 'spacer', 'group:zoom-out@Ctrl+-,fit@Ctrl+0,zoom-in@Ctrl+Plus', 'separator', 'toggle:text']),
+  'The view declared another toolbar: ' + JSON.stringify(chromeShape));
+  const filterItems = declared.items.find(item => item.id === 'filter').items;
+  assert(JSON.stringify(filterItems.map(item => item.label)) === JSON.stringify(['Show', ...statuses]) && filterItems.slice(1).every(item => item.kind === 'check' && item.checked),
+    'The filter menu does not offer every status, shown: ' + JSON.stringify(filterItems));
+  assert((declared.add ?? null) === null, 'The view took Nendo\u2019s Add, which it has no use for.');
+
+  // A command is a press of the control it stands for, and the toolbar follows.
+  const command = (id, value, source = 'toolbar') => page.evaluate(([id, value, source]) => window.broker.command(id, value, source), [id, value, source]);
+  await command('chain', true);
+  await until(() => document.getElementById('chain-toggle').getAttribute('aria-pressed') === 'true', undefined, 'The chain command did not turn Longest chain on.');
+  await declaredWhere(last => last.items.find(item => item.id === 'chain')?.pressed === true, 'The toolbar did not follow Longest chain.');
+  await command('chain', false);
+  await command('text', true);
+  await until(() => !document.getElementById('text-view').hidden, undefined, 'The text command did not show the text view.');
+  declared = await declaredWhere(last => last.items.find(item => item.id === 'text')?.pressed === true, 'The toolbar did not follow the text view.');
+  assert(!declared.items.some(item => item.kind === 'group'), 'The text view still declares the zoom.');
+  await command('text', false);
+  await until(() => document.getElementById('text-view').hidden, undefined, 'The text command did not return to the graph.');
+  const done = statuses.indexOf('Done');
+  await command(`status-${done}`, false, 'menu');
+  await until(() => document.querySelector('.node[data-id="a"]') === null, undefined, 'Hiding Done from the filter menu did not hide the Done item.');
+  await declaredWhere(last => last.items.find(item => item.id === 'filter')?.label === 'Filter · 1', 'The filter menu did not count what it hides.');
+  await command(`status-${done}`, true, 'menu');
+  await until(() => document.querySelector('.node[data-id="a"]') !== null, undefined, 'Showing Done again did not bring the item back.');
+  // Enter sends the text again: typing finds, and the same text twice goes to the first match.
+  const found = await opens(async () => { await command('find', 'Qualify'); await command('find', 'Qualify'); });
+  exactlyOne(found, 'c', 'Enter in Nendo\u2019s search box did not go to the one match:');
+
+  // A right-click on an item asks Nendo for its menu, and a command picked there runs where it is.
+  const menusBefore = (await page.evaluate(() => window.broker.menus)).length;
+  const ranBeforeMenu = (await page.evaluate(() => window.broker.commandsRun())).length;
+  await page.evaluate(() => window.broker.pickNext({ id: 'command-0', value: null }));
+  const browserMenu = await view.evaluate(() => {
+    const node = document.querySelector('.node[data-id="a"]');
+    const box = node.getBoundingClientRect();
+    return node.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: box.left + 12, clientY: box.top + 12, button: 2 }));
+  });
+  assert(browserMenu === false, 'The browser\u2019s own menu was left to open over Nendo\u2019s.');
+  let menu = null;
+  for (let attempt = 0; attempt < 100 && menu === null; attempt += 1) {
+    const all = await page.evaluate(() => window.broker.menus);
+    if (all.length > menusBefore) menu = all.at(-1); else await page.waitForTimeout(25);
+  }
+  assert(menu !== null, 'A right-click on a work item asked Nendo for no menu.');
+  const menuShape = menu.items.map(item => [item.id ?? item.kind, item.label ?? null, item.disabled === true]);
+  assert(JSON.stringify(menuShape) === JSON.stringify([['open', 'Open work item', false], ['separator', null, false], ['command-0', 'Plan now', false], ['command-1', 'Complete', true]]),
+    'The item menu is not Open and its own commands, Complete greyed on a Done item: ' + JSON.stringify(menuShape));
+  await page.waitForFunction(count => window.broker.commandsRun().length > count, ranBeforeMenu, { timeout: 3000 }).catch(() => undefined);
+  const ranFromMenu = (await page.evaluate(() => window.broker.commandsRun())).slice(ranBeforeMenu);
+  assert(ranFromMenu.length === 1 && ranFromMenu[0].commandId === 'cmd.plan' && ranFromMenu[0].recordId === 'a',
+    'Plan now picked from the menu did not run on the item: ' + JSON.stringify(ranFromMenu));
+  await page.screenshot({ path: root + '/artifacts/extension-runtime-results/work-dependencies-native-chrome.png' });
+  await page.evaluate(() => window.broker.offerChrome(false));
   assert(errors.length === 0, 'The view raised: ' + errors.join(' | '));
   return 'work dependencies ok ' + JSON.stringify({ themes: { light: lightColour, dark: darkColour }, burstReads: burst, layout: plain.layout,
     extent: { plain: Object.keys(plain.nodes).length, grouped: grouped.groups.length } });

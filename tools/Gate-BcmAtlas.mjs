@@ -464,6 +464,104 @@ async (page) => {
   assert(everything.every(entityId => entityId.startsWith('org.')), 'The second file was asked about BCM’s record types: ' + JSON.stringify(everything));
   assert(errors.length === 0, 'The view raised: ' + errors.join(' | '));
 
+  // ---- Nendo's own chrome (W-090). Everything above ran on a host that does not draw a view's
+  // controls, where the Atlas draws its own. On one that does, the Atlas draws none: it declares
+  // them, and Nendo draws them, lists them in Ctrl K and sends a press back as a command. It takes
+  // Nendo's Add, and a right-click on a card asks for Nendo's menu. BCM again, in a fresh frame.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.evaluate(value => { window.broker.offerChrome(true); window.broker.setFixture(value); window.broker.remount(); }, bcm);
+  await attach();
+  await until(() => /635 total$/.test(document.getElementById('status').textContent), null, 'With Nendo drawing its controls, the map never loaded.');
+  const chrome = await view.evaluate(() => ({
+    native: document.documentElement.classList.contains('native-chrome'),
+    toolbar: getComputedStyle(document.querySelector('.toolbar')).display,
+    subbar: getComputedStyle(document.querySelector('.subbar')).display,
+    crumbs: document.querySelector('.metrics #breadcrumbs') !== null,
+  }));
+  assert(JSON.stringify(chrome) === JSON.stringify({ native: true, toolbar: 'none', subbar: 'none', crumbs: true }),
+    'The Atlas still draws its own controls on a host that draws them: ' + JSON.stringify(chrome));
+  const lastToolbar = () => page.evaluate(() => window.broker.toolbars.at(-1) ?? null);
+  const declaredWhere = async (test, message) => {
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const last = await lastToolbar();
+      if (last !== null && test(last)) return last;
+      await page.waitForTimeout(25);
+    }
+    throw new Error(message + ' The last toolbar declared: ' + JSON.stringify(await lastToolbar()).slice(0, 600));
+  };
+  const shape = toolbar => toolbar.items.map(item => item.kind === 'group'
+    ? `group:${item.items.map(child => child.id + (child.keys ? '@' + child.keys : '')).join(',')}`
+    : `${item.kind}${item.id ? ':' + item.id : ''}${item.keys ? '@' + item.keys : ''}`);
+  let toolbar = await declaredWhere(() => true, 'The Atlas declared no toolbar.');
+  results.chrome = { shape: shape(toolbar), add: toolbar.add };
+  assert(JSON.stringify(results.chrome.shape) === JSON.stringify(['choice:mode', 'choice:levels', 'select:colour', 'spacer', 'search:find@Ctrl+F', 'separator',
+    'toggle:pan', 'group:zoom-out@Ctrl+-,fit@Ctrl+0,zoom-in@Ctrl+Plus', 'text', 'menu:map-options', 'separator', 'menu:export']),
+  'The Atlas declared another toolbar: ' + JSON.stringify(results.chrome.shape));
+  assert(toolbar.add === 'add-capability', 'The Atlas did not take Nendo\u2019s Add: ' + JSON.stringify(toolbar.add));
+  const levelItem = toolbar.items.find(item => item.id === 'levels');
+  assert(JSON.stringify(levelItem.options.map(option => option.value)) === JSON.stringify(['1', '2', '3', '4', '5', 'all']) && levelItem.value === '2',
+    'Levels were declared as ' + JSON.stringify(levelItem));
+  assert(JSON.stringify(toolbar.items.find(item => item.id === 'colour').options.map(option => option.value)) === JSON.stringify(['maturity', 'gap', 'importance', 'investment', 'none']),
+    'BCM\u2019s colour modes were not all declared.');
+
+  // A command is a press of the control it stands for, and the toolbar follows the state.
+  await page.evaluate(() => window.broker.command('levels', '3'));
+  await until(() => document.querySelectorAll('.cap').length === 267, null, 'The levels command did not show three levels.');
+  await declaredWhere(last => last.items.find(item => item.id === 'levels')?.value === '3', 'The toolbar did not follow the levels.');
+  await page.evaluate(() => window.broker.command('mode', 'assessment'));
+  await until(() => !document.getElementById('table').hidden && document.getElementById('map').hidden, null, 'The mode command did not show the assessment.');
+  toolbar = await declaredWhere(last => last.items.find(item => item.id === 'mode')?.value === 'assessment', 'The toolbar did not follow the mode.');
+  assert(!toolbar.items.some(item => item.id === 'export' || item.id === 'pan'), 'The assessment still declares the map\u2019s controls.');
+  await page.evaluate(() => window.broker.command('mode', 'map'));
+  await until(() => !document.getElementById('map').hidden, null, 'The mode command did not return to the map.');
+  await page.evaluate(() => window.broker.command('find', 'payr'));
+  await until(() => /^\d+ matches/.test(document.getElementById('status').textContent), null, 'The find command did not search.');
+  await page.evaluate(() => window.broker.command('find', ''));
+  await until(() => /total$/.test(document.getElementById('status').textContent), null, 'Emptying the search did not show the counts again.');
+  // The API sends a declaration at most every tenth of a second, so wait for the map's own.
+  const zoomText = (await declaredWhere(last => last.items.find(item => item.id === 'mode')?.value === 'map' && last.items.some(item => item.kind === 'text'),
+    'The toolbar did not return to the map’s controls.')).items.find(item => item.kind === 'text').text;
+  const beforeZoom = await transform();
+  await page.evaluate(() => window.broker.command('zoom-in', null, 'key'));
+  await until(value => document.getElementById('drawing').style.transform !== value, beforeZoom, 'The zoom-in command did not zoom.');
+  await declaredWhere(last => last.items.find(item => item.kind === 'text')?.text !== zoomText, 'The toolbar\u2019s zoom did not follow the camera.');
+  await page.evaluate(() => window.broker.command('pan', true));
+  await until(() => document.getElementById('map').classList.contains('pan-ready'), null, 'The pan command did not turn Pan on.');
+  await page.evaluate(() => window.broker.command('pan', false));
+  await until(() => !document.getElementById('map').classList.contains('pan-ready'), null, 'The pan command did not turn Pan off.');
+
+  // Nendo's Add adds under the selected card, in the Atlas's own editor.
+  await select('bcm-cap-2-3');
+  await page.evaluate(() => window.broker.command('add-capability', null, 'add'));
+  await until(() => document.getElementById('editor').open, null, 'Nendo\u2019s Add did not open the Atlas\u2019s editor.');
+  results.chrome.addParent = await view.evaluate(() => document.querySelector('[name="parent"]').value);
+  assert(results.chrome.addParent === 'bcm-cap-2-3', 'Nendo\u2019s Add did not add under the selected card: ' + results.chrome.addParent);
+  await view.evaluate(() => document.getElementById('editor').close());
+
+  // A right-click on a group asks Nendo for its menu at the pointer, and the pick is carried out.
+  const menusBefore = (await page.evaluate(() => window.broker.menus)).length;
+  await page.evaluate(() => window.broker.pickNext({ id: 'focus', value: null }));
+  const browserMenu = await view.evaluate(() => {
+    const card = document.querySelector('.cap[data-id="bcm-cap-2"]');
+    const box = card.getBoundingClientRect();
+    return card.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: box.left + 10, clientY: box.top + 10, button: 2 }));
+  });
+  assert(browserMenu === false, 'The browser\u2019s own menu was left to open over Nendo\u2019s.');
+  let menu = null;
+  for (let attempt = 0; attempt < 100 && menu === null; attempt += 1) {
+    const all = await page.evaluate(() => window.broker.menus);
+    if (all.length > menusBefore) menu = all.at(-1); else await page.waitForTimeout(25);
+  }
+  assert(menu !== null, 'A right-click on a card asked Nendo for no menu.');
+  results.chrome.menu = menu.items.map(item => item.id ?? item.kind);
+  assert(JSON.stringify(results.chrome.menu) === JSON.stringify(['open', 'edit', 'add-child', 'rename', 'focus', 'separator', 'move-up', 'move-down', 'move-in', 'move-out']),
+    'The card menu holds ' + JSON.stringify(results.chrome.menu));
+  assert(menu.x > 0 && menu.y > 0, 'The menu was not asked for at the pointer: ' + JSON.stringify([menu.x, menu.y]));
+  await until(() => document.getElementById('breadcrumbs').textContent.includes('Customer & market'), null, 'Picking Focus this group did not focus it.');
+  await page.screenshot({ path: root + '/artifacts/extension-runtime-results/bcm-atlas-native-chrome.png' });
+  await page.evaluate(() => window.broker.offerChrome(false));
+  assert(errors.length === 0, 'The view raised with Nendo\u2019s chrome: ' + errors.join(' | '));
+
   // W-078: the exported SVG opens in a browser as it stands, at its own size, and is kept for a look.
   await page.setViewportSize({ width: Math.min(svg.width, 1600), height: Math.min(svg.height, 1200) });
   await page.setContent(`<body style="margin:0">${svg.text.replace(/^<\?xml[^>]*>\s*/, '')}</body>`);

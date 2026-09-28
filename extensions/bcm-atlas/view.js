@@ -47,6 +47,12 @@ let editing = null, dirty = false;
 // The latest refresh wins over one still in flight; a burst of changes is read once.
 let loading = 0, refreshTimer;
 
+// Whether Nendo draws the Atlas's controls in its own toolbar, menus, Ctrl K and keys (W-090).
+// On a host that does not offer it, the Atlas draws its own toolbar, as it always has.
+let nativeChrome = false;
+// Export's "Light colours for print", which the Atlas's own menu keeps in a checkbox.
+let lightPrint = false;
+
 // ---------------------------------------------------------------------------------------------
 // Small helpers
 
@@ -234,6 +240,8 @@ function levelControls() {
 function applyTransform() {
   $('drawing').style.transform = `translate(${pan.x}px,${pan.y}px) scale(${zoom})`;
   $('zoom').textContent = `${Math.round(zoom * 100)}%`;
+  // Nendo's toolbar shows the zoom too; a pan leaves it as it is and declares nothing.
+  if (nativeChrome && declaredZoom !== $('zoom').textContent) declareToolbar();
 }
 
 function fit() {
@@ -399,7 +407,7 @@ function exportDocument() {
     subtitle: `${place} · ${depth} · Colour: ${$('colour').selectedOptions[0]?.textContent ?? ''} · ${cards.length} capabilities`,
     note: binding.banner ? [binding.banner.title, binding.banner.note].filter(Boolean).join(' · ') : null,
     legend: legendEntries(),
-    palette: $('export-light').checked ? printPalette : themePalette(),
+    palette: (nativeChrome ? lightPrint : $('export-light').checked) ? printPalette : themePalette(),
     measure,
   });
 }
@@ -550,7 +558,8 @@ function introduction() {
     el('p', null, 'Select a capability to inspect it. Double-click a group to focus. Colour reveals maturity, strategic importance or investment direction.'),
     el('h3', null, 'A model you can evolve'),
     el('p', null, 'Create capabilities, organise the hierarchy and record assessments. Link applications and initiatives through the record page.'),
-    button('+ Top-level capability', () => edit(null, null), 'primary'),
+    // With Nendo's toolbar, its own Add adds one here (W-090).
+    ...(nativeChrome ? [] : [button('+ Top-level capability', () => edit(null, null), 'primary')]),
   ];
 }
 
@@ -603,7 +612,8 @@ function assessment(record) {
 function actions(record) {
   const bar = el('div', 'inspector-actions');
   bar.append(button('Edit', () => edit(record)));
-  if (binding.parentFieldId) bar.append(button('+ Child', () => edit(null, record.recordId)));
+  // With Nendo's toolbar, its Add adds under the selected capability (W-090).
+  if (binding.parentFieldId && !nativeChrome) bar.append(button('+ Child', () => edit(null, record.recordId)));
   bar.append(button('Open record', () => nendo.ui.openRecord(binding.entityId, record.recordId)));
   if (model.children.get(record.recordId)?.length) bar.append(button('Focus group', () => scopeTo(record.recordId)));
   return bar;
@@ -662,6 +672,7 @@ function render(refit = false) {
   const notices = [...(undeclared ? [undeclaredNotice()] : []), ...binding.problems];
   $('notice').hidden = notices.length === 0;
   $('notice').textContent = notices.join(' ');
+  declareToolbar();
 }
 
 /** What to declare when the record type keeps no tree: its reference to itself, if it has one. */
@@ -923,12 +934,15 @@ function movePan(event) {
   applyTransform();
 }
 
-$('pan-tool').onclick = () => {
-  panMode = !panMode;
+function setPanMode(on) {
+  panMode = on;
   endPan(true);
   map.classList.toggle('pan-ready', panMode);
   $('pan-tool').setAttribute('aria-pressed', String(panMode));
-};
+  declareToolbar();
+}
+
+$('pan-tool').onclick = () => setPanMode(!panMode);
 
 map.addEventListener('pointerdown', event => {
   suppressPanClick = false;
@@ -1220,10 +1234,198 @@ new ResizeObserver(() => {
 }).observe($('workspace'));
 
 // ---------------------------------------------------------------------------------------------
+// Nendo's own chrome (W-090)
+//
+// Where the host offers it, the Atlas does not draw its toolbar: it declares its controls and
+// Nendo draws them in the toolbar every screen has, lists them in Ctrl K with their keys, and
+// sends a press back as a command. Nendo's own Add adds a capability under the selected card, or
+// the focused group, and a right-click on a card opens Nendo's menu. The declaration follows the
+// state: render and the camera declare it again, and the API sends at most ten a second.
+
+const modeOptions = [{ value: 'map', label: 'Map' }, { value: 'assessment', label: 'Assessment' }, { value: 'outline', label: 'Outline' }];
+let declaredZoom = null;
+
+function canAdd() {
+  return binding.labelFieldId !== null && nendo.context?.readOnly !== true;
+}
+
+function declareToolbar() {
+  if (!nativeChrome || projection === null) return;
+  const levelOptions = [
+    ...Array.from({ length: Math.max(1, projection.maxDepth) }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })),
+    { value: 'all', label: 'All' },
+  ];
+  const colours = [...$('colour').options].filter(option => !option.disabled).map(option => ({ value: option.value, label: option.textContent }));
+  // A value Nendo would not find among the options would refuse the whole toolbar, so a level
+  // deeper than the model, or a mode the configuration misspelt, shows no option chosen.
+  const chosen = (options, value) => (options.some(option => option.value === value) ? value : null);
+  const items = [
+    { kind: 'choice', id: 'mode', label: 'Mode', hideLabel: true, value: chosen(modeOptions, mode), options: modeOptions },
+    { kind: 'choice', id: 'levels', label: 'Levels', value: chosen(levelOptions, Number.isFinite(levels) ? String(levels) : 'all'), options: levelOptions },
+  ];
+  if (colours.length > 1) items.push({ kind: 'select', id: 'colour', label: 'Colour', value: chosen(colours, colour), options: colours });
+  items.push({ kind: 'spacer' }, { kind: 'search', id: 'find', label: 'Find a capability', placeholder: 'Find a capability…', value: $('search').value.slice(0, 256), keys: 'Ctrl+F' });
+  declaredZoom = $('zoom').textContent;
+  if (mode === 'map') {
+    items.push(
+      { kind: 'separator' },
+      { kind: 'toggle', id: 'pan', label: 'Pan', icon: 'pan', iconOnly: true, pressed: panMode },
+      { kind: 'group', label: 'Zoom', items: [
+        { kind: 'button', id: 'zoom-out', label: 'Zoom out', icon: 'minus', iconOnly: true, keys: 'Ctrl+-' },
+        { kind: 'button', id: 'fit', label: 'Fit', keys: 'Ctrl+0' },
+        { kind: 'button', id: 'zoom-in', label: 'Zoom in', icon: 'plus', iconOnly: true, keys: 'Ctrl+Plus' },
+      ] },
+      { kind: 'text', text: declaredZoom, mono: true },
+      { kind: 'menu', id: 'map-options', label: 'Map layout', icon: 'settings', iconOnly: true, items: [
+        { kind: 'label', label: 'Layout' },
+        { kind: 'radio', id: 'layout', value: 'compact', label: 'Reference · compact', checked: layoutMode === 'compact' },
+        { kind: 'radio', id: 'layout', value: 'ordered', label: 'Reference · ordered', checked: layoutMode === 'ordered' },
+      ] },
+      { kind: 'separator' },
+      { kind: 'menu', id: 'export', label: 'Export', icon: 'export', disabled: !layout, items: [
+        { id: 'export-svg', label: 'SVG, to edit', detail: 'Plain shapes and text that a slide editor keeps as text' },
+        { id: 'export-png', label: 'PNG, for a slide', detail: 'Twice the size, with the title and the legend' },
+        { kind: 'separator' },
+        { kind: 'check', id: 'export-light', label: 'Light colours for print', checked: lightPrint },
+      ] },
+    );
+  }
+  nendo.ui.setToolbar({ items, add: canAdd() ? 'add-capability' : null }).catch(error => leaveNativeChrome(error.message));
+}
+
+/** A Nendo that refuses the declaration leaves the Atlas its own toolbar, and the Atlas says why. */
+function leaveNativeChrome(reason) {
+  if (!nativeChrome) return;
+  nativeChrome = false;
+  document.documentElement.classList.remove('native-chrome');
+  document.querySelector('.subbar').prepend($('breadcrumbs'));
+  nendo.ui.setToolbar([]).catch(() => undefined);
+  render(false);
+  tell(`Nendo could not show the Atlas's controls, so the Atlas shows its own: ${reason}`);
+}
+
+/** A new capability under the selected card, else under the focused group, else at the top. */
+function addCapability() {
+  const parent = selected && model.byId.has(selected) ? selected : scope;
+  edit(null, binding.parentFieldId === null ? null : parent);
+}
+
+function runCommand({ id, value }) {
+  switch (id) {
+    case 'mode': if (typeof value === 'string') setMode(value); break;
+    case 'levels':
+      levels = value === 'all' ? Infinity : Number(value);
+      render(true);
+      break;
+    case 'colour':
+      colour = String(value);
+      $('colour').value = colour;
+      render(false);
+      break;
+    case 'find':
+      $('search').value = String(value ?? '');
+      query = $('search').value.toLowerCase().trim();
+      render(false);
+      break;
+    case 'pan': setPanMode(value === true); break;
+    case 'zoom-in': zoomBy(1.2); break;
+    case 'zoom-out': zoomBy(1 / 1.2); break;
+    case 'fit': fit(); break;
+    case 'layout':
+      layoutMode = String(value);
+      $('layout').value = layoutMode;
+      render(true);
+      break;
+    case 'export-svg':
+    case 'export-png':
+      exportMap(id === 'export-svg' ? 'svg' : 'png').catch(error => say(`Could not export the map: ${error.message}`));
+      break;
+    case 'export-light':
+      lightPrint = value === true;
+      $('export-light').checked = lightPrint;
+      declareToolbar();
+      break;
+    case 'add-capability': addCapability(); break;
+    default: break;
+  }
+}
+
+/** Nendo's menu for a card: what the card offers, each greyed where it cannot happen now. */
+function cardMenu(id) {
+  const isGroup = !!model.children.get(id)?.length;
+  const ordered = binding.orderFieldId !== null;
+  const items = [
+    { id: 'open', label: 'Open record', icon: 'external' },
+    { id: 'edit', label: 'Edit…', icon: 'edit', disabled: nendo.context?.readOnly === true },
+  ];
+  if (binding.parentFieldId !== null && canAdd()) items.push({ id: 'add-child', label: 'Add a capability under it', icon: 'plus' });
+  if (canRename()) items.push({ id: 'rename', label: 'Rename', keys: 'F2' });
+  if (isGroup) items.push({ id: 'focus', label: 'Focus this group', icon: 'focus' });
+  if (canMove()) {
+    items.push({ kind: 'separator' });
+    for (const [step, label, icon, key] of [
+      ['up', 'Move up', 'arrowUp', 'ArrowUp'], ['down', 'Move down', 'arrowDown', 'ArrowDown'],
+      ['in', 'Put under the card above', 'indent', 'ArrowRight'], ['out', 'Move out of its group', 'outdent', 'ArrowLeft'],
+    ]) items.push({ id: `move-${step}`, label, icon, keys: `Alt+Shift+${key}`, disabled: stepTarget(model, id, step, ordered) === null });
+  }
+  return items;
+}
+
+async function openCardMenu(id, at) {
+  select(id);
+  const pick = await nendo.ui.showMenu(cardMenu(id), at);
+  if (pick === null || !model.byId.has(id)) return;
+  const record = model.byId.get(id);
+  switch (pick.id) {
+    case 'open': await nendo.ui.openRecord(binding.entityId, id); break;
+    case 'edit': edit(record); break;
+    case 'add-child': edit(null, id); break;
+    case 'rename': startRename(id); break;
+    case 'focus': scopeTo(id); break;
+    default:
+      if (pick.id.startsWith('move-')) {
+        const step = pick.id.slice(5);
+        const plan = stepTarget(model, id, step, binding.orderFieldId !== null);
+        if (plan === null) tell(`${binding.title(record)} cannot move ${stepWords[step]} from here.`);
+        else await moveCard(id, plan, stepWords[step], true);
+      }
+  }
+}
+
+// A right-click on a card, or the context-menu key on a focused one, opens Nendo's menu. A host
+// without menus leaves the browser's own, as before.
+map.addEventListener('contextmenu', event => {
+  if (!nativeChrome || !nendo.has('ui.showMenu')) return;
+  const card = event.target.closest('.cap');
+  if (!card) return;
+  event.preventDefault();
+  let at = event;
+  if (event.clientX === 0 && event.clientY === 0) {
+    const box = card.getBoundingClientRect();
+    at = { x: box.left + 8, y: box.bottom - 4 };
+  }
+  openCardMenu(card.dataset.id, at).catch(error => say(error.message));
+});
+
+/** Hand the controls to Nendo when it offers to draw them. */
+function adoptNativeChrome() {
+  if (typeof nendo.has !== 'function' || !nendo.has('ui.setToolbar')) return;
+  nativeChrome = true;
+  document.documentElement.classList.add('native-chrome');
+  // The group breadcrumbs move into the summary line: the Atlas's own toolbar rows are gone.
+  document.querySelector('.metrics').prepend($('breadcrumbs'));
+  nendo.on('command', command => {
+    held = null;
+    try { runCommand(command); } catch (error) { say(error.message); }
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
 // Start
 
 try {
   const context = await nendo.ready;
+  adoptNativeChrome();
   if (context.configuration?.mode) setMode(context.configuration.mode);
   await refresh();
   nendo.on('changes', () => {

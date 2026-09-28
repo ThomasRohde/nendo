@@ -41,3 +41,9 @@
 #drop.refused{outline:2px solid var(--nendo-danger);outline-offset:3px}
 .drag-label{position:fixed;z-index:10;pointer-events:none;padding:4px 8px;border-radius:6px;background:var(--nendo-surface-raised);border:1px solid var(--accent);color:var(--nendo-ink);font-size:12px;box-shadow:var(--nendo-shadow);white-space:nowrap}
 .cap-rename{position:absolute;z-index:4;font-size:13px;padding:4px 6px;border:1px solid var(--accent);border-radius:5px;background:var(--nendo-surface);color:var(--nendo-ink)}
+/* Nendo draws the Atlas's controls in its own toolbar where the host offers it (W-090): the
+   Atlas's own toolbar rows go, and the summary line carries the group breadcrumbs. */
+.native-chrome .toolbar,.native-chrome .subbar{display:none!important}
+.native-chrome .metrics{gap:24px;padding:8px 16px;min-height:52px}
+.native-chrome .metrics strong{font-size:18px;letter-spacing:-.4px}
+.native-chrome .metrics #breadcrumbs{flex:0 1 auto;min-width:0;max-width:34%;padding-right:16px;border-right:1px solid var(--nendo-line)}

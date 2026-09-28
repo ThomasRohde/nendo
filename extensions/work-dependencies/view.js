@@ -37,6 +37,9 @@
   const component = new Map(), cyclic = new Set(), outgoing = new Map(), incoming = new Map(), boxes = new Map();
   const settings = { groupBy: '', hidden: [], linkedOnly: false };
   const remembered = loadSettings();
+  // Whether Nendo draws this view's controls in its own toolbar, menus, Ctrl K and keys (W-090).
+  // On a host that does not offer it, the view draws its own, as it always has.
+  let nativeChrome = false;
 
   function shape(name, attributes, text) {
     const item = document.createElementNS(SVG, name);
@@ -728,7 +731,7 @@
     const empty = element('empty');
     empty.hidden = shown.nodes.length !== 0;
     empty.textContent = all.nodes.length === 0 ? 'There are no work items here yet.' : 'Every work item is filtered out. Show more under Filter, or turn off Linked only.';
-    summarize(); textView(); buildControls(); paint(); fit(); refit();
+    summarize(); textView(); buildControls(); declareToolbar(); paint(); fit(); refit();
     if (keep !== null && boxes.has(keep)) highlight(keep);
     else if (chaining) sayChain();
   }
@@ -770,22 +773,43 @@
     if (theme?.mode === 'light' || theme?.mode === 'dark') document.documentElement.dataset.theme = theme.mode;
   }
 
-  element('zoom-in').addEventListener('click', () => zoom(1.25));
-  element('zoom-out').addEventListener('click', () => zoom(.8));
-  element('reset').addEventListener('click', fit);
-  element('focus-toggle').addEventListener('click', () => {
-    focusing = !focusing;
+  function setFocusing(on) {
+    focusing = on;
     element('focus-toggle').setAttribute('aria-pressed', String(focusing));
-    paint();
-  });
-  element('chain-toggle').addEventListener('click', () => {
-    chaining = !chaining;
+    paint(); declareToolbar();
+  }
+  function setChaining(on) {
+    chaining = on;
     element('chain-toggle').setAttribute('aria-pressed', String(chaining));
     // The chain takes the line the selection used; a selection made after it takes it back.
     if (chaining) { selected = null; sayChain(); }
     else element('selection').textContent = 'No work item selected';
-    paint();
-  });
+    paint(); declareToolbar();
+  }
+  function setTextShown(show) {
+    element('text-view').hidden = !show; canvas.hidden = show;
+    element('text-toggle').setAttribute('aria-expanded', String(show));
+    element('text-toggle').textContent = show ? 'Graph view' : 'Text view';
+    if (!show) fit();
+    declareToolbar();
+  }
+  function setStatusShown(choiceId, show) {
+    settings.hidden = show ? settings.hidden.filter(id => id !== choiceId) : [...new Set([...settings.hidden, choiceId])];
+    saveSettings(); refresh();
+  }
+  function goToMatch() {
+    const needle = query.trim().toLowerCase();
+    const match = needle === '' ? undefined : shown.nodes.find(node => node.label.toLowerCase().includes(needle));
+    if (match === undefined) return;
+    select(match.id);
+    if (!visible(match.id)) centre(match.id);
+  }
+
+  element('zoom-in').addEventListener('click', () => zoom(1.25));
+  element('zoom-out').addEventListener('click', () => zoom(.8));
+  element('reset').addEventListener('click', fit);
+  element('focus-toggle').addEventListener('click', () => setFocusing(!focusing));
+  element('chain-toggle').addEventListener('click', () => setChaining(!chaining));
   element('linked-toggle').addEventListener('click', () => { settings.linkedOnly = !settings.linkedOnly; saveSettings(); refresh(); });
   element('group-by').addEventListener('change', () => { settings.groupBy = element('group-by').value; saveSettings(); refresh(); });
   element('filter-toggle').addEventListener('click', () => {
@@ -797,21 +821,10 @@
   const find = element('find');
   find.addEventListener('input', () => { query = find.value; paint(); });
   find.addEventListener('keydown', event => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      const needle = query.trim().toLowerCase();
-      const match = needle === '' ? undefined : shown.nodes.find(node => node.label.toLowerCase().includes(needle));
-      if (match === undefined) return;
-      select(match.id);
-      if (!visible(match.id)) centre(match.id);
-    } else if (event.key === 'Escape') { find.value = ''; query = ''; paint(); }
+    if (event.key === 'Enter') { event.preventDefault(); goToMatch(); }
+    else if (event.key === 'Escape') { find.value = ''; query = ''; paint(); }
   });
-  element('text-toggle').addEventListener('click', () => {
-    const show = element('text-view').hidden; element('text-view').hidden = !show; canvas.hidden = show;
-    element('text-toggle').setAttribute('aria-expanded', String(show));
-    element('text-toggle').textContent = show ? 'Graph view' : 'Text view';
-    if (!show) fit();
-  });
+  element('text-toggle').addEventListener('click', () => setTextShown(element('text-view').hidden));
   canvas.addEventListener('wheel', event => {
     event.preventDefault();
     const bounds = canvas.getBoundingClientRect();
@@ -836,12 +849,122 @@
   });
   new ResizeObserver(() => { if (loaded && !canvas.hidden) fit(); }).observe(canvas);
   window.addEventListener('pagehide', () => { try { elk?.terminateWorker(); } catch { /* Already gone. */ } });
+  // --- Nendo's own chrome (W-090) ---------------------------------------------------------
+  //
+  // Where the host offers it, this view does not draw its controls: it declares them, and
+  // Nendo draws them in the toolbar every screen has, lists them in Ctrl K with their keys and
+  // sends a press back as a command. A right-click on a work item opens Nendo's menu, with the
+  // item's record commands. The page's title gives way to Nendo's own breadcrumb.
+
+  function declareToolbar() {
+    if (!nativeChrome) return;
+    const groupOptions = [{ value: 'none', label: 'None' }, ...fields.groups.map(field => ({ value: field.fieldId, label: field.displayName.slice(0, 80) }))];
+    const group = groupField() === null ? 'none' : settings.groupBy;
+    const statuses = (fields.status?.choices ?? []).slice(0, 40);
+    const hiddenCount = settings.hidden.filter(id => statuses.some(choice => choice.id === id)).length;
+    const textShown = !element('text-view').hidden;
+    const items = [{ kind: 'search', id: 'find', label: 'Find a work item', placeholder: 'Find…', value: element('find').value.slice(0, 256), keys: 'Ctrl+F' }];
+    if (groupOptions.length > 1)
+      items.push({ kind: 'select', id: 'group-by', label: 'Group by', value: groupOptions.some(option => option.value === group) ? group : 'none', options: groupOptions });
+    if (statuses.length > 0) {
+      items.push({ kind: 'menu', id: 'filter', label: hiddenCount === 0 ? 'Filter' : `Filter · ${hiddenCount}`, icon: 'filter', items: [
+        { kind: 'label', label: 'Show' },
+        ...statuses.map((choice, index) => ({ kind: 'check', id: `status-${index}`, label: choice.displayName.slice(0, 80), checked: !settings.hidden.includes(choice.id) })),
+      ] });
+    }
+    items.push(
+      { kind: 'separator' },
+      { kind: 'toggle', id: 'linked', label: 'Linked only', icon: 'link', pressed: settings.linkedOnly },
+      { kind: 'toggle', id: 'chain', label: 'Longest chain', icon: 'chain', pressed: chaining },
+      { kind: 'toggle', id: 'focus', label: 'Focus', icon: 'focus', pressed: focusing },
+      { kind: 'spacer' },
+    );
+    if (!textShown) {
+      items.push({ kind: 'group', label: 'Zoom', items: [
+        { kind: 'button', id: 'zoom-out', label: 'Zoom out', icon: 'minus', iconOnly: true, keys: 'Ctrl+-' },
+        { kind: 'button', id: 'fit', label: 'Fit', keys: 'Ctrl+0' },
+        { kind: 'button', id: 'zoom-in', label: 'Zoom in', icon: 'plus', iconOnly: true, keys: 'Ctrl+Plus' },
+      ] }, { kind: 'separator' });
+    }
+    items.push({ kind: 'toggle', id: 'text', label: 'Text view', icon: 'list', pressed: textShown });
+    nendo.ui.setToolbar(items).catch(error => leaveNativeChrome(describe(error)));
+  }
+
+  // A Nendo that refuses the declaration leaves the view its own controls, and says why.
+  function leaveNativeChrome(reason) {
+    if (!nativeChrome) return;
+    nativeChrome = false;
+    document.documentElement.classList.remove('native-chrome');
+    nendo.ui.setToolbar([]).catch(() => undefined);
+    say(`Nendo could not show this view's controls, so the view shows its own: ${reason}`, true);
+  }
+
+  function runCommand({ id, value }) {
+    const statuses = fields.status?.choices ?? [];
+    if (id === 'find') {
+      const text = String(value ?? '');
+      // Enter sends the text again: the same text twice goes to the first match.
+      if (text === element('find').value && text.trim() !== '') { goToMatch(); return; }
+      element('find').value = text; query = text; paint();
+    } else if (id === 'group-by') { settings.groupBy = value === 'none' ? '' : String(value); element('group-by').value = settings.groupBy; saveSettings(); refresh(); }
+    else if (id.startsWith('status-')) { const choice = statuses[Number(id.slice(7))]; if (choice !== undefined) setStatusShown(choice.id, value === true); }
+    else if (id === 'linked') { settings.linkedOnly = value === true; saveSettings(); refresh(); }
+    else if (id === 'chain') setChaining(value === true);
+    else if (id === 'focus') setFocusing(value === true);
+    else if (id === 'zoom-in') zoom(1.25);
+    else if (id === 'zoom-out') zoom(.8);
+    else if (id === 'fit') fit();
+    else if (id === 'text') setTextShown(value === true);
+  }
+
+  async function openNodeMenu(id, at) {
+    const node = shown.nodes.find(value => value.id === id);
+    if (node === undefined) return;
+    highlight(id);
+    const items = [{ id: 'open', label: 'Open work item', icon: 'external' }];
+    if (canAct()) {
+      items.push({ kind: 'separator' });
+      commands.slice(0, 40).forEach((command, index) => items.push({
+        id: `command-${index}`, label: String(command.label || 'Command').slice(0, 80), icon: 'command', disabled: acting || spent(command, node.record),
+      }));
+    }
+    const pick = await nendo.ui.showMenu(items, at);
+    if (pick === null) return;
+    if (pick.id === 'open') select(id);
+    else if (pick.id.startsWith('command-')) {
+      const command = commands[Number(pick.id.slice(8))];
+      if (command !== undefined) act(command, id);
+    }
+  }
+
+  canvas.addEventListener('contextmenu', event => {
+    if (!nativeChrome || !nendo.has('ui.showMenu')) return;
+    const group = event.target.closest('.node');
+    if (group === null) return;
+    event.preventDefault();
+    let at = event;
+    if (event.clientX === 0 && event.clientY === 0) {
+      const box = group.getBoundingClientRect();
+      at = { x: box.left + 8, y: box.bottom - 4 };
+    }
+    openNodeMenu(group.dataset.id, at).catch(error => say(describe(error), true));
+  });
+
+  function adoptNativeChrome() {
+    if (typeof nendo.has !== 'function' || !nendo.has('ui.setToolbar')) return;
+    nativeChrome = true;
+    document.documentElement.classList.add('native-chrome');
+    element('filters').hidden = true;
+    nendo.on('command', command => { try { runCommand(command); } catch (error) { say(describe(error), true); } });
+  }
+
   if (nendo === undefined) {
     element('summary').textContent = 'This view runs inside Nendo. Open the screen that shows it.';
     return;
   }
   nendo.ready.then(context => {
     document.documentElement.lang = context.locale || 'en';
+    adoptNativeChrome();
     applyConfiguration(context.configuration);
     applyTheme(nendo.ui.theme);
     nendo.on('theme', applyTheme);
