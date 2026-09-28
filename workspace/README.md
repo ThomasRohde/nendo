@@ -45,3 +45,8 @@ declares Nendo's own application id. Truncating one by 100 bytes fails it with
 byte of the application id fails it with `declares application id 0x00454E44, not
 Nendo's 0x4E454E44`. That is a structural check, not a checksum: SQLite carries
 none over the database file, so a flipped byte inside a page is not caught here.
+
+A file that is open in Nendo cannot be read at all, and the lane says so rather than
+calling it corrupt: `workspace/BCM.nendo is open in Nendo (BCM.nendo.write-owner is
+beside it). Close it, or open another file in Nendo, and run again.` The gate still
+fails, because a file nobody could check is not a pass.

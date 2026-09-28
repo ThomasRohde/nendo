@@ -241,7 +241,9 @@ up by the owner, not by this repository. The demo files are tracked, because the
 change only when somebody rebuilds them and they are worth having after a sweep
 of `artifacts/`. `tools/Test-BinaryAssets.ps1` opens every tracked one and checks
 the SQLite header, the page multiple and Nendo's own application id, so a
-truncated or half-written copy is refused by name rather than committed.
+truncated or half-written copy is refused by name rather than committed. A demo
+file that is open in Nendo cannot be read: the lane names it as open, not corrupt,
+and fails until you close it or open another file.
 
 ## Artifacts
 

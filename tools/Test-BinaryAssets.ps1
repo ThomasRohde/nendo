@@ -31,6 +31,13 @@ param()
 #        the file length. Any change in length is caught; a flipped byte inside
 #        a page is not, because SQLite carries no checksum over the file.
 #
+# A file another program holds open cannot be read at all, and that says nothing about its
+# bytes. Nendo holds a .nendo file while it is open there, so the owner's own demo file was
+# reported here as corrupt (2026-09-28, workspace/BCM.nendo). A held file is reported as open,
+# by name, with what to do, and the gate still fails: a tracked file nobody could check is not
+# a pass. A self-check proves it on every run, against a copy of a tracked .nendo file held
+# without sharing, through the same verdict and report the files themselves get.
+#
 # Run alone while working on assets: pwsh ./tools/Test-BinaryAssets.ps1
 # (Editing the C# below and re-running inside one interactive session throws
 # "type already exists"; start a new pwsh, or run the script as above.)
@@ -419,21 +426,26 @@ foreach ($required in $shipping) {
     }
 }
 
-$faults = @()
-$totalBytes = 0L
-foreach ($path in $binaries) {
-    $full = Join-Path $repoRoot $path
-    if (-not (Test-Path -LiteralPath $full -PathType Leaf)) {
-        $faults += "$path is tracked but not on disk"
-        continue
-    }
-    $extension = [IO.Path]::GetExtension($path).ToLowerInvariant()
-    # Any exception from a reader is reported against its file. Without this a
-    # malformed asset that reached an unguarded index would print a stack trace
-    # naming the script, and never name the file.
+# One file's verdict. Bytes is how many were read. Open says another program holds the file,
+# so it could not be read at all, which is no verdict on its bytes. Fault is a sentence naming
+# what is wrong with the file, or null.
+function Test-BinaryAsset([string] $full) {
+    $extension = [IO.Path]::GetExtension($full).ToLowerInvariant()
     try {
         $bytes = [IO.File]::ReadAllBytes($full)
-        $totalBytes += $bytes.LongLength
+    } catch {
+        # PowerShell wraps the IOException a .NET call throws. A sharing violation (32) or a
+        # lock violation (33) is in the low word of the HResult of the exception it wraps.
+        $cause = $_.Exception
+        while ($null -ne $cause.InnerException -and $cause -isnot [IO.IOException]) { $cause = $cause.InnerException }
+        $held = $cause -is [IO.IOException] -and (($cause.HResult -band 0xFFFF) -in 32, 33)
+        $fault = if ($held) { $null } else { "could not be read: $($cause.Message)" }
+        return [pscustomobject]@{ Bytes = 0L; Open = $held; Fault = $fault }
+    }
+    # Any exception from a reader is reported against its file. Without this a malformed asset
+    # that reached an unguarded index would print a stack trace naming the script, and never
+    # name the file.
+    try {
         $fault = switch ($extension) {
             '.png' { [NendoAssetStructure]::Png($bytes) }
             '.ico' { [NendoAssetStructure]::Ico($bytes) }
@@ -451,11 +463,95 @@ foreach ($path in $binaries) {
     } catch {
         $fault = "could not be read: $($_.Exception.Message)"
     }
-    if ($null -ne $fault) { $faults += "$path $fault" }
+    [pscustomobject]@{ Bytes = $bytes.LongLength; Open = $false; Fault = $fault }
 }
 
-if ($faults.Count -gt 0) {
-    throw "Corrupt binary asset(s); the bytes are tracked but the files cannot be read:`n$($faults -join "`n")"
+# What a file that another program holds is reported as. Nendo keeps a write-owner file beside
+# a .nendo file while it has it open, which settles whose hold it is.
+function Format-OpenAsset([string] $path, [string] $full) {
+    if ($path -notlike '*.nendo') { return "$path is held open by another program. Close it there and run again." }
+    $owner = "$full.write-owner"
+    if (Test-Path -LiteralPath $owner -PathType Leaf) {
+        return "$path is open in Nendo ($([IO.Path]::GetFileName($owner)) is beside it). Close it, or open another file in Nendo, and run again."
+    }
+    return "$path is held open by another program, most likely Nendo. Close it there, or open another file in Nendo, and run again."
+}
+
+# The gate's sentence: corrupt files first, then files that could not be checked at all.
+function Get-AssetReport([string[]] $faults, [string[]] $open) {
+    $sections = @()
+    if ($faults.Count -gt 0) {
+        $sections += "Corrupt binary asset(s); the bytes are tracked but the files cannot be read:`n$($faults -join "`n")"
+    }
+    if ($open.Count -gt 0) {
+        $sections += "Tracked binary asset(s) held open by another program, so they could not be checked. That says nothing about their bytes, but a file nobody could check is not a pass:`n$($open -join "`n")"
+    }
+    $sections -join "`n`n"
+}
+
+# The guard for the held-file report. A copy of the smallest tracked .nendo file that can be
+# copied is held without sharing, with a write-owner file beside it as Nendo leaves one, and
+# given the verdict and report every tracked file gets; the report must say the copy is open in
+# Nendo and what to do, and must not call it corrupt. Released, the same copy
+# must read cleanly, so the verdict was the hold and not the bytes. When no tracked .nendo file
+# can even be copied, every one of them is held, and the loop below fails the gate on them.
+function Assert-HeldFileIsReportedOpen {
+    $candidates = @(
+        $binaries |
+            Where-Object { $_ -like '*.nendo' -and (Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf) } |
+            Sort-Object { (Get-Item -LiteralPath (Join-Path $repoRoot $_)).Length }
+    )
+    if ($candidates.Count -eq 0) { throw 'Self-check: no tracked .nendo file to hold open; the held-file report would go unchecked.' }
+    $scratch = Join-Path ([IO.Path]::GetTempPath()) "nendo-binary-assets-$([Guid]::NewGuid().ToString('N'))"
+    [void][IO.Directory]::CreateDirectory($scratch)
+    try {
+        foreach ($source in $candidates) {
+            $copy = Join-Path $scratch ([IO.Path]::GetFileName($source))
+            try { [IO.File]::Copy((Join-Path $repoRoot $source), $copy) } catch { continue }
+            $label = "a copy of $source"
+            [IO.File]::WriteAllText("$copy.write-owner", '')
+            $hold = [IO.File]::Open($copy, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+            try {
+                $verdict = Test-BinaryAsset $copy
+                $open = @(if ($verdict.Open) { Format-OpenAsset $label $copy })
+                $faults = @(if (-not $verdict.Open -and $null -ne $verdict.Fault) { "$label $($verdict.Fault)" })
+                $report = Get-AssetReport $faults $open
+            } finally {
+                $hold.Dispose()
+            }
+            $expected = "$label is open in Nendo ($([IO.Path]::GetFileName($copy)).write-owner is beside it). Close it, or open another file in Nendo, and run again."
+            if (-not $report.Contains($expected) -or $report -match 'Corrupt') {
+                throw "Self-check: $label, held without sharing beside a write-owner file, was not reported as open in Nendo; a .nendo file Nendo has open would be called corrupt. The lane reported:`n$report"
+            }
+            $released = Test-BinaryAsset $copy
+            if ($released.Open -or $null -ne $released.Fault) {
+                throw "Self-check: $label did not read cleanly once released, so the held-file verdict proves nothing: $($released.Fault)"
+            }
+            return
+        }
+    } finally {
+        Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+Assert-HeldFileIsReportedOpen
+
+$faults = @()
+$open = @()
+$totalBytes = 0L
+foreach ($path in $binaries) {
+    $full = Join-Path $repoRoot $path
+    if (-not (Test-Path -LiteralPath $full -PathType Leaf)) {
+        $faults += "$path is tracked but not on disk"
+        continue
+    }
+    $verdict = Test-BinaryAsset $full
+    $totalBytes += $verdict.Bytes
+    if ($verdict.Open) { $open += Format-OpenAsset $path $full }
+    elseif ($null -ne $verdict.Fault) { $faults += "$path $($verdict.Fault)" }
+}
+
+if ($faults.Count -gt 0 -or $open.Count -gt 0) {
+    throw (Get-AssetReport $faults $open)
 }
 
 $megabytes = [Math]::Round($totalBytes / 1MB, 1)
