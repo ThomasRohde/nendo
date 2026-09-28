@@ -25,8 +25,9 @@ every custom screen and shows the error in Studio's **Surfaces** area. It does
 not draw part of an app. Your data, Studio and recovery are not affected, and no
 screen can hide Studio.
 
-Most screens belong to one record type. In Use, pick the record type, then pick
-a screen from the **View** picker. The front page is the exception: it belongs
+Most screens belong to one record type. In Use, the breadcrumb at the top names
+the record type and the screen, and each name is a picker: choose the record type,
+then the screen. The front page is the exception: it belongs
 to the file, and Use opens it first when the file has one. Which screen, tab,
 month or year is open is remembered for the session only and never written to
 the file.

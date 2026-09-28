@@ -427,7 +427,9 @@ content.addEventListener('scroll', () => {
 export function setBusy(busy: boolean): void {
   content.setAttribute('aria-busy', String(busy));
   setBusyBar(busy);
-  for (const control of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('[data-action], [data-file-action], .studio-content input, .studio-content select, .studio-content textarea')) {
+  // The breadcrumb's record-type picker is held with the page's controls, as it was when it
+  // stood in the Use toolbar (W-092).
+  for (const control of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('[data-action], [data-file-action], .studio-content input, .studio-content select, .studio-content textarea, #place-pickers select')) {
     // A custom view's own controls are not the Workbench's work to hold (W-090); a person
     // typing in its search box keeps the box while a save runs.
     if (control.closest('[data-view-toolbar]') !== null) continue;

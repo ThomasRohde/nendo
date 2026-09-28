@@ -23,6 +23,7 @@ import { holdingThePage, refuseWhileDirty } from './draft-guard';
 import { backTarget, forwardTarget, goBack, goForward, placeName, recordPlace } from './navigation-actions';
 import { state } from './app-state';
 import { installViewFrames, onHostKey, parkViewFrames, releaseViewFrames, runViewKey } from './view-frames';
+import { beginPlacePickers, endPlacePickers } from './place-pickers';
 import { chordOf } from './extension-api/protocol';
 import { capitalise, messageFor } from './format';
 import {
@@ -109,6 +110,9 @@ function render(): void {
   // does not need updateChrome to have run: currentHeading only reads state.
   recordPlace(currentHeading());
   updateChrome();
+  // A Use page draws the record-type and view pickers into the breadcrumb (W-092); any other
+  // page leaves the breadcrumb plain.
+  beginPlacePickers();
   content.setAttribute('aria-busy', String(state.actionInFlight));
   // Help owns its own two scroll regions; every other view scrolls the content pane.
   content.classList.toggle('is-help', state.view === 'help');
@@ -134,6 +138,7 @@ function render(): void {
       default: renderData(); break;
     }
   }
+  endPlacePickers();
   const awaitingSave = renderPendingMutation();
   if (state.view !== 'help' && (!state.session.capabilities.mutate || awaitingSave)) {
     for (const control of content.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(alwaysAvailable)) {

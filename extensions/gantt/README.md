@@ -15,8 +15,11 @@ own, so selecting it opens nothing.
 On a Nendo that offers it, the chart's title gives way to Nendo's breadcrumb, and on a
 screen Nendo's toolbar carries a Find box (Ctrl F, and in Ctrl K under the view's title).
 Rows whose label or group does not hold the text step back; Enter opens the first row that
-does. A right-click on a row opens Nendo's menu, with Open record. A chart of one on a
-record page declares nothing. On an older Nendo the chart is as it always was.
+does. A right-click on a row opens Nendo's menu, with Open record. On a screen the summary
+line is Nendo's row's text and the hint is behind About, shown over the chart until Escape,
+so the chart starts at the top of the frame; a problem reading the file stays in the frame,
+whole. A chart of one on a record page declares nothing and keeps its summary. On an older
+Nendo the chart is as it always was.
 
 ## What it reads
 

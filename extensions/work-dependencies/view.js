@@ -39,7 +39,8 @@
   const remembered = loadSettings();
   // Whether Nendo draws this view's controls in its own toolbar, menus, Ctrl K and keys (W-090).
   // On a host that does not offer it, the view draws its own, as it always has.
-  let nativeChrome = false;
+  // Whether the explanation is shown over the drawing, where Nendo draws the controls (W-092).
+  let nativeChrome = false, aboutShown = false;
 
   function shape(name, attributes, text) {
     const item = document.createElementNS(SVG, name);
@@ -687,9 +688,8 @@
     if (cyclic.size !== 0) parts.push(`${cyclic.size} in a dependency cycle`);
     if (shown.hidden !== 0) parts.push(`${shown.hidden} hidden`);
     if (elkFailure !== null) parts.push('simple layout');
-    const summary = element('summary');
-    summary.textContent = parts.join(' · ');
-    summary.title = elkFailure === null ? '' : `The layout engine could not run, so a simpler layout is drawn: ${elkFailure}`;
+    setSummary(parts.join(' · '));
+    element('summary').title = elkFailure === null ? '' : `The layout engine could not run, so a simpler layout is drawn: ${elkFailure}`;
   }
 
   // --- Controls ---------------------------------------------------------------------------
@@ -738,7 +738,7 @@
 
   // A layout asked for by a control; a failure is said in the view, never thrown.
   function refresh() {
-    relayout().catch(() => { element('summary').textContent = 'These dependencies could not be displayed. Open your work items in Nendo.'; });
+    relayout().catch(() => { setSummary('These dependencies could not be displayed. Open your work items in Nendo.', true); });
   }
 
   async function read() {
@@ -747,7 +747,7 @@
     try {
       [graph, schema] = await Promise.all([nendo.view.loadGraph(), nendo.schema.describe()]);
     } catch (error) {
-      if (number === latest) element('summary').textContent = `Your work items could not be read. ${describe(error)}`;
+      if (number === latest) setSummary(`Your work items could not be read. ${describe(error)}`, true);
       return;
     }
     if (number !== latest) return;
@@ -760,7 +760,7 @@
       }
       await relayout();
     } catch {
-      element('summary').textContent = 'These dependencies could not be displayed. Open your work items in Nendo.';
+      setSummary('These dependencies could not be displayed. Open your work items in Nendo.', true);
     }
   }
   // Nendo says the file changed at most four times a second. A burst of changes is one read,
@@ -856,6 +856,29 @@
   // sends a press back as a command. A right-click on a work item opens Nendo's menu, with the
   // item's record commands. The page's title gives way to Nendo's own breadcrumb.
 
+  // The view's own lines (W-092): where Nendo draws the controls, the summary is declared as
+  // text in Nendo's row and the explanation waits behind About, so neither spends a line of the
+  // frame. A summary that reports a problem stays in the frame, whole.
+  function setSummary(text, problem = false) {
+    const line = element('summary');
+    line.textContent = text;
+    line.classList.toggle('problem', problem);
+    declareToolbar();
+  }
+  function summaryItem() {
+    const line = element('summary'), text = line.textContent.trim();
+    if (line.classList.contains('problem') || text === '') return null;
+    return { kind: 'text', text: text.length > 80 ? text.slice(0, 79) + '\u2026' : text };
+  }
+  function setAboutShown(on) {
+    aboutShown = on;
+    document.documentElement.classList.toggle('about-shown', on);
+    declareToolbar();
+  }
+  function aboutItem() {
+    return { kind: 'toggle', id: 'about', label: 'About this view', icon: 'info', iconOnly: true, pressed: aboutShown };
+  }
+
   function declareToolbar() {
     if (!nativeChrome) return;
     const groupOptions = [{ value: 'none', label: 'None' }, ...fields.groups.map(field => ({ value: field.fieldId, label: field.displayName.slice(0, 80) }))];
@@ -877,8 +900,11 @@
       { kind: 'toggle', id: 'linked', label: 'Linked only', icon: 'link', pressed: settings.linkedOnly },
       { kind: 'toggle', id: 'chain', label: 'Longest chain', icon: 'chain', pressed: chaining },
       { kind: 'toggle', id: 'focus', label: 'Focus', icon: 'focus', pressed: focusing },
-      { kind: 'spacer' },
     );
+    // The summary takes the row's free space; without one, a spacer does.
+    const summary = summaryItem();
+    if (summary !== null) items.push({ kind: 'separator' }, summary);
+    else items.push({ kind: 'spacer' });
     if (!textShown) {
       items.push({ kind: 'group', label: 'Zoom', items: [
         { kind: 'button', id: 'zoom-out', label: 'Zoom out', icon: 'minus', iconOnly: true, keys: 'Ctrl+-' },
@@ -886,7 +912,7 @@
         { kind: 'button', id: 'zoom-in', label: 'Zoom in', icon: 'plus', iconOnly: true, keys: 'Ctrl+Plus' },
       ] }, { kind: 'separator' });
     }
-    items.push({ kind: 'toggle', id: 'text', label: 'Text view', icon: 'list', pressed: textShown });
+    items.push({ kind: 'toggle', id: 'text', label: 'Text view', icon: 'list', pressed: textShown }, aboutItem());
     nendo.ui.setToolbar(items).catch(error => leaveNativeChrome(describe(error)));
   }
 
@@ -894,7 +920,7 @@
   function leaveNativeChrome(reason) {
     if (!nativeChrome) return;
     nativeChrome = false;
-    document.documentElement.classList.remove('native-chrome');
+    document.documentElement.classList.remove('native-chrome', 'about-shown');
     nendo.ui.setToolbar([]).catch(() => undefined);
     say(`Nendo could not show this view's controls, so the view shows its own: ${reason}`, true);
   }
@@ -915,7 +941,9 @@
     else if (id === 'zoom-out') zoom(.8);
     else if (id === 'fit') fit();
     else if (id === 'text') setTextShown(value === true);
+    else if (id === 'about') setAboutShown(value === true);
   }
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && aboutShown) setAboutShown(false); });
 
   async function openNodeMenu(id, at) {
     const node = shown.nodes.find(value => value.id === id);
@@ -972,5 +1000,5 @@
     nendo.on('context', next => { applyTheme(next.theme); schedule(); });
     nendo.on('changes', schedule);
     return read();
-  }).catch(error => { element('summary').textContent = `This view could not start. ${describe(error)}`; });
+  }).catch(error => { setSummary(`This view could not start. ${describe(error)}`, true); });
 })();

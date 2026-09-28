@@ -81,7 +81,8 @@ function itemMarkup(item: ToolbarItem, prefix: string): string {
     case 'group':
       return `<div class="view-toolbar-joined" role="group" aria-label="${escapeAttribute(item.label)}">${item.items.map((child) => pressableMarkup(child, true)).join('')}</div>`;
     case 'text':
-      return `<span class="view-toolbar-text${item.mono ? ' is-mono' : ''}">${escapeHtml(item.text)}</span>`;
+      // The title carries the whole text where the row has cut it short (W-092).
+      return `<span class="view-toolbar-text${item.mono ? ' is-mono' : ''}" title="${escapeAttribute(item.text)}">${escapeHtml(item.text)}</span>`;
     case 'separator':
       return '<span class="view-toolbar-separator" role="separator" aria-orientation="vertical"></span>';
     case 'spacer':
@@ -95,9 +96,9 @@ function itemMarkup(item: ToolbarItem, prefix: string): string {
  * The strip above a view's frame, or the controls in its panel's header on a record page.
  * `prefix` keeps the IDs that tie a label to its control apart between two views.
  */
-export function viewToolbarMarkup(toolbar: ViewToolbar, options: { title: string; compact: boolean; prefix: string }): string {
+export function viewToolbarMarkup(toolbar: ViewToolbar, options: { title: string; compact: boolean; prefix: string; inline?: boolean }): string {
   if (toolbar.items.length === 0) return '';
-  return `<div class="view-toolbar${options.compact ? ' is-compact' : ''}" role="toolbar" aria-label="${escapeAttribute(options.title)}" data-view-toolbar>${toolbar.items.map((item) => itemMarkup(item, options.prefix)).join('')}</div>`;
+  return `<div class="view-toolbar${options.compact ? ' is-compact' : ''}${options.inline === true ? ' is-inline' : ''}" role="toolbar" aria-label="${escapeAttribute(options.title)}" data-view-toolbar>${toolbar.items.map((item) => itemMarkup(item, options.prefix)).join('')}</div>`;
 }
 
 /**

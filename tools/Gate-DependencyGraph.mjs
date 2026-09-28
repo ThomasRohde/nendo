@@ -40,7 +40,7 @@ async (page) => {
   const frameOf = async (previous = null) => {
     for (let attempt = 0; attempt < 200; attempt += 1) {
       const frame = page.frames().find(candidate => candidate !== previous && !candidate.isDetached() && candidate.url().startsWith(origin + '/'));
-      if (frame !== undefined) { await frame.waitForSelector('#summary'); return frame; }
+      if (frame !== undefined) { await frame.waitForSelector('#summary', { state: 'attached' }); return frame; }
       await page.waitForTimeout(25);
     }
     throw new Error('The view never loaded from its own origin.');
@@ -253,7 +253,8 @@ async (page) => {
     : `${entry.kind}${entry.id ? ':' + entry.id : ''}${entry.keys ? '@' + entry.keys : ''}`);
   let declared = await declaredWhere(() => true, 'The graph declared no toolbar.');
   assert((await refusals()).length === 0, 'Nendo would refuse what the graph declared: ' + JSON.stringify(await refusals()));
-  assert(JSON.stringify(shape(declared)) === JSON.stringify(['spacer', 'group:zoom-out@Ctrl+-,fit@Ctrl+0,zoom-in@Ctrl+Plus', 'separator', 'toggle:text']),
+  declared = await declaredWhere(last => last.items.find(entry => entry.kind === 'text')?.text === '3 records · 4 connections', 'The graph did not put its summary in Nendo\u2019s row.');
+  assert(JSON.stringify(shape(declared)) === JSON.stringify(['text', 'group:zoom-out@Ctrl+-,fit@Ctrl+0,zoom-in@Ctrl+Plus', 'separator', 'toggle:text', 'toggle:about']),
     'The graph declared another toolbar: ' + JSON.stringify(shape(declared)));
   const own = await view.evaluate(() => ({ native: document.documentElement.classList.contains('native-chrome'),
     tools: getComputedStyle(document.querySelector('.tools')).display, title: getComputedStyle(document.querySelector('h1')).display }));
@@ -262,6 +263,31 @@ async (page) => {
 
   // A command is a press of the control it stands for, and the toolbar follows.
   const command = (id, value = null, source = 'toolbar') => page.evaluate(([id, value, source]) => window.broker.command(id, value, source), [id, value, source]);
+
+  // The view's own lines (W-092): its summary is Nendo's row's text, its explanation waits
+  // behind About, and the drawing starts at the top of the frame. A problem stays in the frame.
+  const ownLines = () => view.evaluate(() => ({ header: getComputedStyle(document.querySelector('header')).display,
+    hint: getComputedStyle(document.querySelector('.hint')).display, drawingTop: Math.round(document.querySelector('#canvas').getBoundingClientRect().top) }));
+  const lines = await ownLines();
+  assert(lines.header === 'none' && lines.hint === 'none' && lines.drawingTop <= 12,
+    'The graph still spends lines of its frame on its summary or its explanation: ' + JSON.stringify(lines));
+  await command('about', true);
+  await until(() => getComputedStyle(document.querySelector('.hint')).display === 'block' && getComputedStyle(document.querySelector('.hint')).position === 'fixed',
+    undefined, 'About in Nendo\u2019s row did not show the explanation.');
+  await declaredWhere(last => last.items.find(item => item.id === 'about')?.pressed === true, 'The toolbar did not follow About.');
+  await view.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  await until(() => getComputedStyle(document.querySelector('.hint')).display === 'none', undefined, 'Escape did not put the explanation away.');
+  await page.evaluate(() => {
+    window.broker.fail('records.query', { code: 'views-off', message: 'Custom views are off, so this view cannot read the file.' });
+    window.broker.pushChanges();
+  });
+  await until(() => document.getElementById('summary').classList.contains('problem') && getComputedStyle(document.querySelector('header')).display !== 'none',
+    undefined, 'A problem reading the file was not said in the frame, whole.');
+  await declaredWhere(last => !last.items.some(item => item.kind === 'text'), 'A problem was put in Nendo\u2019s row, where it would be cut short.');
+  await page.evaluate(() => window.broker.pushChanges());
+  await until(() => document.querySelectorAll('.node').length === 3, undefined, 'The graph did not draw again after the file could be read.');
+  await until(() => !document.getElementById('summary').classList.contains('problem') && getComputedStyle(document.querySelector('header')).display === 'none',
+    undefined, 'The frame kept the problem after the file could be read again.');
   const unzoomed = await view.locator('#drawing').getAttribute('transform');
   await command('zoom-in');
   await until(before => document.getElementById('drawing').getAttribute('transform') !== before, unzoomed, 'Zoom in from Nendo’s toolbar did not zoom.');

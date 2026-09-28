@@ -25,8 +25,11 @@ On a Nendo that offers it, this view draws no controls and no title of its own. 
 Take out (Put back while a component is out), the zoom (Ctrl − and Ctrl + zoom, Ctrl 0
 fits) and Text view are in Nendo's toolbar above the schematic, in Ctrl K under the view's
 title, and on their keys. A right-click on a component opens Nendo's menu, with Open
-component and Take it out, or Put it back for the one that is out. The caveat stays the
-view's own. On an older Nendo the view shows its own controls, as it always has.
+component and Take it out, or Put it back for the one that is out. The summary line is
+Nendo's row's text, and the explanation of the arrows is behind About, shown over the
+schematic until Escape; the schematic starts at the top of the frame. A problem reading the
+file stays in the frame, whole, and so does the caveat. On an older Nendo the view shows
+its own controls and lines, as it always has.
 
 ## Take out, and the line it does not cross
 

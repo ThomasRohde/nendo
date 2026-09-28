@@ -14,8 +14,10 @@ asks Nendo to open it.
 On a Nendo that offers it, this view draws no controls and no title of its own. The zoom
 (Ctrl − and Ctrl + zoom, Ctrl 0 fits) and Text view are in Nendo's toolbar above the graph,
 in Ctrl K under the view's title, and on their keys. A right-click on a record opens
-Nendo's menu, with Open record. On an older Nendo the view shows its own controls, as it
-always has.
+Nendo's menu, with Open record. The summary line is Nendo's row's text, and the hint is
+behind About, shown over the graph until Escape; the graph starts at the top of the frame.
+A problem reading the file stays in the frame, whole. On an older Nendo the view shows its
+own controls and lines, as it always has.
 
 ## What it reads
 

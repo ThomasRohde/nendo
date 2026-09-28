@@ -652,12 +652,16 @@ in Ctrl K, shows and runs their keys, and sends each press back as the event `co
 - **Words are text.** Every label, option and detail line is escaped where it lands.
   Nothing a view declares becomes markup, a class, a style or an attribute name. The icons
   are the Workbench's own outline icons, by name.
-- **Where it is drawn.** On a screen, the toolbar is a strip in the Workbench's markup at
-  the top of the view's placeholder, above the Development strip and the frame, in the page
-  toolbar's 46-pixel row. It uses the view switcher's segments, the labelled select,
-  bordered buttons, a search box and the File menu's panel for a menu. On a record page the
-  same controls sit in the panel's header, beside its title. The frame cannot reach either.
-  The strip is drawn again from the Workbench's copy on every redraw, and a search box the
+- **Where it is drawn.** On a screen, the toolbar is drawn in the Workbench's markup in the
+  Use toolbar's one row under the top bar, before Nendo's Add (W-092): the breadcrumb above
+  holds the record type and the view, so that row holds only what acts on the screen. A
+  page without that row draws the strip at the top of the view's placeholder, above the
+  Development strip and the frame. It uses the view switcher's segments, the labelled
+  select, bordered buttons, a search box and the File menu's panel for a menu, and a
+  non-mono `text` item takes the row's free space and is cut short with its whole text as a
+  title rather than push the controls onto a second line. On a record page the same
+  controls sit in the panel's header, beside its title. The frame cannot reach either. The
+  toolbar is drawn again from the Workbench's copy on every redraw, and a search box the
   person is typing in is kept, caret and all.
 - **Commands.** A press sends `{id, value, source}` to the view. `value` is:
   - the new state of a toggle or a check;
@@ -1301,6 +1305,38 @@ before any write. View code needs no approval of its own.
 
 ## Evidence
 
+### One row above a view (W-092)
+
+Measured on 2026-09-28. The journey (`DesktopExtensionViewJourneyTests` with
+`tools/Review-ExtensionViews.mjs`) ran in a Debug build: G31 found the record type and the
+view as pickers in the top bar's breadcrumb, none in the Use toolbar, and the probe's
+controls in the Use toolbar's row with Add. 84 px stood between the top bar and the probe's
+frame, the height of that one row, which the probe's long toolbar wraps onto two lines.
+
+`Review-SystemsLens.ps1`, `Review-NendoGraph.ps1`, `Review-Gantt.ps1` and
+`Review-WorkDependencies.ps1` measured the other half on the fixture broker. Each view put
+its summary in Nendo's row as `text` and declared About, its header and explanation were
+not displayed, and its drawing started within 12 px of the frame's top. About showed the
+explanation over the view, and Escape put it away. A refused read was said in the frame,
+whole, with no text in Nendo's row, and the next read put things back.
+
+A one-off look in a Debug Nendo on a copy of Nendo Station found the same: the Lens's frame
+started 47 px below the top bar, and its row read *Focus, Take out, 41 components · 48 feeds
+· 12 declared sources · 9 in a circuit, Fit, Text view, Add Components*.
+
+Each guard was seen to fail with its defect put back:
+
+- The view's controls in a strip of their own again: `More than one row stands between the
+  top bar and the view, or the pickers are not in the breadcrumb:
+  {"between":131,"row":47,"headerHeight":82,"frameTop":213,"pickers":true,"rowPickers":false,"sameRow":false,"stripInMount":true}`.
+- The Lens's explanation left in the frame: `The schematic still spends lines of its frame
+  on its summary or its explanation: {"header":"none","hint":"block","drawingTop":60}`.
+- The graph treating a problem as a summary: `A problem reading the file was not said in the
+  frame, whole.`
+- The Gantt's About showing nothing: `About in Nendo’s row did not show the explanation.`
+- Work dependencies' summary kept out of the row: `The view declared another toolbar:
+  [..."toggle:focus","spacer","group:zoom-out@Ctrl+-,fit@Ctrl+0,zoom-in@Ctrl+Plus",...]`.
+
 ### Nendo's chrome in the other three views (W-091)
 
 Measured on 2026-09-28. `Review-SystemsLens.ps1`, `Review-NendoGraph.ps1` and
@@ -1521,6 +1557,9 @@ passed. Each guard below was falsified, seen to fail and then restored:
   `command` event and the `key` message. Nendo's Add can be taken by a view, a view's commands
   are in Ctrl K with their keys, and Nendo's own keys work while a view has focus (ADR-0013
   2026-09-28, W-090).
+- 2026-09-28 — one row above a view: on a screen the toolbar is drawn in the Use toolbar's row
+  before Add, the breadcrumb holds the record type and the view, and a `text` item gives way
+  rather than wrap the row (ADR-0013, *One row above a view*; W-092). No change to the wire.
 - 2026-09-27 — `schema.describe` names each record type's declared `hierarchy`, so a view
   that writes a parent knows which field holds it rather than guessing among the record
   type's references to itself. A view on an earlier host finds the key missing (W-077).

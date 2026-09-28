@@ -14,7 +14,7 @@ const host = { calls: [], reply: () => { throw new Error('No reply is set.'); } 
 globalThis.summaryRefreshHost = host;
 const stubs = {
   './client': 'export const client={request:async(method,payload)=>{const h=globalThis.summaryRefreshHost;h.calls.push({method,payload});return h.reply(method,payload);}};',
-  './shell': 'export const content={querySelectorAll:()=>[]};export const interactionInProgress=()=>false;export const rerender=()=>{};export const setBusy=()=>{};export const showError=()=>{};',
+  './shell': 'export const content={querySelectorAll:()=>[]};export const interactionInProgress=()=>false;export const rerender=()=>{};export const setBusy=()=>{};export const showError=()=>{};export const requiredElement=()=>{throw new Error("No page here.");};export const focusWithoutInteraction=()=>{};',
   './record-markup': 'export const chartTileMarkup=()=>"";',
   './reads': 'export const loadSurfaceWindow=async()=>{};export const loadBoardColumns=async()=>{};export const loadRankedWindows=async()=>{};export const loadRecentWindows=async()=>{};',
 };

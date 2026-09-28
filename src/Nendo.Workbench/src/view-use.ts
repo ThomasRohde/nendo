@@ -24,6 +24,7 @@ import { type BoardView, isCustomViewKind, readsOwnRecords, surfaceById } from '
 import { wireOutlineSurface } from './outline-surface';
 import { renderSurfaces } from './view-surfaces';
 import { viewAddCommand, wireViewFrames } from './view-frames';
+import { drawPlacePickers } from './place-pickers';
 /**
  * The Use view: one selected surface for one record type, the record opened
  * beside it, and the gestures that move a card between board columns.
@@ -154,9 +155,12 @@ export function renderUse(): void {
   const surface = selectedSurfaceNode(plan);
   const board = selectedBoard(plan);
   const entityName = plan.entity.displayName;
-  const restorePickerFocus = document.activeElement?.matches('.surface-picker summary') ?? false;
+  // Where you are is chosen in the breadcrumb (W-092): its record type and its view are the two
+  // pickers. The row below keeps what acts on the screen, and a custom view's controls join it.
+  const pickers = drawPlacePickers(`<span class="place-root">Use</span><span class="place-dot" aria-hidden="true">·</span><label class="place-entity"><span class="visually-hidden">${overview === null ? 'Record type' : 'Showing'}</span><select id="use-entity">${overview === null ? '' : `<option value="">${escapeHtml(overviewTitle(overview))}</option>`}${applicationPlans().map(app => `<option value="${escapeAttribute(app.entity.semanticId)}" ${app.entity.semanticId === plan.entity.semanticId ? 'selected' : ''}>${escapeHtml(app.entity.displayName)}</option>`).join('')}</select><span class="place-chevron" aria-hidden="true">${icon('chevron')}</span></label><span class="place-sep" aria-hidden="true">/</span>${surfaceSelectorMarkup(plan)}`);
+  const back = `${drillPillMarkup(plan)}${state.returnTo === null ? '' : `<button id="related-back" class="text-button related-back" type="button"><span aria-hidden="true">←</span> Back to ${escapeHtml(state.returnTo.label)}</button>`}`;
   content.innerHTML = `<div class="use-page" data-testid="semantic-application">
-    <header class="use-toolbar"><div class="toolbar-group"><label class="select-field">${overview === null ? 'Record type' : 'Showing'}<select id="use-entity">${overview === null ? '' : `<option value="">${escapeHtml(overviewTitle(overview))}</option>`}${applicationPlans().map(app => `<option value="${escapeAttribute(app.entity.semanticId)}" ${app.entity.semanticId === plan.entity.semanticId ? 'selected' : ''}>${escapeHtml(app.entity.displayName)}</option>`).join('')}</select></label>${surfaceSelectorMarkup(plan)}${drillPillMarkup(plan)}${state.returnTo === null ? '' : `<button id="related-back" class="text-button related-back" type="button"><span aria-hidden="true">←</span> Back to ${escapeHtml(state.returnTo.label)}</button>`}</div><div class="toolbar-group">${surface !== null && readsOwnRecords(surface.kind) ? '' : recordPagerMarkup(plan.entity.semanticId, surface?.semanticId ?? null)}<button id="new-record" class="primary-button" data-action type="button"><span class="button-glyph" aria-hidden="true">+</span>Add ${escapeHtml(entityName)}</button></div></header>
+    <header class="use-toolbar">${back === '' ? '' : `<div class="toolbar-group">${back}</div>`}${isCustomViewKind(surface?.kind) ? '<div class="view-toolbar-slot" data-view-toolbar-slot></div>' : ''}<div class="toolbar-group use-actions">${surface !== null && readsOwnRecords(surface.kind) ? '' : recordPagerMarkup(plan.entity.semanticId, surface?.semanticId ?? null)}<button id="new-record" class="primary-button" data-action type="button"><span class="button-glyph" aria-hidden="true">+</span>Add ${escapeHtml(entityName)}</button></div></header>
     <div class="message-slot use-message" role="alert" hidden></div>
     <div class="use-layout ${selected !== null || state.creatingRecord || relatedTarget !== null ? 'has-inspector' : ''}">
       <section class="use-surface${surface?.kind === 'calendarSurface' ? ' calendar-surface' : surface?.kind === 'timelineSurface' ? ' timeline-surface' : surface?.kind === 'gallerySurface' ? ' gallery-surface' : surface?.kind === 'matrixSurface' ? ' matrix-surface' : surface?.kind === 'outlineSurface' ? ' outline-surface' : isCustomViewKind(surface?.kind) ? ' custom-view-surface' : ''}"${surface === null ? '' : ` data-surface="${escapeAttribute(surface.semanticId)}"`}>${surfaceTileMarkup(plan)}${surfaceBodyMarkup(plan)}</section>
@@ -164,7 +168,6 @@ export function renderUse(): void {
         : state.creatingRecord ? `<aside class="record-inspector"><header><span>New ${escapeHtml(entityName)}</span><button id="close-inspector" class="icon-button" type="button" aria-label="Close" data-dismiss>${icon('close')}</button></header>${recordFormMarkup(null, formFields(plan), `Add ${entityName}`, pageFormBody(plan, null, false), '', pageHasTabs(plan))}</aside>` : selected !== null ? inspectorMarkup(plan, selected) : ''}
     </div>
   </div>`;
-  if (restorePickerFocus) focusWithoutInteraction(content.querySelector<HTMLElement>('.surface-picker summary'));
   requiredElement<HTMLSelectElement>('#use-entity').addEventListener('change', event => {
     const picker = event.currentTarget as HTMLSelectElement;
     const chosen = picker.value;
@@ -184,18 +187,18 @@ export function renderUse(): void {
     leaveRecordContext();
     void (async () => { await refreshDerived(); rerender(); })().catch(error => showError(messageFor(error)));
   });
-  const picker = content.querySelector<HTMLDetailsElement>('.surface-picker');
+  const picker = pickers.querySelector<HTMLDetailsElement>('.surface-picker');
   picker?.addEventListener('keydown', event => {
     if (event.key === 'Escape') { picker.open = false; picker.querySelector('summary')?.focus(); }
   });
   picker?.addEventListener('focusout', () => {
     setTimeout(() => { if (!picker.contains(document.activeElement)) picker.open = false; }, 0);
   });
-  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-select-surface]'))
+  for (const button of pickers.querySelectorAll<HTMLButtonElement>('[data-select-surface]'))
     button.addEventListener('click', () => {
       if (picker !== null) picker.open = false;
       void selectSurface(button.dataset.selectSurface!).then(() => {
-        focusWithoutInteraction(content.querySelector<HTMLElement>('.surface-picker summary'));
+        focusWithoutInteraction(document.querySelector<HTMLElement>('#place-pickers .surface-picker summary'));
       });
     });
   // Every retry below redraws when its read lands, so each declines while the record

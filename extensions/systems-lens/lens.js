@@ -12,8 +12,9 @@
   let width = 800, height = 500, scale = 1, offsetX = 0, offsetY = 0, drag = null;
   // Reads are numbered so an answer that arrives after a newer read has started is dropped.
   let latest = 0, pending = null;
-  // True where Nendo draws this view's controls in its own toolbar (W-091).
-  let nativeChrome = false;
+  // True where Nendo draws this view's controls in its own toolbar (W-091), and whether the
+  // explanation is shown over the schematic (W-092).
+  let nativeChrome = false, aboutShown = false;
   const positions = new Map();     // node id -> {x, y}
   const component = new Map();     // node id -> strongly connected component index
   const looping = new Set();       // node ids that sit in a real circuit
@@ -278,8 +279,8 @@
     if (removed !== null) {
       let exposed = 0, reduced = 0;
       for (const answer of verdict.values()) { if (answer === 'exposed') exposed += 1; if (answer === 'reduced') reduced += 1; }
-      element('summary').textContent = `Without ${labelOf(removed)}: ${exposed} lose every declared path`
-        + `, ${reduced} keep one`;
+      setSummary(`Without ${labelOf(removed)}: ${exposed} lose every declared path`
+        + `, ${reduced} keep one`);
       return;
     }
     const parts = [`${nodes.length} component${nodes.length === 1 ? '' : 's'}`, `${edges.length} feed${edges.length === 1 ? '' : 's'}`];
@@ -287,7 +288,7 @@
     if (looping.size !== 0) parts.push(`${looping.size} in a circuit`);
     const stranded = nodes.filter(node => !baseline.has(node.id)).length;
     if (stranded !== 0) parts.push(`${stranded} no source reaches`);
-    element('summary').textContent = parts.join(' · ');
+    setSummary(parts.join(' · '));
   }
 
   function render(projection) {
@@ -427,13 +428,13 @@
     try {
       [graph, schema] = await Promise.all([nendo.view.loadGraph(), nendo.schema.describe()]);
     } catch (error) {
-      if (number === latest) element('summary').textContent = `The components could not be read. ${describe(error)}`;
+      if (number === latest) setSummary(`The components could not be read. ${describe(error)}`, true);
       return;
     }
     if (number !== latest) return;
     loaded = true;
     try { render(project(graph, schema)); } catch {
-      element('summary').textContent = 'This schematic could not be displayed. Open your components in Nendo.';
+      setSummary('This schematic could not be displayed. Open your components in Nendo.', true);
     }
   }
   // Nendo says the file changed at most four times a second. A burst of changes is one read,
@@ -487,7 +488,12 @@
   });
   // A what-if is page state and nothing else. Escape puts it back, and so does any new
   // read: the graph may have changed under the question.
-  document.addEventListener('keydown', event => { if (event.key === 'Escape' && removed !== null) setTakeOut(null); });
+  // Escape closes the explanation first, then puts a component back.
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    if (aboutShown) setAboutShown(false);
+    else if (removed !== null) setTakeOut(null);
+  });
   new ResizeObserver(() => { if (loaded && !canvas.hidden) fit(); }).observe(canvas);
 
   // --- Nendo's own chrome (W-091) ---------------------------------------------------------
@@ -497,14 +503,40 @@
   // sends a press back as a command. A right-click on a component opens Nendo's menu. The
   // page's title gives way to Nendo's own breadcrumb; the caveat stays the view's own.
 
+  // The view's own lines (W-092): where Nendo draws the controls, the summary is declared as
+  // text in Nendo's row and the explanation waits behind About, so neither spends a line of the
+  // frame. A summary that reports a problem stays in the frame, whole.
+  function setSummary(text, problem = false) {
+    const line = element('summary');
+    line.textContent = text;
+    line.classList.toggle('problem', problem);
+    declareToolbar();
+  }
+  function summaryItem() {
+    const line = element('summary'), text = line.textContent.trim();
+    if (line.classList.contains('problem') || text === '') return null;
+    return { kind: 'text', text: text.length > 80 ? text.slice(0, 79) + '\u2026' : text };
+  }
+  function setAboutShown(on) {
+    aboutShown = on;
+    document.documentElement.classList.toggle('about-shown', on);
+    declareToolbar();
+  }
+  function aboutItem() {
+    return { kind: 'toggle', id: 'about', label: 'About this view', icon: 'info', iconOnly: true, pressed: aboutShown };
+  }
+
   function declareToolbar() {
     if (!nativeChrome) return;
     const textShown = !element('text-view').hidden;
+    const summary = summaryItem();
     const items = [
       { kind: 'toggle', id: 'focus', label: 'Focus', icon: 'focus', pressed: focusing },
       { kind: 'toggle', id: 'takeout', label: removed === null ? 'Take out' : 'Put back', pressed: removed !== null, disabled: removed === null && selected === null },
-      { kind: 'spacer' },
     ];
+    // The summary takes the row's free space; without one, a spacer does.
+    if (summary !== null) items.push({ kind: 'separator' }, summary);
+    else items.push({ kind: 'spacer' });
     if (!textShown) {
       items.push({ kind: 'group', label: 'Zoom', items: [
         { kind: 'button', id: 'zoom-out', label: 'Zoom out', icon: 'minus', iconOnly: true, keys: 'Ctrl+-' },
@@ -512,7 +544,7 @@
         { kind: 'button', id: 'zoom-in', label: 'Zoom in', icon: 'plus', iconOnly: true, keys: 'Ctrl+Plus' },
       ] }, { kind: 'separator' });
     }
-    items.push({ kind: 'toggle', id: 'text', label: 'Text view', icon: 'list', pressed: textShown });
+    items.push({ kind: 'toggle', id: 'text', label: 'Text view', icon: 'list', pressed: textShown }, aboutItem());
     nendo.ui.setToolbar(items).catch(error => leaveNativeChrome(describe(error)));
   }
 
@@ -520,7 +552,7 @@
   function leaveNativeChrome(reason) {
     if (!nativeChrome) return;
     nativeChrome = false;
-    document.documentElement.classList.remove('native-chrome');
+    document.documentElement.classList.remove('native-chrome', 'about-shown');
     nendo.ui.setToolbar([]).catch(() => undefined);
     element('selection').textContent = `Nendo could not show this view's controls, so the view shows its own: ${reason}`;
   }
@@ -532,6 +564,7 @@
     else if (id === 'zoom-out') zoom(.8);
     else if (id === 'fit') fit();
     else if (id === 'text') setTextShown(value === true);
+    else if (id === 'about') setAboutShown(value === true);
   }
 
   async function openComponentMenu(id, at) {
@@ -583,5 +616,5 @@
     nendo.on('context', next => { applyTheme(next.theme); schedule(); });
     nendo.on('changes', schedule);
     return read();
-  }).catch(error => { element('summary').textContent = `This schematic could not start. ${describe(error)}`; });
+  }).catch(error => { setSummary(`This schematic could not start. ${describe(error)}`, true); });
 })();

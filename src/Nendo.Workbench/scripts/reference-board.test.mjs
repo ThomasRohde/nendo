@@ -150,7 +150,7 @@ test('at zero the board says the same kind of thing it says above the ceiling', 
   assert.ok(said.includes('every record of that type would be one'), said);
   // The action has to be one the board's own screen can carry out. Showing and Add are
   // both on that toolbar; a type with no view of its own is not in Showing at all.
-  assert.ok(said.includes('Choose Author under Showing'), said);
+  assert.ok(said.includes('Choose Author in the breadcrumb above'), said);
   assert.ok(referenceColumnsEmpty('Author', false).includes('made in Studio'), referenceColumnsEmpty('Author', false));
   assert.ok(!referenceColumnsEmpty('Author', false).includes('Showing'), referenceColumnsEmpty('Author', false));
 });

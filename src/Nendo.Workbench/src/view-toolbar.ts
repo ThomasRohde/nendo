@@ -7,8 +7,9 @@ import type { CommandValue, ToolbarItem, ToolbarMenu, ViewToolbar } from './view
 /**
  * A custom view's toolbar on the page (ADR-0013, 2026-09-28; W-090): drawn from what the view
  * declared, in the Workbench's own markup, and wired so that a press becomes the view's
- * `command`. On a screen it is a strip above the frame; on a record page it sits in the
- * panel's header, beside the view's title. Like the Development strip it is outside the frame,
+ * `command`. On a screen it shares the Use toolbar's row with Nendo's Add (W-092), or where a
+ * page has no such row it is a strip above the frame; on a record page it sits in the panel's
+ * header, beside the view's title. Like the Development strip it is outside the frame,
  * so the view cannot reach it, and it is drawn again on every redraw from the mount's copy.
  *
  * A redraw of the strip keeps the person where they were: the control they had focus on keeps
@@ -45,9 +46,23 @@ function counterpart(scope: ParentNode, element: Element): HTMLElement | null {
   return scope.querySelector<HTMLElement>(selector);
 }
 
-/** Where the strip goes: first in a screen's mount, or at the end of a panel's header. */
+/** The Use toolbar's place for a screen's controls, beside Add (W-092), when the page has one. */
+function rowSlot(placeholder: HTMLElement): HTMLElement | null {
+  return placeholder.closest('.use-page')?.querySelector<HTMLElement>(':scope > .use-toolbar > [data-view-toolbar-slot]') ?? null;
+}
+
+/** Where a drawn strip lives: the Use toolbar's row or the screen's mount, or a panel's header. */
+function stripScope(placeholder: HTMLElement, placement: ToolbarHost['placement']): HTMLElement | null {
+  if (placement === 'screen') return rowSlot(placeholder) ?? placeholder;
+  return placeholder.querySelector<HTMLElement>(':scope > .view-header');
+}
+
+/** Where the strip goes: in the Use toolbar's row, else first in a screen's mount, or at the end of a panel's header. */
 function slot(placeholder: HTMLElement, placement: ToolbarHost['placement']): { parent: HTMLElement; before: Node | null } | null {
-  if (placement === 'screen') return { parent: placeholder, before: placeholder.firstChild };
+  if (placement === 'screen') {
+    const row = rowSlot(placeholder);
+    return row !== null ? { parent: row, before: null } : { parent: placeholder, before: placeholder.firstChild };
+  }
   const header = placeholder.querySelector<HTMLElement>(':scope > .view-header');
   return header === null ? null : { parent: header, before: null };
 }
@@ -57,10 +72,11 @@ function slot(placeholder: HTMLElement, placement: ToolbarHost['placement']): { 
  * away when the view declares none.
  */
 export function drawViewToolbar(placeholder: HTMLElement, host: ToolbarHost): void {
-  const scope = host.placement === 'screen' ? placeholder : placeholder.querySelector<HTMLElement>(':scope > .view-header');
+  const scope = stripScope(placeholder, host.placement);
   const previous = scope?.querySelector<HTMLElement>(':scope > [data-view-toolbar]') ?? null;
-  const markup = host.toolbar === null ? '' : viewToolbarMarkup(host.toolbar, { title: host.title, compact: host.placement !== 'screen', prefix: host.prefix });
-  placeholder.classList.toggle('has-toolbar', markup !== '');
+  const inRow = host.placement === 'screen' && rowSlot(placeholder) !== null;
+  const markup = host.toolbar === null ? '' : viewToolbarMarkup(host.toolbar, { title: host.title, compact: host.placement !== 'screen', inline: inRow, prefix: host.prefix });
+  placeholder.classList.toggle('has-toolbar', markup !== '' && !inRow);
   if (markup === '') { previous?.remove(); return; }
   const holder = document.createElement('div');
   holder.innerHTML = markup;
@@ -156,7 +172,8 @@ async function openMenu(button: HTMLButtonElement, host: ToolbarHost): Promise<v
 
 /** Put the person in a view's search box, as its key or its Ctrl K entry asks. */
 export function focusViewSearch(placeholder: HTMLElement, id: string): boolean {
-  const input = placeholder.querySelector<HTMLInputElement>(`[data-view-toolbar] input[data-view-command="${CSS.escape(id)}"]`);
+  const scope = placeholder.classList.contains('is-screen') ? rowSlot(placeholder) ?? placeholder : placeholder;
+  const input = scope.querySelector<HTMLInputElement>(`[data-view-toolbar] input[data-view-command="${CSS.escape(id)}"]`);
   if (input === null || input.disabled) return false;
   input.focus();
   input.select();

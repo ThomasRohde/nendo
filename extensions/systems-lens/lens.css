@@ -83,3 +83,10 @@ header,.tools,.hint,#caveat,footer,#canvas,#summary,#empty{user-select:none}#tex
 /* Nendo draws this view's controls in its own toolbar where the host offers it (W-091): the
    view's own controls go, and so does the page title, which Nendo's breadcrumb gives. */
 .native-chrome h1,.native-chrome .tools{display:none!important}
+/* The view's own lines go to Nendo's row as well where Nendo draws the controls (W-092): the
+   summary is declared as text there and the explanation waits behind About, shown over the
+   schematic on demand. A summary that reports a problem stays here, whole. */
+.native-chrome body{padding-top:8px}
+.native-chrome header:not(:has(#summary.problem)){display:none}
+.native-chrome .hint{display:none}
+.native-chrome.about-shown .hint{display:block;position:fixed;top:8px;right:12px;z-index:20;max-width:min(440px,calc(100vw - 24px));margin:0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-raised);box-shadow:0 12px 32px -16px rgba(20,23,28,.35);color:var(--ink);font-size:.85rem;line-height:1.45}

@@ -310,8 +310,8 @@ function referenceColumnsNotice(node: SurfaceNodePlan, targetEntityId: string): 
   if (known.state === 'overflowing')
     return { replace: `<p class="surface-empty" role="status">${escapeHtml(referenceColumnsOverflow(typeName, known.count, known.ceiling))}</p>` };
   // Read, and there were none. A target type with no Use surface of its own is not in the
-  // Showing picker, so the sentence sends a person to Studio instead of to a control that
-  // is not on this screen.
+  // breadcrumb's record-type picker, so the sentence sends a person to Studio instead of to a
+  // control that is not on this screen.
   if (known.columns.length === 0) {
     const inPicker = applicationPlans().some((app) => app.entity.semanticId === targetEntityId);
     return { note: `<p class="surface-empty" role="status">${escapeHtml(referenceColumnsEmpty(typeName, inPicker))}</p>` };

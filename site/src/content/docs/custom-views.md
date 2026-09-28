@@ -16,7 +16,7 @@ A redraw of the page around a view does not restart it. When you leave the scree
 
 ## A view's controls are Nendo's
 
-A view can hand its controls to Nendo. The view says what it offers: buttons, switches, choices, a search box and menus. Nendo draws them in the same toolbar as its other screens, above the view, or in the panel's heading on a record page. Then:
+A view can hand its controls to Nendo. The view says what it offers: buttons, switches, choices, a search box and menus. Nendo draws them in the screen's one row under the top bar, next to **Add**, or in the panel's heading on a record page. The breadcrumb at the top picks the record type and the view, so nothing else stands between the top bar and the view. The example views also put their summary in that row, and keep their explanation behind an **About** button. Then:
 
 - **Ctrl K** lists the view's commands under its title, with their keys.
 - **Keys** that a view declares work anywhere in the window, except while you type in a field. Nendo's own keys, such as Ctrl K, Ctrl 1 to 7 and Alt F, keep working while the view has focus.

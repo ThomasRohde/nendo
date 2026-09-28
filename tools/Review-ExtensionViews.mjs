@@ -492,7 +492,8 @@ try {
   // G27 to G30 (W-090, ADR-0013 2026-09-28): a view's controls in Nendo's own chrome. The probe
   // declares a toolbar; Nendo draws it above the frame in its own controls, sends each press, its
   // Add, a Ctrl K entry and a key back as a command, draws the menu the view asks for, and keeps
-  // its own keys working while the view has focus.
+  // its own keys working while the view has focus. Since W-092 the controls share the Use
+  // toolbar's one row with Add, and the breadcrumb holds the record type and the view (G31).
   await click('#nav-use'); await idle();
   await click('[data-select-surface="probe"]'); await idle();
   const chromeView = await waitFor(async () => (await frames()).find(f => f.view === 'probe' && f.state === 'running'), 'the probe screen running for its toolbar', 30000);
@@ -502,8 +503,10 @@ try {
   const declared = await inFrame(chromeFrame, 'probe.declare()', 10000);
   assert(declared === 'declared', 'The probe\u2019s toolbar was refused: ' + declared);
   const probeMount = `[...document.querySelectorAll('[data-view-mount]')].find(m => m.dataset.viewId === 'probe')`;
+  // The probe's controls wherever Nendo drew them; G31 says where that has to be.
+  const probeStrip = `(document.querySelector('.use-page > .use-toolbar > [data-view-toolbar-slot] > [data-view-toolbar]') ?? ${probeMount}?.querySelector('[data-view-toolbar]') ?? null)`;
   const chromeStrip = await waitFor(() => evaluate(`(() => { const chromeMount = ${probeMount};
-    const bar = chromeMount?.querySelector(':scope > [data-view-toolbar]');
+    const bar = ${probeStrip};
     if (!bar) return 'error: no strip; the placeholder is ' + (chromeMount ? chromeMount.className + ' ' + chromeMount.dataset.viewState + ' holding ' + [...chromeMount.children].map(c => c.tagName + '.' + c.className).join(' ') : 'gone');
     const chromeBox = bar.getBoundingClientRect(), frame = chromeMount.querySelector('iframe').getBoundingClientRect();
     return { above: chromeBox.bottom <= frame.top + 1, height: Math.round(chromeBox.height), images: bar.querySelectorAll('img').length, markup: window.journeyMarkup ?? null,
@@ -511,14 +514,14 @@ try {
       choice: Boolean(bar.querySelector('.view-switcher [data-view-value="two"]')), search: Boolean(bar.querySelector('input[type="search"][data-view-command="find"]')),
       menu: Boolean(bar.querySelector('button[data-view-menu="export"][aria-haspopup="menu"]')), keys: bar.querySelector('[data-view-command="fit"]')?.getAttribute('aria-keyshortcuts') ?? null }; })()`),
   'the probe\u2019s toolbar, drawn by Nendo');
-  assert(chromeStrip.above && chromeStrip.height >= 40 && chromeStrip.choice && chromeStrip.search && chromeStrip.menu && chromeStrip.keys === 'Control+0',
+  assert(chromeStrip.above && chromeStrip.height >= 28 && chromeStrip.choice && chromeStrip.search && chromeStrip.menu && chromeStrip.keys === 'Control+0',
     'Nendo did not draw the declared toolbar above the frame in its own controls: ' + JSON.stringify(chromeStrip));
   assert(chromeStrip.images === 0 && chromeStrip.markup === null && chromeStrip.pin.includes('<img src=x'), 'A label a view declared became markup in the Workbench: ' + JSON.stringify(chromeStrip));
   report.measurements.viewToolbarHeight = chromeStrip.height;
   // With the key hints on, every control keeps its key inside itself: an icon button grows to
   // hold it rather than spilling it over the control beside it.
   await click('#shortcuts-toggle');
-  const hinted = await waitFor(() => evaluate(`(() => { const bar = ${probeMount}.querySelector('[data-view-toolbar]');
+  const hinted = await waitFor(() => evaluate(`(() => { const bar = ${probeStrip};
     const shown = [...bar.querySelectorAll('.kbd-hint')].filter(hint => getComputedStyle(hint).display !== 'none').length; if (shown < 3) return null;
     const spill = [...bar.querySelectorAll('.view-toolbar-button')].filter(b => b.scrollWidth > b.clientWidth + 1).map(b => b.dataset.viewCommand);
     const boxes = [...bar.querySelectorAll('.view-toolbar-button, .view-toolbar-search, .view-switcher, .select-field')].map(e => e.getBoundingClientRect());
@@ -532,12 +535,29 @@ try {
   assert(hinted.spill.length === 0 && hinted.overlaps === 0, 'With the key hints on, a control spills its key over the control beside it: ' + JSON.stringify(hinted));
   check(`G27 a view's declared toolbar is drawn by Nendo above its frame (${chromeStrip.height} px) in Nendo's own controls, a label that looks like markup stays text, and with the key hints on each of ${hinted.shown} keys stays inside its control`);
 
+  // G31 (W-092, ADR-0013 2026-09-28, one row above a view): the breadcrumb holds the record type
+  // and the view, the Use toolbar holds nothing but what acts on the screen, and the view's
+  // controls share its row with Add. Measured, not looked at: the height between the top bar and
+  // the view's frame is that one row, where it was the Use toolbar and a strip of its own.
+  const oneRow = await evaluate(`(() => { const header = document.querySelector('.workspace-header'), row = document.querySelector('.use-page > .use-toolbar');
+    const frame = ${probeMount}.querySelector('iframe'), bar = ${probeStrip}, add = document.querySelector('#new-record');
+    const between = frame.getBoundingClientRect().top - header.getBoundingClientRect().bottom;
+    return { between: Math.round(between), row: Math.round(row.getBoundingClientRect().height), headerHeight: Math.round(header.getBoundingClientRect().height),
+      frameTop: Math.round(frame.getBoundingClientRect().top),
+      pickers: Boolean(header.querySelector('#use-entity')) && Boolean(header.querySelector('.surface-picker [data-select-surface="probe"][aria-pressed="true"]')),
+      rowPickers: Boolean(row.querySelector('#use-entity, .surface-picker')), sameRow: bar !== null && add !== null && bar.closest('.use-toolbar') === add.closest('.use-toolbar'),
+      stripInMount: Boolean(${probeMount}.querySelector('[data-view-toolbar]')) }; })()`);
+  assert(oneRow.pickers && !oneRow.rowPickers && oneRow.sameRow && !oneRow.stripInMount && oneRow.between <= oneRow.row + 2,
+    'More than one row stands between the top bar and the view, or the pickers are not in the breadcrumb: ' + JSON.stringify(oneRow));
+  report.measurements.betweenTopBarAndView = oneRow.between;
+  check(`G31 one row above a view: the breadcrumb holds the record type and the view, and the view's controls share the Use toolbar's row with Add, so ${oneRow.between} px stand between the top bar and the view's frame, the height of that one row`);
+
   // G28: a press in the strip, Nendo's own Add and a Ctrl K entry each reach the view as a command.
   const heard = () => inFrame(chromeFrame, 'probe.state.commands.map(c => [c.id, c.value, c.source].join(":"))');
-  await evaluate(`${probeMount}.querySelector('[data-view-toolbar] [data-view-command="mode"][data-view-value="two"]').click()`);
-  await evaluate(`${probeMount}.querySelector('[data-view-toolbar] [data-view-command="pin"]').click()`);
+  await evaluate(`${probeStrip}.querySelector('[data-view-command="mode"][data-view-value="two"]').click()`);
+  await evaluate(`${probeStrip}.querySelector('[data-view-command="pin"]').click()`);
   await waitFor(async () => (await heard()).join() === 'mode:two:toolbar,pin:true:toolbar' ? true : null, 'two presses reaching the view');
-  const shown = await evaluate(`(() => { const bar = ${probeMount}.querySelector('[data-view-toolbar]');
+  const shown = await evaluate(`(() => { const bar = ${probeStrip};
     return [bar.querySelector('[data-view-value="two"]').getAttribute('aria-pressed'), bar.querySelector('[data-view-command="pin"]').getAttribute('aria-pressed')]; })()`);
   assert(shown.join() === 'true,true', 'Nendo did not show the presses at once: ' + JSON.stringify(shown));
   await click('#new-record');

@@ -977,8 +977,9 @@ card there is, and to hide the records in order to explain the columns would
 answer a smaller question than the one asked.
 
 The sentence names what a person can do from the screen they are on, because the
-Showing picker and Add are both on that toolbar. When the target type has no view
-of its own, the sentence sends the person to Studio instead.
+record-type picker in the breadcrumb and Add are both on that screen (since W-092 the
+breadcrumb holds the record type and the view). When the target type has no view of
+its own, the sentence sends the person to Studio instead.
 
 **The Ungrouped lane's advice is true of the board it is on.** With named columns,
 it still reads *Move a card to a named column to assign it.* With none, it says

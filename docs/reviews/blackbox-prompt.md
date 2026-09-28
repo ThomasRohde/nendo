@@ -857,6 +857,12 @@ vocabulary, the examples and the resources — and not from the person.
   out in Nendo's toolbar, then take out another from its right-click menu, and record
   whether the caveat and the verdicts read the same both ways. In the Gantt, type in Find,
   press Enter, and record what dimmed and what opened.
+- On any Use screen, record what stands between the top bar and the screen's content, row by
+  row, and where the record type and the view are chosen. Switch both from the breadcrumb
+  with the pointer and with the keyboard, and record whether Ctrl K still offers them. On a
+  custom view's screen, record whether the view's controls and Add share one row, what the
+  row says in its middle, what About shows and how it goes away, and what a view says when
+  it cannot read the file.
 - Put the repository's `extensions/bcm-atlas` package into the empty review file. Give a
   record type a reference to itself, declare it as the hierarchy, and add records three
   levels deep. Show the package over that record type with a view whose configuration

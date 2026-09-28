@@ -118,7 +118,7 @@ host **1.23.0**. Use opens on it. It shows:
 - a Lately section with the last five delivered items and the last five
   observations.
 
-The record types are one step away, in the same **Showing** picker.
+The record types are one step away, in the breadcrumb's record-type picker.
 
 The Delivered ring counts over every work item, Dropped included. A ring's
 denominator is its scope, and it cannot be narrowed independently (F-010). The

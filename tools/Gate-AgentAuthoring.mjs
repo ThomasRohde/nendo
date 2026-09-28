@@ -2732,17 +2732,18 @@ async function assertTheWidenedSurfacesRun(label) {
   }
 
   // Geometry, because a screenshot proves nothing on its own: the front page starts
-   // where the toolbar's controls start, as every other surface does. The first build
-   // set no horizontal inset at all, so the title, the description and every tile sat
-   // outside the line the rest of the app is drawn to — which the owner saw in the
-   // screenshot the gate had already passed.
+   // where the breadcrumb above it starts, the line every other surface's controls are
+   // drawn to. The first build set no horizontal inset at all, so the title, the
+   // description and every tile sat outside the line the rest of the app is drawn to —
+   // which the owner saw in the screenshot the gate had already passed. Since W-092 the
+   // front page has no toolbar of its own: its picker is in the breadcrumb.
   const inset = await evaluate(`(()=>{const left=el=>Math.round(el.getBoundingClientRect().left);
-    return {toolbar:left(document.querySelector('.use-toolbar .select-field')),
+    return {toolbar:left(document.querySelector('#place-pickers .place-root')),
       heading:left(document.querySelector('.overview-header h2')),
       description:left(document.querySelector('.overview-description')),
       tile:left(document.querySelector('.overview-page .summary-tile, .overview-page .chart-tile'))};})()`);
   assert(inset.heading === inset.toolbar && inset.description === inset.toolbar && inset.tile === inset.toolbar,
-    `The front page is not drawn to the same left edge as the toolbar above it: ${JSON.stringify(inset)} (${label}).`);
+    `The front page is not drawn to the same left edge as the breadcrumb above it: ${JSON.stringify(inset)} (${label}).`);
   await screenshot(`overview-${label}.png`);
   await evaluate(`document.documentElement.setAttribute('data-theme', 'dark')`);
   await screenshot(`overview-dark-${label}.png`);

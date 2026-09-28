@@ -9,8 +9,9 @@
   const DAY = 86400000;
   const nendo = window.nendo;
   let selected = null, records = [], single = false, query = '';
-  // True where Nendo draws this view's controls in its own toolbar (W-091).
-  let nativeChrome = false;
+  // True where Nendo draws this view's controls in its own toolbar (W-091), and whether the
+  // explanation is shown over the chart (W-092).
+  let nativeChrome = false, aboutShown = false;
   // Reads are numbered so an answer that arrives after a newer read has started is dropped.
   let latest = 0, pending = null;
   const element = id => document.getElementById(id);
@@ -46,7 +47,7 @@
     if (dates.length === 0) {
       empty.hidden = false;
       empty.textContent = 'This view has no date field, so there is nothing to place on a time line. Add a start date to its fields, and an end date if there is one.';
-      element('summary').textContent = `${records.length} ${records.length === 1 ? 'record' : 'records'} · no date field`;
+      setSummary(`${records.length} ${records.length === 1 ? 'record' : 'records'} · no date field`);
       return;
     }
     const [start, end] = dates;
@@ -71,13 +72,13 @@
     const iso = time => new Date(time).toISOString().slice(0, 10);
     if (single) {
       const only = placed[0];
-      element('summary').textContent = only === undefined ? '' : only.to === null ? `${start.name} ${iso(only.from)}`
-        : `${iso(only.from)} to ${iso(only.to)} · ${Math.round((only.to - only.from) / DAY) + 1} days`;
+      setSummary(only === undefined ? '' : only.to === null ? `${start.name} ${iso(only.from)}`
+        : `${iso(only.from)} to ${iso(only.to)} · ${Math.round((only.to - only.from) / DAY) + 1} days`);
     } else {
       const summary = [`${records.length} ${records.length === 1 ? 'record' : 'records'}`, `${placed.length} on the time line`];
       if (undated > 0) summary.push(`${undated} without a ${start.name}`);
       if (placed.length) summary.push(`${iso(first)} to ${iso(last)}`);
-      element('summary').textContent = summary.join(' · ');
+      setSummary(summary.join(' · '));
     }
 
     // Month ticks, at most twelve, so the axis stays readable at any span.
@@ -194,12 +195,12 @@
     try {
       [list, schema] = await Promise.all([nendo.view.loadRecords(), nendo.schema.describe()]);
     } catch (error) {
-      if (number === latest) element('summary').textContent = `The records could not be read. ${describe(error)}`;
+      if (number === latest) setSummary(`The records could not be read. ${describe(error)}`, true);
       return;
     }
     if (number !== latest) return;
     try { render(project(list, schema)); } catch {
-      element('summary').textContent = 'This chart could not be displayed. Open your records in Nendo.';
+      setSummary('This chart could not be displayed. Open your records in Nendo.', true);
     }
   }
   // Nendo says the file changed at most four times a second. A burst of changes is one read,
@@ -218,9 +219,34 @@
   // toolbar carries a Find box with Ctrl F, and a right-click on a row opens Nendo's menu. A
   // chart of one on a record page has nothing to find and declares nothing.
 
+  // The view's own lines (W-092): where Nendo draws the controls, the summary is declared as
+  // text in Nendo's row and the explanation waits behind About, so neither spends a line of the
+  // frame. A summary that reports a problem stays in the frame, whole.
+  function setSummary(text, problem = false) {
+    const line = element('summary');
+    line.textContent = text;
+    line.classList.toggle('problem', problem);
+    declareToolbar();
+  }
+  function summaryItem() {
+    const line = element('summary'), text = line.textContent.trim();
+    if (line.classList.contains('problem') || text === '') return null;
+    return { kind: 'text', text: text.length > 80 ? text.slice(0, 79) + '\u2026' : text };
+  }
+  function setAboutShown(on) {
+    aboutShown = on;
+    document.documentElement.classList.toggle('about-shown', on);
+    declareToolbar();
+  }
+  function aboutItem() {
+    return { kind: 'toggle', id: 'about', label: 'About this view', icon: 'info', iconOnly: true, pressed: aboutShown };
+  }
+
   function declareToolbar() {
     if (!nativeChrome) return;
-    const items = single ? [] : [{ kind: 'search', id: 'find', label: 'Find a record', placeholder: 'Find…', value: query.slice(0, 256), keys: 'Ctrl+F' }];
+    const summary = summaryItem();
+    const items = single ? [] : [{ kind: 'search', id: 'find', label: 'Find a record', placeholder: 'Find…', value: query.slice(0, 256), keys: 'Ctrl+F' },
+      ...(summary === null ? [{ kind: 'spacer' }] : [{ kind: 'separator' }, summary]), aboutItem()];
     nendo.ui.setToolbar(items).catch(error => leaveNativeChrome(describe(error)));
   }
 
@@ -228,13 +254,14 @@
   function leaveNativeChrome(reason) {
     if (!nativeChrome) return;
     nativeChrome = false;
-    document.documentElement.classList.remove('native-chrome');
+    document.documentElement.classList.remove('native-chrome', 'about-shown');
     query = ''; find();
     nendo.ui.setToolbar([]).catch(() => undefined);
     element('selection').textContent = `Nendo could not show this chart's controls: ${reason}`;
   }
 
   function runCommand({ id, value }) {
+    if (id === 'about') { setAboutShown(value === true); return; }
     if (id !== 'find') return;
     const text = String(value ?? '');
     // Enter sends the text again: the same text twice opens the first row it matches.
@@ -246,6 +273,7 @@
     query = text; find();
   }
 
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && aboutShown) setAboutShown(false); });
   document.addEventListener('contextmenu', event => {
     if (!nativeChrome || single || !nendo.has('ui.showMenu')) return;
     const row = event.target.closest('.row');
@@ -286,5 +314,5 @@
     nendo.on('context', next => { applyTheme(next.theme); schedule(); });
     nendo.on('changes', schedule);
     return read();
-  }).catch(error => { element('summary').textContent = `This chart could not start. ${describe(error)}`; });
+  }).catch(error => { setSummary(`This chart could not start. ${describe(error)}`, true); });
 })();

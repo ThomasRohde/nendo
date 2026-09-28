@@ -1,0 +1,112 @@
+/* One row above a view (ADR-0013, 2026-09-28; W-092). The breadcrumb's record type and view
+   are the pickers, drawn by place-pickers.ts, and the Use toolbar keeps what acts on the
+   screen: a custom view's controls, then Add.
+   Slice 19 of styles.css; see that file for why the order matters. */
+
+/* --- The breadcrumb's pickers ---------------------------------------------------- */
+
+.place-pickers {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.place-pickers[hidden] { display: none; }
+
+.place-root { flex: none; color: var(--muted); font-size: 0.93rem; }
+.place-dot { flex: none; margin: 0 2px 0 4px; color: var(--muted); font-size: 0.93rem; }
+.place-sep {
+  flex: none;
+  margin: 0 2px;
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+  font-family: var(--mono);
+  font-size: 0.93rem;
+}
+
+.place-entity { position: relative; display: inline-flex; align-items: center; min-width: 0; }
+.place-entity select {
+  -webkit-appearance: none;
+  appearance: none;
+  /* As wide as the record type chosen, not the longest one it could be. */
+  field-sizing: content;
+  min-width: 0;
+  max-width: 16rem;
+  min-height: 30px;
+  padding: 3px 26px 3px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  font-size: 0.93rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.place-entity select:hover { border-color: var(--line-strong); color: var(--ink); background: var(--canvas); }
+.place-entity select:focus-visible {
+  border-color: var(--cobalt);
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cobalt) 22%, transparent);
+}
+.place-chevron { position: absolute; right: 7px; display: flex; color: var(--muted); pointer-events: none; }
+.place-chevron .outline-icon { width: 14px; height: 14px; }
+
+.place-pickers .surface-picker { flex: 0 1 auto; }
+.place-pickers .surface-picker summary {
+  gap: 6px;
+  min-height: 30px;
+  padding: 3px 8px;
+  border-color: transparent;
+  background: transparent;
+}
+.place-pickers .surface-picker summary:hover { border-color: var(--line-strong); background: var(--canvas); }
+.place-pickers .surface-picker[open] summary { border-color: var(--cobalt); background: var(--canvas); }
+.place-pickers .surface-picker summary strong {
+  max-width: 22rem;
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The picker's own word stays for a screen reader: it hears "View, Systems Lens". */
+.place-pickers .surface-picker-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.place-pickers .surface-picker-chevron { margin-left: 0; }
+.place-pickers .surface-picker-chevron .outline-icon { width: 14px; height: 14px; }
+.place-pickers .surface-picker-options { z-index: 30; top: calc(100% + 6px); }
+
+/* --- The Use toolbar's one row ------------------------------------------------------ */
+
+/* Add keeps the right-hand end whatever else the row holds. */
+.use-toolbar > .use-actions { margin-left: auto; }
+
+.use-toolbar > .view-toolbar-slot { display: flex; flex: 1 1 auto; min-width: 0; }
+.use-toolbar > .view-toolbar-slot:empty { display: none; }
+
+.view-toolbar.is-inline {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* A view's summary, declared as text, takes the row's free space and is cut short rather than
+   pushing the controls onto a second line; mono text, such as a zoom level, keeps its size. */
+.view-toolbar.is-inline .view-toolbar-text:not(.is-mono) {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

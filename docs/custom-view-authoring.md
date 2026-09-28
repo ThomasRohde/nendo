@@ -411,14 +411,20 @@ or while a record page holds unsaved typing, they are refused, and nothing moves
 A view draws its content, and Nendo draws its controls (ADR-0013, 2026-09-28). Declare
 them, and Nendo draws them with its own parts:
 
-- in the toolbar strip every screen has, above your frame, or in your panel's header on
-  a record page;
+- on a screen, in the one row under Nendo's top bar, before Nendo's Add (the breadcrumb
+  above it names the record type and the view), or in your panel's header on a record
+  page;
 - in Ctrl K, under your view's title, with their keys;
 - with the shortcut hints, when the person turns those on.
 
 Each press comes back to you as the event `command`. Where Nendo draws your controls,
 draw none of your own. Draw no page title either: Nendo's breadcrumb already names the
-page.
+page. A line that sums up what the view shows belongs in the row too, as a `text` item: it
+takes the row's free space and is cut short, with its whole text as a tooltip, before it
+pushes a control onto a second line. An explanation of how to read the view belongs behind
+a toggle, shown over the view when pressed, rather than in a line of its own above the
+drawing. Keep a problem, such as a refused read, in your frame, where it has room to be read
+whole.
 
 ```js
 function declare() {
@@ -484,7 +490,9 @@ if (nendo.has('ui.setToolbar')) declare(); else showOwnToolbar();
 All five example packages declare their controls this way and keep their own on an older
 Nendo: the Capability Atlas and Work dependencies since W-090, and the Systems Lens, the
 Dependency graph and the Gantt since W-091. The Gantt has no controls of its own, so on a
-screen it declares only a Find box.
+screen it declares only a Find box. Since W-092 the Systems Lens, the Dependency graph, the
+Gantt and Work dependencies put their summary in the row as text and their explanation
+behind About (`info`), and start their drawing at the top of the frame.
 
 ### A menu at the pointer
 

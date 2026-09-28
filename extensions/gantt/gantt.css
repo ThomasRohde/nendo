@@ -53,3 +53,11 @@ body.single .label{flex:none;padding:2px 0 4px;white-space:normal}
 /* Nendo draws this chart's controls in its own toolbar where the host offers it (W-091), and
    its breadcrumb names the screen: the page title goes. */
 .native-chrome h1{display:none}
+/* The chart's own lines go to Nendo's row as well where Nendo draws the controls, on a screen
+   (W-092): the summary is declared as text there and the explanation waits behind About, shown
+   over the chart on demand. A summary that reports a problem stays here, whole. A chart of one
+   on a record page declares nothing and keeps its summary. */
+.native-chrome body:not(.single){padding-top:8px}
+.native-chrome body:not(.single) header:not(:has(#summary.problem)){display:none}
+.native-chrome body:not(.single) .hint{display:none}
+.native-chrome.about-shown body:not(.single) .hint{display:block;position:fixed;top:8px;right:12px;z-index:20;max-width:min(440px,calc(100vw - 24px));margin:0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-raised);box-shadow:0 12px 32px -16px rgba(20,23,28,.35);color:var(--ink);font-size:.85rem;line-height:1.45}

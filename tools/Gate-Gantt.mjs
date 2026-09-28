@@ -37,7 +37,7 @@ async (page) => {
   const frameOf = async (previous = null) => {
     for (let attempt = 0; attempt < 200; attempt += 1) {
       const frame = page.frames().find(candidate => candidate !== previous && !candidate.isDetached() && candidate.url().startsWith(origin + '/'));
-      if (frame !== undefined) { await frame.waitForSelector('#summary'); return frame; }
+      if (frame !== undefined) { await frame.waitForSelector('#summary', { state: 'attached' }); return frame; }
       await page.waitForTimeout(25);
     }
     throw new Error('The view never loaded from its own origin.');
@@ -253,15 +253,41 @@ async (page) => {
       + ' Refused by Nendo’s rules: ' + JSON.stringify(await refusals()));
   };
   const shape = toolbar => (Array.isArray(toolbar) ? toolbar : toolbar.items).map(item => `${item.kind}${item.id ? ':' + item.id : ''}${item.keys ? '@' + item.keys : ''}`);
-  const declared = await declaredWhere(last => last.items.length > 0, 'The chart declared no toolbar on a screen.');
+  const declared = await declaredWhere(last => last.items.find(entry => entry.kind === 'text')?.text === setSummary, 'The chart did not put its summary in Nendo\u2019s row.');
   assert((await refusals()).length === 0, 'Nendo would refuse what the chart declared: ' + JSON.stringify(await refusals()));
-  assert(JSON.stringify(shape(declared)) === JSON.stringify(['search:find@Ctrl+F']), 'The chart declared another toolbar: ' + JSON.stringify(shape(declared)));
+  assert(JSON.stringify(shape(declared)) === JSON.stringify(['search:find@Ctrl+F', 'separator', 'text', 'toggle:about']), 'The chart declared another toolbar: ' + JSON.stringify(shape(declared)));
   const own = await view.evaluate(() => ({ native: document.documentElement.classList.contains('native-chrome'), title: getComputedStyle(document.querySelector('h1')).display }));
   assert(JSON.stringify(own) === JSON.stringify({ native: true, title: 'none' }), 'The chart still draws its own title on a host that names the screen: ' + JSON.stringify(own));
 
+  const command = (id, value, source = 'toolbar') => page.evaluate(([id, value, source]) => window.broker.command(id, value, source), [id, value, source]);
+
+  // The view's own lines (W-092): its summary is Nendo's row's text, its explanation waits
+  // behind About, and the drawing starts at the top of the frame. A problem stays in the frame.
+  const ownLines = () => view.evaluate(() => ({ header: getComputedStyle(document.querySelector('header')).display,
+    hint: getComputedStyle(document.querySelector('.hint')).display, drawingTop: Math.round(document.querySelector('main').getBoundingClientRect().top) }));
+  const lines = await ownLines();
+  assert(lines.header === 'none' && lines.hint === 'none' && lines.drawingTop <= 12,
+    'The chart still spends lines of its frame on its summary or its explanation: ' + JSON.stringify(lines));
+  await command('about', true);
+  await until(() => getComputedStyle(document.querySelector('.hint')).display === 'block' && getComputedStyle(document.querySelector('.hint')).position === 'fixed',
+    undefined, 'About in Nendo\u2019s row did not show the explanation.');
+  await declaredWhere(last => last.items.find(item => item.id === 'about')?.pressed === true, 'The toolbar did not follow About.');
+  await view.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  await until(() => getComputedStyle(document.querySelector('.hint')).display === 'none', undefined, 'Escape did not put the explanation away.');
+  await page.evaluate(() => {
+    window.broker.fail('records.query', { code: 'views-off', message: 'Custom views are off, so this view cannot read the file.' });
+    window.broker.pushChanges();
+  });
+  await until(() => document.getElementById('summary').classList.contains('problem') && getComputedStyle(document.querySelector('header')).display !== 'none',
+    undefined, 'A problem reading the file was not said in the frame, whole.');
+  await declaredWhere(last => !last.items.some(item => item.kind === 'text'), 'A problem was put in Nendo\u2019s row, where it would be cut short.');
+  await page.evaluate(() => window.broker.pushChanges());
+  await showing(setSummary, 'The chart did not draw again after the file could be read.');
+  await until(() => !document.getElementById('summary').classList.contains('problem') && getComputedStyle(document.querySelector('header')).display === 'none',
+    undefined, 'The frame kept the problem after the file could be read again.');
+
   // Find is Nendo's search box: rows that do not hold the text step back, and the same text
   // again, which is what Enter sends, opens the first row that does.
-  const command = (id, value, source = 'toolbar') => page.evaluate(([id, value, source]) => window.broker.command(id, value, source), [id, value, source]);
   const dimmed = () => view.evaluate(() => [...document.querySelectorAll('.row.dimmed')].map(row => row.dataset.id).sort());
   await command('find', 'task');
   await until(() => document.querySelectorAll('.row.dimmed').length > 0, undefined, 'Find in Nendo’s toolbar dimmed no row.');
@@ -296,6 +322,8 @@ async (page) => {
   view = await frameOf(previous);
   await showing('2026-12-01 to 2026-12-10 · 10 days', 'With Nendo drawing its controls, the record page never drew its record.');
   await declaredWhere(last => last.items.length === 0, 'The chart of one on a record page declared a toolbar.');
+  assert(await view.evaluate(() => getComputedStyle(document.getElementById('summary')).display !== 'none'),
+    'A chart of one on a record page hid its summary, which it declares nowhere else.');
   const pageMenusBefore = (await page.evaluate(() => window.broker.menus)).length;
   const pageMenu = await view.evaluate(() => document.querySelector('.row').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 })));
   await page.waitForTimeout(200);

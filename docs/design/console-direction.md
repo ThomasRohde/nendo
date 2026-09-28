@@ -96,19 +96,26 @@ asked for views "more like the native interface with menu and button integration
 design canvas <https://claude.ai/artifact/S3dzbpQpnVX3uJ44JuwP8Y> set out three directions.
 Direction A is built: Nendo draws the view's controls in a strip above its frame.
 
-- The view declares its controls. The Workbench draws them in a 46px strip on `--surface`
-  under the Use toolbar, in the page toolbar's row. The strip uses the view switcher's
-  segments, a labelled select, bordered 30px buttons on `--canvas`, a 30px search box, a
-  joined zoom group and hairline separators. A pressed toggle takes the accent-soft fill
-  the shortcuts toggle has.
+- The view declares its controls. The Workbench draws them in the Use toolbar's 46px row
+  on `--surface`, before Add, so one row stands between the top bar and the view (W-092;
+  canvas <https://claude.ai/artifact/BqQj31q6FRmeHAk2BzBKc1>, options A and C). The row
+  uses the view switcher's segments, a labelled select, bordered 30px buttons on
+  `--canvas`, a 30px search box, a joined zoom group and hairline separators. A pressed
+  toggle takes the accent-soft fill the shortcuts toggle has. A view's summary is muted
+  text that takes the row's free space and ends in an ellipsis.
+- The breadcrumb is where a Use screen is chosen: its record type and its view are 30px
+  pickers with a 14px chevron, borderless until hovered, the view's name in 600 weight.
+  The view picker opens the list the Showing row's View picker used to open.
 - On a record page, the same controls sit in the panel's header at 26px.
 - A toolbar menu and a right-click menu are the File menu's panel, with 32px items, a
   check column, a muted detail line and mono key names.
-- The view keeps only its content. The packages in `extensions/` hide their own toolbars
-  and page titles where Nendo draws their controls, and Nendo's breadcrumb names the page.
+- The view keeps only its content. The packages in `extensions/` hide their own toolbars,
+  page titles, summaries and explanations where Nendo draws their controls: the summary is
+  the row's text, the explanation opens from an About button as a card over the view, and
+  the drawing starts 8px below the frame's top.
 
-`view-toolbar-markup.ts` draws the strip and the menu, and `styles/18-view-toolbar.css`
-lays them out.
+`view-toolbar-markup.ts` draws the toolbar and the menu, `place-pickers.ts` the breadcrumb's
+pickers, and `styles/18-view-toolbar.css` and `styles/19-one-row.css` lay them out.
 
 ## Studio's record page
 

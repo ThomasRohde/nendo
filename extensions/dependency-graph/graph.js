@@ -10,8 +10,9 @@
   let width = 800, height = 500, scale = 1, offsetX = 0, offsetY = 0, drag = null;
   // Reads are numbered so an answer that arrives after a newer read has started is dropped.
   let latest = 0, pending = null;
-  // True where Nendo draws this view's controls in its own toolbar (W-091).
-  let nativeChrome = false;
+  // True where Nendo draws this view's controls in its own toolbar (W-091), and whether the
+  // explanation is shown over the graph (W-092).
+  let nativeChrome = false, aboutShown = false;
   const positions = new Map();
   function shape(name, attributes, text) {
     const item = document.createElementNS('http://www.w3.org/2000/svg', name);
@@ -76,7 +77,7 @@
     // A re-read keeps the selection when its record is still there, without opening it again.
     const keep = selected;
     nodes = projection.nodes; edges = projection.edges; selected = null; positions.clear(); drawing.replaceChildren();
-    element('summary').textContent = `${nodes.length} record${nodes.length === 1 ? '' : 's'} · ${edges.length} connection${edges.length === 1 ? '' : 's'}`;
+    setSummary(`${nodes.length} record${nodes.length === 1 ? '' : 's'} · ${edges.length} connection${edges.length === 1 ? '' : 's'}`);
     element('selection').textContent = 'No record selected'; element('empty').hidden = nodes.length !== 0;
     // Deterministic placement handles cycles, self-links, parallel edges and isolated records alike.
     const columns = Math.max(1, Math.ceil(Math.sqrt(nodes.length * 1.5)));
@@ -150,12 +151,12 @@
     try {
       [graph, schema] = await Promise.all([nendo.view.loadGraph(), nendo.schema.describe()]);
     } catch (error) {
-      if (number === latest) element('summary').textContent = `Your records could not be read. ${describe(error)}`;
+      if (number === latest) setSummary(`Your records could not be read. ${describe(error)}`, true);
       return;
     }
     if (number !== latest) return;
     loaded = true;
-    try { render(project(graph, schema)); } catch { element('summary').textContent = 'This graph could not be displayed. Open your records in Nendo.'; }
+    try { render(project(graph, schema)); } catch { setSummary('This graph could not be displayed. Open your records in Nendo.', true); }
   }
   // Nendo says the file changed at most four times a second. A burst of changes is one read,
   // a quarter of a second after the first of them.
@@ -202,10 +203,34 @@
   // sends a press back as a command. A right-click on a record opens Nendo's menu. The page's
   // title gives way to Nendo's own breadcrumb.
 
+  // The view's own lines (W-092): where Nendo draws the controls, the summary is declared as
+  // text in Nendo's row and the explanation waits behind About, so neither spends a line of the
+  // frame. A summary that reports a problem stays in the frame, whole.
+  function setSummary(text, problem = false) {
+    const line = element('summary');
+    line.textContent = text;
+    line.classList.toggle('problem', problem);
+    declareToolbar();
+  }
+  function summaryItem() {
+    const line = element('summary'), text = line.textContent.trim();
+    if (line.classList.contains('problem') || text === '') return null;
+    return { kind: 'text', text: text.length > 80 ? text.slice(0, 79) + '\u2026' : text };
+  }
+  function setAboutShown(on) {
+    aboutShown = on;
+    document.documentElement.classList.toggle('about-shown', on);
+    declareToolbar();
+  }
+  function aboutItem() {
+    return { kind: 'toggle', id: 'about', label: 'About this view', icon: 'info', iconOnly: true, pressed: aboutShown };
+  }
+
   function declareToolbar() {
     if (!nativeChrome) return;
     const textShown = !element('text-view').hidden;
-    const items = [{ kind: 'spacer' }];
+    // The summary takes the row's free space; without one, a spacer does.
+    const items = [summaryItem() ?? { kind: 'spacer' }];
     if (!textShown) {
       items.push({ kind: 'group', label: 'Zoom', items: [
         { kind: 'button', id: 'zoom-out', label: 'Zoom out', icon: 'minus', iconOnly: true, keys: 'Ctrl+-' },
@@ -213,7 +238,7 @@
         { kind: 'button', id: 'zoom-in', label: 'Zoom in', icon: 'plus', iconOnly: true, keys: 'Ctrl+Plus' },
       ] }, { kind: 'separator' });
     }
-    items.push({ kind: 'toggle', id: 'text', label: 'Text view', icon: 'list', pressed: textShown });
+    items.push({ kind: 'toggle', id: 'text', label: 'Text view', icon: 'list', pressed: textShown }, aboutItem());
     nendo.ui.setToolbar(items).catch(error => leaveNativeChrome(describe(error)));
   }
 
@@ -221,7 +246,7 @@
   function leaveNativeChrome(reason) {
     if (!nativeChrome) return;
     nativeChrome = false;
-    document.documentElement.classList.remove('native-chrome');
+    document.documentElement.classList.remove('native-chrome', 'about-shown');
     nendo.ui.setToolbar([]).catch(() => undefined);
     element('selection').textContent = `Nendo could not show this graph's controls, so the graph shows its own: ${reason}`;
   }
@@ -231,7 +256,9 @@
     else if (id === 'zoom-out') zoom(.8);
     else if (id === 'fit') fit();
     else if (id === 'text') setTextShown(value === true);
+    else if (id === 'about') setAboutShown(value === true);
   }
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && aboutShown) setAboutShown(false); });
 
   canvas.addEventListener('contextmenu', event => {
     if (!nativeChrome || !nendo.has('ui.showMenu')) return;
@@ -272,5 +299,5 @@
     nendo.on('context', next => { applyTheme(next.theme); schedule(); });
     nendo.on('changes', schedule);
     return read();
-  }).catch(error => { element('summary').textContent = `This graph could not start. ${describe(error)}`; });
+  }).catch(error => { setSummary(`This graph could not start. ${describe(error)}`, true); });
 })();

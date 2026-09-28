@@ -57,9 +57,9 @@ export function currentCommands(): PaletteCommand[] {
     if (usable(button)) commands.push({ id: selector, label: button.getAttribute('aria-label') ?? '', group: 'Go to', keys: keysFor(id), run: press(button) });
   }
 
-  // The record types and views of the screen on show. They exist only on a Use page, and
-  // the palette offers what that page offers.
-  const entity = content.querySelector<HTMLSelectElement>('#use-entity');
+  // The record types and views of the screen on show. They exist only on a Use page, in the
+  // breadcrumb since W-092, and the palette offers what that page offers.
+  const entity = document.querySelector<HTMLSelectElement>('#place-pickers #use-entity');
   if (entity !== null && !entity.disabled) {
     for (const option of entity.options) {
       if (option.selected || option.disabled) continue;
@@ -69,7 +69,7 @@ export function currentCommands(): PaletteCommand[] {
       });
     }
   }
-  for (const view of content.querySelectorAll<HTMLButtonElement>('.surface-picker-options button')) {
+  for (const view of document.querySelectorAll<HTMLButtonElement>('#place-pickers .surface-picker-options button')) {
     if (!usable(view) || view.getAttribute('aria-pressed') === 'true') continue;
     commands.push({ id: `view:${view.dataset.selectSurface ?? labelOf(view)}`, label: `View ${labelOf(view)}`, group: 'Views', run: press(view) });
   }

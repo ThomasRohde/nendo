@@ -20,6 +20,8 @@ import { isSettledSummaryFailure, type OverviewTileScope } from './summary-tiles
 import { chartKey, isChartKind, rankNumerals, rankProportion, rankValue } from './charts';
 import { refreshDerived } from './actions';
 import { leaveRecordContext } from './app-state';
+import { icon } from './icons';
+import { drawPlacePickers } from './place-pickers';
 
 /**
  * The file's front page (ADR-0004, 2026-09-14 amendment, S4).
@@ -266,13 +268,15 @@ export async function openOverviewRecord(entityId: string, recordId: string): Pr
 /** The front page, and the reads that fill it. */
 export function renderOverview(overview: OverviewPlan): void {
   const plans = applicationPlans();
+  // The front page is chosen in the breadcrumb like any other place (W-092), and it has no view
+  // to pick or record to add, so it needs no row of its own below the top bar.
+  const pickers = drawPlacePickers(`<span class="place-root">Use</span><span class="place-dot" aria-hidden="true">·</span><label class="place-entity"><span class="visually-hidden">Showing</span><select id="use-entity"><option value="" selected>${escapeHtml(overviewTitle(overview))}</option>${plans.map((app) => `<option value="${escapeAttribute(app.entity.semanticId)}">${escapeHtml(app.entity.displayName)}</option>`).join('')}</select><span class="place-chevron" aria-hidden="true">${icon('chevron')}</span></label>`);
   content.innerHTML = `<div class="use-page" data-testid="semantic-application">
-    <header class="use-toolbar"><div class="toolbar-group"><label class="select-field">Showing<select id="use-entity"><option value="" selected>${escapeHtml(overviewTitle(overview))}</option>${plans.map((app) => `<option value="${escapeAttribute(app.entity.semanticId)}">${escapeHtml(app.entity.displayName)}</option>`).join('')}</select></label></div></header>
     <div class="message-slot use-message" role="alert" hidden></div>
     <div class="use-layout"><section class="use-surface overview-surface">${overviewMarkup(overview)}</section></div>
   </div>`;
 
-  const picker = content.querySelector<HTMLSelectElement>('#use-entity');
+  const picker = pickers.querySelector<HTMLSelectElement>('#use-entity');
   picker?.addEventListener('change', (event) => {
     const value = (event.currentTarget as HTMLSelectElement).value;
     if (value === '') return;

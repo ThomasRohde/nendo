@@ -125,7 +125,7 @@ export function referenceColumnsEmpty(typeName: string, inPicker: boolean): stri
   return `This board groups by ${typeName}, and there are no ${typeName} records yet, so it has no columns \u2014 ` +
     'every record of that type would be one. ' +
     (inPicker
-      ? `Choose ${typeName} under Showing and add one, and this board gains a column for it.`
+      ? `Choose ${typeName} in the breadcrumb above and add one, and this board gains a column for it.`
       : `${typeName} records are made in Studio, and this board gains a column for each one.`);
 }
 

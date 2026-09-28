@@ -402,7 +402,8 @@ inside a cross-origin frame never reaches the Workbench's document.
 - **The toolbar.** `ui.setToolbar({items, add})` declares the view's controls as data:
   buttons, toggles, choices (a segmented control), selects, a search box, menus, joined
   groups, text, separators and spacers. Nendo draws them with its own controls: on a screen
-  in a toolbar strip above the frame, on a record page in the panel's header. Each call
+  in the screen's one row under the top bar, beside Nendo's Add (see *One row above a
+  view*, below), on a record page in the panel's header. Each call
   replaces the whole toolbar, and an empty list removes it. The declaration is text and a
   closed set of kinds and icons, so nothing a view sends becomes markup, and a label stays
   text. It is bounded: 32 items in the row, 128 in all, labels of 80 characters.
@@ -431,6 +432,26 @@ inside a cross-origin frame never reaches the Workbench's document.
 
 On a host without these methods a view draws its own controls. It asks with
 `nendo.has('ui.setToolbar')`.
+
+#### One row above a view (2026-09-28)
+
+With the controls in Nendo's chrome, four bars stood above a view's drawing: the window's
+title bar, Nendo's top bar, the Use toolbar with Showing and View, and the view's own strip,
+with the view's summary and hint below them, about 256 px of a 900 px window. The owner asked
+for less of it and chose A with C from the canvas
+<https://claude.ai/artifact/BqQj31q6FRmeHAk2BzBKc1> (W-092):
+
+- **A.** The breadcrumb that already named the record type and the view is where they are
+  chosen: on a Use screen its two names are the record-type picker and the view picker.
+  The Showing and View controls leave the Use toolbar, and on a custom view's screen Nendo
+  draws the view's declared controls in that same row, before Nendo's Add. On the front
+  page, which has no view to pick, the row goes.
+- **C.** A view may declare its summary as text in that row, and keep an explanation behind
+  a button it declares, rather than spend lines of its frame on them. The packages in
+  `extensions/` do. Nothing new crosses the frame: both are ordinary `text` and `toggle`
+  items.
+
+The title bar holding the top bar (option E) is later work (W-093).
 
 ### No install, no consent, no pins
 
@@ -720,3 +741,6 @@ falsified once, and has the failure text quoted in its planner Check.
   and Nendo's keys working inside a view (W-090, direction A of the design canvas). No
   rung: nothing reaches the file. Written before any code, on the owner's standing
   pre-acceptance.
+- 2026-09-28 — one row above a view: the breadcrumb picks the record type and the view, and
+  a custom view's controls share the Use toolbar's row with Add (W-092, options A and C of
+  its canvas). Accepted on the owner's pick and standing pre-acceptance.

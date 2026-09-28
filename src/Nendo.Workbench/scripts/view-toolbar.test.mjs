@@ -58,7 +58,8 @@ test('G27: the strip is Nendo’s own controls, and every word a view sends land
   assert.match(html, /<button type="button" class="view-toolbar-button is-icon" data-view-command="pan" aria-pressed="true" aria-label="Pan" title="Pan"><svg class="outline-icon"/);
   assert.match(html, /<div class="view-toolbar-joined" role="group" aria-label="Zoom">/);
   assert.match(html, /data-view-command="zoom-in" aria-label="Zoom in" aria-keyshortcuts="Control\+Plus" title="Zoom in \(Ctrl \+\)" disabled>/);
-  assert.match(html, /<span class="view-toolbar-text is-mono">115%<\/span>/);
+  // The whole text is the title too, for where the row cuts it short (W-092).
+  assert.match(html, /<span class="view-toolbar-text is-mono" title="115%">115%<\/span>/);
   assert.match(html, /<button type="button" class="view-toolbar-button" data-view-menu="export" aria-haspopup="menu" aria-expanded="false" title="Export">/);
   assert.match(html, /<span class="toolbar-spacer" aria-hidden="true"><\/span>/);
   assert.match(html, /<span class="view-toolbar-separator" role="separator" aria-orientation="vertical"><\/span>/);

@@ -59,8 +59,10 @@ On a Nendo that offers it, this view draws no controls and no title of its own. 
 zoom, Ctrl 0 fits) and Text view are in Nendo's toolbar above the drawing, in Ctrl K under
 the view's title, and on their keys. Enter in Nendo's search box opens the first match. A
 right-click on a work item opens Nendo's menu, with Open work item and the item's record
-commands, a spent one greyed. On an older Nendo the view shows its own controls, as it
-always has.
+commands, a spent one greyed. The summary line is Nendo's row's text, and the explanation
+is behind About, shown over the drawing until Escape; the drawing starts at the top of the
+frame. A problem reading the file stays in the frame, whole. On an older Nendo the view
+shows its own controls and lines, as it always has.
 
 ## What it reads
 
