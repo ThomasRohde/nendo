@@ -197,6 +197,19 @@ function targetVersionsParam(params: Params, values: Params): { expectedTargetVe
   return entries.length === 0 ? {} : { expectedTargetVersions: rebuilt };
 }
 
+/**
+ * Where a move puts a record in its declared tree (ADR-0019): under a parent, with the version
+ * of the parent the view read, or at the top level with neither; and before a sibling, or last.
+ */
+function moveTarget(params: Params): Params {
+  const parentRecordId = optionalText(params, 'parentRecordId') ?? null;
+  const target: Params = { parentRecordId, beforeRecordId: optionalText(params, 'beforeRecordId') ?? null };
+  if (parentRecordId !== null) target.expectedParentVersion = versionParam(params, 'parentVersion');
+  else if (params.parentVersion !== undefined && params.parentVersion !== null)
+    throw invalid('parentVersion goes with parentRecordId; a move to the top level names neither.');
+  return target;
+}
+
 /** A write's values and, when it assigns references, the version of each target it read. */
 function assignedValues(params: Params): Params {
   const values = valuesParam(params);
@@ -341,7 +354,7 @@ function newRecordId(params: Params): string {
  * becomes.
  *
  * Reads, and since Phase 3 the four record writes a person's own edit uses: create, update,
- * delete and run a record command (W-065), preparing and reading the package's own
+ * delete and run a record command (W-065), a move in a declared tree (W-079), preparing and reading the package's own
  * proposals, and keeping the view's state with the file (W-069). Nothing here promotes, rejects or approves a proposal; nothing opens,
  * closes or copies a file, and nothing touches a
  * session, an agent, behaviour approval, compensation or the appearance. Each write takes
@@ -387,6 +400,11 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
   'records.delete': write('data.deleteRecord', (p) => ({
     entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p),
   }), false),
+  // A move in the record type's declared tree (ADR-0019, W-079): the Engine refuses a loop and
+  // a tree too deep, and renumbers the siblings in the same revision when no gap is left.
+  'records.move': write('data.moveRecord', (p) => ({
+    entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p), ...moveTarget(p),
+  })),
   'commands.run': write('data.executeCommand', (p) => ({
     commandId: textParam(p, 'commandId'), entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p),
   })),

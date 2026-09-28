@@ -573,7 +573,7 @@ internal sealed partial class WorkbenchProtocolHandler
             request.IdempotencyKey, cancellationToken, request.ExpectedTargetVersions, writer);
     }
 
-    /// <summary>A move in a declared hierarchy (ADR-0019), from Studio's outline.</summary>
+    /// <summary>A move in a declared hierarchy (ADR-0019), from Studio's outline or a custom view.</summary>
     private async Task<DesktopMutationView> MoveGenericRecordAsync(
         JsonElement payload,
         string? writer,

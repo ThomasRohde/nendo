@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
-import {hierarchy,projectHierarchy,bindAtlas,relatedRow,relatedName} from '../../extensions/bcm-atlas/model.js';
+import {hierarchy,projectHierarchy,bindAtlas,relatedRow,relatedName,dropTarget,stepTarget} from '../../extensions/bcm-atlas/model.js';
 import {bcmFixture,otherFixture} from './fixtures.mjs';
 import {engineTree} from './engine-tree.mjs';
 import {labOptions} from '../../extensions/bcm-atlas/layout-profile.js';
@@ -120,4 +120,31 @@ test('related sections read in the configuration’s order, then links before li
       assert.deepEqual(order,expected,`The inspector's sections follow the host's listing (${entities.map(e=>e.entityId).join(', ')}), not the configuration and link-first order`);
     }
   }
+});
+// W-079: where a drop or a key puts a capability, as records.move takes it. The tree: a (b, c), d.
+test('a drop goes in, before or after, refuses its own subtree, and skips where it already stands',()=>{
+  const h=hierarchy(engineTree([r('a'),r('b','a'),r('c','a'),r('d')]));
+  assert.deepEqual(dropTarget(h,'d',{kind:'into',targetId:'a'}),{parentId:'a',beforeId:null});
+  assert.deepEqual(dropTarget(h,'d',{kind:'before',targetId:'c'}),{parentId:'a',beforeId:'c'});
+  assert.deepEqual(dropTarget(h,'d',{kind:'after',targetId:'b'}),{parentId:'a',beforeId:'c'});
+  assert.deepEqual(dropTarget(h,'b',{kind:'after',targetId:'c'}),{parentId:'a',beforeId:null});
+  assert.deepEqual(dropTarget(h,'a',{kind:'into',targetId:'b'}),{refused:true},'A move under its own child was offered.');
+  assert.deepEqual(dropTarget(h,'a',{kind:'before',targetId:'c'}),{refused:true},'A move beside its own child was offered.');
+  assert.deepEqual(dropTarget(h,'a',{kind:'into',targetId:'a'}),{refused:true});
+  assert.deepEqual(dropTarget(h,'b',{kind:'before',targetId:'c'}),{unchanged:true});
+  assert.deepEqual(dropTarget(h,'c',{kind:'into',targetId:'a'}),{unchanged:true});
+  assert.deepEqual(dropTarget(h,'b',{kind:'after',targetId:'b'}),{unchanged:true});
+  assert.deepEqual(dropTarget(h,'b',{kind:'after',targetId:'d'},false),{parentId:null,beforeId:null},'Without an order field a drop only chooses the parent.');
+});
+test('the keyboard moves up, down, in and out as the outline does',()=>{
+  const h=hierarchy(engineTree([r('a'),r('b','a'),r('c','a'),r('d')]));
+  assert.deepEqual(stepTarget(h,'c','up'),{parentId:'a',beforeId:'b'});
+  assert.deepEqual(stepTarget(h,'b','down'),{parentId:'a',beforeId:null});
+  assert.equal(stepTarget(h,'c','down'),null);
+  assert.equal(stepTarget(h,'b','up'),null);
+  assert.deepEqual(stepTarget(h,'c','in'),{parentId:'b',beforeId:null});
+  assert.equal(stepTarget(h,'a','in'),null);
+  assert.deepEqual(stepTarget(h,'b','out'),{parentId:null,beforeId:'d'});
+  assert.equal(stepTarget(h,'d','out'),null);
+  assert.equal(stepTarget(h,'c','up',false),null,'Without an order field there is no up or down.');
 });

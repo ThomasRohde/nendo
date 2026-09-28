@@ -24,6 +24,12 @@ importance, investment, neutral) and the compact and ordered reference layouts.
   key. A four-pixel threshold avoids accidental pans, and a pan selects nothing.
 - **Fit** fits the visible cards to the canvas with a 12px inset. Resizing refits;
   editing data, here or anywhere else, keeps the camera where it is.
+- **Drag** a card to restructure the model: over the middle of a card it goes in, as that
+  card's last child; over a card's left or right edge it goes beside it. A drop into its own
+  group is refused before anything is written. **Alt+Shift+Up/Down** move the selected card
+  among its siblings, **Alt+Shift+Right** puts it under the card above and **Alt+Shift+Left**
+  after its parent, as in Nendo's outline. **F2** renames it in place. Each move is one
+  versioned write; a refused one shows the map as the file holds it and says why.
 - **Edit** and **+ Child** change the model; **Open record** opens Nendo's own record page
   with the related application support and initiatives.
 - **Export** writes the map as **SVG**, to edit, or **PNG**, twice the size, for a slide: the
@@ -172,7 +178,9 @@ package in Edge through the fixture broker. Over BCM it measures level counts, e
 colour mode, the banner and the related rows in BCM's own words, no repacking while
 searching or recolouring, the camera kept across a data change, Ctrl-drag from a card, a
 definition change binding again, the notice without a declared tree, both themes and a
-600px pane, and the exports: an SVG holding exactly the map's cards, span and legend, the
+600px pane; moving by the real pointer into a group and before a sibling, a drop into its
+own group refused unsent, the keyboard's moves, F2's rename and a stale move shown as the
+file holds it; and the exports: an SVG holding exactly the map's cards, span and legend, the
 same file after zooming and panning, no packing, a PNG at twice the SVG's size, the dark
 canvas and the white print palette, and the SVG opened on a page of its own. Over the second
 file it measures that only that file's record types are read,

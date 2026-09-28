@@ -810,6 +810,11 @@ vocabulary, the examples and the resources — and not from the person.
   its editor is open: the save must name the stale version and keep the draft. Delete
   only that record. Check both themes and a narrow window, and record readability apart
   from counts.
+- In the same map, drag a capability into another group, drag one onto the left edge of a
+  sibling, and try to drag a group into one of its own children. Then select a card and use
+  Alt+Shift+arrows, and F2 to rename it. Record what each did, what History names as their
+  author, and whether Compensate undoes a move. Change a capability in Studio, drag it on the
+  map without reloading, and record what the map said and showed.
 - In the same map, at two levels, export an SVG and a PNG, then zoom in, pan and export the
   SVG again. Open the SVGs in a browser and the first in PowerPoint. Record whether every
   card, its text and colour, the title and the legend arrived, whether PowerPoint kept the

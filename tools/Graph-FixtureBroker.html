@@ -30,7 +30,7 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
   // The frame's sandbox, as src/Nendo.Workbench/src/view-frame-markup.ts sets it.
   const SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-pointer-lock allow-presentation';
   // The methods this fixture answers, which is what the context lists and nendo.has reads.
-  const METHODS = ['schema.describe', 'records.query', 'records.get', 'records.tree', 'ui.openRecord', 'commands.run'];
+  const METHODS = ['schema.describe', 'records.query', 'records.get', 'records.tree', 'records.update', 'records.move', 'ui.openRecord', 'commands.run'];
   // The Workbench's colour tokens for both themes, as src/Nendo.Workbench/src/styles/02-tokens.css
   // declares them and extension-model.ts names them.
   const themes = {
@@ -155,6 +155,80 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
         text(params, 'entityId');
         text(params, 'recordId');
         return { opened: true };
+      case 'records.update': {
+        // As the host writes a person's edit: at the version the view read, or not at all.
+        const entityId = text(params, 'entityId'), recordId = text(params, 'recordId');
+        const record = (fixture.records[entityId] ?? []).find(candidate => candidate.recordId === recordId);
+        if (record === undefined) throw refusal('record-not-found', 'That record is not in this file.');
+        if (record.version !== params.version) throw refusal('record-version-conflict', 'The record changed. Review its current values.');
+        if (typeof params.values !== 'object' || params.values === null) throw refusal('invalid-params', 'values must be an object.');
+        record.values = { ...record.values, ...clone(params.values) };
+        record.version += 1;
+        fixture.changeSequence += 1;
+        queueMicrotask(() => emit('changes', fixture.changeSequence));
+        return clone(record);
+      }
+      case 'records.move': {
+        // As the Engine's MoveRecordAsync moves (ADR-0019): the parent at the version the view
+        // read, no loop, and with an order field a place before a sibling or last, taking the
+        // middle of the gap, or a step of 1024 beyond the ends, or numbering the siblings afresh.
+        const entityId = text(params, 'entityId'), recordId = text(params, 'recordId');
+        const hierarchy = fixture.hierarchies?.[entityId];
+        if (hierarchy === undefined) throw refusal('hierarchy-not-declared', 'This record type declares no hierarchy, so its records cannot be moved in one.');
+        const all = fixture.records[entityId] ?? [];
+        const byId = id => all.find(candidate => candidate.recordId === id);
+        const record = byId(recordId);
+        if (record === undefined) throw refusal('record-not-found', 'That record is not in this file.');
+        if (record.version !== params.version) throw refusal('record-version-conflict', 'The record changed. Review its current values.');
+        const parentOf = candidate => candidate.values[hierarchy.parentFieldId] ?? null;
+        const parent = params.parentRecordId ?? null;
+        if (parent !== null) {
+          const target = byId(parent);
+          if (target === undefined) throw refusal('record-not-found', 'The new parent is not in this file.');
+          if (target.version !== params.parentVersion) throw refusal('target-version-conflict', 'The parent changed since the view read it.');
+          for (let at = parent; at !== null; at = parentOf(byId(at))) {
+            if (at === recordId) throw refusal('hierarchy-cycle', `${recordId} cannot be placed under itself.`);
+          }
+        }
+        const writes = [];
+        if (parentOf(record) !== parent) writes.push([record, hierarchy.parentFieldId, parent]);
+        if (hierarchy.orderFieldId !== null) {
+          const gap = 1024;
+          const order = candidate => candidate.values[hierarchy.orderFieldId] ?? null;
+          const siblings = all.filter(candidate => candidate !== record && parentOf(candidate) === parent)
+            .sort((a, b) => (order(a) === null) - (order(b) === null) || (order(a) ?? 0) - (order(b) ?? 0) ||
+              (a.recordId < b.recordId ? -1 : a.recordId > b.recordId ? 1 : 0));
+          const before = params.beforeRecordId ?? null;
+          const at = before === null ? siblings.length : siblings.findIndex(candidate => candidate.recordId === before);
+          if (at < 0) throw refusal('hierarchy-sibling-not-found', `${before} is not a child of ${parent ?? 'the top level'}.`);
+          const lower = at > 0 ? order(siblings[at - 1]) : null, upper = at < siblings.length ? order(siblings[at]) : null;
+          const current = order(record);
+          let placed = null;
+          if (current !== null && (at === 0 || (lower !== null && lower < current)) && (at === siblings.length || (upper !== null && current < upper))) placed = current;
+          else if (siblings.length === 0) placed = gap;
+          else if (at === siblings.length) placed = lower === null ? null : lower + gap;
+          else if (at === 0) placed = upper === null ? null : upper - gap;
+          else placed = lower !== null && upper !== null && upper - lower >= 2 ? lower + Math.floor((upper - lower) / 2) : null;
+          if (placed !== null) {
+            if (placed !== current) writes.push([record, hierarchy.orderFieldId, placed]);
+          } else {
+            const ordered = [...siblings];
+            ordered.splice(at, 0, record);
+            ordered.forEach((candidate, index) => {
+              if (order(candidate) !== (index + 1) * gap) writes.push([candidate, hierarchy.orderFieldId, (index + 1) * gap]);
+            });
+          }
+        }
+        if (writes.length === 0) throw refusal('move-unchanged', `${recordId} is already there.`);
+        // One revision: each field set advances its record's version by one.
+        for (const [candidate, fieldId, value] of writes) {
+          candidate.values = { ...candidate.values, [fieldId]: value };
+          candidate.version += 1;
+        }
+        fixture.changeSequence += 1;
+        queueMicrotask(() => emit('changes', fixture.changeSequence));
+        return clone(record);
+      }
       case 'commands.run': {
         // As the host runs one: the command's steps set their fields on the record, but only at
         // the version the view read. A record somebody changed since is refused and left as it is.

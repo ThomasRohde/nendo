@@ -56,7 +56,7 @@ public sealed class DesktopExtensionWriterTests
         var before = (await session.GetViewAsync()).Manifest!.ChangeSequence;
 
         var writers = WorkbenchMethods.ExtensionWriterMethods.OrderBy(method => method, StringComparer.Ordinal).ToArray();
-        CollectionAssert.AreEqual(new[] { WorkbenchMethods.DataCreateRecord, WorkbenchMethods.DataDeleteRecord, WorkbenchMethods.DataExecuteCommand, WorkbenchMethods.DataSetFields, WorkbenchMethods.ExtensionStateRead, WorkbenchMethods.ExtensionStateSet, WorkbenchMethods.ProposalGet, WorkbenchMethods.ProposalPrepareChangeSet },
+        CollectionAssert.AreEqual(new[] { WorkbenchMethods.DataCreateRecord, WorkbenchMethods.DataDeleteRecord, WorkbenchMethods.DataExecuteCommand, WorkbenchMethods.DataMoveRecord, WorkbenchMethods.DataSetFields, WorkbenchMethods.ExtensionStateRead, WorkbenchMethods.ExtensionStateSet, WorkbenchMethods.ProposalGet, WorkbenchMethods.ProposalPrepareChangeSet },
             writers, "The methods a view's actor may reach changed; the ADR, the contract and the broker's table must change with them.");
 
         var methods = typeof(WorkbenchMethods)
@@ -74,6 +74,65 @@ public sealed class DesktopExtensionWriterTests
         }
         Assert.IsEmpty(admitted, "A method other than the record writes accepted a view's actor: " + string.Join(", ", admitted));
         Assert.AreEqual(before, (await session.GetViewAsync()).Manifest!.ChangeSequence, "A refused request changed the file.");
+    }
+
+    /// <summary>
+    /// W-079: a view moves a record in a declared tree (ADR-0019, 2026-09-28) as its package, and
+    /// the Engine's rule refuses a loop whoever asks. The seed's orders leave gaps, so neither
+    /// move renumbers a sibling and every version below is the seed's.
+    /// </summary>
+    [TestMethod]
+    public async Task AViewMovesARecordInItsTreeAsItsPackageAndALoopIsRefused()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await DesktopExtensionViewJourneyTests.SeedAsync(workspace.FilePath);
+        await SeedTreeAsync(workspace.FilePath);
+        var (session, handler, fileSessionId) = await OpenAsync(workspace);
+        await using var _ = session;
+
+        var moved = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.DataMoveRecord, new
+        {
+            entityId = "units", recordId = "u-b", expectedRecordVersion = 1, parentRecordId = "u-a", expectedParentVersion = 1,
+            idempotencyKey = "view-move", actor = Actor,
+        }));
+        Assert.IsTrue(moved.Ok, moved.Error?.Message);
+        var byView = (await session.GetHistoryAsync()).Where(revision => revision.Origin == Actor).ToArray();
+        Assert.HasCount(1, byView, "History does not name the view's package on its move.");
+
+        // u-a under u-c, its own child, would close a loop.
+        var before = (await session.GetViewAsync()).Manifest!.ChangeSequence;
+        var loop = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.DataMoveRecord, new
+        {
+            entityId = "units", recordId = "u-a", expectedRecordVersion = 1, parentRecordId = "u-c", expectedParentVersion = 1,
+            idempotencyKey = "view-loop", actor = Actor,
+        }));
+        Assert.IsFalse(loop.Ok, "A view moved a record under its own child.");
+        Assert.AreEqual("hierarchy-cycle", loop.Error!.Code, loop.Error.Message);
+        Assert.AreEqual(before, (await session.GetViewAsync()).Manifest!.ChangeSequence, "A refused move changed the file.");
+    }
+
+    /// <summary>Units kept as a tree by their parent, ordered: u-a and u-b at the top, u-c under u-a.</summary>
+    private static async Task SeedTreeAsync(string path)
+    {
+        await using var coordinator = await NendoWriteCoordinator.OpenAsync(path, "view-tree");
+        var service = new NendoApplicationService(coordinator);
+        var schemaRevision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "tree-schema", "test", "Units", [
+            new CreateEntityOperation("units", "units", "Units", "units"),
+            new AddFieldOperation("units-title", "units", "unitTitle", "Title", "unit_title", NendoStorageKind.Text, true),
+            new AddFieldOperation("units-parent", "units", "unitParent", "Part of", "unit_parent", NendoStorageKind.Reference, false),
+            new AddFieldOperation("units-order", "units", "unitOrder", "Order", "unit_order", NendoStorageKind.Integer, false),
+            new ConfigureReferenceOperation("units-bind", "units", "unitParent", "units", "unitTitle", schemaRevision),
+        ]));
+        foreach (var (id, parent, order) in new (string, string?, long)[] { ("u-a", null, 1024), ("u-b", null, 2048), ("u-c", "u-a", 1024) })
+        {
+            await service.CreateRecordAsync(new("units", id,
+                new Dictionary<string, object?> { ["unitTitle"] = id.ToUpperInvariant(), ["unitParent"] = parent, ["unitOrder"] = order },
+                new NendoRequestContext("test", "tree-" + id, "test"), parent is null ? null : new Dictionary<string, long> { ["unitParent"] = 1 }));
+        }
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "tree-declare", "test", "Declare the tree",
+            [new DeclareHierarchyOperation("units-tree", "units", "unitParent", "unitOrder", revision)]));
     }
 
     [TestMethod]

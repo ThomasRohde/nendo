@@ -300,6 +300,7 @@ function install(host: Window & { nendo?: unknown }): void {
   type TargetVersions = Record<string, number>;
   type CreateOptions = { recordId?: string; targetVersions?: TargetVersions };
   type UpdateOptions = { targetVersions?: TargetVersions };
+  type MoveTarget = { parentRecordId: string | null; parentVersion?: number; beforeRecordId?: string | null };
   type StateOptions = { scope?: 'view' | 'package' };
   type StateEntry = { key: string; value: unknown; version: number };
 
@@ -382,6 +383,20 @@ function install(host: Window & { nendo?: unknown }): void {
         }),
       delete: (record: RecordAt): Promise<null> =>
         call<null>('records.delete', { entityId: record.entityId, recordId: record.recordId, version: record.version }),
+      /**
+       * Moves a record in its record type's declared tree (ADR-0019): under parentRecordId, with the
+       * parent's version as the view read it, or to the top level with null; before the sibling
+       * beforeRecordId, or last. The subtree moves with it. The Engine refuses a loop and a tree
+       * deeper than 32 levels, and renumbers the siblings when no gap is left, in one revision.
+       * Answers the record as it now stands.
+       */
+      move: (record: RecordAt, to: MoveTarget): Promise<ViewRecord | null> =>
+        call<ViewRecord | null>('records.move', {
+          entityId: record.entityId, recordId: record.recordId, version: record.version,
+          parentRecordId: to.parentRecordId ?? null,
+          ...(to.parentRecordId ? { parentVersion: to.parentVersion } : {}),
+          ...(to.beforeRecordId ? { beforeRecordId: to.beforeRecordId } : {}),
+        }),
     }),
     commands: Object.freeze({
       /** Runs a record command the file defines (schema.describe lists them), on the record at the version given. */

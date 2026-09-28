@@ -236,6 +236,150 @@ async (page) => {
   assert(methods.includes('records.tree'), 'The map was not read as the declared tree: ' + JSON.stringify(methods));
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/bcm-atlas.png' });
 
+  // ---- W-079: moving and renaming on the map, with the real pointer and keyboard. The fixture
+  // broker moves as the Engine does: the versions read, no loop, the place among the siblings.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(400);
+  await view.click('[data-level="2"]');
+  await view.click('#fit');
+  await page.waitForTimeout(200);
+  const moves = async () => (await page.evaluate(() => window.broker.requests)).filter(r => r.m === 'records.move');
+  // A move's refresh redraws every card, so a card can be replaced while it is being measured.
+  const box = async id => {
+    let found = null;
+    for (let attempt = 0; attempt < 20 && found === null; attempt += 1) {
+      found = await view.locator(`.cap[data-id="${id}"]`).boundingBox();
+      if (found === null) await page.waitForTimeout(100);
+    }
+    if (found === null) {
+      const seen = await view.evaluate(value => { const node = document.querySelector(`.cap[data-id="${value}"]`); return node ? { style: node.getAttribute('style'), rect: node.getBoundingClientRect().toJSON() } : 'not in the page'; }, id);
+      throw new Error(`The card ${id} has no box: ${JSON.stringify(seen)}. The view says: ${JSON.stringify(await status())}`);
+    }
+    return found;
+  };
+  const inside = (inner, outer) => inner.x >= outer.x - 0.5 && inner.y >= outer.y - 0.5 &&
+    inner.x + inner.width <= outer.x + outer.width + 0.5 && inner.y + inner.height <= outer.y + outer.height + 0.5;
+  const dragTo = async (id, at) => {
+    const from = await box(id);
+    await page.mouse.move(from.x + from.width / 2, from.y + Math.min(12, from.height / 2));
+    await page.mouse.down();
+    await page.mouse.move(at.x, at.y, { steps: 12 });
+    await page.mouse.up();
+  };
+  // Each write sets off a refresh a moment later. Before the next step the view must have gone
+  // quiet -- no request for 600ms -- or that refresh lands in the middle of it.
+  const quiet = async () => {
+    let last = -1, still = 0;
+    while (still < 6) {
+      const count = await page.evaluate(() => window.broker.requests.length);
+      if (count === last) still += 1;
+      else { still = 0; last = count; }
+      await page.waitForTimeout(100);
+    }
+  };
+  const children = parentId => view.evaluate(async parent => (await nendo.records.treeAll({ entityId: 'bcm.capability', rootRecordId: parent, depth: 1 }))
+    .map(node => node.record.recordId), parentId);
+  results.moves = {};
+
+  // Onto a group's heading: the capability goes in, as its last child, with its subtree.
+  let sent = (await moves()).length;
+  const domain = await box('bcm-cap-2');
+  await dragTo('bcm-cap-1-1', { x: domain.x + domain.width / 2, y: domain.y + 10 });
+  for (let i = 0; i < 60 && (await moves()).length === sent; i += 1) await page.waitForTimeout(50);
+  let move = (await moves()).slice(sent);
+  assert(move.length === 1 && move[0].p.recordId === 'bcm-cap-1-1' && move[0].p.parentRecordId === 'bcm-cap-2' && move[0].p.parentVersion === 1 && !move[0].p.beforeRecordId,
+    'A drag onto a group did not move the card into it: ' + JSON.stringify(move.map(r => r.p)) + ' The view says: ' + JSON.stringify(await status()));
+  for (let i = 0; i < 40 && !inside(await box('bcm-cap-1-1'), await box('bcm-cap-2')); i += 1) await page.waitForTimeout(50);
+  assert(inside(await box('bcm-cap-1-1'), await box('bcm-cap-2')), 'The moved card is not drawn inside the group it moved into.');
+  assert((await children('bcm-cap-2')).at(-1) === 'bcm-cap-1-1', 'The moved card is not the group\u2019s last child: ' + JSON.stringify(await children('bcm-cap-2')));
+  results.moves.into = move[0].p;
+
+  // Onto a sibling's left edge: before it.
+  await quiet();
+  sent = (await moves()).length;
+  const sibling = await box('bcm-cap-3-1');
+  await dragTo('bcm-cap-3-3', { x: sibling.x + sibling.width * 0.12, y: sibling.y + sibling.height / 2 });
+  for (let i = 0; i < 60 && (await moves()).length === sent; i += 1) await page.waitForTimeout(50);
+  move = (await moves()).slice(sent);
+  assert(move.length === 1 && move[0].p.parentRecordId === 'bcm-cap-3' && move[0].p.beforeRecordId === 'bcm-cap-3-1',
+    'A drag onto a sibling\u2019s left edge did not place the card before it: ' + JSON.stringify(move.map(r => r.p)));
+  const justBefore = async (parent, id, next) => { const kids = await children(parent); return kids[kids.indexOf(next) - 1] === id; };
+  for (let i = 0; i < 40 && !(await justBefore('bcm-cap-3', 'bcm-cap-3-3', 'bcm-cap-3-1')); i += 1) await page.waitForTimeout(50);
+  assert(await justBefore('bcm-cap-3', 'bcm-cap-3-3', 'bcm-cap-3-1'), 'The moved card is not just before the sibling: ' + JSON.stringify(await children('bcm-cap-3')));
+  results.moves.before = move[0].p;
+
+  // Into its own group: refused before anything is written, and said.
+  await quiet();
+  sent = (await moves()).length;
+  const own = await box('bcm-cap-4-1');
+  await dragTo('bcm-cap-4', { x: own.x + own.width / 2, y: own.y + own.height / 2 });
+  await page.waitForTimeout(300);
+  assert((await moves()).length === sent, 'A drag into its own group was sent to the file.');
+  assert(/cannot move into its own group/.test(await status()), 'A drag into its own group did not say why: ' + await status());
+
+  // The keyboard, from a selected card: up swaps with the sibling above, left takes it out after
+  // its parent, and a first child has no sibling above to go into.
+  await quiet();
+  await view.click('.cap[data-id="bcm-cap-5-2"]');
+  sent = (await moves()).length;
+  await page.keyboard.press('Alt+Shift+ArrowUp');
+  for (let i = 0; i < 60 && (await moves()).length === sent; i += 1) await page.waitForTimeout(50);
+  move = (await moves()).slice(sent);
+  assert(move.length === 1 && move[0].p.recordId === 'bcm-cap-5-2' && move[0].p.beforeRecordId === 'bcm-cap-5-1', 'Alt+Shift+Up did not move the card up: ' + JSON.stringify(move.map(r => r.p)));
+  for (let i = 0; i < 40 && !(await justBefore('bcm-cap-5', 'bcm-cap-5-2', 'bcm-cap-5-1')); i += 1) await page.waitForTimeout(50);
+  await quiet();
+  sent = (await moves()).length;
+  await page.keyboard.press('Alt+Shift+ArrowLeft');
+  for (let i = 0; i < 60 && (await moves()).length === sent; i += 1) await page.waitForTimeout(50);
+  move = (await moves()).slice(sent);
+  assert(move.length === 1 && move[0].p.parentRecordId === null && move[0].p.beforeRecordId === 'bcm-cap-6' && move[0].p.parentVersion === undefined,
+    'Alt+Shift+Left did not take the card out after its parent: ' + JSON.stringify(move.map(r => r.p)));
+  results.moves.keyboard = move[0].p;
+  for (let i = 0; i < 40 && (await children(null)).indexOf('bcm-cap-5-2') === -1; i += 1) await page.waitForTimeout(50);
+  await quiet();
+  await view.click('.cap[data-id="bcm-cap-5-4"]');
+  sent = (await moves()).length;
+  await page.keyboard.press('Alt+Shift+ArrowRight');
+  await page.waitForTimeout(200);
+  assert((await moves()).length === sent && /cannot move into the capability above/.test(await status()),
+    'Alt+Shift+Right on a first child moved it, or said nothing: ' + await status());
+
+  // F2 renames in place, with the version read.
+  await quiet();
+  await until(() => document.querySelector('.cap[data-id="bcm-cap-6-1"]') !== null, null, 'The card to rename is not drawn.');
+  await view.click('.cap[data-id="bcm-cap-6-1"]');
+  await page.keyboard.press('F2');
+  await until(() => document.activeElement?.classList.contains('cap-rename'), null, 'F2 did not open the name for editing.');
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type('People and culture (renamed)');
+  await page.keyboard.press('Enter');
+  await until(() => [...document.querySelectorAll('.cap-title')].some(n => n.textContent === 'People and culture (renamed)'), null, 'The renamed card never showed its new name.');
+  const rename = (await page.evaluate(() => window.broker.requests)).filter(r => r.m === 'records.update').at(-1);
+  assert(rename.p.recordId === 'bcm-cap-6-1' && rename.p.values['cap.name'] === 'People and culture (renamed)' && Object.keys(rename.p.values).length === 1,
+    'F2 wrote something other than the name: ' + JSON.stringify(rename.p));
+
+  // A card somebody moved meanwhile: the drop is refused over the version read, and the map
+  // then shows where the file holds it.
+  const stale = clone(bcm);
+  const moved = stale.records['bcm.capability'].find(r => r.recordId === 'bcm-cap-5-1');
+  moved.values['cap.parent'] = 'bcm-cap-6';
+  moved.version = 99;
+  await quiet();
+  await page.evaluate(value => window.broker.setFixture(value), stale);
+  sent = (await moves()).length;
+  const target = await box('bcm-cap-2');
+  await dragTo('bcm-cap-5-1', { x: target.x + target.width / 2, y: target.y + 10 });
+  await until(() => /was not moved: The record changed/.test(document.getElementById('status').textContent), null, 'A stale move was not refused in words.');
+  assert((await moves()).length === sent + 1, 'The stale move was not sent once.');
+  // A redraw that something else sets off must not write the counts over why the move failed.
+  await page.evaluate(() => window.broker.pushChanges());
+  await page.waitForTimeout(600);
+  assert(/was not moved: The record changed/.test(await status()), 'A redraw after a refused move wrote over why it was refused: ' + await status());
+  for (let i = 0; i < 40 && !inside(await box('bcm-cap-5-1'), await box('bcm-cap-6')); i += 1) await page.waitForTimeout(50);
+  assert(inside(await box('bcm-cap-5-1'), await box('bcm-cap-6')), 'After the refusal the map does not show the card where the file holds it.');
+  results.moves.stale = await status();
+  await page.screenshot({ path: root + '/artifacts/extension-runtime-results/bcm-atlas-moved.png' });
+
   // ---- A second file (W-077). Nothing in it is BCM's: the record type, every field ID and the
   // choice IDs differ, the view binds no target, investment, owner, review date or evidence, and
   // its configuration names a Notes field the view does not bind. Opened in a fresh frame, as

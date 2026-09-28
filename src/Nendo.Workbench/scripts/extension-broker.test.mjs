@@ -85,7 +85,7 @@ const readMethods = ['data.queryRecords', 'data.treeRecords', 'data.countRecords
 // The record writes a person's own edit uses, and preparing a proposal (ADR-0013 Phase 3,
 // W-065 and W-069). The host admits a view's actor on exactly these and on proposal.get
 // (WorkbenchMethods.ExtensionWriterMethods). Never promote or reject.
-const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.executeCommand', 'proposal.prepareChangeSet', 'extension.state.set'];
+const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.moveRecord', 'data.executeCommand', 'proposal.prepareChangeSet', 'extension.state.set'];
 
 test('the method table is closed: reads, the record writes, preparing a proposal, and no promote, reject, approve, file, session or agent method', () => {
   const expected = [
@@ -101,6 +101,7 @@ test('the method table is closed: reads, the record writes, preparing a proposal
     ['records.create', 'data.createRecord'],
     ['records.update', 'data.setFields'],
     ['records.delete', 'data.deleteRecord'],
+    ['records.move', 'data.moveRecord'],
     ['commands.run', 'data.executeCommand'],
     ['proposals.prepare', 'proposal.prepareChangeSet'],
     ['proposals.get', 'proposal.get'],
@@ -179,6 +180,51 @@ test('a write goes to the host as the mount\u2019s package, never as anything th
   assert.equal(h.calls[5].method, 'data.executeCommand');
   assert.equal(h.calls[5].payload.commandId, 'page.done');
   assert.equal(h.calls[5].payload.expectedRecordVersion, 1);
+});
+
+// W-079: a move in a declared tree (ADR-0019), made as the mount's package like every write.
+test('a move goes to the host as the mount\u2019s package with the parent\u2019s version, or to the top level with neither, and answers the record', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  view.send({ t: 'req', id: 1, m: 'records.move', p: {
+    entityId: 'tasks', recordId: 't1', version: 3, parentRecordId: 't0', parentVersion: 2, beforeRecordId: 't5', actor: 'extension:someone-else',
+  } });
+  await until(() => h.calls.length === 1, 'the move');
+  assert.equal(h.calls[0].method, 'data.moveRecord');
+  assert.deepEqual({ ...h.calls[0].payload, idempotencyKey: undefined }, {
+    entityId: 'tasks', recordId: 't1', expectedRecordVersion: 3, parentRecordId: 't0', expectedParentVersion: 2, beforeRecordId: 't5',
+    idempotencyKey: undefined, actor: 'extension:org.example.glance',
+  });
+  h.pending[0].resolve({});
+  await until(() => h.calls.length === 2, 'the read back');
+  assert.deepEqual(h.calls[1], { method: 'data.queryRecords', payload: { entityId: 'tasks', recordId: 't1', limit: 1 } });
+  h.pending[1].resolve({ items: [{ entityId: 'tasks', recordId: 't1', recordVersion: 5, values: { title: 'Moved' } }] });
+  assert.equal((await view.next((message) => message.id === 1)).r.version, 5);
+
+  view.send({ t: 'req', id: 2, m: 'records.move', p: { entityId: 'tasks', recordId: 't1', version: 5, parentRecordId: null } });
+  await until(() => h.calls.length === 3, 'a move to the top level');
+  assert.deepEqual({ ...h.calls[2].payload, idempotencyKey: undefined }, {
+    entityId: 'tasks', recordId: 't1', expectedRecordVersion: 5, parentRecordId: null, beforeRecordId: null,
+    idempotencyKey: undefined, actor: 'extension:org.example.glance',
+  });
+  h.pending[2].resolve({});
+  await until(() => h.calls.length === 4, 'its read back');
+  h.pending[3].resolve({ items: [] });
+  await view.next((message) => message.id === 2);
+
+  // A parent without the version the view read, or a version with no parent, never reaches the host.
+  for (const [id, params, message] of [
+    [3, { entityId: 'tasks', recordId: 't1', version: 5, parentRecordId: 't0' }, /parentVersion must be/],
+    [4, { entityId: 'tasks', recordId: 't1', version: 5, parentVersion: 2 }, /parentVersion goes with parentRecordId/],
+  ]) {
+    view.send({ t: 'req', id, m: 'records.move', p: params });
+    const refused = await view.next((answer) => answer.id === id);
+    assert.equal(refused.ok, false);
+    assert.match(refused.e.message, message);
+  }
+  await settle();
+  assert.equal(h.calls.length, 4, 'A move the broker refused reached the host.');
 });
 
 // R-002: the host refuses a non-null reference without the target's version

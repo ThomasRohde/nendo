@@ -10,7 +10,7 @@
 // Assessment and Outline are tables of the same rows. The only writes are capability creates and
 // updates, sent with the parent's version so a stale parent is refused, and a parent that would
 // close a loop is refused by the Engine in words the editor shows. Nothing leaves Nendo.
-import { bindAtlas, hierarchy, projectHierarchy, maturityLabels, relatedName, relatedRow } from './model.js';
+import { bindAtlas, hierarchy, projectHierarchy, maturityLabels, relatedName, relatedRow, dropTarget, stepTarget } from './model.js';
 import { mapSvg, printPalette, paletteTokens } from './export.js';
 import { layoutCapabilities, fitViewport } from './layout-profile.js';
 
@@ -76,6 +76,25 @@ function button(label, action, className) {
 function say(message) {
   $('status').textContent = message;
 }
+
+// What a move or a rename says -- done, or refused and why -- is held in the footer until the
+// person acts again or six seconds pass. Without the hold, a redraw that a change elsewhere
+// set off moments earlier wrote the counts over it, and a refusal went unread.
+let held = null;
+
+function tell(message) {
+  held = { text: message, until: Date.now() + 6000 };
+  say(message);
+}
+
+/** The footer between messages: a held one while it lasts, else the counts. */
+function footer() {
+  return held !== null && Date.now() < held.until ? held.text : statusLine();
+}
+
+// Any press or key the person makes lets a held message go.
+document.addEventListener('pointerdown', () => { held = null; }, true);
+document.addEventListener('keydown', () => { held = null; }, true);
 
 /** "3 · Defined", or the fallback when there is no assessment. */
 function maturityText(level, fallback) {
@@ -276,6 +295,7 @@ function renderMap(refit) {
   for (const node of layout.nodes) {
     if (!node.synthetic) drawing.append(card(node, lit));
   }
+  if (renaming) drawing.append(renaming.input);
   if (refit) fit();
   else applyTransform();
 }
@@ -297,7 +317,8 @@ function card(node, lit) {
   b.setAttribute('aria-label',
     `${binding.title(record)}${maturity}${isGroup ? ', group' : ''}${hidden ? ', ' + hidden + ' capabilities inside' : ''}`);
   b.setAttribute('aria-pressed', String(selected === node.id));
-  b.title = `${binding.value(record, 'code') || ''} ${binding.title(record)}\n${isGroup ? 'Double-click to focus this group' : 'Select to inspect'}`;
+  b.title = `${binding.value(record, 'code') || ''} ${binding.title(record)}\n${isGroup ? 'Double-click to focus this group' : 'Select to inspect'}` +
+    (canMove() ? '\nDrag to move · Alt+Shift+arrows move the selection' : '') + (canRename() ? ' · F2 renames' : '');
   Object.assign(b.style, { left: `${node.x}px`, top: `${node.y}px`, width: `${node.width}px`, height: `${node.height}px` });
   setTone(b, toneFor(record));
   b.append(el('span', 'cap-title', binding.title(record)));
@@ -637,7 +658,7 @@ function render(refit = false) {
   if (mode === 'map') renderMap(refit);
   else renderTable();
   inspector();
-  say(statusLine());
+  say(footer());
   const notices = [...(undeclared ? [undeclaredNotice()] : []), ...binding.problems];
   $('notice').hidden = notices.length === 0;
   $('notice').textContent = notices.join(' ');
@@ -868,6 +889,7 @@ let panMode = false;           // the Pan tool
 const map = $('map');
 
 function endPan(cancelled = false) {
+  if (drag?.moving) endMove();
   if (drag) suppressPanClick = !cancelled && drag.moved;
   drag = null;
   map.classList.remove('panning');
@@ -881,8 +903,17 @@ function activatePan(event) {
 
 function movePan(event) {
   if (!drag || drag.pointerId !== event.pointerId) return;
+  if (drag.moving) {
+    trackMove(event);
+    return;
+  }
   // Ctrl pressed after the button turns a press on a card into a pan.
   if (!drag.active && (panMode || event.ctrlKey || event.metaKey)) activatePan(event);
+  // Without it, a press on a card that travels four pixels picks the card up (W-079).
+  if (!drag.active && drag.card !== null && canMove() && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) >= 4) {
+    startMove(event);
+    return;
+  }
   if (!drag.active) return;
   const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
   if (!drag.moved && Math.hypot(dx, dy) < 4) return;
@@ -902,7 +933,10 @@ $('pan-tool').onclick = () => {
 map.addEventListener('pointerdown', event => {
   suppressPanClick = false;
   if (event.button !== 0) return;
-  drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, px: pan.x, py: pan.y, moved: false, active: false };
+  drag = {
+    pointerId: event.pointerId, x: event.clientX, y: event.clientY, px: pan.x, py: pan.y, moved: false, active: false,
+    card: event.target.closest('.cap')?.dataset.id ?? null, moving: false, plan: null,
+  };
   // A press on a card stays a candidate: it pans only if Ctrl arrives (see movePan).
   if (panMode || event.ctrlKey || event.metaKey || !event.target.closest('button')) {
     activatePan(event);
@@ -919,6 +953,13 @@ map.addEventListener('pointermove', event => {
 });
 map.addEventListener('pointerup', event => {
   if (drag?.pointerId !== event.pointerId) return;
+  if (drag.moving) {
+    trackMove(event);
+    const { card: id, plan } = drag;
+    endPan();
+    dropCard(id, plan);
+    return;
+  }
   if (drag.active) movePan(event);
   endPan();
 });
@@ -956,7 +997,7 @@ map.addEventListener('wheel', event => {
 }, { passive: false });
 
 map.addEventListener('keydown', event => {
-  if (event.target !== map) return;
+  if (event.target !== map || event.altKey) return;
   if (event.key === '+' || event.key === '=') zoomBy(1.2);
   else if (event.key === '-') zoomBy(1 / 1.2);
   else if (event.key === '0') fit();
@@ -967,6 +1008,206 @@ map.addEventListener('keydown', event => {
     applyTransform();
   } else return;
   event.preventDefault();
+});
+
+// ---------------------------------------------------------------------------------------------
+// Moving and renaming (W-079)
+//
+// Dragging a card without a key picks it up: over the middle of a card it goes in, as that
+// card's last child; over a card's left or right edge it goes beside it, before or after. A drop
+// inside its own subtree is refused before anything is written, and so is one where it already
+// stands. Alt+Shift+arrows move the selection as the outline does, and F2 renames it in place.
+// Each move is one records.move, which the Engine checks against the versions read: a refused
+// write reads the file again, so the map shows what the file holds, and says why.
+
+/** Whether this map can move capabilities: a declared tree, a host that moves, a file that writes. */
+function canMove() {
+  return binding.parentFieldId !== null && typeof nendo.has === 'function' && nendo.has('records.move') && nendo.context?.readOnly !== true;
+}
+
+function canRename() {
+  return binding.labelFieldId !== null && typeof nendo.has === 'function' && nendo.has('records.update') && nendo.context?.readOnly !== true;
+}
+
+let dragLabel = null;
+
+/** The node the layout packed for a record, in the drawing's coordinates. */
+const nodeOf = id => layout?.nodes.find(node => node.id === id && !node.synthetic) ?? null;
+
+function startMove(event) {
+  drag.moving = true;
+  drag.moved = true;
+  map.setPointerCapture(event.pointerId);
+  document.querySelector(`.cap[data-id="${CSS.escape(drag.card)}"]`)?.classList.add('dragging');
+  dragLabel = el('div', 'drag-label', binding.title(model.byId.get(drag.card)));
+  document.body.append(dragLabel);
+  trackMove(event);
+}
+
+/** Where the pointer would drop the card: into a card, or before or after it. */
+function dropAt(x, y) {
+  const over = document.elementFromPoint(x, y)?.closest('.cap');
+  if (!over || !map.contains(over)) return null;
+  const box = over.getBoundingClientRect();
+  const along = (x - box.left) / Math.max(1, box.width);
+  // A group's edges are a thin band either side; a card's are its outer thirds.
+  const edge = over.classList.contains('branch') ? Math.min(0.5, 12 / Math.max(1, box.width)) : 0.3;
+  const kind = binding.orderFieldId === null || (along > edge && along < 1 - edge) ? 'into' : along <= edge ? 'before' : 'after';
+  return { kind, targetId: over.dataset.id };
+}
+
+function trackMove(event) {
+  if (dragLabel) Object.assign(dragLabel.style, { left: `${event.clientX + 14}px`, top: `${event.clientY + 12}px` });
+  const drop = dropAt(event.clientX, event.clientY);
+  drag.plan = drop === null ? null : { drop, ...dropTarget(model, drag.card, drop, binding.orderFieldId !== null) };
+  markDrop(drag.plan);
+  const name = binding.title(model.byId.get(drag.card));
+  if (drag.plan === null) say(`Drop ${name} on a capability, or into a group.`);
+  else if (drag.plan.refused) say(`${name} cannot move into its own group.`);
+  else if (drag.plan.unchanged) say(`${name} is already there.`);
+  else say(`Move ${name} ${placeWords(drag.plan.drop)}.`);
+}
+
+function placeWords(drop) {
+  const target = binding.title(model.byId.get(drop.targetId));
+  return drop.kind === 'into' ? `into ${target}` : `${drop.kind} ${target}`;
+}
+
+/** The drop mark: an outline round the group it goes into, or a bar on the side it goes. */
+function markDrop(plan) {
+  let mark = $('drop');
+  const node = plan ? nodeOf(plan.drop.targetId) : null;
+  if (!node || plan.unchanged) {
+    mark?.remove();
+    return;
+  }
+  if (!mark) {
+    mark = el('div');
+    mark.id = 'drop';
+  }
+  $('drawing').append(mark);
+  const bar = plan.drop.kind !== 'into' && !plan.refused;
+  mark.className = plan.refused ? 'refused' : bar ? 'bar' : 'into';
+  const left = !bar ? node.x : plan.drop.kind === 'before' ? node.x - 5 : node.x + node.width + 2;
+  Object.assign(mark.style, { left: `${left}px`, top: `${node.y}px`, width: `${bar ? 3 : node.width}px`, height: `${node.height}px` });
+}
+
+function endMove() {
+  document.querySelectorAll('.cap.dragging').forEach(node => node.classList.remove('dragging'));
+  dragLabel?.remove();
+  dragLabel = null;
+  $('drop')?.remove();
+}
+
+/** A drop that the rules allow is one move; any other says why and writes nothing. */
+function dropCard(id, plan) {
+  if (plan === null) {
+    say(statusLine());
+    return;
+  }
+  const name = binding.title(model.byId.get(id));
+  if (plan.refused) tell(`${name} cannot move into its own group.`);
+  else if (plan.unchanged) tell(`${name} is already there.`);
+  else moveCard(id, plan, placeWords(plan.drop));
+}
+
+let movingNow = false;
+
+/** One records.move, with the versions read; the map reads the file again either way. */
+async function moveCard(id, plan, words, keepFocus = false) {
+  if (movingNow) return;
+  const record = model.byId.get(id);
+  const parent = plan.parentId === null ? null : model.byId.get(plan.parentId);
+  const name = binding.title(record);
+  movingNow = true;
+  try {
+    await nendo.records.move(record, { parentRecordId: plan.parentId, parentVersion: parent?.version, beforeRecordId: plan.beforeId });
+    selected = id;
+    await refresh();
+    tell(`Moved ${name} ${words}.`);
+  } catch (error) {
+    await refresh();
+    tell(`${name} was not moved: ${error.message}`);
+  } finally {
+    movingNow = false;
+  }
+  if (keepFocus) document.querySelector(`.cap[data-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+}
+
+const steps = { ArrowUp: 'up', ArrowDown: 'down', ArrowRight: 'in', ArrowLeft: 'out' };
+const stepWords = { up: 'up', down: 'down', in: 'into the capability above', out: 'out of its group' };
+
+let renaming = null;
+
+function startRename(id) {
+  const node = nodeOf(id);
+  if (!node) return;
+  const record = model.byId.get(id);
+  const input = el('input', 'cap-rename');
+  input.value = String(record.values?.[binding.labelFieldId] ?? '');
+  input.setAttribute('aria-label', `Rename ${binding.title(record)}`);
+  Object.assign(input.style, { left: `${node.x + 6}px`, top: `${node.y + 4}px`, width: `${Math.max(80, node.width - 12)}px` });
+  renaming = { id, input };
+  $('drawing').append(input);
+  input.focus();
+  input.select();
+  input.addEventListener('pointerdown', event => event.stopPropagation());
+  input.addEventListener('blur', () => endRename());
+  input.addEventListener('keydown', event => {
+    event.stopPropagation();
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      endRename();
+      document.querySelector(`.cap[data-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      saveRename();
+    }
+  });
+}
+
+function endRename() {
+  if (!renaming) return;
+  const { input } = renaming;
+  renaming = null;
+  input.remove();
+}
+
+async function saveRename() {
+  const { id, input } = renaming;
+  const name = input.value.trim();
+  const record = model.byId.get(id);
+  endRename();
+  if (!name || name === record.values?.[binding.labelFieldId]) return;
+  try {
+    await nendo.records.update(record, { [binding.labelFieldId]: name });
+    await refresh();
+    tell(`Renamed to ${name}.`);
+  } catch (error) {
+    await refresh();
+    tell(`${binding.title(record)} was not renamed: ${error.message}`);
+  }
+  document.querySelector(`.cap[data-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+}
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && drag?.moving) {
+    endPan(true);
+    say(statusLine());
+    return;
+  }
+  if (renaming || mode !== 'map' || !selected || !model.byId.has(selected)) return;
+  if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && Object.hasOwn(steps, event.key)) {
+    event.preventDefault();
+    if (!canMove()) return;
+    const step = steps[event.key];
+    const plan = stepTarget(model, selected, step, binding.orderFieldId !== null);
+    if (plan === null) tell(`${binding.title(model.byId.get(selected))} cannot move ${stepWords[step]} from here.`);
+    else moveCard(selected, plan, stepWords[step], true);
+  } else if (event.key === 'F2' && !event.altKey && !event.ctrlKey && canRename()) {
+    event.preventDefault();
+    startRename(selected);
+  }
 });
 
 // Resizing refits once the size settles; the packing itself does not change.

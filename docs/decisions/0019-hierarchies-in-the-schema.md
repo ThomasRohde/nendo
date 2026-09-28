@@ -441,6 +441,34 @@ names a record type or a field. It draws the view's own record type, writes the 
 and takes every other part from the view's configuration; a host that does not name the
 declaration yet leaves the parent to the record type's one reference to itself.
 
+## Stage 8 decision — 2026-09-28: a custom view may move a record
+
+Stage 6 left open whether a custom view's actor may call `data.moveRecord` ("a view move is
+decided when a view needs one"). The Capability Atlas needs one to restructure the map by
+dragging (W-079). Decided under the owner's standing pre-acceptance of ADR changes:
+
+- **The host admits a view's actor on `data.moveRecord`**, as on the four record writes
+  (`WorkbenchMethods.ExtensionWriterMethods`). It is the move the outline and MCP make:
+  `MoveRecordAsync` writes `data.setField` operations in one revision under the view's origin,
+  `extension:‹package›`, so History names the package and compensation undoes it operation by
+  operation.
+- **The view API gains `records.move`** `{entityId, recordId, version, parentRecordId,
+  parentVersion, beforeRecordId}`, answering the moved record. A parent takes the version the
+  view read; the top level takes neither.
+- **The rule does not change.** The store refuses a loop and a tree deeper than 32 levels
+  whoever writes, and the Engine renumbers the siblings when no gap is left.
+
+Not `records.update` of the parent and order fields: a reorder may have to renumber several
+siblings, which one field write per record cannot do in one revision, and a view numbering
+siblings itself would repeat the Engine's placement.
+
+Evidence: `DesktopExtensionWriterTests` (the actor admitted and named in History, and a loop
+refused with `hierarchy-cycle`), falsified by taking `data.moveRecord` out of the set: `Assert.IsTrue
+failed. 'condition' expression: 'moved.Ok'. A custom view may not call data.moveRecord.`;
+`scripts/extension-broker.test.mjs` for the method and its parameters; and
+`tools/Review-BcmAtlas.ps1`, where the Atlas moves by pointer and keyboard against a fixture
+broker that moves as the Engine does.
+
 ## Consequences
 
 ### Positive

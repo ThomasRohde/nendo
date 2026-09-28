@@ -469,7 +469,8 @@ A request without a safe-integer `id` is dropped without an answer.
 ### The method table
 
 The broker has a closed method table. Each method becomes one of the Workbench's
-own typed reads, one of the four record writes a person's edit uses, preparing or
+own typed reads, one of the four record writes a person's edit uses or a move in a
+declared tree, preparing or
 reading a proposal of the view's own package, or something the Workbench does for the
 person. Parameters are
 rebuilt key by key: nothing else a view sends reaches the host, and nothing a view
@@ -491,6 +492,7 @@ Workbench suite, pins the table name by name.
 | `records.create` | `entityId`, `values`, `recordId` (optional), `targetVersions` (optional) | `data.createRecord`, with `targetVersions` as `expectedTargetVersions` | The record as it now stands |
 | `records.update` | `entityId`, `recordId`, `version`, `values`, `targetVersions` (optional) | `data.setFields`, with `targetVersions` as `expectedTargetVersions` | The record as it now stands |
 | `records.delete` | `entityId`, `recordId`, `version` | `data.deleteRecord` | null |
+| `records.move` | `entityId`, `recordId`, `version`, `parentRecordId` (null for the top level), `parentVersion` (with a parent), `beforeRecordId` (optional) | `data.moveRecord`, with `parentVersion` as `expectedParentVersion` ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)) | The record as it now stands |
 | `commands.run` | `commandId`, `entityId`, `recordId`, `version` | `data.executeCommand` | The record as it now stands |
 | `proposals.prepare` | `title` (1–200 characters), `operations` (1–128 canonical operations) | `proposal.prepareChangeSet`, then the Workbench's review | `{proposalId, title, state, diagnostics, opened}` |
 | `proposals.get` | `proposalId` | `proposal.get`, for the package's own proposals | `{proposalId, title, state, diagnostics}` |
@@ -524,8 +526,9 @@ commands, through the same typed operations and version checks as a person's edi
 
 - **The actor is the mount's.** The broker adds `actor: extension:‹package›` from the
   view definition it mounted, never from the view's parameters. The host admits an
-  actor on `data.createRecord`, `data.setFields`, `data.deleteRecord` and
-  `data.executeCommand` alone (`WorkbenchMethods.ExtensionWriterMethods`), and
+  actor on `data.createRecord`, `data.setFields`, `data.deleteRecord`,
+  `data.executeCommand` and, since 2026-09-28, `data.moveRecord` alone
+  (`WorkbenchMethods.ExtensionWriterMethods`), and
   refuses it on every other method with `actor-not-allowed`. It refuses an actor
   whose package the open file does not carry the same way, and any write while
   views are off with `views-off`.
@@ -1329,6 +1332,10 @@ passed. Each guard below was falsified, seen to fail and then restored:
 - 2026-09-26 — each filter binding carries its field's `storageKind`, and `today` on a
   DateTime field resolves to the zoned instant the person's day begins rather than a
   bare date the host refuses (R-003).
+- 2026-09-28 — `records.move`: a view moves a record in its record type's declared tree,
+  under a parent or to the top level and before a sibling or last, through the host's
+  `data.moveRecord`, which now admits a view's actor. The Engine refuses a loop and renumbers
+  the siblings in one revision (ADR-0019 stage 8, W-079).
 - 2026-09-27 — `schema.describe` names each record type's declared `hierarchy`, so a view
   that writes a parent knows which field holds it rather than guessing among the record
   type's references to itself. A view on an earlier host finds the key missing (W-077).

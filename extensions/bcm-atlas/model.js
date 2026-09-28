@@ -320,3 +320,72 @@ export function projectHierarchy(model, scope, levels = Infinity) {
 
   return { tree, rows, hiddenCounts, maxDepth };
 }
+
+/** The IDs of the records under parentId in sibling order; null is the top level. */
+function siblingIds(model, parentId) {
+  return (parentId === null ? model.roots : model.children.get(parentId) ?? []).map(record => record.recordId);
+}
+
+/** { parentId, beforeId } is where the record already stands. */
+function standsAt(model, recordId, parentId, beforeId, ordered) {
+  if ((model.parents.get(recordId) ?? null) !== parentId) return false;
+  if (!ordered) return true;
+  const siblings = siblingIds(model, parentId);
+  return (siblings[siblings.indexOf(recordId) + 1] ?? null) === beforeId;
+}
+
+/**
+ * Where a drop puts a capability, as records.move takes it (W-079): { parentId, beforeId }, a
+ * parent of null being the top level and a beforeId of null the end. A drop is
+ * { kind: 'into' | 'before' | 'after', targetId }: into makes it the target's last child;
+ * before and after make it the target's sibling on that side. The answer is { refused } when
+ * the drop would put the capability inside itself, and { unchanged } when it is already
+ * there, so neither is sent. ordered is false when the tree declares no order field: a record
+ * then joins its new parent's children without a place among them.
+ */
+export function dropTarget(model, recordId, drop, ordered = true) {
+  const inside = new Set([recordId, ...model.descendants(recordId).map(record => record.recordId)]);
+  if (drop.kind === 'into' && inside.has(drop.targetId) || drop.kind !== 'into' && drop.targetId !== recordId && inside.has(drop.targetId)) {
+    return { refused: true };
+  }
+  let parentId, beforeId = null;
+  if (drop.kind === 'into') parentId = drop.targetId;
+  else {
+    if (drop.targetId === recordId) return { unchanged: true };
+    parentId = model.parents.get(drop.targetId) ?? null;
+    if (ordered) {
+      const siblings = siblingIds(model, parentId).filter(id => id !== recordId);
+      const at = siblings.indexOf(drop.targetId);
+      beforeId = drop.kind === 'before' ? drop.targetId : siblings[at + 1] ?? null;
+    }
+  }
+  return standsAt(model, recordId, parentId, beforeId, ordered) ? { unchanged: true } : { parentId, beforeId };
+}
+
+/**
+ * The keyboard's moves, as the outline makes them (ADR-0019): up and down swap with the
+ * sibling on that side, in makes it the last child of the sibling above, out places it after
+ * its parent. null when there is nowhere to go that way.
+ */
+export function stepTarget(model, recordId, step, ordered = true) {
+  const parentId = model.parents.get(recordId) ?? null;
+  const siblings = siblingIds(model, parentId);
+  const at = siblings.indexOf(recordId);
+  if (at < 0) return null;
+  switch (step) {
+    case 'up':
+      return ordered && at > 0 ? { parentId, beforeId: siblings[at - 1] } : null;
+    case 'down':
+      return ordered && at < siblings.length - 1 ? { parentId, beforeId: siblings[at + 2] ?? null } : null;
+    case 'in':
+      return at > 0 ? { parentId: siblings[at - 1], beforeId: null } : null;
+    case 'out': {
+      if (parentId === null) return null;
+      const grandparent = model.parents.get(parentId) ?? null;
+      const uncles = siblingIds(model, grandparent);
+      return { parentId: grandparent, beforeId: ordered ? uncles[uncles.indexOf(parentId) + 1] ?? null : null };
+    }
+    default:
+      return null;
+  }
+}
