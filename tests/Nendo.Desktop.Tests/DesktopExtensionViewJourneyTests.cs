@@ -38,7 +38,7 @@ public sealed class DesktopExtensionViewJourneyTests
     /// journey can ask it from inside its own frame and measure the answer.
     /// </summary>
     private const string ProbeScript = """
-        const state = { changes: 0, themes: 0, ready: false };
+        const state = { changes: 0, themes: 0, ready: false, commands: [], keys: [], pick: undefined };
         window.probe = {
           state,
           async reads() {
@@ -78,7 +78,28 @@ public sealed class DesktopExtensionViewJourneyTests
             });
           },
           storage(value) { if (value !== undefined) localStorage.setItem('probe', value); return localStorage.getItem('probe'); },
+          // W-090: controls for Nendo to draw, with a label that looks like markup, and Nendo's Add.
+          declare() {
+            return nendo.ui.setToolbar({ add: 'probe-add', items: [
+              { kind: 'choice', id: 'mode', label: 'Mode', hideLabel: true, value: 'one', options: [{ value: 'one', label: 'One' }, { value: 'two', label: 'Two' }] },
+              { kind: 'toggle', id: 'pin', label: 'Pin <img src=x onerror=parent.journeyMarkup=1>', icon: 'pan', pressed: false },
+              { kind: 'search', id: 'find', label: 'Find a task', keys: 'Ctrl+Shift+F' },
+              { kind: 'spacer' },
+              { kind: 'button', id: 'fit', label: 'Fit', keys: 'Ctrl+0' },
+              { kind: 'button', id: 'zoom-in', label: 'Zoom in', icon: 'plus', iconOnly: true, keys: 'Ctrl+Plus' },
+              { kind: 'menu', id: 'export', label: 'Export', icon: 'export', items: [{ id: 'export-svg', label: 'SVG' }, { kind: 'check', id: 'light', label: 'Light', checked: false }] },
+            ] }).then(() => 'declared', error => 'refused: ' + error.code + ': ' + error.message);
+          },
+          // Nendo's menu at a point in this frame; the pick lands in state when the person makes it.
+          menu(x, y) {
+            state.pick = 'waiting';
+            nendo.ui.showMenu([{ id: 'open', label: 'Open' }, { id: 'rename', label: 'Rename', keys: 'F2' }, { kind: 'separator' }, { id: 'delete', label: 'Delete', danger: true }], { x, y })
+              .then(pick => { state.pick = pick; }, error => { state.pick = 'error: ' + error.code; });
+            return 'asked';
+          },
         };
+        nendo.on('command', command => { state.commands.push(command); });
+        window.addEventListener('keydown', event => { state.keys.push((event.ctrlKey ? 'Ctrl+' : '') + event.key); });
         nendo.on('changes', () => { state.changes += 1; });
         nendo.on('theme', () => { state.themes += 1; });
         nendo.ready.then(view => {

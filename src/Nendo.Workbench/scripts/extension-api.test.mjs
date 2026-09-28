@@ -305,3 +305,104 @@ test('a view’s authored today is a date on a Date field and a zoned instant on
   assert.match(instant.value, /^\d{4}-\d{2}-\d{2}T00:00:00[+-]\d{2}:\d{2}$/, 'A DateTime today was sent without the explicit zone the host requires.');
   assert.equal(instant.value.slice(0, 10), date.value, 'The instant and the date name different days.');
 });
+
+// --- A view's controls in Nendo's own chrome (ADR-0013, 2026-09-28; W-090) ------------------
+
+/** A view's window that also keeps its key listeners, capture first, as a browser runs them. */
+function frameWithKeys() {
+  const sent = [];
+  const listeners = [];
+  const keys = { capture: [], bubble: [] };
+  const parent = { postMessage: (message, targetOrigin) => sent.push({ message, targetOrigin }) };
+  const window = {
+    parent,
+    addEventListener: (type, listener, capture) => {
+      if (type === 'message') listeners.push(listener);
+      if (type === 'keydown') keys[capture === true ? 'capture' : 'bubble'].push(listener);
+    },
+  };
+  // The client spaces a view's toolbars with a timer, as it spaces its state writes.
+  vm.runInNewContext(source, { window, console: { error: () => undefined }, setTimeout, clearTimeout });
+  const press = (key, modifiers = {}, target = { tagName: 'DIV' }, handledByView = false) => {
+    const event = {
+      key, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, repeat: false, isComposing: false, target,
+      defaultPrevented: false, stopped: false,
+      preventDefault() { this.defaultPrevented = true; },
+      stopImmediatePropagation() { this.stopped = true; },
+      ...modifiers,
+    };
+    for (const listener of keys.capture) { listener(event); if (event.stopped) return event; }
+    if (handledByView) event.preventDefault();
+    for (const listener of keys.bubble) listener(event);
+    return event;
+  };
+  return { window, parent, sent, press, deliver: (event) => { for (const listener of listeners) listener(event); } };
+}
+
+test('G28: a view hears the command event; a toolbar declared twice in a tenth of a second is sent once, the latest', async (t) => {
+  const view = frameWithKeys();
+  const workbench = connect(view, { ...baseContext, methods: [...baseContext.methods, 'ui.setToolbar', 'ui.showMenu'] }, t);
+  const nendo = view.window.nendo;
+  assert.equal(nendo.has('ui.setToolbar'), true);
+  const heard = [];
+  nendo.on('command', (command) => heard.push(plain(command)));
+  workbench.send({ t: 'evt', n: 'command', d: { id: 'fit', value: null, source: 'toolbar' } });
+  await until(() => heard.length === 1, 'the command');
+  assert.deepEqual(heard, [{ id: 'fit', value: null, source: 'toolbar' }]);
+
+  const first = nendo.ui.setToolbar([{ kind: 'text', text: '100%' }]);
+  const second = nendo.ui.setToolbar({ items: [{ kind: 'text', text: '110%' }], add: 'add-capability' });
+  const request = await workbench.next((message) => message.t === 'req' && message.m === 'ui.setToolbar');
+  assert.deepEqual(plain(request.p), { items: [{ kind: 'text', text: '110%' }], add: 'add-capability' });
+  workbench.send({ t: 'res', id: request.id, ok: true, r: null });
+  assert.deepEqual([await first, await second], [null, null], 'A caller whose declaration was replaced never heard back.');
+  await settle();
+  assert.equal(workbench.inbox.filter((message) => message.m === 'ui.setToolbar').length, 1, 'Both declarations were sent.');
+
+  const menu = nendo.ui.showMenu([{ id: 'open', label: 'Open record' }], { clientX: 40, clientY: 12, button: 2 });
+  const asked = await workbench.next((message) => message.t === 'req' && message.m === 'ui.showMenu');
+  assert.deepEqual(plain(asked.p), { items: [{ id: 'open', label: 'Open record' }], x: 40, y: 12 });
+  workbench.send({ t: 'res', id: asked.id, ok: true, r: { id: 'open', value: null } });
+  assert.deepEqual(plain(await menu), { id: 'open', value: null });
+});
+
+test('G30: Nendo’s own keys pressed inside a view go to the Workbench before the view sees them', async (t) => {
+  const view = frameWithKeys();
+  const early = view.press('k', { ctrlKey: true });
+  assert.equal(early.defaultPrevented, false, 'A key was taken before any Workbench connected the view.');
+  const workbench = connect(view, baseContext, t);
+  const palette = view.press('k', { ctrlKey: true });
+  assert.equal(palette.defaultPrevented, true, 'Ctrl K pressed inside the view was left to the view instead of handed to Nendo.');
+  assert.equal(palette.stopped, true, 'The view heard Ctrl K, which is Nendo’s.');
+  view.press('F1');
+  view.press('ArrowLeft', { altKey: true }, { tagName: 'INPUT', type: 'text' });
+  view.press('ArrowLeft', { altKey: true });
+  view.press('b', { ctrlKey: true }, { tagName: 'TEXTAREA' });
+  view.press('k', { ctrlKey: true, repeat: true });
+  view.press('0', { ctrlKey: true });
+  await settle();
+  assert.deepEqual(workbench.inbox.filter((message) => message.t === 'key').map((message) => message.keys),
+    ['Ctrl+K', 'F1', 'Alt+ArrowLeft', 'Ctrl+B'], 'Alt and an arrow were taken from a field, a repeat was sent, or a key nobody declared went.');
+});
+
+test('G30: a key the toolbar declares goes to the Workbench once Nendo accepted it, unless the view handled it or somebody is typing', async (t) => {
+  const view = frameWithKeys();
+  const workbench = connect(view, baseContext, t);
+  const nendo = view.window.nendo;
+  view.press('0', { ctrlKey: true });
+  const declared = nendo.ui.setToolbar([{ kind: 'button', id: 'fit', label: 'Fit', keys: 'Control+0' }, { kind: 'button', id: 'off', label: 'Off', keys: 'Ctrl+9', disabled: true }]);
+  const request = await workbench.next((message) => message.t === 'req' && message.m === 'ui.setToolbar');
+  view.press('0', { ctrlKey: true });
+  await settle();
+  assert.equal(workbench.inbox.filter((message) => message.t === 'key').length, 0, 'A key went before Nendo had accepted the toolbar that declares it.');
+  workbench.send({ t: 'res', id: request.id, ok: true, r: null });
+  await declared;
+  const pressed = view.press('0', { ctrlKey: true });
+  assert.equal(pressed.defaultPrevented, true);
+  view.press('0', { ctrlKey: true }, { tagName: 'DIV' }, true);
+  view.press('0', { ctrlKey: true }, { tagName: 'INPUT', type: 'search' });
+  view.press('9', { ctrlKey: true });
+  await settle();
+  assert.deepEqual(workbench.inbox.filter((message) => message.t === 'key').map((message) => message.keys), ['Ctrl+0'],
+    'A key the view handled itself, one pressed while typing, or a disabled control’s went to the Workbench.');
+});

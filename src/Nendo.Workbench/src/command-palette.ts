@@ -1,5 +1,7 @@
 import { content, requiredElement } from './shell';
 import { rankCommands, shortcut, type PaletteCommand, type RankedCommand, type ShortcutId } from './shortcuts';
+import { viewPaletteCommands } from './view-frames';
+import { closeViewMenu } from './view-menu';
 
 /**
  * Ctrl K: one box that goes anywhere the window can go.
@@ -73,6 +75,9 @@ export function currentCommands(): PaletteCommand[] {
   }
   const create = content.querySelector('#new-record');
   if (usable(create)) commands.push({ id: '#new-record', label: labelOf(create), group: 'This page', run: press(create) });
+  // What the custom views on the page offer, under each view's title (W-090). Each runs as a
+  // press of its control does, and what a view disabled is left out.
+  commands.push(...viewPaletteCommands());
 
   for (const action of document.querySelectorAll<HTMLButtonElement>('#file-actions [data-file-action]')) {
     if (!usable(action)) continue;
@@ -150,6 +155,7 @@ export function openPalette(): void {
   if (dialog.open) { input.select(); return; }
   if (document.querySelector('dialog[open]') !== null) return;
   requiredElement<HTMLDetailsElement>('#file-menu').open = false;
+  closeViewMenu();
   returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   input.value = '';
   dialog.showModal();

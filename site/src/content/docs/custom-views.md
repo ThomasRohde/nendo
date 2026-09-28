@@ -14,6 +14,17 @@ A custom view is a small web page that draws your records in a way Nendo's own s
 
 A redraw of the page around a view does not restart it. When you leave the screen, the view stops.
 
+## A view's controls are Nendo's
+
+A view can hand its controls to Nendo. The view says what it offers: buttons, switches, choices, a search box and menus. Nendo draws them in the same toolbar as its other screens, above the view, or in the panel's heading on a record page. Then:
+
+- **Ctrl K** lists the view's commands under its title, with their keys.
+- **Keys** that a view declares work anywhere in the window, except while you type in a field. Nendo's own keys, such as Ctrl K, Ctrl 1 to 7 and Alt F, keep working while the view has focus.
+- **Add** on the view's screen can be the view's own. In the Capability map it adds a capability under the one you selected.
+- **Right-click** inside a view can open Nendo's menu. In the Capability map it offers Open record, Rename and the moves.
+
+A view on an older Nendo draws its own controls. The view never puts its own markup into Nendo's toolbar or menus: Nendo draws the words it is given, as words.
+
 ## How the code gets into the file
 
 A package arrives the way every other change to the application does: as a proposal that you review and accept. The review has a **Code** section with every changed line of each file, and it says, once, that the code runs when a view that uses its package is shown. Nothing runs until you accept.
@@ -34,12 +45,13 @@ A view also needs a definition: a screen, a graph or a record-page panel that na
 
 | A view can | A view cannot |
 | --- | --- |
-| Read every record in the file, with calculated fields and exact numbers | Change a record, run a command or propose a change, in this version |
-| Hear every change to the file, and draw again | Reach Nendo's own page or the bridge to the desktop app |
-| Use the network, including programs on your own computer | Reach SQL, a file path, another file or a setting of this computer |
-| Read and write the clipboard, and download files | Use Nendo's agent connection |
-| Keep browser storage for itself, on this computer | Navigate Nendo away, or load Nendo inside itself |
-| Ask Nendo to open a record, a screen or Studio, and show a sentence | Accept or reject a proposal |
+| Read every record in the file, with calculated fields and exact numbers | Reach Nendo's own page or the bridge to the desktop app |
+| Change records, run commands and propose changes, each in **History** under its package's name | Reach SQL, a file path, another file or a setting of this computer |
+| Hear every change to the file, and draw again | Use Nendo's agent connection |
+| Use the network, including programs on your own computer | Navigate Nendo away, or load Nendo inside itself |
+| Read and write the clipboard, and download files | Accept or reject a proposal |
+| Keep browser storage for itself, and small values in the file | Put markup of its own in Nendo's toolbar or menus |
+| Ask Nendo to open a record, a screen or Studio, show a sentence, and draw its controls and menus | |
 
 Each package runs on a web address of its own, in a browser process of its own, apart from Nendo's own page. A view that hangs or crashes stays in its own place.
 

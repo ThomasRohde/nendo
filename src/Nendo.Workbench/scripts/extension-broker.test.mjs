@@ -24,7 +24,8 @@ function harness() {
   const frameWindow = { postMessage: (message, targetOrigin, transfer) => posted.push({ message, targetOrigin, transfer }) };
   const otherWindow = { postMessage: () => { throw new Error('A window this Workbench did not mount was answered.'); } };
   const mount = { key: 'mount-1', origin, frameWindow: () => frameWindow };
-  const h = { posted, frameWindow, otherWindow, mount, calls: [], pending: [], timers: [], toasts: [], responsive: [], now: 0, running: true, heights: [], opened: [], canOpen: true };
+  const h = { posted, frameWindow, otherWindow, mount, calls: [], pending: [], timers: [], toasts: [], responsive: [], now: 0, running: true, heights: [], opened: [], canOpen: true,
+    toolbars: [], menus: [], menuAnswer: null, keys: [] };
   h.broker = broker.createExtensionBroker({
     request: (method, payload) => {
       h.calls.push({ method, payload });
@@ -41,6 +42,9 @@ function harness() {
       toast: (_mount, text) => h.toasts.push(text),
       setHeight: (_mount, pixels) => { h.heights.push(pixels); return pixels; },
       openProposal: (_mount, preview) => { h.opened.push(preview); return { opened: h.canOpen }; },
+      setToolbar: (_mount, toolbar) => { h.toolbars.push(toolbar); },
+      showMenu: async (_mount, menu) => { h.menus.push(menu); return h.menuAnswer; },
+      key: (_mount, keys) => { h.keys.push(keys); },
     },
     responsive: (_mount, responsive) => h.responsive.push(responsive),
     now: () => h.now,
@@ -115,6 +119,9 @@ test('the method table is closed: reads, the record writes, preparing a proposal
     ['ui.openStudio', null],
     ['ui.toast', null],
     ['ui.setHeight', null],
+    // The view's controls in Nendo's own chrome (W-090): the Workbench draws them itself.
+    ['ui.setToolbar', null],
+    ['ui.showMenu', null],
   ];
   const table = broker.brokerTable();
   assert.deepEqual(table.map(({ method, host }) => [method, host]), expected);
@@ -702,4 +709,157 @@ test('a view’s context is built from the stored nodes: its bindings, filters, 
     { fieldId: 'status', valueKind: 'literal', value: 'status-done' },
     { fieldId: 'due', valueKind: 'today', value: null },
   ] }]);
+});
+
+// --- A view's controls in Nendo's own chrome (ADR-0013, 2026-09-28; W-090) ------------------
+
+const atlasToolbar = {
+  items: [
+    { kind: 'choice', id: 'mode', label: 'Mode', hideLabel: true, value: 'map', options: [{ value: 'map', label: 'Map' }, { value: 'outline', label: 'Outline' }] },
+    { kind: 'select', id: 'colour', label: 'Colour', value: 'maturity', options: [{ value: 'maturity', label: 'Maturity' }, { value: 'none', label: 'Neutral' }] },
+    { kind: 'spacer' },
+    { kind: 'search', id: 'find', label: 'Find a capability', keys: 'ctrl+f' },
+    { kind: 'group', label: 'Zoom', items: [
+      { kind: 'button', id: 'zoom-out', label: 'Zoom out', icon: 'minus', iconOnly: true, keys: 'Ctrl+-' },
+      { kind: 'button', id: 'fit', label: 'Fit', keys: 'Control+0' },
+      { kind: 'button', id: 'zoom-in', label: 'Zoom in', icon: 'plus', iconOnly: true, keys: 'Ctrl+Plus' },
+    ] },
+    { kind: 'toggle', id: 'pan', label: 'Pan', icon: 'pan', pressed: false },
+    { kind: 'text', text: '115%', mono: true },
+    { kind: 'menu', id: 'export', label: 'Export', icon: 'export', items: [
+      { id: 'export-svg', label: 'SVG, to edit', detail: 'Plain shapes and text' },
+      { kind: 'separator' },
+      { kind: 'check', id: 'light', label: 'Light colours for print', checked: false },
+    ] },
+  ],
+  add: 'add-capability',
+};
+
+test('G27: a toolbar is rebuilt into closed kinds and plain text before the Workbench draws it', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  const hostile = structuredClone(atlasToolbar);
+  hostile.items[0].onclick = 'alert(1)';
+  hostile.items[1].options[0].label = '<img src=x onerror=alert(1)>';
+  hostile.items[5].style = 'position:fixed';
+  view.send({ t: 'req', id: 1, m: 'ui.setToolbar', p: hostile });
+  assert.equal((await view.next((message) => message.id === 1)).ok, true);
+  const drawn = h.toolbars.at(-1);
+  assert.equal(drawn.add, 'add-capability');
+  assert.equal(drawn.items[0].onclick, undefined, 'A key the rules do not name reached the Workbench.');
+  assert.equal(drawn.items[5].style, undefined, 'A key the rules do not name reached the Workbench.');
+  assert.equal(drawn.items[1].options[0].label, '<img src=x onerror=alert(1)>', 'A label was changed rather than carried as text for the markup to escape.');
+  // Keys are normalised to one spelling, so a key is one key however a view writes it.
+  assert.deepEqual([drawn.items[3].keys, ...drawn.items[4].items.map((item) => item.keys)], ['Ctrl+F', 'Ctrl+-', 'Ctrl+0', 'Ctrl+Plus']);
+
+  const refusals = [
+    [{ items: [{ kind: 'html', id: 'x', label: 'X' }] }, /kind must be/],
+    [{ items: [{ kind: 'button', id: 'x', label: 'X', icon: 'skull' }] }, /icon must be one of Nendo/],
+    [{ items: [{ kind: 'button', id: 'x', label: 'X', keys: 'Ctrl+K' }] }, /Ctrl\+K is Nendo's own key/],
+    [{ items: [{ kind: 'button', id: 'x', label: 'X', keys: 'F1' }] }, /F1 is Nendo's own key/],
+    [{ items: [{ kind: 'button', id: 'x', label: 'X', keys: 'Q' }] }, /keys must be a key with Ctrl or Alt/],
+    [{ items: [{ kind: 'button', id: 'x', label: 'X' }, { kind: 'toggle', id: 'x', label: 'Y' }] }, /Two controls are named x/],
+    [{ items: [{ kind: 'button', id: 'a', label: 'A', keys: 'Ctrl+E' }, { kind: 'button', id: 'b', label: 'B', keys: 'ctrl+e' }] }, /Two controls declare Ctrl\+E/],
+    [{ items: [{ kind: 'button', id: 'x', label: 'x'.repeat(81) }] }, /label must be text of 1 to 80/],
+    [{ items: Array.from({ length: 33 }, (_, index) => ({ kind: 'button', id: `b${index}`, label: 'B' })) }, /items must be a list of at most 32/],
+    [{ items: [{ kind: 'select', id: 's', label: 'S', value: 'gone', options: [{ value: 'a', label: 'A' }] }] }, /value must be the value of one of its options/],
+    [{ items: [{ kind: 'group', label: 'G', items: [{ kind: 'search', id: 'f', label: 'F' }] }] }, /a group holds buttons/],
+    [{ items: [{ kind: 'button', id: '<script>', label: 'X' }] }, /id must be 1 to 64 letters/],
+    [{ items: [], add: 'bad id' }, /add\.id must be/],
+  ];
+  let id = 2;
+  for (const [params, pattern] of refusals) {
+    const count = h.toolbars.length;
+    h.now += 1_000;
+    view.send({ t: 'req', id, m: 'ui.setToolbar', p: params });
+    const answer = await view.next((message) => message.id === id);
+    assert.equal(answer.ok, false, `${JSON.stringify(params).slice(0, 120)} was drawn.`);
+    assert.equal(answer.e.code, 'invalid-params');
+    assert.match(answer.e.message, pattern);
+    assert.equal(h.toolbars.length, count, 'A refused toolbar still reached the Workbench.');
+    id += 1;
+  }
+  // An empty declaration takes the toolbar away.
+  h.now += 1_000;
+  view.send({ t: 'req', id: 99, m: 'ui.setToolbar', p: { items: [] } });
+  assert.equal((await view.next((message) => message.id === 99)).ok, true);
+  assert.equal(h.toolbars.at(-1), null);
+});
+
+test('G27: a view declares its toolbar at most twenty times a second', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  for (let id = 1; id <= 21; id += 1) view.send({ t: 'req', id, m: 'ui.setToolbar', p: { items: [{ kind: 'text', text: `${id}%` }] } });
+  const last = await view.next((message) => message.id === 21);
+  assert.equal(last.ok, false);
+  assert.equal(last.e.code, 'busy');
+  assert.equal(h.toolbars.length, 20);
+  h.now = 1_001;
+  view.send({ t: 'req', id: 22, m: 'ui.setToolbar', p: { items: [] } });
+  assert.equal((await view.next((message) => message.id === 22)).ok, true);
+});
+
+test('G28: a command reaches the connected view as the event command, with exactly its id, value and source', async (t) => {
+  const h = harness();
+  assert.equal(h.broker.command(h.mount, { id: 'fit', value: null, source: 'toolbar' }), false, 'A view that is not connected was said to be told.');
+  const view = connect(h);
+  t.after(() => close(h));
+  assert.equal(h.broker.command(h.mount, { id: 'pan', value: true, source: 'key', extra: 'dropped' }), true);
+  assert.deepEqual(await view.next((message) => message.n === 'command'), { t: 'evt', n: 'command', d: { id: 'pan', value: true, source: 'key' } });
+});
+
+test('G29: a menu the view asks for is rebuilt, drawn at its point, and answers the pick; four a second', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  h.menuAnswer = { id: 'rename', value: null };
+  view.send({ t: 'req', id: 1, m: 'ui.showMenu', p: {
+    x: 120.4, y: 48, items: [{ id: 'open', label: 'Open record', icon: 'external', keys: 'Enter', script: 'x' }, { kind: 'separator' }, { id: 'rename', label: 'Rename', keys: 'F2' }],
+  } });
+  const answer = await view.next((message) => message.id === 1);
+  assert.equal(answer.ok, false, 'Enter alone was taken as a key a view may declare.');
+  view.send({ t: 'req', id: 2, m: 'ui.showMenu', p: {
+    x: 120.4, y: 48, items: [{ id: 'open', label: 'Open record', icon: 'external', script: 'x' }, { kind: 'separator' }, { id: 'rename', label: 'Rename', keys: 'F2' }],
+  } });
+  assert.deepEqual((await view.next((message) => message.id === 2)).r, { id: 'rename', value: null });
+  assert.deepEqual(h.menus.at(-1), { x: 120, y: 48, items: [
+    { kind: 'item', id: 'open', label: 'Open record', detail: null, icon: 'external', keys: null, disabled: false, danger: false },
+    { kind: 'separator' },
+    { kind: 'item', id: 'rename', label: 'Rename', detail: null, icon: null, keys: 'F2', disabled: false, danger: false },
+  ] }, 'The menu reached the Workbench as the view sent it rather than rebuilt.');
+  view.send({ t: 'req', id: 3, m: 'ui.showMenu', p: { x: 0, y: 0, items: [{ kind: 'separator' }] } });
+  assert.match((await view.next((message) => message.id === 3)).e.message, /at least one item to pick/);
+  h.now = 2_000;
+  for (let id = 4; id <= 7; id += 1) view.send({ t: 'req', id, m: 'ui.showMenu', p: { x: 0, y: 0, items: [{ id: 'a', label: 'A' }] } });
+  assert.equal((await view.next((message) => message.id === 7)).ok, true);
+  view.send({ t: 'req', id: 8, m: 'ui.showMenu', p: { x: 0, y: 0, items: [{ id: 'a', label: 'A' }] } });
+  assert.equal((await view.next((message) => message.id === 8)).e.code, 'busy', 'A fifth menu in one second was drawn.');
+});
+
+test('G30: a key handed back is taken only when it is Nendo’s or one the toolbar declares, eight a second, and not with views off', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  view.send({ t: 'key', keys: 'Ctrl+K' });
+  view.send({ t: 'key', keys: 'Ctrl+0' });
+  view.send({ t: 'key', keys: 'Ctrl+W' });
+  view.send({ t: 'key', keys: ['Ctrl+K'] });
+  await settle();
+  assert.deepEqual(h.keys, ['Ctrl+K'], 'A key the view never declared, or not a key at all, was run.');
+  view.send({ t: 'req', id: 1, m: 'ui.setToolbar', p: atlasToolbar });
+  await view.next((message) => message.id === 1);
+  view.send({ t: 'key', keys: 'Ctrl+0' });
+  view.send({ t: 'key', keys: 'Alt+ArrowLeft' });
+  await settle();
+  assert.deepEqual(h.keys, ['Ctrl+K', 'Ctrl+0', 'Alt+ArrowLeft']);
+  for (let index = 0; index < 10; index += 1) view.send({ t: 'key', keys: 'Ctrl+Plus' });
+  await settle();
+  assert.equal(h.keys.filter((keys) => keys === 'Ctrl+Plus').length, 5, 'More than eight keys in one second were run.');
+  h.now = 5_000;
+  h.running = false;
+  view.send({ t: 'key', keys: 'Ctrl+K' });
+  await settle();
+  assert.equal(h.keys.filter((keys) => keys === 'Ctrl+K').length, 1, 'A key was run while views were off.');
 });

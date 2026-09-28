@@ -489,6 +489,115 @@ try {
     'A kept value did not come back after the view reloaded: ' + JSON.stringify(restored));
   check(`G22 a view keeps state with the file: it comes back after a reload, three writes to one key sent together reach the file as one, and History names the package on each (${report.measurements.stateWritesMs} ms)`);
 
+  // G27 to G30 (W-090, ADR-0013 2026-09-28): a view's controls in Nendo's own chrome. The probe
+  // declares a toolbar; Nendo draws it above the frame in its own controls, sends each press, its
+  // Add, a Ctrl K entry and a key back as a command, draws the menu the view asks for, and keeps
+  // its own keys working while the view has focus.
+  await click('#nav-use'); await idle();
+  await click('[data-select-surface="probe"]'); await idle();
+  const chromeView = await waitFor(async () => (await frames()).find(f => f.view === 'probe' && f.state === 'running'), 'the probe screen running for its toolbar', 30000);
+  const chromeFrame = await frameSession(chromeView.name);
+  await waitFor(() => inFrame(chromeFrame, 'probe.state.ready'), 'the probe handshake for its toolbar');
+  assert((await inFrame(chromeFrame, `['ui.setToolbar', 'ui.showMenu'].map(name => nendo.has(name))`)).every(Boolean), 'The view is not offered the toolbar and the menu.');
+  const declared = await inFrame(chromeFrame, 'probe.declare()', 10000);
+  assert(declared === 'declared', 'The probe\u2019s toolbar was refused: ' + declared);
+  const probeMount = `[...document.querySelectorAll('[data-view-mount]')].find(m => m.dataset.viewId === 'probe')`;
+  const chromeStrip = await waitFor(() => evaluate(`(() => { const chromeMount = ${probeMount};
+    const bar = chromeMount?.querySelector(':scope > [data-view-toolbar]');
+    if (!bar) return 'error: no strip; the placeholder is ' + (chromeMount ? chromeMount.className + ' ' + chromeMount.dataset.viewState + ' holding ' + [...chromeMount.children].map(c => c.tagName + '.' + c.className).join(' ') : 'gone');
+    const chromeBox = bar.getBoundingClientRect(), frame = chromeMount.querySelector('iframe').getBoundingClientRect();
+    return { above: chromeBox.bottom <= frame.top + 1, height: Math.round(chromeBox.height), images: bar.querySelectorAll('img').length, markup: window.journeyMarkup ?? null,
+      pin: bar.querySelector('[data-view-command="pin"]')?.textContent ?? null,
+      choice: Boolean(bar.querySelector('.view-switcher [data-view-value="two"]')), search: Boolean(bar.querySelector('input[type="search"][data-view-command="find"]')),
+      menu: Boolean(bar.querySelector('button[data-view-menu="export"][aria-haspopup="menu"]')), keys: bar.querySelector('[data-view-command="fit"]')?.getAttribute('aria-keyshortcuts') ?? null }; })()`),
+  'the probe\u2019s toolbar, drawn by Nendo');
+  assert(chromeStrip.above && chromeStrip.height >= 40 && chromeStrip.choice && chromeStrip.search && chromeStrip.menu && chromeStrip.keys === 'Control+0',
+    'Nendo did not draw the declared toolbar above the frame in its own controls: ' + JSON.stringify(chromeStrip));
+  assert(chromeStrip.images === 0 && chromeStrip.markup === null && chromeStrip.pin.includes('<img src=x'), 'A label a view declared became markup in the Workbench: ' + JSON.stringify(chromeStrip));
+  report.measurements.viewToolbarHeight = chromeStrip.height;
+  // With the key hints on, every control keeps its key inside itself: an icon button grows to
+  // hold it rather than spilling it over the control beside it.
+  await click('#shortcuts-toggle');
+  const hinted = await waitFor(() => evaluate(`(() => { const bar = ${probeMount}.querySelector('[data-view-toolbar]');
+    const shown = [...bar.querySelectorAll('.kbd-hint')].filter(hint => getComputedStyle(hint).display !== 'none').length; if (shown < 3) return null;
+    const spill = [...bar.querySelectorAll('.view-toolbar-button')].filter(b => b.scrollWidth > b.clientWidth + 1).map(b => b.dataset.viewCommand);
+    const boxes = [...bar.querySelectorAll('.view-toolbar-button, .view-toolbar-search, .view-switcher, .select-field')].map(e => e.getBoundingClientRect());
+    let overlaps = 0;
+    for (let i = 0; i < boxes.length; i += 1) for (let j = i + 1; j < boxes.length; j += 1) {
+      const a = boxes[i], b = boxes[j];
+      if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) overlaps += 1;
+    }
+    return { shown, spill, overlaps }; })()`), 'the key hints shown in the strip');
+  await click('#shortcuts-toggle');
+  assert(hinted.spill.length === 0 && hinted.overlaps === 0, 'With the key hints on, a control spills its key over the control beside it: ' + JSON.stringify(hinted));
+  check(`G27 a view's declared toolbar is drawn by Nendo above its frame (${chromeStrip.height} px) in Nendo's own controls, a label that looks like markup stays text, and with the key hints on each of ${hinted.shown} keys stays inside its control`);
+
+  // G28: a press in the strip, Nendo's own Add and a Ctrl K entry each reach the view as a command.
+  const heard = () => inFrame(chromeFrame, 'probe.state.commands.map(c => [c.id, c.value, c.source].join(":"))');
+  await evaluate(`${probeMount}.querySelector('[data-view-toolbar] [data-view-command="mode"][data-view-value="two"]').click()`);
+  await evaluate(`${probeMount}.querySelector('[data-view-toolbar] [data-view-command="pin"]').click()`);
+  await waitFor(async () => (await heard()).join() === 'mode:two:toolbar,pin:true:toolbar' ? true : null, 'two presses reaching the view');
+  const shown = await evaluate(`(() => { const bar = ${probeMount}.querySelector('[data-view-toolbar]');
+    return [bar.querySelector('[data-view-value="two"]').getAttribute('aria-pressed'), bar.querySelector('[data-view-command="pin"]').getAttribute('aria-pressed')]; })()`);
+  assert(shown.join() === 'true,true', 'Nendo did not show the presses at once: ' + JSON.stringify(shown));
+  await click('#new-record');
+  await waitFor(async () => (await heard()).includes('probe-add::add') ? true : null, 'Nendo\u2019s Add reaching the view');
+  await sleep(300);
+  assert(!(await evaluate(`Boolean(document.querySelector('.record-inspector #record-form'))`)), 'Nendo\u2019s Add opened its own form although the view took it.');
+  await click('#palette-open');
+  const listed = await waitFor(() => evaluate(`(() => { const items = [...document.querySelectorAll('#command-palette-list li')].map(li => li.textContent);
+    return items.some(text => text === 'FitProbe screenCtrl 0') ? items.filter(text => text.includes('Probe screen')) : null; })()`), 'the probe\u2019s commands in Ctrl K');
+  for (const expected of ['Mode: OneProbe screen', 'Turn off Pin <img src=x onerror=parent.journeyMarkup=1>Probe screen', 'Find a taskProbe screenCtrl Shift F', 'Export: SVGProbe screen', 'Export: Turn on LightProbe screen'])
+    assert(listed.includes(expected), `Ctrl K does not list "${expected}": ` + JSON.stringify(listed));
+  await evaluate(`[...document.querySelectorAll('#command-palette-list li')].find(li => li.textContent === 'FitProbe screenCtrl 0').click()`);
+  await waitFor(async () => (await heard()).includes('fit::palette') ? true : null, 'the Ctrl K entry reaching the view');
+  assert(!(await evaluate(`document.querySelector('#command-palette').open`)), 'The palette stayed open after running a view\u2019s command.');
+  check('G28 a press in the strip, Nendo\u2019s own Add (its form left closed) and a Ctrl K entry each reach the view as a command, and the strip shows the press at once');
+
+  // G29: the menu a view asks for is Nendo's, at the point in the frame, and answers the pick; Escape answers nothing.
+  await inFrame(chromeFrame, 'probe.menu(40, 30)');
+  const menu = await waitFor(() => evaluate(`(() => { const m = document.querySelector('[data-view-menu-open]'); if (!m) return null;
+    const chromeBox = m.getBoundingClientRect(), frame = ${probeMount}.querySelector('iframe').getBoundingClientRect();
+    return { items: [...m.querySelectorAll('.view-menu-item')].map(i => i.textContent), dx: Math.round(chromeBox.left - frame.left), dy: Math.round(chromeBox.top - frame.top),
+      onBody: m.parentElement === document.body, focused: m.contains(document.activeElement) }; })()`), 'Nendo\u2019s menu for the probe');
+  assert(menu.onBody && Math.abs(menu.dx - 40) <= 2 && Math.abs(menu.dy - 30) <= 2 && menu.items.join('|') === 'Open|RenameF2|Delete' && menu.focused,
+    'The view\u2019s menu is not Nendo\u2019s, at its point, with its items: ' + JSON.stringify(menu));
+  await evaluate(`[...document.querySelectorAll('[data-view-menu-open] .view-menu-item')][1].click()`);
+  const picked = await waitFor(() => inFrame(chromeFrame, `probe.state.pick && probe.state.pick !== 'waiting' ? probe.state.pick : null`), 'the pick reaching the view');
+  assert(picked.id === 'rename' && picked.value === null, 'The view did not hear its pick: ' + JSON.stringify(picked));
+  await inFrame(chromeFrame, 'probe.menu(10, 10)');
+  await waitFor(() => evaluate(`Boolean(document.querySelector('[data-view-menu-open]'))`), 'the second menu');
+  await evaluate(`document.querySelector('[data-view-menu-open] .view-menu-item').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))`);
+  await waitFor(() => inFrame(chromeFrame, `probe.state.pick === null ? 'dismissed' : null`), 'a dismissed menu answering nothing');
+  assert(!(await evaluate(`Boolean(document.querySelector('[data-view-menu-open]'))`)), 'Escape left the menu open.');
+  check(`G29 the menu a view asks for is Nendo's, drawn on the Workbench at the view's point (${menu.dx}, ${menu.dy}), and answers the pick; Escape answers nothing`);
+
+  // G30: keys. A key pressed inside a view never reaches the Workbench's document on its own:
+  // Nendo's own come back through api.js, before the view sees them, and a declared key runs its
+  // command wherever focus is. The keys are real key events, sent to the focused frame.
+  const press = async (key, code, keyCode, modifiers = 0) => {
+    await command('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code, windowsVirtualKeyCode: keyCode, modifiers }, page);
+    await command('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: keyCode, modifiers }, page);
+  };
+  // The window runs hidden, so focus is emulated as a focused window's would be.
+  await command('Emulation.setFocusEmulationEnabled', { enabled: true }, page);
+  await evaluate(`${probeMount}.querySelector('iframe').focus()`);
+  await inFrame(chromeFrame, `document.body.tabIndex = -1; document.body.focus(); probe.state.keys.length = 0; true`);
+  await press('q', 'KeyQ', 81);
+  await waitFor(async () => (await inFrame(chromeFrame, 'probe.state.keys.join()')) === 'q' ? true : null, 'a key the view keeps reaching the view');
+  await press('k', 'KeyK', 75, 2);
+  await waitFor(() => evaluate(`document.querySelector('#command-palette')?.open === true`), 'Ctrl K pressed inside the view opening the palette', 5000);
+  assert(!(await inFrame(chromeFrame, 'probe.state.keys.includes("Ctrl+k")')), 'The view heard Ctrl K, which is Nendo\u2019s.');
+  await evaluate(`document.querySelector('#command-palette').close()`);
+  await evaluate(`${probeMount}.querySelector('iframe').focus()`);
+  const beforeKey = (await heard()).length;
+  await press('0', 'Digit0', 48, 2);
+  await waitFor(async () => (await heard()).slice(beforeKey).includes('fit::key') ? true : null, 'a declared key pressed inside the view running its command');
+  await evaluate(`document.activeElement?.blur(); document.body.focus(); true`);
+  await press('0', 'Digit0', 48, 2);
+  await waitFor(async () => (await heard()).slice(beforeKey).filter(line => line === 'fit::key').length === 2 ? true : null, 'the declared key pressed in the Workbench running its command');
+  check('G30 Ctrl K pressed inside a view opens the palette before the view hears it, a key the view keeps reaches it, and a declared key runs its command from inside the view and from the Workbench');
+
   console.log('extension views ok');
 } catch (error) {
   report.error = error.stack ?? String(error);

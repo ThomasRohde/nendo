@@ -837,6 +837,18 @@ vocabulary, the examples and the resources — and not from the person.
   card, its text and colour, the title and the legend arrived, whether PowerPoint kept the
   text as text, whether the two SVGs differ, and what Light colours for print changed in the
   dark theme.
+- In the Capability map and in the planner's Work dependencies, the view's controls are
+  Nendo's own. Record whether the strip above each view looks and behaves like the toolbar
+  of Nendo's other screens. Check whether Ctrl K lists the view's commands under its title
+  and runs them, and whether the keys it shows work with focus inside the map and outside
+  it. With focus inside the map, check whether Ctrl K, Ctrl 2 and Alt F still do what they
+  do elsewhere. Select a card, press Add Capability, and record where the new capability
+  would land. Right-click a card and a work item: record what each menu offers, whether the
+  browser's own menu appeared as well, and whether Escape, a click elsewhere and the arrow
+  keys behave as they do in the File menu.
+- Author a view that declares its toolbar through `nendo.ui.setToolbar`, with a label that
+  looks like markup, a key Nendo already uses, and 33 controls. Record what the wire told
+  you before you wrote it, what Nendo said about each, and what it kept drawing.
 - Put the repository's `extensions/bcm-atlas` package into the empty review file. Give a
   record type a reference to itself, declare it as the hierarchy, and add records three
   levels deep. Show the package over that record type with a view whose configuration

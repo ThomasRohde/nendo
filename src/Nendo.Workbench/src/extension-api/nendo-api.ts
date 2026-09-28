@@ -13,8 +13,8 @@
  */
 import { resolveClauseValue } from '../record-window';
 import {
-  apiVersion, extensionLimits, utf8Length,
-  type ConnectMessage, type HelloMessage, type Json, type PortMessage, type SchemaDescription, type SchemaField,
+  apiVersion, chordOf, extensionLimits, hostKeys, normalizeKeys, utf8Length,
+  type ConnectMessage, type HelloMessage, type Json, type KeyEventLike, type PortMessage, type SchemaDescription, type SchemaField,
   type ViewContext, type ViewEventName, type ViewGraph, type ViewPage, type ViewRecord, type ViewTheme, type ViewTreeNode, type ViewTreePage,
 } from './protocol';
 
@@ -64,7 +64,7 @@ function install(host: Window & { nendo?: unknown }): void {
   }
 
   function on(name: ViewEventName, listener: (data: never) => void): () => void {
-    if (name !== 'context' && name !== 'theme' && name !== 'changes')
+    if (name !== 'context' && name !== 'theme' && name !== 'changes' && name !== 'command')
       throw new NendoError('unknown-event', `${String(name)} is not an event a view can hear.`);
     if (!listeners.has(name)) listeners.set(name, new Set());
     listeners.get(name)!.add(listener);
@@ -169,6 +169,43 @@ function install(host: Window & { nendo?: unknown }): void {
   // A page opened on its own has no Workbench to connect to: say so, rather than wait forever.
   if (host.parent !== host) host.parent.postMessage({ nendo: 'hello', apiVersion } satisfies HelloMessage, '*');
   else refuse(new NendoError('not-framed', 'This page is a Nendo view. It runs inside Nendo, on a screen or a record page that shows it.'));
+
+  /**
+   * Keys (W-090). A key pressed in a cross-origin frame never reaches the Workbench, so Nendo's
+   * own keys would do nothing while a view had focus. Pressed here, one of Nendo's is handed to
+   * the Workbench before the view sees it, as it is Nendo's; Alt and an arrow are not taken
+   * from a field, where they move within it, as the Workbench leaves them there too. A key the
+   * view's toolbar declares goes the same way once the view has had its chance: a view that
+   * handles the key itself calls preventDefault, and a person typing in a field keeps it.
+   */
+  const typing = (target: unknown): boolean => {
+    const element = target as { tagName?: unknown; type?: unknown; isContentEditable?: unknown } | null;
+    if (element === null || typeof element !== 'object') return false;
+    if (element.isContentEditable === true) return true;
+    const tag = typeof element.tagName === 'string' ? element.tagName.toUpperCase() : '';
+    if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    return tag === 'INPUT' && !['button', 'submit', 'reset', 'checkbox', 'radio', 'range', 'color', 'file', 'image'].includes(String(element.type ?? 'text'));
+  };
+  type KeyEvent = KeyEventLike & { repeat?: boolean; defaultPrevented?: boolean; target?: unknown; isComposing?: boolean;
+    preventDefault(): void; stopImmediatePropagation(): void };
+  if (typeof host.addEventListener === 'function') {
+    host.addEventListener('keydown', ((event: KeyEvent) => {
+      if (port === null || event.repeat === true || event.isComposing === true) return;
+      const keys = chordOf(event);
+      if (keys === null || !hostKeys.includes(keys)) return;
+      if (keys.startsWith('Alt+Arrow') && typing(event.target)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      port.postMessage({ t: 'key', keys } satisfies PortMessage);
+    }) as unknown as EventListener, true);
+    host.addEventListener('keydown', ((event: KeyEvent) => {
+      if (port === null || event.repeat === true || event.isComposing === true || event.defaultPrevented === true) return;
+      const keys = chordOf(event);
+      if (keys === null || !declared.has(keys) || typing(event.target)) return;
+      event.preventDefault();
+      port.postMessage({ t: 'key', keys } satisfies PortMessage);
+    }) as unknown as EventListener);
+  }
 
   /** Every node of a tree window, depth-first, read again from the top if the file changes between pages. */
   async function treeAll(query: Query, options: { max?: number } = {}): Promise<ViewTreeNode[]> {
@@ -334,6 +371,73 @@ function install(host: Window & { nendo?: unknown }): void {
     }, Math.max(0, stateSentAt + extensionLimits.stateWriteSpacingMs - Date.now()));
   }
 
+  /**
+   * The view's controls in Nendo's own chrome (W-090). A declaration replaces the last, so one
+   * made while another waits its turn replaces it, and every caller hears the answer to the
+   * one sent: at most one every toolbarSpacingMs, so a view that declares its zoom on every
+   * wheel tick costs ten redraws of the strip a second, not sixty.
+   */
+  let toolbarWaiting: { params: Record<string, unknown>; keys: Set<string>; waiters: Waiting[] } | null = null;
+  let toolbarTimer: ReturnType<typeof setTimeout> | null = null;
+  let toolbarSentAt = -Infinity;
+  /** The keys the toolbar Nendo last accepted declares: pressed here, they go to the Workbench. */
+  let declared = new Set<string>();
+
+  /** The keys a declaration names on controls a person can press, as the broker will read them. */
+  function keysOf(items: unknown): Set<string> {
+    const found = new Set<string>();
+    const visit = (list: unknown): void => {
+      if (!Array.isArray(list)) return;
+      for (const entry of list) {
+        if (typeof entry !== 'object' || entry === null) continue;
+        const item = entry as { kind?: unknown; keys?: unknown; disabled?: unknown; items?: unknown };
+        if (item.disabled === true) continue;
+        const keys = normalizeKeys(item.keys);
+        if (keys !== null && item.kind !== 'radio' && item.kind !== 'label') found.add(keys);
+        if (item.kind === 'group' || item.kind === 'menu') visit(item.items);
+      }
+    };
+    visit(items);
+    return found;
+  }
+
+  function sendToolbar(): void {
+    if (toolbarTimer !== null || toolbarWaiting === null) return;
+    toolbarTimer = setTimeout(() => {
+      toolbarTimer = null;
+      const entry = toolbarWaiting;
+      toolbarWaiting = null;
+      if (entry === null) return;
+      toolbarSentAt = Date.now();
+      call('ui.setToolbar', entry.params).then(
+        (answer) => { declared = entry.keys; for (const waiter of entry.waiters) waiter.resolve(answer); },
+        (error: unknown) => { for (const waiter of entry.waiters) waiter.reject(error); });
+      sendToolbar();
+    }, Math.max(0, toolbarSentAt + extensionLimits.toolbarSpacingMs - Date.now()));
+  }
+
+  function setToolbar(toolbar: { items?: unknown[]; add?: string | null } | unknown[]): Promise<null> {
+    const spec = Array.isArray(toolbar) ? { items: toolbar } : toolbar ?? {};
+    const params = { items: (spec as { items?: unknown }).items ?? [], add: (spec as { add?: unknown }).add ?? null };
+    return new Promise((resolve, reject) => {
+      const waiter: Waiting = { resolve: resolve as (value: unknown) => void, reject };
+      if (toolbarWaiting === null) toolbarWaiting = { params, keys: keysOf(params.items), waiters: [waiter] };
+      else { toolbarWaiting.params = params; toolbarWaiting.keys = keysOf(params.items); toolbarWaiting.waiters.push(waiter); }
+      sendToolbar();
+    });
+  }
+
+  type MenuPoint = { x: number; y: number } | { clientX: number; clientY: number };
+
+  /**
+   * One of Nendo's menus at a point in this view: the person's pick, as `{id, value}`, or null
+   * when they dismiss it. `at` is a point in the view's own pixels, or the mouse event itself.
+   */
+  function showMenu(items: unknown[], at: MenuPoint): Promise<{ id: string; value: string | boolean | null } | null> {
+    const point = 'clientX' in at ? { x: at.clientX, y: at.clientY } : { x: at.x, y: at.y };
+    return call('ui.showMenu', { items, x: point.x, y: point.y });
+  }
+
   type ProposalAnswer = { proposalId: string; title: string; state: string; diagnostics: Array<{ code: string; message: string; severity: string }>; opened?: boolean };
 
   const nendo = Object.freeze({
@@ -439,6 +543,16 @@ function install(host: Window & { nendo?: unknown }): void {
       openStudio: (entityId?: string): Promise<unknown> => call('ui.openStudio', { entityId: entityId ?? null }),
       toast: (text: string): Promise<unknown> => call('ui.toast', { text }),
       setHeight: (pixels: number): Promise<unknown> => call('ui.setHeight', { pixels }),
+      /**
+       * The view's controls, drawn by Nendo in its own toolbar, menus, Ctrl K and keys: { items,
+       * add }, or the list of items alone. Each call replaces the last; an empty list removes
+       * them. A press arrives as the event `command`. `add` names the command Nendo's own Add
+       * button runs on this view's screen. Ask nendo.has('ui.setToolbar') first: an older Nendo
+       * leaves the view to draw its own.
+       */
+      setToolbar,
+      /** One of Nendo's menus at a point in the view, or at a mouse event: the pick as { id, value }, or null. */
+      showMenu,
       get theme(): ViewTheme | null { return context?.theme ?? null; },
     }),
     view: Object.freeze({ loadRecords, loadGraph }),

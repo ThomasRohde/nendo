@@ -22,7 +22,8 @@ import { announce, applyRail, applyTheme, content, historyBack, historyForward, 
 import { holdingThePage, refuseWhileDirty } from './draft-guard';
 import { backTarget, forwardTarget, goBack, goForward, placeName, recordPlace } from './navigation-actions';
 import { state } from './app-state';
-import { installViewFrames, parkViewFrames, releaseViewFrames } from './view-frames';
+import { installViewFrames, onHostKey, parkViewFrames, releaseViewFrames, runViewKey } from './view-frames';
+import { chordOf } from './extension-api/protocol';
 import { capitalise, messageFor } from './format';
 import {
   CellStyleModule,
@@ -40,7 +41,7 @@ import { useFieldKinds } from './record-window';
 import { storageKindName } from './extension-model';
 import { icon, type IconName } from './icons';
 import { openPalette } from './command-palette';
-import { matchShortcut, shortcut, shortcutsShownFrom, shortcutsStorageKey, type ShortcutId } from './shortcuts';
+import { matchShortcut, shortcut, shortcutForKeys, shortcutsShownFrom, shortcutsStorageKey, type ShortcutId } from './shortcuts';
 import './styles.css';
 
 // An option or API call whose module is missing is ignored after a console error, so the
@@ -137,6 +138,9 @@ function render(): void {
   if (state.view !== 'help' && (!state.session.capabilities.mutate || awaitingSave)) {
     for (const control of content.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(alwaysAvailable)) {
       if (!awaitingSave && control.closest('#studio-query') && state.session.capabilities.readData) continue;
+      // A custom view's controls are the view's to disable (W-090): it is told the file is
+      // read-only, and the host refuses its writes whatever it draws.
+      if (control.closest('[data-view-toolbar]') !== null) continue;
       control.disabled = true;
     }
   }
@@ -403,9 +407,22 @@ for (const [id, button] of Object.entries(shortcutTargets)) button!.setAttribute
 document.addEventListener('keydown', event => {
   if (event.defaultPrevented || event.repeat) return;
   const id = matchShortcut(event);
-  if (id === null) return;
   if (document.querySelector('dialog[open]') !== null) return;
+  if (id === null) {
+    // A key a custom view on the page declared (W-090), unless somebody is typing here.
+    const focused = document.activeElement;
+    if (focused instanceof HTMLInputElement || focused instanceof HTMLSelectElement || focused instanceof HTMLTextAreaElement ||
+        (focused instanceof HTMLElement && focused.isContentEditable)) return;
+    const keys = chordOf(event);
+    if (keys !== null && runViewKey(keys)) event.preventDefault();
+    return;
+  }
   event.preventDefault();
+  runShortcut(id);
+});
+
+/** One of the window's shortcuts, pressed here or inside a custom view. */
+function runShortcut(id: ShortcutId): void {
   if (id === 'palette') { openPalette(); return; }
   if (id === 'hints') { shortcutsToggle.click(); return; }
   if (id === 'file') {
@@ -417,6 +434,19 @@ document.addEventListener('keydown', event => {
   // A folded or hidden control is not there to press; nor is a route that is switched off.
   if (target === undefined || target.disabled || target.offsetParent === null) return;
   target.click();
+}
+
+// A key pressed inside a custom view never reaches this document, so the view's api.js hands
+// Nendo's own keys back and the Workbench runs them here, exactly as if pressed here (W-090).
+onHostKey((keys) => {
+  const id = shortcutForKeys(keys);
+  if (id === null || document.querySelector('dialog[open]') !== null) return;
+  if (id === 'back' || id === 'forward') {
+    if (fileDetails.open) return;
+    if (id === 'back') void goBack(); else void goForward();
+    return;
+  }
+  runShortcut(id);
 });
 const fileDetails = requiredElement<HTMLDetailsElement>('#file-menu');
 const fileSummary = fileDetails.querySelector('summary')!;

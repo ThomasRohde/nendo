@@ -41,7 +41,109 @@ export const extensionLimits = {
   /** A page of records: 1 to 200, 100 when the view names no limit. */
   maximumPageLimit: 200,
   defaultPageLimit: 100,
+  /**
+   * A view's toolbar in Nendo's chrome (2026-09-28, W-090): at most this many controls in the
+   * row, buttons in a group, options in a choice or a select, and items in a menu.
+   */
+  toolbarItems: 32,
+  groupItems: 8,
+  choiceOptions: 12,
+  selectOptions: 64,
+  menuItems: 48,
+  /** The most UTF-8 bytes one toolbar or menu declaration may take, as JSON. */
+  toolbarBytes: 16 * 1024,
+  /** A label, an option or a text: at most this many characters; a menu item's detail line, the second. */
+  labelCharacters: 80,
+  detailCharacters: 120,
+  /** The most toolbars one view declares in any second; the API sends a view's at most every 100 ms. */
+  toolbarsPerSecond: 20,
+  toolbarSpacingMs: 100,
+  /** The most menus one view asks Nendo to draw in any second. */
+  menusPerSecond: 4,
+  /** The most keys one view hands the Workbench in any second. */
+  keysPerSecond: 8,
 } as const;
+
+/**
+ * Nendo's own keys, in the form a key is normalised to. A view cannot declare one, and a view
+ * does not keep one from Nendo: pressed inside a view, api.js hands it to the Workbench, whose
+ * shortcut it is (W-090).
+ */
+export const hostKeys: readonly string[] = Object.freeze([
+  'Ctrl+K', 'Ctrl+1', 'Ctrl+2', 'Ctrl+3', 'Ctrl+4', 'Ctrl+5', 'Ctrl+6', 'Ctrl+7',
+  'F1', 'Ctrl+B', 'Alt+F', 'Ctrl+/', 'Alt+ArrowLeft', 'Alt+ArrowRight',
+]);
+
+/** Keys named by a word, in the case a normalised key spells them. */
+const namedKeys = [
+  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown',
+  'Delete', 'Backspace', 'Enter', 'Space', 'Plus',
+  'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
+];
+const symbolKeys = '=-[];\',./\\`';
+
+/**
+ * A key as a view declares it, normalised: its modifiers in the order Ctrl, Alt, Shift, then
+ * the key, joined by '+'. A letter is upper case; `Plus` stands for '+'. Null when it is not
+ * a key a view may declare: a character or a movement key needs Ctrl or Alt, so a key never
+ * takes a letter from somebody typing, and only F2 to F12 stand alone.
+ */
+export function normalizeKeys(text: unknown): string | null {
+  const keys = parseKeys(text);
+  if (keys === null) return null;
+  const parts = keys.split('+');
+  const standsAlone = /^F([2-9]|1[0-2])$/.test(parts[parts.length - 1]);
+  return parts.includes('Ctrl') || parts.includes('Alt') || standsAlone ? keys : null;
+}
+
+/** Any key in the normalised spelling, whether or not a view may declare it; null when it names no key. */
+export function parseKeys(text: unknown): string | null {
+  if (typeof text !== 'string' || text.length === 0 || text.length > 40) return null;
+  const parts = text.split('+').map((part) => part.trim());
+  const key = parts.pop() ?? '';
+  let ctrl = false; let alt = false; let shift = false;
+  for (const part of parts) {
+    const word = part.toLowerCase();
+    if ((word === 'ctrl' || word === 'control') && !ctrl) ctrl = true;
+    else if (word === 'alt' && !alt) alt = true;
+    else if (word === 'shift' && !shift) shift = true;
+    else return null;
+  }
+  let name: string;
+  if (/^[A-Za-z0-9]$/.test(key)) name = key.toUpperCase();
+  else if (key.length === 1 && symbolKeys.includes(key)) name = key;
+  else {
+    const named = namedKeys.find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+    if (named === undefined) return null;
+    name = named;
+  }
+  // A symbol's Shift is the keyboard's business, as chordOf reads it.
+  const symbol = name === 'Plus' || symbolKeys.includes(name);
+  return [ctrl ? 'Ctrl' : '', alt ? 'Alt' : '', shift && !symbol ? 'Shift' : '', name].filter((part) => part !== '').join('+');
+}
+
+export interface KeyEventLike { key: string; ctrlKey: boolean; altKey: boolean; shiftKey: boolean; metaKey: boolean }
+
+/**
+ * The normalised key a key event is, for matching against a declaration: null for a bare
+ * modifier or the Windows key. A symbol's own shift is left out, because which symbols need
+ * Shift depends on the keyboard: Ctrl and '+' is `Ctrl+Plus` on every layout.
+ */
+export function chordOf(event: KeyEventLike): string | null {
+  if (event.metaKey) return null;
+  const raw = event.key;
+  if (raw === 'Control' || raw === 'Alt' || raw === 'Shift' || raw === 'Meta' || raw === 'AltGraph' || raw === 'Dead') return null;
+  let name: string;
+  let symbol = false;
+  if (raw === ' ') name = 'Space';
+  else if (raw === '+') { name = 'Plus'; symbol = true; }
+  else if (/^[A-Za-z0-9]$/.test(raw)) name = raw.toUpperCase();
+  else if (raw.length === 1) { name = raw; symbol = true; }
+  else name = namedKeys.find((candidate) => candidate === raw) ?? '';
+  if (name === '') return null;
+  const shift = event.shiftKey && !symbol;
+  return [event.ctrlKey ? 'Ctrl' : '', event.altKey ? 'Alt' : '', shift ? 'Shift' : '', name].filter((part) => part !== '').join('+');
+}
 
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
@@ -209,7 +311,17 @@ export interface ViewGraph {
 export interface HelloMessage { nendo: 'hello'; apiVersion: number }
 export interface ConnectMessage { nendo: 'connect'; apiVersion: number; context: ViewContext }
 
-export type ViewEventName = 'context' | 'theme' | 'changes';
+export type ViewEventName = 'context' | 'theme' | 'changes' | 'command';
+
+/** Where a command came from: a control in the toolbar, a menu, Ctrl K, its key, or Nendo's Add. */
+export type CommandSource = 'toolbar' | 'menu' | 'palette' | 'key' | 'add';
+
+/**
+ * The event `command`: the person pressed one of the view's controls. `value` is the new state
+ * where the control has one: a toggle's or a check's pressed state, the option chosen, the
+ * text searched for, a radio item's value. Null for a button and a menu item.
+ */
+export interface ViewCommand { id: string; value: string | boolean | null; source: CommandSource }
 
 export type PortMessage =
   | { t: 'req'; id: number; m: string; p?: unknown }
@@ -217,7 +329,10 @@ export type PortMessage =
   | { t: 'res'; id: number; ok: false; e: { code: string; message: string } }
   | { t: 'evt'; n: ViewEventName; d: unknown }
   | { t: 'ping'; id: number }
-  | { t: 'pong'; id: number };
+  | { t: 'pong'; id: number }
+  // A key pressed inside the view that is Nendo's, or one the view declared: the Workbench
+  // runs it as if it had been pressed there. Normalised, as normalizeKeys spells it.
+  | { t: 'key'; keys: string };
 
 /** The UTF-8 length of a string, counted without encoding it, stopping once past `limit`. */
 export function utf8Length(text: string, limit = Number.POSITIVE_INFINITY): number {

@@ -2,10 +2,15 @@ import { state } from './app-state';
 import { client } from './client';
 import { brokerMethodNames, createExtensionBroker, type BrokerMount, type ExtensionBroker } from './extension-broker';
 import { describeSchema, viewContext, viewTheme, type ViewSpec } from './extension-model';
-import type { ViewTheme } from './extension-api/protocol';
+import { hostKeys, type CommandSource, type ViewTheme } from './extension-api/protocol';
 import { openProposalFromView, openRecordFromView, openScreenFromView, openStudioFromView, toastFromView } from './extension-ui';
 import type { ProposalPreview } from './host';
 import { content, root } from './shell';
+import type { PaletteCommand } from './shortcuts';
+import { closeViewMenu, showViewMenu } from './view-menu';
+import { drawViewToolbar, focusViewSearch } from './view-toolbar';
+import { keyDisplay } from './view-toolbar-markup';
+import { afterCommand, declaredKeys, paletteEntries, type CommandValue, type ViewMenuRequest, type ViewToolbar } from './view-toolbar-model';
 import {
   defaultPanelHeight, frameAttributes, frameName, frameSource, mountKey, newMountId, viewNotice, viewNoticeMarkup,
   viewOverlayMarkup, viewSpecOf, type ViewNotice, type ViewTrouble,
@@ -45,6 +50,12 @@ interface Mount extends BrokerMount {
   trouble: ViewTrouble | null;
   height: number;
   seen: number;
+  /**
+   * The controls the running view declared for Nendo's chrome (W-090), kept here so a redraw
+   * draws them again. A view that connects afresh declares its own, so a (re)connect, a stop,
+   * a crash or a reload clears them.
+   */
+  toolbar: ViewToolbar | null;
 }
 
 const mounts = new Map<string, Mount>();
@@ -100,6 +111,9 @@ export function installViewFrames(): void {
         if (!answer.opened) heldForReview.delete(key);
         return answer;
       },
+      setToolbar: (mount, toolbar) => setToolbar(mount as Mount, toolbar),
+      showMenu: (mount, menu) => showMenuFor(mount as Mount, menu),
+      key: (mount, keys) => keyFromView(mount as Mount, keys),
     },
     responsive: (mount, responsive) => {
       const view = mount as Mount;
@@ -108,6 +122,9 @@ export function installViewFrames(): void {
     },
     connected: (mount) => {
       const view = mount as Mount;
+      // A view that connects, or connects again after loading itself anew, declares its own
+      // controls; the ones its last page declared are not its to keep.
+      setToolbar(view, null);
       if (view.trouble === 'unresponsive') setTrouble(view, null);
       else markState(view);
       keepTicking();
@@ -182,8 +199,10 @@ export function releaseViewFrames(): void {
 
 function dispose(mount: Mount): void {
   broker?.disconnect(mount);
+  if (menuOwner === mount.key) closeViewMenu();
   if (mount.frame !== null) retire(mount.frame);
   mount.frame = null;
+  mount.toolbar = null;
   if (mount.placeholder !== null) observer?.unobserve(mount.placeholder);
   mounts.delete(mount.key);
 }
@@ -242,6 +261,7 @@ export function wireViewFrames(scope: ParentNode): void {
     else if (!mount.started) observe(element);
     else if (mount.trouble === null && !mount.restarting) start(mount);
     drawTrouble(mount);
+    drawToolbar(mount);
     broker?.refreshContext(mount);
   }
 }
@@ -251,10 +271,137 @@ function createMount(key: string, spec: ViewSpec, origin: string, entryPoint: st
     key, origin, entryPoint, spec,
     placeholder: null, frame: null, frameId: null,
     started: false, loaded: false, restarting: false, trouble: null,
-    height: defaultPanelHeight, seen: generation,
+    height: defaultPanelHeight, seen: generation, toolbar: null,
     frameWindow: () => mount.frame?.contentWindow ?? null,
   };
   return mount;
+}
+
+// --- The view's controls in Nendo's own chrome (ADR-0013, 2026-09-28; W-090) ---------------
+
+/** The mount whose menu is open, so a view that goes away takes its menu with it. */
+let menuOwner: string | null = null;
+/** What main.ts does with one of Nendo's own keys pressed inside a view. */
+let hostKeyRunner: ((keys: string) => void) | null = null;
+
+/** main.ts hands over how Nendo's own keys run, so a key pressed inside a view runs the same way. */
+export function onHostKey(runner: (keys: string) => void): void {
+  hostKeyRunner = runner;
+}
+
+function drawToolbar(mount: Mount): void {
+  if (mount.placeholder === null || !mount.placeholder.isConnected) return;
+  drawViewToolbar(mount.placeholder, {
+    toolbar: mount.toolbar,
+    title: mount.spec.title,
+    placement: mount.spec.placement === 'screen' ? 'screen' : 'recordPage',
+    prefix: `view-toolbar-${mount.frameId ?? 'waiting'}`,
+    send: (id, value, source) => sendCommand(mount, id, value, source),
+  });
+}
+
+function setToolbar(mount: Mount, toolbar: ViewToolbar | null): void {
+  mount.toolbar = toolbar;
+  drawToolbar(mount);
+}
+
+/**
+ * The person pressed one of the view's controls. Nendo shows the new state at once, a toggle
+ * pressed or an option chosen, and the view's next declaration decides it.
+ */
+function sendCommand(mount: Mount, id: string, value: CommandValue, source: CommandSource): void {
+  if (mount.toolbar !== null) {
+    mount.toolbar = afterCommand(mount.toolbar, id, value);
+    drawToolbar(mount);
+  }
+  broker?.command(mount, { id, value, source });
+}
+
+/** The views on the page now with controls to offer: the screen's first, then the record page's, in page order. */
+function viewsWithControls(): Mount[] {
+  const shown = [...mounts.values()].filter((mount) =>
+    mount.toolbar !== null && mount.placeholder !== null && mount.placeholder.isConnected && broker?.isConnected(mount) === true);
+  const position = (mount: Mount): number => mount.spec.placement === 'screen' ? 0 : 1;
+  return shown.sort((left, right) => position(left) - position(right) ||
+    (left.placeholder!.compareDocumentPosition(right.placeholder!) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+}
+
+function runDeclaredKey(mount: Mount, keys: string): boolean {
+  if (mount.toolbar === null) return false;
+  const target = declaredKeys(mount.toolbar).find((entry) => entry.keys === keys);
+  if (target === undefined) return false;
+  if (target.focus) return mount.placeholder !== null && focusViewSearch(mount.placeholder, target.id);
+  sendCommand(mount, target.id, target.value, 'key');
+  return true;
+}
+
+/**
+ * A key pressed in the Workbench that a view on the page declared: the screen's view first,
+ * then the record page's. main.ts asks only when the key is not one of Nendo's, no dialog is
+ * open and nobody is typing in a field.
+ */
+export function runViewKey(keys: string): boolean {
+  for (const mount of viewsWithControls()) if (runDeclaredKey(mount, keys)) return true;
+  return false;
+}
+
+/** A key pressed inside a view: Nendo's own runs as Nendo's; one the view declared runs for that view. */
+function keyFromView(mount: Mount, keys: string): void {
+  if (hostKeys.includes(keys)) { hostKeyRunner?.(keys); return; }
+  if (document.querySelector('dialog[open]') !== null) return;
+  runDeclaredKey(mount, keys);
+}
+
+/**
+ * Nendo's own Add, taken by the view on this screen (W-090): the command it named, or null
+ * when no running view on the screen took it, and Add opens Nendo's form as before.
+ */
+export function viewAddCommand(): (() => void) | null {
+  const mount = viewsWithControls().find((candidate) => candidate.spec.placement === 'screen' && (candidate.toolbar?.add ?? null) !== null);
+  if (mount === undefined) return null;
+  const id = mount.toolbar!.add!;
+  return () => sendCommand(mount, id, null, 'add');
+}
+
+/** Every command the views on the page offer, as Ctrl K lists them: under each view's title. */
+export function viewPaletteCommands(): PaletteCommand[] {
+  const commands: PaletteCommand[] = [];
+  for (const mount of viewsWithControls()) {
+    for (const entry of paletteEntries(mount.toolbar!)) {
+      commands.push({
+        id: `view:${mount.spec.viewId}:${entry.key}`,
+        label: entry.label,
+        group: mount.spec.title,
+        keys: entry.keys === null ? undefined : keyDisplay(entry.keys),
+        run: () => {
+          if (entry.focus) { if (mount.placeholder !== null) focusViewSearch(mount.placeholder, entry.id); }
+          else sendCommand(mount, entry.id, entry.value, 'palette');
+        },
+      });
+    }
+  }
+  return commands;
+}
+
+/**
+ * The menu a view asked for, at its point in the view's frame, in the Workbench's own
+ * markup. A point outside the frame is brought inside it: a view draws its menu over itself.
+ */
+async function showMenuFor(mount: Mount, menu: ViewMenuRequest): Promise<{ id: string; value: CommandValue } | null> {
+  const frame = mount.frame;
+  if (frame === null || !frame.isConnected || document.querySelector('dialog[open]') !== null) return null;
+  const box = frame.getBoundingClientRect();
+  const x = box.left + Math.min(Math.max(menu.x, 0), box.width);
+  const y = box.top + Math.min(Math.max(menu.y, 0), box.height);
+  menuOwner = mount.key;
+  const index = await showViewMenu(menu.items, { x, y }, mount.spec.title, frame);
+  if (menuOwner === mount.key) menuOwner = null;
+  const item = index === null ? undefined : menu.items[index];
+  if (item === undefined) return null;
+  if (item.kind === 'item' && !item.disabled) return { id: item.id, value: null };
+  if (item.kind === 'check' && !item.disabled) return { id: item.id, value: !item.checked };
+  if (item.kind === 'radio' && !item.disabled) return { id: item.id, value: item.value };
+  return null;
 }
 
 function adopt(mount: Mount, stage: HTMLElement): void {
@@ -364,10 +511,12 @@ function endPackage(origin: string): Mount[] {
   const affected = [...mounts.values()].filter((mount) => mount.origin === origin && mount.frame !== null);
   for (const mount of affected) {
     broker?.disconnect(mount);
+    if (menuOwner === mount.key) closeViewMenu();
     retire(mount.frame!);
     mount.frame = null;
     mount.frameId = null;
     mount.loaded = false;
+    setToolbar(mount, null);
   }
   return affected;
 }
@@ -394,6 +543,7 @@ function reload(mount: Mount): void {
     // The renderer is already gone; the same frame navigates again, into a new one (spike S4).
     broker?.disconnect(mount);
     mount.loaded = false;
+    setToolbar(mount, null);
     setTrouble(mount, null);
     mount.frame.src = frameSource(mount.origin, mount.entryPoint);
     return;
@@ -440,6 +590,7 @@ function reloadPackageViews(packageId: string): void {
     if (mount.spec.packageId !== packageId || mount.frame === null) continue;
     broker?.disconnect(mount);
     mount.loaded = false;
+    setToolbar(mount, null);
     setTrouble(mount, null);
     mount.frame.src = frameSource(mount.origin, mount.entryPoint);
   }
@@ -451,6 +602,8 @@ function framesFailed(names: readonly string[]): void {
     const mount = [...mounts.values()].find((candidate) => candidate.frameId !== null && frameName(candidate.frameId) === name);
     if (mount === undefined) continue;
     broker?.disconnect(mount);
+    if (menuOwner === mount.key) closeViewMenu();
+    setToolbar(mount, null);
     setTrouble(mount, 'crashed');
   }
 }

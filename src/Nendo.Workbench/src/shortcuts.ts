@@ -43,6 +43,16 @@ export function shortcut(id: ShortcutId): Shortcut {
   return shortcuts.find((entry) => entry.id === id)!;
 }
 
+/**
+ * The shortcut a normalised key names ("Ctrl+K", "Alt+ArrowLeft"), as a custom view hands
+ * Nendo's own keys back when they are pressed inside it (W-090); null for any other key.
+ * protocol.ts's hostKeys is this table's keys, and scripts/shortcuts.test.mjs holds the two
+ * to each other.
+ */
+export function shortcutForKeys(keys: string): ShortcutId | null {
+  return shortcuts.find((entry) => entry.aria.replace(/^Control\+/, 'Ctrl+') === keys)?.id ?? null;
+}
+
 export interface KeyLike {
   key: string;
   ctrlKey: boolean;

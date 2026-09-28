@@ -33,6 +33,27 @@ const paths = {
   keyboard: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M9 13h6M7 16h10"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   empty: '<path d="M3 8.5 12 3l9 5.5v7L12 21l-9-5.5Z"/><path d="M3 8.5 12 14l9-5.5M12 14v7"/>',
+  // The rest a custom view may put on a control Nendo draws for it (view-toolbar-model.ts).
+  minus: '<path d="M5 12h14"/>',
+  fit: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
+  pan: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10.5v-7a1.5 1.5 0 0 1 3 0v7M14 10.5V5.5a1.5 1.5 0 0 1 3 0V13c0 4-2.5 7-6.5 7-2.8 0-4.5-1.5-5.7-4l-1.5-3a1.6 1.6 0 0 1 2.7-1.7L8 13"/>',
+  filter: '<path d="M3 5h18l-7 8.5V19l-4-2v-3.5Z"/>',
+  list: '<path d="M4 6h16M4 12h16M4 18h10"/>',
+  link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/>',
+  focus: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
+  more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  edit: '<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  external: '<path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/>',
+  arrowUp: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  arrowDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+  indent: '<path d="M4 6h16M11 12h9M11 18h9M4 10l4 2.5L4 15"/>',
+  outdent: '<path d="M4 6h16M11 12h9M11 18h9M8 10l-4 2.5L8 15"/>',
+  layers: '<path d="m12 3 9 5-9 5-9-5Z"/><path d="m3 13 9 5 9-5"/>',
+  chain: '<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8 16.5 16 7.5"/>',
+  refresh: '<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4"/>',
+  settings: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
 } as const;
 export type IconName = keyof typeof paths;
 export function icon(name: IconName): string {

@@ -23,7 +23,7 @@ import { drillPillMarkup, recordPagerMarkup, surfaceBodyMarkup, surfaceSelectorM
 import { type BoardView, isCustomViewKind, readsOwnRecords, surfaceById } from './surface-model';
 import { wireOutlineSurface } from './outline-surface';
 import { renderSurfaces } from './view-surfaces';
-import { wireViewFrames } from './view-frames';
+import { viewAddCommand, wireViewFrames } from './view-frames';
 /**
  * The Use view: one selected surface for one record type, the record opened
  * beside it, and the gestures that move a card between board columns.
@@ -225,6 +225,11 @@ export function renderUse(): void {
   // including a related record half filled in and the way back to somewhere else — so
   // not while that context is holding unsaved typing.
   requiredElement<HTMLButtonElement>('#new-record').addEventListener('click', () => {
+    // A custom view on this screen may take Add for its own way of adding (W-090): the
+    // Capability Atlas adds under the card that is selected. Then Add is its command, and the
+    // record context beside it is left as it is.
+    const viewAdd = viewAddCommand();
+    if (viewAdd !== null) { viewAdd(); return; }
     if (refuseWhileDirty('adding a record')) return;
     leaveRecordContext(); state.creatingRecord = true; rerender();
   });

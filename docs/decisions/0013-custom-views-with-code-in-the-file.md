@@ -388,6 +388,50 @@ denied.
   in the Use "Showing" picker. `extensionTile` is a child of `overviewSurface`,
   `section` or `tabGroup`, sized `tile` or `wide`, with a height.
 
+### Views in Nendo's own chrome (2026-09-28)
+
+A view draws its content, and Nendo draws its controls. On 2026-09-28 the owner asked for
+views "more like the native interface with menu and button integration" (W-090; the design
+canvas is <https://claude.ai/artifact/S3dzbpQpnVX3uJ44JuwP8Y>, direction A). Until then a
+view drew every control inside its own frame, in its own sizes. The Capability Atlas spent
+three rows on its own tabs, levels, search, selects, zoom and Export before the map started,
+beside a second Add button. The palette, the shortcut hints and right-click knew nothing of
+any of it, and Nendo's own keys did nothing while a view had focus, because a key pressed
+inside a cross-origin frame never reaches the Workbench's document.
+
+- **The toolbar.** `ui.setToolbar({items, add})` declares the view's controls as data:
+  buttons, toggles, choices (a segmented control), selects, a search box, menus, joined
+  groups, text, separators and spacers. Nendo draws them with its own controls: on a screen
+  in a toolbar strip above the frame, on a record page in the panel's header. Each call
+  replaces the whole toolbar, and an empty list removes it. The declaration is text and a
+  closed set of kinds and icons, so nothing a view sends becomes markup, and a label stays
+  text. It is bounded: 32 items in the row, 128 in all, labels of 80 characters.
+- **Commands.** A press, a menu pick, a palette entry or a declared key reaches the view as
+  the event `command`, `{id, value, source}`. Nendo shows the new state at once, such as a
+  toggle pressed or an option chosen. The view's next declaration decides it.
+- **Add.** `add` names one of the view's command IDs. On a screen, Nendo's own Add button
+  then sends that command instead of opening Nendo's form, so the screen has one Add. With
+  no `add`, the button opens Nendo's form as before.
+- **Menus.** A toolbar menu and a right-click menu are Nendo's menu. `ui.showMenu({items, x,
+  y})` draws one at a point in the frame and answers the item picked, or null when the
+  person dismisses it. One menu is open at a time in the window, and a view may ask at most
+  four times a second.
+- **Keys.** A command may declare a key. Nendo shows the key beside the control, in the
+  palette and in the shortcut hints, and runs the command wherever focus is in the window,
+  except while the person types in a field. Nendo's own keys stay Nendo's. A view cannot
+  declare one. When one is pressed inside a view, api.js hands it to the Workbench, so Ctrl K
+  works with a view focused. That is the only way a key crosses the frame, and the broker
+  takes only Nendo's keys and the keys the view has declared.
+- **Ctrl K** lists a view's commands under its title. Each option of a choice or a select,
+  and each item of a menu, is an entry of its own.
+- **Unchanged.** The frame, its origin, the broker's table, its bounds, the actor and the
+  kill switches stay as they are. The strip and the menus are the Workbench's own markup,
+  drawn from a checked declaration, so none of this reaches the Workbench's document for the
+  view.
+
+On a host without these methods a view draws its own controls. It asks with
+`nendo.has('ui.setToolbar')`.
+
 ### No install, no consent, no pins
 
 A view that is shown runs. The controls are kill switches, all of them
@@ -572,6 +616,7 @@ falsified once, and has the failure text quoted in its planner Check.
 | Reads are exact; writes are attributed, version-checked and approval-gated; a view cannot promote; state round-trips; a busy view does not starve a save | G18, G19, G21, G22 |
 | Develop from a folder | G20, and `DesktopExtensionDevelopmentTests` |
 | `extensionView` and `extensionTile` | G26 |
+| Views in Nendo's chrome: the declaration is checked and drawn with Nendo's controls; a press, a pick, a palette entry and a key each reach the view; Add, the right-click menu and Nendo's keys inside a view | G27–G30 |
 
 ## Consequences
 
@@ -623,7 +668,8 @@ falsified once, and has the failure text quoted in its planner Check.
   computer.
 - Extensions without a view are wanted: contributed commands, event handlers or
   background work. They are the natural next step, and they need their own
-  decision.
+  decision. The commands a view offers while it runs are decided above, under
+  *Views in Nendo's own chrome*.
 - A view needs to accept proposals, or an extension needs raw SQL. Both stay out
   of scope.
 
@@ -669,3 +715,8 @@ falsified once, and has the failure text quoted in its planner Check.
   or rejects; `nendo.state` through `extension.setState`, per view or per package,
   versioned, bounded and attributed, with no rung (W-069). Written before any code,
   on the owner's standing pre-acceptance.
+- 2026-09-28 — views in Nendo's own chrome: `ui.setToolbar` and `ui.showMenu`, the
+  `command` event, Nendo's Add taken by a view, a view's commands in Ctrl K and its keys,
+  and Nendo's keys working inside a view (W-090, direction A of the design canvas). No
+  rung: nothing reaches the file. Written before any code, on the owner's standing
+  pre-acceptance.

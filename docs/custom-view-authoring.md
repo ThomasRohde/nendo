@@ -41,7 +41,9 @@ a sentence, and size its own panel.
 A view also writes records and runs record commands (see
 [Changing records](#changing-records)), proposes changes to the app (see
 [Proposing a change](#proposing-a-change)) and keeps small values with the file (see
-[Keeping state](#keeping-state)).
+[Keeping state](#keeping-state)). Its controls can be Nendo's own: Nendo draws them in its
+toolbar and menus, lists them in Ctrl K and runs their keys (see
+[Controls in Nendo's toolbar](#controls-in-nendos-toolbar)).
 
 **Not yet.** A view as a screen of its own (`extensionView`) or a tile on the front
 page (`extensionTile`) arrives with Phase 5.
@@ -403,6 +405,106 @@ values, for a canvas or a chart library that needs them in JavaScript.
 
 The navigation calls follow the rules a click follows. While another action runs,
 or while a record page holds unsaved typing, they are refused, and nothing moves.
+
+## Controls in Nendo's toolbar
+
+A view draws its content, and Nendo draws its controls (ADR-0013, 2026-09-28). Declare
+them, and Nendo draws them with its own parts:
+
+- in the toolbar strip every screen has, above your frame, or in your panel's header on
+  a record page;
+- in Ctrl K, under your view's title, with their keys;
+- with the shortcut hints, when the person turns those on.
+
+Each press comes back to you as the event `command`. Where Nendo draws your controls,
+draw none of your own. Draw no page title either: Nendo's breadcrumb already names the
+page.
+
+```js
+function declare() {
+  nendo.ui.setToolbar({
+    items: [
+      { kind: 'choice', id: 'mode', label: 'Mode', hideLabel: true, value: mode,
+        options: [{ value: 'map', label: 'Map' }, { value: 'list', label: 'List' }] },
+      { kind: 'select', id: 'colour', label: 'Colour', value: colour, options: colourOptions },
+      { kind: 'spacer' },
+      { kind: 'search', id: 'find', label: 'Find a task', placeholder: 'Find…', keys: 'Ctrl+F' },
+      { kind: 'toggle', id: 'pan', label: 'Pan', icon: 'pan', iconOnly: true, pressed: panning },
+      { kind: 'group', label: 'Zoom', items: [
+        { kind: 'button', id: 'zoom-out', label: 'Zoom out', icon: 'minus', iconOnly: true, keys: 'Ctrl+-' },
+        { kind: 'button', id: 'fit', label: 'Fit', keys: 'Ctrl+0' },
+        { kind: 'button', id: 'zoom-in', label: 'Zoom in', icon: 'plus', iconOnly: true, keys: 'Ctrl+Plus' },
+      ] },
+      { kind: 'menu', id: 'export', label: 'Export', icon: 'export', items: [
+        { id: 'export-svg', label: 'SVG', detail: 'Shapes and text to edit' },
+        { kind: 'check', id: 'light', label: 'Light colours', checked: light },
+      ] },
+    ],
+    add: 'new-task',   // Nendo's own Add button runs this command on your screen
+  });
+}
+
+nendo.on('command', ({ id, value, source }) => {
+  // value: a toggle's or a check's new state, the option chosen, the text searched for,
+  // or a radio item's value; null for a button or a menu item.
+});
+
+if (nendo.has('ui.setToolbar')) declare(); else showOwnToolbar();
+```
+
+- **The kinds** are `button`, `toggle` (with `pressed`), `choice` (a segmented control),
+  `select`, `search`, `menu`, `group`, `text`, `separator` and `spacer`. A menu holds
+  `item`, `check`, `radio`, `label` and `separator` entries. A group holds buttons and
+  toggles, drawn as one control.
+- **Words are text.** A label, an option or a detail line is drawn as text, never as
+  markup. The icons are Nendo's own, by name: plus, minus, search, fit, pan, export,
+  filter, list, link, focus, more, check, edit, external, trash, arrowUp, arrowDown,
+  chevronLeft, chevronRight, indent, outdent, layers, chain, refresh, settings, eye,
+  command and info.
+- **Declare again when your state changes.** Each call replaces the last, and `[]`
+  removes the toolbar. Nendo shows a press at once, and your next declaration decides
+  what stands. The API sends the latest declaration at most once every tenth of a
+  second.
+- **Search** sends the text as the person types, after a short rest. Enter sends it at
+  once, and twice if the rest had not yet sent it, so an Enter always leaves your view
+  hearing the same text twice in a row. Take that as a request for the first match.
+- **Keys** need Ctrl or Alt, except F2 to F12: `Ctrl+Shift+F`, `Alt+ArrowUp`,
+  `Ctrl+Plus`. Nendo's own keys are refused: Ctrl K, Ctrl 1 to 7, F1, Ctrl B, Alt F,
+  Ctrl / and Alt ← or →. They work while your view has focus. A key you declare,
+  pressed in your view, goes to Nendo unless you handle it yourself (`preventDefault`)
+  or the person is typing in a field.
+- **Add.** Name one of your commands in `add`, and Nendo's Add button on your screen
+  runs it instead of opening Nendo's form. Leave `add` out to keep Nendo's form.
+- **Bounds.** At most 32 controls in the row, 8 in a group, 12 options in a choice, 64
+  in a select, 48 items in a menu, 80 characters in a label, and 16 KiB in all. A
+  declaration past a bound is refused whole, with `invalid-params` naming the rule, and
+  Nendo keeps drawing the last one it accepted. The Capability Atlas then shows its own
+  toolbar again and says why.
+
+### A menu at the pointer
+
+`nendo.ui.showMenu(items, at)` draws Nendo's menu at a point in your view. `at` is
+`{x, y}` in your page's pixels, or the mouse event itself. The call answers
+`{id, value}` for the item picked, or `null` when the person dismisses the menu.
+
+Call `preventDefault()` on the `contextmenu` event, or the browser's own menu opens as
+well. A key shown on a menu item is only shown: handle it in your view. One menu is open
+at a time, and a view may ask for at most four a second.
+
+```js
+map.addEventListener('contextmenu', async event => {
+  const card = event.target.closest('.card');
+  if (!card || !nendo.has('ui.showMenu')) return;
+  event.preventDefault();
+  const pick = await nendo.ui.showMenu([
+    { id: 'open', label: 'Open record', icon: 'external' },
+    { id: 'rename', label: 'Rename', keys: 'F2' },
+    { kind: 'separator' },
+    { id: 'delete', label: 'Delete…', icon: 'trash', danger: true },
+  ], event);
+  if (pick?.id === 'open') nendo.ui.openRecord(entityId, card.dataset.id);
+});
+```
 
 ## Changing records
 

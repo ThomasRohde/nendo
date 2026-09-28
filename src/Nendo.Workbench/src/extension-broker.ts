@@ -1,9 +1,10 @@
 import { plainJson, plainPage, plainRecord, plainTreePage } from './extension-model';
 import { WorkbenchHostError, type RecordSnapshot } from './host-types';
 import {
-  apiVersion, extensionLimits, utf8Length,
-  type ConnectMessage, type PortMessage, type SchemaDescription, type ViewContext, type ViewTheme,
+  apiVersion, extensionLimits, hostKeys, utf8Length,
+  type ConnectMessage, type PortMessage, type SchemaDescription, type ViewCommand, type ViewContext, type ViewTheme,
 } from './extension-api/protocol';
+import { declaredKeys, readMenu, readToolbar, type CommandValue, type ViewMenuRequest, type ViewToolbar } from './view-toolbar-model';
 
 /**
  * The broker between custom views and the Workbench (ADR-0013).
@@ -42,6 +43,18 @@ export interface BrokerUi {
    * or another action runs, and the proposal then waits for the view to ask again.
    */
   openProposal(mount: BrokerMount, preview: unknown): { opened: boolean };
+  /**
+   * Draw the view's controls in Nendo's own chrome, or take them away with null (ADR-0013,
+   * 2026-09-28; W-090). The declaration has been checked and rebuilt; nothing in it is markup.
+   */
+  setToolbar(mount: BrokerMount, toolbar: ViewToolbar | null): void;
+  /** Draw one of Nendo's menus at a point in the view's frame; answers the item picked, or null. */
+  showMenu(mount: BrokerMount, menu: ViewMenuRequest): Promise<{ id: string; value: CommandValue } | null>;
+  /**
+   * A key pressed inside the view that is one of Nendo's own, or one the view declared: run
+   * it as if it had been pressed in the Workbench.
+   */
+  key(mount: BrokerMount, keys: string): void;
 }
 
 export interface BrokerDeps {
@@ -68,7 +81,16 @@ interface MethodCall {
   params: Params;
   mount: BrokerMount;
   deps: BrokerDeps;
-  connection: { toastAt: number; stateWrites: number[] };
+  connection: { toastAt: number; stateWrites: number[]; toolbars: number[]; menus: number[]; keys: Set<string> };
+}
+
+/** At most `limit` of something in any second: the times it happened, pruned, then this one added. */
+function withinRate(times: number[], now: number, limit: number, refusal: string): void {
+  const recent = times.filter((at) => at > now - 1_000);
+  times.length = 0;
+  times.push(...recent);
+  if (times.length >= limit) throw new WorkbenchHostError('busy', refusal);
+  times.push(now);
 }
 
 interface MethodEntry {
@@ -480,6 +502,21 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
     const bounded = Math.round(Math.min(extensionLimits.maximumHeight, Math.max(extensionLimits.minimumHeight, pixels)));
     return { pixels: deps.ui.setHeight(mount, bounded) };
   }),
+  // The view's controls in Nendo's own chrome (ADR-0013, 2026-09-28; W-090). The declaration is
+  // rebuilt into closed kinds and plain text before the Workbench draws anything from it, and
+  // the keys it declares are the only ones besides Nendo's that this view may hand back.
+  'ui.setToolbar': local(({ mount, params, deps, connection }) => {
+    withinRate(connection.toolbars, deps.now(), extensionLimits.toolbarsPerSecond,
+      'A view declares its toolbar at most twenty times a second. The API spaces them for you.');
+    const toolbar = readToolbar(params);
+    connection.keys = new Set(declaredKeys(toolbar).map((entry) => entry.keys));
+    deps.ui.setToolbar(mount, toolbar.items.length === 0 && toolbar.add === null ? null : toolbar);
+    return null;
+  }),
+  'ui.showMenu': local(({ mount, params, deps, connection }) => {
+    withinRate(connection.menus, deps.now(), extensionLimits.menusPerSecond, 'A view asks for at most four menus a second.');
+    return deps.ui.showMenu(mount, readMenu(params));
+  }),
 });
 
 /** Every method name, in table order: what a view's context lists and `nendo.has` answers. */
@@ -501,6 +538,12 @@ interface Connection {
   toastAt: number;
   /** When this view's recent state writes were sent, for the per-second bound. */
   stateWrites: number[];
+  /** When it last declared its toolbar, asked for a menu, and handed a key back, for theirs. */
+  toolbars: number[];
+  menus: number[];
+  keyTimes: number[];
+  /** The keys its current toolbar declares: the only keys besides Nendo's it may hand back. */
+  keys: Set<string>;
   changesAt: number;
   changesPending: number | null;
   changesScheduled: boolean;
@@ -523,6 +566,11 @@ export interface ExtensionBroker {
   theme(theme: ViewTheme): void;
   /** Hand a view its context again, when what it describes has changed. */
   refreshContext(mount: BrokerMount): void;
+  /**
+   * The person pressed one of the view's controls, in Nendo's toolbar, a menu, Ctrl K or by
+   * its key (W-090). Answers whether a connected view was told.
+   */
+  command(mount: BrokerMount, command: ViewCommand): boolean;
   /** Ping the views that are due, and notice the ones that stopped answering. Called once a second. */
   tick(): void;
   connectionCount(): number;
@@ -619,10 +667,23 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       deps.responsive?.(connection.mount, true);
     }
     if (typeof message !== 'object' || message === null) return;
-    const envelope = message as { t?: unknown; id?: unknown; m?: unknown; p?: unknown };
+    const envelope = message as { t?: unknown; id?: unknown; m?: unknown; p?: unknown; keys?: unknown };
     if (envelope.t === 'req') request(connection, envelope);
     else if (envelope.t === 'pong' && connection.ping !== null && envelope.id === connection.ping.id) connection.ping = null;
     else if (envelope.t === 'ping' && typeof envelope.id === 'number') post(connection, { t: 'pong', id: envelope.id });
+    else if (envelope.t === 'key') handKey(connection, envelope.keys);
+  }
+
+  /**
+   * A key the view hands back (W-090): one of Nendo's own, pressed while the view had focus, or
+   * one its toolbar declares. Nothing else is taken, and a view that hands back more than
+   * eight a second is not heard for the rest of that second; there is no answer to refuse.
+   */
+  function handKey(connection: Connection, keys: unknown): void {
+    if (typeof keys !== 'string' || !deps.running()) return;
+    if (!hostKeys.includes(keys) && !connection.keys.has(keys)) return;
+    try { withinRate(connection.keyTimes, deps.now(), extensionLimits.keysPerSecond, ''); } catch { return; }
+    deps.ui.key(connection.mount, keys);
   }
 
   function mountFor(source: unknown): BrokerMount | null {
@@ -655,6 +716,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       const now = deps.now();
       const connection: Connection = {
         mount, port: channel.port1, closed: false, inFlight: 0, queue: [], toastAt: -Infinity, stateWrites: [],
+        toolbars: [], menus: [], keyTimes: [], keys: new Set(),
         changesAt: -Infinity, changesPending: null, changesScheduled: false,
         lastHeardAt: now, lastPingAt: now, ping: null, unresponsive: false, contextJson: JSON.stringify(context),
       };
@@ -700,6 +762,13 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       if (json === connection.contextJson) return;
       connection.contextJson = json;
       post(connection, { t: 'evt', n: 'context', d: context });
+    },
+
+    command(mount, command) {
+      const connection = connections.get(mount.key);
+      if (connection === undefined || connection.closed) return false;
+      post(connection, { t: 'evt', n: 'command', d: { id: command.id, value: command.value, source: command.source } });
+      return true;
     },
 
     tick() {

@@ -463,6 +463,7 @@ Everything after the handshake travels on the port.
 | Workbench | `{t: 'evt', n, d}` | An event: `context`, `theme` or `changes`, with its data |
 | Workbench | `{t: 'ping', id}` | A heartbeat. The script answers `{t: 'pong', id}` |
 | View | `{t: 'ping', id}` | The broker answers `{t: 'pong', id}` |
+| View | `{t: 'key', keys}` | A key pressed inside the view that is one of Nendo's own, or one its toolbar declares, normalised (`Ctrl+K`). The Workbench runs it as if it had been pressed there, and nothing answers ([Nendo's toolbar, menus and keys](#nendos-toolbar-menus-and-keys)) |
 
 A request without a safe-integer `id` is dropped without an answer.
 
@@ -506,6 +507,8 @@ Workbench suite, pins the table name by name.
 | `ui.openStudio` | `entityId` (optional) | Workbench navigation | `{opened}` |
 | `ui.toast` | `text`, 1–300 characters | The Workbench's outcome line | null |
 | `ui.setHeight` | `pixels` | The frame's height | `{pixels}` |
+| `ui.setToolbar` | `items`, `add` | Nendo's toolbar for the view (W-090) | null |
+| `ui.showMenu` | `items`, `x`, `y` | Nendo's menu at a point in the view (W-090) | `{id, value}` of the item picked, or null |
 
 Numbers in the host's answers arrive as plain JSON numbers, which a JavaScript number
 can round. A record keeps each number's exact digits in `exact`, and the aggregate
@@ -622,6 +625,91 @@ file through `nendo.state`.
   package keeps its state, so compensating the removal brings it back. MCP neither
   reads nor writes it. A state write changes no record, so it triggers no action.
 
+### Nendo's toolbar, menus and keys
+
+Since 2026-09-28 (ADR-0013, *Views in Nendo's own chrome*; W-090) a view's controls can be
+Nendo's own. A view declares them. The Workbench draws them with its own markup, lists them
+in Ctrl K, shows and runs their keys, and sends each press back as the event `command`.
+
+- **The declaration.** `ui.setToolbar` takes `items` and `add`. The broker rebuilds it key
+  by key (`src/Nendo.Workbench/src/view-toolbar-model.ts`) into a closed set of kinds:
+  - `button` and `toggle` (`pressed`), each with a `label`, an optional `icon`, `iconOnly`
+    and `keys`;
+  - `choice` and `select`, with `options` of `{value, label}` and a `value` that is one of
+    them, or null;
+  - `search`, with a `placeholder`, a `value` and `keys`;
+  - `menu`, with `items`: `item` (a `detail` line, an icon, keys, `danger`), `check`
+    (`checked`), `radio` (a shared `id`, its own `value`, `checked`), `label` and `separator`;
+  - `group`, a joined row of buttons and toggles;
+  - `text`, optionally `mono`, then `separator` and `spacer`.
+
+  Any other key is dropped. Any other kind, or an icon outside Nendo's named set, is
+  refused. A declaration past a bound is refused whole, with `invalid-params` naming the
+  rule, and the Workbench keeps drawing the last one it accepted. An empty list with no
+  `add` removes the toolbar.
+- **One name, one control.** An `id` is 1 to 64 letters, digits and `. _ : -`. No two
+  controls share one, except the items of one radio set. No two declare the same key.
+- **Words are text.** Every label, option and detail line is escaped where it lands.
+  Nothing a view declares becomes markup, a class, a style or an attribute name. The icons
+  are the Workbench's own outline icons, by name.
+- **Where it is drawn.** On a screen, the toolbar is a strip in the Workbench's markup at
+  the top of the view's placeholder, above the Development strip and the frame, in the page
+  toolbar's 46-pixel row. It uses the view switcher's segments, the labelled select,
+  bordered buttons, a search box and the File menu's panel for a menu. On a record page the
+  same controls sit in the panel's header, beside its title. The frame cannot reach either.
+  The strip is drawn again from the Workbench's copy on every redraw, and a search box the
+  person is typing in is kept, caret and all.
+- **Commands.** A press sends `{id, value, source}` to the view. `value` is:
+  - the new state of a toggle or a check;
+  - the option chosen;
+  - the text searched for, sent after 180 ms of rest and at once on Enter (an Enter always
+    leaves the view hearing the same text twice in a row);
+  - a radio item's value;
+  - null for a button or a menu item.
+
+  The Workbench shows the new state at once, and the view's next declaration decides it. A
+  view that connects, stops, crashes or reloads loses its toolbar until it declares one
+  again.
+- **Add.** `add` names a command. While a view that took Add runs on a screen, Nendo's own
+  Add button sends that command, with the source `add`, instead of opening Nendo's form.
+  Without `add`, or on a record page, Add stays Nendo's.
+- **Ctrl K** lists the commands of every view on the page, the screen's first, each under
+  its view's title:
+  - a button;
+  - a toggle, as "Turn on ‹label›" or "Turn off ‹label›";
+  - each option of a choice or a select that is not already chosen, as "‹label›: ‹option›";
+  - the search box;
+  - each item of a menu, as "‹menu›: ‹item›".
+
+  A disabled control is left out.
+- **Keys.** A declared key is `Ctrl`, `Alt` and `Shift`, in that order, and one key: a
+  letter, a digit, a symbol, `Plus`, an arrow, Home, End, PageUp, PageDown, Delete,
+  Backspace, Enter, Space, or F2 to F12. Every key but F2 to F12 needs Ctrl or Alt. Shift on
+  a symbol is left to the keyboard. Nendo's own keys (`hostKeys` in `protocol.ts`, the
+  shortcut table's) are refused. The Workbench runs a declared key wherever focus is in its
+  document, except in a text field. It shows the key in the control's `aria-keyshortcuts`,
+  its tooltip, the hints and Ctrl K.
+- **Keys inside a view.** A key pressed in a cross-origin frame never reaches the
+  Workbench's document, so `api.js` hands keys to the Workbench as `{t: 'key', keys}`:
+  - each of Nendo's own keys, before the view's listeners hear it;
+  - each key the accepted toolbar declares, once the view's own listeners have let it pass,
+    unless the person is typing in a field.
+
+  Alt and an arrow stay in a field. The broker takes only Nendo's keys and the keys the
+  view's toolbar declares, eight a second, and only while views run.
+- **Menus.** `ui.showMenu` takes menu items and a point in the view's own pixels.
+  - The Workbench draws its menu in its own document at that point on the frame. A point
+    outside the frame is brought inside it. The first item has focus.
+  - Arrow keys, Home and End move. Enter or Space picks.
+  - Escape, Tab, a press elsewhere, the window losing focus, a scroll or a resize dismiss
+    the menu. So does opening another menu, or Ctrl K.
+  - The answer is `{id, value}`, where `value` is a check's new state, a radio item's
+    value, or null. A dismissed menu answers null.
+  - The keys on a menu item are only shown.
+- **What stays the Workbench's.** The read-only and busy sweeps leave a view's controls
+  alone: the view is told the file is read-only, and the host refuses its writes anyway.
+  The toolbar reaches nothing the method table does not already reach.
+
 The table holds none of `proposal.promote`, `proposal.reject`, `behaviour.*`,
 `agent.*`, `file.*`, `session.open*`, `appearance.set` or `history.compensate`, and
 never will: acceptance stays with the person. A view's reads carry no actor. They
@@ -723,13 +811,14 @@ own:
 ### Events
 
 `nendo.on(name, listener)` subscribes and returns a function that unsubscribes. A
-name other than these three throws `unknown-event`.
+name other than these four throws `unknown-event`.
 
 | Event | Data | When |
 | --- | --- | --- |
 | `context` | The context | On every connect, and when the view's context changes, for example after its definition changed |
 | `theme` | `{mode, tokens}` | When the person's theme changes between light and dark |
 | `changes` | The file's change sequence | When anything commits to the open file: at most one every 250 ms to one view, carrying the latest sequence |
+| `command` | `{id, value, source}` | The person pressed one of the controls the view declared: in Nendo's toolbar, one of its menus, Ctrl K, by its key, or Nendo's Add. `source` is `toolbar`, `menu`, `palette`, `key` or `add` (W-090) |
 
 `nendo.changes.subscribe(listener)` is the same as `nendo.on('changes', listener)`.
 An event is a nudge: the view decides what to read again.
@@ -758,6 +847,10 @@ holds the latest theme.
 | Not responding | A ping has waited 2 s and the view has said nothing for 10 s |
 | Height | 80–4,000 pixels; a record-page panel starts at 360 |
 | A page of records | 1–200 records, 100 by default |
+| A toolbar | 32 controls in the row, 8 buttons in a group, 12 options in a choice, 64 in a select, 48 items in a menu, labels and options of 80 characters, a menu item's detail of 120, and 16 KiB of JSON in all |
+| Toolbars | 20 a second from one view; `api.js` sends the latest at most every 100 ms |
+| Menus | 4 a second from one view |
+| Keys handed back | 8 a second from one view; any more that second are dropped |
 
 The in-flight bound keeps a busy view from starving a person's own save of the
 Workbench's bridge.
@@ -778,7 +871,7 @@ sentence.
 | `not-found` | Workbench | The record type or the screen is not in this file |
 | `disconnected` | Script | The Workbench reconnected the view while the request waited. Send it again |
 | `not-framed` | Script | The page was opened on its own, outside any frame, so nothing can connect it |
-| `unknown-event` | Script | `nendo.on` was given a name other than `context`, `theme` or `changes` |
+| `unknown-event` | Script | `nendo.on` was given a name other than `context`, `theme`, `changes` or `command` |
 | `failed` | Broker | The answer could not be sent, or the failure had no code |
 
 A read the host refuses keeps the host's own code, for example `validation`,
@@ -1208,6 +1301,54 @@ before any write. View code needs no approval of its own.
 
 ## Evidence
 
+### Nendo's chrome (W-090)
+
+Measured on 2026-09-28 against a Debug build. The journey (`DesktopExtensionViewJourneyTests`
+with `tools/Review-ExtensionViews.mjs`) ran in the real app, with probe A declaring a toolbar
+and asking for a menu:
+
+- G27: the declared toolbar is drawn by the Workbench above the frame, in its own controls,
+  and a label that looks like markup stays text. With the key hints on, each key stays inside
+  its control: an icon button grows to hold it.
+- G28: a press in the strip, Nendo's Add (its form left closed) and a Ctrl K entry each reach
+  the view as a command, and the strip shows the press at once.
+- G29: the menu is the Workbench's, drawn on its document at the view's point (40, 30), and
+  answers the pick. Escape answers nothing.
+- G30: Ctrl K pressed with the view focused opens the palette before the view hears it. A key
+  the view keeps reaches it. A declared key runs its command from inside the view and from
+  the Workbench.
+
+The Workbench suites measure the same at the broker (`extension-broker.test.mjs`) and in
+`api.js` (`extension-api.test.mjs`): the command event, the coalesced toolbar and the keys
+handed back. `view-toolbar.test.mjs` measures the markup, Ctrl K's entries, the keys and the
+table of Nendo's own keys. `Review-BcmAtlas.ps1` and `Review-WorkDependencies.ps1` measure
+each view twice: on a fixture broker that offers the chrome, and on one that does not.
+
+Each guard was seen to fail with its defect put back:
+
+- A button's label unescaped: `A button’s label was not escaped where it lands.`
+- The broker taking any kind: `{"items":[{"kind":"html","id":"x","label":"X"}]} was drawn.`
+- A menu passed on as the view sent it:
+  `The menu reached the Workbench as the view sent it rather than rebuilt.`
+- The broker running any key a view hands back:
+  `A key the view never declared, or not a key at all, was run.`
+- `api.js` leaving Ctrl K to the view:
+  `Ctrl K pressed inside the view was left to the view instead of handed to Nendo.` In the
+  real app: `Timed out: Ctrl K pressed inside the view opening the palette (last: false)`.
+- Ctrl K without the views' commands: `Timed out: the probe’s commands in Ctrl K (last: null)`.
+- Add ignoring the view that took it: `Timed out: Nendo’s Add reaching the view (last: null)`.
+- The Atlas's own toolbar left showing: `The Atlas still draws its own controls on a host that
+  draws them: {"native":true,"toolbar":"flex","subbar":"none","crumbs":true}`.
+- An icon button kept at 30 pixels with the hints on, a defect found while looking at the
+  strip: `With the key hints on, a control spills its key over the control beside it:
+  {"shown":3,"spill":["zoom-in"],"overlaps":0}`.
+
+Not measured in a product lane:
+
+- a right-click made with a real pointer (the lanes dispatch the event);
+- Ctrl F and other keys the browser also claims, in the installed app;
+- the two views in the owner's own files.
+
 ### Phase 2
 
 The live journey `DesktopExtensionViewJourneyTests`, with
@@ -1336,6 +1477,10 @@ passed. Each guard below was falsified, seen to fail and then restored:
   under a parent or to the top level and before a sibling or last, through the host's
   `data.moveRecord`, which now admits a view's actor. The Engine refuses a loop and renumbers
   the siblings in one revision (ADR-0019 stage 8, W-079).
+- 2026-09-28 — a view's controls in Nendo's own chrome: `ui.setToolbar`, `ui.showMenu`, the
+  `command` event and the `key` message. Nendo's Add can be taken by a view, a view's commands
+  are in Ctrl K with their keys, and Nendo's own keys work while a view has focus (ADR-0013
+  2026-09-28, W-090).
 - 2026-09-27 — `schema.describe` names each record type's declared `hierarchy`, so a view
   that writes a parent knows which field holds it rather than guessing among the record
   type's references to itself. A view on an earlier host finds the key missing (W-077).

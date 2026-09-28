@@ -89,6 +89,27 @@ the same.
 - **Help** has a *Keyboard shortcuts* topic under Getting started, built from the same
   table, so the two cannot disagree.
 
+## A custom view's controls
+
+A custom view's toolbar and menus are Nendo's own (W-090; ADR-0013, 2026-09-28). The owner
+asked for views "more like the native interface with menu and button integration", and the
+design canvas <https://claude.ai/artifact/S3dzbpQpnVX3uJ44JuwP8Y> set out three directions.
+Direction A is built: Nendo draws the view's controls in a strip above its frame.
+
+- The view declares its controls. The Workbench draws them in a 46px strip on `--surface`
+  under the Use toolbar, in the page toolbar's row. The strip uses the view switcher's
+  segments, a labelled select, bordered 30px buttons on `--canvas`, a 30px search box, a
+  joined zoom group and hairline separators. A pressed toggle takes the accent-soft fill
+  the shortcuts toggle has.
+- On a record page, the same controls sit in the panel's header at 26px.
+- A toolbar menu and a right-click menu are the File menu's panel, with 32px items, a
+  check column, a muted detail line and mono key names.
+- The view keeps only its content. The packages in `extensions/` hide their own toolbars
+  and page titles where Nendo draws their controls, and Nendo's breadcrumb names the page.
+
+`view-toolbar-markup.ts` draws the strip and the menu, and `styles/18-view-toolbar.css`
+lays them out.
+
 ## Studio's record page
 
 Opening a record in Studio › Data, or adding one, shows a sheet and a sidebar
