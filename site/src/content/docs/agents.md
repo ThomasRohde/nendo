@@ -53,6 +53,8 @@ By default the lease has no expiry. It ends when the agent releases it, when you
 
 `nendo.lease.status` needs no lease. It tells an agent who holds the lease, which is useful after a reconnect or a lost response.
 
+The grant and the status both name the open file, and so do the first sentence of the instructions and the server's title, which a client shows as *Nendo · BCM* for `BCM.nendo`. An agent registered with two files can tell which one it is about to change.
+
 ## Reading the file
 
 Reads are MCP resources. They need no lease. Start with `nendo://application/describe`: one read returns what the file is for, its authoring limits, every record type with its fields, every compiled screen, health, and the address of every other read.

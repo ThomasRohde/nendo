@@ -62,7 +62,8 @@ public sealed class SurfaceMetadataTests
         var acquire = tools.Single(tool => tool.Name == "nendo.lease.acquire").Description ?? string.Empty;
         StringAssert.Contains(acquire, "The lease lasts until you release it", "A tool that hands out a handle states how long it lives.");
 
-        Assert.AreEqual("Nendo", client.ServerInfo.Title);
+        // Named for the file since W-089, so two registered files are two names in a client.
+        Assert.AreEqual("Nendo · fixture", client.ServerInfo.Title);
         Assert.AreEqual("https://thomasrohde.github.io/nendo/", client.ServerInfo.WebsiteUrl);
 
         // A list parameter that may be omitted takes entries that may not be null.

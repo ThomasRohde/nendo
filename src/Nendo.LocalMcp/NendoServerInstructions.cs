@@ -16,8 +16,11 @@ internal static class NendoServerInstructions
     // The first sentence says what the product is: a reviewer who read only the tool list
     // could not tell this host had calculations at all. The transport paragraph written for
     // someone building an HTTP client is gone; server/discover and the MCP contract carry it.
-    internal static string For(AgentAccessMode mode, TimeSpan? leaseTtl) =>
-        "This is a Nendo file: record types and records, screens (lists, boards, calendars, record pages and " +
+    // It names the file as well: with two Nendo windows open, an agent registered with both
+    // read the same sentence from each and could not say which file it was about to change.
+    internal static string For(AgentAccessMode mode, TimeSpan? leaseTtl, string? fileName = null) =>
+        (NendoFileLabel.Short(fileName) is { } name ? $"This is the Nendo file {name}: " : "This is a Nendo file: ") +
+        "record types and records, screens (lists, boards, calendars, record pages and " +
         "commands), calculated fields, reusable functions, and automatic actions that run on a trigger. " +
         "Records are written directly; everything else is authored as a change set (begin, add_operations, " +
         "validate), and calculations, functions, actions and triggers are its behaviour.setDefinition operation. " +

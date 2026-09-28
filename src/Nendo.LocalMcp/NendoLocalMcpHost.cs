@@ -200,7 +200,8 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
             mode,
             RandomNumberGenerator.GetBytes(32),
             snapshot.Manifest.ApplicationId,
-            snapshot.Manifest.InstanceId);
+            snapshot.Manifest.InstanceId,
+            snapshot.FileName);
         var clock = new SystemNendoClock();
         var agentAuthority = new NendoAgentAuthority(
             authority,
@@ -280,7 +281,9 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                         server.ServerInfo = new Implementation
                         {
                             Name = "nendo-local",
-                            Title = "Nendo",
+                            // "Nendo · BCM", so two registered files are two names in a
+                            // client's server list rather than the same one twice.
+                            Title = NendoFileLabel.Title(snapshot.FileName),
                             Version = NendoProduct.Version,
                             Description = "The file open in Nendo on this computer, at the access level its person chose.",
                             WebsiteUrl = "https://thomasrohde.github.io/nendo/",
@@ -314,7 +317,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             result.TimeToLive = TimeSpan.Zero;
                             return result;
                         });
-                        server.ServerInstructions = NendoServerInstructions.For(mode, options.LeaseTtl);
+                        server.ServerInstructions = NendoServerInstructions.For(mode, options.LeaseTtl, snapshot.FileName);
                         // The signal brackets the call; the log records it afterwards. Both
                         // are here because this is the one place that sees every request,
                         // its name and its client, and neither holds a gate.

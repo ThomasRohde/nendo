@@ -55,6 +55,15 @@ process and the application, but not the file behind them. With two Nendo window
 open, the only answer to "which file do you want?" was to cross-reference the
 process ID in the write-owner sidecar.
 
+A client shows none of that before its first call, so the file is named where it
+does look (W-089). `serverInfo.title` is `Nendo · <file>` (`Nendo · BCM` for
+`BCM.nendo`), so two registered files read as two servers in a client's list. The
+instructions open with `This is the Nendo file BCM.nendo:`. The lease grant and
+`nendo.lease.status` carry `fileName`. The title and the instructions cut a name
+past 60 characters, so a 255-character file name cannot push the instructions past
+their bound; `FileNamedSurfaceTests` holds all four, and with the name withheld it
+failed on `Expected "Nendo · fixture"`, reading `Nendo`.
+
 `displayName` is a label and not a location: it has no directory and nothing that
 an agent could open. Agents never receive a database path
 ([vision.md](../vision.md)). If a caller supplies one, the host reduces it to its
@@ -64,7 +73,7 @@ host build rather than the open file, and carry a one-hour `ttlMs`. Tools are
 listed in stable name order.
 
 Every tool, resource and template carries a `title`, and `serverInfo` carries
-`title` (Nendo), `description` and `websiteUrl`. No response names the web server
+`title` (Nendo and the file), `description` and `websiteUrl`. No response names the web server
 behind it. `destructiveHint` is true exactly where a tool overwrites or removes what
 is stored: `set_field`, `move_record`, `execute_command`, `delete_record`, `amend`,
 `reject` and `accept`. On 2026-09-27 the first three said false, which the
@@ -165,10 +174,10 @@ upward.
 
 | Tool | Authority / current implementation | Shared semantic boundary |
 | --- | --- | --- |
-| `nendo.lease.acquire` | `NendoAgentAuthority.AcquireAsync` | One handle-bound modifying lease. Returns applicationHandle, leaseId and an unprivileged receipt locator before writes. No file mutation. |
+| `nendo.lease.acquire` | `NendoAgentAuthority.AcquireAsync` | One handle-bound modifying lease. Returns applicationHandle, leaseId, an unprivileged receipt locator and the open file's name before writes. No file mutation. |
 | `nendo.lease.renew` | `NendoAgentAuthority.RenewAsync` | Same live handle. Extends an enabled TTL, or confirms ownership when expiry is off. No file mutation. |
 | `nendo.lease.release` | `NendoAgentAuthority.ReleaseAsync` | Serialized lease release. No file mutation. |
-| `nendo.lease.status` | Current endpoint, no lease needed | `GetStatusAsync`. Reports whether a lease is held, the client display name and pseudonym of the holder, and, if a handle is supplied, whether the lease is yours. This is the recovery path when an acquire response is lost: the grant exists, and no other call can report it. |
+| `nendo.lease.status` | Current endpoint, no lease needed | `GetStatusAsync`. Reports whether a lease is held, the client display name and pseudonym of the holder, the open file's name, and, if a handle is supplied, whether the lease is yours. This is the recovery path when an acquire response is lost: the grant exists, and no other call can report it. |
 | `nendo.data.create_record` | Data mode or higher, live lease; `NendoDataMutationService` | `CreateRecordAsync` → `data.createRecord`, bounded values and server-scoped idempotency. Returns the record ID and its new version, and `alsoChanged`: each other record that an automatic action changed while this write committed, with its new version. `alsoChanged` is empty when no action ran, and when the target reference of every step was empty. An idempotent replay names the same records with `recordVersion` null, because the file may have moved since. The receipt that `nendo.data.get_receipt` reads back does the same. A value map that names a calculated field is `NENDO_FIELD_CALCULATED`, and the refusal names the calculation. |
 | `nendo.data.create_records` | Same | `CreateRecordsAsync` → one mutation of 1–50 `data.createRecord` operations: one revision, one idempotency key, all or nothing. `recordVersion` is the version that every created record holds. If an automatic action wrote back to only some of the records, `recordVersion` is null, because no single number is true of the batch. `alsoChanged` names each moved record with its own version. |
 | `nendo.data.import_records` | Same | `ImportAsync` → `NendoImportService` → `CreateRecordsAsync`. Takes CSV text or typed JSON; a mixed payload is refused before writing. The native importer's routine decodes CSV, and the same canonical `data.createRecord` operations commit it, fifty to a revision. Unknown, duplicate or out-of-range CSV mappings are typed validation refusals. At most 500 rows per call; the 256 KiB body is the limit met first. `maximumRowsPerCall` echoes the limit on success. Each batch derives its idempotency key from the caller's key (the key, `#` and the ordinal, or `import.sha256.` and the key's SHA-256 when that would pass 200 characters); a CSV record ID derives from that key and its row position. A retry gives the rows of batches its key already committed the reference target versions their revision recorded, so an exact retry replays after a referenced record is edited; uncommitted rows resolve against the current file. If a later batch is refused, `NENDO_IMPORT_PARTIAL` names the committed and remaining counts, first uncommitted data row, committed revision IDs and cause. Retry the identical call and key to replay the earlier batches without duplicates. No response implies the whole call was atomic. Each batch revision carries the session's pseudonym as its origin, as every other agent write does (it carried a bare `agent` until 2026-09-27). The origin is part of what a replay must match, so a retry resubmits a batch that already committed under the origin its receipt records, and an exact retry from a new lease still replays. |

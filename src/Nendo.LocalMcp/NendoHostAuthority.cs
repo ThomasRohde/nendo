@@ -9,7 +9,8 @@ internal sealed class NendoHostAuthority(
     AgentAccessMode mode,
     byte[] cursorKey,
     string applicationId,
-    string instanceId)
+    string instanceId,
+    string? fileName = null)
 {
     private int _port;
     private int _closed;
@@ -30,6 +31,9 @@ internal sealed class NendoHostAuthority(
     internal string ApplicationId { get; } = applicationId;
 
     internal string InstanceId { get; } = instanceId;
+
+    /// <summary>The open file's name without its directory, or null when it has none to say.</summary>
+    internal string? FileName { get; } = NendoFileLabel.FileName(fileName);
 
     internal NendoCursorCodec Cursors { get; } = new(cursorKey);
 

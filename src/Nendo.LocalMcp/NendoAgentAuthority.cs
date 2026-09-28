@@ -37,6 +37,13 @@ public sealed record NendoLeaseGrant(
     /// <summary>"explicitRelease" when this lease never expires, "expiry" when ExpiresAt is enforced.</summary>
     [Description("explicitRelease when the lease never expires, expiry when expiresAt is enforced.")]
     public string EndsOn { get; init; } = "explicitRelease";
+
+    /// <summary>
+    /// Which file this lease edits. With two Nendo windows open an agent can hold a lease on
+    /// each, and the grant is where it learns which one it is about to write to.
+    /// </summary>
+    [Description("The name of the open file this lease edits, as Nendo shows it: a name, never a location. Null when the host has none to say.")]
+    public string? FileName { get; init; }
 }
 
 public sealed record NendoLeaseRelease(
@@ -71,6 +78,10 @@ public sealed record NendoLeaseStatus(
     /// </summary>
     [Description("True when the applicationHandle you supplied holds the lease, false when it does not, null when you supplied none or no lease is held.")]
     public bool? IsYou { get; init; }
+
+    /// <summary>Which file this endpoint serves, whether or not anybody holds its lease.</summary>
+    [Description("The name of the open file this endpoint serves, as Nendo shows it: a name, never a location. Null when the host has none to say.")]
+    public string? FileName { get; init; }
 }
 
 internal sealed class NendoAgentAuthority(
@@ -97,7 +108,7 @@ internal sealed class NendoAgentAuthority(
     /// window procedure answer immediately.
     /// </para>
     /// </summary>
-    private volatile NendoLeaseStatus _peek = new(false, null, null, null);
+    private volatile NendoLeaseStatus _peek = new(false, null, null, null) { FileName = host.FileName };
     private Func<string, Task>? _leaseEnded;
 
     /// <summary>
@@ -111,7 +122,7 @@ internal sealed class NendoAgentAuthority(
         {
             _activeLease = value;
             _peek = value is null
-                ? new NendoLeaseStatus(false, null, null, null)
+                ? new NendoLeaseStatus(false, null, null, null) { FileName = host.FileName }
                 : new NendoLeaseStatus(
                     true,
                     value.Grant.Owner,
@@ -119,6 +130,7 @@ internal sealed class NendoAgentAuthority(
                     value.Grant.ExpiresAt)
                 {
                     EndsOn = value.Grant.EndsOn,
+                    FileName = host.FileName,
                 };
         }
     }
@@ -137,7 +149,7 @@ internal sealed class NendoAgentAuthority(
     {
         var peek = _peek;
         return leaseTtl is not null && peek.ExpiresAt is { } expiresAt && expiresAt <= clock.UtcNow
-            ? new NendoLeaseStatus(false, null, null, null)
+            ? new NendoLeaseStatus(false, null, null, null) { FileName = host.FileName }
             : peek;
     }
 
@@ -176,6 +188,7 @@ internal sealed class NendoAgentAuthority(
                 ReceiptContext = NendoReceiptContext.Create(host, sessionId),
                 ApplicationHandle = sessionId,
                 EndsOn = leaseTtl is null ? "explicitRelease" : "expiry",
+                FileName = host.FileName,
             };
             Active = new ActiveLease(
                 grant,
@@ -331,7 +344,7 @@ internal sealed class NendoAgentAuthority(
         {
             await ExpireIfNeededAsync();
             return Active is null
-                ? new NendoLeaseStatus(false, null, null, null)
+                ? new NendoLeaseStatus(false, null, null, null) { FileName = host.FileName }
                 : new NendoLeaseStatus(
                     true,
                     Active.Grant.Owner,
@@ -340,6 +353,7 @@ internal sealed class NendoAgentAuthority(
                 {
                     EndsOn = Active.Grant.EndsOn,
                     IsYou = string.IsNullOrWhiteSpace(sessionId) ? null : Active.SessionId == sessionId,
+                    FileName = host.FileName,
                 };
         }
         finally

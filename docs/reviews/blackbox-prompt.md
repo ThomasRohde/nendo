@@ -133,7 +133,9 @@ gets a pass; spend your extra time on these, which changed most recently:
   file you were connected to before you wrote anything, and whether the list told you what
   you could do about it — you cannot move yourself to another endpoint, and the resource
   should not leave you thinking you can. If only one Nendo is running, say so; the case
-  worth reporting is two.
+  worth reporting is two. Record also whether the server's title in your client, the first
+  sentence of its instructions and your lease grant named the file before you read
+  anything, and whether that name agreed with the list.
 - Whether a published rule is true (Phase 2). Take one constraint the resources state about
   an operation — the reference-binding rule is the obvious one — and try the thing it tells
   you not to do. Record whether the boundary agreed with the text. A rule that is published
