@@ -10,7 +10,7 @@ authority above both.
 
 | Contract | Covers |
 | --- | --- |
-| [mcp-interface.md](mcp-interface.md) | The sixteen resources and nineteen tools that an agent sees, lease and handle authority, cursor rules |
+| [mcp-interface.md](mcp-interface.md) | The eighteen resources and twenty tools that an agent sees, lease and handle authority, cursor rules |
 | [semantic-surfaces.md](semantic-surfaces.md) | How stored surface definitions compile into render plans, across contract versions 1-3 |
 | [studio.md](studio.md) | The permanent host-owned database editor |
 | [scalars.md](scalars.md) | Exact values through storage, the Workbench bridge and the MCP wire |

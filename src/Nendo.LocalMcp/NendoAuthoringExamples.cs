@@ -68,6 +68,7 @@ internal static class NendoAuthoringExamples
             "One putFile payload is at most extensions.putFilePayloadBytes in the vocabulary. A larger file is a first putFile and then putFile operations with append true for the same package and path, later in the same change set; the host joins them in order before validation.",
             "Read a package back at nendo://application/extensions and nendo://application/extension/{packageId}/file?path=... , with the path percent-encoded. A replaced file stays in history, so the change can be reversed exactly.",
             "Once accepted, the code runs in the Workbench whenever a view that names the package is shown. It loads /_nendo/api.js, which every view origin serves, and reaches the file only through window.nendo: await nendo.ready, then nendo.view.loadRecords(), nendo.view.loadGraph(), nendo.records.query and nendo.ui.openRecord.",
+            "Before writing a view's code, read nendo://application/view-api: every window.nendo call with its parameters and answer, the events, toolbar, theme tokens and refusals, and a whole view to start from. Nothing but a view's code needs it.",
         ],
         [
             new("Put the hello view in the file",

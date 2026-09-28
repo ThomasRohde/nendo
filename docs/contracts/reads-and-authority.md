@@ -44,7 +44,7 @@ restart and replace their displayed page. A cursor from another query, another
 file or a reopened coordinator fails with `invalid-cursor`. The MCP wrapper of the
 host adds its own agent-access-generation key. This keeps invalidation when
 access is disabled and enabled without closing the file. MCP keeps its 1–100
-public limit. It has sixteen resources:
+public limit. It has eighteen resources:
 
 - History returns summaries and `operationsUri`.
 - The revision operations resource returns only sanitized operation descriptors.

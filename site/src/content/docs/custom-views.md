@@ -104,6 +104,8 @@ The full guide is [Authoring a custom view](https://github.com/ThomasRohde/nendo
 5. **Name the package.** A `nendo-package.json` with a `packageId` such as `org.example.map`, and a title.
 6. **Put it in the file, and define a view that names it.** Accept both proposals, and the view runs.
 
+An agent that writes a view over MCP reads `nendo://application/view-api` first: every `window.nendo` call with its parameters and answer, the toolbar's controls and icons, the theme's colours and a whole view to start from.
+
 To debug, right-click inside the running view and choose **Inspect**. To run code inside the view, choose its frame as the Console's context, in the drop-down that starts at `top`.
 
 ## Limits

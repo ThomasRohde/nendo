@@ -110,6 +110,8 @@ public sealed class ProtocolResourceTests
                 "nendo.application.manifest",
                 "nendo.application.proposals",
                 "nendo.application.surfaces",
+                // Read only by an agent writing a custom view's code (W-094).
+                "nendo.application.view.api",
                 "nendo.application.vocabulary",
                 // Not about the open file: which Nendos are running and what each has open.
                 "nendo.host.instances",

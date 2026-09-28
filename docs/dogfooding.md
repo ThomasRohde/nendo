@@ -279,6 +279,8 @@ names one of these five codes may mean either record.
   and minimum host, `entity/{entityId}/schema` for fields and choice options,
   `vocabulary` for node kinds and limits, `surfaces` for what compiled, and
   `proposals` for what is waiting.
+- `view-api` is for writing a custom view's code and nothing else. Development
+  work in this repository reads `docs/contracts/custom-views.md` instead.
 - **Command IDs** are at `surfaces.applications[].surfaces[]`, on any node whose
   `kind` is `recordCommand`. `nendo.data.execute_command` takes that node's
   `commandId`. It never takes a button label.

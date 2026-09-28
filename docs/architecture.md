@@ -700,7 +700,7 @@ with the `leaseId`, and every owned operation requires both. Possession of the
 handle governs ownership. Claimed client names and HTTP connection identity do
 not govern it.
 
-The MCP surface has sixteen resources and nineteen tools. Resources are reads and
+The MCP surface has eighteen resources and twenty tools. Resources are reads and
 need no lease. Tools are writes and need a lease. The exceptions are
 `nendo.lease.status`, `nendo.data.get_receipt` and
 `nendo.health.verify_integrity`: they read authority or file state, and they

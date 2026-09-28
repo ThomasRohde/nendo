@@ -311,7 +311,9 @@ export interface ViewGraph {
 export interface HelloMessage { nendo: 'hello'; apiVersion: number }
 export interface ConnectMessage { nendo: 'connect'; apiVersion: number; context: ViewContext }
 
-export type ViewEventName = 'context' | 'theme' | 'changes' | 'command';
+/** Every event a view can hear; `nendo.on` refuses any other name. */
+export const viewEventNames = Object.freeze(['context', 'theme', 'changes', 'command'] as const);
+export type ViewEventName = typeof viewEventNames[number];
 
 /** Where a command came from: a control in the toolbar, a menu, Ctrl K, its key, or Nendo's Add. */
 export type CommandSource = 'toolbar' | 'menu' | 'palette' | 'key' | 'add';

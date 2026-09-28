@@ -369,8 +369,8 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                                 }
                                 var result = await next(context, token);
                                 result.CacheScope = CacheScope.Private;
-                                // The vocabulary and the examples describe this build, not the
-                                // open file, so a client may keep them for an hour.
+                                // The vocabulary, the examples and the view API describe this
+                                // build, not the open file, so a client may keep them for an hour.
                                 result.TimeToLive = NendoMcpResources.StaticForBuild.Contains(canonical)
                                     ? NendoMcpResources.StaticTimeToLive
                                     : TimeSpan.Zero;

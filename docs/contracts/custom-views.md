@@ -227,6 +227,9 @@ Two resources read packages back:
   `base64`. `sha256` and `byteLength` describe the whole file, and `nextOffset` is
   null on the last page.
 
+A third, `nendo://application/view-api`, is [the view API as a read](#the-view-api-as-a-read):
+what a view's code can call, for an agent about to write one.
+
 `nendo://application/describe` lists the packages under `extensions`. Two examples
 in `nendo://application/examples` are complete change sets to copy:
 `put-a-custom-view-in-the-file` writes a package, and `show-a-custom-graph` defines
@@ -880,6 +883,30 @@ sentence.
 
 A read the host refuses keeps the host's own code, for example `validation`,
 `stale-cursor`, `invalid-cursor` or `stale-file-session`.
+
+### The view API as a read
+
+Since 2026-09-28 (W-094) the api build also writes `dist/_nendo/view-api.json` beside
+`api.js`, from `src/Nendo.Workbench/src/extension-api/reference.ts`, and the local MCP
+carries that file as built and serves it at `nendo://application/view-api`. It is this
+section as an agent reads it before it writes a view's code: every method with the call
+that reaches it, its parameters and answer, the helpers, the context and record shapes,
+the events, the filter words, write values, toolbar kinds, icons and keys, theme tokens,
+limits and refusals, a whole view to start from, and how a person develops a package from
+a folder.
+
+- **Generated.** The method names, events, icons, theme tokens, Nendo's own keys and
+  limits come from the tables `api.js` and the broker are built from. A broker method
+  without a line stops the build, and `scripts/view-api-reference.test.mjs` holds every
+  function on `window.nendo`, every toolbar kind and menu item, and the example to the
+  real modules: the example runs against the real `api.js`.
+- **Read only to write a view.** Nothing an agent reads by default carries it. The
+  server instructions, the vocabulary's `extension.setPackage`, the example
+  `put-a-custom-view-in-the-file` and describe's `reads` each name it with the condition
+  that it is for a view's code, and `ViewApiResourceTests` fails when any of them
+  carries its content.
+- **One trap it names.** A filter clause in a view definition says `lte` and `gte`;
+  `records.query` takes only the query's words, `le` and `ge`, and refuses the others.
 
 ## When a view fails
 
@@ -1560,6 +1587,9 @@ passed. Each guard below was falsified, seen to fail and then restored:
 - 2026-09-28 — one row above a view: on a screen the toolbar is drawn in the Use toolbar's row
   before Add, the breadcrumb holds the record type and the view, and a `text` item gives way
   rather than wrap the row (ADR-0013, *One row above a view*; W-092). No change to the wire.
+- 2026-09-28 — the view API as a read: the api build writes `view-api.json` from the tables
+  it is built from, and the local MCP serves it at `nendo://application/view-api`, named
+  only with the condition that it is for writing a view's code (W-094).
 - 2026-09-27 — `schema.describe` names each record type's declared `hierarchy`, so a view
   that writes a parent knows which field holds it rather than guessing among the record
   type's references to itself. A view on an earlier host finds the key missing (W-077).

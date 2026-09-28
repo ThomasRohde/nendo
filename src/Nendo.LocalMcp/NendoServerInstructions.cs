@@ -29,6 +29,7 @@ internal static class NendoServerInstructions
         "nendo://application/vocabulary is the authoring contract: every operation with its payload, the " +
         "authoringRules and the limits. nendo://application/examples holds change sets you can send as they " +
         "stand; nendo://application/proposals lists what is waiting for the person. " +
+        "Read nendo://application/view-api only when you write a custom view's code. " +
         "To write, call nendo.lease.acquire, keep its applicationHandle private, and pass it with leaseId on " +
         "every owned call. " +
         (leaseTtl is { } ttl

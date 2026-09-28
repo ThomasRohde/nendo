@@ -243,6 +243,7 @@ try {
         'nendo.application.proposals',
         'nendo.application.revision.operations',
         'nendo.application.surfaces',
+        'nendo.application.view.api',
         'nendo.application.vocabulary',
         'nendo.host.instances'
     )

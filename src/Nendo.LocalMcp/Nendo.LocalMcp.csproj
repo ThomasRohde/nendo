@@ -14,4 +14,22 @@
     <ProjectReference Include="..\Nendo.Engine\Nendo.Engine.csproj" />
   </ItemGroup>
 
+  <!--
+    The view API reference (W-094): the Workbench's api build writes it beside api.js, from the
+    tables api.js is built from, and this assembly carries it as built for
+    nendo://application/view-api.
+  -->
+  <PropertyGroup>
+    <ViewApiReference>..\Nendo.Workbench\dist\_nendo\view-api.json</ViewApiReference>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(ViewApiReference)" LogicalName="Nendo.LocalMcp.view-api.json" Visible="false" />
+  </ItemGroup>
+
+  <Target Name="RequireViewApiReference" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(ViewApiReference)')"
+           Text="src/Nendo.Workbench/dist/_nendo/view-api.json is missing, and the local MCP serves it as nendo://application/view-api. Build the Workbench first: npm run build in src/Nendo.Workbench." />
+  </Target>
+
 </Project>

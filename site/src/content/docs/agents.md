@@ -35,7 +35,7 @@ You set the level on the Agent page. Each level includes everything that the lev
 | Level | What the agent may do | What it gets |
 | --- | --- | --- |
 | Off | Nothing. Nendo does not listen, and every lease ends. | No connection. |
-| Inspect | Read the whole file: structure, records, screens, history, health and waiting proposals. | The 16 resources. The tool list is empty. |
+| Inspect | Read the whole file: structure, records, screens, history, health and waiting proposals. | The 18 resources. The tool list is empty. |
 | Edit data | Create, change, delete and import records, and run a screen's command. Writes go straight into the file and appear in History. | Adds 12 tools: `nendo.lease.*` (4), `nendo.data.*` (7) and `nendo.health.verify_integrity`. |
 | Shape app | Propose changes to record types, fields, screens, calculations and automatic actions. Proposals wait for you. | Adds 6 tools: `nendo.change_set.begin`, `add_operations`, `amend`, `validate`, `preview` and `reject`. |
 | Unattended | Accept its own proposals, and let the automatic actions they install run. | Adds 1 tool: `nendo.change_set.accept`. |
@@ -126,7 +126,7 @@ A change set may contain 29 operation types, and nothing else:
 - `data.*` (5): create, change and delete records, fill a value on a retired field, and convert an old text reference, carried in the same proposal.
 - `extension.*` (4): put a custom view's code into the file as a package and its files, and take them out again. See [Custom views](/nendo/docs/custom-views).
 
-Restoring a deleted record and changing a file's identity are not available to an agent. `nendo://application/vocabulary` lists every operation with the fields it takes. `nendo://application/examples` holds 17 complete change sets, from a record type with required fields to a calculation with an automatic action and a custom view whose code the file carries. Each one is tested against the real authoring path. For what a screen can contain, see [Screens](/nendo/docs/screens).
+Restoring a deleted record and changing a file's identity are not available to an agent. `nendo://application/vocabulary` lists every operation with the fields it takes. `nendo://application/examples` holds 17 complete change sets, from a record type with required fields to a calculation with an automatic action and a custom view whose code the file carries. Each one is tested against the real authoring path. `nendo://application/view-api` is for an agent writing a custom view's code, and only then: every call the view's page can make, with a whole view to start from. For what a screen can contain, see [Screens](/nendo/docs/screens).
 
 ## Unattended
 

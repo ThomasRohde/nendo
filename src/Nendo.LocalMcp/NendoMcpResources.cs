@@ -17,6 +17,7 @@ internal sealed class NendoMcpResources(
     {
         "nendo://application/vocabulary",
         "nendo://application/examples",
+        NendoViewApi.Uri,
     };
 
     /// <summary>How long a client may keep a read in <see cref="StaticForBuild"/>.</summary>
@@ -202,6 +203,17 @@ internal sealed class NendoMcpResources(
     [Description("Every custom-view package the open file carries: its ID, title, version, entry point and each file's path, media type, SHA-256 and size. A package is definition, written through extension.setPackage and extension.putFile in a change set; read a file's content at nendo://application/extension/{packageId}/file?path=... with the path percent-encoded. A view that names a package runs its code in the Workbench when the view is shown.")]
     public Task<string> GetExtensionsAsync(CancellationToken cancellationToken) =>
         TranslateAsync(() => projection.GetExtensionsAsync(cancellationToken));
+
+    // W-094. The first sentence is the condition, because it is the one sentence describe's
+    // reads index shows: an agent that is not writing a view's code has no reason to read on.
+    [McpServerResource(
+        Name = "nendo.application.view.api",
+        Title = "Custom-view API",
+        UriTemplate = "nendo://application/view-api",
+        MimeType = "application/json")]
+    [Description("Read this only while you write a custom view's code; nothing else needs it. window.nendo as this build serves it to a view's page: every method with its call, parameters and answer, the context and record shapes, the events, filter words, write values, toolbar kinds, icons and keys, theme tokens, limits and refusals, a whole view to start from, and how a person develops a package from a folder. Generated from the tables the view's API script is built from. Static for a host build; it does not describe the open file.")]
+    public Task<string> GetViewApiAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(NendoViewApi.Json);
 
     [McpServerResource(
         Name = "nendo.application.extension.file",

@@ -41,7 +41,7 @@ public sealed class SurfaceMetadataTests
         var templates = await client.ListResourceTemplatesAsync();
         untitled.AddRange(resources.Where(resource => string.IsNullOrWhiteSpace(resource.ProtocolResource.Title)).Select(resource => resource.Name));
         untitled.AddRange(templates.Where(template => string.IsNullOrWhiteSpace(template.ProtocolResourceTemplate.Title)).Select(template => template.Name));
-        Assert.AreEqual(17, resources.Count + templates.Count);
+        Assert.AreEqual(18, resources.Count + templates.Count);
         Assert.IsEmpty(untitled, "Untitled: " + string.Join(", ", untitled));
 
         var undescribed = new List<string>();

@@ -672,6 +672,13 @@ folder, with its `nendo-package.json`, so it can be edited and imported again.
 
 ### Over MCP
 
+An agent that writes a view's code reads `nendo://application/view-api` first. It is
+this guide's API as the running Nendo has it: every `window.nendo` call with its
+parameters and answer, the events, the toolbar's kinds and icons, the theme tokens,
+the limits and refusals, and a whole view to start from. It is generated from the
+tables `api.js` is built from, so it cannot name a call that build does not have. An
+agent that is not writing a view has no reason to read it.
+
 An agent at the **Shape app** access level writes the package through an ordinary
 change set: take a lease, `nendo.change_set.begin`, add the operations with
 `nendo.change_set.add_operations`, and `nendo.change_set.validate`. The person

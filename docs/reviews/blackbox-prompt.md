@@ -775,6 +775,12 @@ vocabulary, the examples and the resources — and not from the person.
   bounds on files, packages and change sets, the kinds of node that show a view and what
   each requires, and how a view's own code reaches the file's records. Say whether
   anything told you what that code will be able to do once it runs.
+- Before you write the view's code, record where the wire first told you how that code
+  reaches the file: the instructions, describe's reads, the vocabulary or the examples.
+  Read `nendo://application/view-api` only then, and record its size. Write the view from
+  it alone, and record every call, parameter or word you still had to guess, and which of
+  those Nendo refused. Say whether anything you read before you set out to write a view
+  already carried the API itself (W-094).
 - Author a small view in one change set: a package with an HTML entry point and a script,
   and a screen that shows it over a record type that has a few records, one field
   calculated and one a decimal with more digits than a JavaScript number keeps. Keep your

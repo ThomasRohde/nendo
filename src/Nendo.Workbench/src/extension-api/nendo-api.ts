@@ -13,7 +13,7 @@
  */
 import { resolveClauseValue } from '../record-window';
 import {
-  apiVersion, chordOf, extensionLimits, hostKeys, normalizeKeys, utf8Length,
+  apiVersion, chordOf, extensionLimits, hostKeys, normalizeKeys, utf8Length, viewEventNames,
   type ConnectMessage, type HelloMessage, type Json, type KeyEventLike, type PortMessage, type SchemaDescription, type SchemaField,
   type ViewContext, type ViewEventName, type ViewGraph, type ViewPage, type ViewRecord, type ViewTheme, type ViewTreeNode, type ViewTreePage,
 } from './protocol';
@@ -64,7 +64,7 @@ function install(host: Window & { nendo?: unknown }): void {
   }
 
   function on(name: ViewEventName, listener: (data: never) => void): () => void {
-    if (name !== 'context' && name !== 'theme' && name !== 'changes' && name !== 'command')
+    if (!(viewEventNames as readonly string[]).includes(name))
       throw new NendoError('unknown-event', `${String(name)} is not an event a view can hear.`);
     if (!listeners.has(name)) listeners.set(name, new Set());
     listeners.get(name)!.add(listener);

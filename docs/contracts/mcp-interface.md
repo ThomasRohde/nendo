@@ -1,6 +1,6 @@
 # MCP interface contract
 
-This contract lists the seventeen resources and twenty tools that an external
+This contract lists the eighteen resources and twenty tools that an external
 agent sees, and the authority rules behind them. `Test-Production.ps1` asserts
 both surfaces by name.
 
@@ -68,8 +68,9 @@ failed on `Expected "Nendo · fixture"`, reading `Nendo`.
 an agent could open. Agents never receive a database path
 ([vision.md](../vision.md)). If a caller supplies one, the host reduces it to its
 last segment. File resources and catalogs carry private, zero-TTL cache hints.
-`nendo://application/vocabulary` and `nendo://application/examples` describe the
-host build rather than the open file, and carry a one-hour `ttlMs`. Tools are
+`nendo://application/vocabulary`, `nendo://application/examples` and
+`nendo://application/view-api` describe the host build rather than the open file,
+and carry a one-hour `ttlMs`. Tools are
 listed in stable name order.
 
 Every tool, resource and template carries a `title`, and `serverInfo` carries
@@ -142,6 +143,7 @@ physical mappings or arbitrary host invocation.
 | `nendo://application/health` | `GetHealthAsync` → `GetDefinitionSnapshotAsync` | Lightweight status with the time of the last integrity check and the change sequence. A status read does not run integrity again. `changesSinceIntegrityCheck` and `integrityStale` state how far the file has moved since that result was measured. An `ok` taken thirty-two changes ago therefore cannot be read as `ok` now. `nendo.health.verify_integrity` requests a measurement. |
 | `nendo://application/extensions` | `GetExtensionsAsync` → `GetDefinitionSnapshotAsync` | Every custom-view package that the file carries: its ID, title, version, entry point, description and total size, and each file's path, media type, SHA-256 and size. No content. A view that names a package runs its code in the Workbench when the view is shown ([custom-view contract](custom-views.md#packages-in-the-file)). |
 | `nendo://application/extension/{packageId}/file{?path,offset,length}` | `GetExtensionFileAsync` → `ReadExtensionFileAsync` | One package file, a page of bytes at a time. `path` is percent-encoded, so `tiles/world.bin` is sent as `tiles%2Fworld.bin`. `offset` and `length` are byte positions. `length` is at most 131,072, and by default the page runs to the end of the file up to that. A text file's page arrives as `text`. Any other page arrives as `base64`, and so does a text page that would split a UTF-8 sequence. `sha256` and `byteLength` describe the whole file, and `nextOffset` is null on the last page. |
+| `nendo://application/view-api` | `NendoViewApi.Json`, embedded from the Workbench's api build | `window.nendo` as a custom view's code calls it ([custom-view contract](custom-views.md#the-view-api-as-a-read)): every broker method with its call, parameters and answer, the helpers `api.js` adds, the context and record shapes, the events, the filter words, write values, toolbar kinds, icons and keys, theme tokens, limits, refusals, a whole view to start from, and how a person develops a package from a folder. Read only while an agent writes a view's code (W-094). The instructions, the vocabulary's `extension.setPackage`, the custom-view example and describe's `reads` each name it with that condition and carry none of it; `ViewApiResourceTests` fails when one of them does. Static for a host build. |
 
 All four page resources (records, export, history and revision operations) keep
 the MCP 1–100 limit. `limit` is a whole number in
