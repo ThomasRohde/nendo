@@ -16,6 +16,24 @@ body {
 body {
   background: var(--canvas);
   color: var(--ink);
+  /* An application, not a document: a press that slides across headings, labels and
+     buttons selects nothing, as in any Windows app. What people copy stays selectable —
+     what they type, codes and addresses, calculated values and what went wrong. An
+     ancestor's none reaches every descendant, so each of these restates text. */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"],
+code,
+pre,
+output,
+[role="alert"],
+.message-slot {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 button {

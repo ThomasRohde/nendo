@@ -179,9 +179,13 @@
 
 .connection-endpoint code {
   font-size: 12px;
-  word-break: break-all;
   user-select: all;
 }
+
+/* Only the address may break anywhere: it is one long token. The server name in the
+   sentence below it is a word and wraps as one. */
+.connection-endpoint > code { word-break: break-all; }
+.connection-endpoint small code { white-space: nowrap; }
 
 .connection-endpoint small,
 .connection-toggle small,
