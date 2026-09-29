@@ -6,6 +6,7 @@ The demo files are tracked; the live planner is the owner's data and is ignored.
 | File | What it is | In git |
 | --- | --- | --- |
 | `Nendo.nendo` | The live [Nendo Development planner](../docs/dogfooding.md): work items, findings, checks and initiatives. Real work, not a fixture. | **No** — ignored |
+| `Planner.nendo` | The [designed successor](../docs/design/planner.md) to the planner, built by `tools/Build-Planner.mjs` and filled from `Nendo.nendo`. Not the primary planner until the owner decides the switch. | **No** — ignored |
 | `Work dependencies demo.nendo` | Fourteen test tasks and their dependencies, with the [work-dependency view](../extensions/work-dependencies/README.md): a chain, an isolated task, a three-task cycle and one task behind it. | Yes |
 | `Nendo graph demo (fitted).nendo` | A small record graph with a view of the [dependency-graph package](../extensions/dependency-graph/README.md). | Yes |
 | `Nendo custom-view demo.nendo` | The first custom-view demo, kept as the shape that slice produced. | Yes |

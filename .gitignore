@@ -41,6 +41,9 @@ site/public/favicon.ico
 # whole on every write. It lives in workspace/ beside the tracked demo files and
 # is deliberately not one of them; workspace/README.md says how it is kept.
 workspace/Nendo.nendo
+# Its designed successor, built from the planner by tools/Build-Planner.mjs and
+# owner data on the same terms (docs/design/planner.md).
+workspace/Planner.nendo
 
 # Nendo/SQLite operational derivatives
 *.nendo-journal
