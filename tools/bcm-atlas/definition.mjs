@@ -21,7 +21,7 @@ export const defs = [
     ['owner', 'Owner', 'text'], ['lifecycle', 'Lifecycle', 'text', false, 'singleChoice', ['Planned', 'Active', 'Retiring']],
     ['criticality', 'Criticality', 'text', false, 'singleChoice', ['Low', 'Medium', 'High']], ['vendor', 'Vendor', 'text']]],
   ['support', 'Application support', 'support', [
-    ['name', 'Support relationship', 'text', true], ['capability', 'Capability', 'reference'], ['application', 'Application', 'reference'],
+    ['name', 'Support relationship', 'text', true], ['capability', 'Capability', 'reference', true], ['application', 'Application', 'reference', true],
     ['role', 'Role', 'text', false, 'singleChoice', ['Primary', 'Supporting', 'System of record']],
     ['fit', 'Business fit', 'text', false, 'singleChoice', ['Poor', 'Adequate', 'Strong']], ['notes', 'Notes', 'text', false, 'longText']]],
   ['initiative', 'Initiative', 'initiative', [
@@ -30,12 +30,23 @@ export const defs = [
     ['stage', 'Stage', 'text', false, 'singleChoice', ['Proposed', 'Discovery', 'Delivery', 'Complete']],
     ['start', 'Start', 'date', false, 'date'], ['end', 'Target completion', 'date', false, 'date'],
     ['priority', 'Priority', 'text', false, 'singleChoice', ['Low', 'Medium', 'High']], ['success', 'Success measure', 'text', false, 'longText']]],
+  // One scored judgement of one capability on one dimension at one date (W-080). History keeps
+  // every one; the map shows the latest.
+  ['assessment', 'Assessment', 'assess', [
+    ['name', 'Assessment', 'text', true], ['capability', 'Capability', 'reference', true],
+    ['dimension', 'Dimension', 'text', true, 'singleChoice', ['Maturity', 'Business value', 'IT health']],
+    ['score', 'Score', 'integer', true, 'rating', null, 1, 5], ['date', 'Assessed on', 'date', true, 'date'],
+    ['assessor', 'Assessor', 'text'], ['evidence', 'Evidence', 'text', false, 'longText']]],
 ];
+
+// Fields no two records may share (ADR-0020): a capability's code names it on import (W-075).
+export const unique = ['cap.code'];
 
 // [record type, reference field, target record type, the target's label field].
 export const references = [
   ['capability', 'cap.parent', 'capability', 'cap.name'], ['support', 'support.capability', 'capability', 'cap.name'],
   ['support', 'support.application', 'application', 'app.name'], ['initiative', 'initiative.capability', 'capability', 'cap.name'],
+  ['assessment', 'assess.capability', 'capability', 'cap.name'],
 ];
 
 // The tone of each choice that has one, whichever field offers it.
@@ -43,6 +54,7 @@ export const tones = {
   Supporting: 'grey', Core: 'blue', Differentiating: 'violet', Tolerate: 'blue', Invest: 'teal', Migrate: 'amber', Eliminate: 'red',
   Proposed: 'grey', Active: 'teal', Retiring: 'amber', Planned: 'violet', Low: 'grey', Medium: 'amber', High: 'red',
   Poor: 'red', Adequate: 'amber', Strong: 'teal', Discovery: 'violet', Delivery: 'blue', Complete: 'green',
+  Maturity: 'blue', 'Business value': 'violet', 'IT health': 'teal',
 };
 
 // The capability tree the Engine keeps (ADR-0019): no loops, at most 32 levels, siblings by Display order.
@@ -69,6 +81,11 @@ export const mapView = {
     related: {
       'bcm.support': { title: 'Application support', row: '{support.fit} fit · {support.role}', empty: 'No applications linked. Add support links in the record page.' },
       'bcm.initiative': { title: 'Change portfolio', row: '{initiative.stage} · {initiative.end}', empty: 'No initiatives linked.' },
+      'bcm.assessment': { title: 'Assessment history', row: '{assess.dimension} {assess.score} · {assess.date}', empty: 'Not assessed yet. Add an assessment in the record page.' },
+    },
+    assessments: {
+      entityId: 'bcm.assessment', capability: 'assess.capability', dimension: 'assess.dimension', score: 'assess.score', date: 'assess.date',
+      dimensions: { maturity: 'Maturity', health: 'IT health', value: 'Business value' },
     },
   },
 };
@@ -87,7 +104,7 @@ export function schemaDescription() {
         const fieldId = `${prefix}.${key}`;
         const reference = references.find(([, field]) => field === fieldId);
         return {
-          fieldId, displayName: name, storageKind: kind, required, presentation, calculated: false, expression: null,
+          fieldId, displayName: name, storageKind: kind, required, presentation, calculated: false, expression: null, unique: unique.includes(fieldId),
           choices: (options ?? []).map(option => ({ id: option, displayName: option, retired: false, tone: tones[option] ?? null })),
           reference: reference ? { targetEntityId: `bcm.${reference[2]}`, labelFieldId: reference[3] } : null,
           scale: min ? { min, max } : null,

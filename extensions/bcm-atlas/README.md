@@ -8,8 +8,21 @@ Northstar model.
 ## Use
 
 Open BCM.nendo in Nendo and choose **Capability → Capability map** in Use. The map has
-Map, Assessment and Outline views, search, five colour modes (maturity, maturity gap,
-importance, investment, neutral) and the compact and ordered reference layouts.
+Map, Assessment, Outline and Importance × health views, search, six colour modes
+(maturity, maturity gap, change since, importance, investment, neutral) and the compact and
+ordered reference layouts.
+
+- **Assessments over time** (W-080). Where the view's configuration names an assessment
+  record type, each capability's maturity is its latest Maturity assessment, and the
+  inspector shows the latest score on each dimension (Maturity, Business value, IT health)
+  with its date and how many there have been. Every assessment is a record, so the history
+  keeps each one; the capability's page lists them under Assessment history.
+- **Change since** colours each card by its latest maturity less the one in force on a
+  chosen date (Since lists every date anything was assessed): lower, no change, up one, up
+  two or more, or not comparable where either judgement is missing.
+- **Importance × health** places every capability in scope by its strategic importance
+  against its latest IT health score, with a column for those not yet assessed. A cell
+  lists its capabilities; pressing one selects it.
 
 - **Levels** shows 1 to 5 levels, or All, and adapts if the model's depth changes. The
   map opens at two levels. A collapsed group shows how many capabilities it holds.
@@ -108,6 +121,14 @@ order is never the inspector's.
 **The banner** at the right of the figures is `configuration.banner`, `{title, note}`.
 Without one there is no banner.
 
+**Assessments** are `configuration.assessments`: `entityId` names a record type, and
+`capability`, `dimension`, `score` and `date` name its reference to the capabilities, a choice
+field, a whole-number field and a date field. `dimensions` maps `maturity`, `health` and
+`value` to the dimension field's choice IDs. With them the latest Maturity assessment stands
+for the maturity field, which the editor then no longer offers; Change since needs them, and
+Importance × health needs `health` and an importance part. A record type that does not fit is
+named above the map, and the Atlas carries on with the stored maturity.
+
 BCM.nendo's Capability map carries this configuration
 ([`tools/bcm-atlas/definition.mjs`](../../tools/bcm-atlas/definition.mjs)):
 
@@ -124,7 +145,14 @@ BCM.nendo's Capability map carries this configuration
     "bcm.support": { "title": "Application support", "row": "{support.fit} fit · {support.role}",
       "empty": "No applications linked. Add support links in the record page." },
     "bcm.initiative": { "title": "Change portfolio", "row": "{initiative.stage} · {initiative.end}",
-      "empty": "No initiatives linked." }
+      "empty": "No initiatives linked." },
+    "bcm.assessment": { "title": "Assessment history", "row": "{assess.dimension} {assess.score} · {assess.date}",
+      "empty": "Not assessed yet. Add an assessment in the record page." }
+  },
+  "assessments": {
+    "entityId": "bcm.assessment", "capability": "assess.capability", "dimension": "assess.dimension",
+    "score": "assess.score", "date": "assess.date",
+    "dimensions": { "maturity": "Maturity", "health": "IT health", "value": "Business value" }
   }
 }
 ```
@@ -176,6 +204,18 @@ The tooling lives in [`tools/bcm-atlas/`](../../tools/bcm-atlas/), outside the p
 - `northstar.mjs` generates the shipped model: the 60-capability starter with its
   applications, links and initiatives, and `northstar-expansion.txt`, which grows it to
   635. The live file's records equal its output.
+- `assessments.mjs` derives assessments from capabilities: `migrated` moves each current
+  maturity into one Maturity assessment dated when it was last reviewed, with its evidence and
+  owner, and changes nothing on the capability; `demonstration` is the Northstar demo's
+  fictional history (an earlier baseline, Business value and IT health), each one saying so.
+- `upgrade.mjs` is what a BCM.nendo built before 2026-09-29 needs: the Assessment record
+  type and its screens, a unique capability code (W-075), both ends of a support link required
+  (W-076) and the map's configuration. `node tools/bcm-atlas/upgrade.mjs` writes
+  `upgrade-operations.json`, which `BcmAtlasUpgradeTests` validates and applies to a copy of
+  `workspace/BCM.nendo`. To upgrade the live file, open it with Agent access on and run
+  `node tools/bcm-atlas/Upgrade-BcmAtlas.mjs schema`, accept the proposal, run
+  `node tools/Put-NendoPackage.mjs extensions/bcm-atlas`, accept it, then
+  `node tools/bcm-atlas/Upgrade-BcmAtlas.mjs data` to import the assessments.
 - `fixtures.mjs` hands the package two files as the Workbench would: BCM.nendo, and a
   business-area map whose record types, field IDs, choice IDs and parts are all different.
 - `export.test.mjs` tests `export.js`, which builds the exported SVG from the packed layout:
@@ -192,7 +232,10 @@ The tooling lives in [`tools/bcm-atlas/`](../../tools/bcm-atlas/), outside the p
 `tools/Review-BcmAtlas.ps1` runs inside `Test-Production.ps1`: the node tests, then the
 package in Edge through the fixture broker. Over BCM it measures level counts, every
 colour mode, the banner and the related rows in BCM's own words, no repacking while
-searching or recolouring, the camera kept across a data change, Ctrl-drag from a card, a
+searching or recolouring, the latest assessment on each dimension, every leaf's change
+since each assessment date against the fixture's own history, every card's maturity as its
+latest assessment, all 635 capabilities placed by importance against health and one in its
+exact cell, the camera kept across a data change, Ctrl-drag from a card, a
 definition change binding again, the notice without a declared tree, both themes and a
 600px pane; moving by the real pointer into a group and before a sibling, a drop into its
 own group refused unsent, the keyboard's moves, F2's rename and a stale move shown as the
@@ -200,6 +243,7 @@ file holds it; and the exports: an SVG holding exactly the map's cards, span and
 same file after zooming and panning, no packing, a PNG at twice the SVG's size, the dark
 canvas and the white print palette, and the SVG opened on a page of its own. Over the second
 file it measures that only that file's record types are read,
+that Importance × health is not offered without IT health assessments,
 that the parts it does not bind are not offered, that the unbound one is named, that
 scores and tones follow its own fields, that its related sections are found, and that the
 editor writes only its own bound fields with the parent's version.

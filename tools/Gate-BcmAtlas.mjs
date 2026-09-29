@@ -98,7 +98,7 @@ async (page) => {
   assert(await status() === '48 shown · 635 in scope · 635 total', 'The map did not open at two levels: ' + await status());
 
   // BCM binds every part, so it keeps every colour mode, its banner and its own words (W-077).
-  assert(JSON.stringify(await colours()) === JSON.stringify(['maturity', 'gap', 'importance', 'investment', 'none']),
+  assert(JSON.stringify(await colours()) === JSON.stringify(['maturity', 'gap', 'change', 'importance', 'investment', 'none']),
     'BCM lost a colour mode: ' + JSON.stringify(await colours()));
   const banner = await view.evaluate(() => ({ hidden: document.getElementById('banner').hidden, text: document.getElementById('banner').textContent }));
   assert(!banner.hidden && banner.text === 'NORTHSTAR / DEMONSTRATION MODELFictional data · replace with your organisation', 'BCM lost its banner: ' + JSON.stringify(banner));
@@ -106,11 +106,28 @@ async (page) => {
   await select('bcm-cap-3-3');
   results.bcmInspector = await inspector();
   // In BCM's order, which its configuration gives; the host lists record types by ID, initiatives first.
-  assert(JSON.stringify(results.bcmInspector.headings) === JSON.stringify(['Assessment', '2 child capabilities', 'Application support', 'Change portfolio']),
+  assert(JSON.stringify(results.bcmInspector.headings) === JSON.stringify(['Assessment', '2 child capabilities', 'Application support', 'Change portfolio', 'Assessment history']),
     'The inspector’s sections are not in BCM’s order: ' + JSON.stringify(results.bcmInspector.headings));
   for (const expected of ['Strong fit · Primary', 'Delivery · 2026-08-28']) {
     assert(results.bcmInspector.relations.some(text => text.endsWith(expected)), `No related row reads "${expected}": ${JSON.stringify(results.bcmInspector.relations)}`);
   }
+  // W-080: dated assessments. The inspector shows the latest score on each dimension, read from
+  // the fixture's own assessments rather than from a number written here.
+  const assessments = bcm.records['bcm.assessment'];
+  const dimensionOf = { maturity: 'Maturity', value: 'Business value', health: 'IT health' };
+  const latestOf = (capability, dimension, until = '9999-12-31') => assessments
+    .filter(a => a.values['assess.capability'] === capability && a.values['assess.dimension'] === dimension && a.values['assess.date'] <= until)
+    .sort((a, b) => (a.values['assess.date'] < b.values['assess.date'] ? -1 : a.values['assess.date'] > b.values['assess.date'] ? 1 : 0)).at(-1) ?? null;
+  const dates = [...new Set(assessments.map(a => a.values['assess.date']))].sort();
+  results.assessed = await view.evaluate(() => [...document.querySelectorAll('#inspector .facts.assessed > div')]
+    .map(fact => [fact.dataset.dimension, fact.querySelector('strong').textContent]));
+  const wanted = ['maturity', 'value', 'health'].map(key => {
+    const found = latestOf('bcm-cap-3-3', dimensionOf[key]);
+    return [key, found === null ? 'Not assessed' : `${found.values['assess.score']} / 5`];
+  });
+  assert(JSON.stringify(results.assessed) === JSON.stringify(wanted),
+    'The inspector does not show the latest assessment on each dimension: ' + JSON.stringify(results.assessed) + ', expected ' + JSON.stringify(wanted));
+
   // Back to the enterprise, with nothing selected, for what follows.
   await view.evaluate(() => document.querySelector('#breadcrumbs button').click());
   await until(() => document.querySelectorAll('.cap.selected').length === 0, null, 'Returning to the enterprise kept a card selected.');
@@ -120,6 +137,57 @@ async (page) => {
     await view.click(`[data-level="${level}"]`);
     assert(await cards() === count, `Levels ${level} shows ${await cards()} cards, not ${count}.`);
   }
+
+  // W-080: change since a chosen date. Every leaf's figure is its latest maturity less the one in
+  // force on that date, from the fixture; since the latest date nothing has changed.
+  const leafFigures = () => view.evaluate(() => [...document.querySelectorAll('.cap.leaf')]
+    .filter(card => !card.querySelector('.cap-count')).map(card => [card.dataset.id, card.querySelector('.score').textContent]));
+  const changeText = (id, since) => {
+    const now = latestOf(id, 'Maturity'), then = latestOf(id, 'Maturity', since);
+    if (now === null || then === null) return '—';
+    const d = now.values['assess.score'] - then.values['assess.score'];
+    return d > 0 ? `+${d}` : String(d);
+  };
+  await view.selectOption('#colour', 'change');
+  results.since = await view.evaluate(() => ({ hidden: document.getElementById('since-control').hidden,
+    dates: [...document.getElementById('since').options].map(option => option.value), value: document.getElementById('since').value,
+    legend: document.getElementById('legend').textContent }));
+  assert(!results.since.hidden && JSON.stringify(results.since.dates) === JSON.stringify(dates) && results.since.value === dates[0],
+    'Change since does not offer the assessment dates, earliest first: ' + JSON.stringify(results.since) + ' expected ' + JSON.stringify(dates));
+  assert(results.since.legend === 'LowerNo changeUp 1 levelUp 2 or moreNot comparable', 'The change legend reads: ' + results.since.legend);
+  const sinceFirst = await leafFigures();
+  const wrongFirst = sinceFirst.filter(([id, text]) => text !== changeText(id, dates[0]));
+  assert(sinceFirst.length > 400 && wrongFirst.length === 0,
+    `${wrongFirst.length} of ${sinceFirst.length} leaves show the wrong change since ${dates[0]}: ` + JSON.stringify(wrongFirst.slice(0, 5)));
+  results.changeCounts = Object.fromEntries(['+1', '0', '-1'].map(text => [text, sinceFirst.filter(([, figure]) => figure === text).length]));
+  assert(results.changeCounts['+1'] > 0 && results.changeCounts['-1'] > 0, 'The fixture should show rises and falls: ' + JSON.stringify(results.changeCounts));
+  await view.selectOption('#since', dates.at(-1));
+  const sinceLast = await leafFigures();
+  assert(sinceLast.every(([id, text]) => text === changeText(id, dates.at(-1))) && !sinceLast.some(([, text]) => /^[+-]/.test(text)),
+    'Since the latest date, a leaf shows a change: ' + JSON.stringify(sinceLast.filter(([, text]) => /^[+-]/.test(text)).slice(0, 5)));
+  await view.selectOption('#colour', 'maturity');
+  // The card's maturity is the latest Maturity assessment, not the stored field it replaced.
+  const maturityWrong = (await leafFigures()).filter(([id, text]) => {
+    const found = latestOf(id, 'Maturity');
+    return text !== (found === null ? '—' : `${found.values['assess.score']} / 5`);
+  });
+  assert(maturityWrong.length === 0, 'Cards do not show the latest Maturity assessment: ' + JSON.stringify(maturityWrong.slice(0, 5)));
+
+  // W-080: importance against IT health places every capability, each in its own cell.
+  await view.click('[data-mode="portfolio"]');
+  await until(() => !document.getElementById('portfolio').hidden, null, 'Importance × health never showed.');
+  results.portfolio = await view.evaluate(() => Number(document.getElementById('portfolio').dataset.placed));
+  assert(results.portfolio === 635, `Importance × health placed ${results.portfolio} capabilities, not 635.`);
+  const capability = bcm.records['bcm.capability'].find(record => record.recordId === 'bcm-cap-3-3');
+  const cell = await view.evaluate(id => {
+    const td = document.querySelector(`.portfolio-chip[data-id="${id}"]`)?.closest('td');
+    return td ? [td.dataset.importance, td.dataset.health] : null;
+  }, 'bcm-cap-3-3');
+  const health = latestOf('bcm-cap-3-3', 'IT health');
+  assert(JSON.stringify(cell) === JSON.stringify([capability.values['cap.importance'], health === null ? '' : String(health.values['assess.score'])]),
+    'bcm-cap-3-3 is in the wrong cell: ' + JSON.stringify(cell));
+  await view.click('[data-mode="map"]');
+  await until(() => !document.getElementById('map').hidden, null, 'The map did not come back from Importance × health.');
 
   // Searching and recolouring restyle the cards; they never pack the map again. Packing the
   // whole model takes about half a second, so a new layout per keystroke stalls typing.
@@ -402,6 +470,8 @@ async (page) => {
 
   // What the view does not bind is not offered, and what it binds wrongly is named.
   results.other = { colours: await colours() };
+  assert(await view.evaluate(() => document.querySelector('[data-mode="portfolio"]').hidden),
+    'Importance × health is offered to a file with no IT health assessments.');
   assert(JSON.stringify(results.other.colours) === JSON.stringify(['maturity', 'importance', 'none']),
     'Without target or investment the colour modes should be maturity, importance and neutral: ' + JSON.stringify(results.other.colours));
   results.other.figures = await view.evaluate(() => ({ gaps: document.getElementById('gaps').parentElement.hidden,
@@ -501,8 +571,20 @@ async (page) => {
   const levelItem = toolbar.items.find(item => item.id === 'levels');
   assert(JSON.stringify(levelItem.options.map(option => option.value)) === JSON.stringify(['1', '2', '3', '4', '5', 'all']) && levelItem.value === '2',
     'Levels were declared as ' + JSON.stringify(levelItem));
-  assert(JSON.stringify(toolbar.items.find(item => item.id === 'colour').options.map(option => option.value)) === JSON.stringify(['maturity', 'gap', 'importance', 'investment', 'none']),
+  assert(JSON.stringify(toolbar.items.find(item => item.id === 'colour').options.map(option => option.value)) === JSON.stringify(['maturity', 'gap', 'change', 'importance', 'investment', 'none']),
     'BCM\u2019s colour modes were not all declared.');
+  // W-080: Importance × health is a mode Nendo lists, and Change since declares its dates.
+  assert(JSON.stringify(toolbar.items.find(item => item.id === 'mode').options.map(option => option.value)) === JSON.stringify(['map', 'assessment', 'outline', 'portfolio']),
+    'The modes Nendo lists are ' + JSON.stringify(toolbar.items.find(item => item.id === 'mode').options));
+  assert(!toolbar.items.some(item => item.id === 'since'), 'Since is declared while the colour is not Change since.');
+  await page.evaluate(() => window.broker.command('colour', 'change'));
+  const sinceItem = (await declaredWhere(last => last.items.some(item => item.id === 'since'), 'Change since declared no dates.')).items.find(item => item.id === 'since');
+  assert(JSON.stringify(sinceItem.options.map(option => option.value)) === JSON.stringify(dates) && sinceItem.value === dates[0],
+    'Since was declared as ' + JSON.stringify(sinceItem));
+  await page.evaluate(date => window.broker.command('since', date), dates.at(-1));
+  await declaredWhere(last => last.items.find(item => item.id === 'since')?.value === dates.at(-1), 'The since command did not move the date.');
+  await page.evaluate(() => window.broker.command('colour', 'maturity'));
+  await declaredWhere(last => !last.items.some(item => item.id === 'since'), 'Since stayed declared after leaving Change since.');
 
   // A command is a press of the control it stands for, and the toolbar follows the state.
   await page.evaluate(() => window.broker.command('levels', '3'));

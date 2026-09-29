@@ -57,7 +57,8 @@ test('BCM binds every part through its view, and keeps its own words for the rel
   assert.deepEqual(bound.choices.importance.map(c=>[c.displayName,c.tone]),[['Supporting','grey'],['Core','blue'],['Differentiating','violet']]);
   assert.deepEqual(bound.banner,{title:'NORTHSTAR / DEMONSTRATION MODEL',note:'Fictional data · replace with your organisation'});
   assert.deepEqual(bound.related.map(e=>[e.entityId,e.viaFieldId,e.farFieldId,e.title]),
-    [['bcm.support','support.capability','support.application','Application support'],['bcm.initiative','initiative.capability',null,'Change portfolio']]);
+    [['bcm.support','support.capability','support.application','Application support'],['bcm.initiative','initiative.capability',null,'Change portfolio'],
+      ['bcm.assessment','assess.capability',null,'Assessment history']]);
   const [support,portfolio]=bound.related;
   const link=records['bcm.support'].find(x=>x.recordId==='bcm-support-3');
   assert.equal(relatedRow(support,link),'Strong fit · Primary','BCM’s support row lost the wording its configuration gives it');
@@ -113,7 +114,7 @@ test('a host that does not name the hierarchy yet leaves the parent to the one s
 test('related sections read in the configuration’s order, then links before lists, whatever order the host lists types in',()=>{
   // The host lists record types by entity ID, so BCM's initiatives come before its support links.
   // Found on the live file on 2026-09-28: the inspector read Change portfolio before Application support.
-  for(const [fixture,expected] of [[bcmFixture(),['bcm.support','bcm.initiative']],[otherFixture(),['org.use','org.project']]]){
+  for(const [fixture,expected] of [[bcmFixture(),['bcm.support','bcm.initiative','bcm.assessment']],[otherFixture(),['org.use','org.project']]]){
     const {context,schema}=fixture;
     for(const entities of [schema.entities,[...schema.entities].reverse()]){
       const order=bindAtlas(context,{entities}).related.map(e=>e.entityId);

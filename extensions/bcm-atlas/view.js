@@ -28,8 +28,9 @@ let undeclared = false;
 // What the person is looking at.
 let selected = null;        // record ID of the selected capability
 let scope = null;           // record ID of the focused group; null is the whole enterprise
-let mode = 'map';           // 'map', 'assessment' or 'outline'
-let colour = 'maturity';    // what card colour shows: maturity, gap, importance, investment, none
+let mode = 'map';           // 'map', 'assessment', 'outline' or 'portfolio'
+let colour = 'maturity';    // what card colour shows: maturity, gap, change, importance, investment, none
+let since = null;           // the assessment date 'change' is measured from; null is the earliest
 let layoutMode = 'compact'; // the reference layout's 'compact' or 'ordered' packing
 let levels = 2;             // levels shown below the scope; Infinity shows them all
 let query = '';             // the search text, trimmed and lower case
@@ -115,7 +116,13 @@ function maturityText(level, fallback) {
 const maturityTones = ['grey', 'red', 'orange', 'amber', 'teal', 'green']; // by level 0-5
 
 /** The parts each colour mode needs the view to bind. Neutral needs none. */
-const colourNeeds = { maturity: ['maturity'], gap: ['maturity', 'target'], importance: ['importance'], investment: ['investment'], none: [] };
+const colourNeeds = { maturity: ['maturity'], gap: ['maturity', 'target'], change: ['assessments'], importance: ['importance'], investment: ['investment'], none: [] };
+
+/** The date 'change' is measured from: the chosen one while it is still an assessment date, else the earliest. */
+function sinceDate() {
+  const dates = binding.assessmentDates();
+  return dates.includes(since) ? since : dates[0] ?? null;
+}
 
 function toneFor(record) {
   switch (colour) {
@@ -126,6 +133,12 @@ function toneFor(record) {
       if (g == null) return 'grey';
       if (g <= 0) return 'teal';
       return g === 1 ? 'amber' : g === 2 ? 'orange' : 'red';
+    }
+    case 'change': {
+      // Latest maturity against the maturity in force on the chosen date (W-080).
+      const d = binding.change(record, sinceDate());
+      if (d == null) return 'grey';
+      return d < 0 ? 'red' : d === 0 ? 'blue' : d === 1 ? 'teal' : 'green';
     }
     case 'importance':
     case 'investment':
@@ -145,6 +158,8 @@ function legendEntries() {
       return maturityLabels.map((label, level) => [label, maturityTones[level]]);
     case 'gap':
       return [['At / above target', 'teal'], ['1 level', 'amber'], ['2 levels', 'orange'], ['3+ levels', 'red'], ['Unassessed', 'grey']];
+    case 'change':
+      return [['Lower', 'red'], ['No change', 'blue'], ['Up 1 level', 'teal'], ['Up 2 or more', 'green'], ['Not comparable', 'grey']];
     case 'importance':
     case 'investment':
       return binding.choices[colour].map(choice => [choice.displayName, choice.tone || 'grey']);
@@ -187,9 +202,18 @@ function scopeTo(id) {
 }
 
 function setMode(next) {
-  mode = next;
-  document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+  setModeQuietly(next);
   render(true);
+}
+
+function setModeQuietly(next) {
+  mode = next === 'portfolio' && !portfolioAvailable() ? 'map' : next;
+  document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+}
+
+/** Importance against health needs an importance field and IT health assessments (W-080). */
+function portfolioAvailable() {
+  return binding.has('importance') && binding.has('health');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -346,6 +370,10 @@ function collapsedCount(node) {
 function scoreText(record, hidden) {
   if (hidden) return `${hidden} inside`;
   if (colour === 'gap') return binding.gap(record) == null ? '—' : `Δ ${binding.gap(record)}`;
+  if (colour === 'change') {
+    const d = binding.change(record, sinceDate());
+    return d == null ? '—' : d > 0 ? `+${d}` : String(d);
+  }
   if (binding.has('maturity')) return binding.value(record, 'maturity') == null ? '—' : `${binding.value(record, 'maturity')} / ${binding.scale.max}`;
   return '';
 }
@@ -464,6 +492,57 @@ async function exportMap(format) {
     }
   }
   say(`Exported ${file.cards} capabilities as ${format.toUpperCase()}.`);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Importance against health (W-080)
+//
+// Every capability in scope, placed by its strategic importance (a row per choice, the most
+// important on top) against its latest IT health assessment (a column per score, and one for
+// capabilities not yet assessed). A cell lists its capabilities; pressing one selects it.
+
+function renderPortfolio() {
+  const inScope = recordsInScope().filter(matches);
+  const importance = [...(binding.choices.importance ?? [])].reverse();
+  const scale = binding.assessments?.scale ?? { min: 1, max: 5 };
+  const scores = Array.from({ length: scale.max - scale.min + 1 }, (_, i) => scale.min + i);
+  const cell = (choice, score) => inScope.filter(record =>
+    binding.value(record, 'importance') === choice && (binding.assessed(record, 'health')?.score ?? null) === score);
+  const grid = el('table', 'portfolio-grid');
+  grid.setAttribute('aria-label', `${binding.choiceName('importance', null) ?? 'Importance'} against ${binding.assessments?.dimensionName('health') ?? 'health'}`);
+  const head = el('tr');
+  head.append(el('th', null, `Importance / ${binding.assessments?.dimensionName('health') ?? 'Health'}`),
+    ...scores.map(score => el('th', 'numeric', String(score))), el('th', null, 'Not assessed'));
+  grid.append(el('thead'));
+  grid.tHead.append(head);
+  const body = el('tbody');
+  let placed = 0;
+  for (const choice of [...importance, { id: null, displayName: 'No importance set', tone: 'grey' }]) {
+    const row = el('tr');
+    const label = el('th', null, choice.displayName);
+    row.append(label);
+    for (const score of [...scores, null]) {
+      const members = cell(choice.id, score);
+      placed += members.length;
+      const td = el('td', 'portfolio-cell');
+      td.dataset.importance = choice.id ?? '';
+      td.dataset.health = score == null ? '' : String(score);
+      if (members.length) td.append(el('strong', 'numeric', String(members.length)));
+      for (const record of members) {
+        const chip = button(binding.title(record), () => select(record.recordId), 'portfolio-chip');
+        chip.dataset.id = record.recordId;
+        if (selected === record.recordId) chip.classList.add('selected');
+        td.append(chip);
+      }
+      row.append(td);
+    }
+    if (choice.id === null && !row.querySelector('.portfolio-chip')) continue;
+    body.append(row);
+  }
+  grid.append(body);
+  $('portfolio').replaceChildren(grid);
+  $('portfolio').dataset.placed = String(placed);
+  if (!inScope.length) $('portfolio').append(el('p', 'muted', 'No capabilities match your search.'));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -594,6 +673,22 @@ function assessment(record) {
   }
   const nodes = rows.length ? [facts] : [];
 
+  // With dated assessments, the latest on each dimension and how many there have been (W-080).
+  if (binding.has('assessments')) {
+    const latest = el('div', 'facts assessed');
+    for (const key of ['maturity', 'value', 'health']) {
+      if (binding.assessments.dimensions[key] === undefined) continue;
+      const found = binding.assessed(record, key), count = binding.assessedCount(record, key);
+      const fact = el('div');
+      fact.dataset.dimension = key;
+      fact.append(el('span', null, binding.assessments.dimensionName(key)),
+        el('strong', null, found === null ? 'Not assessed' : `${found.score} / ${binding.assessments.scale.max}`),
+        el('small', null, found === null ? '' : `${found.date}${count > 1 ? ` · ${count} assessments` : ''}`));
+      latest.append(fact);
+    }
+    nodes.push(latest);
+  }
+
   // One pip a level, filled up to the current maturity, in the colour the map is using.
   if (binding.has('maturity')) {
     const scale = el('div', 'scale');
@@ -663,9 +758,11 @@ function render(refit = false) {
   const empty = records.length === 0;
   $('empty').hidden = !empty || undeclared;
   $('map').hidden = mode !== 'map' || empty;
-  $('table').hidden = mode === 'map' || empty;
+  $('table').hidden = mode === 'map' || mode === 'portfolio' || empty;
+  $('portfolio').hidden = mode !== 'portfolio' || empty;
   document.querySelector('.map-tools').hidden = mode !== 'map';
   if (mode === 'map') renderMap(refit);
+  else if (mode === 'portfolio') renderPortfolio();
   else renderTable();
   inspector();
   say(footer());
@@ -700,6 +797,13 @@ function applyBinding() {
   document.querySelectorAll('[data-needs]').forEach(node => {
     node.hidden = !node.dataset.needs.split(' ').every(part => part === 'parent' ? binding.parentFieldId !== null : binding.has(part));
   });
+  // A mode the view cannot show gives way to the map.
+  if (mode === 'portfolio' && !portfolioAvailable()) setModeQuietly('map');
+  // "Since" belongs to the change mode, and lists the dates anything was assessed.
+  const dates = binding.assessmentDates();
+  $('since').replaceChildren(...dates.map(date => { const option = el('option', null, date); option.value = date; return option; }));
+  $('since').value = sinceDate() ?? '';
+  $('since-control').hidden = colour !== 'change' || nativeChrome;
   $('banner').hidden = binding.banner === null;
   $('banner-title').textContent = binding.banner?.title ?? '';
   $('banner-note').textContent = binding.banner?.note ?? '';
@@ -732,6 +836,7 @@ async function refresh() {
     // unless the focused group has gone.
     const first = layout === null;
     relatedRecords = new Map(relatedTypes.map((entityId, index) => [entityId, lists[index]]));
+    binding.useAssessments(binding.assessments === null ? [] : relatedRecords.get(binding.assessments.entityId) ?? []);
     modelGeneration++;
     model = hierarchy(nodes, binding.title);
     records = model.records;
@@ -866,6 +971,10 @@ $('search').oninput = event => {
 };
 $('colour').onchange = event => {
   colour = event.target.value;
+  render(false);
+};
+$('since').onchange = event => {
+  since = event.target.value;
   render(false);
 };
 $('layout').onchange = event => {
@@ -1242,7 +1351,9 @@ new ResizeObserver(() => {
 // the focused group, and a right-click on a card opens Nendo's menu. The declaration follows the
 // state: render and the camera declare it again, and the API sends at most ten a second.
 
-const modeOptions = [{ value: 'map', label: 'Map' }, { value: 'assessment', label: 'Assessment' }, { value: 'outline', label: 'Outline' }];
+const allModeOptions = [{ value: 'map', label: 'Map' }, { value: 'assessment', label: 'Assessment' }, { value: 'outline', label: 'Outline' },
+  { value: 'portfolio', label: 'Importance × health' }];
+const modeOptions = () => allModeOptions.filter(option => option.value !== 'portfolio' || portfolioAvailable());
 let declaredZoom = null;
 
 function canAdd() {
@@ -1260,10 +1371,12 @@ function declareToolbar() {
   // deeper than the model, or a mode the configuration misspelt, shows no option chosen.
   const chosen = (options, value) => (options.some(option => option.value === value) ? value : null);
   const items = [
-    { kind: 'choice', id: 'mode', label: 'Mode', hideLabel: true, value: chosen(modeOptions, mode), options: modeOptions },
+    { kind: 'choice', id: 'mode', label: 'Mode', hideLabel: true, value: chosen(modeOptions(), mode), options: modeOptions() },
     { kind: 'choice', id: 'levels', label: 'Levels', value: chosen(levelOptions, Number.isFinite(levels) ? String(levels) : 'all'), options: levelOptions },
   ];
   if (colours.length > 1) items.push({ kind: 'select', id: 'colour', label: 'Colour', value: chosen(colours, colour), options: colours });
+  const dates = binding.assessmentDates().map(date => ({ value: date, label: date }));
+  if (colour === 'change' && dates.length) items.push({ kind: 'select', id: 'since', label: 'Since', value: chosen(dates, sinceDate()), options: dates });
   items.push({ kind: 'spacer' }, { kind: 'search', id: 'find', label: 'Find a capability', placeholder: 'Find a capability…', value: $('search').value.slice(0, 256), keys: 'Ctrl+F' });
   declaredZoom = $('zoom').textContent;
   if (mode === 'map') {
@@ -1320,6 +1433,10 @@ function runCommand({ id, value }) {
     case 'colour':
       colour = String(value);
       $('colour').value = colour;
+      render(false);
+      break;
+    case 'since':
+      since = String(value);
       render(false);
       break;
     case 'find':

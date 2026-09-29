@@ -116,6 +116,94 @@ function relatedTypes(entityId, entities, presentation, typeName, problems) {
 }
 
 /**
+ * Dated assessments (W-080): a record type that holds one scored judgement of one capability on
+ * one dimension at one date, named by the view's configuration as
+ *
+ *   { "assessments": { "entityId", "capability", "dimension", "score", "date",
+ *                      "dimensions": { "maturity", "health", "value" } } }
+ *
+ * where each of the first five is a field of that type and `dimensions` maps the Atlas's three
+ * dimensions to the dimension field's choice IDs. Every assessment is a record, so history keeps
+ * each one; the capability shows the latest per dimension. Null when the configuration names
+ * none; a named one that does not fit says why in `problems`.
+ */
+export function bindAssessments(value, entities, atlasEntityId, problems) {
+  const configured = plainObject(value);
+  if (Object.keys(configured).length === 0) return null;
+  const entity = entities.find(candidate => candidate.entityId === configured.entityId);
+  if (entity === undefined) {
+    problems.push(`The configuration names ${configured.entityId ?? 'no record type'} for assessments, which is not a record type of this file.`);
+    return null;
+  }
+  const field = id => entity.fields.find(candidate => candidate.fieldId === id && !candidate.calculated);
+  const capability = field(configured.capability), dimension = field(configured.dimension);
+  const score = field(configured.score), date = field(configured.date);
+  const wrong = [
+    capability?.reference?.targetEntityId === atlasEntityId ? null : 'capability, a reference to the capabilities',
+    dimension !== undefined && dimension.choices.length > 0 ? null : 'dimension, a choice field',
+    score !== undefined && KINDS.integer.fits(score) ? null : 'score, a whole-number field',
+    date !== undefined && KINDS.date.fits(date) ? null : 'date, a date field',
+  ].filter(Boolean);
+  if (wrong.length) {
+    problems.push(`Assessments in ${entity.displayName} need ${wrong.join('; ')}.`);
+    return null;
+  }
+  const named = plainObject(configured.dimensions);
+  const dimensions = {};
+  for (const key of ['maturity', 'health', 'value']) {
+    const id = text(named[key]);
+    if (id !== null && dimension.choices.some(choice => choice.id === id)) dimensions[key] = id;
+  }
+  return {
+    entityId: entity.entityId,
+    capabilityFieldId: capability.fieldId,
+    dimensionFieldId: dimension.fieldId,
+    scoreFieldId: score.fieldId,
+    dateFieldId: date.fieldId,
+    dimensions,
+    scale: score.scale ?? { min: 1, max: 5 },
+    dimensionName: key => dimension.choices.find(choice => choice.id === dimensions[key])?.displayName ?? key,
+  };
+}
+
+/**
+ * Every assessment by capability and dimension, oldest first, so the latest and the one in
+ * force at a date are both one lookup. An assessment with no score or no date says nothing and
+ * is left out; two on the same date keep the order they were read in, the later one winning.
+ */
+export function assessmentIndex(assessments, records) {
+  const byCapability = new Map();
+  const dates = new Set();
+  for (const record of records ?? []) {
+    const capability = record.values?.[assessments.capabilityFieldId];
+    const dimension = record.values?.[assessments.dimensionFieldId];
+    const scored = record.values?.[assessments.scoreFieldId];
+    const date = record.values?.[assessments.dateFieldId];
+    if (!capability || !dimension || scored == null || !date) continue;
+    const dimensions = byCapability.get(capability) ?? new Map();
+    const list = dimensions.get(dimension) ?? [];
+    list.push({ score: Number(scored), date: String(date), recordId: record.recordId });
+    dimensions.set(dimension, list);
+    byCapability.set(capability, dimensions);
+    dates.add(String(date));
+  }
+  for (const dimensions of byCapability.values()) {
+    for (const list of dimensions.values()) list.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  }
+  const history = (capabilityId, key) => byCapability.get(capabilityId)?.get(assessments.dimensions[key]) ?? [];
+  return {
+    /** The latest assessment of a capability on a dimension, or null. */
+    latest: (capabilityId, key) => history(capabilityId, key).at(-1) ?? null,
+    /** The assessment in force on a date: the latest on or before it, or null. */
+    asOf: (capabilityId, key, date) => history(capabilityId, key).filter(entry => entry.date <= date).at(-1) ?? null,
+    /** How many assessments a capability has on a dimension. */
+    count: (capabilityId, key) => history(capabilityId, key).length,
+    /** Every date anything was assessed, oldest first: the dates "change since" can be measured from. */
+    dates: [...dates].sort(),
+  };
+}
+
+/**
  * The Atlas's bindings for the view that shows it, from the view's context (its record type,
  * label, status, bound fields and configuration) and the file's schema.
  *
@@ -186,11 +274,31 @@ export function bindAtlas(context, schema) {
       choices[part] = field.choices.filter(choice => !choice.retired).map(({ id, displayName, tone }) => ({ id, displayName, tone: tone ?? null }));
     }
   }
-  const scale = (fields.maturity !== null ? own.get(fields.maturity).scale : null) ?? { min: 1, max: 5 };
   const related = relatedTypes(entityId, entities, plainObject(configuration.related), typeName, problems);
+  const assessments = bindAssessments(configuration.assessments, entities, entityId, problems);
+  // With dated assessments, maturity is the latest Maturity assessment; the stored field, where
+  // there is one, is what a capability shows until it is first assessed.
+  const assessedMaturity = assessments?.dimensions.maturity !== undefined;
+  const scale = (fields.maturity !== null ? own.get(fields.maturity).scale : null) ?? (assessedMaturity ? assessments.scale : null) ?? { min: 1, max: 5 };
+  let index = null;
 
   const labelFieldId = text(bindings.labelFieldId);
-  const value = (record, part) => fields[part] === null ? null : record?.values?.[fields[part]] ?? null;
+  const stored = (record, part) => fields[part] === null ? null : record?.values?.[fields[part]] ?? null;
+  const value = (record, part) => {
+    if (part === 'maturity' && index !== null && assessedMaturity) {
+      const latest = index.latest(record?.recordId, 'maturity');
+      if (latest !== null) return latest.score;
+    }
+    return stored(record, part);
+  };
+  const has = part => {
+    if (part === 'maturity') return fields.maturity !== null || assessedMaturity;
+    // The editor writes the stored maturity only where assessments do not keep it.
+    if (part === 'maturity-stored') return fields.maturity !== null && !assessedMaturity;
+    if (part === 'assessments') return assessments !== null;
+    if (part === 'health') return assessments?.dimensions.health !== undefined;
+    return fields[part] !== null;
+  };
   return {
     entityId,
     typeName,
@@ -204,8 +312,28 @@ export function bindAtlas(context, schema) {
     problems,
     banner: bannerOf(configuration.banner),
     selfReferences: selfReferences.map(field => field.displayName),
-    has: part => fields[part] !== null,
+    has,
     value,
+    assessments,
+    /** Hand the assessment records to the binding; the latest per dimension is read from them. */
+    useAssessments(records) {
+      index = assessments === null ? null : assessmentIndex(assessments, records);
+    },
+    /** The latest assessment of a record on a dimension ('maturity', 'health', 'value'), or null. */
+    assessed: (record, key) => index?.latest(record?.recordId, key) ?? null,
+    /** How many assessments a record has on a dimension. */
+    assessedCount: (record, key) => index?.count(record?.recordId, key) ?? 0,
+    /** Every date anything was assessed, oldest first. */
+    assessmentDates: () => index?.dates ?? [],
+    /**
+     * Latest maturity minus the maturity in force on `since`, or null when either is missing: a
+     * change is only stated between two judgements that were actually made.
+     */
+    change(record, since) {
+      if (index === null || since == null) return null;
+      const now = index.latest(record?.recordId, 'maturity'), then = index.asOf(record?.recordId, 'maturity', since);
+      return now === null || then === null ? null : now.score - then.score;
+    },
     title: record => String((labelFieldId === null ? null : record?.values?.[labelFieldId]) || '(Unnamed capability)'),
     /**
      * Target minus current maturity, or null when either is missing. A group's assessment is

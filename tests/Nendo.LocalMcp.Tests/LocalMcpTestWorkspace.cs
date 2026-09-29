@@ -53,6 +53,15 @@ internal sealed class LocalMcpTestWorkspace : IAsyncDisposable
         Service = new NendoApplicationService(_coordinator);
     }
 
+    /// <summary>Opens a copy of an existing file, which stays untouched.</summary>
+    internal async Task OpenCopyAsync(string source)
+    {
+        Directory.CreateDirectory(_root);
+        File.Copy(source, FilePath);
+        _coordinator = await NendoWriteCoordinator.OpenAsync(FilePath, "p3-test-owner");
+        Service = new NendoApplicationService(_coordinator);
+    }
+
     internal async Task CreateIdeaGardenAsync(int recordCount = 3)
     {
         await CreateEmptyAsync();

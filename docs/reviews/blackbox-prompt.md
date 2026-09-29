@@ -838,6 +838,12 @@ vocabulary, the examples and the resources — and not from the person.
   the other, and ask the person to group it by a field, hide a status, find an item and
   mark the longest chain. Record what they reported, and whether those choices were still
   there after they reopened the file.
+- In BCM's Capability map, choose Colour → Change since and step Since through its dates;
+  pick a capability, read its latest score on each dimension in the inspector, and check
+  them against its Assessment history on its record page. Switch to Importance × health and
+  record whether every capability is placed, and whether the one you picked is in the
+  cell its importance and latest IT health say. Add an assessment on its record page and
+  record whether the map follows without being reopened.
 - Open `workspace/BCM.nendo` and choose Capability map. The fictional model has 635
   capabilities up to five levels deep. Step Levels through 1 to 5 and All, and compare
   the cards shown with the counts the view states and with the records Nendo reports.

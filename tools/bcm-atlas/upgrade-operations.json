@@ -1,0 +1,428 @@
+[
+  {
+    "description": "Define Assessment",
+    "operations": [
+      {
+        "operationType": "schema.createEntity",
+        "payload": {
+          "entityId": "bcm.assessment",
+          "displayName": "Assessment"
+        }
+      },
+      {
+        "operationType": "schema.addField",
+        "payload": {
+          "entityId": "bcm.assessment",
+          "fieldId": "assess.name",
+          "displayName": "Assessment",
+          "storageKind": "text",
+          "required": true
+        }
+      },
+      {
+        "operationType": "schema.addField",
+        "payload": {
+          "entityId": "bcm.assessment",
+          "fieldId": "assess.capability",
+          "displayName": "Capability",
+          "storageKind": "reference",
+          "required": true
+        }
+      },
+      {
+        "operationType": "schema.addField",
+        "payload": {
+          "entityId": "bcm.assessment",
+          "fieldId": "assess.dimension",
+          "displayName": "Dimension",
+          "storageKind": "text",
+          "required": true,
+          "presentation": "singleChoice",
+          "options": [
+            "Maturity",
+            "Business value",
+            "IT health"
+          ]
+        }
+      },
+      {
+        "operationType": "schema.addField",
+        "payload": {
+          "entityId": "bcm.assessment",
+          "fieldId": "assess.score",
+          "displayName": "Score",
+          "storageKind": "integer",
+          "required": true,
+          "presentation": "rating",
+          "min": 1,
+          "max": 5
+        }
+      },
+      {
+        "operationType": "schema.addField",
+        "payload": {
+          "entityId": "bcm.assessment",
+          "fieldId": "assess.date",
+          "displayName": "Assessed on",
+          "storageKind": "date",
+          "required": true,
+          "presentation": "date"
+        }
+      },
+      {
+        "operationType": "schema.addField",
+        "payload": {
+          "entityId": "bcm.assessment",
+          "fieldId": "assess.assessor",
+          "displayName": "Assessor",
+          "storageKind": "text",
+          "required": false
+        }
+      },
+      {
+        "operationType": "schema.addField",
+        "payload": {
+          "entityId": "bcm.assessment",
+          "fieldId": "assess.evidence",
+          "displayName": "Evidence",
+          "storageKind": "text",
+          "required": false,
+          "presentation": "longText"
+        }
+      }
+    ]
+  },
+  {
+    "description": "Connect assessments to capabilities, keep capability codes unique and require both ends of a support link",
+    "operations": [
+      {
+        "operationType": "schema.configureReference",
+        "payload": {
+          "entityId": "bcm.assessment",
+          "fieldId": "assess.capability",
+          "targetEntityId": "bcm.capability",
+          "labelFieldId": "cap.name"
+        }
+      },
+      {
+        "operationType": "schema.setChoiceMetadata",
+        "payload": {
+          "entityId": "bcm.assessment",
+          "fieldId": "assess.dimension",
+          "choiceId": "Maturity",
+          "displayName": "Maturity",
+          "retired": false,
+          "tone": "blue"
+        }
+      },
+      {
+        "operationType": "schema.setChoiceMetadata",
+        "payload": {
+          "entityId": "bcm.assessment",
+          "fieldId": "assess.dimension",
+          "choiceId": "Business value",
+          "displayName": "Business value",
+          "retired": false,
+          "tone": "violet"
+        }
+      },
+      {
+        "operationType": "schema.setChoiceMetadata",
+        "payload": {
+          "entityId": "bcm.assessment",
+          "fieldId": "assess.dimension",
+          "choiceId": "IT health",
+          "displayName": "IT health",
+          "retired": false,
+          "tone": "teal"
+        }
+      },
+      {
+        "operationType": "schema.setFieldUnique",
+        "payload": {
+          "entityId": "bcm.capability",
+          "fieldId": "cap.code",
+          "unique": true
+        }
+      },
+      {
+        "operationType": "schema.setFieldRequired",
+        "payload": {
+          "entityId": "bcm.support",
+          "fieldId": "support.capability",
+          "required": true
+        }
+      },
+      {
+        "operationType": "schema.setFieldRequired",
+        "payload": {
+          "entityId": "bcm.support",
+          "fieldId": "support.application",
+          "required": true
+        }
+      }
+    ]
+  },
+  {
+    "description": "Show assessments: their page, their register, and a capability’s history",
+    "operations": [
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.assessment.detail",
+          "kind": "detailSurface",
+          "position": 1000,
+          "parentNodeId": null,
+          "properties": {
+            "definitionVersion": 3,
+            "entityId": "bcm.assessment",
+            "titleFieldId": "assess.name",
+            "subtitleFieldId": "assess.dimension"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.assessment.detail.capability",
+          "kind": "fieldBinding",
+          "position": 0,
+          "parentNodeId": "bcm.assessment.detail",
+          "properties": {
+            "fieldId": "assess.capability"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.assessment.detail.dimension",
+          "kind": "fieldBinding",
+          "position": 1,
+          "parentNodeId": "bcm.assessment.detail",
+          "properties": {
+            "fieldId": "assess.dimension"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.assessment.detail.score",
+          "kind": "fieldBinding",
+          "position": 2,
+          "parentNodeId": "bcm.assessment.detail",
+          "properties": {
+            "fieldId": "assess.score"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.assessment.detail.date",
+          "kind": "fieldBinding",
+          "position": 3,
+          "parentNodeId": "bcm.assessment.detail",
+          "properties": {
+            "fieldId": "assess.date"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.assessment.detail.assessor",
+          "kind": "fieldBinding",
+          "position": 4,
+          "parentNodeId": "bcm.assessment.detail",
+          "properties": {
+            "fieldId": "assess.assessor"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.assessment.detail.evidence",
+          "kind": "fieldBinding",
+          "position": 5,
+          "parentNodeId": "bcm.assessment.detail",
+          "properties": {
+            "fieldId": "assess.evidence"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.history",
+          "kind": "relatedList",
+          "position": 1000,
+          "parentNodeId": "bcm.capability.detail",
+          "properties": {
+            "targetEntityId": "bcm.assessment",
+            "viaFieldId": "assess.capability",
+            "title": "Assessment history"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.history.dimension",
+          "kind": "fieldBinding",
+          "position": 0,
+          "parentNodeId": "bcm.history",
+          "properties": {
+            "fieldId": "assess.dimension"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.history.score",
+          "kind": "fieldBinding",
+          "position": 1,
+          "parentNodeId": "bcm.history",
+          "properties": {
+            "fieldId": "assess.score"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.history.date",
+          "kind": "fieldBinding",
+          "position": 2,
+          "parentNodeId": "bcm.history",
+          "properties": {
+            "fieldId": "assess.date"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "description": "List every assessment, newest first, and name them to the Capability map",
+    "operations": [
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.assessments",
+          "kind": "recordList",
+          "position": 1001,
+          "parentNodeId": null,
+          "properties": {
+            "definitionVersion": 3,
+            "entityId": "bcm.assessment",
+            "title": "Assessments",
+            "orderByFieldId": "assess.date",
+            "orderDirection": "descending"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.assessments.name",
+          "kind": "fieldBinding",
+          "position": 0,
+          "parentNodeId": "bcm.assessments",
+          "properties": {
+            "fieldId": "assess.name"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.assessments.capability",
+          "kind": "fieldBinding",
+          "position": 1,
+          "parentNodeId": "bcm.assessments",
+          "properties": {
+            "fieldId": "assess.capability"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.assessments.dimension",
+          "kind": "fieldBinding",
+          "position": 2,
+          "parentNodeId": "bcm.assessments",
+          "properties": {
+            "fieldId": "assess.dimension"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.assessments.score",
+          "kind": "fieldBinding",
+          "position": 3,
+          "parentNodeId": "bcm.assessments",
+          "properties": {
+            "fieldId": "assess.score"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.assessments.date",
+          "kind": "fieldBinding",
+          "position": 4,
+          "parentNodeId": "bcm.assessments",
+          "properties": {
+            "fieldId": "assess.date"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.assessments.assessor",
+          "kind": "fieldBinding",
+          "position": 5,
+          "parentNodeId": "bcm.assessments",
+          "properties": {
+            "fieldId": "assess.assessor"
+          }
+        }
+      },
+      {
+        "operationType": "ui.setProperty",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.map",
+          "propertyName": "configuration",
+          "value": "{\"fields\":{\"code\":\"cap.code\",\"description\":\"cap.description\",\"owner\":\"cap.owner\",\"maturity\":\"cap.maturity\",\"target\":\"cap.target\",\"importance\":\"cap.importance\",\"investment\":\"cap.investment\",\"lifecycle\":\"cap.lifecycle\",\"reviewed\":\"cap.reviewed\",\"evidence\":\"cap.evidence\"},\"banner\":{\"title\":\"NORTHSTAR / DEMONSTRATION MODEL\",\"note\":\"Fictional data · replace with your organisation\"},\"related\":{\"bcm.support\":{\"title\":\"Application support\",\"row\":\"{support.fit} fit · {support.role}\",\"empty\":\"No applications linked. Add support links in the record page.\"},\"bcm.initiative\":{\"title\":\"Change portfolio\",\"row\":\"{initiative.stage} · {initiative.end}\",\"empty\":\"No initiatives linked.\"},\"bcm.assessment\":{\"title\":\"Assessment history\",\"row\":\"{assess.dimension} {assess.score} · {assess.date}\",\"empty\":\"Not assessed yet. Add an assessment in the record page.\"}},\"assessments\":{\"entityId\":\"bcm.assessment\",\"capability\":\"assess.capability\",\"dimension\":\"assess.dimension\",\"score\":\"assess.score\",\"date\":\"assess.date\",\"dimensions\":{\"maturity\":\"Maturity\",\"health\":\"IT health\",\"value\":\"Business value\"}}}"
+        }
+      }
+    ]
+  }
+]
