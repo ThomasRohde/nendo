@@ -15,7 +15,15 @@ public sealed record NendoCompilerDiagnostic(
     string Message,
     string? SemanticId,
     string? PropertyPath,
-    string Hint);
+    string Hint)
+{
+    /// <summary>
+    /// The operation a clone validation refused, when the refusal came from one (W-010).
+    /// A change set that does not validate reports each independent refusal, and this is
+    /// what tells an author which operation each one is about.
+    /// </summary>
+    public string? OperationId { get; init; }
+}
 
 public sealed record NendoCompileResult(
     bool IsValid,

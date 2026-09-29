@@ -304,7 +304,8 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
         Action? beforeAuthorityRead = null,
         List<(int MutationIndex, BehaviourExecutionContext Context)>? expansion = null,
         PreparedBehaviourPlan? reviewedPlan = null,
-        long? reviewedRevocationGeneration = null)
+        long? reviewedRevocationGeneration = null,
+        ChangeSetFailureLocation? failure = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentException.ThrowIfNullOrWhiteSpace(proposalId);
@@ -364,103 +365,119 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
             foreach (var mutation in changeSet.Mutations)
             {
                 var mutationIndex = results.Count;
-                var newEntityIds = mutation.Operations
-                    .OfType<CreateEntityOperation>()
-                    .Select(operation => operation.EntityId)
-                    .ToHashSet(StringComparer.Ordinal);
-                var behaviourBefore = expansion is null
-                    ? new Dictionary<RecordKey, IReadOnlyDictionary<string, JsonElement>?>()
-                    : await CaptureBehaviourBeforeAsync(mutation.Operations, transaction, cancellationToken);
-                var evidence = new List<OperationEvidence>(mutation.Operations.Count);
-                foreach (var operation in mutation.Operations)
+                // A clone validation that refuses asks where, so it can try again without
+                // what was refused (W-010). The filters record and never catch.
+                try
                 {
-                    evidence.Add(await ExecuteOperationMetadataOrDataAsync(
-                        operation,
+                    var newEntityIds = mutation.Operations
+                        .OfType<CreateEntityOperation>()
+                        .Select(operation => operation.EntityId)
+                        .ToHashSet(StringComparer.Ordinal);
+                    var behaviourBefore = expansion is null
+                        ? new Dictionary<RecordKey, IReadOnlyDictionary<string, JsonElement>?>()
+                        : await CaptureBehaviourBeforeAsync(mutation.Operations, transaction, cancellationToken);
+                    var evidence = new List<OperationEvidence>(mutation.Operations.Count);
+                    for (var operationIndex = 0; operationIndex < mutation.Operations.Count; operationIndex++)
+                    {
+                        try
+                        {
+                            evidence.Add(await ExecuteOperationMetadataOrDataAsync(
+                                mutation.Operations[operationIndex],
+                                newEntityIds,
+                                transaction,
+                                cancellationToken));
+                        }
+                        catch (NendoException) when (failure?.Record(mutationIndex, operationIndex) ?? false)
+                        {
+                            throw;
+                        }
+                    }
+                    var chain = expansion is null
+                        ? null
+                        : await RunBehaviourChainAsync(mutation, behaviourBefore, evidence, transaction, cancellationToken);
+                    if (chain is not null) expansion!.Add((results.Count, chain));
+                    await MaterializeSchemaChangesAsync(
+                        mutation.Operations.Concat(evidence.Skip(mutation.Operations.Count).Select(item => item.Operation)).ToArray(),
                         newEntityIds,
                         transaction,
-                        cancellationToken));
-                }
-                var chain = expansion is null
-                    ? null
-                    : await RunBehaviourChainAsync(mutation, behaviourBefore, evidence, transaction, cancellationToken);
-                if (chain is not null) expansion!.Add((results.Count, chain));
-                await MaterializeSchemaChangesAsync(
-                    mutation.Operations.Concat(evidence.Skip(mutation.Operations.Count).Select(item => item.Operation)).ToArray(),
-                    newEntityIds,
-                    transaction,
-                    cancellationToken);
+                        cancellationToken);
 
-                var lane = mutation.Operations[0].Lane;
-                var definitionAfter = running.DefinitionRevision +
-                    (lane == NendoRevisionLane.Definition ? 1 : 0);
-                var dataAfter = running.DataRevision +
-                    (lane == NendoRevisionLane.Data ? 1 : 0);
-                var sequenceAfter = running.ChangeSequence + 1;
-                var revisionId = $"revision-{Guid.NewGuid():N}";
-                var now = DateTimeOffset.UtcNow;
-                await AppendRevisionAsync(
-                    mutation,
-                    evidence,
-                    running,
-                    revisionId,
-                    now,
-                    definitionAfter,
-                    dataAfter,
-                    sequenceAfter,
-                    proposalId,
-                    changeSetDigest,
-                    null,
-                    transaction,
-                    cancellationToken);
-                running = running with
-                {
-                    ModifiedAt = now,
-                    MinimumHostVersion = await MutationMinimumHostAsync(
-                        mutation.Operations,
+                    var lane = mutation.Operations[0].Lane;
+                    var definitionAfter = running.DefinitionRevision +
+                        (lane == NendoRevisionLane.Definition ? 1 : 0);
+                    var dataAfter = running.DataRevision +
+                        (lane == NendoRevisionLane.Data ? 1 : 0);
+                    var sequenceAfter = running.ChangeSequence + 1;
+                    var revisionId = $"revision-{Guid.NewGuid():N}";
+                    var now = DateTimeOffset.UtcNow;
+                    await AppendRevisionAsync(
+                        mutation,
                         evidence,
-                        NendoFormat.RequireAtLeast(running.MinimumHostVersion, NendoFormat.SemanticMinimumHostVersion),
+                        running,
+                        revisionId,
+                        now,
+                        definitionAfter,
+                        dataAfter,
+                        sequenceAfter,
+                        proposalId,
+                        changeSetDigest,
+                        null,
                         transaction,
-                        cancellationToken),
-                    DefinitionRevision = definitionAfter,
-                    DataRevision = dataAfter,
-                    ChangeSequence = sequenceAfter,
-                };
-                // Later mutations in this same transaction validate against the staged
-                // definition/data revisions, not the pre-proposal manifest. Nothing is
-                // externally visible until the enclosing transaction commits.
-                await UpdateManifestAsync(running.ModifiedAt, running.DefinitionRevision, running.DataRevision,
-                    running.ChangeSequence, running.MinimumHostVersion, transaction, cancellationToken);
-                // On promotion the chain is null because expansion is off; the reviewed
-                // generated operations are folded into this mutation and their attribution
-                // travels on the plan. Writing it here keeps every generated operation's
-                // provenance and lets the receipt rebuild what changed. The pre-fold
-                // operation count is the ordinal base, since the folded generated ops sit
-                // after the author's own in the revision.
-                var reviewedForMutation = reviewedPlan is null
-                    ? []
-                    : reviewedPlan.Generated.Where(operation => operation.MutationIndex == mutationIndex).ToArray();
-                if (chain is not null)
-                    await WriteAttributionAsync(revisionId, mutation.Operations.Count, chain, transaction, cancellationToken);
-                else if (reviewedForMutation.Length > 0)
-                    await WriteReviewedAttributionAsync(revisionId,
-                        mutation.Operations.Count - reviewedForMutation.Length, reviewedForMutation,
-                        transaction, cancellationToken);
-                results.Add(new NendoApplyResult(
-                    revisionId,
-                    NendoCanonical.DigestOperations(evidence.Select(item => item.Operation).ToArray()),
-                    definitionAfter,
-                    dataAfter,
-                    sequenceAfter,
-                    false)
+                        cancellationToken);
+                    running = running with
+                    {
+                        ModifiedAt = now,
+                        MinimumHostVersion = await MutationMinimumHostAsync(
+                            mutation.Operations,
+                            evidence,
+                            NendoFormat.RequireAtLeast(running.MinimumHostVersion, NendoFormat.SemanticMinimumHostVersion),
+                            transaction,
+                            cancellationToken),
+                        DefinitionRevision = definitionAfter,
+                        DataRevision = dataAfter,
+                        ChangeSequence = sequenceAfter,
+                    };
+                    // Later mutations in this same transaction validate against the staged
+                    // definition/data revisions, not the pre-proposal manifest. Nothing is
+                    // externally visible until the enclosing transaction commits.
+                    await UpdateManifestAsync(running.ModifiedAt, running.DefinitionRevision, running.DataRevision,
+                        running.ChangeSequence, running.MinimumHostVersion, transaction, cancellationToken);
+                    // On promotion the chain is null because expansion is off; the reviewed
+                    // generated operations are folded into this mutation and their attribution
+                    // travels on the plan. Writing it here keeps every generated operation's
+                    // provenance and lets the receipt rebuild what changed. The pre-fold
+                    // operation count is the ordinal base, since the folded generated ops sit
+                    // after the author's own in the revision.
+                    var reviewedForMutation = reviewedPlan is null
+                        ? []
+                        : reviewedPlan.Generated.Where(operation => operation.MutationIndex == mutationIndex).ToArray();
+                    if (chain is not null)
+                        await WriteAttributionAsync(revisionId, mutation.Operations.Count, chain, transaction, cancellationToken);
+                    else if (reviewedForMutation.Length > 0)
+                        await WriteReviewedAttributionAsync(revisionId,
+                            mutation.Operations.Count - reviewedForMutation.Length, reviewedForMutation,
+                            transaction, cancellationToken);
+                    results.Add(new NendoApplyResult(
+                        revisionId,
+                        NendoCanonical.DigestOperations(evidence.Select(item => item.Operation).ToArray()),
+                        definitionAfter,
+                        dataAfter,
+                        sequenceAfter,
+                        false)
+                    {
+                        GeneratedChanges = chain is not null
+                            ? GeneratedChanges(chain)
+                            : reviewedForMutation.Length == 0
+                                ? []
+                                : CollapseGeneratedChanges(
+                                    reviewedForMutation.Select(operation => NendoOperationCodec.Read(operation.CanonicalJson)),
+                                    withVersions: true),
+                    });
+                }
+                catch (NendoException) when (failure?.Record(mutationIndex, ChangeSetFailureLocation.WholeMutation) ?? false)
                 {
-                    GeneratedChanges = chain is not null
-                        ? GeneratedChanges(chain)
-                        : reviewedForMutation.Length == 0
-                            ? []
-                            : CollapseGeneratedChanges(
-                                reviewedForMutation.Select(operation => NendoOperationCodec.Read(operation.CanonicalJson)),
-                                withVersions: true),
-                });
+                    throw;
+                }
             }
 
             beforeCommit?.Invoke();

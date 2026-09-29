@@ -315,6 +315,14 @@ The other four findings were these:
   2026-09-29 amendment). Consent stays a separate act. One shape still cannot be
   accepted: a proposal that changes the actions and also sets them off. The review
   says so and asks for the actions first and the records after.
+- Validation reported one error per pass, so each mistake cost a round trip. A refused
+  change set now reports every independent refusal together, up to five, each naming
+  its operation (W-010). The first refusal still ends a clone's transaction, so each
+  further one costs another clone of the file, run without what was refused and without
+  whatever names something it introduced. A version conflict that this causes is never
+  reported, and ends the search. Leaving out a whole mutation moves every later
+  definition revision, so a mistake after such a mutation is found on the next pass
+  rather than this one.
 
 What remains open:
 
@@ -328,14 +336,6 @@ What remains open:
   Installation refuses a `Sum` over an optional field, because it does not
   promise a total that the first empty value breaks. A `Coalesce` or a
   per-member default would widen it, and needs its own semantics.
-- **Validation reports one error per pass.** Validation should return
-  independent diagnostics together. Today, when you fix one diagnostic, the next
-  one appears, and each costs a round trip. The fix is harder than it looks.
-  Clone validation runs inside one SQLite transaction, and the first refusal
-  makes that transaction unusable. To collect a second diagnostic, the change
-  set must run again; validation cannot continue. A failed validation now leaves
-  the draft open and amendable. This removes the rebuild cost but not the round
-  trip.
 - **Concurrent proposals are announced, not rebased.** `change_set.begin` now
   reports how many other change sets are open and names the captured revision.
   `nendo://application/proposals` lists what is already pending. A staleness

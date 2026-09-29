@@ -74,6 +74,8 @@ internal static class NendoWireDescriptions
                 "The property it concerns, or null.",
             [(typeof(NendoCompilerDiagnostic), nameof(NendoCompilerDiagnostic.Hint))] =
                 "What to change, to correct it with nendo.change_set.amend.",
+            [(typeof(NendoCompilerDiagnostic), nameof(NendoCompilerDiagnostic.OperationId))] =
+                "The operation a validation refused, or null when the refusal is not about one. A change set that does not validate reports each independent refusal, up to five.",
 
             [(typeof(NendoSemanticDiffEntry), nameof(NendoSemanticDiffEntry.Kind))] =
                 "What kind of change this line describes.",

@@ -134,7 +134,7 @@ internal static class NendoAuthoringOperations
         "ui.addNode takes an inline properties map, so a node and its configuration cost one operation. Each property still expands to one canonical ui.setProperty, counted against the canonicalOperationLimit that every response echoes beside the submitted count.",
         "Contract version 3 declares definitionVersion=3 on every root; mixing versions across roots fails closed.",
         "A payload the host cannot bind is refused by add_operations itself, naming the mutation, the operation and the key, and nothing enters the draft.",
-        "A failed validate leaves the draft open: correct it with nendo.change_set.amend rather than starting again.",
+        "A failed validate leaves the draft open and names every independent refusal, up to five, each by operationId: correct them together with nendo.change_set.amend rather than starting again.",
         "Nothing in a change set touches the file until the person accepts the validated proposal in Nendo, or, at Unattended only, nendo.change_set.accept applies it.",
     ];
 

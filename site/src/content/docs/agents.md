@@ -108,7 +108,7 @@ At Shape app and above, the agent changes the application through a **change set
 
 1. `nendo.change_set.begin` opens a draft with a title. You see this title later.
 2. `nendo.change_set.add_operations` appends up to 16 operations per call. A payload that Nendo cannot use is refused at once, with the operation and the key named.
-3. `nendo.change_set.validate` replays the draft on a private copy of the file. If it is valid, it becomes a **proposal**. If it is not, the draft stays open with diagnostics.
+3. `nendo.change_set.validate` replays the draft on a private copy of the file. If it is valid, it becomes a **proposal**. If it is not, the draft stays open with diagnostics: every independent mistake at once, up to five, each naming the operation it is about. A mistake that only follows from another, such as a field added to a record type that was refused, is not reported twice.
 4. `nendo.change_set.amend` replaces the tail of a draft after a failed validate, so the agent does not rebuild it.
 5. `nendo.change_set.preview` reads a proposal's summary and diff. `nendo.change_set.reject` discards a draft or proposal.
 

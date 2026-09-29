@@ -49,7 +49,7 @@ export const agentSurface: { resources: readonly SurfaceEntry[]; editDataTools: 
     { name: 'nendo.change_set.begin', meaning: 'Open a draft at the current definition revision, with the title the person will see. Reports how many other change sets are already open.' },
     { name: 'nendo.change_set.add_operations', meaning: 'Append operations to the draft. A payload the host cannot bind is refused here, naming the operation and the key, and nothing enters the draft.' },
     { name: 'nendo.change_set.amend', meaning: 'Drop the tail of the draft from a mutation onwards and append replacements — the repair after a failed validate.' },
-    { name: 'nendo.change_set.validate', meaning: 'Replay the draft on a private copy of the file. A valid draft freezes into a proposal in Pending changes; an invalid one stays open with diagnostics.' },
+    { name: 'nendo.change_set.validate', meaning: 'Replay the draft on a private copy of the file. A valid draft freezes into a proposal in Pending changes; an invalid one stays open with diagnostics: every independent mistake at once, up to five, each naming its operation.' },
     { name: 'nendo.change_set.preview', meaning: 'Read the frozen proposal’s sanitized preview and diff.' },
     { name: 'nendo.change_set.reject', meaning: 'Discard the draft or proposal without touching the file.' },
   ],

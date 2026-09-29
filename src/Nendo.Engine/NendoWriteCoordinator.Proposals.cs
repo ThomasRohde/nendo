@@ -54,6 +54,7 @@ public sealed partial class NendoWriteCoordinator
                 CaptureTouchedRecords(changeSet, active),
                 SemanticDiff.From(changeSet, active));
             _proposals.Add(proposalId, context);
+            var failure = new ChangeSetFailureLocation();
             try
             {
                 context.State = NendoProposalState.Validating;
@@ -74,7 +75,8 @@ public sealed partial class NendoWriteCoordinator
                     proposalId,
                     null,
                     cancellationToken,
-                    expansion: expansion);
+                    expansion: expansion,
+                    failure: failure);
                 context.BehaviourPlan = CaptureBehaviourPlan(
                     changeSet, expansion, active.Manifest.DataRevision, active.Manifest.DefinitionRevision) with
                 {
@@ -128,7 +130,8 @@ public sealed partial class NendoWriteCoordinator
             }
             catch (NendoException exception)
             {
-                context.Diagnostics = [ProposalDiagnostic(exception)];
+                context.Diagnostics = await DiagnoseRefusalAsync(
+                    store, proposalId, changeSet, exception, failure, active, workspacePath, cancellationToken);
                 context.PreviewApplications = [];
                 context.PreviewOverview = null;
                 context.State = NendoProposalState.Invalid;
@@ -280,6 +283,110 @@ public sealed partial class NendoWriteCoordinator
                 [],
                 NendoReversibilityClass.IrreversibleDeclared),
         ];
+    }
+
+    /// <summary>
+    /// Every independent refusal in a change set that did not validate, up to
+    /// <see cref="IndependentRefusals.MaximumReported"/>, the first one first (W-010).
+    /// <para>
+    /// The clone's transaction is unusable after its first refusal, so each further
+    /// refusal costs one more clone of the active file, run without what was refused and
+    /// without everything that depends on it. The search ends at the bound, at a pass that
+    /// applies cleanly, at a version conflict (which leaving an operation out causes, so it
+    /// is never reported), or when what depends on what cannot be judged. Nothing here
+    /// touches the active file, and the draft stays open to amend as before.
+    /// </para>
+    /// </summary>
+    private static async Task<IReadOnlyList<NendoCompilerDiagnostic>> DiagnoseRefusalAsync(
+        SqliteNendoStore store,
+        string proposalId,
+        NendoChangeSet changeSet,
+        NendoException refusal,
+        ChangeSetFailureLocation location,
+        NendoSessionSnapshot active,
+        string workspacePath,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<NendoCompilerDiagnostic> { Locate(ProposalDiagnostic(refusal), changeSet, location) };
+        var existing = ExistingDefinitionIds(active);
+        var current = changeSet;
+        var at = location;
+        for (var pass = 1; diagnostics.Count < IndependentRefusals.MaximumReported; pass++)
+        {
+            if (IndependentRefusals.Without(current, at, existing) is not { } rest) break;
+            var clonePath = Path.Combine(workspacePath, $"proposal-pass-{pass}.nendo");
+            var next = new ChangeSetFailureLocation();
+            try
+            {
+                await store.BackupToAsync(clonePath, cancellationToken);
+                await using (var clone = await SqliteNendoStore.OpenAsync(clonePath, cancellationToken))
+                {
+                    clone.BehaviourAuthority = PreviewBehaviourAuthority.Instance;
+                    await clone.ApplyChangeSetAsync(
+                        rest,
+                        await clone.GetAuthoritySnapshotAsync(cancellationToken),
+                        proposalId,
+                        null,
+                        cancellationToken,
+                        expansion: [],
+                        failure: next);
+                }
+                break;
+            }
+            catch (NendoException further) when (!IndependentRefusals.IsCascade(further))
+            {
+                diagnostics.Add(Locate(ProposalDiagnostic(further), rest, next));
+                current = rest;
+                at = next;
+            }
+            catch (Exception exception) when (exception is NendoException or IOException or UnauthorizedAccessException)
+            {
+                // A version conflict this method caused, or a copy that could not be made:
+                // what was found so far is still true, and nothing more can be said.
+                break;
+            }
+            finally
+            {
+                TryDeletePassClone(clonePath);
+            }
+        }
+        return diagnostics;
+    }
+
+    private static NendoCompilerDiagnostic Locate(
+        NendoCompilerDiagnostic diagnostic,
+        NendoChangeSet changeSet,
+        ChangeSetFailureLocation location) =>
+        location is { MutationIndex: { } mutation, OperationIndex: >= 0 and var operation }
+            ? diagnostic with { OperationId = changeSet.Mutations[mutation].Operations[operation].OperationId }
+            : diagnostic;
+
+    private static HashSet<string> ExistingDefinitionIds(NendoSessionSnapshot active)
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var entity in active.Entities)
+        {
+            ids.Add(entity.EntityId);
+            foreach (var field in entity.Fields) ids.Add(field.FieldId);
+        }
+        foreach (var node in active.UiNodes) ids.Add(node.NodeId);
+        foreach (var package in active.ExtensionPackages) ids.Add(package.PackageId);
+        return ids;
+    }
+
+    private static void TryDeletePassClone(string path)
+    {
+        foreach (var candidate in new[] { path, path + "-wal", path + "-shm", path + "-journal" })
+        {
+            try
+            {
+                if (File.Exists(candidate)) File.Delete(candidate);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // Left for the abandoned-workspace sweep, with the rest of the workspace.
+            }
+        }
     }
 
     /// <summary>

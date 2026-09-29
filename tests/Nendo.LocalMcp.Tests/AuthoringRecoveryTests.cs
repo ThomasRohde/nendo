@@ -69,6 +69,53 @@ public sealed class AuthoringRecoveryTests
             JsonSerializer.Serialize(validated.Diagnostics, NendoMcpJson.Options));
     }
 
+    /// <summary>
+    /// W-010: two unrelated mistakes cost one validation, not two. Each diagnostic names
+    /// the operation it is about, and the draft stays open to amend, as it did when the
+    /// first mistake was the only one said.
+    /// </summary>
+    [TestMethod]
+    public async Task TwoUnrelatedMistakesArriveInOneValidationEachNamingItsOperation()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateIdeaGardenAsync(recordCount: 0);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service,
+            AgentAccessMode.ApplicationAuthoring,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+
+        var owned = await AcquireAsync(client);
+        var begun = Result<NendoChangeSetBeginResult>(await client.CallToolAsync("nendo.change_set.begin",
+            new Dictionary<string, object?>(owned) { ["title"] = "Two mistakes", ["idempotencyKey"] = "two-begin" }));
+        var scoped = new Dictionary<string, object?>(owned) { ["changeSetId"] = begun.ChangeSetId };
+        await AddAsync(client, scoped, "Rename two things that are not there",
+            [
+                Operation("schema.renameEntity", new { entityId = "ghosts", displayName = "Ghosts" }),
+                Operation("schema.renameField", new { entityId = NendoApplicationService.IdeaEntityId, fieldId = "missing", displayName = "Missing" }),
+            ], "two-add");
+
+        var failed = Result<NendoAgentProposalPreview>(await client.CallToolAsync("nendo.change_set.validate",
+            new Dictionary<string, object?>(scoped) { ["idempotencyKey"] = "two-validate" }));
+        Assert.AreEqual(NendoProposalState.Invalid, failed.State);
+        var described = JsonSerializer.Serialize(failed.Diagnostics, NendoMcpJson.Options);
+        CollectionAssert.AreEqual(new[] { "NPROP006", "NPROP007" }, failed.Diagnostics.Select(item => item.Code).ToArray(), described);
+        Assert.HasCount(2, failed.Diagnostics.Select(item => item.OperationId).OfType<string>().Distinct().ToArray(),
+            "Each refusal should name its own operation: " + described);
+
+        await client.CallToolAsync("nendo.change_set.amend", new Dictionary<string, object?>(scoped)
+        {
+            ["dropFromMutationOrdinal"] = 0,
+            ["mutations"] = new[] { new NendoAgentMutationInput("Rename the record type",
+                [Operation("schema.renameEntity", new { entityId = NendoApplicationService.IdeaEntityId, displayName = "Sparks" })]) },
+            ["idempotencyKey"] = "two-amend",
+        });
+        var validated = Result<NendoAgentProposalPreview>(await client.CallToolAsync("nendo.change_set.validate",
+            new Dictionary<string, object?>(scoped) { ["idempotencyKey"] = "two-validate-2" }));
+        Assert.AreEqual(NendoProposalState.Previewable, validated.State,
+            JsonSerializer.Serialize(validated.Diagnostics, NendoMcpJson.Options));
+    }
+
     [TestMethod]
     public async Task AMaterializationRefusalNamesTheFieldAndBothRemedies()
     {

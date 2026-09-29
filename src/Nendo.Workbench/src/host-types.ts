@@ -393,6 +393,8 @@ export interface CompilerDiagnostic {
   semanticId: string | null;
   propertyPath: string | null;
   hint: string;
+  /** The operation a validation refused, when the refusal is about one (W-010). */
+  operationId?: string | null;
 }
 
 export interface FieldPlan {

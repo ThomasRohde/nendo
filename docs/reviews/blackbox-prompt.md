@@ -568,6 +568,10 @@ problem, named the thing it was refusing, and offered a remedy you could act on:
 - Writing to a calculated field, through a single-field edit and through a create.
 - A form made only of calculated fields.
 - Adding to, amending or re-validating a change set after it validated.
+- A change set with three mistakes: two unrelated, and one that only follows from the first
+  (a field under a record type that is refused). Record how many validations it took to
+  learn about all of them, whether each diagnostic named its operation, and whether the
+  one that only followed was reported as a problem of its own.
 - A call with a required argument left out, a misspelt key at the top and another inside
   a record, a value of the wrong kind, a tool from the level above yours, and a tool that
   exists at no level. Record, for each, whether the refusal named the argument, the key,
