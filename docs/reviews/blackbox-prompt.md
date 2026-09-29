@@ -54,7 +54,9 @@ gets a pass; spend your extra time on these, which changed most recently:
   wherever its screen is shown, with nothing to install and nothing to allow. Record
   whether the wire told you, before you tried, what that code can reach; whether the
   review said so in words the person could weigh; and what the person could do when a
-  view misbehaved.
+  view misbehaved. Ask the person whether the Code section's folded files, each with
+  its line counts, let them choose what to read, and whether any file they needed to read
+  was hard to find or open.
 - The board whose columns are records (Phase 3), the newest shape. Its columns are not in
   the definition at all: they are rows of another record type, read when the board opens,
   and there is a point past which the board stops drawing. Find that point rather than

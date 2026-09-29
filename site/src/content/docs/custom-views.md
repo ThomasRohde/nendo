@@ -27,7 +27,7 @@ A view on an older Nendo draws its own controls. The view never puts its own mar
 
 ## How the code gets into the file
 
-A package arrives the way every other change to the application does: as a proposal that you review and accept. The review has a **Code** section with every changed line of each file, and it says, once, that the code runs when a view that uses its package is shown. Nothing runs until you accept.
+A package arrives the way every other change to the application does: as a proposal that you review and accept. The review has a **Code** section with every changed line of each file, and it says, once, that the code runs when a view that uses its package is shown. Each file starts folded, showing its name, sizes and how many lines it adds and removes; open one to read its lines. Nothing runs until you accept.
 
 There are three ways to propose a package:
 

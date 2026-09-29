@@ -46,6 +46,23 @@ test('a binary file is said by its size, and a long change says it continues', (
   assert.match(markup, /The change continues past what the review shows\./);
 });
 
+// W-098: a proposal can change many files, and every file's lines shown open buried the
+// rest of the review. Each file is a disclosure that starts folded, and its summary row is
+// an overview on its own: name, change, sizes and how many lines it adds and removes.
+test('each file starts folded, and its summary says enough to choose which to open', async () => {
+  const markup = packageChangesMarkup([replaced, { ...replaced, path: 'style.css' }]);
+  const files = [...markup.matchAll(/<details class="package-change"([^>]*)>/g)];
+  assert.equal(files.length, 2, 'each changed file should be its own disclosure');
+  for (const [, attributes] of files) assert.doesNotMatch(attributes, /\bopen\b/, 'a file opened by default');
+  const summary = markup.slice(markup.indexOf('<summary>'), markup.indexOf('</summary>'));
+  assert.match(summary, /<strong>map\.js<\/strong>/);
+  assert.match(summary, /Changed in org\.example\.map · 2 KB → 2\.1 KB · \+1 −1 lines/);
+  assert.doesNotMatch(summary, /diff-line/, 'the lines themselves belong below the summary, folded');
+  assert.match(markup, /<\/summary><div class="package-change-body"><pre class="package-hunk"/);
+  const styles = (await import('node:fs')).readFileSync(new URL('../src/styles/08-panels.css', import.meta.url), 'utf8');
+  assert.match(styles, /\.package-change > summary:focus-visible/, 'the folded file has no visible keyboard focus');
+});
+
 test('a proposal that touches no package says nothing about code', () => {
   assert.equal(packageChangesMarkup(undefined), '');
   assert.equal(packageChangesMarkup([]), '');

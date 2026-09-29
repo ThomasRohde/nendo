@@ -587,10 +587,10 @@
   border-bottom: 0;
 }
 
-/* A file is a block of its own: the change list's two-column article grid would put the code beside its name. */
+/* A file is a block of its own, and a disclosure that starts folded (W-098): its summary
+   row says the name, the change, the sizes and the line counts; its lines open below. */
 .proposal-changes .package-change {
   display: block;
-  padding: 10px 20px 16px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -598,15 +598,46 @@
   border-bottom: 0;
 }
 
-.package-change header {
+.package-change > summary {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 12px;
   align-items: baseline;
-  margin-bottom: 8px;
+  padding: 10px 20px;
+  cursor: pointer;
+  list-style: none;
 }
 
-.package-change header span,
+.package-change > summary::-webkit-details-marker { display: none; }
+
+.package-change > summary:hover { background: var(--surface-soft); }
+
+.package-change > summary:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: -2px;
+}
+
+.package-change-chevron {
+  display: inline-flex;
+  align-self: center;
+  color: var(--muted);
+  transform: rotate(-90deg);
+  transition: transform 120ms ease;
+}
+
+.package-change-chevron .outline-icon { width: 14px; height: 14px; }
+
+.package-change[open] > summary .package-change-chevron { transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .package-change-chevron { transition: none; }
+}
+
+.package-change-body {
+  padding: 0 20px 16px;
+}
+
+.package-change > summary span:not(.package-change-chevron),
 .package-change-note {
   color: var(--muted);
   font-size: 0.78rem;

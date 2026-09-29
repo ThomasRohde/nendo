@@ -194,7 +194,10 @@ media types and sizes before and after:
 
 Studio's proposal review and the agent review both show these files in a **Code**
 section: each file with its lines, a binary file by its sizes, and a note where the
-change continues past what the review shows. The MCP preview carries the same list.
+change continues past what the review shows. Each file is a disclosure that starts
+folded. Folded, it still shows its path, what happened to it, its sizes and, for text,
+how many lines it adds and removes, so a long list reads as an overview. The lines open
+by pointer or keyboard (W-098). The MCP preview carries the same list.
 A proposal that only brings code says beside it: "Read the code beside this panel:
 once you accept, it runs wherever a screen or a record page shows its view."
 
@@ -1590,6 +1593,8 @@ passed. Each guard below was falsified, seen to fail and then restored:
 - 2026-09-28 — the view API as a read: the api build writes `view-api.json` from the tables
   it is built from, and the local MCP serves it at `nendo://application/view-api`, named
   only with the condition that it is for writing a view's code (W-094).
+- 2026-09-29 — each file in a review's **Code** section starts folded, and its folded row
+  says the lines it adds and removes (W-098). No change to the wire.
 - 2026-09-27 — `schema.describe` names each record type's declared `hierarchy`, so a view
   that writes a parent knows which field holds it rather than guessing among the record
   type's references to itself. A view on an earlier host finds the key missing (W-077).
