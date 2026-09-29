@@ -97,7 +97,7 @@ const refusalCodes: HelpTerm[] = [
 
 export const agentHelp: HelpProvider = () => [
   { id: 'agent-access', title: 'What an agent can see and do', category: 'Agents', summary: 'Access levels in terms of your data, the editing lease, proposals, and what the Agent page shows you.', related: ['mcp', 'agent-surface', 'lanes', 'calculations'], sections: [
-    { heading: 'Five access levels', paragraphs: ['Each level includes the ones before it. You choose it on the Agent page while a file is open, and you can change it at any time. None of them is remembered: every file you open starts at Off.'], terms: [
+    { heading: 'Five access levels', paragraphs: ['Each level includes the ones before it. You choose it on the Agent page while a file is open, and you can change it at any time. This computer remembers the level for that file, so it opens at the same level next time; a new file or a copy of one starts at Off, and choosing Off forgets it.'], terms: [
       { term: 'Off', meaning: 'Nothing listens. No agent can connect, and every lease from before is ended.' },
       { term: 'Inspect', meaning: 'An agent can read everything about the open file — structure, records, screens, history, health and waiting proposals — through eighteen read-only resources. Its tool list is empty, so it cannot change anything.' },
       { term: 'Edit data', meaning: 'Adds creating, editing and deleting records, running a screen’s command, and asking for an integrity check. One agent at a time, under an editing lease. These writes go straight into your file, with a receipt, and appear in History like your own.' },

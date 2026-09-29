@@ -722,8 +722,9 @@ that the acceptance installs. It records the same consent once before it retries
 a data write that was refused for lack of it. The mode gives up a real protection, and that is its
 purpose: a shape change and an action can reach the active file when nobody has
 read either. The mode is off by default, and the host confirms it before it takes
-effect. It ends when the level is lowered or the file closes, and the host never
-persists it
+effect. It ends when the level is lowered or the file closes, and since 2026-09-29
+this device remembers it for that file: the same file opens again at it, and a copy
+or another file begins at Off
 ([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md),
 2026-09-22).
 

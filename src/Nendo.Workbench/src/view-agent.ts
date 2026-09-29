@@ -50,13 +50,17 @@ export function renderAgent(): void {
     { value: 'unattended', label: 'Unattended', short: 'Accept and run its own changes' },
   ];
   const modeLabel = modes.find((mode) => mode.value === status.mode)?.label ?? 'Off';
+  // Since W-126 the level comes back when this file opens again on this computer, and the page says so.
+  const remembered = status.remembered === true
+    ? 'This computer turns it on again whenever this file opens; choose Off to stop that.'
+    : 'This ends when you lower the level or close the file.';
   // The live pane opens with the state as its title. The pill repeats it in one word so the
   // colour carries the same meaning as on Health.
   const heading = ((): { title: string; detail: string; chip: string } => {
     switch (status.state) {
       case 'ready': return status.mode === 'unattended'
-        ? { title: 'Unattended: an agent decides for you', detail: 'An agent may change this file\u2019s shape and run its automatic actions without asking. This ends when you lower the level or close the file.', chip: 'Unattended' }
-        : { title: 'Ready for local agents', detail: `${modeLabel} is on while this file is open. Editing is granted to one agent at a time.`, chip: 'Ready' };
+        ? { title: 'Unattended: an agent decides for you', detail: `An agent may change this file\u2019s shape and run its automatic actions without asking. ${remembered}`, chip: 'Unattended' }
+        : { title: 'Ready for local agents', detail: `${modeLabel} is on while this file is open. Editing is granted to one agent at a time. ${remembered}`, chip: 'Ready' };
       case 'off': return { title: 'Agent access is off', detail: 'Choose an access level to let a local agent connect while this file is open.', chip: 'Off' };
       case 'recoveryRequired': return { title: 'Unavailable during recovery', detail: 'Agent access returns once this file is healthy again. See Health.', chip: 'Recovery' };
       case 'readOnly': return { title: 'Open read-only', detail: 'Agents cannot connect while this file is open read-only.', chip: 'Read-only' };
@@ -240,8 +244,8 @@ function confirmUnattended(): Promise<boolean> {
       <p>An agent will accept its own changes to this file’s record types, screens and automatic
       actions, and those actions will run — without showing them to you first.</p>
       <p>Every change is still recorded in History, and you can withdraw the approval of
-      automatic actions under Health. This lasts until you lower the level or close the
-      file; it is never remembered.</p>
+      automatic actions under Health. This computer remembers it for this file, so it is on
+      again whenever the file opens here, until you choose a lower level or Off.</p>
       <div class="form-actions"><button class="secondary-button" data-cancel type="button" autofocus>Cancel</button><button class="primary-button" data-confirm type="button">Turn on Unattended</button></div>`;
     document.body.append(dialog);
     let confirmed = false;

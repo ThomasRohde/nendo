@@ -71,7 +71,7 @@ internal sealed partial class DesktopSessionController
                 var expected = result.OpenObservation ?? throw new NendoPreconditionException("recovery-observation-missing", "Inspect the acknowledged file before opening it.");
                 var candidate = await PrepareOpenCoreAsync(context.Path, CancellationToken.None, expected);
                 var readOnly = !expected.Inspection.CanAcquireWriteAuthority || candidate.Assessment.KnownInstanceCollision;
-                var view = await OpenCandidateCoreAsync(candidate, readOnly, CancellationToken.None);
+                var view = await OpenCandidateCoreAsync(candidate, readOnly, CancellationToken.None, restoreAgent: false);
                 return new(result, view, readOnly ? "Recovery was acknowledged. The selected file is open read-only; check File health before editing. Agent access is off." : null);
             }
             catch

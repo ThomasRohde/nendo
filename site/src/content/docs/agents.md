@@ -30,7 +30,7 @@ There is no credential. While access is on, any program on this computer can con
 
 ## Access levels
 
-You set the level on the Agent page. Each level includes everything that the levels before it allow. The level is never remembered: every file opens at Off.
+You set the level on the Agent page. Each level includes everything that the levels before it allow. This computer remembers the level for each file: a file opens at the level you last chose for it. A new file, or a copy of one, opens at Off, and choosing Off forgets it.
 
 | Level | What the agent may do | What it gets |
 | --- | --- | --- |

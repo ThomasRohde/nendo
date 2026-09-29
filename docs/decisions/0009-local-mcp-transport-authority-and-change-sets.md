@@ -118,8 +118,9 @@ order.
   level the MCP surface gains one tool, `nendo.change_set.accept`. At this level
   the host also grants this device's automatic-action consent on the agent's
   behalf, for exactly the behaviour that the open file holds. The level is off by
-  default and never persisted. Nothing reaches it unless the person chooses it
-  for this file session, and the person confirms it before it takes effect.
+  default. Nothing reaches it unless the person chooses it for a file, and the
+  person confirms it before it takes effect; since 2026-09-29 this device then
+  remembers it for that file (see History).
 - *B. A per-proposal pre-authorisation — rejected.* The person gives "Accept
   whatever this change set becomes" before validation. It looks safer, but it is
   not. The person authorises a change set without seeing its preview. That is the
@@ -158,8 +159,9 @@ holds one host-supplied delegate, and the host supplies it only at this level.
 accept it, and cause it to run before anybody reads it. That is a real loss, and
 it is the purpose of the level. Three things bound it, and nothing else does:
 
-- the level is off by default and resets to off whenever the file session ends,
-  so the next file or the next launch cannot inherit it;
+- the level is off by default, and only the file the person chose it for comes
+  back at it: this device remembers it for that file, and another file, a copy of
+  it, or a read-only or recovery open begins at Off (2026-09-29);
 - the person confirms the level before it takes effect;
 - every acceptance is an ordinary History revision, so a person can read
   afterwards what was done, although nobody read it before.
@@ -269,7 +271,7 @@ services, at a static loopback address, with no credential.
   application still requires the person's acceptance. At *Edit data*, data writes
   do not require it. At *Unattended*, shape changes and automatic-action consent
   do not require it either. For this reason the person chooses that level per
-  file session and Nendo never remembers it.
+  file, and Nendo remembers it for that file on this device only.
 - Host and Origin matching keeps browser-origin requests and DNS rebinding out.
   That defence never depended on a credential.
 - This is the posture for a single-user machine. It is not an anti-malware
@@ -281,8 +283,10 @@ services, at a static loopback address, with no credential.
 - Visible modes are Off, Inspect, Edit data, Shape app and Unattended. The host
   shows the active mode and the modifying owner. The host captures the mode when
   the listener starts, and the mode is immutable for the listener's lifetime. A
-  change of mode restarts the listener. The mode is never persisted: every file
-  session begins at Off.
+  change of mode restarts the listener. Since 2026-09-29 the mode is remembered
+  for each file on this device: a file opens again at the level last chosen for
+  it, and another file, a copy (a new instance), and a read-only or recovery open
+  begin at Off. Choosing Off forgets it.
 - `nendo.lease.acquire` mints a random 256-bit `applicationHandle` and a distinct
   lease ID. Every owned data, proposal, renew and release operation supplies
   both. The handle is a capability: whoever holds it can use it across
@@ -413,3 +417,14 @@ services, at a static loopback address, with no credential.
   what accepting means for consent to automatic actions before anyone accepts, and
   Accept is withheld where promotion would be refused. Acceptance and consent are
   unchanged.
+- 2026-09-29 — amended at the owner's request (W-126, after F-212): the access
+  level is remembered for each file on this device. Device state
+  (`agent-modes.json`) keeps, per application ID, the level and the file's
+  instance ID; a writable open of that instance turns the level on again, and
+  choosing Off forgets it. A restore from a backup and a replacement reopen at
+  Off: they are recovery acts, and they stop the live agent as before. What this gives up: a file set to Unattended and
+  reopened days later is Unattended again without a fresh confirmation. The
+  confirmation happened when the person chose the level for that file; the Agent
+  page says the level is remembered, and the status bar shows it from the first
+  screen. A copy, a Duplicate or a Fork has a new instance and begins at Off, so a
+  file that travels does not carry the level, and a file never stores it.

@@ -369,6 +369,8 @@ export interface AgentStatus {
   usingPreferredPort: boolean;
   settingsPersisted: boolean;
   settingsNotice: string | null;
+  /** This device turns the level on again whenever this file opens (ADR-0009, W-126). */
+  remembered?: boolean;
 }
 
 export interface ApplyResult {

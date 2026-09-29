@@ -19,7 +19,8 @@ internal sealed record DesktopAgentStatus(
     string? Endpoint,
     bool UsingPreferredPort,
     bool SettingsPersisted,
-    string? SettingsNotice);
+    string? SettingsNotice,
+    bool Remembered = false);
 
 internal sealed partial class DesktopSessionController
 {
@@ -28,7 +29,9 @@ internal sealed partial class DesktopSessionController
     private readonly string? _ownedDeviceStateRoot;
     private DesktopAgentSettingsStore? _agentSettings;
     private DesktopAgentPortStore? _agentPorts;
+    private DesktopAgentModeStore? _agentModes;
     private string? _agentApplicationId;
+    private string? _agentInstanceId;
     private string? _agentFileName;
     private NendoLocalMcpHost? _agentHost;
     private NendoAgentProposalStore? _agentProposals;
@@ -104,6 +107,9 @@ internal sealed partial class DesktopSessionController
     private DesktopAgentPortStore Ports() =>
         _agentPorts ??= new DesktopAgentPortStore(_deviceStateRoot);
 
+    private DesktopAgentModeStore Modes() =>
+        _agentModes ??= new DesktopAgentModeStore(_deviceStateRoot);
+
     /// <summary>
     /// Which application the open file is, read once per file session: the port it keeps is
     /// filed under it, so a moved or renamed file keeps its port and a Fork gets its own.
@@ -113,7 +119,60 @@ internal sealed partial class DesktopSessionController
         if (_agentApplicationId is { } known) return known;
         var snapshot = await service.GetDefinitionSnapshotAsync(cancellationToken);
         _agentFileName = snapshot.FileName;
+        _agentInstanceId = snapshot.Manifest.InstanceId;
         return _agentApplicationId = snapshot.Manifest.ApplicationId;
+    }
+
+    /// <summary>
+    /// Keeps the level the person chose for this file, or forgets it on Off (ADR-0009,
+    /// 2026-09-29, W-126). Best effort: a level that could not be kept is still this run's.
+    /// </summary>
+    private async Task RememberAgentModeAsync(NendoApplicationService service, AgentAccessMode mode, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var applicationId = await AgentApplicationIdAsync(service, cancellationToken);
+            Modes().Remember(applicationId, _agentInstanceId!, _agentFileName, ModeName(mode));
+        }
+        catch (Exception exception) when (exception is NendoException or IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    /// <summary>
+    /// A writable open of a file this device remembers a level for turns that level on again.
+    /// Never fails the open: a level that cannot start leaves the file at Off, as before.
+    /// </summary>
+    private async Task RestoreAgentModeAsync(bool writable, CancellationToken cancellationToken)
+    {
+        if (!writable || _service is not { } service || !service.Capabilities.AgentAccess || _agentHost is not null) return;
+        try
+        {
+            var applicationId = await AgentApplicationIdAsync(service, cancellationToken);
+            if (Modes().Recall(applicationId, _agentInstanceId!) is not { } remembered) return;
+            var mode = ParseMode(remembered);
+            if (mode == AgentAccessMode.Disabled) return;
+            await StartAgentHostCoreAsync(service, mode, cancellationToken);
+        }
+        catch (Exception exception) when (exception is NendoException or IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            await StopAgentAccessCoreAsync();
+        }
+    }
+
+    private async Task StartAgentHostCoreAsync(NendoApplicationService service, AgentAccessMode mode, CancellationToken cancellationToken)
+    {
+        await StopAgentAccessCoreAsync();
+        EnsureProposalStore();
+        _agentHost = await NendoLocalMcpHost.StartAsync(
+            service,
+            mode,
+            CurrentHostOptions(await FilePortAsync(service, cancellationToken)),
+            _agentProposals,
+            UnattendedConsent(mode),
+            cancellationToken);
+        _agentMode = mode;
+        AttachWorkSignal(_agentHost);
     }
 
     /// <summary>The port this file listens on: its own kept port, or a new one each time with Fixed port off.</summary>
@@ -207,6 +266,7 @@ internal sealed partial class DesktopSessionController
             if (requested == AgentAccessMode.Disabled)
             {
                 await StopAgentAccessCoreAsync();
+                await RememberAgentModeAsync(service, requested, cancellationToken);
                 return await ReadAgentStatusCoreAsync(cancellationToken);
             }
             if (!service.Capabilities.AgentAccess)
@@ -221,20 +281,8 @@ internal sealed partial class DesktopSessionController
                 return await ReadAgentStatusCoreAsync(cancellationToken);
             }
 
-            await StopAgentAccessCoreAsync();
-            if (requested != AgentAccessMode.Disabled)
-            {
-                EnsureProposalStore();
-                _agentHost = await NendoLocalMcpHost.StartAsync(
-                    service,
-                    requested,
-                    CurrentHostOptions(await FilePortAsync(service, cancellationToken)),
-                    _agentProposals,
-                    UnattendedConsent(requested),
-                    cancellationToken);
-                _agentMode = requested;
-                AttachWorkSignal(_agentHost);
-            }
+            await StartAgentHostCoreAsync(service, requested, cancellationToken);
+            await RememberAgentModeAsync(service, requested, cancellationToken);
             return await ReadAgentStatusCoreAsync(cancellationToken);
         }
         finally
@@ -303,6 +351,7 @@ internal sealed partial class DesktopSessionController
         _agentHost = null;
         _agentMode = AgentAccessMode.Disabled;
         _agentApplicationId = null;
+        _agentInstanceId = null;
         _agentFileName = null;
         _agentProposals = null;
         _agentProposals = EnsureProposalStore();
@@ -442,7 +491,9 @@ internal sealed partial class DesktopSessionController
             _agentHost.Endpoint.AbsoluteUri,
             !_agentHost.UsedFallbackPort,
             Settings().Persisted,
-            Settings().Notice);
+            Settings().Notice,
+            _agentApplicationId is { } applicationId && _agentInstanceId is { } instanceId &&
+                Modes().Recall(applicationId, instanceId) == ModeName(_agentMode));
     }
 
     internal static string? ResolveConnectedAgent(IReadOnlyList<NendoAgentActivity> activity) =>

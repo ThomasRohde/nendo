@@ -557,8 +557,11 @@ anybody first.
   Does anything anywhere record that nobody reviewed it? Answer as the person would, from
   the screens alone.
 - Then ask them to close and reopen the file, and report what access level it came back
-  at. If it came back at the fifth, that is the most serious finding available in this
-  phase.
+  at. Since 2026-09-29 a file comes back at the level last chosen for it on this computer
+  (ADR-0009, W-126). Record whether the window says so before any agent connects, and
+  where. Then ask them to make a Duplicate of the file and open that: it must come back at
+  Off, and if it came back at the fifth, that is the most serious finding available in this
+  phase. Finally ask them to choose Off, reopen, and report that it stayed Off.
 - While you work, ask the person what the window is doing. They should be able to see that
   an agent is writing without opening the Agent page; ask them to tell you, in their own
   words, what it says and where. Then ask them to click something in Use while you run a
@@ -944,6 +947,8 @@ vocabulary, the examples and the resources — and not from the person.
   open its folder, rename it with F2, and give it a property; then make a new element through
   Nendo's Add and delete it again. Record what the delete said it would remove, what History
   shows for it, and whether each change appeared in Studio's lists of the same records.
+  Then open a view in the tree: record whether it draws as ArchiMate notation, what Fit, the
+  wheel and the navigator do, and what a click on a box selects in the tree.
 - Ask the person, without an agent, to show the package on a second screen and as a
   panel on a record page, from Studio → Surfaces → Custom views. Record whether the
   package's card told them where it was already shown, whether the form let them choose

@@ -115,7 +115,7 @@ internal sealed partial class DesktopSessionController
                 // Replacing an inspected raw copy must not promote it over a
                 // separate known original. It can reopen only for inspection.
                 var readOnly = admission.Conflict is not null || candidate.Assessment.KnownInstanceCollision;
-                var view = await OpenCandidateCoreAsync(candidate, readOnly, CancellationToken.None);
+                var view = await OpenCandidateCoreAsync(candidate, readOnly, CancellationToken.None, restoreAgent: false);
                 return (result, view, readOnly
                     ? "The replacement finished and is open read-only because another known file carries this instance identity."
                     : null);

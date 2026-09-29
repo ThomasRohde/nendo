@@ -172,7 +172,12 @@ internal sealed partial class DesktopSessionController
         return candidate;
     }
 
-    private async Task<DesktopSessionView> OpenCandidateCoreAsync(OpenCandidate candidate, bool readOnly, CancellationToken cancellationToken)
+    /// <param name="restoreAgent">
+    /// False where a restore or a replacement reopens the file: those are recovery acts, and a
+    /// recovery open begins at Off (ADR-0009, 2026-09-29).
+    /// </param>
+    private async Task<DesktopSessionView> OpenCandidateCoreAsync(OpenCandidate candidate, bool readOnly, CancellationToken cancellationToken,
+        bool restoreAgent = true)
     {
         if (!readOnly) RequireWritableLocation(candidate.Path);
         // Recheck advisory history; the Engine separately pins and compares the
@@ -192,11 +197,11 @@ internal sealed partial class DesktopSessionController
         DesktopStartupTiming.Mark("session.coordinator.open.end");
         _service = new NendoApplicationService(_coordinator);
         BeginAgentFileSession();
-        return await FinishOpenAsync(candidate.Path, !readOnly, cancellationToken, candidate.Observation);
+        return await FinishOpenAsync(candidate.Path, !readOnly, cancellationToken, candidate.Observation, restoreAgent);
     }
 
     private async Task<DesktopSessionView> FinishOpenAsync(string path, bool writable, CancellationToken cancellationToken,
-        NendoFileObservation? openedObservation = null)
+        NendoFileObservation? openedObservation = null, bool restoreAgent = true)
     {
         try
         {
@@ -225,6 +230,8 @@ internal sealed partial class DesktopSessionController
             DesktopStartupTiming.Mark("session.history.remember.end");
             _detachedRecovery = null;
             _recoveryPath = null;
+            // The level this device remembers for this file comes back with it (ADR-0009, W-126).
+            if (restoreAgent) await RestoreAgentModeAsync(writable, cancellationToken);
             return view;
         }
         catch

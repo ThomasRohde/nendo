@@ -394,7 +394,8 @@ What remains open:
   2026-09-22 amendment). This is chosen for the build of a new file to order,
   where the review that it removes did not yet protect anything. Three things
   bound it, and no more:
-  - It is off by default, and it resets to off when the file session ends.
+  - It is off by default, and only the file it was chosen for comes back at it
+    on this device; a copy or another file begins at Off (W-126).
   - It is confirmed before it takes effect.
   - Every acceptance is an ordinary History revision.
 
