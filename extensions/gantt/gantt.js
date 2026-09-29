@@ -15,6 +15,14 @@
   // Reads are numbered so an answer that arrives after a newer read has started is dropped.
   let latest = 0, pending = null;
   const element = id => document.getElementById(id);
+  // The view kit (tools/view-kit, copied into kit/): one tab stop for the rows, the arrow keys,
+  // Home and End between them, and a focus ring in the theme's colour (W-064). Loaded as a
+  // module from this classic script; until it arrives, every row is a tab stop as before.
+  let keys = null;
+  import('./kit/nendo-view-kit.js').then(kit => {
+    kit.installFocusRing(document);
+    keys = kit.roving(element('rows'), { items: '.row', orientation: 'vertical' });
+  }).catch(() => undefined);
 
   function describe(error) { return error instanceof Error && error.message ? error.message : String(error); }
   // Dates arrive as exact ISO text; a civil date is placed at UTC midnight so a day is a day.
@@ -117,6 +125,7 @@
       element('rows').append(item);
     }
     if (keep !== null && placed.some(p => p.record.id === keep)) highlight(keep);
+    keys?.refresh();
     find();
   }
 

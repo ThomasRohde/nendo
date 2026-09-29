@@ -892,7 +892,10 @@ vocabulary, the examples and the resources — and not from the person.
   inside its frame, what Nendo's toolbar offers for it, and what a right-click on a
   component, a record or a Gantt row offers. In the Lens, select a component and press Take
   out in Nendo's toolbar, then take out another from its right-click menu, and record
-  whether the caveat and the verdicts read the same both ways. In the Gantt, type in Find,
+  whether the caveat and the verdicts read the same both ways. In the Gantt, press Tab once
+  and record whether it lands on the rows as one stop, whether Up, Down, Home and End move
+  between them with a ring you can see in both themes, and whether Tab then leaves the chart.
+  Type in Find,
   press Enter, and record what dimmed and what opened.
 - On any Use screen, record what stands between the top bar and the screen's content, row by
   row, and where the record type and the view are chosen. Switch both from the breadcrumb

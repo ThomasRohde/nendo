@@ -388,6 +388,38 @@ A choice's `tone` in the schema names one of the eight tones, so a status drawn 
 Nendo against it. `nendo.ui.theme` and the `theme` event carry the same mode and
 values, for a canvas or a chart library that needs them in JavaScript.
 
+## What a view owes the person
+
+A view draws its own document, so Nendo's focus rings, keyboard traversal and text
+alternatives stop at its frame. The view kit carries them across (W-064). It is one
+versioned file, `tools/view-kit/nendo-view-kit.js`, that a package copies into itself (the
+Gantt keeps it at `kit/nendo-view-kit.js`) and imports as a module, even from a classic
+script:
+
+```js
+const kit = await import('./kit/nendo-view-kit.js');
+kit.installFocusRing(document);                    // a ring in --nendo-cobalt; Highlight in forced colours; less motion when asked
+const keys = kit.roving(rows, { items: '.row', orientation: 'vertical' });
+// after each redraw that replaces the rows:
+keys.refresh();
+```
+
+- `roving` makes a list, a grid or a graph one tab stop. Up and Down (or Left and Right,
+  or all four with `orientation: 'spatial'`, to the nearest item in that direction), Home
+  and End move within it; Enter and Space activate.
+- `textAlternative(container, { label, items })` writes a list, hidden from the eye, that a
+  screen reader reads for a drawing it cannot.
+- `fitBox` gives the scale and offset that fit a drawing; `toneFor(value, choices)` gives a
+  status value's tone for a view that does not read the schema's choices itself.
+
+The file's header names its version. A copy is the kit byte for byte, and the repository
+checks every copy it carries against the source.
+
+**What the theme does not carry, and needs not.** Text scale, reduced motion and high
+contrast reach a view's frame through the standard CSS media queries
+(`prefers-reduced-motion`, `forced-colors`, `prefers-contrast`) and through the page's own
+zoom, so they are not theme values. The kit's focus ring answers the first two.
+
 ## Acting for the person
 
 - `nendo.ui.openRecord(entityId, recordId)` opens a record. On a Use screen of that

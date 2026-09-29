@@ -15,6 +15,9 @@ $run = [Guid]::NewGuid().ToString('N')
 $infoPath = Join-Path $output "gantt-server-$run.json"
 $probePath = Join-Path $output "gantt-probe-$run.mjs"
 $serverScript = Join-Path $PSScriptRoot 'Graph-FixtureServer.mjs'
+# The view kit's own tests, and that the Gantt carries the kit byte for byte (W-064).
+& node --test (Join-Path $PSScriptRoot 'view-kit/kit.test.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'View kit tests failed.' }
 $server = Start-Process node -ArgumentList @("`"$serverScript`"", "`"$infoPath`"", '../extensions/gantt') -WindowStyle Hidden -PassThru
 $session = "gantt-$run"
 Push-Location $output

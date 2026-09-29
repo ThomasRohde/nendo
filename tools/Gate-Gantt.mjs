@@ -111,6 +111,42 @@ async (page) => {
   await view.locator('.row[data-id="moment"]').focus();
   exactlyOne(await opens(() => page.keyboard.press('Enter')), 'moment', 'Enter on a focused row did not open it, once:');
   assert(await view.locator('.row[aria-pressed=true]').count() === 1, 'More than one row reads as selected.');
+
+  // W-064: the view kit. The rows are one tab stop; the arrow keys, Home and End move between
+  // them; the focused row wears a visible ring. Then the same keys on a bare list the page adds,
+  // first without the kit, where they move nothing, and then with it.
+  await view.waitForFunction(() => document.querySelectorAll('.row[tabindex="0"]').length === 1, null, { timeout: 8000 })
+    .catch(async () => { throw new Error('The rows are not one tab stop: ' + await view.evaluate(() => [...document.querySelectorAll('.row')].map(r => r.getAttribute('tabindex')).join(','))); });
+  const focusedId = () => view.evaluate(() => document.activeElement?.dataset?.id ?? document.activeElement?.textContent ?? null);
+  await view.locator('.row[data-id="long"]').focus();
+  await page.keyboard.press('ArrowDown');
+  assert(await focusedId() === 'short', 'ArrowDown did not move from the first row to the second: ' + await focusedId());
+  await page.keyboard.press('End');
+  assert(await focusedId() === 'late', 'End did not reach the last row: ' + await focusedId());
+  await page.keyboard.press('Home');
+  assert(await focusedId() === 'long', 'Home did not reach the first row: ' + await focusedId());
+  const ring = await view.evaluate(() => { const s = getComputedStyle(document.activeElement); return { style: s.outlineStyle, width: parseFloat(s.outlineWidth) }; });
+  assert(ring.style !== 'none' && ring.width >= 2, 'The focused row has no visible ring: ' + JSON.stringify(ring));
+  assert(await view.evaluate(() => document.querySelectorAll('.row[tabindex="0"]').length) === 1, 'Moving with the keys left more than one tab stop.');
+  const bare = await view.evaluate(async () => {
+    const list = document.createElement('ul');
+    list.id = 'bare';
+    list.innerHTML = '<li><button class="item">one</button></li><li><button class="item">two</button></li>';
+    document.body.append(list);
+    list.querySelector('.item').focus();
+    return document.activeElement.textContent;
+  });
+  assert(bare === 'one', 'The bare list could not be focused.');
+  await page.keyboard.press('ArrowDown');
+  assert(await focusedId() === 'one', 'Without the kit, ArrowDown should move nothing, and it moved to ' + await focusedId());
+  await view.evaluate(async () => {
+    const kit = await import('./kit/nendo-view-kit.js');
+    kit.roving(document.getElementById('bare'), { items: '.item', orientation: 'vertical' });
+    document.querySelector('#bare .item').focus();
+  });
+  await page.keyboard.press('ArrowDown');
+  assert(await focusedId() === 'two', 'With the kit, ArrowDown did not move to the next item: ' + await focusedId());
+  await view.evaluate(() => document.getElementById('bare').remove());
   const chrome = await view.evaluate(() => ['header', '#axis', 'footer'].map(s => getComputedStyle(document.querySelector(s)).userSelect));
   assert(chrome.every(value => value === 'none'), 'Chart chrome is text-selectable: ' + JSON.stringify(chrome));
 

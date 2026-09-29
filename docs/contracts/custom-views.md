@@ -1598,3 +1598,7 @@ passed. Each guard below was falsified, seen to fail and then restored:
 - 2026-09-27 — `schema.describe` names each record type's declared `hierarchy`, so a view
   that writes a parent knows which field holds it rather than guessing among the record
   type's references to itself. A view on an earlier host finds the key missing (W-077).
+- 2026-09-29 — the view kit (W-064): `tools/view-kit/nendo-view-kit.js`, a versioned file a
+  package copies, for a focus ring, keyboard traversal, a text alternative, fitting and a
+  status tone. No new theme keys: text scale, reduced motion and high contrast reach a view
+  through the standard media queries and the page's zoom. No change to the wire.

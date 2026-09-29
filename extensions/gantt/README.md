@@ -4,7 +4,9 @@ A custom view that draws one record type on a time line: a bar from a start date
 date, and a diamond for a record with only a start. Rows are in start order, the axis
 carries month ticks (at most twelve), and labels are set as text, so a label that looks
 like markup stays text. Selecting a record, with the pointer or Enter, asks Nendo to open
-it.
+it. The rows are one tab stop: Up and Down, Home and End move between them, with a focus
+ring in the theme's colour. That is the view kit (`kit/nendo-view-kit.js`, copied from
+`tools/view-kit`), which the Gantt is the first package to carry (W-064).
 
 On a record page it draws that page's one record as a chart of one: no title or
 instructions, the label above its bar, and the span in days. That record is the page's
