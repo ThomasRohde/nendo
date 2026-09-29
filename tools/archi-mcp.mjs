@@ -4,7 +4,7 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createNendoMcpClient } from './Nendo-McpClient.mjs';
+import { createNendoMcpClient, isRunning } from './Nendo-McpClient.mjs';
 
 export const TARGET_FILE_NAME = process.env.NENDO_ARCHI_TARGET || 'Archi.nendo';
 const PLANNER_APPLICATION_IDS = ['application-5c52097771f342d5a648fcb514318e7c', 'application-7efd926c073f4be9974be19bbc39ff41'];
@@ -22,7 +22,7 @@ async function running() {
   for (const name of names) {
     try { entries.push(JSON.parse(await fs.readFile(path.join(root, name), 'utf8'))); } catch { /* half-written */ }
   }
-  return entries.filter(entry => /^http:\/\/127\.0\.0\.1:\d+\/mcp\/?$/.test(entry.endpoint ?? ''));
+  return entries.filter(entry => /^http:\/\/127\.0\.0\.1:\d+\/mcp\/?$/.test(entry.endpoint ?? '') && isRunning(entry));
 }
 
 export async function target(clientName) {

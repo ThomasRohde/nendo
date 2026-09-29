@@ -1,4 +1,14 @@
 // Task-owned protocol harness on the 2026-07-28 discover path. Application handles stay in memory.
+
+// Whether the Nendo that wrote a discovery entry is still running. A process that ends without
+// closing its host leaves its entry behind (F-212); Nendo's own readers skip it, and so must ours,
+// or a tool picks a closed file's port and is refused.
+export function isRunning(discovery) {
+  const processId = discovery?.processId;
+  if (!Number.isInteger(processId) || processId <= 0) return false;
+  try { process.kill(processId, 0); return true; } catch (error) { return error.code === 'EPERM'; }
+}
+
 export function createNendoMcpClient(discovery, name) {
   const endpoint = new URL(discovery.endpoint);
   if (endpoint.protocol !== 'http:' || endpoint.hostname !== '127.0.0.1' || endpoint.pathname !== '/mcp')

@@ -24,7 +24,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createNendoMcpClient } from './Nendo-McpClient.mjs';
+import { createNendoMcpClient, isRunning } from './Nendo-McpClient.mjs';
 import { STAGES, STAGE_ORDER, CARRY, LEFT_BEHIND, CALL_CHARACTERS } from './planner-definition.mjs';
 
 const SOURCE_APPLICATION_ID =
@@ -44,7 +44,7 @@ async function running() {
   for (const name of names) {
     try { entries.push(JSON.parse(await fs.readFile(path.join(root, name), 'utf8'))); } catch { /* half-written */ }
   }
-  return entries.filter(entry => /^http:\/\/127\.0\.0\.1:\d+\/mcp\/?$/.test(entry.endpoint ?? ''));
+  return entries.filter(entry => /^http:\/\/127\.0\.0\.1:\d+\/mcp\/?$/.test(entry.endpoint ?? '') && isRunning(entry));
 }
 
 // Identity is read from the file itself, never trusted to the discovery entry.
