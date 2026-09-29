@@ -58,7 +58,7 @@ is the code that CSV import resolves references by (W-075).
 | **Model** | Name, documentation, language, version, the 15 Dublin Core fields as text, Archi ID | One record |
 | **Folder** | Name, kind (Strategy, Business, Application, Technology, Motivation, Implementation & Migration, Other, Relations, Views; empty for a user folder), documentation, label expression, parent, order, Archi ID | A hierarchy ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)); the nine top-level folders are seeded |
 | **Concept type** | Key (unique, for example `BusinessActor`), name, category (Element, Relationship), layer (nine options), default fill, default width and height, relationship letter | 72 seeded records: 61 element types and 11 relationship types. A choice holds 32 options, so the type is a reference to this lookup, which also carries the notation's defaults (D-001) |
-| **Concept** | Name, type (Concept type, required), documentation, folder, source and target (both Concept), access type (Write, Read, Access, Read and write), influence strength, directed, junction type (And, Or), specialization, Archi ID | Elements and relationships in one type (D-001). A relationship's source or target may be another relationship, and a junction is an element, so neither needs anything new. A Concept page lists its relationships from and to it and its occurrences |
+| **Concept** | Name, type (Concept type, required), category (Element or Relationship, so a screen can filter on it), documentation, folder, source and target (both Concept), access type (Write, Read, Access, Read and write), influence strength, directed, junction type (And, Or), specialization, Archi ID | Elements and relationships in one type (D-001). A relationship's source or target may be another relationship, and a junction is an element, so neither needs anything new. A Concept page lists its relationships from and to it and its occurrences |
 | **Specialization** | Name, concept type, Archi ID | Archi's profiles. Images are out (F-208) |
 | **View** | Name, documentation, folder, viewpoint (the viewpoint's key), router (Manual, Manhattan), Archi ID | Sketch and Canvas views are out, as in archi-online |
 | **Diagram item** | View (required), kind (Element, Group, Note, View reference, Relationship connection, Connection), concept, referenced view, parent, order, source and target (both Diagram item), x, y, width, height, bendpoints, name, documentation, content, figure, border type, connection type, name visible, text alignment and position, fill, line and font colour, fill, line and font alpha, gradient, line style and width, icon visibility and colour, derived line colour, font, label expression, legend options, Archi ID | Nodes and connections in one type, because a connection may end on another connection. Nesting is the hierarchy; order is z-order. Bounds are typed integers relative to the parent, as Archi stores them. Bendpoints are a JSON list in text, in Archi's relative `startX/startY/endX/endY` form, because Nendo has no list type. Legend options are JSON text for the same reason |
@@ -205,8 +205,12 @@ such as zoom and open tabs stays in the device's `localStorage`, because every
 ## How it is built and checked
 
 - **The file.** `tools/Build-Archi.mjs` builds `workspace/Archi.nendo` from an empty
-  file over MCP, as `tools/Build-Planner.mjs` builds the planner: the schema as change
-  sets, then the seeded folders and concept types (W-107). A converter turns an
+  file over MCP, as `tools/Build-Planner.mjs` builds the planner: the schema as five change
+  sets, then the seeded folders, concept types and model record, then a comparison of the
+  seeded types with their table (W-107). `tools/archi-definition.mjs` holds the shape and
+  `tools/archi-concept-types.mjs` the 72 types, generated from archi-online. The empty file
+  is made by Nendo itself: `Nendo.Desktop.exe -new <path>`, the command Explorer's New menu
+  sends. A converter turns an
   `.archimate` file into one CSV per record type for the native import, which loads
   Archisurance before any host feature exists (W-108).
 - **Parity.** archi-online's fixtures are the oracle: Archisurance, the phase 1 to 3
