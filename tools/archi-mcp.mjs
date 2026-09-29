@@ -1,0 +1,69 @@
+// Finding Archi.nendo among the running Nendo windows, reading it and holding its lease: what
+// tools/Build-Archi.mjs and tools/Import-Archimate.mjs share. Identity is read from the file
+// itself, never trusted to the discovery entry, and a development planner is never a target.
+
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { createNendoMcpClient } from './Nendo-McpClient.mjs';
+
+export const TARGET_FILE_NAME = process.env.NENDO_ARCHI_TARGET || 'Archi.nendo';
+const PLANNER_APPLICATION_IDS = ['application-5c52097771f342d5a648fcb514318e7c', 'application-7efd926c073f4be9974be19bbc39ff41'];
+
+export function fail(message) {
+  console.error(`\n${message}\n`);
+  process.exit(1);
+}
+
+async function running() {
+  const root = path.join(process.env.LOCALAPPDATA ?? '', 'Nendo', 'Mcp', 'active');
+  let names = [];
+  try { names = (await fs.readdir(root)).filter(name => name.endsWith('.json')); } catch { /* none */ }
+  const entries = [];
+  for (const name of names) {
+    try { entries.push(JSON.parse(await fs.readFile(path.join(root, name), 'utf8'))); } catch { /* half-written */ }
+  }
+  return entries.filter(entry => /^http:\/\/127\.0\.0\.1:\d+\/mcp\/?$/.test(entry.endpoint ?? ''));
+}
+
+export async function target(clientName) {
+  const entries = (await running()).filter(entry => entry.displayName === TARGET_FILE_NAME);
+  if (entries.length === 0) fail(`No Nendo has ${TARGET_FILE_NAME} open with Agent access on. Open it, turn Agent access on, and run this again.`);
+  if (entries.length > 1) fail(`More than one Nendo has a file named ${TARGET_FILE_NAME} open. Close all but one.`);
+  const client = createNendoMcpClient(entries[0], clientName);
+  const manifest = JSON.parse((await client.rpc('resources/read', { uri: 'nendo://application/manifest' })).contents[0].text);
+  if (PLANNER_APPLICATION_IDS.includes(manifest.applicationId)) {
+    fail(`${TARGET_FILE_NAME} answers with a development planner's application ID. Nothing was written.`);
+  }
+  return { client, manifest, read: reader(client) };
+}
+
+function reader(client) {
+  const json = async uri => JSON.parse((await client.rpc('resources/read', { uri })).contents[0].text);
+  return {
+    json,
+    entities: async () => (await json('nendo://application/entities')).map(entity => entity.entityId),
+    schema: entityId => json(`nendo://application/entity/${entityId}/schema`),
+    hasNode: async nodeId => (await client.rpc('resources/read', { uri: 'nendo://application/surfaces' }))
+      .contents[0].text.includes(`"${nodeId}"`),
+    records: async entityId => {
+      const items = [];
+      let uri = `nendo://application/entity/${entityId}/records?limit=100`;
+      for (;;) {
+        const page = await json(uri);
+        items.push(...page.items);
+        if (!page.nextCursor) return items;
+        uri = `nendo://application/entity/${entityId}/records?cursor=${page.nextCursor}&limit=100`;
+      }
+    },
+  };
+}
+
+export async function withLease(client, work) {
+  const lease = await client.tool('nendo.lease.acquire');
+  const owned = { applicationHandle: lease.applicationHandle, leaseId: lease.leaseId };
+  try {
+    return await work(owned, lease);
+  } finally {
+    await client.tool('nendo.lease.release', owned).catch(() => { /* the person may have revoked it */ });
+  }
+}

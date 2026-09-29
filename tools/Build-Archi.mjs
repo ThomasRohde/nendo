@@ -16,74 +16,9 @@
 // sends, so the file is the one New file makes. NENDO_ARCHI_TARGET names another file to build.
 
 import crypto from 'node:crypto';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { createNendoMcpClient } from './Nendo-McpClient.mjs';
 import { STAGES, STAGE_ORDER, CALL_CHARACTERS, ROOT_FOLDERS, TYPES, MODEL } from './archi-definition.mjs';
 import { CONCEPT_TYPES } from './archi-concept-types.mjs';
-
-const TARGET_FILE_NAME = process.env.NENDO_ARCHI_TARGET || 'Archi.nendo';
-// The development planner is never a target, whatever it is called.
-const PLANNER_APPLICATION_IDS = ['application-5c52097771f342d5a648fcb514318e7c', 'application-7efd926c073f4be9974be19bbc39ff41'];
-
-function fail(message) {
-  console.error(`\n${message}\n`);
-  process.exit(1);
-}
-
-async function running() {
-  const root = path.join(process.env.LOCALAPPDATA ?? '', 'Nendo', 'Mcp', 'active');
-  let names = [];
-  try { names = (await fs.readdir(root)).filter(name => name.endsWith('.json')); } catch { /* none */ }
-  const entries = [];
-  for (const name of names) {
-    try { entries.push(JSON.parse(await fs.readFile(path.join(root, name), 'utf8'))); } catch { /* half-written */ }
-  }
-  return entries.filter(entry => /^http:\/\/127\.0\.0\.1:\d+\/mcp\/?$/.test(entry.endpoint ?? ''));
-}
-
-async function target() {
-  const entries = (await running()).filter(entry => entry.displayName === TARGET_FILE_NAME);
-  if (entries.length === 0) fail(`No Nendo has ${TARGET_FILE_NAME} open with Agent access on. Open it, turn Agent access on, and run this again.`);
-  if (entries.length > 1) fail(`More than one Nendo has a file named ${TARGET_FILE_NAME} open. Close all but one.`);
-  const client = createNendoMcpClient(entries[0], 'nendo-archi-build');
-  const manifest = JSON.parse((await client.rpc('resources/read', { uri: 'nendo://application/manifest' })).contents[0].text);
-  if (PLANNER_APPLICATION_IDS.includes(manifest.applicationId)) {
-    fail(`${TARGET_FILE_NAME} answers with a development planner's application ID. Nothing was written.`);
-  }
-  return { client, manifest, read: reader(client) };
-}
-
-function reader(client) {
-  const json = async uri => JSON.parse((await client.rpc('resources/read', { uri })).contents[0].text);
-  return {
-    json,
-    entities: async () => (await json('nendo://application/entities')).map(entity => entity.entityId),
-    schema: entityId => json(`nendo://application/entity/${entityId}/schema`),
-    hasNode: async nodeId => (await client.rpc('resources/read', { uri: 'nendo://application/surfaces' }))
-      .contents[0].text.includes(`"${nodeId}"`),
-    records: async entityId => {
-      const items = [];
-      let uri = `nendo://application/entity/${entityId}/records?limit=100`;
-      for (;;) {
-        const page = await json(uri);
-        items.push(...page.items);
-        if (!page.nextCursor) return items;
-        uri = `nendo://application/entity/${entityId}/records?cursor=${page.nextCursor}&limit=100`;
-      }
-    },
-  };
-}
-
-async function withLease(client, work) {
-  const lease = await client.tool('nendo.lease.acquire');
-  const owned = { applicationHandle: lease.applicationHandle, leaseId: lease.leaseId };
-  try {
-    return await work(owned, lease);
-  } finally {
-    await client.tool('nendo.lease.release', owned).catch(() => { /* the person may have revoked it */ });
-  }
-}
+import { TARGET_FILE_NAME, fail, target, withLease } from './archi-mcp.mjs';
 
 async function applied(file, name) {
   const stage = STAGES[name];
@@ -224,7 +159,7 @@ if (dryRun && named.length === 0) {
   process.exit(0);
 }
 
-const file = await target();
+const file = await target('nendo-archi-build');
 console.log(`Target          ${TARGET_FILE_NAME} (${file.manifest.applicationId})`);
 if (named[0] === 'compare') await compare(file);
 else if (named[0] === 'seed') await seed(file, dryRun);

@@ -210,9 +210,12 @@ such as zoom and open tabs stays in the device's `localStorage`, because every
   seeded types with their table (W-107). `tools/archi-definition.mjs` holds the shape and
   `tools/archi-concept-types.mjs` the 72 types, generated from archi-online. The empty file
   is made by Nendo itself: `Nendo.Desktop.exe -new <path>`, the command Explorer's New menu
-  sends. A converter turns an
-  `.archimate` file into one CSV per record type for the native import, which loads
-  Archisurance before any host feature exists (W-108).
+  sends. `tools/Import-Archimate.mjs`
+  loads an `.archimate` file before any host feature exists (W-108): it runs archi-online's
+  own `parseArchimate` (bundled with esbuild, jsdom for the `DOMParser`), maps the model
+  onto the record types, writes them over MCP in the order their references need, and
+  compares every count, bound and bendpoint with the parse. Record IDs are `ar-` and the
+  Archi ID, so a reference is known before its target is written.
 - **Parity.** archi-online's fixtures are the oracle: Archisurance, the phase 1 to 3
   pairs and their `*.semantics.json` contracts, and the exchange samples. Each work item
   compares its output with archi-online's for the same input, by script, and W-125
