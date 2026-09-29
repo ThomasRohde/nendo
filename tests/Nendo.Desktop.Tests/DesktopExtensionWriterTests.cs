@@ -46,6 +46,49 @@ public sealed class DesktopExtensionWriterTests
         Assert.IsFalse(history.Any(revision => revision.Origin.StartsWith("extension:", StringComparison.Ordinal) && revision.Origin != Actor));
     }
 
+    // W-102: several writes as one revision, through the same admission as a single write.
+    [TestMethod]
+    public async Task AViewsBatchIsOneRevisionInItsPackagesNameAndAnswersEachVersion()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await DesktopExtensionViewJourneyTests.SeedAsync(workspace.FilePath);
+        var (session, handler, fileSessionId) = await OpenAsync(workspace);
+        await using var _ = session;
+        var before = (await session.GetHistoryAsync()).Count;
+
+        var response = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.DataWriteRecords, new
+        {
+            writes = new object[]
+            {
+                new { kind = "create", entityId = "tasks", recordId = "batch-1", values = new { title = "First" } },
+                new { kind = "create", entityId = "tasks", recordId = "batch-2", values = new { title = "Second" } },
+                new { kind = "update", entityId = "tasks", recordId = "batch-1", expectedRecordVersion = 1, values = new { title = "Twice" } },
+            },
+            label = "Arrange", idempotencyKey = "view-batch-twice", actor = Actor,
+        }));
+        Assert.IsFalse(response.Ok, "A batch that writes one record twice was accepted.");
+        Assert.HasCount(before, await session.GetHistoryAsync(), "A refused batch left a revision.");
+
+        response = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.DataWriteRecords, new
+        {
+            writes = new object[]
+            {
+                new { kind = "create", entityId = "tasks", recordId = "batch-1", values = new { title = "First" } },
+                new { kind = "create", entityId = "tasks", recordId = "batch-2", values = new { title = "Second" } },
+            },
+            label = "Arrange", idempotencyKey = "view-batch", actor = Actor,
+        }));
+        Assert.IsTrue(response.Ok, response.Error?.Message);
+        var view = (DesktopRecordWritesView)response.Result!;
+        CollectionAssert.AreEqual(new long?[] { 1, 1 }, view.Records.Select(record => record.RecordVersion).ToArray());
+
+        var history = await session.GetHistoryAsync();
+        Assert.HasCount(before + 1, history, "The batch was not one revision.");
+        var revision = history.Single(item => item.RevisionId == view.Mutation.RevisionId);
+        Assert.AreEqual(Actor, revision.Origin, "History does not name the view's package on its batch.");
+        Assert.AreEqual("Arrange", revision.Description);
+    }
+
     [TestMethod]
     public async Task AnActorIsRefusedOnEveryMethodButTheRecordWritesAndPreparingAProposal()
     {
@@ -56,7 +99,7 @@ public sealed class DesktopExtensionWriterTests
         var before = (await session.GetViewAsync()).Manifest!.ChangeSequence;
 
         var writers = WorkbenchMethods.ExtensionWriterMethods.OrderBy(method => method, StringComparer.Ordinal).ToArray();
-        CollectionAssert.AreEqual(new[] { WorkbenchMethods.DataCreateRecord, WorkbenchMethods.DataDeleteRecord, WorkbenchMethods.DataExecuteCommand, WorkbenchMethods.DataMoveRecord, WorkbenchMethods.DataSetFields, WorkbenchMethods.ExtensionStateRead, WorkbenchMethods.ExtensionStateSet, WorkbenchMethods.ProposalGet, WorkbenchMethods.ProposalPrepareChangeSet },
+        CollectionAssert.AreEqual(new[] { WorkbenchMethods.DataCreateRecord, WorkbenchMethods.DataDeleteRecord, WorkbenchMethods.DataExecuteCommand, WorkbenchMethods.DataMoveRecord, WorkbenchMethods.DataSetFields, WorkbenchMethods.DataWriteRecords, WorkbenchMethods.ExtensionStateRead, WorkbenchMethods.ExtensionStateSet, WorkbenchMethods.ProposalGet, WorkbenchMethods.ProposalPrepareChangeSet },
             writers, "The methods a view's actor may reach changed; the ADR, the contract and the broker's table must change with them.");
 
         var methods = typeof(WorkbenchMethods)

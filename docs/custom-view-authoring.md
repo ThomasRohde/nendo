@@ -584,6 +584,27 @@ await nendo.records.delete(added);
   changed since you read it. Clearing a reference to null needs none. `create`'s third
   argument may also be the record ID alone.
 
+**Several writes at once.** A gesture that changes many records, such as moving a
+selection or deleting an element with its connections, goes in one `records.batch`.
+Every write commits or none does, and History shows one entry under your label:
+
+```js
+const { records } = await nendo.records.batch([
+  { op: 'create', entityId: 'boxes', recordId: 'b9', values: { name: 'New', x: 40, y: 40 } },
+  { op: 'update', entityId: 'boxes', recordId: 'b1', version: 3, values: { x: 120, y: 80 } },
+  { op: 'update', entityId: 'links', recordId: 'l4', version: 1, values: { target: 'b9' } },
+  { op: 'delete', entityId: 'boxes', recordId: 'b2', version: 5 },
+], { label: 'Arrange' });
+// records: [{entityId, recordId, version}, …] in the same order; version null for b2
+```
+
+- Up to 200 writes. A record appears once: put its changes in one `update`.
+- `l4` points at `b9`, which the batch creates, without a target version: Nendo checks
+  a reference to a record written earlier in the batch against the version that write
+  leaves. A reference to anything else takes `targetVersions` as usual.
+- A batch has no move. Set a tree's parent and order fields in an `update`, or use
+  `records.move`.
+
 ### Proposing a change
 
 A view can ask for a change to the app itself, such as a field it needs or a new
@@ -947,7 +968,7 @@ Nendo does not interpret it. It is not the place for data.
 | Read and write the clipboard, and download files | Reach SQL, a file path, another file or a device setting |
 | Keep `localStorage` and IndexedDB, per package and file, on this device | Navigate Nendo away, or load Nendo inside a frame |
 | Send a link the person clicks, one that opens a new window, to their own browser | Open a window by script without the person's click |
-| Show the browser's `alert`, `confirm` and `prompt` | Write several records as one revision (not yet: each write is its own) |
+| Show the browser's `alert`, `confirm` and `prompt` | Choose the idempotency key or the name a write is made in |
 | Create, change and delete records and run record commands, in its package's name | Write under any other name, or without a version check |
 | Ask Nendo to open a record, a screen or Studio, show a sentence and size its panel | Accept or reject a proposal, ever |
 

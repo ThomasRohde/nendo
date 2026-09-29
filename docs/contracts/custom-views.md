@@ -476,8 +476,8 @@ A request without a safe-integer `id` is dropped without an answer.
 ### The method table
 
 The broker has a closed method table. Each method becomes one of the Workbench's
-own typed reads, one of the four record writes a person's edit uses or a move in a
-declared tree, preparing or
+own typed reads, one of the four record writes a person's edit uses, a move in a
+declared tree or several record writes as one revision, preparing or
 reading a proposal of the view's own package, or something the Workbench does for the
 person. Parameters are
 rebuilt key by key: nothing else a view sends reaches the host, and nothing a view
@@ -500,6 +500,7 @@ Workbench suite, pins the table name by name.
 | `records.update` | `entityId`, `recordId`, `version`, `values`, `targetVersions` (optional) | `data.setFields`, with `targetVersions` as `expectedTargetVersions` | The record as it now stands |
 | `records.delete` | `entityId`, `recordId`, `version` | `data.deleteRecord` | null |
 | `records.move` | `entityId`, `recordId`, `version`, `parentRecordId` (null for the top level), `parentVersion` (with a parent), `beforeRecordId` (optional) | `data.moveRecord`, with `parentVersion` as `expectedParentVersion` ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)) | The record as it now stands |
+| `records.batch` | `writes` (1–200, each `{op: 'create', entityId, recordId?, values, targetVersions?}`, `{op: 'update', entityId, recordId, version, values, targetVersions?}` or `{op: 'delete', entityId, recordId, version}`), `label` (1–80 characters, optional) | `data.writeRecords`, one revision ([below](#writes)) | `{records: [{entityId, recordId, version}]}`, version null for a deleted record |
 | `commands.run` | `commandId`, `entityId`, `recordId`, `version` | `data.executeCommand` | The record as it now stands |
 | `proposals.prepare` | `title` (1–200 characters), `operations` (1–128 canonical operations) | `proposal.prepareChangeSet`, then the Workbench's review | `{proposalId, title, state, diagnostics, opened}` |
 | `proposals.get` | `proposalId` | `proposal.get`, for the package's own proposals | `{proposalId, title, state, diagnostics}` |
@@ -559,6 +560,31 @@ commands, through the same typed operations and version checks as a person's edi
 - A file open read-only refuses a view's writes with `read-only` before the host is
   asked. A file with automatic actions still needs this device's behaviour approval
   before any write, a view's included.
+
+**Several writes as one revision** (`records.batch`, W-102). A gesture such as moving a
+selection, pasting or deleting an element with its connections is many writes that
+belong together.
+
+- The batch is one mutation. Every write commits or none does, and History shows one
+  entry, named by `label` or, without one, by what it does ("Create 3 Tasks", "Change
+  5 records"). The host's `data.writeRecords` admits a view's actor like the single
+  writes, and the Engine's `ApplyRecordWritesAsync` expands each write to the canonical
+  operations its single form makes.
+- A record appears at most once, so the version a view read is the version its write
+  expects; the broker and the Engine both refuse a second write to it. Put a record's
+  changes in one `update`.
+- A reference to a record created or updated earlier in the same batch needs no
+  target version: the Engine checks it against the version that write leaves, which the
+  view cannot know. A reference to a record the batch deletes earlier is refused as a
+  missing target.
+- There is no move in a batch, because a move reads its siblings from the committed
+  file. Set a tree's parent and order fields in an `update`, or call `records.move`.
+- The answer is each record's new version, in the order written, and null for a
+  deleted one; an automatic action that wrote back to a record is counted. Read a record
+  again for its values and calculations.
+- History compensates a batch of updates and deletes, up to 128 operations, as one.
+  A batch that creates a record cannot be compensated in History, as a single create
+  cannot: delete what it made instead.
 
 ### Proposals
 
@@ -857,6 +883,7 @@ holds the latest theme.
 | Not responding | A ping has waited 2 s and the view has said nothing for 10 s |
 | Height | 80–4,000 pixels; a record-page panel starts at 360 |
 | A page of records | 1–200 records, 100 by default |
+| A batch | 1–200 record writes, each of 1–64 values, and at most 250,000 characters once the broker has added its keys |
 | A toolbar | 32 controls in the row, 8 buttons in a group, 12 options in a choice, 64 in a select, 48 items in a menu, labels and options of 80 characters, a menu item's detail of 120, and 16 KiB of JSON in all |
 | Toolbars | 20 a second from one view; `api.js` sends the latest at most every 100 ms |
 | Menus | 4 a second from one view |
@@ -1302,7 +1329,6 @@ View code cannot:
   ([ADR-0009](../decisions/0009-local-mcp-transport-authority-and-change-sets.md));
 - navigate the Workbench away, load the Workbench in a frame, or connect a window
   it made to the broker;
-- write several records as one revision (not yet: each write is its own revision);
 - write under any name but its own package's;
 - accept or reject a proposal, ever.
 
@@ -1593,6 +1619,10 @@ passed. Each guard below was falsified, seen to fail and then restored:
 - 2026-09-28 — the view API as a read: the api build writes `view-api.json` from the tables
   it is built from, and the local MCP serves it at `nendo://application/view-api`, named
   only with the condition that it is for writing a view's code (W-094).
+- 2026-09-29 — `records.batch`: several creates, updates and deletes as one revision,
+  through the host's new `data.writeRecords`, which admits a view's actor. A record appears
+  once; a reference to a record written earlier in the batch is checked against the version
+  that write leaves (W-102).
 - 2026-09-29 — each file in a review's **Code** section starts folded, and its folded row
   says the lines it adds and removes (W-098). No change to the wire.
 - 2026-09-27 — `schema.describe` names each record type's declared `hierarchy`, so a view

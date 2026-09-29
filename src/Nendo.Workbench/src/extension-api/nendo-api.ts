@@ -337,6 +337,13 @@ function install(host: Window & { nendo?: unknown }): void {
   type TargetVersions = Record<string, number>;
   type CreateOptions = { recordId?: string; targetVersions?: TargetVersions };
   type UpdateOptions = { targetVersions?: TargetVersions };
+  /** One record's part of a batch: create, update or delete, as the single-record calls take them. */
+  type BatchWrite =
+    | { op: 'create'; entityId: string; recordId?: string; values: WriteValues; targetVersions?: TargetVersions }
+    | { op: 'update'; entityId: string; recordId: string; version: number; values: WriteValues; targetVersions?: TargetVersions }
+    | { op: 'delete'; entityId: string; recordId: string; version: number };
+  type BatchOptions = { label?: string };
+  type BatchAnswer = { records: { entityId: string; recordId: string; version: number | null }[] };
   type MoveTarget = { parentRecordId: string | null; parentVersion?: number; beforeRecordId?: string | null };
   type StateOptions = { scope?: 'view' | 'package' };
   type StateEntry = { key: string; value: unknown; version: number };
@@ -487,6 +494,15 @@ function install(host: Window & { nendo?: unknown }): void {
         }),
       delete: (record: RecordAt): Promise<null> =>
         call<null>('records.delete', { entityId: record.entityId, recordId: record.recordId, version: record.version }),
+      /**
+       * Several writes as one revision (W-102): all commit or none do, and History shows one
+       * entry, named by options.label. A record appears at most once. A reference to a record
+       * created or updated earlier in the batch needs no target version: Nendo checks it against
+       * the version that write leaves. Answers each record's new version, in the order written,
+       * and null for a deleted one.
+       */
+      batch: (writes: BatchWrite[], options?: BatchOptions): Promise<BatchAnswer> =>
+        call<BatchAnswer>('records.batch', { writes, ...(options?.label === undefined ? {} : { label: options.label }) }),
       /**
        * Moves a record in its record type's declared tree (ADR-0019): under parentRecordId, with the
        * parent's version as the view read it, or to the top level with null; before the sibling

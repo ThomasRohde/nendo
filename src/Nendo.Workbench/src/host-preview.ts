@@ -74,6 +74,9 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
       case 'data.moveRecord':
         result = this.moveRecord(payload);
         break;
+      case 'data.writeRecords':
+        result = this.writeRecords(payload);
+        break;
       case 'data.treeRecords':
         result = this.treeRecords(payload);
         break;
@@ -312,6 +315,59 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
       }
       return this.advance('data', `Move ${entity.displayName}`, 'data.setField');
     });
+  }
+
+  /** Several writes as one revision: each applied in turn, and all undone if one is refused. */
+  private writeRecords(payload: Record<string, unknown>): DesktopMutationView & { records: { entityId: string; recordId: string; recordVersion: number | null }[] } {
+    const idempotencyKey = requiredString(payload, 'idempotencyKey');
+    const writes = payload.writes;
+    if (!Array.isArray(writes) || writes.length < 1 || writes.length > 200)
+      throw new WorkbenchHostError('validation', 'A batch carries 1-200 record writes.');
+    const records: { entityId: string; recordId: string; recordVersion: number | null }[] = [];
+    const view = this.mutate('data.writeRecords', idempotencyKey, JSON.stringify(writes), () => {
+      const before = structuredClone(this.session.records);
+      try {
+        for (const item of writes as Record<string, unknown>[]) {
+          const entityId = requiredString(item, 'entityId');
+          const recordId = requiredString(item, 'recordId');
+          const entity = requireEntity(this.session, entityId);
+          const index = this.session.records.findIndex(candidate => candidate.entityId === entityId && candidate.recordId === recordId);
+          if (item.kind === 'create') {
+            if (index >= 0) throw new WorkbenchHostError('record-exists', 'The record ID already exists.');
+            const values = requiredObject(item, 'values');
+            validateValues(entity, values);
+            this.session.records.push({ entityId, recordId, recordVersion: 1, values: structuredClone(values) });
+            records.push({ entityId, recordId, recordVersion: 1 });
+            continue;
+          }
+          if (index < 0) throw new WorkbenchHostError('record-not-found', 'The record no longer exists.');
+          const record = this.session.records[index];
+          if (record.recordVersion !== requiredNumber(item, 'expectedRecordVersion'))
+            throw new WorkbenchHostError('record-version-conflict', 'The record changed. Refresh and try again.');
+          if (item.kind === 'delete') {
+            this.session.records.splice(index, 1);
+            records.push({ entityId, recordId, recordVersion: null });
+            continue;
+          }
+          const values = Object.entries(requiredObject(item, 'values'));
+          for (const [fieldId, value] of values) {
+            const field = entity.fields.find(candidate => candidate.fieldId === fieldId);
+            if (field === undefined) throw new WorkbenchHostError('field-not-found', 'The field no longer exists.');
+            validateFieldValue(field, value);
+            record.values[fieldId] = value;
+          }
+          record.recordVersion += values.length;
+          records.push({ entityId, recordId, recordVersion: record.recordVersion });
+        }
+      } catch (error) {
+        this.session.records = before;
+        records.length = 0;
+        throw error;
+      }
+      const label = typeof payload.label === 'string' ? payload.label : `Change ${writes.length} records`;
+      return this.advance('data', label, 'data.writeRecords');
+    });
+    return { ...view, records };
   }
 
   private setFields(payload: Record<string, unknown>): DesktopMutationView {

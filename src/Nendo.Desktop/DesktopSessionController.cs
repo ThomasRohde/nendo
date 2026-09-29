@@ -79,6 +79,13 @@ internal sealed record DesktopMutationView(
     DesktopSessionView? Session,
     string? RefreshNotice = null);
 
+/// <summary>What a batch of record writes did, with each record's version for the next write.</summary>
+internal sealed record DesktopRecordWritesView(
+    NendoApplyResult Mutation,
+    DesktopSessionView? Session,
+    string? RefreshNotice,
+    IReadOnlyList<NendoWrittenRecord> Records);
+
 internal sealed record DesktopPromotionView(
     NendoPromotionOutcome Promotion,
     DesktopSessionView? Session,
@@ -279,6 +286,24 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
         MutateAsync(service => service.SetFieldsAsync(new NendoSetFieldsRequest(
             entityId, recordId, expectedRecordVersion, values,
             new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "surface"), expectedTargetVersions), cancellationToken), cancellationToken, origin);
+
+    internal async Task<DesktopRecordWritesView> WriteRecordsAsync(
+        IReadOnlyList<NendoRecordWrite> writes,
+        string idempotencyKey,
+        string? label,
+        CancellationToken cancellationToken = default,
+        string? origin = null)
+    {
+        IReadOnlyList<NendoWrittenRecord> records = [];
+        var view = await MutateAsync(async service =>
+        {
+            var result = await service.ApplyRecordWritesAsync(new NendoRecordWritesRequest(
+                writes, new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "surface"), label), cancellationToken);
+            records = result.Records;
+            return result.Applied;
+        }, cancellationToken, origin);
+        return new DesktopRecordWritesView(view.Mutation, view.Session, view.RefreshNotice, records);
+    }
 
     internal Task<DesktopMutationView> MoveRecordAsync(
         string entityId,

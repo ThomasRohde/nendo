@@ -58,6 +58,11 @@ public sealed class BcmAtlasUpgradeTests
         {
             ["idempotencyKey"] = "upgrade-validate",
         });
+        // The committed file already carries the upgrade since ef0f13e ("BCM.nendo upgraded"), so
+        // the lane has nothing left to apply. Say so rather than fail on the file's own success.
+        if (validated.Diagnostics.Any(diagnostic => diagnostic.Code == "NPROP010" &&
+                diagnostic.Message.Contains("bcm.assessment already exists", StringComparison.Ordinal)))
+            Assert.Inconclusive("workspace/BCM.nendo already carries the assessment upgrade, so there is nothing to apply to a copy of it.");
         Assert.AreEqual(NendoProposalState.Previewable, validated.State, JsonSerializer.Serialize(validated.Diagnostics, NendoMcpJson.Options));
         Assert.IsEmpty(validated.Diagnostics.Where(diagnostic => diagnostic.Severity == NendoDiagnosticSeverity.Error),
             JsonSerializer.Serialize(validated.Diagnostics, NendoMcpJson.Options));

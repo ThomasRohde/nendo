@@ -934,6 +934,11 @@ vocabulary, the examples and the resources — and not from the person.
   another record through `nendo.records.update`, passing the target's version in
   `targetVersions`. Record whether the reference changed, then change the target record
   in Studio and press the button again without reloading: record what the view was told.
+- Add a button that, through one `nendo.records.batch`, creates a record, points the
+  selected record's reference at it without a target version, and renames a third. Ask
+  the person to press it, then record how many entries History shows for it, what it calls
+  them, and the versions the view was answered. Then make the batch fail on its last write
+  (a stale version) and record whether any of its earlier writes reached the file.
 - Ask the person, without an agent, to show the package on a second screen and as a
   panel on a record page, from Studio → Surfaces → Custom views. Record whether the
   package's card told them where it was already shown, whether the form let them choose

@@ -33,6 +33,7 @@ internal static partial class WorkbenchMethods
     internal const string DataCellAggregateRecords = "data.cellAggregateRecords";
     internal const string DataTreeRecords = "data.treeRecords";
     internal const string DataMoveRecord = "data.moveRecord";
+    internal const string DataWriteRecords = "data.writeRecords";
     internal const string HealthVerify = "health.verify";
     internal const string HistoryCompensate = "history.compensate";
     internal const string AppearanceSet = "appearance.set";
@@ -167,6 +168,20 @@ internal sealed record MoveRecordPayload(
     long? ExpectedParentVersion,
     string? BeforeRecordId,
     string IdempotencyKey);
+
+/// <summary>One record's part of <c>data.writeRecords</c>: <c>kind</c> is create, update or delete.</summary>
+internal sealed record RecordWritePayload(
+    string Kind,
+    string EntityId,
+    string RecordId,
+    IReadOnlyDictionary<string, JsonElement>? Values = null,
+    long? ExpectedRecordVersion = null,
+    IReadOnlyDictionary<string, long>? ExpectedTargetVersions = null);
+
+internal sealed record WriteRecordsPayload(
+    IReadOnlyList<RecordWritePayload> Writes,
+    string IdempotencyKey,
+    string? Label = null);
 
 internal sealed record CanonicalMutationPayload(
     string IdempotencyKey,
@@ -387,6 +402,7 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.DataSetField => await SetGenericFieldAsync(payload, cancellationToken),
                     WorkbenchMethods.DataSetFields => await SetGenericFieldsAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataMoveRecord => await MoveGenericRecordAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataWriteRecords => await WriteGenericRecordsAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataExecuteCommand => await ExecuteGenericCommandAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataGetReceipt => await _session.GetMutationReceiptAsync(RequiredString(payload, "idempotencyKey", 200), false, cancellationToken),
                     WorkbenchMethods.CompensationGetReceipt => await _session.GetMutationReceiptAsync(RequiredString(payload, "idempotencyKey", 200), true, cancellationToken),
@@ -598,6 +614,31 @@ internal sealed partial class WorkbenchProtocolHandler
             request.ParentRecordId, request.ExpectedParentVersion, request.BeforeRecordId, request.IdempotencyKey, cancellationToken, writer);
     }
 
+    /// <summary>Several record writes as one revision, from a custom view (W-102).</summary>
+    private async Task<DesktopRecordWritesView> WriteGenericRecordsAsync(
+        JsonElement payload,
+        string? writer,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<WriteRecordsPayload>(payload);
+        if (request.Writes is null) throw new NendoValidationException("A batch names its writes.");
+        var writes = request.Writes.Select((write, index) =>
+        {
+            if (write is null) throw new NendoValidationException($"Write {index} is missing.");
+            var kind = write.Kind switch
+            {
+                "create" => NendoRecordWriteKind.Create,
+                "update" => NendoRecordWriteKind.Update,
+                "delete" => NendoRecordWriteKind.Delete,
+                _ => throw new NendoValidationException($"Write {index} is not a create, an update or a delete."),
+            };
+            return new NendoRecordWrite(kind, write.EntityId, write.RecordId,
+                write.Values?.ToDictionary(pair => pair.Key, pair => (object?)pair.Value.Clone(), StringComparer.Ordinal),
+                write.ExpectedRecordVersion, write.ExpectedTargetVersions);
+        }).ToArray();
+        return await _session.WriteRecordsAsync(writes, request.IdempotencyKey, request.Label, cancellationToken, writer);
+    }
+
     private async Task<DesktopMutationView> ExecuteGenericCommandAsync(
         JsonElement payload,
         string? writer,
@@ -744,6 +785,7 @@ internal sealed partial class WorkbenchProtocolHandler
         (protocolVersion >= DesktopShellContract.SnapshotBridgeProtocolVersion || method != WorkbenchMethods.DataDeleteRecord) &&
         (protocolVersion >= DesktopShellContract.OutcomeBridgeProtocolVersion || method is not
             (WorkbenchMethods.DataGetReceipt or WorkbenchMethods.CompensationGetReceipt or WorkbenchMethods.ProposalGetReceipt or WorkbenchMethods.DataSetFields or
+             WorkbenchMethods.DataWriteRecords or
              WorkbenchMethods.DataQueryRecords or WorkbenchMethods.DataCountRecords or
              WorkbenchMethods.DataAggregateRecords or
              WorkbenchMethods.HistoryQuery or WorkbenchMethods.HistoryOperations or WorkbenchMethods.HealthVerify)) &&

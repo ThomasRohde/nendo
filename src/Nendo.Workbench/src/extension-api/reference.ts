@@ -84,6 +84,12 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
     answer: 'null.',
     note: 'Refused with record-referenced while other records point at it.',
   },
+  'records.batch': {
+    call: 'nendo.records.batch(writes, options?)',
+    params: 'writes is a list of 1 to 200 record writes, each {op: \'create\', entityId, recordId?, values, targetVersions?}, {op: \'update\', entityId, recordId, version, values, targetVersions?} or {op: \'delete\', entityId, recordId, version}. options is {label?}: what History calls the revision, 1 to 80 characters.',
+    answer: '{records}: each {entityId, recordId, version} in the order written, version null for a deleted record.',
+    note: 'One revision: every write commits or none does. A record appears at most once. A reference to a record the batch creates or updates earlier needs no target version. A move is not part of a batch; set a tree\'s parent and order fields in an update instead, or use records.move.',
+  },
   'records.move': {
     call: 'nendo.records.move(record, to)',
     params: `${recordAt} to is {parentRecordId, parentVersion?, beforeRecordId?}: parentRecordId null for the top level, otherwise with the parent's version as the view read it; beforeRecordId a sibling to go before, or last without one.`,

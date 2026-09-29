@@ -89,7 +89,7 @@ const readMethods = ['data.queryRecords', 'data.treeRecords', 'data.countRecords
 // The record writes a person's own edit uses, and preparing a proposal (ADR-0013 Phase 3,
 // W-065 and W-069). The host admits a view's actor on exactly these and on proposal.get
 // (WorkbenchMethods.ExtensionWriterMethods). Never promote or reject.
-const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.moveRecord', 'data.executeCommand', 'proposal.prepareChangeSet', 'extension.state.set'];
+const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.moveRecord', 'data.writeRecords', 'data.executeCommand', 'proposal.prepareChangeSet', 'extension.state.set'];
 
 test('the method table is closed: reads, the record writes, preparing a proposal, and no promote, reject, approve, file, session or agent method', () => {
   const expected = [
@@ -106,6 +106,8 @@ test('the method table is closed: reads, the record writes, preparing a proposal
     ['records.update', 'data.setFields'],
     ['records.delete', 'data.deleteRecord'],
     ['records.move', 'data.moveRecord'],
+    // Several record writes as one revision (W-102).
+    ['records.batch', 'data.writeRecords'],
     ['commands.run', 'data.executeCommand'],
     ['proposals.prepare', 'proposal.prepareChangeSet'],
     ['proposals.get', 'proposal.get'],
@@ -187,6 +189,74 @@ test('a write goes to the host as the mount\u2019s package, never as anything th
   assert.equal(h.calls[5].method, 'data.executeCommand');
   assert.equal(h.calls[5].payload.commandId, 'page.done');
   assert.equal(h.calls[5].payload.expectedRecordVersion, 1);
+});
+
+// W-102: several writes as one revision, made as the mount's package like every write.
+test('a batch goes to the host as one write in the mount\u2019s package, rebuilt entry by entry, and answers each record\u2019s version', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  view.send({ t: 'req', id: 1, m: 'records.batch', p: { label: 'Align', actor: 'extension:someone-else', idempotencyKey: 'replay-me', writes: [
+    { op: 'create', entityId: 'items', recordId: 'n1', values: { x: 10, name: 'A' }, extra: 'dropped' },
+    { op: 'update', entityId: 'items', recordId: 'n2', version: 3, values: { x: 20, owner: 'n1' }, targetVersions: { owner: 1 } },
+    { op: 'delete', entityId: 'items', recordId: 'n3', version: 2, values: { x: 1 } },
+  ] } });
+  await until(() => h.calls.length === 1, 'the host batch');
+  const { method, payload } = h.calls[0];
+  assert.equal(method, 'data.writeRecords');
+  assert.equal(payload.actor, 'extension:org.example.glance', 'The batch was not made in the name of the mount\u2019s package.');
+  assert.match(payload.idempotencyKey, /^view-[0-9a-f-]{36}$/, 'The view chose its own idempotency key.');
+  assert.equal(payload.label, 'Align');
+  assert.deepEqual(payload.writes, [
+    { kind: 'create', entityId: 'items', recordId: 'n1', values: { x: { $nendoNumber: '10' }, name: 'A' } },
+    { kind: 'update', entityId: 'items', recordId: 'n2', expectedRecordVersion: 3, values: { x: { $nendoNumber: '20' }, owner: 'n1' }, expectedTargetVersions: { owner: 1 } },
+    { kind: 'delete', entityId: 'items', recordId: 'n3', expectedRecordVersion: 2 },
+  ]);
+  h.pending[0].resolve({ mutation: { changeSequence: 11 }, session: null, records: [
+    { entityId: 'items', recordId: 'n1', recordVersion: 1 },
+    { entityId: 'items', recordId: 'n2', recordVersion: 5 },
+    { entityId: 'items', recordId: 'n3', recordVersion: null },
+  ] });
+  const answered = await view.next((message) => message.id === 1);
+  assert.equal(answered.ok, true);
+  assert.deepEqual(answered.r, { records: [
+    { entityId: 'items', recordId: 'n1', version: 1 },
+    { entityId: 'items', recordId: 'n2', version: 5 },
+    { entityId: 'items', recordId: 'n3', version: null },
+  ] });
+  await settle();
+  assert.equal(h.calls.length, 1, 'A batch read its records back one by one.');
+
+  view.send({ t: 'req', id: 2, m: 'records.batch', p: { writes: [{ op: 'create', entityId: 'items', values: { name: 'B' } }] } });
+  await until(() => h.calls.length === 2, 'a batch without a label');
+  assert.equal(h.calls[1].payload.label, undefined);
+  assert.match(h.calls[1].payload.writes[0].recordId, /^record-[0-9a-f]{32}$/, 'A create without a record ID was not given one.');
+});
+
+test('a batch is refused before the host when it is empty, too long, names a record twice, moves, or leaves out a version', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  const refusals = [
+    [{ writes: [] }, /writes must be a list of 1 to 200 record writes/],
+    [{ writes: Array.from({ length: 201 }, (_, index) => ({ op: 'delete', entityId: 'items', recordId: `r${index}`, version: 1 })) }, /1 to 200/],
+    [{ writes: [{ op: 'delete', entityId: 'items', recordId: 'r1', version: 1 }, { op: 'update', entityId: 'items', recordId: 'r1', version: 1, values: { a: 1 } }] }, /writes\[1\] writes r1 again/],
+    [{ writes: [{ op: 'move', entityId: 'items', recordId: 'r1', version: 1 }] }, /writes\[0\]: op must be create, update or delete/],
+    [{ writes: [{ op: 'update', entityId: 'items', recordId: 'r1', values: { a: 1 } }] }, /writes\[0\]: version must be/],
+    [{ writes: [{ op: 'create', entityId: 'items', values: {} }] }, /writes\[0\]: values must name 1 to 64 fields/],
+    [{ label: '', writes: [{ op: 'delete', entityId: 'items', recordId: 'r1', version: 1 }] }, /label must be text of 1 to 80/],
+  ];
+  for (const [index, [p, message]] of refusals.entries()) {
+    view.send({ t: 'req', id: index + 1, m: 'records.batch', p });
+    const answered = await view.next((reply) => reply.id === index + 1);
+    assert.equal(answered.e?.code, 'invalid-params', JSON.stringify(p).slice(0, 120));
+    assert.match(answered.e.message, message);
+  }
+  h.context = { ...context, readOnly: true };
+  view.send({ t: 'req', id: 99, m: 'records.batch', p: { writes: [{ op: 'delete', entityId: 'items', recordId: 'r1', version: 1 }] } });
+  assert.equal((await view.next((message) => message.id === 99)).e.code, 'read-only');
+  await settle();
+  assert.equal(h.calls.length, 0, 'A refused batch reached the host.');
 });
 
 // W-079: a move in a declared tree (ADR-0019), made as the mount's package like every write.

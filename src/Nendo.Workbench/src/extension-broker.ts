@@ -366,6 +366,45 @@ function stateWrite(remove: boolean): MethodEntry {
   };
 }
 
+/** The most record writes one batch carries, as the Engine bounds it. */
+const batchWrites = 200;
+
+/** The most a batch may take on the bridge once the broker has added its keys. */
+const batchCharacters = 250_000;
+
+/**
+ * The writes of one batch, each rebuilt as its single-record form is: a create with its values
+ * and a record ID the view chose or one made for it, an update of some fields against the version
+ * the view read, or a delete against that version. A record is written at most once in a batch,
+ * so the version a view read is the version its write expects.
+ */
+function recordWritesParam(params: Params): Params[] {
+  const value = params.writes;
+  if (!Array.isArray(value) || value.length === 0 || value.length > batchWrites)
+    throw invalid(`writes must be a list of 1 to ${batchWrites} record writes.`);
+  const seen = new Set<string>();
+  return value.map((item, index) => {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) throw invalid(`writes[${index}] must be an object.`);
+    const entry = item as Params;
+    let body: Params & { recordId: string };
+    try {
+      const entityId = textParam(entry, 'entityId');
+      if (entry.op === 'create') body = { kind: 'create', entityId, recordId: newRecordId(entry), ...assignedValues(entry) };
+      else if (entry.op === 'update') {
+        body = { kind: 'update', entityId, recordId: textParam(entry, 'recordId'), expectedRecordVersion: versionParam(entry), ...assignedValues(entry) };
+      } else if (entry.op === 'delete') {
+        body = { kind: 'delete', entityId, recordId: textParam(entry, 'recordId'), expectedRecordVersion: versionParam(entry) };
+      } else throw invalid('op must be create, update or delete.');
+    } catch (error) {
+      if (error instanceof WorkbenchHostError) throw invalid(`writes[${index}]: ${error.message}`);
+      throw error;
+    }
+    if (seen.has(body.recordId)) throw invalid(`writes[${index}] writes ${body.recordId} again; put a record's changes in one write.`);
+    seen.add(body.recordId);
+    return body;
+  });
+}
+
 /** A record ID a view may choose, or one made for it. */
 function newRecordId(params: Params): string {
   return optionalText(params, 'recordId', 120) ?? `record-${crypto.randomUUID().replaceAll('-', '')}`;
@@ -376,7 +415,8 @@ function newRecordId(params: Params): string {
  * becomes.
  *
  * Reads, and since Phase 3 the four record writes a person's own edit uses: create, update,
- * delete and run a record command (W-065), a move in a declared tree (W-079), preparing and reading the package's own
+ * delete and run a record command (W-065), a move in a declared tree (W-079), several record
+ * writes as one revision (W-102), preparing and reading the package's own
  * proposals, and keeping the view's state with the file (W-069). Nothing here promotes, rejects or approves a proposal; nothing opens,
  * closes or copies a file, and nothing touches a
  * session, an agent, behaviour approval, compensation or the appearance. Each write takes
@@ -427,6 +467,32 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
   'records.move': write('data.moveRecord', (p) => ({
     entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p), ...moveTarget(p),
   })),
+  // Several writes as one revision (W-102): they commit together or not at all, and History
+  // shows one entry, named by label when the view gives one. The answer is each record's new
+  // version, in the order written, and null for a deleted one; read a record again for its values.
+  'records.batch': {
+    host: 'data.writeRecords',
+    writes: true,
+    run: async ({ params, mount, deps }) => {
+      const context = deps.context(mount);
+      if (context.readOnly) throw new WorkbenchHostError('read-only', 'This file is open read-only, so a view cannot change it.');
+      const writes = recordWritesParam(params);
+      const label = optionalText(params, 'label', 80);
+      const body = {
+        writes, ...(label === undefined ? {} : { label }),
+        idempotencyKey: `view-${crypto.randomUUID()}`, actor: `extension:${context.packageId}`,
+      };
+      if (JSON.stringify(body).length > batchCharacters)
+        throw new WorkbenchHostError('too-large', 'This batch is too large to send at once; split it into smaller batches.');
+      const result = await deps.request('data.writeRecords', body) as { records?: { entityId?: unknown; recordId?: unknown; recordVersion?: unknown }[] } | null;
+      return {
+        records: (result?.records ?? []).map((record) => ({
+          entityId: String(record.entityId ?? ''), recordId: String(record.recordId ?? ''),
+          version: typeof record.recordVersion === 'number' ? record.recordVersion : null,
+        })),
+      };
+    },
+  },
   'commands.run': write('data.executeCommand', (p) => ({
     commandId: textParam(p, 'commandId'), entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p),
   })),
