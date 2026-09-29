@@ -61,20 +61,45 @@ public sealed partial class MainPage
         AutomationProperties.SetAutomationId(profile, "csv.profile"); panel.Children.Add(profile);
         var empty = new CheckBox { Content = "External CSV: treat empty cells as null (otherwise text stays empty)", IsChecked = false };
         AutomationProperties.SetAutomationId(empty, "csv.emptyNull"); panel.Children.Add(empty);
-        panel.Children.Add(new TextBlock { Text = "Nendo CSV: \\N means null; a doubled leading backslash preserves literal text. Formula-like text is preserved in both profiles. Fields use their declared scalar types; choice and reference values must be stable IDs.", TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = "Nendo CSV: \\N means null; a doubled leading backslash preserves literal text. Formula-like text is preserved in both profiles. Fields use their declared scalar types; choice values are stable IDs, and a reference holds a record ID or, where you choose, a unique field of its target such as a code.", TextWrapping = TextWrapping.Wrap });
         var selectors = new List<(NendoFieldSnapshot Field, ComboBox Selector)>();
+        // A reference can name its target by a unique field of the target (W-075): a
+        // spreadsheet names a parent by its code, not by a record ID only the file knows.
+        var entities = (await _session.GetViewAsync()).Entities;
+        var matchers = new List<(NendoFieldSnapshot Field, ComboBox Selector, IReadOnlyList<NendoFieldSnapshot?> Choices)>();
         foreach (var field in entity.Fields.Where(field => !field.Retired))
         {
             var names = new[] { "Do not import" }.Concat(document.Headers).ToArray();
             var index = document.Headers.ToList().FindIndex(header => header == field.DisplayName);
             var selector = new ComboBox { Header = $"{field.DisplayName} · {field.StorageKind}{(field.Required ? " · Required" : "")}", ItemsSource = names, SelectedIndex = index + 1, HorizontalAlignment = HorizontalAlignment.Stretch };
             AutomationProperties.SetAutomationId(selector, "csv.mapping." + field.FieldId); panel.Children.Add(selector); selectors.Add((field, selector));
+            var target = field.Reference is { } reference ? entities.SingleOrDefault(candidate => candidate.EntityId == reference.TargetEntityId && !candidate.Retired) : null;
+            var unique = target?.Fields.Where(candidate => candidate.Unique && !candidate.Retired).ToArray() ?? [];
+            if (target is null || unique.Length == 0) continue;
+            var choices = new NendoFieldSnapshot?[] { null }.Concat(unique).ToArray();
+            var matcher = new ComboBox
+            {
+                Header = $"{field.DisplayName} names its {target.DisplayName} by",
+                ItemsSource = choices.Select(choice => choice is null ? "Record ID" : choice.DisplayName).ToArray(),
+                SelectedIndex = 0,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+            AutomationProperties.SetAutomationId(matcher, "csv.match." + field.FieldId); panel.Children.Add(matcher); matchers.Add((field, matcher, choices));
         }
         var mappingDialog = NativeDialog("Map CSV columns", new ScrollViewer { MaxHeight = 410, Content = panel });
         mappingDialog.PrimaryButtonText = "Validate first batch"; mappingDialog.CloseButtonText = "Cancel";
         if (await mappingDialog.ShowAsync() != ContentDialogResult.Primary) return;
-        var mappings = selectors.Where(item => item.Selector.SelectedIndex > 0).Select(item => new NendoCsvMapping(item.Selector.SelectedIndex - 1, item.Field.FieldId)).ToArray();
+        var mappings = selectors.Where(item => item.Selector.SelectedIndex > 0).Select(item => new NendoCsvMapping(item.Selector.SelectedIndex - 1, item.Field.FieldId)
+        {
+            MatchFieldId = matchers.Where(matcher => matcher.Field.FieldId == item.Field.FieldId)
+                .Select(matcher => matcher.Choices[Math.Max(matcher.Selector.SelectedIndex, 0)]?.FieldId)
+                .FirstOrDefault(),
+        }).ToArray();
         var options = new NendoCsvOptions(profile.SelectedIndex == 1, empty.IsChecked == true);
+        // A tree whose parent column holds codes is written parents first, so a parent is
+        // always accepted before the rows under it; each row keeps its line in the file.
+        try { document = await _session.OrderCsvParentsFirstAsync(document, entity.EntityId, mappings); }
+        catch (NendoException exception) { NativeNotice($"CSV import did not start. {exception.Message}", InfoBarSeverity.Error); return; }
         var committed = 0;
         try
         {

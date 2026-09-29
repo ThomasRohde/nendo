@@ -11,7 +11,15 @@ namespace Nendo.LocalMcp;
 /// carry the same display name, and a mapping that resolved by name would silently take
 /// whichever came first.
 /// </param>
-public sealed record NendoCsvColumnMapping(int Column, string FieldId);
+public sealed record NendoCsvColumnMapping(int Column, string FieldId)
+{
+    /// <summary>
+    /// For a reference column: the unique field of the target record type whose values the
+    /// cells hold, such as a code (W-075). Null means the cells hold record IDs.
+    /// </summary>
+    [Description("For a reference column only: the ID of a unique field of the target record type whose values the cells hold, such as a code. A cell then names a row of this same import or a record the file holds; one that names nothing, or two things, is refused with its row. Omit it and the cells are record IDs.")]
+    public string? MatchFieldId { get; init; }
+}
 
 /// <summary>
 /// What an import committed, and what is left.
@@ -119,8 +127,12 @@ internal sealed class NendoImportService(NendoApplicationService application)
         var document = NendoCsvProfile.Parse(Encoding.UTF8.GetBytes(csv), cancellationToken);
         RequireRowCount(document.Rows.Count);
         var mappings = columnMappings
-            .Select(mapping => new NendoCsvMapping(mapping.Column, mapping.FieldId))
+            .Select(mapping => new NendoCsvMapping(mapping.Column, mapping.FieldId) { MatchFieldId = mapping.MatchFieldId })
             .ToArray();
+        // A tree whose parent column holds codes is written parents first (W-075). The order
+        // is a pure function of the text, so an exact retry derives the same record IDs.
+        document = await application.OrderCsvParentsFirstAsync(document, entityId, mappings, cancellationToken);
+        var seed = Seed(idempotencyKey);
 
         // A CSV row carries no reference target versions; decoding reads the current ones.
         // For a batch this key already committed, the current ones are the wrong evidence:
@@ -139,13 +151,13 @@ internal sealed class NendoImportService(NendoApplicationService application)
             0,
             document.Rows.Count,
             cancellationToken,
-            row => committedVersions[row / BatchSize] is null);
+            row => committedVersions[row / BatchSize] is null,
+            row => $"import.{seed}.{row}");
 
         // A CSV row carries no record ID, so one is derived from the caller's key and the
         // row's position. Stable, which is what makes an exact retry ask for the same
         // records rather than a second copy of them, and unique to this import, because
         // record IDs are global to the file rather than scoped to a record type.
-        var seed = Seed(idempotencyKey);
         var records = decoded
             .Select((row, index) =>
             {

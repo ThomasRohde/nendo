@@ -129,7 +129,7 @@ internal sealed class NendoDataTools(
         [Description("\"csv\" to send CSV text, or \"json\" to send typed records.")] string format,
         [Description("Stable key used to make exact retries safe. Record IDs for a CSV import are derived from it.")] string idempotencyKey,
         [Description("csv only: the CSV text itself, header row included. Never a path.")] string? csv = null,
-        [Description("csv only: one {column, fieldId} per column to import, column being its zero-based position in the header row. Unmapped columns are ignored; every required field must be mapped.")] IReadOnlyList<NendoCsvColumnMapping>? columnMappings = null,
+        [Description("csv only: one {column, fieldId} per column to import, column being its zero-based position in the header row. Unmapped columns are ignored; every required field must be mapped. A reference column may add matchFieldId, a unique field of its target, when its cells hold codes rather than record IDs; a tree whose parent column holds codes is then written parents first.")] IReadOnlyList<NendoCsvColumnMapping>? columnMappings = null,
         [Description("csv only: \"nendo\" for the faithful profile with its backslash-N null marker and backslash escaping, or \"external\" (the default) for literal text.")] string? csvProfile = null,
         [Description("csv only, external profile only: treat an empty cell as null rather than as empty text. Off by default.")] bool emptyIsNull = false,
         [Description("json only: one to five hundred records with distinct stable record IDs, the same shape nendo.data.create_records takes.")] IReadOnlyList<NendoRecordInput>? records = null,

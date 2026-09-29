@@ -49,7 +49,7 @@ Both directions are in the file menu: **Import CSV…** and **Export CSV…**. B
 | **Nendo CSV** | Files that Nendo exported, or files you wrote to the same rules. | `\N` is null. A doubled leading backslash keeps literal text that starts with a backslash. Null, empty text and the text `\N` stay distinct. |
 | **External CSV** | Any other CSV. | Text is literal, backslashes included. Empty text stays empty unless you select **treat empty cells as null**. |
 
-Both profiles read UTF-8 (a BOM is accepted, invalid UTF-8 is refused), comma delimiters, double-quote escaping and CRLF or LF line endings. Nendo writes CRLF. Quoted cells keep embedded line breaks, and text is not trimmed. Numbers are exact strings; `true` and `false` are Booleans. Choice and reference values are stable IDs. Formula-like text that starts with `=`, `+`, `-` or `@` is kept as written in both directions.
+Both profiles read UTF-8 (a BOM is accepted, invalid UTF-8 is refused), comma delimiters, double-quote escaping and CRLF or LF line endings. Nendo writes CRLF. Quoted cells keep embedded line breaks, and text is not trimmed. Numbers are exact strings; `true` and `false` are Booleans. Choice values are stable IDs. A reference holds a record ID, or, if you choose, a code: see below. Formula-like text that starts with `=`, `+`, `-` or `@` is kept as written in both directions.
 
 ### Import
 
@@ -57,6 +57,8 @@ Both profiles read UTF-8 (a BOM is accepted, invalid UTF-8 is refused), comma de
 2. Choose the profile, then map each source column to a field. Nendo shows the mapping before it writes anything. Duplicate or missing headers are reported, not mapped silently.
 3. Choose **Validate first batch** and review the rows and their typed values.
 4. Choose **Import** to commit the batch, or **Cancel remaining import**.
+
+A reference column can name its records by a code instead of a record ID. Where the target record type has a unique field, such as a Code, the mapping asks what the column **names its … by**: choose that field, and each cell is looked up among the rows you are importing first and the records already in the file second, without regard to case. A code that names nothing, or names more than one row, stops the import at its row. When the column is the parent of a tree, Nendo imports parents before their children, whatever order the file lists them in, and still reports each row by its line in the file.
 
 A batch holds at most 100 rows. All rows in a batch commit, or none do. An invalid row stops the batch; Nendo does not skip it. Each accepted batch has a durable receipt and becomes one entry in History. If you cancel, the batches already committed stay committed, and Nendo reports how many rows it imported and how many it did not.
 
@@ -72,7 +74,7 @@ Import does not:
 - update, merge with or overwrite existing records (it only creates new ones);
 - create record types or fields;
 - keep record IDs, versions or history from the source;
-- match a reference by its label, or repair one that does not resolve;
+- match a reference by its label (only by a record ID or a unique field), or repair one that does not resolve;
 - accept a choice value that is not one of the field's options;
 - guess field types from the data.
 

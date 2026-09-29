@@ -568,6 +568,10 @@ problem, named the thing it was refusing, and offered a remedy you could act on:
 - Writing to a calculated field, through a single-field edit and through a create.
 - A form made only of calculated fields.
 - Adding to, amending or re-validating a change set after it validated.
+- Importing a tree whose parent column holds codes, listed children first, with
+  `matchFieldId` on the parent column: record whether one call imported it, whether each
+  parent is right, and what a code that names nothing, and one that is on two rows, were
+  refused with.
 - A change set with three mistakes: two unrelated, and one that only follows from the first
   (a field under a record type that is refused). Record how many validations it took to
   learn about all of them, whether each diagnostic named its operation, and whether the

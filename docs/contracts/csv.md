@@ -19,8 +19,16 @@ This contract gives the faithful Nendo CSV profile for import and export.
   and literal `\N` are distinct. Quoting is CSV syntax and has no null semantics.
 - Integers and decimals use exact invariant strings. There is no JavaScript
   numeric conversion. Booleans are `true`/`false`. Dates, datetimes and UUIDs
-  use the accepted scalar contract. Choice/reference values are stable IDs.
-  References must resolve to existing records of the configured target type.
+  use the accepted scalar contract. Choice values are stable IDs. A reference
+  holds a record ID, or, when its mapping names a match field, the value of a
+  unique field of the target type such as a code (ADR-0020, 2026-09-29
+  amendment; W-075). A code names a row of the same import first and a record the
+  file holds second, compared without regard to case, and is refused by its row
+  when it names nothing, names two rows, or names a row and a different record.
+  A declared hierarchy whose parent column is matched by a code the import
+  carries is imported parents first; each row keeps its line number, and parents
+  that lead back to themselves are refused.
+  References must resolve to records of the configured target type.
   Accepted mutations capture the target versions. There is no label matching and
   no inferred repair.
   A rating exports and imports as its plain integer. The scale bounds the
@@ -79,7 +87,9 @@ committed. `NENDO_IMPORT_PARTIAL` names the committed and remaining counts, the
 first uncommitted data row (one-based, excluding the header), the committed
 revision IDs and the refusal cause. Retry the identical call with the identical
 key; earlier batches replay without duplicates. Invalid CSV mappings and a call
-that supplies both CSV and JSON payloads are refused before any write. No
+that supplies both CSV and JSON payloads are refused before any write. A column
+mapping may carry `matchFieldId` for a reference column; a tree then commits
+parents first, so the first uncommitted data row counts rows in that order. No
 response implies that the whole call was atomic.
 
 ## Batches and file authority

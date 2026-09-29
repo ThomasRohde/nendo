@@ -181,7 +181,9 @@ contract if measurement ever calls for it.
      `minimum_host_version` rule. Diagnostic codes are allocated at delivery.
 10. **Import.** Rows of a declared hierarchy are ordered parents first within an
     import. Resolving a parent by a code rather than a record ID is W-075 and
-    depends on unique fields (W-074); it is not decided here.
+    depends on unique fields (W-074); it is not decided here. (Decided 2026-09-29 by
+    ADR-0020's amendment: a reference column may be matched by a unique field of its
+    target, and a tree matched that way is imported parents first.)
 11. **Deletion is unchanged.** A record with children stays `record-referenced`.
     Deleting a subtree is not decided here.
 12. **Codes are not part of this decision.** A generated path code (1.2.3) derived

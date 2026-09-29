@@ -26,7 +26,10 @@ public sealed partial class NendoApplicationService
             mappings.Any(mapping => mapping.Column < 0 || mapping.Column >= document.Headers.Count || !fields.ContainsKey(mapping.FieldId)) ||
             fields.Values.Any(field => field.Required && !mappings.Any(mapping => mapping.FieldId == field.FieldId)))
             throw new NendoValidationException("Map each required field once to an existing CSV column.");
-        var rows = await DecodeRowsAsync(document, entity, mappings, options, offset, NendoCsvProfile.BatchSize, cancellationToken);
+        var rows = await DecodeRowsAsync(document, entity, mappings, options, offset, NendoCsvProfile.BatchSize, cancellationToken,
+            recordIdOfRow: row => row >= offset && row < offset + NendoCsvProfile.BatchSize
+                ? NendoCanonical.DeterministicId("record", "csv.import", batchId, row)
+                : null);
         var operations = new List<NendoOperation>();
         for (var index = 0; index < rows.Count; index++)
         {
@@ -65,7 +68,8 @@ public sealed partial class NendoApplicationService
     /// </summary>
     public async Task<IReadOnlyList<NendoCsvRow>> DecodeCsvRowsAsync(NendoCsvDocument document, string entityId,
         IReadOnlyList<NendoCsvMapping> mappings, NendoCsvOptions options, int offset, int count,
-        CancellationToken cancellationToken = default, Func<int, bool>? resolveTargetVersions = null)
+        CancellationToken cancellationToken = default, Func<int, bool>? resolveTargetVersions = null,
+        Func<int, string?>? recordIdOfRow = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(mappings);
@@ -86,7 +90,21 @@ public sealed partial class NendoApplicationService
         }
         if (fields.Values.Any(field => field.Required && !mappedFields.Contains(field.FieldId)))
             throw new NendoValidationException("Map each required field once to an existing CSV column.");
-        return await DecodeRowsAsync(document, entity, mappings, options, offset, count, cancellationToken, resolveTargetVersions);
+        return await DecodeRowsAsync(document, entity, mappings, options, offset, count, cancellationToken, resolveTargetVersions, recordIdOfRow);
+    }
+
+    /// <summary>
+    /// The document with a declared hierarchy's rows put parents first, when its parent
+    /// column is matched by a code the same import carries (W-075). Both importers call it
+    /// before they cut batches, so a parent is always written before the rows under it.
+    /// </summary>
+    public async Task<NendoCsvDocument> OrderCsvParentsFirstAsync(NendoCsvDocument document, string entityId,
+        IReadOnlyList<NendoCsvMapping> mappings, CancellationToken cancellationToken = default)
+    {
+        var definition = await GetDefinitionSnapshotAsync(cancellationToken);
+        var entity = definition.Entities.SingleOrDefault(entity => entity.EntityId == entityId && !entity.Retired)
+            ?? throw new NendoValidationException("Choose an active record type.");
+        return NendoCsvReferenceCodes.OrderParentsFirst(document, entity, mappings);
     }
 
     /// <summary>
@@ -130,10 +148,20 @@ public sealed partial class NendoApplicationService
 
     private async Task<IReadOnlyList<NendoCsvRow>> DecodeRowsAsync(NendoCsvDocument document, NendoEntitySnapshot entity,
         IReadOnlyList<NendoCsvMapping> mappings, NendoCsvOptions options, int offset, int count,
-        CancellationToken cancellationToken, Func<int, bool>? resolveTargetVersions = null)
+        CancellationToken cancellationToken, Func<int, bool>? resolveTargetVersions = null,
+        Func<int, string?>? recordIdOfRow = null)
     {
         var fields = entity.Fields.Where(field => !field.Retired).ToDictionary(field => field.FieldId, StringComparer.Ordinal);
         var rows = new List<NendoCsvRow>();
+        // A column matched by a code is looked up by its own resolver, built once for the call.
+        var resolvers = new Dictionary<string, CsvCodeResolver>(StringComparer.Ordinal);
+        if (mappings.Any(mapping => mapping.MatchFieldId is not null))
+        {
+            var definition = await GetDefinitionSnapshotAsync(cancellationToken);
+            foreach (var mapping in mappings.Where(mapping => mapping.MatchFieldId is not null))
+                resolvers[mapping.FieldId] = await CsvCodeResolver.CreateAsync(
+                    this, definition.Entities, entity, fields[mapping.FieldId], mapping, mappings, document, cancellationToken);
+        }
         // One lookup per distinct target rather than per row: a hundred rows pointing at
         // the same parent record used to be a hundred reads of it.
         var targets = new Dictionary<(string Entity, string Record), long>();
@@ -148,6 +176,13 @@ public sealed partial class NendoApplicationService
                 try
                 {
                     var value = NendoCsvProfile.Decode(document.Rows[index][mapping.Column], field, options);
+                    if (value is string code && resolvers.TryGetValue(field.FieldId, out var resolver))
+                    {
+                        var (recordId, targetVersion) = resolver.Resolve(code, index, document, recordIdOfRow);
+                        values.Add(field.FieldId, recordId);
+                        if (resolve) versions.Add(field.FieldId, targetVersion);
+                        continue;
+                    }
                     values.Add(field.FieldId, value);
                     if (resolve && value is string id && field.Reference is { } reference)
                     {
@@ -162,9 +197,9 @@ public sealed partial class NendoApplicationService
                     }
                 }
                 // The row number a person counts in their own file: one-based, past the header.
-                catch (NendoException exception) { throw new NendoValidationException($"CSV row {index + 2}, {field.DisplayName}: {exception.Message}"); }
+                catch (NendoException exception) { throw new NendoValidationException($"CSV row {document.SourceRowNumber(index)}, {field.DisplayName}: {exception.Message}"); }
             }
-            rows.Add(new(index + 2, values, versions));
+            rows.Add(new(document.SourceRowNumber(index), values, versions));
         }
         return rows;
     }

@@ -472,6 +472,85 @@ public sealed class ImportExportProtocolTests
     }
 
     /// <summary>Projects and tasks, each task referencing a project; one project, no tasks.</summary>
+    /// <summary>
+    /// W-075: an agent imports a five-level tree whose parent column holds codes, written
+    /// deepest first and larger than one batch, in one call; an exact retry replays it.
+    /// </summary>
+    [TestMethod]
+    public async Task ATreeWhoseParentsAreCodesImportsInOneCallParentsFirstAndReplays()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        var created = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest(
+            $"proposal-{Guid.NewGuid():N}", "Capabilities", "test",
+            new([new("test", "caps", "test", "Capabilities", [
+                new CreateEntityOperation("e", "caps", "Capabilities", "caps"),
+                new AddFieldOperation("f-code", "caps", "code", "Code", "code", NendoStorageKind.Text, true),
+                new AddFieldOperation("f-name", "caps", "name", "Name", "name", NendoStorageKind.Text, true),
+                new AddFieldOperation("f-parent", "caps", "parent", "Parent", "parent_id", NendoStorageKind.Reference, false),
+                new ConfigureReferenceOperation("bind", "caps", "parent", "caps", "name", 0),
+            ])])));
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(created.ProposalId)).Applied);
+        var revision = (await workspace.Service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        var rules = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest(
+            $"proposal-{Guid.NewGuid():N}", "Unique code and the tree", "test",
+            new([new("test", "rules", "test", "Unique code and the tree", [
+                new SetFieldUniqueOperation("unique", "caps", "code", true, revision),
+                new DeclareHierarchyOperation("tree", "caps", "parent", null, revision),
+            ])])));
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(rules.ProposalId)).Applied);
+
+        // 1, then ten branches of four levels each and a second and third child per branch:
+        // 61 rows, so the import spans two batches, written deepest first.
+        var rows = new List<(string Code, string Parent)> { ("1", "") };
+        for (var branch = 1; branch <= 10; branch++)
+        {
+            rows.Add(($"1.{branch}", "1"));
+            rows.Add(($"1.{branch}.1", $"1.{branch}"));
+            rows.Add(($"1.{branch}.1.1", $"1.{branch}.1"));
+            rows.Add(($"1.{branch}.1.1.1", $"1.{branch}.1.1"));
+            rows.Add(($"1.{branch}.2", $"1.{branch}"));
+            rows.Add(($"1.{branch}.3", $"1.{branch}"));
+        }
+        rows.Reverse();
+        var csv = "Code,Name,Parent\n" + string.Join("\n", rows.Select(row => $"{row.Code},Capability {row.Code},{row.Parent}")) + "\n";
+
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        Dictionary<string, object?> Arguments() => new(session)
+        {
+            ["entityId"] = "caps", ["format"] = "csv", ["csv"] = csv, ["emptyIsNull"] = true,
+            ["columnMappings"] = new[]
+            {
+                new NendoCsvColumnMapping(0, "code"),
+                new NendoCsvColumnMapping(1, "name"),
+                new NendoCsvColumnMapping(2, "parent") { MatchFieldId = "code" },
+            },
+            ["idempotencyKey"] = "tree-by-code",
+        };
+
+        var imported = await CallAsync<NendoImportResult>(client, "nendo.data.import_records", Arguments());
+        Assert.AreEqual(61, imported.Committed);
+        Assert.AreEqual(2, imported.RevisionCount);
+        var records = (await workspace.Service.QueryRecordsAsync(new("caps", 100))).Items;
+        var byId = records.ToDictionary(record => record.RecordId);
+        foreach (var (code, parent) in rows)
+        {
+            var record = records.Single(candidate => candidate.Values["code"].GetString() == code);
+            var actual = record.Values["parent"].ValueKind == JsonValueKind.Null
+                ? ""
+                : byId[record.Values["parent"].GetString()!].Values["code"].GetString();
+            Assert.AreEqual(parent, actual, $"{code} has the wrong parent.");
+        }
+
+        var replay = await CallAsync<NendoImportResult>(client, "nendo.data.import_records", Arguments());
+        CollectionAssert.AreEqual(imported.RecordIds.ToArray(), replay.RecordIds.ToArray());
+        Assert.HasCount(61, (await workspace.Service.QueryRecordsAsync(new("caps", 100))).Items, "The retry wrote a second copy.");
+    }
+
     private static async Task PrepareProjectsAsync(LocalMcpTestWorkspace workspace)
     {
         await workspace.CreateEmptyAsync();

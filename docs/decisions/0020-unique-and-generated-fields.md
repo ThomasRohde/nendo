@@ -260,6 +260,34 @@ The owner accepted it the same day: the planner is at definition revision 59 wit
 That Reference is already used by nd.check.r.unique-stage4 in Checks; each record needs its
 own."*
 
+## Accepted amendment — 2026-09-29: an import names a target by a unique field (W-075)
+
+Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24), for W-075. It
+settles what ADR-0019 item 10 left open, and it changes the CSV contract's "Choice/reference
+values are stable IDs" for references only.
+
+**What was wrong.** A spreadsheet names a parent by its code. Import took only record IDs, which
+only the file knows, so a capability model arrived in thirteen hand-built batches, each written
+after the one before had given its parents IDs, and a child could not name a parent in the same
+import at all.
+
+**Decision.** A CSV mapping for a reference column may name a *match field*: a unique field of
+the target record type, whose values the cells hold. A cell then names a row of the same import
+first, then a record the file holds, compared as the uniqueness rule compares text (without
+regard to case). The import refuses, by its row: a code that names nothing; a code on two rows
+of the import; a code that names both a row of the import and a different record of the file; a
+match field that is not unique. When the parent field of a declared hierarchy is matched this
+way by a code the import itself carries, the rows are put parents first before any batch is cut,
+and each keeps the line number it has in the file; parents that lead back to themselves are
+refused. The person's importer offers the choice per reference column ("names its … by": Record
+ID or each unique field of the target), and `nendo.data.import_records` takes `matchFieldId` on a
+column mapping. Neither path changes what it commits: the resolved record IDs, through the same
+`data.createRecord` operations.
+
+**Not label matching.** A label is whatever a person typed and may repeat. A match field is one
+the target type has declared unique, so a cell can name at most one record, and a cell that
+names none is refused rather than guessed.
+
 ## Consequences
 
 ### Positive

@@ -5,8 +5,26 @@ using System.Text.RegularExpressions;
 
 namespace Nendo.Engine;
 
-public sealed record NendoCsvDocument(IReadOnlyList<string> Headers, IReadOnlyList<IReadOnlyList<string>> Rows);
-public sealed record NendoCsvMapping(int Column, string FieldId);
+public sealed record NendoCsvDocument(IReadOnlyList<string> Headers, IReadOnlyList<IReadOnlyList<string>> Rows)
+{
+    /// <summary>
+    /// The line each row has in the file a person opened, when the rows were reordered
+    /// (parents first, W-075). Null means the rows are in file order.
+    /// </summary>
+    public IReadOnlyList<int>? SourceRowNumbers { get; init; }
+
+    /// <summary>The line a person counts to in their own file: one-based, past the header.</summary>
+    public int SourceRowNumber(int index) => SourceRowNumbers?[index] ?? index + 2;
+}
+
+public sealed record NendoCsvMapping(int Column, string FieldId)
+{
+    /// <summary>
+    /// For a reference column, the unique field of the target record type its cells hold,
+    /// such as a code, in place of record IDs (W-075). Null means record IDs.
+    /// </summary>
+    public string? MatchFieldId { get; init; }
+}
 public sealed record NendoCsvOptions(bool NendoProfile, bool EmptyIsNull = false);
 public sealed record NendoCsvRow(int SourceRow, IReadOnlyDictionary<string, object?> Values,
     IReadOnlyDictionary<string, long> ExpectedTargetVersions);

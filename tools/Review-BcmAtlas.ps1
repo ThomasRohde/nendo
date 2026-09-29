@@ -13,7 +13,7 @@ if (-not (Test-Path -LiteralPath $api)) {
 }
 # The package's own tests: bindings, hierarchy and level rules, the frozen lab coordinates, module
 # syntax, and the exported document (W-078).
-$tests = @('model.test.mjs', 'syntax.test.mjs', 'layout-parity.test.mjs', 'export.test.mjs') | ForEach-Object { Join-Path $PSScriptRoot "bcm-atlas/$_" }
+$tests = @('model.test.mjs', 'syntax.test.mjs', 'layout-parity.test.mjs', 'export.test.mjs', 'northstar-csv.test.mjs') | ForEach-Object { Join-Path $PSScriptRoot "bcm-atlas/$_" }
 & node --experimental-vm-modules --test @tests
 if ($LASTEXITCODE -ne 0) { throw 'Capability Atlas node tests failed.' }
 # The two files the package is shown (bcm-atlas/fixtures.mjs): BCM.nendo's Northstar model, 635
