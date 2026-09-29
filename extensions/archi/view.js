@@ -20,7 +20,7 @@ const READS = { models: M.E.model, folders: M.E.folder, types: M.E.type, concept
 const state = {
   model: null, selected: null, expanded: new Set(), modelOpen: true, filter: { text: '', layer: '' },
   nativeChrome: false, renaming: null, draftProperties: null, readOnly: false, loaded: false,
-  sets: null, openView: null, diagramSelection: [], zoom: 1,
+  sets: null, openView: null, diagramSelection: [], zoom: 1, editing: false, pending: 0,
 };
 
 // The canvas is archi-online's renderer, bundled; it loads beside the tree, not before it.
@@ -247,6 +247,8 @@ function renderDiagram() {
   const centre = $('centre');
   const view = state.model.records.get(state.openView);
   centre.classList.add('diagram');
+  if (state.editing && canvasModule?.createEditor) { renderEditor(view); return; }
+  if (editor) stopEditor();
   if (!canvasModule) { centre.innerHTML = '<p class="quiet">Drawing the view…</p>'; canvasReady.then(() => renderCentre()); return; }
   let host = centre.querySelector('.canvas-host');
   if (!host) {
@@ -299,6 +301,7 @@ function renderCentre() {
   const centre = $('centre');
   if (state.openView && model?.records.has(state.openView)) { renderDiagram(); return; }
   if (canvas) { canvas.destroy(); canvas = null; drawnSets = null; }
+  if (editor) stopEditor();
   centre.classList.remove('diagram');
   if (!record) { centre.innerHTML = '<p class="quiet">Select something in the model tree.</p>'; return; }
   const all = [...model.records.values()];
@@ -578,6 +581,14 @@ function declareToolbar() {
     ] },
     { kind: 'button', id: 'rename', label: 'Rename', icon: 'edit', iconOnly: true, keys: 'F2' },
     { kind: 'button', id: 'delete', label: 'Delete…', icon: 'trash', iconOnly: true },
+    ...(state.openView && !state.readOnly && canvasModule?.createEditor
+      ? [{ kind: 'toggle', id: 'edit', label: 'Edit the view', icon: 'edit', pressed: state.editing, keys: 'Ctrl+E' }] : []),
+    ...(state.editing ? [{ kind: 'group', label: 'Edits', items: [
+      { kind: 'button', id: 'undo', label: 'Undo', keys: 'Ctrl+Z', disabled: !editor?.canUndo() },
+      { kind: 'button', id: 'redo', label: 'Redo', keys: 'Ctrl+Y', disabled: !editor?.canRedo() },
+      { kind: 'button', id: 'commit', label: state.pending > 0 ? `Commit ${state.pending}` : 'Commit', icon: 'check', keys: 'Ctrl+S', disabled: state.pending === 0 },
+      { kind: 'button', id: 'discard', label: 'Discard', disabled: state.pending === 0 },
+    ] }] : []),
     ...(state.openView ? [{ kind: 'group', label: 'Zoom', items: [
       { kind: 'button', id: 'zoom-out', label: 'Zoom out', icon: 'minus', iconOnly: true, keys: 'Ctrl+-' },
       { kind: 'button', id: 'fit', label: `Fit (${Math.round(state.zoom * 100)}%)`, keys: 'Ctrl+0' },
@@ -608,9 +619,14 @@ function runCommand({ id, value }) {
     case 'new-view': newView(); break;
     case 'rename': startRename(); break;
     case 'delete': remove(); break;
-    case 'zoom-in': canvas?.zoom(1.25); break;
-    case 'zoom-out': canvas?.zoom(0.8); break;
-    case 'fit': canvas?.fit(); break;
+    case 'zoom-in': if (editor) editor.zoomIn(); else canvas?.zoom(1.25); break;
+    case 'zoom-out': if (editor) editor.zoomOut(); else canvas?.zoom(0.8); break;
+    case 'fit': if (editor) editor.fit(); else canvas?.fit(); break;
+    case 'edit': toggleEditing(value === true); break;
+    case 'undo': editor?.undo(); break;
+    case 'redo': editor?.redo(); break;
+    case 'commit': commitEdits(); break;
+    case 'discard': discardEdits(); break;
   }
 }
 
@@ -618,6 +634,115 @@ function setFilter(change) {
   state.filter = { ...state.filter, ...change };
   renderTree();
   declareToolbar();
+}
+
+// ---------------------------------------------------------------- editing a view (W-111)
+
+/*
+ * Edit turns the open view into archi-online's own editor: its palette, gestures, magic connector
+ * and menus, on a copy of the model. The edits collect there, with Undo and Redo, and Commit
+ * writes all of them to the file as one revision; Discard drops them. A box moved five times is
+ * one change of its place when committed, which is what keeps an editing session inside the
+ * file's operation-row bound (W-101). The waiting edits are kept in this browser, so leaving the
+ * screen, or Back, finds them again; a change to the file meanwhile is carried under them.
+ */
+const EDITS_KEY = 'archi-edits';
+let editor = null, editBase = null, editSets = null, selectionFromEditor = false;
+
+/** The edits kept in this browser, and the view they were made on; null when none wait. */
+function readEdits() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(EDITS_KEY) ?? 'null');
+    return Array.isArray(saved?.writes) && saved.writes.length > 0 ? { viewId: saved.viewId ?? null, writes: saved.writes } : null;
+  } catch { return null; }
+}
+
+function keepEdits(writes) {
+  try {
+    if (writes.length === 0) localStorage.removeItem(EDITS_KEY);
+    else localStorage.setItem(EDITS_KEY, JSON.stringify({ viewId: editor?.viewId() ?? state.openView, writes }));
+  } catch { /* kept for this visit only */ }
+}
+
+const waitingWrites = () => (editor ? canvasModule.writesFor(editSets, editBase, editor.model()) : []);
+
+function editsChanged() {
+  const writes = waitingWrites();
+  state.pending = writes.length;
+  keepEdits(writes);
+  declareToolbar();
+}
+
+function renderEditor(view) {
+  const centre = $('centre');
+  if (canvas) { canvas.destroy(); canvas = null; drawnSets = null; }
+  let host = centre.querySelector('.editor-host');
+  if (!host || !editor) {
+    centre.innerHTML = '<div class="editor-host"></div>';
+    host = centre.querySelector('.editor-host');
+    editSets = state.sets;
+    editBase = canvasModule.buildMirror(state.sets);
+    const saved = readEdits()?.writes ?? null;
+    const start = saved ? canvasModule.buildMirror(canvasModule.applyWrites(state.sets, saved)) : editBase;
+    editor = canvasModule.createEditor(host, start, {
+      onChange: editsChanged,
+      onSelect: ids => {
+        const id = ids[0];
+        const item = state.model.records.get(id);
+        const concept = item?.values['ar.item.concept'];
+        selectionFromEditor = true;
+        try {
+          if (!id) select(state.openView, { reveal: false });
+          else select(concept && state.model.records.has(concept) ? concept : id, { fromDiagram: id });
+        } finally { selectionFromEditor = false; }
+      },
+      onOpenView: id => { if (state.model.records.has(id)) select(id); },
+    });
+    editor.show(view.recordId);
+    if (saved) setStatus(`${saved.length} edits were waiting to be committed, and are here again.`);
+    editsChanged();
+  } else if (editSets !== state.sets) {
+    // The file changed: after a commit, a change in the tree, or somebody else's. Whatever still
+    // waits is carried onto the file as it now is; Undo starts again from here.
+    const waiting = waitingWrites();
+    editSets = state.sets;
+    editBase = canvasModule.buildMirror(state.sets);
+    editor.reset(waiting.length === 0 ? editBase : canvasModule.buildMirror(canvasModule.applyWrites(state.sets, waiting)));
+    editsChanged();
+  }
+  if (editor.viewId() !== view.recordId) editor.show(view.recordId);
+  if (!selectionFromEditor) editor.select(state.diagramSelection);
+}
+
+function stopEditor() {
+  editor?.destroy();
+  editor = null; editBase = null; editSets = null;
+}
+
+function toggleEditing(on) {
+  if (on && state.readOnly) { setStatus('This file is open read-only.', true); declareToolbar(); return; }
+  if (on && !canvasModule?.createEditor) { setStatus('The editor has not loaded yet.', true); declareToolbar(); return; }
+  if (!on && state.pending > 0) {
+    setStatus(`Commit or discard the ${state.pending} waiting ${state.pending === 1 ? 'change' : 'changes'} first.`, true);
+    declareToolbar();
+    return;
+  }
+  state.editing = on;
+  if (!on) stopEditor();
+  render();
+}
+
+function commitEdits() {
+  if (!editor || state.pending === 0) return;
+  const count = state.pending;
+  write(() => waitingWrites(), `Commit ${count} ${count === 1 ? 'change' : 'changes'} to the view`);
+}
+
+function discardEdits() {
+  if (!editor) return;
+  editor.reset(editBase);
+  editsChanged();
+  setStatus('The waiting changes were discarded.');
 }
 
 // ---------------------------------------------------------------- the whole page
@@ -684,6 +809,8 @@ function applyPlace(place) {
   state.selected = has(place?.selected) ? place.selected : state.openView ?? modelRecord()?.recordId ?? null;
   state.diagramSelection = has(place?.item) ? [place.item] : [];
   state.draftProperties = null;
+  // Edits left waiting on this view open it in the editor again, so they are seen.
+  if (state.openView && !state.readOnly && readEdits()?.viewId === state.openView) state.editing = true;
   const record = state.model.records.get(state.selected);
   const folderId = record && (record.entityId === M.E.folder ? record.values['ar.folder.parent']
     : record.values['ar.concept.folder'] ?? record.values['ar.view.folder']);
@@ -814,6 +941,7 @@ if (nendo === undefined) {
     if (nendo.has('ui.setPlace')) nendo.on('place', restorePlace);
     if (nendo.has('ui.setToolbar')) {
       state.nativeChrome = true;
+      document.body.classList.add('native-chrome');
       nendo.on('command', command => { try { runCommand(command); } catch (error) { setStatus(describe(error), true); } });
     } else showOwnToolbar();
     nendo.on('changes', schedule);

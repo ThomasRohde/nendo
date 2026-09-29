@@ -1,5 +1,6 @@
 The Archi workbench's canvas.js is built by tools/archi/build-canvas.mjs and includes code
-from the following projects, under their licences.
+from the following projects, under their licences. editor.css holds archi-online's own style
+rules for its editor, palette and menus, under archi-online's licence below.
 
 == archi-online (https://github.com/ThomasRohde/archi-online), at the commit canvas.js names
 

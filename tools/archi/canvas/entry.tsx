@@ -15,8 +15,13 @@ import { createConnectionRouteResolver, type Point } from '@archi/canvas/geometr
 import { createNestedConnectionVisibilityResolver } from '@archi/model/ops';
 import { DEFAULT_SETTINGS } from '@archi/settings/app-settings';
 import { buildMirror, type RecordSets } from './mirror';
+import { applyWrites, toRecords, writesFor } from './records';
+import { createEditor } from './editor';
 
-export { buildMirror };
+export { buildMirror, toRecords, writesFor, applyWrites, createEditor };
+// archi-online's own rules, for the lane that checks the editor offers nothing else.
+export { validRelationshipTypes } from '@archi/model/rules';
+export { RELATIONSHIP_TYPES } from '@archi/model/metamodel';
 declare const __ARCHI_ONLINE_COMMIT__: string;
 export const archiOnlineCommit = __ARCHI_ONLINE_COMMIT__;
 

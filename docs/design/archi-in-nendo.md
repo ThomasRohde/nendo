@@ -90,7 +90,7 @@ not built, with the reason.
 | Folders, model tree, filter and search, rename, drag to folder | In | W-109 |
 | Properties panel and property lists | In | W-109 |
 | Diagram rendering: both figures per type, groups, notes, view references, connections, bendpoints, Manhattan router, nesting, zoom, navigator | In | W-110 |
-| Editing: palette, create, move, resize, nest, connect, reconnect, bendpoints, magic connector, delete, direct rename | In | W-111 |
+| Editing: palette, create, move, resize, nest, connect, reconnect, bendpoints, magic connector, delete, direct rename, with edits collected and committed | In | W-111 |
 | Undo and redo | In | W-103, W-112 |
 | Align, distribute, match size, grid and snap, z-order, copy and paste, duplicate, format painter | In | W-113 |
 | Appearance: colours, alpha, gradient, line style and width, icons, fonts, text position; label expressions; legends | In | W-114 |
@@ -123,13 +123,28 @@ not built, with the reason.
 | No list or JSON field kind | Bendpoints and legend options as JSON text | None; noted, not requested |
 | No rule refuses an invalid relationship on every path | The view offers only valid types; the validator reports the rest | W-105, Later (D-003) |
 | A view writes one record per call, each its own revision | A gesture is several writes, not atomic, and several History rows | W-102 |
-| No undo | The mirror keeps each gesture's inverse. See below | W-103, W-112 |
+| No undo | Edits wait in the editor, where archi-online's Undo and Redo work on them, until Commit. See below | W-103, W-112 |
 | A view cannot read a file the person picks | `.archimate`, XML and CSV import wait for it | W-104 |
 | A view is only a record-type screen or a record-page panel | The workbench is a screen of View | W-106, Later |
 | The operation-row and revision-row bounds, about 100,000 each | See [the write budget](#the-write-budget) | W-101 (D-002) |
 | A calculated field is shown, not filtered | An *Unused elements* screen cannot filter on an occurrence count; the validator panel does it in code | Measured in W-117 |
 | Binary fields are out of scope | Images are dropped on import, with a notice | F-208 |
 | No search across record types | The workbench's tree search covers the model | None |
+
+**Edits wait, then commit (W-111).** The owner's suggestion, 2026-09-29. Edit opens the view
+in archi-online's own ViewEditor and Palette, on an archi-online store filled from the mirror.
+Each gesture is a transaction on that store and writes nothing. Undo and Redo are
+archi-online's own, over what waits. Commit writes the difference between the model as last
+read and the model now (`tools/archi/canvas/records.ts`): one revision, a create or delete per
+record and a field set per field the edits changed. A field somebody else set in the meantime
+keeps its value. Discard drops the edits. They are kept in the view's `localStorage` with the
+view they were made on, so leaving the screen or Back opens the editor on them again, carried
+onto the file as it now stands. A refused commit keeps them waiting.
+
+This changes the budget below: rows follow the net change, not the gestures. Two drags of one
+box, an undo and a redo commit as one field set of its place in one revision (measured by
+`Review-ArchiWorkbench.ps1`). A session that moves boxes about until they sit right costs the
+rows of where they ended.
 
 **Undo may not need the host.** archi-online keeps every transaction's inverse
 patches. The view can offer undo by writing a gesture's inverse as a new revision,

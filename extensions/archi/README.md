@@ -39,7 +39,19 @@ Open Archi.nendo and choose **Views → Archi** in Use.
   camera. A click selects the object under the pointer and its concept in the tree; selecting
   a concept in the tree outlines every box that shows it; a double-click on a view reference
   opens that view. A concept's model relations and views are under Analysis in its
-  properties. The view is read-only until W-111.
+  properties.
+- **Edit** (Ctrl E, W-111) opens the view in archi-online's own editor: its palette by layer,
+  placing, moving, resizing and nesting boxes, drawing relationships of only the types
+  ArchiMate allows between the two ends, reconnecting, bendpoints, the magic connector,
+  marquee selection, Delete from the view and direct renaming. Edits collect rather than
+  write: **Undo** (Ctrl Z) and **Redo** (Ctrl Y) work on them, **Commit** (Ctrl S) writes all
+  of them to the file as one revision, and **Discard** drops them. A box moved five times is
+  one change of its place when committed. The waiting edits are kept in this browser, so
+  leaving the screen or the file finds them again, opened in the editor; a change to the file
+  meanwhile is carried under them, and a commit writes only what the edits changed. Edit
+  closes only when nothing waits.
+  The palette is as wide as you drag its edge (or step it with the arrow keys), and its
+  buttons fill the width in columns; the width is kept on this device.
 
 On a Nendo that cannot draw the controls in its own row, the workbench draws them above the
 tree.
@@ -49,11 +61,15 @@ tree.
 - `model.js`: every rule, and every change as the record writes it makes. No DOM, so
   `tools/archi/model.test.mjs` tests it over Archisurance.
 - `view.js`, `view.css`, `index.html`: the tree, the middle and the properties.
-- `canvas.js`: the drawing. Built by `tools/archi/build-canvas.mjs` from `tools/archi/canvas`
-  (the mirror of the records as archi-online's model, and the camera) with archi-online's
-  renderer, geometry and router at a pinned commit, and React. Do not edit it; rebuild it. A
+- `canvas.js`: the drawing and the editor. Built by `tools/archi/build-canvas.mjs` from
+  `tools/archi/canvas` (the mirror of the records as archi-online's model and its inverse, the
+  camera, and the editor's mount) with archi-online's renderer, geometry, router, ViewEditor,
+  Palette and operations at a pinned commit, and React. Every id archi-online makes in it is
+  a record ID, `ar-id-…`. Do not edit it; rebuild it. A
   rebuild from the same sources is byte for byte the same. `THIRD-PARTY.txt` carries the
   licences of what it includes.
+- `editor.css`: archi-online's own rules for its editor, palette and menus, with its colour
+  variables mapped onto Nendo's tokens.
 - `kit/nendo-view-kit.js`: the view kit, byte for byte (`tools/view-kit/kit.test.mjs`).
 
 ## Checked by

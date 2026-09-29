@@ -1,0 +1,268 @@
+/* The diagram editor (W-111): archi-online's own rules for its ViewEditor, Palette and context
+   menus, taken from archi-online 6205a6a src/styles.css (MIT, Copyright (c) archi-online
+   contributors; see THIRD-PARTY.txt). Only archi-online's colour variables are new: each is one
+   of Nendo's tokens, so the palette and menus take the theme while the paper stays white. */
+/* On the page root, not the editor: archi-online draws its menus into the page's body, outside
+   the editor, and there they had no colours at all (the owner's transparent menus). */
+:root {
+  --accent: var(--cobalt); --accent-soft: var(--cobalt-soft); --border: var(--line); --chrome-icon: var(--muted);
+  --danger-soft: color-mix(in srgb, var(--danger) 14%, transparent);
+  --panel-bg: var(--surface); --selection: var(--cobalt-soft); --surface-elevated: var(--surface-raised);
+  --text: var(--ink); --text-dim: var(--muted);
+  /* The editor's own drawing colours, which its SVG names directly (the owner's white selection):
+     the outline and handles are Nendo's accent, as the read-only view's outline is. */
+  --canvas-selection: var(--cobalt); --canvas-valid: var(--nendo-healthy, #1d9e46);
+  --canvas-invalid: var(--danger); --canvas-anchor: var(--nendo-warning, #e8820c);
+}
+.archi-editor { position: absolute; inset: 0; display: flex; }
+/* The palette is as wide as the person drags it, and its buttons flow into as many columns as fit. */
+.archi-palette { flex: 0 0 var(--palette-width, 112px); overflow: hidden; }
+.archi-palette-splitter { flex: 0 0 6px; cursor: col-resize; background: var(--surface); border-right: 1px solid var(--line); touch-action: none; }
+.archi-palette-splitter:hover, .archi-palette-splitter.dragging, .archi-palette-splitter:focus-visible { background: var(--cobalt-soft); outline: none; }
+.archi-editor-canvas { flex: 1 1 auto; min-width: 0; display: flex; position: relative; }
+.archi-editor-canvas > .view-editor { height: 100%; }
+/* Nendo's toolbar holds the zoom; the editor's own row of buttons stays for the page without it. */
+body.native-chrome .archi-editor .zoom-controls { display: none; }
+.archi-editor .view-svg, .archi-editor .view-svg * { outline: none; }
+.palette-item-disabled { opacity: 0.35; pointer-events: none; }
+
+/* ---- archi-online ---- */
+/* Context menu */
+.ctx-root {
+  position: fixed;
+  z-index: 1000;
+}
+
+.ctx-menu {
+  background: var(--surface-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  padding: 4px;
+  min-width: 170px;
+  max-height: 70vh;
+  overflow-y: auto;
+  user-select: none;
+}
+
+.ctx-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.ctx-item:hover:not(.disabled) {
+  background: var(--accent-soft);
+}
+
+.ctx-item.disabled {
+  color: var(--text-dim);
+}
+
+.ctx-item.danger:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.ctx-label {
+  flex: 1;
+}
+
+.ctx-arrow {
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+.ctx-icon {
+  display: inline-flex;
+  width: 14px;
+  justify-content: center;
+}
+
+.ctx-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 6px;
+}
+
+/* View editor canvas */
+.view-editor {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: #ffffff;
+  overflow: hidden;
+  user-select: none;
+}
+
+.view-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #fff;
+  touch-action: none;
+  user-select: none;
+}
+
+.view-grid {
+  pointer-events: none;
+}
+
+.view-grid-line {
+  fill: none;
+  stroke: color-mix(in srgb, var(--border) 55%, transparent);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.alignment-guide {
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+/* Palette */
+.palette {
+  width: 100%;
+  height: 100%;
+  background: var(--panel-bg);
+  overflow-y: auto;
+  padding: 4px 3px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 2px;
+  user-select: none;
+}
+
+.pal-layer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  width: 100%;
+}
+
+.pal-btn {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chrome-icon);
+  cursor: pointer;
+  padding: 0;
+}
+
+.pal-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--border);
+}
+
+.pal-btn.active {
+  background: var(--selection);
+  border-color: var(--accent);
+}
+
+.pal-el {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 17px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 2px;
+}
+
+.c4-pal-el {
+  background: #ffffff;
+  border-color: #1168bd;
+  color: #1168bd;
+}
+
+.pal-sep-label {
+  width: 100%;
+  margin: 6px 2px 2px;
+  font-size: 8.5px;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: center;
+  user-select: none;
+}
+
+.pal-sep {
+  width: 100%;
+  height: 1px;
+  background: var(--border);
+  margin: 3px 2px;
+}
+
+/* Direct edit overlay */
+.direct-edit {
+  position: absolute;
+  z-index: 10;
+  font: inherit;
+  font-size: 12px;
+  text-align: center;
+  border: 1.5px solid var(--accent);
+  border-radius: 2px;
+  resize: none;
+  background: #fff;
+  padding: 3px;
+  box-sizing: border-box;
+  user-select: text;
+}
+
+.zoom-controls {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px -6px rgba(15, 22, 32, 0.22);
+  user-select: none;
+}
+
+.zoom-btn {
+  font: inherit;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  padding: 2px 7px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  min-width: 24px;
+  justify-content: center;
+}
+
+.zoom-btn:hover {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.zoom-pct {
+  min-width: 42px;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+.view-editor.read-only .view-svg {
+  touch-action: none;
+}

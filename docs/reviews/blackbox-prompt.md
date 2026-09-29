@@ -952,6 +952,12 @@ vocabulary, the examples and the resources — and not from the person.
   Open a second view, select a box on it, open that element's record, and press Back twice
   and Forward twice: record where each press took you, what the Back and Forward buttons
   named before each press, and whether the box you had selected was still selected.
+  Then press Edit on a view: place an element from the palette, drag it about, draw a
+  relationship to another box (try a type ArchiMate does not allow first), undo and redo,
+  and record what Commit said was waiting before you pressed it, what History shows for the
+  commit, and what Studio's Diagram item list shows for the box you moved. Make one more edit,
+  leave the screen without committing, come back, and record whether the edit was still
+  waiting.
 - Ask the person, without an agent, to show the package on a second screen and as a
   panel on a record page, from Studio → Surfaces → Custom views. Record whether the
   package's card told them where it was already shown, whether the form let them choose

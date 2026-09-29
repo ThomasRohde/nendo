@@ -32,6 +32,14 @@ const result = await esbuild.build({
   bundle: true, format: 'esm', platform: 'browser', target: 'es2022', minify: true, legalComments: 'none',
   jsx: 'automatic', outfile: out, logLevel: 'warning', metafile: true,
   alias: { '@archi': path.join(ARCHI_ONLINE, 'src') },
+  // Every id archi-online makes is a record ID, `ar-id-…`, as the importer names what it loads,
+  // so a new object names its record before it is written (W-111).
+  plugins: [{ name: 'record-ids', setup(build) {
+    const idModule = path.join(ARCHI_ONLINE, 'src', 'model', 'id.ts');
+    build.onLoad({ filter: /[\\/]model[\\/]id\.ts$/ }, args => path.resolve(args.path) === idModule
+      ? { contents: `export function newId(): string { return 'ar-id-' + crypto.randomUUID().replace(/-/g, ''); }`, loader: 'ts' }
+      : undefined);
+  } }],
   nodePaths: [path.join(ARCHI_ONLINE, 'node_modules')],
   define: { 'process.env.NODE_ENV': '"production"', __ARCHI_ONLINE_COMMIT__: JSON.stringify(head) },
   banner: { js: [

@@ -398,6 +398,240 @@ async (page) => {
   await page.evaluate(() => window.broker.startAt(null));
   results.places = { declared: declared.length, steps: declared.filter(entry => !entry.replace).length, echoedBack: echoedBack.length, restarted: restarted.length };
 
+  // ---- W-111: Edit opens the view in archi-online's editor. Gestures collect as edits waiting to
+  // be committed; Undo and Redo work on them; Commit writes the net difference as one revision;
+  // Discard drops them; a refused commit keeps them; they survive the workbench starting again.
+  {
+  const batches = () => page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').map(request => request.p));
+  const toolbarItem = id => page.evaluate(wanted => {
+    const find = items => { for (const item of items ?? []) { if (item.id === wanted) return item; const inner = find(item.items); if (inner) return inner; } return null; };
+    return find(window.broker.toolbars.at(-1)?.items);
+  }, id);
+  const pendingIs = async (count, what) => {
+    try {
+      await page.waitForFunction(expected => {
+        const find = items => { for (const item of items ?? []) { if (item.id === 'commit') return item; const inner = find(item.items); if (inner) return inner; } return null; };
+        const commit = find(window.broker.toolbars.at(-1)?.items);
+        return commit && (expected === 0 ? commit.disabled === true : commit.label === `Commit ${expected}`);
+      }, count, { timeout: 8000, polling: 50 });
+    } catch { throw new Error(`${what}: Commit says ${JSON.stringify(await toolbarItem('commit'))}, not ${count} waiting.`); }
+  };
+  const editedView = opened;
+  await page.evaluate(() => window.broker.command('edit', true, 'toolbar'));
+  await until(() => document.querySelectorAll('.archi-editor [data-node-id]').length > 0 && document.querySelectorAll('.archi-palette .pal-btn').length > 50,
+    null, 'Edit did not open the view in archi-online\u2019s editor with its palette.');
+  await pendingIs(0, 'An editor with nothing done');
+  const editFrame = await (await view.frameElement()).boundingBox();
+  const boxOf = id => view.evaluate(wanted => {
+    const element = document.querySelector(`.archi-editor [data-node-id="${wanted}"]`);
+    if (!element) return null;
+    const r = element.getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  }, id);
+  const drag = async (from, dx, dy) => {
+    await page.mouse.move(editFrame.x + from.x, editFrame.y + from.y);
+    await page.mouse.down();
+    await page.mouse.move(editFrame.x + from.x + dx / 2, editFrame.y + from.y + dy / 2, { steps: 4 });
+    await page.mouse.move(editFrame.x + from.x + dx, editFrame.y + from.y + dy, { steps: 4 });
+    await page.mouse.up();
+  };
+  // The owner's transparent menus: archi-online draws them into the page's body, outside the
+  // editor, and there its colour variables were undefined. A right-click menu has a background.
+  const menuBox = await boxOf(target.recordId);
+  await page.mouse.click(editFrame.x + menuBox.x + 8, editFrame.y + menuBox.y + menuBox.height / 2, { button: 'right' });
+  await until(() => !!document.querySelector('.ctx-menu'), null, 'A right-click on a box opened no menu.');
+  const menuColours = await view.evaluate(() => {
+    const raised = getComputedStyle(document.documentElement).getPropertyValue('--nendo-surface-raised').trim();
+    const probe = document.createElement('div'); probe.style.background = raised; document.body.append(probe);
+    const token = getComputedStyle(probe).backgroundColor; probe.remove();
+    return { menu: getComputedStyle(document.querySelector('.ctx-menu')).backgroundColor, token,
+      border: getComputedStyle(document.querySelector('.ctx-menu')).borderTopColor };
+  });
+  assert(menuColours.menu === menuColours.token && menuColours.border !== 'rgba(0, 0, 0, 0)',
+    `The editor's menu is not drawn on Nendo's raised surface: ${JSON.stringify(menuColours)}.`);
+  await page.keyboard.press('Escape');
+  await until(() => !document.querySelector('.ctx-menu'), null, 'Escape left the menu open.');
+  // The palette is as wide as it is dragged, and its buttons fill the width in columns.
+  const paletteShape = () => view.evaluate(() => {
+    const palette = document.querySelector('.archi-palette').getBoundingClientRect();
+    const columns = new Set([...document.querySelectorAll('.archi-palette .pal-layer .pal-btn')].map(button => Math.round(button.getBoundingClientRect().left))).size;
+    return { width: Math.round(palette.width), columns };
+  });
+  const narrow = await paletteShape();
+  const splitter = await view.evaluate(() => { const r = document.querySelector('.archi-palette-splitter').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + 200 }; });
+  await page.mouse.move(editFrame.x + splitter.x, editFrame.y + splitter.y);
+  await page.mouse.down();
+  await page.mouse.move(editFrame.x + splitter.x + 120, editFrame.y + splitter.y, { steps: 6 });
+  await page.mouse.up();
+  const wide = await paletteShape();
+  assert(Math.abs(wide.width - narrow.width - 120) <= 2 && wide.columns > narrow.columns,
+    `Dragging the palette's edge 120 pixels did not widen it into more columns: ${JSON.stringify({ narrow, wide })}.`);
+  await view.focus('.archi-palette-splitter');
+  for (let step = 0; step < 5; step += 1) await page.keyboard.press('ArrowLeft');
+  const stepped = await paletteShape();
+  assert(stepped.width === wide.width - 140, `The arrow keys on the palette's edge did not narrow it by 28 pixels a press: ${JSON.stringify({ wide, stepped })}.`);
+  const palette = { narrow, wide, stepped, menu: menuColours.menu };
+  // The owner's white selection: the editor draws its outline, handles and a selected line in
+  // colours its SVG names by variable, and undefined they drew white or not at all. Selecting a
+  // box and then a relationship's line, every mark of the selection is Nendo's accent.
+  const selectionMarks = () => view.evaluate(() => {
+    const cobalt = getComputedStyle(document.documentElement).getPropertyValue('--nendo-cobalt').trim();
+    const probe = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    probe.setAttribute('stroke', cobalt);
+    document.querySelector('.archi-editor .view-svg').append(probe);
+    const token = getComputedStyle(probe).stroke; probe.remove();
+    const marks = [...document.querySelectorAll('.archi-editor .view-svg [stroke="var(--canvas-selection)"]')];
+    return { token, count: marks.length, strokes: [...new Set(marks.map(mark => getComputedStyle(mark).stroke))] };
+  });
+  const box = await boxOf(target.recordId);
+  await page.mouse.click(editFrame.x + box.x + 8, editFrame.y + box.y + box.height / 2);
+  await until(() => document.querySelectorAll('.archi-editor .view-svg [stroke="var(--canvas-selection)"]').length >= 4, null, 'Selecting a box drew no handles.');
+  const boxMarks = await selectionMarks();
+  assert(boxMarks.strokes.length === 1 && boxMarks.strokes[0] === boxMarks.token,
+    `A selected box's handles are not drawn in Nendo's accent: ${JSON.stringify(boxMarks)}.`);
+  const linePoint = await view.evaluate(() => {
+    for (const group of document.querySelectorAll('.archi-editor [data-conn-id]')) {
+      const line = group.querySelectorAll('path')[1];
+      if (!line) continue;
+      const length = line.getTotalLength();
+      if (length < 80) continue;
+      const at = line.getPointAtLength(length / 2), matrix = line.getScreenCTM();
+      const point = new DOMPoint(at.x, at.y).matrixTransform(matrix);
+      const hit = document.elementFromPoint(point.x, point.y)?.closest('[data-conn-id]');
+      if (hit === group) return { id: group.getAttribute('data-conn-id'), x: point.x, y: point.y };
+    }
+    return null;
+  });
+  assert(linePoint, 'No relationship line on the view can be clicked at its middle.');
+  await page.mouse.click(editFrame.x + linePoint.x, editFrame.y + linePoint.y);
+  await until(id => document.querySelector(`.archi-editor [data-conn-id="${id}"] path:nth-of-type(2)`)?.getAttribute('stroke') === 'var(--canvas-selection)',
+    linePoint.id, 'Clicking a relationship\u2019s line did not select it.');
+  const lineMarks = await selectionMarks();
+  assert(lineMarks.strokes.length === 1 && lineMarks.strokes[0] === lineMarks.token,
+    `A selected relationship's line is not drawn in Nendo's accent: ${JSON.stringify(lineMarks)}.`);
+  await page.keyboard.press('Escape');
+  const storedItem = async id => (await records('ar.item')).find(record => record.recordId === id);
+  const moving = target.recordId;
+  const startedAt = await storedItem(moving);
+  const before1 = await boxOf(moving);
+  await drag({ x: before1.x + 8, y: before1.y + before1.height / 2 }, 60, 0);
+  await pendingIs(1, 'One box dragged');
+  const before2 = await boxOf(moving);
+  await drag({ x: before2.x + 8, y: before2.y + before2.height / 2 }, 30, 0);
+  await pendingIs(1, 'The same box dragged again: still one change waiting');
+  await page.evaluate(() => window.broker.command('undo', null, 'toolbar'));
+  await pendingIs(1, 'The second drag undone');
+  await page.evaluate(() => window.broker.command('undo', null, 'toolbar'));
+  await pendingIs(0, 'Both drags undone');
+  await page.evaluate(() => window.broker.command('redo', null, 'toolbar'));
+  await page.evaluate(() => window.broker.command('redo', null, 'toolbar'));
+  await pendingIs(1, 'Both drags redone');
+  const batchesBefore = (await batches()).length;
+  await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
+  await pendingIs(0, 'Committed');
+  const committed = (await batches()).slice(batchesBefore);
+  assert(committed.length === 1 && committed[0].writes.length === 1 && committed[0].writes[0].recordId === moving
+    && Object.keys(committed[0].writes[0].values).every(field => field === 'ar.item.x' || field === 'ar.item.y'),
+    `Two drags, an undo and a redo did not commit as one revision setting the box's place: ${JSON.stringify(committed).slice(0, 400)}.`);
+  const movedTo = await storedItem(moving);
+  assert(movedTo.values['ar.item.x'] > startedAt.values['ar.item.x'] + 60, `The box was not moved in the file: ${startedAt.values['ar.item.x']} to ${movedTo.values['ar.item.x']}.`);
+
+  // A new element from the palette, and relationships only of the types archi-online allows.
+  const nodeIds = () => view.evaluate(() => [...document.querySelectorAll('.archi-editor [data-node-id]')].map(element => element.getAttribute('data-node-id')));
+  const idsBefore = new Set(await nodeIds());
+  await view.click('.archi-palette .pal-el[data-palette-element="BusinessActor"]:not(.pal-specialized-el)');
+  const stage = await view.evaluate(() => { const r = document.querySelector('.archi-editor .view-svg').getBoundingClientRect(); return { x: r.right - 90, y: r.top + 40 }; });
+  await page.mouse.click(editFrame.x + stage.x, editFrame.y + stage.y);
+  await page.waitForTimeout(150);
+  await page.keyboard.press('Enter');
+  await pendingIs(2, 'A Business Actor placed from the palette: the element and its box');
+  const actorBox = (await nodeIds()).find(id => !idsBefore.has(id));
+  assert(actorBox?.startsWith('ar-id-'), `The new box is not named as a record: ${actorBox}.`);
+  const targetConcept = (await records('ar.concept')).find(record => record.recordId === target.values['ar.item.concept']);
+  const targetType = (await records('ar.type')).find(record => record.recordId === targetConcept.values['ar.concept.type']).values['ar.type.key'];
+  const { allowed, labels } = await view.evaluate(async type => {
+    const rules = await import('./canvas.js');
+    return { allowed: rules.validRelationshipTypes('BusinessActor', type), labels: Object.fromEntries(rules.RELATIONSHIP_TYPES.map(entry => [entry.type, entry.label])) };
+  }, targetType);
+  const refused = Object.keys(labels).find(type => !allowed.includes(type) && type !== 'Junction');
+  const permitted = allowed[0];
+  assert(refused && permitted, `No refused and no allowed relationship from a Business Actor to a ${targetType}: ${allowed}.`);
+  const connect = async type => {
+    await view.click(`.archi-palette .pal-btn[title="${labels[type]}"]`);
+    const from = await boxOf(actorBox), to = await boxOf(moving);
+    await page.mouse.move(editFrame.x + from.x + from.width / 2, editFrame.y + from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(editFrame.x + to.x + 8, editFrame.y + to.y + to.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await page.keyboard.press('Escape');
+  };
+  await connect(refused);
+  await page.waitForTimeout(300);
+  await pendingIs(2, `A ${refused} from a Business Actor to a ${targetType}, which archi-online does not allow, was drawn`);
+  await connect(permitted);
+  await pendingIs(4, `A ${permitted} from a Business Actor to a ${targetType}: the relationship and its line`);
+  const beforeCreate = (await batches()).length;
+  await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
+  await pendingIs(0, 'The element and the relationship committed');
+  const created = (await batches()).slice(beforeCreate);
+  assert(created.length === 1 && created[0].writes.length === 4 && created[0].writes.every(write => write.op === 'create'),
+    `The element, its box, the relationship and its line were not one revision of four creates: ${JSON.stringify(created).slice(0, 500)}.`);
+  const relationship = (await records('ar.concept')).find(record => record.recordId === created[0].writes.find(write => write.entityId === 'ar.concept' && write.values['ar.concept.category'] === 'Relationship')?.recordId);
+  assert(relationship?.values['ar.concept.type'] === `ar.type.r.${permitted}`, `The committed relationship is not the ${permitted} drawn: ${JSON.stringify(relationship?.values)}.`);
+
+  // Delete from the view, then Discard: the view is as stored again.
+  const objectsStored = (await nodeIds()).length;
+  const actorAt = await boxOf(actorBox);
+  await page.mouse.click(editFrame.x + actorAt.x + actorAt.width / 2, editFrame.y + actorAt.y + actorAt.height / 2);
+  await page.keyboard.press('Delete');
+  await pendingIs(2, 'The new box deleted from the view: the box and the line drawn to it');
+  await page.evaluate(() => window.broker.command('discard', null, 'toolbar'));
+  await pendingIs(0, 'Discarded');
+  assert((await nodeIds()).length === objectsStored, 'Discard did not bring the deleted box back.');
+
+  // A refused commit keeps the edits waiting, and the file as it was.
+  const again = await boxOf(moving);
+  await drag({ x: again.x + 8, y: again.y + again.height / 2 }, 0, 40);
+  await pendingIs(1, 'A box dragged down');
+  await page.evaluate(() => window.broker.fail('records.batch', { code: 'record-version-conflict', message: 'The record changed since it was read.' }));
+  await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
+  await until(() => /was refused/.test(document.getElementById('status').textContent), null, 'A refused commit was not reported.');
+  await pendingIs(1, 'After a refused commit the edit still waits');
+  assert((await storedItem(moving)).values['ar.item.y'] === movedTo.values['ar.item.y'], 'A refused commit changed the file.');
+
+  // The waiting edit survives the workbench starting again, and opens the editor with it.
+  await page.evaluate(place => { window.broker.startAt(place); window.broker.remount(); }, { view: editedView.recordId, selected: editedView.recordId, item: null });
+  view = null;
+  for (let attempt = 0; attempt < 400 && view === null; attempt += 1) {
+    const candidate = page.frames().filter(frame => !frame.isDetached() && frame.url().startsWith(origin + '/')).at(-1);
+    if (candidate && await candidate.evaluate(() => document.querySelectorAll('.archi-editor [data-node-id]').length > 0).catch(() => false)) view = candidate;
+    else await page.waitForTimeout(25);
+  }
+  assert(view !== null, 'A workbench started again with an edit waiting did not open the view in the editor.');
+  await pendingIs(1, 'Started again');
+  await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
+  await pendingIs(0, 'The kept edit committed');
+  assert((await storedItem(moving)).values['ar.item.y'] > movedTo.values['ar.item.y'], 'The kept edit did not reach the file.');
+  // Both themes: the palette and the menus take Nendo's colours; the paper stays white.
+  const editorColours = {};
+  for (const mode of ['dark', 'light']) {
+    await page.evaluate(value => window.broker.pushTheme(value), mode);
+    await until(expected => document.documentElement.dataset.nendoTheme === expected, mode, `The editor did not take the ${mode} theme.`);
+    editorColours[mode] = await view.evaluate(() => {
+      const surface = getComputedStyle(document.documentElement).getPropertyValue('--nendo-surface').trim();
+      const probe = document.createElement('div'); probe.style.background = surface; document.body.append(probe);
+      const token = getComputedStyle(probe).backgroundColor; probe.remove();
+      return { palette: getComputedStyle(document.querySelector('.archi-editor .palette')).backgroundColor, token,
+        paper: getComputedStyle(document.querySelector('.archi-editor .view-svg')).backgroundColor };
+    });
+    assert(editorColours[mode].palette === editorColours[mode].token && editorColours[mode].paper === 'rgb(255, 255, 255)',
+      `In the ${mode} theme the editor's palette is not Nendo's surface, or its paper is not white: ${JSON.stringify(editorColours[mode])}.`);
+  }
+  await page.evaluate(() => { window.broker.startAt(null); window.broker.command('edit', false, 'toolbar'); });
+  await until(() => !!document.querySelector('.canvas-host .paper') && !document.querySelector('.archi-editor'), null, 'Leaving Edit did not return to the drawn view.');
+  results.edit = { view: editedView.values['ar.view.name'], refused, permitted, commits: (await batches()).length - batchesBefore, colours: editorColours, palette, selection: { box: boxMarks, line: lineMarks } };
+  }
+
   // ---- Both themes, measured: the page, the tree's selection and every native list take the theme's colours.
   const measured = {};
   for (const mode of ['dark', 'light']) {
