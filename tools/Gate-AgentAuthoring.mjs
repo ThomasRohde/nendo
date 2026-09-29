@@ -2745,6 +2745,22 @@ async function assertTheWidenedSurfacesRun(label) {
   assert(inset.heading === inset.toolbar && inset.description === inset.toolbar && inset.tile === inset.toolbar,
     `The front page is not drawn to the same left edge as the breadcrumb above it: ${JSON.stringify(inset)} (${label}).`);
   await screenshot(`overview-${label}.png`);
+  // The record-type picker's list, in both themes. A native select's list is painted in the
+  // select's colours as it opens, and the select is transparent until hovered, so the list came
+  // up white in Dark whenever it opened unhovered. Measured, because a capture of the closed
+  // picker cannot show the list: each option's colours are the theme's menu colours.
+  const pickerList = () => evaluate(`(()=>{const probe=document.createElement('span');
+    probe.style.color='var(--ink)'; probe.style.backgroundColor='var(--surface-raised)'; document.body.append(probe);
+    const want=getComputedStyle(probe); const expected=[want.color, want.backgroundColor]; probe.remove();
+    const options=[...document.querySelectorAll('#use-entity option')];
+    return {expected, options: options.length,
+      wrong: options.map(o=>getComputedStyle(o)).map(s=>[s.color, s.backgroundColor]).filter(c=>c[0]!==expected[0]||c[1]!==expected[1])};})()`);
+  for (const theme of ['light', 'dark']) {
+    await evaluate(`document.documentElement.setAttribute('data-theme', '${theme}')`);
+    const list = await pickerList();
+    assert(list.options > 1 && list.wrong.length === 0,
+      `The record-type picker's list is not drawn in the ${theme} theme's menu colours ${JSON.stringify(list.expected)}: ${JSON.stringify(list.wrong[0] ?? 'no options')} (${label}).`);
+  }
   await evaluate(`document.documentElement.setAttribute('data-theme', 'dark')`);
   await screenshot(`overview-dark-${label}.png`);
   // The two charts over time sit below the fold of the page above, so they get their

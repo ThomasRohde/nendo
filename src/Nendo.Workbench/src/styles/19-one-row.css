@@ -51,6 +51,11 @@
   outline: 0;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--cobalt) 22%, transparent);
 }
+/* The list a native select opens is painted by the browser in the select's own colours at the
+   moment it opens, and this select is transparent until the pointer is over it. Without colours
+   of its own the list came up white with grey text in Dark whenever it opened unhovered, which
+   read as the theme switching at random. The options carry the theme's menu colours instead. */
+.place-entity select option { color: var(--ink); background: var(--surface-raised); }
 .place-chevron { position: absolute; right: 7px; display: flex; color: var(--muted); pointer-events: none; }
 .place-chevron .outline-icon { width: 14px; height: 14px; }
 
