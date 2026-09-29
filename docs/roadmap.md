@@ -49,6 +49,16 @@ Each area below is a gap. Do not read a gap as a feature.
 | The notification area and Windows notifications | Owner-reported. `Review-ShellRuntime.ps1` checks four things: close hides the window, the process and its file survive, opening the same file again brings the hidden window back, and the exit pin exits. A script cannot observe the icon, its menu or the notifications, and no lane instruments them. By default, Windows puts a new tray icon in the overflow. No test checks whether a first-time person finds their window again |
 | What the Windows shell draws | Owner-reported. The line between measured and not measured is stated precisely here. Measured, item by item: the registry writes that setup makes and removes; the shell identity, read back from the running window and from the notification registration that Windows filed under it; the Jump List file that Windows stored, and the fact that it names the open file; and the `-new` command line, run by hand against both an empty placeholder and an existing file (agent-observed, not a lane). Not measured, and not reachable from a script: Explorer draws the document icon; the taskbar paints the overlay badge or progress; the menu appears on right-click; a file dragged from Explorer arrives; the Jump List is rebuilt when the open file changes. `SetOverlayIcon` and `SetProgressState` report nothing back, and nothing can read them, so the call is unobserved as well as the paint. WebView2 itself refuses a page-made file, and that refusal is measured |
 
+## Next: Archi in Nendo
+
+I-007 builds an offline ArchiMate modeller as a Nendo application, following
+archi-online, to find how far Nendo can be pushed. [The design](design/archi-in-nendo.md)
+names the record types, the scope and the host features it needs: batch writes from a
+view (W-102), a file a view can open (W-104), undo (W-103), and a way past the
+operation-row bound (W-101). The last is the binding one. Measured on Archisurance, a
+file reaches the bound after about 100 hours of active diagram editing, and only
+history compaction removes that wall.
+
 ## Next: surfaces and charts
 
 The vision admitted charts and dashboards on 2026-09-14.

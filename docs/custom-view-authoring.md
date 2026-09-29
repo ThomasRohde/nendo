@@ -947,7 +947,7 @@ Nendo does not interpret it. It is not the place for data.
 | Read and write the clipboard, and download files | Reach SQL, a file path, another file or a device setting |
 | Keep `localStorage` and IndexedDB, per package and file, on this device | Navigate Nendo away, or load Nendo inside a frame |
 | Send a link the person clicks, one that opens a new window, to their own browser | Open a window by script without the person's click |
-| Show the browser's `alert`, `confirm` and `prompt` | Prepare a proposal or keep state in the file (not yet) |
+| Show the browser's `alert`, `confirm` and `prompt` | Write several records as one revision (not yet: each write is its own) |
 | Create, change and delete records and run record commands, in its package's name | Write under any other name, or without a version check |
 | Ask Nendo to open a record, a screen or Studio, show a sentence and size its panel | Accept or reject a proposal, ever |
 

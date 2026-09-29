@@ -1302,7 +1302,7 @@ View code cannot:
   ([ADR-0009](../decisions/0009-local-mcp-transport-authority-and-change-sets.md));
 - navigate the Workbench away, load the Workbench in a frame, or connect a window
   it made to the broker;
-- prepare a proposal or keep state in the file (not yet: the rest of Phase 3);
+- write several records as one revision (not yet: each write is its own revision);
 - write under any name but its own package's;
 - accept or reject a proposal, ever.
 
