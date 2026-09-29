@@ -204,6 +204,15 @@ internal sealed class DesktopTrayIcon : IDisposable
             LR_LOADFROMFILE | LR_DEFAULTSIZE);
     }
 
+    /// <summary>
+    /// The flags a call actually sends. Under NOTIFYICON_VERSION_4 the shell reads
+    /// NIF_SHOWTIP as state on every add and modify, not once: a modify that leaves it
+    /// out turns the standard tooltip off. Changing the icon for the open file did
+    /// exactly that, so hovering the icon showed nothing from the first file opened on.
+    /// </summary>
+    internal static int ShellFlags(int message, int flags) =>
+        message is NIM_ADD or NIM_MODIFY ? flags | NIF_TIP | NIF_SHOWTIP : flags;
+
     private bool Notify(int message, int flags, string? infoTitle = null, string? info = null, int version = 0)
     {
         var data = new NOTIFYICONDATAW
@@ -211,7 +220,7 @@ internal sealed class DesktopTrayIcon : IDisposable
             cbSize = Marshal.SizeOf<NOTIFYICONDATAW>(),
             hWnd = _hwnd,
             uID = 1,
-            uFlags = flags,
+            uFlags = ShellFlags(message, flags),
             uCallbackMessage = CallbackMessage,
             hIcon = _icon,
             szTip = _tip,
