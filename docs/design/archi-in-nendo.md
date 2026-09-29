@@ -146,6 +146,17 @@ box, an undo and a redo commit as one field set of its place in one revision (me
 `Review-ArchiWorkbench.ps1`). A session that moves boxes about until they sit right costs the
 rows of where they ended.
 
+Measured by the same lane on 2026-09-29: an editing session on Archisurance's Layered View of
+twelve gestures — two drags of one box, an undo and a redo, an element placed from the palette,
+a relationship refused and one drawn, a resize, a nest into a group, a new bendpoint, a
+reconnected end, a delete from the view that was discarded, and one more drag whose first
+commit was refused — committed **17 operation rows in four revisions**. The drag that was
+undone, the refused relationship, the discarded delete and the refused commit cost nothing:
+about 1.4 rows a gesture made, against the 1.7 the scenario below assumes. What collecting saves
+is every gesture that is undone, discarded or made again before it is committed.
+Editing a view holds file changes back while the pointer is pressed, because archi-online
+cancels a drag whose model is replaced under it.
+
 **Undo may not need the host.** archi-online keeps every transaction's inverse
 patches. The view can offer undo by writing a gesture's inverse as a new revision,
 version-checked so that a record changed since is refused rather than overwritten.

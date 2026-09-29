@@ -24,6 +24,8 @@ interface EditorOptions {
   onSelect?: (ids: string[]) => void;
   /** The editor opened another view: a double-click on a view reference. */
   onOpenView?: (viewId: string) => void;
+  /** The pointer was let go in the editor: a change held back while it was pressed may land now. */
+  onIdle?: () => void;
 }
 
 /**
@@ -79,6 +81,19 @@ export function createEditor(host: HTMLElement, base: ModelState, options: Edito
   host.addEventListener('pointerdown', onSplitterDown);
   host.addEventListener('keydown', onSplitterKey);
 
+  // Whether a gesture is under way. archi-online cancels a drag whose model is replaced while
+  // it runs, so the workbench holds a change from the file back until the pointer is let go.
+  let pressed = false;
+  const onPress = () => { pressed = true; };
+  const onRelease = () => {
+    if (!pressed) return;
+    pressed = false;
+    options.onIdle?.();
+  };
+  host.addEventListener('pointerdown', onPress, true);
+  window.addEventListener('pointerup', onRelease, true);
+  window.addEventListener('pointercancel', onRelease, true);
+
   const draw = () => {
     if (!root) return;
     root.render(createElement(ModelStoreProvider, { store, children: [
@@ -127,6 +142,10 @@ export function createEditor(host: HTMLElement, base: ModelState, options: Edito
     redo: () => redo(store),
     /** Select objects on the view, as a selection made in the tree. */
     select(ids: string[]) {
+      // The editor's own selection is the view's, with its handles; handing it back as the tree's
+      // would take them away between a click and the drag that follows it.
+      const current = store.getState().selection.ids;
+      if (current.length === ids.length && current.every((id, index) => id === ids[index])) return;
       quiet = true;
       try { setSelection('tree', ids, store); } finally { quiet = false; }
     },
@@ -136,8 +155,12 @@ export function createEditor(host: HTMLElement, base: ModelState, options: Edito
     zoomActual: () => zoomButton(1),
     fit: () => zoomButton(3),
     zoom: () => Number(/(\d+)%/.exec(host.querySelector('.zoom-controls .zoom-pct')?.textContent ?? '')?.[1] ?? 100) / 100,
+    busy: () => pressed,
     destroy() {
       unsubscribe();
+      host.removeEventListener('pointerdown', onPress, true);
+      window.removeEventListener('pointerup', onRelease, true);
+      window.removeEventListener('pointercancel', onRelease, true);
       host.removeEventListener('pointerdown', onSplitterDown);
       host.removeEventListener('keydown', onSplitterKey);
       root?.unmount();

@@ -697,17 +697,23 @@ function renderEditor(view) {
         } finally { selectionFromEditor = false; }
       },
       onOpenView: id => { if (state.model.records.has(id)) select(id); },
+      onIdle: () => { if (editor && editSets !== state.sets) renderCentre(); },
     });
     editor.show(view.recordId);
     if (saved) setStatus(`${saved.length} edits were waiting to be committed, and are here again.`);
     editsChanged();
-  } else if (editSets !== state.sets) {
+  } else if (editSets !== state.sets && !editor.busy()) {
     // The file changed: after a commit, a change in the tree, or somebody else's. Whatever still
-    // waits is carried onto the file as it now is; Undo starts again from here.
+    // waits is carried onto the file as it now is. Held back while a gesture is under way, which
+    // a new model would cancel; and when the file now says what the editor shows, as after a
+    // commit, the editor keeps its model, and with it Undo.
     const waiting = waitingWrites();
     editSets = state.sets;
     editBase = canvasModule.buildMirror(state.sets);
-    editor.reset(waiting.length === 0 ? editBase : canvasModule.buildMirror(canvasModule.applyWrites(state.sets, waiting)));
+    const next = waiting.length === 0 ? editBase : canvasModule.buildMirror(canvasModule.applyWrites(state.sets, waiting));
+    const differs = canvasModule.writesFor(state.sets, next, editor.model()).length > 0
+      || canvasModule.writesFor(state.sets, editor.model(), next).length > 0;
+    if (differs) editor.reset(next);
     editsChanged();
   }
   if (editor.viewId() !== view.recordId) editor.show(view.recordId);

@@ -579,6 +579,123 @@ async (page) => {
   const relationship = (await records('ar.concept')).find(record => record.recordId === created[0].writes.find(write => write.entityId === 'ar.concept' && write.values['ar.concept.category'] === 'Relationship')?.recordId);
   assert(relationship?.values['ar.concept.type'] === `ar.type.r.${permitted}`, `The committed relationship is not the ${permitted} drawn: ${JSON.stringify(relationship?.values)}.`);
 
+  // Resize, nest, a new bendpoint and a reconnected end, then one commit that carries all four.
+  const lineId = created[0].writes.find(write => write.entityId === 'ar.item' && write.values['ar.item.kind'] === 'Relationship connection').recordId;
+  const sized = await boxOf(moving);
+  // Away from where the new line meets the box: a click there selects the line.
+  await page.mouse.click(editFrame.x + sized.x + sized.width - 12, editFrame.y + sized.y + sized.height - 6);
+  const corner = await view.evaluate(id => {
+    const handle = document.querySelector(`.archi-editor [data-handle="se"][data-handle-node="${id}"]`);
+    if (!handle) return null;
+    const r = handle.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  }, moving);
+  assert(corner, 'A selected box has no resize handle at its corner.');
+  await drag(corner, 30, 20);
+  await pendingIs(1, 'A box resized');
+  // Nest the new actor in a group: dropped on an empty part of one, it becomes its child.
+  const groups = (await records('ar.item')).filter(record => record.values['ar.item.view'] === editedView.recordId && record.values['ar.item.kind'] === 'Group');
+  const drop = await view.evaluate(ids => {
+    for (const id of ids) {
+      const group = document.querySelector(`.archi-editor [data-node-id="${id}"]`);
+      if (!group) continue;
+      const r = group.getBoundingClientRect();
+      for (let y = r.top + 30; y < r.bottom - 20; y += 10) for (let x = r.left + 30; x < r.right - 80; x += 10) {
+        if (document.elementFromPoint(x, y)?.closest('[data-node-id]')?.getAttribute('data-node-id') === id) return { id, x, y };
+      }
+    }
+    return null;
+  }, groups.map(group => group.recordId));
+  assert(drop, 'No group on the view has an empty place to drop a box in.');
+  const actorNow = await boxOf(actorBox);
+  const grab = { x: actorNow.x + actorNow.width / 2, y: actorNow.y + actorNow.height / 2 };
+  await drag(grab, drop.x + 20 - grab.x, drop.y + 10 - grab.y);
+  await pendingIs(2, 'The new actor dropped into a group');
+  // A new bendpoint: select the new line, then drag from its middle.
+  const middleOf = id => view.evaluate(wanted => {
+    const line = document.querySelectorAll(`.archi-editor [data-conn-id="${wanted}"] path`)[1];
+    if (!line) return null;
+    const at = line.getPointAtLength(line.getTotalLength() / 2);
+    const point = new DOMPoint(at.x, at.y).matrixTransform(line.getScreenCTM());
+    return { x: point.x, y: point.y };
+  }, id);
+  const middle = await middleOf(lineId);
+  assert(middle, 'The new relationship has no line on the view.');
+  await page.mouse.click(editFrame.x + middle.x, editFrame.y + middle.y);
+  await drag(middle, 0, 45);
+  await pendingIs(3, 'A bendpoint added to the new line');
+  // Reconnect the line's far end to another box its relationship may reach.
+  const concepts = await records('ar.concept');
+  const typeKeys = new Map((await records('ar.type')).map(record => [record.recordId, record.values['ar.type.key']]));
+  const boxes = (await records('ar.item')).filter(record => record.values['ar.item.view'] === editedView.recordId && record.values['ar.item.kind'] === 'Element'
+    && record.recordId !== moving);
+  const reachable = await view.evaluate(async ({ candidates, relation }) => {
+    const rules = await import('./canvas.js');
+    return candidates.filter(candidate => rules.validRelationshipTypes('BusinessActor', candidate.type).includes(relation)).map(candidate => candidate.id);
+  }, { candidates: boxes.map(box => ({ id: box.recordId, type: typeKeys.get(concepts.find(c => c.recordId === box.values['ar.item.concept'])?.values['ar.concept.type']) })), relation: permitted });
+  let reconnected = null;
+  for (const id of reachable) {
+    const b = await boxOf(id);
+    if (!b) continue;
+    const at = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+    const clear = await view.evaluate(({ id: wanted, x, y }) => document.elementFromPoint(x, y)?.closest('[data-node-id]')?.getAttribute('data-node-id') === wanted, { id, ...at });
+    if (clear) { reconnected = { id, ...at }; break; }
+  }
+  assert(reconnected, `No other box on the view may be the target of a ${permitted} from a Business Actor.`);
+  const lineAgain = await middleOf(lineId);
+  await page.mouse.click(editFrame.x + lineAgain.x + 4, editFrame.y + lineAgain.y);
+  const end = await view.evaluate(id => {
+    const handle = document.querySelector(`.archi-editor [data-connection-endpoint-handle="target"][data-connection-endpoint-id="${id}"]`);
+    if (!handle) return null;
+    const r = handle.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  }, lineId);
+  assert(end, 'A selected line has no handle at its target end.');
+  await drag(end, reconnected.x - end.x, reconnected.y - end.y);
+  await pendingIs(4, 'The line\u2019s target reconnected: the line and its relationship');
+  const beforeFour = (await batches()).length;
+  await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
+  await pendingIs(0, 'Resize, nest, bendpoint and reconnect committed');
+  const four = (await batches()).slice(beforeFour);
+  assert(four.length === 1, `Four gestures did not commit as one revision: ${four.length} batches.`);
+  const itemsAfter = await records('ar.item');
+  const itemOf = id => itemsAfter.find(record => record.recordId === id).values;
+  assert(itemOf(moving)['ar.item.width'] !== movedTo.values['ar.item.width'] && itemOf(moving)['ar.item.height'] !== movedTo.values['ar.item.height'],
+    `The resize did not reach the file: ${JSON.stringify(itemOf(moving))}.`);
+  assert(itemOf(actorBox)['ar.item.parent'] === drop.id, `The actor was not nested in the group: ${itemOf(actorBox)['ar.item.parent']} rather than ${drop.id}.`);
+  assert(JSON.parse(itemOf(lineId)['ar.item.bendpoints'] ?? '[]').length === 1, `The line has no bendpoint in the file: ${itemOf(lineId)['ar.item.bendpoints']}.`);
+  assert(itemOf(lineId)['ar.item.target'] === reconnected.id, `The line's target is ${itemOf(lineId)['ar.item.target']}, not the box it was reconnected to.`);
+  const relationAfter = (await records('ar.concept')).find(record => record.recordId === itemOf(lineId)['ar.item.concept']);
+  assert(relationAfter.values['ar.concept.target'] === itemOf(reconnected.id)['ar.item.concept'],
+    'Reconnecting the line did not move its relationship\u2019s target with it.');
+
+  // The magic connector offers, from a Business Actor to the moved box, exactly the relationship
+  // types archi-online's rules allow between those two types.
+  await view.click('.archi-palette .pal-btn[title^="Magic connector"]');
+  const from = await boxOf(actorBox), to = await boxOf(moving);
+  await page.mouse.click(editFrame.x + from.x + from.width / 2, editFrame.y + from.y + from.height / 2);
+  await page.mouse.click(editFrame.x + to.x + 8, editFrame.y + to.y + to.height / 2);
+  await until(() => [...document.querySelectorAll('.ctx-menu .ctx-label')].some(label => label.textContent === 'Forward'), null,
+    'The magic connector offered no Forward relationships between the two boxes.');
+  const forwardAt = await view.evaluate(() => {
+    const item = [...document.querySelectorAll('.ctx-menu .ctx-item')].find(entry => entry.querySelector('.ctx-label')?.textContent === 'Forward');
+    const r = item.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  await page.mouse.move(editFrame.x + forwardAt.x, editFrame.y + forwardAt.y);
+  await until(() => document.querySelectorAll('.ctx-menu').length >= 2, null, 'Forward opened no list of relationship types.');
+  const offered = await view.evaluate(() => [...document.querySelectorAll('.ctx-menu')[1].querySelectorAll(':scope > .ctx-item > .ctx-label, :scope .ctx-item > .ctx-label')]
+    .map(label => label.textContent));
+  const expected = allowed.map(type => labels[type]);
+  const offeredTypes = [...new Set(offered)].filter(label => expected.includes(label) || Object.values(labels).includes(label));
+  assert(JSON.stringify([...offeredTypes].sort()) === JSON.stringify([...expected].sort()),
+    `The magic connector offers ${JSON.stringify(offeredTypes)} from a Business Actor to a ${targetType}; archi-online's rules allow ${JSON.stringify(expected)}.`);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await view.click('.archi-palette .pal-btn[title^="Select"]');
+  await pendingIs(0, 'The magic connector dismissed');
+  const magic = { offered: offeredTypes.length };
+
   // Delete from the view, then Discard: the view is as stored again.
   const objectsStored = (await nodeIds()).length;
   const actorAt = await boxOf(actorBox);
@@ -593,6 +710,7 @@ async (page) => {
   const again = await boxOf(moving);
   await drag({ x: again.x + 8, y: again.y + again.height / 2 }, 0, 40);
   await pendingIs(1, 'A box dragged down');
+  const refusedBatch = (await batches()).length;
   await page.evaluate(() => window.broker.fail('records.batch', { code: 'record-version-conflict', message: 'The record changed since it was read.' }));
   await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
   await until(() => /was refused/.test(document.getElementById('status').textContent), null, 'A refused commit was not reported.');
@@ -629,7 +747,13 @@ async (page) => {
   }
   await page.evaluate(() => { window.broker.startAt(null); window.broker.command('edit', false, 'toolbar'); });
   await until(() => !!document.querySelector('.canvas-host .paper') && !document.querySelector('.archi-editor'), null, 'Leaving Edit did not return to the drawn view.');
-  results.edit = { view: editedView.values['ar.view.name'], refused, permitted, commits: (await batches()).length - batchesBefore, colours: editorColours, palette, selection: { box: boxMarks, line: lineMarks } };
+  results.edit = { view: editedView.values['ar.view.name'], refused, permitted, commits: (await batches()).length - batchesBefore, colours: editorColours, palette, selection: { box: boxMarks, line: lineMarks }, magic,
+    ...(await (async () => {
+      // What the session cost the file: the commits that were applied, a row per record created or
+      // deleted and one per field set. The refused commit wrote nothing.
+      const applied = (await batches()).filter((_, index) => index >= batchesBefore && index !== refusedBatch);
+      return { revisions: applied.length, rows: applied.flatMap(batch => batch.writes).reduce((rows, write) => rows + (write.op === 'update' ? Object.keys(write.values).length : 1), 0) };
+    })()) };
   }
 
   // ---- Both themes, measured: the page, the tree's selection and every native list take the theme's colours.
