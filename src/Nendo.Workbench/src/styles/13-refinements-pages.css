@@ -148,7 +148,7 @@
 /* A gallery card names an accent field, so its edge and tint follow the record page's
    header band. Both degrade to the neutral card when the record's choice is unset. */
 .record-card.is-toned {
-  border-left: 4px solid var(--status-color, var(--line-strong));
+  border-color: color-mix(in srgb, var(--status-color, var(--line)) 30%, var(--line));
   background: color-mix(in srgb, var(--status-color, var(--surface-soft)) 7%, var(--surface-raised));
 }
 

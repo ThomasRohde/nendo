@@ -463,9 +463,9 @@ gallery's charts navigate away and do not narrow the cards.
 title leads. A choice value among the bound fields reads as a chip, as it does on
 a board card. Everything else is a labelled value pair.
 
-Where `accentFieldId` is named, the record's option tones the left edge of the
-card and tints its background, in the same way the record-page header band is
-toned. A record whose choice is unset gets the neutral card. Cards are
+Where `accentFieldId` is named, the record's option tones the card's border and
+tints its background, in the same way the record-page header band is tinted. No
+card or callout carries a coloured left stripe (W-096). A record whose choice is unset gets the neutral card. Cards are
 typographic because a field cannot hold an image. When the hierarchy is good,
 this is a strength of the card.
 

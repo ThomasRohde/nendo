@@ -146,9 +146,11 @@
 .context-note {
   max-width: 680px;
   margin-top: 18px;
-  padding: 16px 18px;
-  border-left: 3px solid var(--violet);
+  padding: 14px 16px;
 }
+
+/* The unconfirmed-save notice is the one context note that asks for attention. */
+.context-note.is-tinted { --callout-tone: var(--warning); }
 
 .context-note p {
   margin: 5px 0 0;

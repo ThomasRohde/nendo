@@ -179,7 +179,8 @@ function renderPendingMutation(): boolean {
     sessionHealth.append(document.createTextNode(accepting ? 'Acceptance unconfirmed' : 'Save unconfirmed'));
   }
   const notice = document.createElement('aside');
-  notice.className = 'context-note';
+  notice.className = 'context-note callout is-tinted';
+  notice.innerHTML = `<span class="callout-icon">${icon('alert')}</span>`;
   notice.id = 'pending-save-notice';
   notice.setAttribute('role', 'status');
   const message = document.createElement('p');

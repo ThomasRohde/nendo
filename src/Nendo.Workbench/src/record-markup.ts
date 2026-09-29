@@ -9,6 +9,7 @@ import { choiceDisplay, escapeAttribute, escapeHtml, fieldName, sameValue, stora
 import { ratingControlMarkup, ratingMarkup, ratingScaleOf } from './rating';
 import { chartStates, chartTables, relatedWindows, state, summaryCounts } from './app-state';
 import { applicationPlans, drillTarget } from './plan-selection';
+import { icon } from './icons';
 import type { ApplicationPlan, DerivedFieldPlan, EntitySnapshot, FieldPlan, RecordPlan, SurfaceNodePlan } from './host';
 
 /**
@@ -343,7 +344,8 @@ export function derivedFieldMarkup(record: RecordPlan | null, field: DerivedFiel
     : calculatedDisplay(record.calculations?.[field.semanticId]);
   // The formula names the author's binding aliases, which mean something in Studio
   // and nothing to a person using the finished screen.
-  return `<div class="derived-field" data-derived-field="${escapeAttribute(field.semanticId)}" data-state="${display.state}" data-testid="${escapeAttribute(field.automationTarget)}">
+  return `<div class="derived-field callout${display.state === 'error' ? ' is-tinted' : ''}" data-derived-field="${escapeAttribute(field.semanticId)}" data-state="${display.state}" data-testid="${escapeAttribute(field.automationTarget)}">
+    <span class="callout-icon">${icon(display.state === 'error' ? 'alert' : 'sigma')}</span>
     <span class="derived-label">${escapeHtml(field.displayName)}</span>
     <output class="derived-value">${escapeHtml(display.text)}</output>
     ${display.detail === undefined ? '' : `<p class="derived-detail" role="status">${escapeHtml(display.detail)}</p>`}

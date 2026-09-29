@@ -42,7 +42,7 @@ a total.
 | --- | --- | --- | --- |
 | List | up to 8 | Rows of records, one column per bound field, in a chosen order, with Previous and Next. | |
 | Board | up to 8 | Cards in columns, grouped by one field. Drag a card to another column to change that field. | Groups by a single-choice field or a bound reference field. |
-| Gallery | up to 8 | The same records and pages as a list, drawn as cards. A title field leads each card; a single-choice accent field colours its edge. | Cards are text only; there are no image fields. |
+| Gallery | up to 8 | The same records and pages as a list, drawn as cards. A title field leads each card; a single-choice accent field tints it. | Cards are text only; there are no image fields. |
 | Calendar | up to 8 | Records on a month grid by one date field, plus an **Undated** view. | Date fields only. A date-and-time field is refused. |
 | Timeline | up to 8 | Records under month headings on a one-year spine, plus an **Undated** view. An optional end date draws a span. | Date fields only. A record is placed by its start date. |
 | Matrix | up to 8 | A grid that crosses two fields, with an exact count and the cards in each cell. | At most 366 cells, so about 19 by 19. |

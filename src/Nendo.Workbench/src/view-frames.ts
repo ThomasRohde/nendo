@@ -7,6 +7,7 @@ import { openProposalFromView, openRecordFromView, openScreenFromView, openStudi
 import type { ProposalPreview } from './host';
 import { content, root } from './shell';
 import type { PaletteCommand } from './shortcuts';
+import { icon } from './icons';
 import { closeViewMenu, showViewMenu } from './view-menu';
 import { drawViewToolbar, focusViewSearch } from './view-toolbar';
 import { keyDisplay } from './view-toolbar-markup';
@@ -568,7 +569,7 @@ function developmentBanner(element: HTMLElement, stage: HTMLElement, folder: str
     element.insertBefore(banner, stage);
   }
   const text = document.createElement('span');
-  text.innerHTML = '<strong>Development</strong> ';
+  text.innerHTML = `${icon('code')}<strong>Development</strong> `;
   text.append(document.createTextNode(`This computer runs ${packageId} from the folder ${folder}, not the code in the file.`));
   const save = document.createElement('button');
   save.type = 'button'; save.className = 'text-button'; save.textContent = 'Save to file…';

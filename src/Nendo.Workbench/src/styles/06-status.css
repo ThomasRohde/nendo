@@ -34,10 +34,9 @@
   gap: 10px;
   margin: 8px 12px;
   padding: 6px 12px;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--violet);
+  border: 1px solid color-mix(in srgb, var(--violet) 26%, var(--line));
   border-radius: var(--radius-panel);
-  background: var(--surface-raised);
+  background: color-mix(in srgb, var(--violet) 8%, var(--surface-raised));
   font-size: 0.85rem;
 }
 

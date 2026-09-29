@@ -35,7 +35,8 @@ export function behaviourApprovalMarkup(): string {
     trust.deletesRecords ? 'delete records' : null,
   ].filter((effect): effect is string => effect !== null);
   const summary = effects.length === 0 ? 'run automatically when you edit' : effects.join(', ');
-  return `<div class="behaviour-approval" data-testid="behaviour-approval" data-approved="${trust.isApproved}">
+  return `<div class="behaviour-approval callout is-tinted" data-testid="behaviour-approval" data-approved="${trust.isApproved}">
+    <span class="callout-icon">${icon(trust.isApproved ? 'command' : 'alert')}</span>
     <h3>Automatic actions</h3>
     <p>When you edit this file, it can <strong>${escapeHtml(summary)}</strong> on its own.
       ${trust.isApproved

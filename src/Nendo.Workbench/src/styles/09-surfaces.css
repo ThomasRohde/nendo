@@ -700,14 +700,15 @@
   align-items: center;
   gap: 4px 12px;
   padding: 6px 10px;
-  border: 1px solid var(--warning);
-  border-left-width: 4px;
+  border: 1px solid color-mix(in srgb, var(--warning) 26%, var(--line));
   border-radius: var(--radius-control);
   color: var(--ink);
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface));
   font-size: 0.8rem;
 }
 
 .view-development > span { flex: 1 1 18rem; min-width: 0; overflow-wrap: anywhere; }
+.view-development > span > .outline-icon { display: inline-block; width: 16px; height: 16px; margin: 0 6px -3px 0; color: var(--warning); }
 .view-development strong { color: var(--warning); font-weight: 700; }
 .view-development .text-button { min-height: 26px; padding: 2px 8px; font-size: 0.78rem; }
 .view-mount.is-screen .view-development { margin: 8px 8px 0; }

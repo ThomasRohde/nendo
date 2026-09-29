@@ -426,13 +426,36 @@
    merely read, and the four result states stay visibly distinct — an empty or
    failed calculation must never read as a blank the way an unset stored value
    does. Both themes inherit their colours from the shared tokens. */
-.derived-field {
+/* A callout: a bordered panel whose icon, in the heading's first column, carries its tone.
+   Callouts that ask for attention add is-tinted, which mixes the tone into the border and
+   the fill; a routine note stays neutral. There is deliberately no coloured edge: the icon
+   and the tint say it, in both themes, from the one --callout-tone. */
+.callout {
+  --callout-tone: var(--muted);
   display: grid;
-  gap: 4px;
-  padding: 10px 12px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 10px;
+  row-gap: 6px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
-  border-left: 3px solid var(--violet);
   border-radius: var(--radius-control);
+  background: var(--surface);
+}
+
+.callout > * { grid-column: 2; min-width: 0; }
+.callout > .callout-icon { grid-column: 1; grid-row: 1 / span 2; color: var(--callout-tone); }
+.callout > .callout-icon .outline-icon { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 1px; }
+
+.callout.is-tinted {
+  border-color: color-mix(in srgb, var(--callout-tone) 26%, var(--line));
+  background: color-mix(in srgb, var(--callout-tone) 8%, var(--surface));
+}
+
+.derived-field {
+  --callout-tone: var(--violet);
+  row-gap: 4px;
+  padding: 10px 12px;
   background: var(--surface-soft);
 }
 
@@ -455,7 +478,7 @@
 }
 
 .derived-field[data-state="error"] {
-  border-left-color: var(--danger);
+  --callout-tone: var(--danger);
 }
 
 .derived-field[data-state="error"] .derived-value {
@@ -500,7 +523,6 @@
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   background: color-mix(in srgb, var(--violet) 6%, transparent);
-  box-shadow: inset 3px 0 0 -1px var(--violet);
 }
 
 /* The approval panel in File status. Not an alert: a file asking whether its rules
@@ -508,19 +530,13 @@
    dismiss it. It uses the accent that marks calculated things elsewhere, so the
    two read as one feature. */
 .behaviour-approval {
-  display: grid;
-  gap: 6px;
+  --callout-tone: var(--violet);
   margin: 12px 0 0;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--violet);
-  border-radius: var(--radius-control);
-  background: var(--surface-soft);
 }
 
 .behaviour-approval h3 { margin: 0; font-size: 0.85rem; }
 .behaviour-approval p { margin: 0; line-height: 1.45; }
-.behaviour-approval[data-approved="false"] { border-left-color: var(--warning); }
+.behaviour-approval[data-approved="false"] { --callout-tone: var(--warning); }
 .behaviour-approval code {
   background: var(--surface-raised);
   border: 1px solid var(--line);
@@ -537,7 +553,6 @@
   gap: 4px;
   padding: 14px 16px 12px;
   border-bottom: 1px solid var(--line);
-  border-left: 4px solid var(--status-color, var(--line-strong));
   background: color-mix(in srgb, var(--status-color, var(--surface-soft)) 9%, var(--surface-raised));
 }
 

@@ -10,6 +10,7 @@ import { referenceControl, referenceVersions, wireReferenceControls } from './re
 import { content, requiredElement, rerender, showError } from './shell';
 import { fieldProposal, renameSchemaProposal } from './studio';
 import { CHOICE_TONES, toneLabel, toneOf } from './tones';
+import { icon } from './icons';
 import { renderData } from './view-data';
 /**
  * Studio structure: the fields of one record type and every change that can be
@@ -39,7 +40,7 @@ export function renderStructure(): void {
         <span class="field-requirement"><span class="requirement-value">${field.required ? 'Required' : 'Optional'}</span><button class="text-button" data-require-field="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''}>${field.required ? 'Make optional' : 'Make required'}</button>${fieldRulesMarkup(entity, field)}</span>
       </article>`).join('')}</div>
     </section>
-    ${activated ? '<aside class="context-note"><strong>Stable semantics</strong><p>Use surfaces bind to these IDs, not display labels or physical columns.</p></aside>' : '<aside class="context-note"><strong>No active surfaces</strong><p>Data remains available while a stored surface definition is prepared or repaired.</p></aside>'}
+    ${activated ? `<aside class="context-note callout"><span class="callout-icon">${icon('info')}</span><strong>Stable semantics</strong><p>Use surfaces bind to these IDs, not display labels or physical columns.</p></aside>` : `<aside class="context-note callout"><span class="callout-icon">${icon('info')}</span><strong>No active surfaces</strong><p>Data remains available while a stored surface definition is prepared or repaired.</p></aside>`}
   </div>`;
   requiredElement<HTMLSelectElement>('#structure-entity').addEventListener('change', event => {
     state.selectedEntityId = (event.currentTarget as HTMLSelectElement).value;
