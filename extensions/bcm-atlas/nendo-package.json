@@ -1,7 +1,7 @@
 {
   "packageId": "org.nendo.bcm-atlas",
   "title": "Capability Atlas",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "entryPoint": "index.html",
-  "description": "Business capability modeling with the BCM reference layout, maturity heatmaps, assessments over time, importance against health, hierarchy editing and portfolio traceability."
+  "description": "Business capability modeling with the BCM reference layout, maturity heatmaps, assessments over time, importance against health, application coverage, hierarchy editing and portfolio traceability."
 }

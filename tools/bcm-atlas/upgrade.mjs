@@ -10,6 +10,7 @@ import { defs, references, tones, unique, mapView } from './definition.mjs';
 const op = (operationType, payload) => ({ operationType, payload });
 const entityOf = fieldId => `bcm.${defs.find(([, , prefix]) => fieldId.startsWith(prefix + '.'))[0]}`;
 const [assessmentId, assessmentName, prefix, fields] = defs.find(([id]) => id === 'assessment');
+const [scopeId, scopeName, scopePrefix, scopeFields] = defs.find(([id]) => id === 'scope');
 
 /** The proposal's mutations, each within the host's 16 operations. */
 export function upgradeMutations() {
@@ -52,6 +53,34 @@ export function upgradeMutations() {
         node('bcm.history', 'relatedList', 'bcm.capability.detail', 1000,
           { targetEntityId: entityId, viaFieldId: `${prefix}.capability`, title: 'Assessment history' }),
         ...bind('bcm.history', ['dimension', 'score', 'date']),
+      ],
+    },
+    {
+      // W-081: an initiative covers several capabilities, one link record each.
+      description: `Define ${scopeName}, linking an initiative to each capability it changes`,
+      operations: [
+        op('schema.createEntity', { entityId: `bcm.${scopeId}`, displayName: scopeName }),
+        ...scopeFields.map(([key, label, kind, required = false, presentation]) => op('schema.addField', {
+          entityId: `bcm.${scopeId}`, fieldId: `${scopePrefix}.${key}`, displayName: label, storageKind: kind, required,
+          ...(presentation ? { presentation } : {}),
+        })),
+        ...references.filter(([type]) => type === scopeId).map(([type, fieldId, target, label]) =>
+          op('schema.configureReference', { entityId: `bcm.${type}`, fieldId, targetEntityId: `bcm.${target}`, labelFieldId: label })),
+      ],
+    },
+    {
+      description: 'Show an initiative\u2019s scope from both sides',
+      operations: [
+        node(`bcm.${scopeId}.detail`, 'detailSurface', null, 1002,
+          { definitionVersion: 3, entityId: `bcm.${scopeId}`, titleFieldId: `${scopePrefix}.name`, subtitleFieldId: `${scopePrefix}.initiative` }),
+        ...['initiative', 'capability', 'note'].map((key, index) =>
+          node(`bcm.${scopeId}.detail.${key}`, 'fieldBinding', `bcm.${scopeId}.detail`, index, { fieldId: `${scopePrefix}.${key}` })),
+        node('bcm.scopes', 'relatedList', 'bcm.capability.detail', 1001,
+          { targetEntityId: `bcm.${scopeId}`, viaFieldId: `${scopePrefix}.capability`, title: 'Initiatives in scope' }),
+        ...['initiative', 'note'].map((key, index) => node(`bcm.scopes.${key}`, 'fieldBinding', 'bcm.scopes', index, { fieldId: `${scopePrefix}.${key}` })),
+        node('bcm.inscope', 'relatedList', 'bcm.initiative.detail', 1000,
+          { targetEntityId: `bcm.${scopeId}`, viaFieldId: `${scopePrefix}.initiative`, title: 'Capabilities in scope' }),
+        ...['capability', 'note'].map((key, index) => node(`bcm.inscope.${key}`, 'fieldBinding', 'bcm.inscope', index, { fieldId: `${scopePrefix}.${key}` })),
       ],
     },
     {

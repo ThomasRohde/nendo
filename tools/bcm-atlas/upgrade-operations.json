@@ -317,6 +317,219 @@
     ]
   },
   {
+    "description": "Define Initiative scope, linking an initiative to each capability it changes",
+    "operations": [
+      {
+        "operationType": "schema.createEntity",
+        "payload": {
+          "entityId": "bcm.scope",
+          "displayName": "Initiative scope"
+        }
+      },
+      {
+        "operationType": "schema.addField",
+        "payload": {
+          "entityId": "bcm.scope",
+          "fieldId": "scope.name",
+          "displayName": "Scope",
+          "storageKind": "text",
+          "required": true
+        }
+      },
+      {
+        "operationType": "schema.addField",
+        "payload": {
+          "entityId": "bcm.scope",
+          "fieldId": "scope.initiative",
+          "displayName": "Initiative",
+          "storageKind": "reference",
+          "required": true
+        }
+      },
+      {
+        "operationType": "schema.addField",
+        "payload": {
+          "entityId": "bcm.scope",
+          "fieldId": "scope.capability",
+          "displayName": "Capability",
+          "storageKind": "reference",
+          "required": true
+        }
+      },
+      {
+        "operationType": "schema.addField",
+        "payload": {
+          "entityId": "bcm.scope",
+          "fieldId": "scope.note",
+          "displayName": "Why it is in scope",
+          "storageKind": "text",
+          "required": false,
+          "presentation": "longText"
+        }
+      },
+      {
+        "operationType": "schema.configureReference",
+        "payload": {
+          "entityId": "bcm.scope",
+          "fieldId": "scope.initiative",
+          "targetEntityId": "bcm.initiative",
+          "labelFieldId": "initiative.name"
+        }
+      },
+      {
+        "operationType": "schema.configureReference",
+        "payload": {
+          "entityId": "bcm.scope",
+          "fieldId": "scope.capability",
+          "targetEntityId": "bcm.capability",
+          "labelFieldId": "cap.name"
+        }
+      }
+    ]
+  },
+  {
+    "description": "Show an initiative’s scope from both sides",
+    "operations": [
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.scope.detail",
+          "kind": "detailSurface",
+          "position": 1002,
+          "parentNodeId": null,
+          "properties": {
+            "definitionVersion": 3,
+            "entityId": "bcm.scope",
+            "titleFieldId": "scope.name",
+            "subtitleFieldId": "scope.initiative"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.scope.detail.initiative",
+          "kind": "fieldBinding",
+          "position": 0,
+          "parentNodeId": "bcm.scope.detail",
+          "properties": {
+            "fieldId": "scope.initiative"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.scope.detail.capability",
+          "kind": "fieldBinding",
+          "position": 1,
+          "parentNodeId": "bcm.scope.detail",
+          "properties": {
+            "fieldId": "scope.capability"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.scope.detail.note",
+          "kind": "fieldBinding",
+          "position": 2,
+          "parentNodeId": "bcm.scope.detail",
+          "properties": {
+            "fieldId": "scope.note"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.scopes",
+          "kind": "relatedList",
+          "position": 1001,
+          "parentNodeId": "bcm.capability.detail",
+          "properties": {
+            "targetEntityId": "bcm.scope",
+            "viaFieldId": "scope.capability",
+            "title": "Initiatives in scope"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.scopes.initiative",
+          "kind": "fieldBinding",
+          "position": 0,
+          "parentNodeId": "bcm.scopes",
+          "properties": {
+            "fieldId": "scope.initiative"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.scopes.note",
+          "kind": "fieldBinding",
+          "position": 1,
+          "parentNodeId": "bcm.scopes",
+          "properties": {
+            "fieldId": "scope.note"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.inscope",
+          "kind": "relatedList",
+          "position": 1000,
+          "parentNodeId": "bcm.initiative.detail",
+          "properties": {
+            "targetEntityId": "bcm.scope",
+            "viaFieldId": "scope.initiative",
+            "title": "Capabilities in scope"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.inscope.capability",
+          "kind": "fieldBinding",
+          "position": 0,
+          "parentNodeId": "bcm.inscope",
+          "properties": {
+            "fieldId": "scope.capability"
+          }
+        }
+      },
+      {
+        "operationType": "ui.addNode",
+        "payload": {
+          "surfaceId": "bcm.atlas",
+          "nodeId": "bcm.inscope.note",
+          "kind": "fieldBinding",
+          "position": 1,
+          "parentNodeId": "bcm.inscope",
+          "properties": {
+            "fieldId": "scope.note"
+          }
+        }
+      }
+    ]
+  },
+  {
     "description": "List every assessment, newest first, and name them to the Capability map",
     "operations": [
       {
@@ -420,7 +633,7 @@
           "surfaceId": "bcm.atlas",
           "nodeId": "bcm.map",
           "propertyName": "configuration",
-          "value": "{\"fields\":{\"code\":\"cap.code\",\"description\":\"cap.description\",\"owner\":\"cap.owner\",\"maturity\":\"cap.maturity\",\"target\":\"cap.target\",\"importance\":\"cap.importance\",\"investment\":\"cap.investment\",\"lifecycle\":\"cap.lifecycle\",\"reviewed\":\"cap.reviewed\",\"evidence\":\"cap.evidence\"},\"banner\":{\"title\":\"NORTHSTAR / DEMONSTRATION MODEL\",\"note\":\"Fictional data · replace with your organisation\"},\"related\":{\"bcm.support\":{\"title\":\"Application support\",\"row\":\"{support.fit} fit · {support.role}\",\"empty\":\"No applications linked. Add support links in the record page.\"},\"bcm.initiative\":{\"title\":\"Change portfolio\",\"row\":\"{initiative.stage} · {initiative.end}\",\"empty\":\"No initiatives linked.\"},\"bcm.assessment\":{\"title\":\"Assessment history\",\"row\":\"{assess.dimension} {assess.score} · {assess.date}\",\"empty\":\"Not assessed yet. Add an assessment in the record page.\"}},\"assessments\":{\"entityId\":\"bcm.assessment\",\"capability\":\"assess.capability\",\"dimension\":\"assess.dimension\",\"score\":\"assess.score\",\"date\":\"assess.date\",\"dimensions\":{\"maturity\":\"Maturity\",\"health\":\"IT health\",\"value\":\"Business value\"}}}"
+          "value": "{\"fields\":{\"code\":\"cap.code\",\"description\":\"cap.description\",\"owner\":\"cap.owner\",\"maturity\":\"cap.maturity\",\"target\":\"cap.target\",\"importance\":\"cap.importance\",\"investment\":\"cap.investment\",\"lifecycle\":\"cap.lifecycle\",\"reviewed\":\"cap.reviewed\",\"evidence\":\"cap.evidence\"},\"banner\":{\"title\":\"NORTHSTAR / DEMONSTRATION MODEL\",\"note\":\"Fictional data · replace with your organisation\"},\"related\":{\"bcm.support\":{\"title\":\"Application support\",\"row\":\"{support.fit} fit · {support.role}\",\"empty\":\"No applications linked. Add support links in the record page.\"},\"bcm.initiative\":{\"title\":\"Change portfolio\",\"row\":\"{initiative.stage} · {initiative.end}\",\"empty\":\"No initiatives linked.\"},\"bcm.scope\":{\"title\":\"Initiatives in scope\",\"row\":\"{scope.note}\",\"empty\":\"No initiative covers this capability.\"},\"bcm.assessment\":{\"title\":\"Assessment history\",\"row\":\"{assess.dimension} {assess.score} · {assess.date}\",\"empty\":\"Not assessed yet. Add an assessment in the record page.\"}},\"coverage\":{\"entityId\":\"bcm.support\",\"capability\":\"support.capability\",\"application\":\"support.application\",\"role\":\"support.role\",\"fit\":\"support.fit\"},\"assessments\":{\"entityId\":\"bcm.assessment\",\"capability\":\"assess.capability\",\"dimension\":\"assess.dimension\",\"score\":\"assess.score\",\"date\":\"assess.date\",\"dimensions\":{\"maturity\":\"Maturity\",\"health\":\"IT health\",\"value\":\"Business value\"}}}"
         }
       }
     ]

@@ -38,6 +38,41 @@ export function migrated(capabilities) {
       capability.values['cap.evidence'] ?? null, 'maturity'));
 }
 
+/**
+ * Each initiative's primary capability as its first scope link (W-081): what the file already
+ * says, moved into the link type without loss. The primary capability stays on the initiative.
+ */
+export function scopedFromPrimary(initiatives) {
+  return initiatives.filter(initiative => initiative.values['initiative.capability']).map(initiative => ({
+    recordId: `${initiative.recordId}.scope.primary`,
+    values: {
+      'scope.name': `${initiative.values['initiative.code'] ?? initiative.recordId} · primary`,
+      'scope.initiative': initiative.recordId,
+      'scope.capability': initiative.values['initiative.capability'],
+      'scope.note': 'Primary capability.',
+    },
+  }));
+}
+
+/** Fictional wider scope for the Northstar demo: each initiative also changes two of its capability's siblings. */
+export function demonstrationScope(initiatives, capabilities) {
+  const parentOf = new Map(capabilities.map(capability => [capability.recordId, capability.values['cap.parent']]));
+  return initiatives.flatMap(initiative => {
+    const primary = initiative.values['initiative.capability'];
+    const siblings = capabilities.filter(capability => primary && capability.recordId !== primary &&
+      capability.values['cap.parent'] === parentOf.get(primary)).slice(0, 2);
+    return siblings.map((capability, index) => ({
+      recordId: `${initiative.recordId}.scope.${index + 1}`,
+      values: {
+        'scope.name': `${initiative.values['initiative.code'] ?? initiative.recordId} · ${capability.values['cap.code'] ?? capability.recordId}`,
+        'scope.initiative': initiative.recordId,
+        'scope.capability': capability.recordId,
+        'scope.note': 'Fictional wider scope for the demonstration model.',
+      },
+    }));
+  });
+}
+
 /** Fictional history for the Northstar demo, derived from each capability's position. */
 export function demonstration(capabilities) {
   const records = [];

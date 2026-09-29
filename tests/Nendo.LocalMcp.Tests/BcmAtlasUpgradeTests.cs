@@ -70,6 +70,11 @@ public sealed class BcmAtlasUpgradeTests
         CollectionAssert.AreEqual(
             new[] { "assess.name", "assess.capability", "assess.dimension", "assess.score", "assess.date" },
             assessment.Fields.Where(field => field.Required).Select(field => field.FieldId).ToArray());
+        // W-081: an initiative covers several capabilities, one link each, both ends required.
+        var scope = snapshot.Entities.SingleOrDefault(entity => entity.EntityId == "bcm.scope")
+            ?? throw new AssertFailedException("The upgrade did not create the Initiative scope link type.");
+        CollectionAssert.AreEquivalent(new[] { "scope.name", "scope.initiative", "scope.capability" },
+            scope.Fields.Where(field => field.Required).Select(field => field.FieldId).ToArray());
         var capability = snapshot.Entities.Single(entity => entity.EntityId == "bcm.capability");
         Assert.IsTrue(capability.Fields.Single(field => field.FieldId == "cap.code").Unique, "The capability code is not unique after the upgrade.");
         var support = snapshot.Entities.Single(entity => entity.EntityId == "bcm.support");

@@ -1,4 +1,5 @@
-// Brings a running BCM.nendo up to the Capability Atlas of W-080: assessments over time.
+// Brings a running BCM.nendo up to the Capability Atlas of W-080 and W-081: assessments over time,
+// and initiatives that cover several capabilities.
 //
 //   node tools/bcm-atlas/Upgrade-BcmAtlas.mjs schema [--endpoint <url>] [--dry-run] [--accept]
 //   node tools/bcm-atlas/Upgrade-BcmAtlas.mjs data   [--endpoint <url>] [--dry-run]
@@ -6,10 +7,12 @@
 // schema  proposes upgrade.mjs's mutations: the Assessment record type and its screens, a unique
 //         capability code, both ends of a support link required, and the map's configuration.
 //         The person accepts it in Nendo (--accept only at Unattended, as Put-NendoPackage.mjs).
-// data    once that is accepted, reads the file's capabilities and imports each current
-//         maturity as its first assessment (assessments.mjs: migrated), with the Northstar demo's
-//         fictional history (demonstration). The capabilities themselves are not changed, so
-//         their maturity and target stay where they were. Needs Agent access at Edit data.
+// data    once that is accepted, reads the file's capabilities and initiatives and imports each
+//         current maturity as its first assessment (assessments.mjs: migrated) and each
+//         initiative's primary capability as its first scope link (scopedFromPrimary), with the
+//         Northstar demo's fictional history and wider scope. Nothing already in the file is
+//         changed, so maturity, target and primary capability stay where they were. Needs Agent
+//         access at Edit data.
 //
 // The file is found by its application ID in this device's agent-ports.json (W-089), or named
 // with --endpoint. Update the package itself with Put-NendoPackage.mjs extensions/bcm-atlas.
@@ -18,7 +21,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createNendoMcpClient } from '../Nendo-McpClient.mjs';
 import { upgradeMutations } from './upgrade.mjs';
-import { migrated, demonstration } from './assessments.mjs';
+import { migrated, demonstration, scopedFromPrimary, demonstrationScope } from './assessments.mjs';
 
 const BCM = 'application-7ee604c2f5df4a9f8dab9ae0079b498e';
 const args = process.argv.slice(2);
@@ -50,7 +53,7 @@ async function withLease(work) {
 
 if (phase === 'schema') {
   const mutations = upgradeMutations();
-  const title = 'Assessments over time for the Capability Atlas (W-080)';
+  const title = 'Assessments over time and initiative scope for the Capability Atlas (W-080, W-081)';
   console.log(`Mutations       ${mutations.length} (${mutations.reduce((sum, m) => sum + m.operations.length, 0)} operations)`);
   if (dryRun) { console.log('Dry run: nothing was sent.'); process.exit(0); }
   await withLease(async owned => {
@@ -69,28 +72,40 @@ if (phase === 'schema') {
     console.log(accepted.applied ? `Accepted: ${title}` : `Not applied: ${accepted.message}`);
   });
 } else {
-  const capabilities = [];
-  let cursor = null;
-  do {
-    const uri = `nendo://application/entity/bcm.capability/records?${cursor ? `cursor=${encodeURIComponent(cursor)}&` : ''}limit=100`;
-    const page = JSON.parse((await client.rpc('resources/read', { uri })).contents[0].text);
-    capabilities.push(...page.items.map(item => ({ recordId: item.recordId, values: item.values, version: item.recordVersion })));
-    cursor = page.nextCursor;
-  } while (cursor);
+  async function readAll(entityId) {
+    const found = [];
+    let cursor = null;
+    do {
+      const uri = `nendo://application/entity/${entityId}/records?${cursor ? `cursor=${encodeURIComponent(cursor)}&` : ''}limit=100`;
+      const page = JSON.parse((await client.rpc('resources/read', { uri })).contents[0].text);
+      found.push(...page.items.map(item => ({ recordId: item.recordId, values: item.values, version: item.recordVersion })));
+      cursor = page.nextCursor;
+    } while (cursor);
+    return found;
+  }
+  const capabilities = await readAll('bcm.capability');
+  const initiatives = await readAll('bcm.initiative');
   // A reference is written against its target's version, which the import is refused without.
-  const versions = new Map(capabilities.map(capability => [capability.recordId, capability.version]));
-  const records = [...migrated(capabilities), ...demonstration(capabilities)].map(record => ({
+  const versions = new Map([...capabilities, ...initiatives].map(record => [record.recordId, record.version]));
+  const assessments = [...migrated(capabilities), ...demonstration(capabilities)].map(record => ({
     ...record, expectedTargetVersions: { 'assess.capability': versions.get(record.values['assess.capability']) },
   }));
-  console.log(`Capabilities    ${capabilities.length}\nAssessments     ${records.length} (${migrated(capabilities).length} from current maturity)`);
+  const scopes = [...scopedFromPrimary(initiatives), ...demonstrationScope(initiatives, capabilities)].map(record => ({
+    ...record, expectedTargetVersions: {
+      'scope.initiative': versions.get(record.values['scope.initiative']), 'scope.capability': versions.get(record.values['scope.capability']),
+    },
+  }));
+  console.log(`Capabilities    ${capabilities.length}\nAssessments     ${assessments.length} (${migrated(capabilities).length} from current maturity)`);
+  console.log(`Scope links     ${scopes.length} (${scopedFromPrimary(initiatives).length} from primary capabilities)`);
   if (dryRun) { console.log('Dry run: nothing was sent.'); process.exit(0); }
   await withLease(async owned => {
-    for (let start = 0; start < records.length; start += 250) {
-      const imported = await client.tool('nendo.data.import_records', {
-        ...owned, entityId: 'bcm.assessment', format: 'json', records: records.slice(start, start + 250),
-        idempotencyKey: `w080-assessments-${start}`,
-      });
-      console.log(`Imported        ${start + imported.committed} of ${records.length}`);
+    for (const [entityId, records, key] of [['bcm.assessment', assessments, 'w080-assessments'], ['bcm.scope', scopes, 'w081-scope']]) {
+      for (let start = 0; start < records.length; start += 250) {
+        const imported = await client.tool('nendo.data.import_records', {
+          ...owned, entityId, format: 'json', records: records.slice(start, start + 250), idempotencyKey: `${key}-${start}`,
+        });
+        console.log(`Imported        ${entityId} ${start + imported.committed} of ${records.length}`);
+      }
     }
   });
 }

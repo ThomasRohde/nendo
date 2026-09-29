@@ -844,6 +844,11 @@ vocabulary, the examples and the resources — and not from the person.
   record whether every capability is placed, and whether the one you picked is in the
   cell its importance and latest IT health say. Add an assessment on its record page and
   record whether the map follows without being reopened.
+- Colour BCM's map by Application coverage and find a group whose children use two
+  applications: does the group say two or more? Open Capability × application and check
+  one cell's role and fit against that support link's record page. Link a second capability
+  to an initiative from the initiative's page (Link Capability), and record whether the
+  capability's inspector lists the initiative.
 - Open `workspace/BCM.nendo` and choose Capability map. The fictional model has 635
   capabilities up to five levels deep. Step Levels through 1 to 5 and All, and compare
   the cards shown with the counts the view states and with the records Nendo reports.

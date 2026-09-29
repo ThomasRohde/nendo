@@ -98,7 +98,7 @@ async (page) => {
   assert(await status() === '48 shown · 635 in scope · 635 total', 'The map did not open at two levels: ' + await status());
 
   // BCM binds every part, so it keeps every colour mode, its banner and its own words (W-077).
-  assert(JSON.stringify(await colours()) === JSON.stringify(['maturity', 'gap', 'change', 'importance', 'investment', 'none']),
+  assert(JSON.stringify(await colours()) === JSON.stringify(['maturity', 'gap', 'change', 'coverage', 'importance', 'investment', 'none']),
     'BCM lost a colour mode: ' + JSON.stringify(await colours()));
   const banner = await view.evaluate(() => ({ hidden: document.getElementById('banner').hidden, text: document.getElementById('banner').textContent }));
   assert(!banner.hidden && banner.text === 'NORTHSTAR / DEMONSTRATION MODELFictional data · replace with your organisation', 'BCM lost its banner: ' + JSON.stringify(banner));
@@ -106,7 +106,7 @@ async (page) => {
   await select('bcm-cap-3-3');
   results.bcmInspector = await inspector();
   // In BCM's order, which its configuration gives; the host lists record types by ID, initiatives first.
-  assert(JSON.stringify(results.bcmInspector.headings) === JSON.stringify(['Assessment', '2 child capabilities', 'Application support', 'Change portfolio', 'Assessment history']),
+  assert(JSON.stringify(results.bcmInspector.headings) === JSON.stringify(['Assessment', '2 child capabilities', 'Application support', 'Change portfolio', 'Initiatives in scope', 'Assessment history']),
     'The inspector’s sections are not in BCM’s order: ' + JSON.stringify(results.bcmInspector.headings));
   for (const expected of ['Strong fit · Primary', 'Delivery · 2026-08-28']) {
     assert(results.bcmInspector.relations.some(text => text.endsWith(expected)), `No related row reads "${expected}": ${JSON.stringify(results.bcmInspector.relations)}`);
@@ -188,6 +188,55 @@ async (page) => {
     'bcm-cap-3-3 is in the wrong cell: ' + JSON.stringify(cell));
   await view.click('[data-mode="map"]');
   await until(() => !document.getElementById('map').hidden, null, 'The map did not come back from Importance × health.');
+
+  // W-081: application coverage. Every leaf reads the distinct applications supporting it or
+  // anything below it, counted from the fixture's own support links.
+  const supports = bcm.records['bcm.support'];
+  const parentOf = new Map(bcm.records['bcm.capability'].map(record => [record.recordId, record.values['cap.parent']]));
+  const underOrAt = (id, ancestor) => { for (let at = id; at; at = parentOf.get(at)) if (at === ancestor) return true; return false; };
+  const appsFor = id => new Set(supports.filter(s => underOrAt(s.values['support.capability'], id)).map(s => s.values['support.application'])).size;
+  await view.selectOption('#colour', 'coverage');
+  const coverageLegend = await view.evaluate(() => document.getElementById('legend').textContent);
+  assert(coverageLegend === 'No applicationOne applicationTwo or more', 'The coverage legend reads: ' + coverageLegend);
+  const coverageFigures = await leafFigures();
+  const coverageWrong = coverageFigures.filter(([id, text]) => text !== `${appsFor(id)} app${appsFor(id) === 1 ? '' : 's'}`);
+  assert(coverageWrong.length === 0, 'Leaves show the wrong application count: ' + JSON.stringify(coverageWrong.slice(0, 5)));
+  const group = bcm.records['bcm.capability'].find(record => record.values['cap.parent'] === null && appsFor(record.recordId) > 1);
+  const groupTone = await view.evaluate(id => document.querySelector(`.cap[data-id="${id}"]`)?.style.getPropertyValue('--tone'), group.recordId);
+  assert(groupTone === 'var(--nendo-tone-amber)', `A group covered by ${appsFor(group.recordId)} applications below it is not drawn as two or more: ${groupTone}`);
+  // Groups carry the count of everything below them: every card's tone, groups included.
+  const toneOf = n => `var(--nendo-tone-${n === 0 ? 'red' : n === 1 ? 'teal' : 'amber'})`;
+  const cardTones = await view.evaluate(() => [...document.querySelectorAll('.cap')].map(card => [card.dataset.id, card.style.getPropertyValue('--tone')]));
+  const toneWrong = cardTones.filter(([id, tone]) => tone !== toneOf(appsFor(id)));
+  assert(cardTones.length === 635 && toneWrong.length === 0, `${toneWrong.length} of ${cardTones.length} cards have the wrong coverage tone: ` + JSON.stringify(toneWrong.slice(0, 5)));
+  results.coverage = { cards: cardTones.length, covered: cardTones.filter(([id]) => appsFor(id) > 0).length, overlapping: cardTones.filter(([id]) => appsFor(id) > 1).length };
+  await view.selectOption('#colour', 'maturity');
+
+  // W-081: capability against application, with role and fit in each cell.
+  await view.click('[data-mode="matrix"]');
+  await until(() => !document.getElementById('matrix').hidden, null, 'Capability × application never showed.');
+  results.matrix = await view.evaluate(() => ({ rows: Number(document.getElementById('matrix').dataset.rows), columns: Number(document.getElementById('matrix').dataset.columns) }));
+  const supportedCapabilities = new Set(supports.map(s => s.values['support.capability'])).size;
+  const supportingApplications = new Set(supports.map(s => s.values['support.application'])).size;
+  assert(results.matrix.rows === supportedCapabilities && results.matrix.columns === supportingApplications,
+    `The matrix has ${JSON.stringify(results.matrix)}, not ${supportedCapabilities} capabilities by ${supportingApplications} applications.`);
+  const link = supports.find(s => s.recordId === 'bcm-support-3');
+  const cellText = await view.evaluate(({ capability, application }) =>
+    document.querySelector(`#matrix tr[data-id="${capability}"] td[data-application="${application}"]`)?.textContent ?? null,
+  { capability: link.values['support.capability'], application: link.values['support.application'] });
+  assert(cellText === `${link.values['support.role']} · ${link.values['support.fit']}`, 'The matrix cell for bcm-support-3 reads ' + JSON.stringify(cellText));
+  await view.click('[data-mode="map"]');
+  await until(() => !document.getElementById('map').hidden, null, 'The map did not come back from the matrix.');
+
+  // W-081: an initiative covers several capabilities, and a capability lists them.
+  const scopes = bcm.records['bcm.scope'];
+  const wide = bcm.records['bcm.initiative'].find(initiative => scopes.filter(s => s.values['scope.initiative'] === initiative.recordId).length > 1);
+  const inScope = scopes.find(s => s.values['scope.initiative'] === wide.recordId && s.values['scope.capability'] !== wide.values['initiative.capability']);
+  await select(inScope.values['scope.capability']);
+  const scoped = await inspector();
+  assert(scoped.headings.includes('Initiatives in scope') && scoped.relations.some(text => text.startsWith(wide.values['initiative.name'])),
+    `${inScope.values['scope.capability']} does not list ${wide.values['initiative.name']} in scope: ` + JSON.stringify(scoped.relations));
+  await view.evaluate(() => document.querySelector('#breadcrumbs button').click());
 
   // Searching and recolouring restyle the cards; they never pack the map again. Packing the
   // whole model takes about half a second, so a new layout per keystroke stalls typing.
@@ -472,6 +521,8 @@ async (page) => {
   results.other = { colours: await colours() };
   assert(await view.evaluate(() => document.querySelector('[data-mode="portfolio"]').hidden),
     'Importance × health is offered to a file with no IT health assessments.');
+  assert(await view.evaluate(() => document.querySelector('[data-mode="matrix"]').hidden),
+    'Capability × application is offered to a file whose view names no coverage.');
   assert(JSON.stringify(results.other.colours) === JSON.stringify(['maturity', 'importance', 'none']),
     'Without target or investment the colour modes should be maturity, importance and neutral: ' + JSON.stringify(results.other.colours));
   results.other.figures = await view.evaluate(() => ({ gaps: document.getElementById('gaps').parentElement.hidden,
@@ -571,10 +622,10 @@ async (page) => {
   const levelItem = toolbar.items.find(item => item.id === 'levels');
   assert(JSON.stringify(levelItem.options.map(option => option.value)) === JSON.stringify(['1', '2', '3', '4', '5', 'all']) && levelItem.value === '2',
     'Levels were declared as ' + JSON.stringify(levelItem));
-  assert(JSON.stringify(toolbar.items.find(item => item.id === 'colour').options.map(option => option.value)) === JSON.stringify(['maturity', 'gap', 'change', 'importance', 'investment', 'none']),
+  assert(JSON.stringify(toolbar.items.find(item => item.id === 'colour').options.map(option => option.value)) === JSON.stringify(['maturity', 'gap', 'change', 'coverage', 'importance', 'investment', 'none']),
     'BCM\u2019s colour modes were not all declared.');
   // W-080: Importance × health is a mode Nendo lists, and Change since declares its dates.
-  assert(JSON.stringify(toolbar.items.find(item => item.id === 'mode').options.map(option => option.value)) === JSON.stringify(['map', 'assessment', 'outline', 'portfolio']),
+  assert(JSON.stringify(toolbar.items.find(item => item.id === 'mode').options.map(option => option.value)) === JSON.stringify(['map', 'assessment', 'outline', 'portfolio', 'matrix']),
     'The modes Nendo lists are ' + JSON.stringify(toolbar.items.find(item => item.id === 'mode').options));
   assert(!toolbar.items.some(item => item.id === 'since'), 'Since is declared while the colour is not Change since.');
   await page.evaluate(() => window.broker.command('colour', 'change'));

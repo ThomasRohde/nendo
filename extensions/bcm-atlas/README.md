@@ -8,9 +8,9 @@ Northstar model.
 ## Use
 
 Open BCM.nendo in Nendo and choose **Capability → Capability map** in Use. The map has
-Map, Assessment, Outline and Importance × health views, search, six colour modes
-(maturity, maturity gap, change since, importance, investment, neutral) and the compact and
-ordered reference layouts.
+Map, Assessment, Outline, Importance × health and Capability × application views, search,
+seven colour modes (maturity, maturity gap, change since, application coverage, importance,
+investment, neutral) and the compact and ordered reference layouts.
 
 - **Assessments over time** (W-080). Where the view's configuration names an assessment
   record type, each capability's maturity is its latest Maturity assessment, and the
@@ -20,6 +20,14 @@ ordered reference layouts.
 - **Change since** colours each card by its latest maturity less the one in force on a
   chosen date (Since lists every date anything was assessed): lower, no change, up one, up
   two or more, or not comparable where either judgement is missing.
+- **Application coverage** (W-081) colours each card by how many distinct applications
+  support it or anything below it: none, one, or two or more, where the overlap may be worth
+  a look. A group counts its children's applications once each.
+- **Capability × application** lists each capability in scope that an application supports,
+  against those applications, with the role and fit of each link in its cell, toned by fit.
+  A cell opens the link.
+- **Initiatives in scope**: an initiative covers several capabilities through a link record
+  each, and the inspector lists the initiatives that cover the selected capability.
 - **Importance × health** places every capability in scope by its strategic importance
   against its latest IT health score, with a column for those not yet assessed. A cell
   lists its capabilities; pressing one selects it.
@@ -121,6 +129,10 @@ order is never the inspector's.
 **The banner** at the right of the figures is `configuration.banner`, `{title, note}`.
 Without one there is no banner.
 
+**Coverage** is `configuration.coverage`: `entityId` names the link record type, and
+`capability`, `application`, `role` and `fit` its reference to the capabilities, its reference to
+the applications and two optional choice fields. The coverage colour and the matrix need it.
+
 **Assessments** are `configuration.assessments`: `entityId` names a record type, and
 `capability`, `dimension`, `score` and `date` name its reference to the capabilities, a choice
 field, a whole-number field and a date field. `dimensions` maps `maturity`, `health` and
@@ -146,9 +158,12 @@ BCM.nendo's Capability map carries this configuration
       "empty": "No applications linked. Add support links in the record page." },
     "bcm.initiative": { "title": "Change portfolio", "row": "{initiative.stage} · {initiative.end}",
       "empty": "No initiatives linked." },
+    "bcm.scope": { "title": "Initiatives in scope", "row": "{scope.note}", "empty": "No initiative covers this capability." },
     "bcm.assessment": { "title": "Assessment history", "row": "{assess.dimension} {assess.score} · {assess.date}",
       "empty": "Not assessed yet. Add an assessment in the record page." }
   },
+  "coverage": { "entityId": "bcm.support", "capability": "support.capability",
+    "application": "support.application", "role": "support.role", "fit": "support.fit" },
   "assessments": {
     "entityId": "bcm.assessment", "capability": "assess.capability", "dimension": "assess.dimension",
     "score": "assess.score", "date": "assess.date",
@@ -209,7 +224,7 @@ The tooling lives in [`tools/bcm-atlas/`](../../tools/bcm-atlas/), outside the p
   owner, and changes nothing on the capability; `demonstration` is the Northstar demo's
   fictional history (an earlier baseline, Business value and IT health), each one saying so.
 - `upgrade.mjs` is what a BCM.nendo built before 2026-09-29 needs: the Assessment record
-  type and its screens, a unique capability code (W-075), both ends of a support link required
+  type and its screens, the Initiative scope link type (W-081) with a list on each side, a unique capability code (W-075), both ends of a support link required
   (W-076) and the map's configuration. `node tools/bcm-atlas/upgrade.mjs` writes
   `upgrade-operations.json`, which `BcmAtlasUpgradeTests` validates and applies to a copy of
   `workspace/BCM.nendo`. To upgrade the live file, open it with Agent access on and run
@@ -235,7 +250,9 @@ colour mode, the banner and the related rows in BCM's own words, no repacking wh
 searching or recolouring, the latest assessment on each dimension, every leaf's change
 since each assessment date against the fixture's own history, every card's maturity as its
 latest assessment, all 635 capabilities placed by importance against health and one in its
-exact cell, the camera kept across a data change, Ctrl-drag from a card, a
+exact cell, every card's coverage tone against the fixture's support links rolled up to
+groups, the capability-against-application matrix's size and one cell's role and fit, a
+capability listing an initiative that covers it besides its primary one, the camera kept across a data change, Ctrl-drag from a card, a
 definition change binding again, the notice without a declared tree, both themes and a
 600px pane; moving by the real pointer into a group and before a sibling, a drop into its
 own group refused unsent, the keyboard's moves, F2's rename and a stale move shown as the

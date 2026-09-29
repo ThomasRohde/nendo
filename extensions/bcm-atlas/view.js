@@ -10,7 +10,7 @@
 // Assessment and Outline are tables of the same rows. The only writes are capability creates and
 // updates, sent with the parent's version so a stale parent is refused, and a parent that would
 // close a loop is refused by the Engine in words the editor shows. Nothing leaves Nendo.
-import { bindAtlas, hierarchy, projectHierarchy, maturityLabels, relatedName, relatedRow, dropTarget, stepTarget } from './model.js';
+import { bindAtlas, hierarchy, projectHierarchy, maturityLabels, relatedName, relatedRow, dropTarget, stepTarget, coverageCounts, coverageMatrix } from './model.js';
 import { mapSvg, printPalette, paletteTokens } from './export.js';
 import { layoutCapabilities, fitViewport } from './layout-profile.js';
 
@@ -28,7 +28,8 @@ let undeclared = false;
 // What the person is looking at.
 let selected = null;        // record ID of the selected capability
 let scope = null;           // record ID of the focused group; null is the whole enterprise
-let mode = 'map';           // 'map', 'assessment', 'outline' or 'portfolio'
+let mode = 'map';           // 'map', 'assessment', 'outline', 'portfolio' or 'matrix'
+let covered = new Map();    // capability ID -> distinct applications at or below it (W-081)
 let colour = 'maturity';    // what card colour shows: maturity, gap, change, importance, investment, none
 let since = null;           // the assessment date 'change' is measured from; null is the earliest
 let layoutMode = 'compact'; // the reference layout's 'compact' or 'ordered' packing
@@ -116,7 +117,7 @@ function maturityText(level, fallback) {
 const maturityTones = ['grey', 'red', 'orange', 'amber', 'teal', 'green']; // by level 0-5
 
 /** The parts each colour mode needs the view to bind. Neutral needs none. */
-const colourNeeds = { maturity: ['maturity'], gap: ['maturity', 'target'], change: ['assessments'], importance: ['importance'], investment: ['investment'], none: [] };
+const colourNeeds = { maturity: ['maturity'], gap: ['maturity', 'target'], change: ['assessments'], coverage: ['coverage'], importance: ['importance'], investment: ['investment'], none: [] };
 
 /** The date 'change' is measured from: the chosen one while it is still an assessment date, else the earliest. */
 function sinceDate() {
@@ -140,6 +141,11 @@ function toneFor(record) {
       if (d == null) return 'grey';
       return d < 0 ? 'red' : d === 0 ? 'blue' : d === 1 ? 'teal' : 'green';
     }
+    case 'coverage': {
+      // Applications supporting the capability or anything below it (W-081).
+      const n = covered.get(record.recordId) ?? 0;
+      return n === 0 ? 'red' : n === 1 ? 'teal' : 'amber';
+    }
     case 'importance':
     case 'investment':
       return binding.tone(colour, binding.value(record, colour)) || 'grey';
@@ -160,6 +166,8 @@ function legendEntries() {
       return [['At / above target', 'teal'], ['1 level', 'amber'], ['2 levels', 'orange'], ['3+ levels', 'red'], ['Unassessed', 'grey']];
     case 'change':
       return [['Lower', 'red'], ['No change', 'blue'], ['Up 1 level', 'teal'], ['Up 2 or more', 'green'], ['Not comparable', 'grey']];
+    case 'coverage':
+      return [['No application', 'red'], ['One application', 'teal'], ['Two or more', 'amber']];
     case 'importance':
     case 'investment':
       return binding.choices[colour].map(choice => [choice.displayName, choice.tone || 'grey']);
@@ -207,7 +215,7 @@ function setMode(next) {
 }
 
 function setModeQuietly(next) {
-  mode = next === 'portfolio' && !portfolioAvailable() ? 'map' : next;
+  mode = (next === 'portfolio' && !portfolioAvailable()) || (next === 'matrix' && !binding.has('coverage')) ? 'map' : next;
   document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
 }
 
@@ -373,6 +381,10 @@ function scoreText(record, hidden) {
   if (colour === 'change') {
     const d = binding.change(record, sinceDate());
     return d == null ? '—' : d > 0 ? `+${d}` : String(d);
+  }
+  if (colour === 'coverage') {
+    const n = covered.get(record.recordId) ?? 0;
+    return `${n} app${n === 1 ? '' : 's'}`;
   }
   if (binding.has('maturity')) return binding.value(record, 'maturity') == null ? '—' : `${binding.value(record, 'maturity')} / ${binding.scale.max}`;
   return '';
@@ -543,6 +555,49 @@ function renderPortfolio() {
   $('portfolio').replaceChildren(grid);
   $('portfolio').dataset.placed = String(placed);
   if (!inScope.length) $('portfolio').append(el('p', 'muted', 'No capabilities match your search.'));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Capability against application (W-081)
+//
+// A row for each capability in scope that an application supports directly, a column for each
+// application supporting one of them, and in each cell the role and fit of the link. Pressing a
+// capability selects it; pressing a cell opens the link.
+
+function renderMatrix() {
+  const coverage = binding.coverage;
+  const matrix = coverageMatrix(recordsInScope().filter(matches), coverage, relatedRecords.get(coverage.entityId) ?? []);
+  const table = el('table', 'coverage-matrix');
+  const head = el('tr');
+  head.append(el('th', null, binding.typeName), ...matrix.columns.map(column => el('th', null, column.name)));
+  table.append(el('thead'));
+  table.tHead.append(head);
+  const body = el('tbody');
+  for (const { record, cells } of matrix.rows) {
+    const row = el('tr', selected === record.recordId ? 'selected' : '');
+    row.dataset.id = record.recordId;
+    const name = el('th');
+    name.append(button(binding.title(record), () => select(record.recordId), 'matrix-capability'));
+    row.append(name);
+    for (const column of matrix.columns) {
+      const td = el('td', 'matrix-cell');
+      td.dataset.application = column.id;
+      for (const link of cells.get(column.id)) {
+        const words = [coverage.roleFieldId, coverage.fitFieldId].filter(Boolean)
+          .map(fieldId => coverage.choiceName(fieldId, link.values[fieldId])).filter(Boolean).join(' · ') || 'Linked';
+        const chip = button(words, () => nendo.ui.openRecord(coverage.entityId, link.recordId), 'matrix-link');
+        if (coverage.fitFieldId) setTone(chip, coverage.tone(link.values[coverage.fitFieldId]) || 'grey');
+        td.append(chip);
+      }
+      row.append(td);
+    }
+    body.append(row);
+  }
+  table.append(body);
+  $('matrix').replaceChildren(table);
+  $('matrix').dataset.rows = String(matrix.rows.length);
+  $('matrix').dataset.columns = String(matrix.columns.length);
+  if (!matrix.rows.length) $('matrix').append(el('p', 'muted', `No ${coverage.applicationName.toLowerCase()} supports a capability in this scope.`));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -758,11 +813,13 @@ function render(refit = false) {
   const empty = records.length === 0;
   $('empty').hidden = !empty || undeclared;
   $('map').hidden = mode !== 'map' || empty;
-  $('table').hidden = mode === 'map' || mode === 'portfolio' || empty;
+  $('table').hidden = mode === 'map' || mode === 'portfolio' || mode === 'matrix' || empty;
   $('portfolio').hidden = mode !== 'portfolio' || empty;
+  $('matrix').hidden = mode !== 'matrix' || empty;
   document.querySelector('.map-tools').hidden = mode !== 'map';
   if (mode === 'map') renderMap(refit);
   else if (mode === 'portfolio') renderPortfolio();
+  else if (mode === 'matrix') renderMatrix();
   else renderTable();
   inspector();
   say(footer());
@@ -798,7 +855,7 @@ function applyBinding() {
     node.hidden = !node.dataset.needs.split(' ').every(part => part === 'parent' ? binding.parentFieldId !== null : binding.has(part));
   });
   // A mode the view cannot show gives way to the map.
-  if (mode === 'portfolio' && !portfolioAvailable()) setModeQuietly('map');
+  if ((mode === 'portfolio' && !portfolioAvailable()) || (mode === 'matrix' && !binding.has('coverage'))) setModeQuietly('map');
   // "Since" belongs to the change mode, and lists the dates anything was assessed.
   const dates = binding.assessmentDates();
   $('since').replaceChildren(...dates.map(date => { const option = el('option', null, date); option.value = date; return option; }));
@@ -840,6 +897,7 @@ async function refresh() {
     modelGeneration++;
     model = hierarchy(nodes, binding.title);
     records = model.records;
+    covered = binding.coverage === null ? new Map() : coverageCounts(model, binding.coverage, relatedRecords.get(binding.coverage.entityId) ?? []);
     undeclared = false;
     if (!model.byId.has(selected)) selected = null;
     const lostScope = scope !== null && !model.byId.has(scope);
@@ -1352,8 +1410,9 @@ new ResizeObserver(() => {
 // state: render and the camera declare it again, and the API sends at most ten a second.
 
 const allModeOptions = [{ value: 'map', label: 'Map' }, { value: 'assessment', label: 'Assessment' }, { value: 'outline', label: 'Outline' },
-  { value: 'portfolio', label: 'Importance × health' }];
-const modeOptions = () => allModeOptions.filter(option => option.value !== 'portfolio' || portfolioAvailable());
+  { value: 'portfolio', label: 'Importance × health' }, { value: 'matrix', label: 'Capability × application' }];
+const modeOptions = () => allModeOptions.filter(option =>
+  (option.value !== 'portfolio' || portfolioAvailable()) && (option.value !== 'matrix' || binding.has('coverage')));
 let declaredZoom = null;
 
 function canAdd() {

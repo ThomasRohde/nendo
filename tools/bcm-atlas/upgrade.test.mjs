@@ -75,3 +75,44 @@ test('the committed upgrade-operations.json is the upgrade, so the LocalMcp lane
   const committed = JSON.parse(readFileSync(new URL('./upgrade-operations.json', import.meta.url), 'utf8'));
   assert.deepEqual(committed, upgradeMutations(), 'upgrade-operations.json is stale: run node tools/bcm-atlas/upgrade.mjs');
 });
+
+// W-081: coverage by applications, rolled up to groups; initiatives that cover several
+// capabilities; and the capability-against-application matrix.
+test('coverage counts distinct applications at or below each capability, and a group counts its children once', async () => {
+  const { coverageCounts, coverageMatrix, hierarchy } = await import('../../extensions/bcm-atlas/model.js');
+  const { engineTree } = await import('./engine-tree.mjs');
+  const { context, schema, records } = bcmFixture();
+  const bound = bindAtlas(context, schema);
+  assert.ok(bound.has('coverage'));
+  const model = hierarchy(engineTree(records['bcm.capability'], 'cap.parent', 'cap.order'), bound.title);
+  const counts = coverageCounts(model, bound.coverage, records['bcm.support']);
+  const direct = id => new Set(records['bcm.support'].filter(s => s.values['support.capability'] === id).map(s => s.values['support.application']));
+  const below = id => { const apps = direct(id); for (const d of model.descendants(id)) for (const a of direct(d.recordId)) apps.add(a); return apps.size; };
+  for (const record of records['bcm.capability']) assert.equal(counts.get(record.recordId), below(record.recordId), record.recordId);
+  assert.ok([...counts.values()].some(n => n === 0) && [...counts.values()].some(n => n > 0));
+  const matrix = coverageMatrix(records['bcm.capability'], bound.coverage, records['bcm.support']);
+  assert.equal(matrix.rows.length, new Set(records['bcm.support'].map(s => s.values['support.capability'])).size);
+  assert.deepEqual(matrix.columns.map(c => c.name), [...matrix.columns.map(c => c.name)].sort((a, b) => a.localeCompare(b)));
+  const link = records['bcm.support'].find(s => s.recordId === 'bcm-support-3');
+  const row = matrix.rows.find(r => r.record.recordId === link.values['support.capability']);
+  assert.deepEqual(row.cells.get(link.values['support.application']).map(l => l.recordId), ['bcm-support-3']);
+  // A file with no coverage configuration offers neither.
+  assert.ok(!bindAtlas(otherFixture().context, otherFixture().schema).has('coverage'));
+});
+
+test('an initiative covers several capabilities, and each primary capability moves into scope without loss', async () => {
+  const { scopedFromPrimary } = await import('./assessments.mjs');
+  const initiatives = northstarModel()['bcm.initiative'], scopes = northstarModel()['bcm.scope'];
+  const primary = scopedFromPrimary(initiatives);
+  assert.equal(primary.length, initiatives.filter(i => i.values['initiative.capability']).length);
+  for (const initiative of initiatives) {
+    const own = scopes.filter(s => s.values['scope.initiative'] === initiative.recordId);
+    assert.ok(own.some(s => s.values['scope.capability'] === initiative.values['initiative.capability']), `${initiative.recordId} lost its primary capability`);
+  }
+  assert.ok(initiatives.some(i => scopes.filter(s => s.values['scope.initiative'] === i.recordId).length > 1), 'no initiative covers several capabilities');
+  const mutations = upgradeMutations();
+  const all = mutations.flatMap(m => m.operations);
+  assert.ok(all.some(o => o.operationType === 'schema.createEntity' && o.payload.entityId === 'bcm.scope'));
+  for (const [parent, via] of [['bcm.capability.detail', 'scope.capability'], ['bcm.initiative.detail', 'scope.initiative']])
+    assert.ok(all.some(o => o.operationType === 'ui.addNode' && o.payload.parentNodeId === parent && o.payload.properties?.viaFieldId === via), `${parent} lists no scope`);
+});

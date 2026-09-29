@@ -3,7 +3,7 @@
 // northstar-expansion.txt that grows it to 635 capabilities. Deterministic, so the fixture
 // lane and the live file are built from the same records. Nothing here writes to Nendo.
 import fs from 'node:fs';
-import { migrated, demonstration } from './assessments.mjs';
+import { migrated, demonstration, scopedFromPrimary, demonstrationScope } from './assessments.mjs';
 
 /** The starter records, each with entityId, level (seed order), recordId and values. */
 export function starterSeed() {
@@ -80,5 +80,6 @@ export function northstarModel() {
     'bcm.support': of('bcm.support'),
     'bcm.initiative': of('bcm.initiative'),
     'bcm.assessment': [...migrated(all), ...demonstration(all)],
+    'bcm.scope': [...scopedFromPrimary(of('bcm.initiative')), ...demonstrationScope(of('bcm.initiative'), all)],
   };
 }

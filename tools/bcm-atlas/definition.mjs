@@ -37,6 +37,10 @@ export const defs = [
     ['dimension', 'Dimension', 'text', true, 'singleChoice', ['Maturity', 'Business value', 'IT health']],
     ['score', 'Score', 'integer', true, 'rating', null, 1, 5], ['date', 'Assessed on', 'date', true, 'date'],
     ['assessor', 'Assessor', 'text'], ['evidence', 'Evidence', 'text', false, 'longText']]],
+  // An initiative covers several capabilities (W-081): one link record per capability it changes.
+  ['scope', 'Initiative scope', 'scope', [
+    ['name', 'Scope', 'text', true], ['initiative', 'Initiative', 'reference', true], ['capability', 'Capability', 'reference', true],
+    ['note', 'Why it is in scope', 'text', false, 'longText']]],
 ];
 
 // Fields no two records may share (ADR-0020): a capability's code names it on import (W-075).
@@ -47,6 +51,7 @@ export const references = [
   ['capability', 'cap.parent', 'capability', 'cap.name'], ['support', 'support.capability', 'capability', 'cap.name'],
   ['support', 'support.application', 'application', 'app.name'], ['initiative', 'initiative.capability', 'capability', 'cap.name'],
   ['assessment', 'assess.capability', 'capability', 'cap.name'],
+  ['scope', 'scope.initiative', 'initiative', 'initiative.name'], ['scope', 'scope.capability', 'capability', 'cap.name'],
 ];
 
 // The tone of each choice that has one, whichever field offers it.
@@ -81,8 +86,10 @@ export const mapView = {
     related: {
       'bcm.support': { title: 'Application support', row: '{support.fit} fit · {support.role}', empty: 'No applications linked. Add support links in the record page.' },
       'bcm.initiative': { title: 'Change portfolio', row: '{initiative.stage} · {initiative.end}', empty: 'No initiatives linked.' },
+      'bcm.scope': { title: 'Initiatives in scope', row: '{scope.note}', empty: 'No initiative covers this capability.' },
       'bcm.assessment': { title: 'Assessment history', row: '{assess.dimension} {assess.score} · {assess.date}', empty: 'Not assessed yet. Add an assessment in the record page.' },
     },
+    coverage: { entityId: 'bcm.support', capability: 'support.capability', application: 'support.application', role: 'support.role', fit: 'support.fit' },
     assessments: {
       entityId: 'bcm.assessment', capability: 'assess.capability', dimension: 'assess.dimension', score: 'assess.score', date: 'assess.date',
       dimensions: { maturity: 'Maturity', health: 'IT health', value: 'Business value' },

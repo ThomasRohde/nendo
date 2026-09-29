@@ -204,6 +204,87 @@ export function assessmentIndex(assessments, records) {
 }
 
 /**
+ * Application coverage (W-081): the link record type that says which application supports which
+ * capability, named by the view's configuration as
+ *
+ *   { "coverage": { "entityId", "capability", "application", "role", "fit" } }
+ *
+ * where `capability` and `application` are its two references and `role` and `fit` are optional
+ * choice fields the matrix shows. Null when the configuration names none.
+ */
+export function bindCoverage(value, entities, atlasEntityId, problems) {
+  const configured = plainObject(value);
+  if (Object.keys(configured).length === 0) return null;
+  const entity = entities.find(candidate => candidate.entityId === configured.entityId);
+  const field = id => entity?.fields.find(candidate => candidate.fieldId === id && !candidate.calculated);
+  const capability = field(configured.capability), application = field(configured.application);
+  if (entity === undefined || capability?.reference?.targetEntityId !== atlasEntityId || !application?.reference) {
+    problems.push(`Coverage needs ${configured.entityId ?? 'a record type'} with a reference to the capabilities and one to the applications.`);
+    return null;
+  }
+  const choice = id => { const found = field(id); return found !== undefined && found.choices.length > 0 ? found : null; };
+  const role = choice(configured.role), fit = choice(configured.fit);
+  const applications = entities.find(candidate => candidate.entityId === application.reference.targetEntityId);
+  return {
+    entityId: entity.entityId,
+    capabilityFieldId: capability.fieldId,
+    applicationFieldId: application.fieldId,
+    applicationName: applications?.displayName ?? application.displayName,
+    roleFieldId: role?.fieldId ?? null,
+    fitFieldId: fit?.fieldId ?? null,
+    choiceName: (fieldId, id) => [role, fit].find(candidate => candidate?.fieldId === fieldId)?.choices.find(c => c.id === id)?.displayName ?? (id ?? null),
+    tone: id => fit?.choices.find(c => c.id === id)?.tone ?? null,
+  };
+}
+
+/**
+ * How many distinct applications support each capability, counting everything below a group
+ * as the group's own (W-081): a group with no application of its own is still covered when its
+ * children are, and two children on one application count it once.
+ */
+export function coverageCounts(model, coverage, links) {
+  const direct = new Map();
+  for (const link of links ?? []) {
+    const capability = link.values?.[coverage.capabilityFieldId], application = link.values?.[coverage.applicationFieldId];
+    if (!capability || !application) continue;
+    (direct.get(capability) ?? direct.set(capability, new Set()).get(capability)).add(application);
+  }
+  const counts = new Map();
+  const visit = record => {
+    const apps = new Set(direct.get(record.recordId) ?? []);
+    for (const child of model.children.get(record.recordId) ?? []) for (const app of visit(child)) apps.add(app);
+    counts.set(record.recordId, apps.size);
+    return apps;
+  };
+  model.roots.forEach(visit);
+  return counts;
+}
+
+/**
+ * Capabilities against applications (W-081): a row for each capability given that has an
+ * application of its own, a column for each application that supports one of them, and in each
+ * cell the links between the two, by role and fit. Rows keep the order given; columns go by name.
+ */
+export function coverageMatrix(capabilities, coverage, links) {
+  const byCapability = new Map();
+  for (const link of links ?? []) {
+    const capability = link.values?.[coverage.capabilityFieldId];
+    if (capability) (byCapability.get(capability) ?? byCapability.set(capability, []).get(capability)).push(link);
+  }
+  const rows = capabilities.filter(record => byCapability.has(record.recordId)).map(record => ({ record, links: byCapability.get(record.recordId) }));
+  const applications = new Map();
+  for (const { links: own } of rows) for (const link of own) {
+    const id = link.values[coverage.applicationFieldId];
+    if (id && !applications.has(id)) applications.set(id, link.labels?.[coverage.applicationFieldId] ?? id);
+  }
+  const columns = [...applications].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  return { columns, rows: rows.map(({ record, links: own }) => ({
+    record,
+    cells: new Map(columns.map(({ id }) => [id, own.filter(link => link.values[coverage.applicationFieldId] === id)])),
+  })) };
+}
+
+/**
  * The Atlas's bindings for the view that shows it, from the view's context (its record type,
  * label, status, bound fields and configuration) and the file's schema.
  *
@@ -276,6 +357,7 @@ export function bindAtlas(context, schema) {
   }
   const related = relatedTypes(entityId, entities, plainObject(configuration.related), typeName, problems);
   const assessments = bindAssessments(configuration.assessments, entities, entityId, problems);
+  const coverage = bindCoverage(configuration.coverage, entities, entityId, problems);
   // With dated assessments, maturity is the latest Maturity assessment; the stored field, where
   // there is one, is what a capability shows until it is first assessed.
   const assessedMaturity = assessments?.dimensions.maturity !== undefined;
@@ -297,6 +379,7 @@ export function bindAtlas(context, schema) {
     if (part === 'maturity-stored') return fields.maturity !== null && !assessedMaturity;
     if (part === 'assessments') return assessments !== null;
     if (part === 'health') return assessments?.dimensions.health !== undefined;
+    if (part === 'coverage') return coverage !== null;
     return fields[part] !== null;
   };
   return {
@@ -315,6 +398,7 @@ export function bindAtlas(context, schema) {
     has,
     value,
     assessments,
+    coverage,
     /** Hand the assessment records to the binding; the latest per dimension is read from them. */
     useAssessments(records) {
       index = assessments === null ? null : assessmentIndex(assessments, records);
