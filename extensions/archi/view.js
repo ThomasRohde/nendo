@@ -1,6 +1,6 @@
-// The Archi workbench (W-109): Archi's model tree, the properties of what is selected, and in
-// the middle what the selection is part of, one selection shared by all three. The diagram
-// joins the middle in W-110. Every rule lives in model.js; this file reads the file through
+// The Archi workbench (W-109, W-110): Archi's model tree, the open view drawn in the middle with
+// archi-online's own figures (canvas.js), and the properties of what is selected, one selection
+// shared by all three. Every rule lives in model.js; this file reads the file through
 // window.nendo, draws, and sends the writes model.js plans.
 
 import * as M from './model.js';
@@ -20,7 +20,14 @@ const READS = { models: M.E.model, folders: M.E.folder, types: M.E.type, concept
 const state = {
   model: null, selected: null, expanded: new Set(), modelOpen: true, filter: { text: '', layer: '' },
   nativeChrome: false, renaming: null, draftProperties: null, readOnly: false, loaded: false,
+  sets: null, openView: null, diagramSelection: [], zoom: 1,
 };
+
+// The canvas is archi-online's renderer, bundled; it loads beside the tree, not before it.
+let canvasModule = null, canvas = null, drawnSets = null;
+const canvasReady = import('./canvas.js').then(module => { canvasModule = module; }).catch(error => {
+  setStatus(`The diagram could not load: ${describe(error)}`, true);
+});
 
 // ---------------------------------------------------------------- reading
 
@@ -28,7 +35,9 @@ async function readAll() {
   const entries = await Promise.all(Object.entries(READS).map(async ([key, entityId]) =>
     [key, await nendo.records.queryAll({ entityId }, { max: 50000 })]));
   const sets = Object.fromEntries(entries);
+  state.sets = sets;
   state.model = M.buildModel(sets);
+  if (state.openView && !state.model.records.has(state.openView)) state.openView = null;
   if (!state.loaded) {
     state.loaded = true;
     state.selected = modelRecord()?.recordId ?? null;
@@ -52,9 +61,25 @@ const modelRecord = () => state.model?.of(M.E.model)[0] ?? null;
  * by the gesture; a larger gesture goes in batches of 200, and an older Nendo writes them one
  * by one, in the order planned, so nothing is written before what it points at.
  */
-async function write(writes, label) {
+let writing = Promise.resolve();
+/**
+ * One gesture's writes, after every earlier gesture and the reread it caused: `plan` is called
+ * only then, so it plans from the records as they now stand. Planned at once, a second edit
+ * made while the first was still being read back pointed at versions the first had moved on
+ * (F-211).
+ */
+function write(plan, label) {
+  const run = writing.then(() => writeNow(plan, label));
+  writing = run.catch(() => undefined);
+  return run;
+}
+
+async function writeNow(plan, label) {
+  let writes;
+  try { writes = typeof plan === 'function' ? plan() : plan; } catch (error) { setStatus(describe(error), true); return; }
   if (writes.length === 0) return;
   if (state.readOnly) { setStatus('This file is open read-only.', true); return; }
+  let outcome = `${label}.`, problem = false;
   try {
     if (nendo.has('records.batch')) {
       for (let start = 0; start < writes.length; start += 200) {
@@ -73,11 +98,13 @@ async function write(writes, label) {
         else await nendo.records.delete(at);
       }
     }
-    setStatus(`${label}.`);
   } catch (error) {
-    setStatus(`${label} was refused: ${describe(error)}`, true);
+    outcome = `${label} was refused: ${describe(error)}`;
+    problem = true;
   }
-  await readAll().catch(error => setStatus(`The model could not be read. ${describe(error)}`, true));
+  // Said once the model is read back, so what the status line reports is what the view shows.
+  await readAll().catch(error => { outcome = `The model could not be read. ${describe(error)}`; problem = true; });
+  setStatus(outcome, problem);
 }
 
 // ---------------------------------------------------------------- the tree
@@ -99,11 +126,19 @@ function glyph(row) {
   return `<span class="glyph" style="--tone:${tone(LAYER_TONE[row.layer])}" aria-hidden="true"></span>`;
 }
 
+/** The tree shows a diagram object as the concept it shows, as Archi's tree follows its editor. */
+function treeSelection() {
+  const record = state.model?.records.get(state.selected);
+  if (record?.entityId === M.E.item) return record.values['ar.item.concept'] ?? record.values['ar.item.view'];
+  return state.selected;
+}
+
 function renderTree() {
   const list = rows();
   const tree = $('tree');
   const hadFocus = tree.contains(document.activeElement);
-  const active = list.some(row => row.id === state.selected) ? state.selected : list[0]?.id;
+  const inTree = treeSelection();
+  const active = list.some(row => row.id === inTree) ? inTree : list[0]?.id;
   tree.innerHTML = list.map(row => {
     const openable = row.entityId === M.E.folder || row.entityId === M.E.model;
     const twisty = openable && row.children > 0 ? (row.expanded ? '▾' : '▸') : '';
@@ -112,7 +147,7 @@ function renderTree() {
       ? `<input class="rename" value="${escape(row.label)}" aria-label="New name" maxlength="400">`
       : `<span class="label">${escape(row.label)}</span>`;
     return `<li class="row" role="treeitem" data-id="${escape(row.id)}" aria-level="${row.depth + 1}" style="--depth:${row.depth}"
-      aria-selected="${row.id === state.selected}" tabindex="${row.id === active ? 0 : -1}"
+      aria-selected="${row.id === inTree}" tabindex="${row.id === active ? 0 : -1}"
       ${openable && row.children > 0 ? `aria-expanded="${row.expanded}"` : ''} ${draggable ? 'draggable="true"' : ''}
       title="${escape(row.typeName ? `${row.typeName}: ${row.label}` : row.label)}"><span class="twisty" aria-hidden="true">${twisty}</span>${glyph(row)}${name}</li>`;
   }).join('');
@@ -125,10 +160,17 @@ function renderTree() {
 }
 
 /** Select a record everywhere, opening the folders on the way to it. */
-function select(id, { reveal = true, focus = false } = {}) {
+function select(id, { reveal = true, focus = false, fromDiagram = null } = {}) {
   if (!state.model?.records.has(id)) return;
   state.selected = id;
   state.draftProperties = null;
+  const chosen = state.model.records.get(id);
+  if (chosen.entityId === M.E.view) state.openView = id;
+  // What the diagram outlines: the object clicked, or every occurrence of a concept on the open view.
+  state.diagramSelection = fromDiagram ? [fromDiagram]
+    : chosen.entityId === M.E.concept && state.openView
+      ? state.model.of(M.E.item).filter(item => item.values['ar.item.view'] === state.openView && item.values['ar.item.concept'] === id).map(item => item.recordId)
+      : chosen.entityId === M.E.item ? [id] : [];
   if (reveal) {
     state.modelOpen = true;
     const record = state.model.records.get(id);
@@ -155,7 +197,7 @@ function toggle(id) {
 function treeKeys(event) {
   if (event.target.matches('input.rename')) return;
   const list = rows();
-  const index = list.findIndex(row => row.id === state.selected);
+  const index = list.findIndex(row => row.id === treeSelection());
   const row = list[index];
   const go = at => { const next = list[Math.max(0, Math.min(list.length - 1, at))]; if (next) select(next.id, { reveal: false, focus: true }); };
   const openable = row && (row.entityId === M.E.folder || row.entityId === M.E.model) && row.children > 0;
@@ -190,19 +232,73 @@ function finishRename(input, keep) {
   const record = state.model.records.get(id);
   const name = input.value.trim();
   if (keep && record && name !== M.label(state.model, record) && (name || record.entityId === M.E.concept)) {
-    write([M.renameWrite(state.model, id, name)], `Rename ${M.label(state.model, record)}`).then(() => select(id, { focus: true }));
+    write(() => [M.renameWrite(state.model, id, name)], `Rename ${M.label(state.model, record)}`).then(() => select(id, { focus: true }));
   } else { renderTree(); $('tree').querySelector('[tabindex="0"]')?.focus(); }
 }
 
 // ---------------------------------------------------------------- the centre
 
 function listOf(ids) {
-  return `<ul>${ids.map(id => `<li><button type="button" data-select="${escape(id)}">${escape(M.label(state.model, state.model.records.get(id)))}</button></li>`).join('')}</ul>`;
+  return `<ul class="links">${ids.map(id => `<li><button type="button" data-select="${escape(id)}">${escape(M.label(state.model, state.model.records.get(id)))}</button></li>`).join('')}</ul>`;
+}
+
+function renderDiagram() {
+  const centre = $('centre');
+  const view = state.model.records.get(state.openView);
+  centre.classList.add('diagram');
+  if (!canvasModule) { centre.innerHTML = '<p class="quiet">Drawing the view…</p>'; canvasReady.then(() => renderCentre()); return; }
+  let host = centre.querySelector('.canvas-host');
+  if (!host) {
+    centre.innerHTML = '<div class="canvas-host"></div><div class="diagram-alternative"></div>';
+    host = centre.querySelector('.canvas-host');
+    canvas = canvasModule.createCanvas(host, {
+      onSelect: id => {
+        if (!id) { select(state.openView, { reveal: false }); return; }
+        const item = state.model.records.get(id);
+        const concept = item?.values['ar.item.concept'];
+        select(concept && state.model.records.has(concept) ? concept : id, { fromDiagram: id });
+      },
+      onOpen: id => {
+        const target = state.model.records.get(id)?.values['ar.item.refView'];
+        if (target) select(target);
+      },
+      onZoom: scale => { state.zoom = scale; declareToolbar(); },
+    });
+  }
+  // Drawn again only when the file or the view changed; a new selection only moves the outline.
+  if (canvas.viewId() !== view.recordId || drawnSets !== state.sets) {
+    const shown = canvas.viewId() === view.recordId;
+    canvas.show(canvasModule.buildMirror(state.sets), view.recordId, { keepCamera: shown });
+    drawnSets = state.sets;
+  }
+  canvas.select(state.diagramSelection);
+  if (state.diagramSelection.length) canvas.reveal(state.diagramSelection[0]);
+  host.querySelector('svg.stage')?.setAttribute('aria-label', `The view ${M.label(state.model, view)}`);
+  import('./kit/nendo-view-kit.js').then(kit => kit.textAlternative(centre.querySelector('.diagram-alternative'), {
+    label: `What the view ${M.label(state.model, view)} shows`,
+    items: state.model.of(M.E.item).filter(item => item.values['ar.item.view'] === view.recordId && item.values['ar.item.kind'] === 'Element')
+      .map(item => M.label(state.model, state.model.records.get(item.values['ar.item.concept']))).filter(Boolean),
+  })).catch(() => undefined);
+}
+
+/** Archi's Analysis: the model relations of a concept and the views it is on, each selectable. */
+function renderAnalysis(record) {
+  const model = state.model;
+  const concepts = model.of(M.E.concept);
+  const out = concepts.filter(r => r.values['ar.concept.source'] === record.recordId).map(r => r.recordId);
+  const into = concepts.filter(r => r.values['ar.concept.target'] === record.recordId).map(r => r.recordId);
+  const views = [...new Set(model.of(M.E.item).filter(r => r.values['ar.item.concept'] === record.recordId).map(r => r.values['ar.item.view']))]
+    .filter(id => model.records.has(id));
+  return `<h3>Model relations (${out.length + into.length})</h3>${out.length + into.length ? listOf([...out, ...into]) : '<p class="quiet">None.</p>'}
+    <h3>In views (${views.length})</h3>${views.length ? listOf(views) : '<p class="quiet">Not on any view.</p>'}`;
 }
 
 function renderCentre() {
   const model = state.model, record = model?.records.get(state.selected);
   const centre = $('centre');
+  if (state.openView && model?.records.has(state.openView)) { renderDiagram(); return; }
+  if (canvas) { canvas.destroy(); canvas = null; drawnSets = null; }
+  centre.classList.remove('diagram');
   if (!record) { centre.innerHTML = '<p class="quiet">Select something in the model tree.</p>'; return; }
   const all = [...model.records.values()];
   const concepts = all.filter(r => r.entityId === M.E.concept);
@@ -259,7 +355,10 @@ function renderProperties() {
   pane.dataset.record = record.recordId;
   delete pane.dataset.stale;
   const v = record.values;
-  let html = `<h2>${escape(M.label(model, record))}</h2>`;
+  const heading = record.entityId === M.E.item
+    ? (v['ar.item.concept'] && model.records.has(v['ar.item.concept']) ? M.label(model, model.records.get(v['ar.item.concept'])) : v['ar.item.name'] || v['ar.item.kind'])
+    : M.label(model, record);
+  let html = `<h2>${escape(heading)}</h2>`;
   if (record.entityId === M.E.model) {
     html += '<span class="chip">Model</span>' + field('Name', text('ar.model.name', v['ar.model.name'], 'required')) +
       field('Purpose', area('ar.model.documentation', v['ar.model.documentation'])) + field('Version', text('ar.model.version', v['ar.model.version']));
@@ -296,6 +395,16 @@ function renderProperties() {
     }
     if (key === 'Junction') html += field('Junction type', options('ar.concept.junction', [{ id: 'And', label: 'And' }, { id: 'Or', label: 'Or' }], v['ar.concept.junction'] ?? 'And'));
   }
+  if (record.entityId === M.E.item) {
+    const kind = v['ar.item.kind'];
+    const shows = v['ar.item.concept'] && model.records.has(v['ar.item.concept'])
+      ? `<div class="field">Shows <button type="button" class="value" data-select="${escape(v['ar.item.concept'])}">${escape(M.label(model, model.records.get(v['ar.item.concept'])))}</button></div>` : '';
+    html += `<span class="chip">${escape(kind)}</span>${shows}` +
+      (v['ar.item.name'] ? `<div class="field">Name <span class="value">${escape(v['ar.item.name'])}</span></div>` : '') +
+      (v['ar.item.content'] ? `<div class="field">Text <span class="value">${escape(v['ar.item.content'])}</span></div>` : '') +
+      (kind.includes('onnection') ? '' : `<div class="field">Bounds <span class="value">${[v['ar.item.x'], v['ar.item.y'], v['ar.item.width'], v['ar.item.height']].join(', ')}</span></div>`);
+  }
+  if (record.entityId === M.E.concept) html += renderAnalysis(record);
   html += renderPropertyList(record);
   html += `<div class="pane-actions"><button type="button" data-action="open">Open record page</button>
     ${record.entityId !== M.E.model && !(record.entityId === M.E.folder && !v['ar.folder.parent']) ? '<button type="button" data-action="delete">Delete…</button>' : ''}</div>`;
@@ -321,7 +430,7 @@ function saveProperties(record, list) {
   const kept = list.filter(row => row.key.trim() !== '');
   // What is saved comes back with the reread; a row still without a key is dropped with the draft.
   state.draftProperties = null;
-  write(M.propertyWrites(state.model, record.recordId, kept.map(row => ({ ...row, key: row.key.trim() }))), `Change the properties of ${M.label(state.model, record)}`);
+  write(() => M.propertyWrites(state.model, record.recordId, kept.map(row => ({ ...row, key: row.key.trim() }))), `Change the properties of ${M.label(state.model, record)}`);
 }
 
 async function propertyChanged(event) {
@@ -340,9 +449,9 @@ async function propertyChanged(event) {
   const value = control.type === 'checkbox' ? control.checked : control.value === '' ? null : control.value;
   const name = M.label(state.model, record);
   try {
-    if (fieldId === 'type') await write([M.typeWrite(state.model, record.recordId, value)], `Change the type of ${name}`);
-    else if (fieldId === 'folder') await write([M.moveWrite(state.model, record.recordId, value)], `Move ${name}`);
-    else await write([M.fieldWrite(state.model, record.recordId, fieldId, value)], `Change ${name}`);
+    if (fieldId === 'type') await write(() => [M.typeWrite(state.model, record.recordId, value)], `Change the type of ${name}`);
+    else if (fieldId === 'folder') await write(() => [M.moveWrite(state.model, record.recordId, value)], `Move ${name}`);
+    else await write(() => [M.fieldWrite(state.model, record.recordId, fieldId, value)], `Change ${name}`);
   } catch (error) { setStatus(describe(error), true); renderProperties(); }
 }
 
@@ -393,21 +502,27 @@ function newElement() {
 $('new-element').addEventListener('close', () => {
   if ($('new-element').returnValue !== 'create') return;
   lastType = $('new-element-type').value;
-  const created = M.createElement(state.model, lastType, selectedFolder(), $('new-element-name').value.trim() || undefined);
-  write([created], `Create ${created.values['ar.concept.name']}`).then(() => select(created.recordId, { focus: true }));
+  const type = lastType, name = $('new-element-name').value.trim() || undefined, folder = selectedFolder();
+  let created = null;
+  const typeName = [...state.model.types.values()].find(candidate => candidate.values['ar.type.key'] === type)?.values['ar.type.name'] ?? type;
+  write(() => [created = M.createElement(state.model, type, folder, name)], `Create ${name ?? typeName}`)
+    .then(() => { if (created) select(created.recordId, { focus: true }); });
 });
 
 function newFolder() {
   if (state.readOnly || !state.model) return;
   const parent = selectedFolder() ?? state.model.roots[0];
-  const created = M.createFolder(state.model, parent);
-  write([created], 'Create a folder').then(() => { select(created.recordId); startRename(); });
+  let created = null;
+  write(() => [created = M.createFolder(state.model, parent)], 'Create a folder')
+    .then(() => { if (created) { select(created.recordId); startRename(); } });
 }
 
 function newView() {
   if (state.readOnly || !state.model) return;
-  const created = M.createView(state.model, selectedFolder());
-  write([created], 'Create a view').then(() => { select(created.recordId); startRename(); });
+  const folder = selectedFolder();
+  let created = null;
+  write(() => [created = M.createView(state.model, folder)], 'Create a view')
+    .then(() => { if (created) { select(created.recordId); startRename(); } });
 }
 
 let pendingDelete = null;
@@ -417,10 +532,11 @@ function remove() {
   let plan;
   try { plan = M.deletePlan(state.model, [record.recordId]); } catch (error) { setStatus(describe(error), true); return; }
   const { summary } = plan;
-  const parts = [['elements', summary.elements], ['relationships', summary.relationships], ['views', summary.views],
-    ['folders', summary.folders], ['diagram objects and connections', summary.items], ['properties', summary.properties]]
-    .filter(([, n]) => n > 0).map(([word, n]) => `${n} ${word}`);
-  pendingDelete = { plan, name: M.label(state.model, record), parent: selectedParent(record) };
+  const parts = [['element', 'elements', summary.elements], ['relationship', 'relationships', summary.relationships],
+    ['view', 'views', summary.views], ['folder', 'folders', summary.folders],
+    ['diagram object or connection', 'diagram objects and connections', summary.items], ['property', 'properties', summary.properties]]
+    .filter(([, , n]) => n > 0).map(([one, many, n]) => `${n} ${n === 1 ? one : many}`);
+  pendingDelete = { plan, id: record.recordId, name: M.label(state.model, record), parent: selectedParent(record) };
   $('confirm-delete-title').textContent = `Delete ${pendingDelete.name}?`;
   $('confirm-delete-text').textContent = `This removes ${parts.join(', ')} from the model, as Archi does: relationships and diagram objects go with what they belong to.`;
   $('confirm-delete').returnValue = '';
@@ -435,7 +551,7 @@ $('confirm-delete').addEventListener('close', () => {
   const pending = pendingDelete;
   pendingDelete = null;
   if ($('confirm-delete').returnValue !== 'delete' || !pending) return;
-  write(pending.plan.writes, `Delete ${pending.name}`).then(() => select(pending.parent, { focus: true }));
+  write(() => M.deletePlan(state.model, [pending.id]).writes, `Delete ${pending.name}`).then(() => select(pending.parent, { focus: true }));
 });
 
 // ---------------------------------------------------------------- the toolbar
@@ -461,6 +577,11 @@ function declareToolbar() {
     ] },
     { kind: 'button', id: 'rename', label: 'Rename', icon: 'edit', iconOnly: true, keys: 'F2' },
     { kind: 'button', id: 'delete', label: 'Delete…', icon: 'trash', iconOnly: true },
+    ...(state.openView ? [{ kind: 'group', label: 'Zoom', items: [
+      { kind: 'button', id: 'zoom-out', label: 'Zoom out', icon: 'minus', iconOnly: true, keys: 'Ctrl+-' },
+      { kind: 'button', id: 'fit', label: `Fit (${Math.round(state.zoom * 100)}%)`, keys: 'Ctrl+0' },
+      { kind: 'button', id: 'zoom-in', label: 'Zoom in', icon: 'plus', iconOnly: true, keys: 'Ctrl+Plus' },
+    ] }] : []),
   ];
   nendo.ui.setToolbar({ items, add: 'new-element' }).catch(error => leaveNativeChrome(describe(error)));
 }
@@ -486,6 +607,9 @@ function runCommand({ id, value }) {
     case 'new-view': newView(); break;
     case 'rename': startRename(); break;
     case 'delete': remove(); break;
+    case 'zoom-in': canvas?.zoom(1.25); break;
+    case 'zoom-out': canvas?.zoom(0.8); break;
+    case 'fit': canvas?.fit(); break;
   }
 }
 
@@ -577,7 +701,7 @@ function wire() {
     const reason = M.whyNotMove(state.model, id, row.dataset.id);
     if (reason) { setStatus(reason, true); return; }
     state.expanded.add(row.dataset.id);
-    write([M.moveWrite(state.model, id, row.dataset.id)], `Move ${M.label(state.model, state.model.records.get(id))}`).then(() => select(id));
+    write(() => [M.moveWrite(state.model, id, row.dataset.id)], `Move ${M.label(state.model, state.model.records.get(id))}`).then(() => select(id));
   });
   tree.addEventListener('dragend', () => { dragged = null; for (const marked of tree.querySelectorAll('.drop-target')) marked.classList.remove('drop-target'); });
 

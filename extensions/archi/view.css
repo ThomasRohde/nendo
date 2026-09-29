@@ -56,9 +56,11 @@ footer .problem, .problem { color: var(--danger); }
 /* The centre: what the selection is part of, each entry selecting its record. */
 .centre-pane h2 { margin: 0 0 4px; font-size: 1.15rem; font-weight: 650; }
 .centre-pane h3 { margin: 18px 0 6px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
-.centre-pane ul { list-style: none; margin: 0; padding: 0; }
-.centre-pane li button { border: 0; background: none; padding: 3px 4px; text-align: left; width: 100%; border-radius: 4px; }
-.centre-pane li button:hover { background: var(--surface-soft); }
+/* A list of records to go to, wherever it is: rows of text that select their record, not buttons. */
+ul.links { list-style: none; margin: 0; padding: 0; }
+ul.links li button, .field button.value { display: block; width: 100%; border: 0; border-radius: 4px; background: none;
+  padding: 3px 6px; text-align: left; color: var(--ink); overflow-wrap: anywhere; cursor: pointer; }
+ul.links li button:hover, .field button.value:hover { background: var(--surface-soft); color: var(--cobalt); }
 .counts { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
 .counts div { display: flex; flex-direction: column; }
 .counts strong { font-size: 1.3rem; font-weight: 650; }
@@ -84,3 +86,17 @@ dialog h2 { margin: 0 0 12px; font-size: 1.05rem; }
 dialog form { display: flex; flex-direction: column; gap: 10px; }
 dialog label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 0.86rem; }
 dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* The open view (W-110): archi-online's figures on white paper in both themes, as Archi prints
+   a view; the pane around it, the outline and the navigator take the theme. */
+.centre-pane.diagram { padding: 0; position: relative; overflow: hidden; }
+.canvas-host { position: absolute; inset: 0; }
+.archi-canvas .stage { display: block; width: 100%; height: 100%; touch-action: none; cursor: default; background: var(--canvas); user-select: none; }
+.archi-canvas .stage.panning { cursor: grabbing; }
+.archi-canvas .paper { fill: #ffffff; stroke: var(--line-strong); vector-effect: non-scaling-stroke; }
+.archi-canvas .selected-box { fill: none; stroke: var(--cobalt); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.archi-canvas .selected-line { fill: none; stroke: var(--cobalt); stroke-width: 4; stroke-opacity: 0.6; vector-effect: non-scaling-stroke; }
+.archi-canvas .navigator { position: absolute; right: 12px; bottom: 12px; width: 180px; height: 120px; border: 1px solid var(--line-strong);
+  border-radius: 6px; background: var(--surface-raised); cursor: pointer; }
+.archi-canvas .navigator-paper { fill: #ffffff; }
+.archi-canvas .navigator-frame { fill: var(--cobalt); fill-opacity: 0.12; stroke: var(--cobalt); vector-effect: non-scaling-stroke; }

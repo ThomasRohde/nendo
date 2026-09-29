@@ -91,6 +91,22 @@ async (page) => {
   const viewName = (await records('ar.view')).find(record => record.recordId === viewButton).values['ar.view.name'];
   assert(await view.evaluate(name => document.querySelector('#properties h2')?.textContent === name, viewName), 'The properties do not show the view the tree selected.');
   results.linked = { view: viewName };
+  // The lists in a concept's Analysis read as rows that go to a record, not as bulleted buttons.
+  await page.evaluate(() => window.broker.command('find', 'Customer', 'toolbar'));
+  await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), customer.recordId, 'Customer is not in the tree under Find.');
+  await view.click(`#tree .row[data-id="${customer.recordId}"]`);
+  await until(() => !!document.querySelector('#properties ul.links button'), null, 'Customer’s properties show no Analysis list.');
+  const lists = await view.evaluate(() => {
+    const list = document.querySelector('#properties ul.links');
+    const button = list?.querySelector('button');
+    if (!list || !button) return { missing: true };
+    const l = getComputedStyle(list), b = getComputedStyle(button);
+    return { bullets: l.listStyleType, background: b.backgroundColor, border: b.borderTopWidth, align: b.textAlign };
+  });
+  assert(!lists.missing && lists.bullets === 'none' && lists.background === 'rgba(0, 0, 0, 0)' && lists.border === '0px' && lists.align === 'left',
+    `A concept's Analysis lists are drawn as bulleted buttons: ${JSON.stringify(lists)}.`);
+  results.lists = lists;
+  await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
 
   // ---- F2 renames in the tree; the properties write a field; the property list writes records.
   await view.click(`#tree .row[data-id="${customer.recordId}"]`).catch(async () => {
@@ -117,6 +133,31 @@ async (page) => {
   const property = (await records('ar.property')).find(record => record.values['ar.property.concept'] === customer.recordId);
   assert(property?.values['ar.property.key'] === 'owner' && property.values['ar.property.value'] === 'Sales', `The property record is not owner = Sales on Policyholder: ${JSON.stringify(property)}; the file holds ${JSON.stringify(await records('ar.property'))}; the view says ${JSON.stringify(await status())}.`);
   results.edit = { renamed: 'Policyholder', property: property.recordId };
+  // Two edits in the same moment (F-211): the second was planned against the version the first
+  // had already moved on, and refused as a changed target. Both must land.
+  // Settle first: leave the fields, and wait until the last edit's write and reread are done.
+  await view.evaluate(() => document.activeElement?.blur());
+  await page.waitForTimeout(400);
+  await view.click('#properties [data-prop-action="add"]');
+  await until(() => !!document.querySelector('#properties tr[data-index="1"] input[data-prop="key"]'), null, 'Add property made no second row.');
+  await view.evaluate(() => {
+    const documentation = document.querySelector('#properties textarea[data-field="ar.concept.documentation"]');
+    documentation.value = 'Anyone who buys a policy.';
+    documentation.dispatchEvent(new Event('change', { bubbles: true }));
+    const key = document.querySelector('#properties tr[data-index="1"] input[data-prop="key"]');
+    key.value = 'region';
+    key.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  // Both land, whatever order the reads come back in: poll the file, not the status line.
+  let quick, quickKeys = [];
+  for (let attempt = 0; attempt < 40; attempt++) {
+    quick = await byName('ar.concept', 'Policyholder');
+    quickKeys = (await records('ar.property')).filter(record => record.values['ar.property.concept'] === customer.recordId).map(record => record.values['ar.property.key']).sort();
+    if (quick.values['ar.concept.documentation'] === 'Anyone who buys a policy.' && quickKeys.join() === 'owner,region') break;
+    await page.waitForTimeout(100);
+  }
+  assert(quick.values['ar.concept.documentation'] === 'Anyone who buys a policy.' && quickKeys.join() === 'owner,region',
+    `Two quick edits did not both land: ${JSON.stringify({ documentation: quick.values['ar.concept.documentation'], keys: quickKeys, status: await status() })}.`);
 
   // ---- A new element goes to its layer's folder, through Nendo's Add.
   const beforeCount = (await records('ar.concept')).length;
@@ -182,6 +223,125 @@ async (page) => {
   results.delete = { question, relationships: relationships.length, boxes: boxes.length };
   await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
 
+
+  // ---- W-110: a view opens drawn in the middle, and the diagram and the tree select each other.
+  const allViews = await records('ar.view');
+  const itemsFirst = await records('ar.item');
+  const elementsOn = id => itemsFirst.filter(item => item.values['ar.item.view'] === id && item.values['ar.item.kind'] === 'Element').length;
+  const opened = [...allViews].sort((a, b) => elementsOn(b.recordId) - elementsOn(a.recordId))[0];
+  const topLevel = (await records('ar.item')).filter(item => item.values['ar.item.view'] === opened.recordId && !item.values['ar.item.parent']
+    && !/onnection/.test(item.values['ar.item.kind']))
+    .sort((a, b) => (a.values['ar.item.order'] ?? 1e15) - (b.values['ar.item.order'] ?? 1e15) || (a.recordId < b.recordId ? -1 : 1));
+  await page.evaluate(value => window.broker.command('find', value, 'toolbar'), opened.values['ar.view.name']);
+  await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), opened.recordId, 'The view is not in the tree under Find.');
+  await view.click(`#tree .row[data-id="${opened.recordId}"]`);
+  await until(count => document.querySelector('.canvas-host g.content')?.children.length === count + 1, topLevel.length,
+    `The view ${opened.values['ar.view.name']} was not drawn with its ${topLevel.length} top-level objects.`);
+  const zoomed = await page.evaluate(() => window.broker.toolbars.at(-1).items.some(item => item.kind === 'group' && item.label === 'Zoom'));
+  assert(zoomed, 'An open view did not put Zoom in Nendo\u2019s row.');
+  // A real click on an element box selects its concept in the tree and outlines the box.
+  // Where an object is on screen: its absolute bounds from the records, through the view's transform.
+  const itemsNow = await records('ar.item');
+  const absolute = id => {
+    let item = itemsNow.find(candidate => candidate.recordId === id), x = 0, y = 0;
+    const size = { width: item.values['ar.item.width'], height: item.values['ar.item.height'] };
+    for (; item; item = itemsNow.find(candidate => candidate.recordId === item.values['ar.item.parent'])) { x += item.values['ar.item.x']; y += item.values['ar.item.y']; }
+    return { x, y, ...size };
+  };
+  const onScreen = async (id, dx = 6) => {
+    const b = absolute(id);
+    const { stageBox, value } = await view.evaluate(() => ({ stageBox: document.querySelector('.canvas-host svg.stage').getBoundingClientRect().toJSON(),
+      value: document.querySelector('.canvas-host g.viewport').getAttribute('transform') }));
+    const [, tx, ty, scale] = /translate\(([-\d.e]+),([-\d.e]+)\) scale\(([\d.e]+)\)/.exec(value).map(Number);
+    return { x: stageBox.x + tx + (b.x + dx) * scale, y: stageBox.y + ty + (b.y + b.height - 6) * scale };
+  };
+  // The deepest element box on the view: nothing drawn inside it can take the click.
+  const target = itemsNow.filter(item => item.values['ar.item.view'] === opened.recordId && item.values['ar.item.kind'] === 'Element')
+    .find(item => !itemsNow.some(child => child.values['ar.item.parent'] === item.recordId));
+  assert(target, `The view ${opened.values['ar.view.name']} has no element box without boxes inside it.`);
+  const frameBox = await (await view.frameElement()).boundingBox();
+  const box = await onScreen(target.recordId);
+  await page.mouse.click(frameBox.x + box.x, frameBox.y + box.y);
+  await until(id => document.querySelector('#tree .row[aria-selected="true"]')?.dataset.id === id, target.values['ar.item.concept'],
+    'A click on a box in the diagram did not select its concept in the tree.');
+  assert(await view.evaluate(() => document.querySelectorAll('.canvas-host .selection .selected-box').length === 1), 'The clicked box is not outlined.');
+  // Zoom and fit move one transform; a drag on the paper pans and selects nothing.
+  const transform = () => view.evaluate(() => document.querySelector('.canvas-host g.viewport').getAttribute('transform'));
+  const scaleOf = value => Number(/scale\(([\d.]+)\)/.exec(value)[1]);
+  const before = scaleOf(await transform());
+  await page.evaluate(() => window.broker.command('zoom-in', null, 'toolbar'));
+  await until(expected => Math.abs(Number(/scale\(([\d.]+)\)/.exec(document.querySelector('.canvas-host g.viewport').getAttribute('transform'))[1]) - expected) < 0.001,
+    Math.min(4, before * 1.25), 'Zoom in did not scale the view by a quarter.');
+  await page.evaluate(() => window.broker.command('fit', null, 'toolbar'));
+  await until(expected => Math.abs(Number(/scale\(([\d.]+)\)/.exec(document.querySelector('.canvas-host g.viewport').getAttribute('transform'))[1]) - expected) < 0.001,
+    before, 'Fit did not return to the fitted scale.');
+  // Fit fills the pane, measured on the smallest Archisurance view, the one that sits small in a
+  // large pane: the paper spans the pane's width or its height, and fits inside it.
+  const extentOf = id => {
+    const top = itemsFirst.filter(item => item.values['ar.item.view'] === id && !item.values['ar.item.parent'] && item.values['ar.item.width'] > 0);
+    if (top.length === 0) return Infinity;
+    const xs = top.flatMap(item => [item.values['ar.item.x'], item.values['ar.item.x'] + item.values['ar.item.width']]);
+    const ys = top.flatMap(item => [item.values['ar.item.y'], item.values['ar.item.y'] + item.values['ar.item.height']]);
+    return Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  };
+  const smallest = [...allViews].sort((a, b) => extentOf(a.recordId) - extentOf(b.recordId))[0];
+  await page.evaluate(value => window.broker.command('find', value, 'toolbar'), smallest.values['ar.view.name']);
+  await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), smallest.recordId, 'The smallest view is not in the tree under Find.');
+  await view.click(`#tree .row[data-id="${smallest.recordId}"]`);
+  await until(() => !!document.querySelector('.canvas-host .paper'), null, 'The smallest view was not drawn.');
+  await page.evaluate(() => window.broker.command('fit', null, 'toolbar'));
+  await page.waitForTimeout(100);
+  const fill = await view.evaluate(() => {
+    const paper = document.querySelector('.canvas-host .paper').getBoundingClientRect(), pane = document.querySelector('.canvas-host svg.stage').getBoundingClientRect();
+    return { paper: [paper.width, paper.height].map(Math.round), pane: [pane.width, pane.height].map(Math.round),
+      inside: paper.left >= pane.left - 1 && paper.top >= pane.top - 1 && paper.right <= pane.right + 1 && paper.bottom <= pane.bottom + 1 };
+  });
+  assert(fill.inside && (Math.abs(fill.paper[0] - fill.pane[0]) <= 2 || Math.abs(fill.paper[1] - fill.pane[1]) <= 2),
+    `Fit does not fill the pane: ${smallest.values['ar.view.name']} is ${fill.paper.join('×')} in a pane of ${fill.pane.join('×')}.`);
+  results.fit = { view: smallest.values['ar.view.name'], ...fill };
+  await page.evaluate(value => window.broker.command('find', value, 'toolbar'), opened.values['ar.view.name']);
+  await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), opened.recordId, 'The view is not in the tree under Find.');
+  await view.click(`#tree .row[data-id="${opened.recordId}"]`);
+  await until(id => document.querySelector('#tree .row[aria-selected="true"]')?.dataset.id === id, opened.recordId, 'The first view did not open again.');
+  const stage = await view.evaluate(() => { const r = document.querySelector('.canvas-host svg.stage').getBoundingClientRect(); return { x: r.x + 8, y: r.y + 8 }; });
+  const selectedBefore = (await selected())?.id;
+  const panFrom = await transform();
+  await page.mouse.move(frameBox.x + stage.x, frameBox.y + stage.y);
+  await page.mouse.down();
+  await page.mouse.move(frameBox.x + stage.x + 60, frameBox.y + stage.y + 40, { steps: 6 });
+  await page.mouse.up();
+  assert((await transform()) !== panFrom, 'A drag on the paper did not pan.');
+  assert((await selected())?.id === selectedBefore, 'A pan changed the selection.');
+  // Selecting a concept in the tree outlines every box that shows it on the open view.
+  const shownTwice = Object.entries((await records('ar.item')).filter(item => item.values['ar.item.view'] === opened.recordId && item.values['ar.item.kind'] === 'Element')
+    .reduce((count, item) => ({ ...count, [item.values['ar.item.concept']]: (count[item.values['ar.item.concept']] ?? 0) + 1 }), {}))
+    .sort((a, b) => b[1] - a[1])[0];
+  assert(shownTwice, `The view ${opened.values['ar.view.name']} shows no element.`);
+  await view.click(`#properties [data-select]`).catch(() => undefined);
+  await page.evaluate(value => window.broker.command('find', value, 'toolbar'), (await records('ar.concept')).find(r => r.recordId === shownTwice[0]).values['ar.concept.name']);
+  await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), shownTwice[0], 'The concept is not in the tree under Find.');
+  await view.click(`#tree .row[data-id="${shownTwice[0]}"]`);
+  await until(count => document.querySelectorAll('.canvas-host .selection .selected-box').length === count, shownTwice[1],
+    `Selecting a concept in the tree did not outline its ${shownTwice[1]} boxes on the open view.`);
+  // A double-click on a view reference opens the view it names.
+  const reference = itemsFirst.find(item => item.values['ar.item.refView']);
+  if (reference) {
+    const referring = allViews.find(record => record.recordId === reference.values['ar.item.view']);
+    await page.evaluate(value => window.broker.command('find', value, 'toolbar'), referring.values['ar.view.name']);
+    await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), referring.recordId, 'The referring view is not in the tree under Find.');
+    await view.click(`#tree .row[data-id="${referring.recordId}"]`);
+    await until(id => document.querySelector('#tree .row[aria-selected="true"]')?.dataset.id === id, referring.recordId, 'The referring view did not open.');
+    {
+      await page.evaluate(() => window.broker.command('fit', null, 'toolbar'));
+      const point = await onScreen(reference.recordId);
+      await page.mouse.dblclick(frameBox.x + point.x, frameBox.y + point.y);
+      await until(id => document.querySelector('#tree .row[aria-selected="true"]')?.dataset.id === id, reference.values['ar.item.refView'],
+        'A double-click on a view reference did not open the view it names.');
+    }
+  }
+  await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
+  results.diagram = { view: opened.values['ar.view.name'], objects: topLevel.length, outlined: shownTwice[1], reference: Boolean(reference) };
+
   // Every declaration the workbench made so far was one Nendo draws.
   const refusals = await page.evaluate(() => window.broker.chromeRefusals);
   assert(refusals.length === 0, `Nendo's rules refused the workbench's controls: ${JSON.stringify(refusals)}.`);
@@ -214,6 +374,59 @@ async (page) => {
     await page.screenshot({ path: `archi-workbench-${mode}.png` });
   }
   results.themes = measured;
+
+
+  // ---- W-110: every element type in both figures and every relationship type draw, and a view of
+  // 500 boxes pans without dropping frames.
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, '__ARCHI_GALLERY__');
+  await until(() => /Every figure/.test(document.getElementById('tree').textContent) || true, null, 'The gallery did not arrive.');
+  const openView = async (id, count) => {
+    await page.evaluate(value => window.broker.command('find', value, 'toolbar'), id === 'ar-gv-figures' ? 'Every figure' : '500 objects');
+    await until(value => !!document.querySelector(`#tree .row[data-id="${value}"]`), id, `${id} is not in the tree.`);
+    const started = await view.evaluate(() => performance.now());
+    await view.click(`#tree .row[data-id="${id}"]`);
+    await until(n => document.querySelector('.canvas-host g.content')?.children.length === n + 1, count, `${id} was not drawn with ${count} objects.`);
+    return (await view.evaluate(() => performance.now())) - started;
+  };
+  await openView('ar-gv-figures', 122);
+  const figures = await view.evaluate(() => {
+    const groups = [...document.querySelector('.canvas-host g.content').children].slice(0, 122);
+    const shapes = groups.map(group => group.querySelectorAll('path, rect, ellipse, circle, polygon, polyline, line').length);
+    const markup = groups.map(group => group.innerHTML.replace(/translate\([^)]*\)/g, ''));
+    let differ = 0;
+    for (let i = 0; i < 122; i += 2) if (markup[i] !== markup[i + 1]) differ++;
+    const lines = document.querySelector('.canvas-host g.content').lastElementChild.querySelectorAll('path, polyline, line').length;
+    return { empty: shapes.map((n, i) => n === 0 ? i : -1).filter(i => i >= 0), differ, lines };
+  });
+  assert(figures.empty.length === 0, `Some figures drew nothing: objects ${figures.empty.join(', ')}.`);
+  assert(figures.lines >= 11, `The 11 relationship types drew ${figures.lines} lines.`);
+  for (const mode of ['dark', 'light']) {
+    await page.evaluate(value => window.broker.pushTheme(value), mode);
+    await until(value => document.documentElement.dataset.nendoTheme === value, mode, `The ${mode} theme did not reach the page.`);
+    const paint = await view.evaluate(() => ({ paper: getComputedStyle(document.querySelector('.canvas-host .paper')).fill,
+      stage: getComputedStyle(document.querySelector('.canvas-host svg.stage')).backgroundColor,
+      canvas: (() => { const s = document.createElement('span'); s.style.color = 'var(--nendo-canvas)'; document.body.append(s); const c = getComputedStyle(s).color; s.remove(); return c; })() }));
+    assert(paint.paper === 'rgb(255, 255, 255)' && paint.stage === paint.canvas, `In the ${mode} theme the paper or the pane is not what it should be: ${JSON.stringify(paint)}.`);
+    await page.screenshot({ path: `archi-figures-${mode}.png` });
+  }
+  const drawn = await openView('ar-gv-500', 500);
+  const frames = await view.evaluate(async () => {
+    const stage = document.querySelector('.canvas-host svg.stage');
+    const intervals = [];
+    let last = await new Promise(resolve => requestAnimationFrame(resolve));
+    for (let i = 0; i < 90; i++) {
+      stage.dispatchEvent(new WheelEvent('wheel', { deltaX: 0, deltaY: i % 30 < 15 ? 12 : -12, bubbles: true, cancelable: true }));
+      const now = await new Promise(resolve => requestAnimationFrame(resolve));
+      intervals.push(now - last);
+      last = now;
+    }
+    intervals.sort((a, b) => a - b);
+    return { median: intervals[45], p95: intervals[Math.floor(intervals.length * 0.95)], worst: intervals.at(-1) };
+  });
+  assert(frames.p95 < 34, `Panning 500 boxes dropped frames: ${JSON.stringify(frames)}.`);
+  await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
+  results.figures = { types: 61, variantsThatDiffer: figures.differ, relationshipLines: figures.lines };
+  results.performance = { drawMs: Math.round(drawn), frameMs: { median: Math.round(frames.median * 10) / 10, p95: Math.round(frames.p95 * 10) / 10, worst: Math.round(frames.worst * 10) / 10 } };
 
   // ---- A Nendo without its own row for the controls: the workbench draws them itself.
   await page.evaluate(() => { window.broker.offerChrome(false); window.broker.remount(); });

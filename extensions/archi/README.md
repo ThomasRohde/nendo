@@ -32,19 +32,35 @@ Open Archi.nendo and choose **Views → Archi** in Use.
 - **The keyboard**: the tree is one tab stop; Up, Down, Home and End move, Right opens a
   folder or steps into it, Left closes it or steps out, Enter goes to the properties.
 
-The diagram itself is W-110. On a Nendo that cannot draw the controls in its own row, the
-workbench draws them above the tree.
+- **The open view** (W-110): choosing a view draws it in the middle with Archi's own figures,
+  icons and connection routes, as archi-online draws them, on white paper in both themes. Drag
+  the paper or scroll to pan, Ctrl and the wheel to zoom, and Zoom and Fit are in Nendo's row
+  (Ctrl -, Ctrl 0, Ctrl +). The navigator in the corner shows the whole view and moves the
+  camera. A click selects the object under the pointer and its concept in the tree; selecting
+  a concept in the tree outlines every box that shows it; a double-click on a view reference
+  opens that view. A concept's model relations and views are under Analysis in its
+  properties. The view is read-only until W-111.
+
+On a Nendo that cannot draw the controls in its own row, the workbench draws them above the
+tree.
 
 ## Files
 
 - `model.js`: every rule, and every change as the record writes it makes. No DOM, so
   `tools/archi/model.test.mjs` tests it over Archisurance.
 - `view.js`, `view.css`, `index.html`: the tree, the middle and the properties.
+- `canvas.js`: the drawing. Built by `tools/archi/build-canvas.mjs` from `tools/archi/canvas`
+  (the mirror of the records as archi-online's model, and the camera) with archi-online's
+  renderer, geometry and router at a pinned commit, and React. Do not edit it; rebuild it. A
+  rebuild from the same sources is byte for byte the same. `THIRD-PARTY.txt` carries the
+  licences of what it includes.
 - `kit/nendo-view-kit.js`: the view kit, byte for byte (`tools/view-kit/kit.test.mjs`).
 
 ## Checked by
 
-`tools/Review-ArchiWorkbench.ps1`, in the production gate: the model tests, then the package
+`tools/Review-ArchiWorkbench.ps1`, in the production gate: the model tests, the canvas test
+(every Archisurance object's bounds and every connection's route against archi-online's own
+geometry of its own parse, `tools/archi/archisurance-geometry.json`), then the package
 framed by the fixture broker over Archisurance (`tools/archi/archisurance.json`) in Edge,
 driven with real keys and clicks, with record writes and batches offered.
 `node tools/Build-Archi.mjs workbench` puts the package, and the first time its screen, into

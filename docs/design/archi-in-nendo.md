@@ -40,9 +40,11 @@ D-002, how the editor stays inside the operation-row bound, is open. The
   For, CSV and XML import all come across this way. The canvas, figures and icons are
   ported from `src/canvas`. Ported code keeps archi-online's MIT notice, and the package
   names the archi-online commit it came from (`6205a6a` at the time of writing).
-- **The package is built.** Its TypeScript is bundled with esbuild into plain files in
-  the package folder, so the file carries what the Atlas carries: HTML, JavaScript and
-  CSS. The dev loop is W-063's *Develop from folder*.
+- **The package is plain JavaScript, with one built file.** The workbench (`view.js`,
+  `model.js`) needs no build. The drawing, `canvas.js`, is archi-online's renderer, geometry
+  and router with the mirror and the camera (`tools/archi/canvas`), bundled with React by
+  esbuild at a pinned archi-online commit; it is committed, so neither the file nor the tests
+  need archi-online (W-110). The dev loop is W-063's *Develop from folder*.
 - **Changes from elsewhere reach the mirror.** The view listens to `changes` and reads
   again what changed. A write refused as stale reloads the records it touched and tells
   the person, rather than overwriting.

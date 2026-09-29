@@ -12,15 +12,17 @@ if (-not (Test-Path -LiteralPath $api)) {
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $api)) { throw 'The view API could not be built: npm --prefix src/Nendo.Workbench run build failed.' }
 }
 # The workbench's rules over Archisurance (W-109), and the kit it carries byte for byte.
-& node --test (Join-Path $PSScriptRoot 'archi/model.test.mjs') (Join-Path $PSScriptRoot 'view-kit/kit.test.mjs')
+& node --test (Join-Path $PSScriptRoot 'archi/model.test.mjs') (Join-Path $PSScriptRoot 'archi/canvas.test.mjs') (Join-Path $PSScriptRoot 'view-kit/kit.test.mjs')
 if ($LASTEXITCODE -ne 0) { throw 'Archi workbench node tests failed.' }
 $run = [Guid]::NewGuid().ToString('N')
 $fixtureModule = [Uri]::new((Join-Path $PSScriptRoot 'archi/fixtures.mjs')).AbsoluteUri
 $fixturePath = Join-Path $output "archi-fixture-$run.json"
-& node --input-type=module -e "import fs from 'node:fs'; import {archiFixture} from '$fixtureModule'; fs.writeFileSync(process.argv[1], JSON.stringify(archiFixture()));" $fixturePath
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $fixturePath)) { throw 'The Archi fixture could not be generated.' }
+$galleryPath = Join-Path $output "archi-gallery-$run.json"
+& node --input-type=module -e "import fs from 'node:fs'; import {archiFixture, galleryFixture} from '$fixtureModule'; fs.writeFileSync(process.argv[1], JSON.stringify(archiFixture())); fs.writeFileSync(process.argv[2], JSON.stringify(galleryFixture()));" $fixturePath $galleryPath
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $fixturePath) -or -not (Test-Path -LiteralPath $galleryPath)) { throw 'The Archi fixtures could not be generated.' }
 $fixture = [IO.File]::ReadAllText($fixturePath)
-Remove-Item -LiteralPath $fixturePath
+$gallery = [IO.File]::ReadAllText($galleryPath)
+Remove-Item -LiteralPath $fixturePath, $galleryPath
 $infoPath = Join-Path $output "archi-server-$run.json"
 $probePath = Join-Path $output "archi-probe-$run.mjs"
 $serverScript = Join-Path $PSScriptRoot 'Graph-FixtureServer.mjs'
@@ -36,7 +38,7 @@ try {
     $info = Get-Content -LiteralPath $infoPath -Raw | ConvertFrom-Json
     if ($info.pid -ne $server.Id) { throw 'Archi fixture process identity differs.' }
     $probe = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Gate-ArchiWorkbench.mjs'))
-    $probe = $probe.Replace('__BROKER_URL__', $info.brokerUrl).Replace("'__ARCHI_FIXTURE__'", $fixture)
+    $probe = $probe.Replace('__BROKER_URL__', $info.brokerUrl).Replace("'__ARCHI_FIXTURE__'", $fixture).Replace("'__ARCHI_GALLERY__'", $gallery)
     [IO.File]::WriteAllText($probePath, $probe, [Text.UTF8Encoding]::new($false))
     & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" open about:blank --browser msedge
     if ($LASTEXITCODE -ne 0) { throw 'Archi browser did not start.' }

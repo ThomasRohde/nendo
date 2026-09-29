@@ -27,6 +27,21 @@ add('ar.model', record('ar.model', MODEL.recordId, { ...MODEL.values, ...planned
 for (const [entityId, list] of planned.writes) for (const entry of list) add(entityId, record(entityId, entry.recordId, entry.values));
 for (const list of Object.values(records)) list.sort((a, b) => (a.recordId < b.recordId ? -1 : a.recordId > b.recordId ? 1 : 0));
 
+// archi-online's own geometry for every view of its own parse: the reference the workbench's
+// mirror is measured against (tools/archi/canvas.test.mjs). Built by build-canvas.mjs first.
+const { geometry } = await import('../../extensions/archi/canvas.js');
+const parsed = parseArchimate(await fs.readFile(source, 'utf8'));
+const round = value => Math.round(value * 100) / 100;
+const reference = {};
+for (const viewId of Object.keys(parsed.views)) {
+  const { bounds, routes } = geometry(parsed, viewId);
+  reference[`ar-${viewId}`] = {
+    bounds: Object.fromEntries([...bounds].map(([id, b]) => [`ar-${id}`, [b.x, b.y, b.width, b.height].map(round)])),
+    routes: Object.fromEntries([...routes].map(([id, points]) => [`ar-${id}`, points.map(p => [round(p.x), round(p.y)])])),
+  };
+}
+await fs.writeFile(path.join(import.meta.dirname, 'archisurance-geometry.json'), JSON.stringify(reference) + '\n');
+
 const out = path.join(import.meta.dirname, 'archisurance.json');
 await fs.writeFile(out, JSON.stringify({ source: path.basename(source), records }, null, 1) + '\n');
 console.log(`${out}: ${Object.entries(records).map(([entityId, list]) => `${list.length} ${entityId}`).join(', ')}`);
