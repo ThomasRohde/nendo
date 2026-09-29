@@ -1,0 +1,52 @@
+[CmdletBinding()]
+param()
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$output = Join-Path $repoRoot 'artifacts/extension-runtime-results'
+[void][IO.Directory]::CreateDirectory($output)
+# The view runs the real window.nendo, which the Workbench build writes; build it when it is missing.
+$api = Join-Path $repoRoot 'src/Nendo.Workbench/dist/_nendo/api.js'
+if (-not (Test-Path -LiteralPath $api)) {
+    & npm.cmd --prefix (Join-Path $repoRoot 'src/Nendo.Workbench') run build
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $api)) { throw 'The view API could not be built: npm --prefix src/Nendo.Workbench run build failed.' }
+}
+# The workbench's rules over Archisurance (W-109), and the kit it carries byte for byte.
+& node --test (Join-Path $PSScriptRoot 'archi/model.test.mjs') (Join-Path $PSScriptRoot 'view-kit/kit.test.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Archi workbench node tests failed.' }
+$run = [Guid]::NewGuid().ToString('N')
+$fixtureModule = [Uri]::new((Join-Path $PSScriptRoot 'archi/fixtures.mjs')).AbsoluteUri
+$fixturePath = Join-Path $output "archi-fixture-$run.json"
+& node --input-type=module -e "import fs from 'node:fs'; import {archiFixture} from '$fixtureModule'; fs.writeFileSync(process.argv[1], JSON.stringify(archiFixture()));" $fixturePath
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $fixturePath)) { throw 'The Archi fixture could not be generated.' }
+$fixture = [IO.File]::ReadAllText($fixturePath)
+Remove-Item -LiteralPath $fixturePath
+$infoPath = Join-Path $output "archi-server-$run.json"
+$probePath = Join-Path $output "archi-probe-$run.mjs"
+$serverScript = Join-Path $PSScriptRoot 'Graph-FixtureServer.mjs'
+$server = Start-Process node -ArgumentList @("`"$serverScript`"", "`"$infoPath`"", '../extensions/archi') -WindowStyle Hidden -PassThru
+$session = "archi-$run"
+Push-Location $output
+try {
+    $deadline = [DateTime]::UtcNow.AddSeconds(10)
+    while (-not (Test-Path -LiteralPath $infoPath)) {
+        if ($server.HasExited -or [DateTime]::UtcNow -gt $deadline) { throw 'Archi fixture server did not start.' }
+        Start-Sleep -Milliseconds 100
+    }
+    $info = Get-Content -LiteralPath $infoPath -Raw | ConvertFrom-Json
+    if ($info.pid -ne $server.Id) { throw 'Archi fixture process identity differs.' }
+    $probe = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Gate-ArchiWorkbench.mjs'))
+    $probe = $probe.Replace('__BROKER_URL__', $info.brokerUrl).Replace("'__ARCHI_FIXTURE__'", $fixture)
+    [IO.File]::WriteAllText($probePath, $probe, [Text.UTF8Encoding]::new($false))
+    & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" open about:blank --browser msedge
+    if ($LASTEXITCODE -ne 0) { throw 'Archi browser did not start.' }
+    & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" run-code --filename $probePath
+    if ($LASTEXITCODE -ne 0) { throw 'Archi workbench browser measurements failed.' }
+} finally {
+    & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" close
+    if (-not $server.HasExited) { Stop-Process -Id $server.Id }
+    $server.Dispose()
+    if (Test-Path -LiteralPath $infoPath) { Remove-Item -LiteralPath $infoPath }
+    if (Test-Path -LiteralPath $probePath) { Remove-Item -LiteralPath $probePath }
+    Pop-Location
+}

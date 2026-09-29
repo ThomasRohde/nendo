@@ -16,7 +16,11 @@
 // sends, so the file is the one New file makes. NENDO_ARCHI_TARGET names another file to build.
 
 import crypto from 'node:crypto';
-import { STAGES, STAGE_ORDER, CALL_CHARACTERS, ROOT_FOLDERS, TYPES, MODEL } from './archi-definition.mjs';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { STAGES, STAGE_ORDER, CALL_CHARACTERS, ROOT_FOLDERS, TYPES, MODEL, PACKAGE_FOLDER, workbenchView } from './archi-definition.mjs';
 import { CONCEPT_TYPES } from './archi-concept-types.mjs';
 import { TARGET_FILE_NAME, fail, target, withLease } from './archi-mcp.mjs';
 
@@ -141,6 +145,20 @@ async function compare(file) {
   console.log('Every concept type matches its table entry.');
 }
 
+// The workbench package, with the screen that shows it the first time: tools/Put-NendoPackage.mjs
+// proposes only the files that differ, and accepts at Unattended as the stages do.
+async function workbench(file, dryRun) {
+  const present = await file.read.hasNode('ar.screen.archi');
+  const operations = path.join(os.tmpdir(), `archi-workbench-${process.pid}.json`);
+  const put = ['tools/Put-NendoPackage.mjs', PACKAGE_FOLDER, '--application', file.manifest.applicationId,
+    '--title', present ? 'Archi: the workbench package' : 'Archi: the workbench package and its screen'];
+  if (!present) { await fs.writeFile(operations, JSON.stringify(workbenchView())); put.push('--operations', operations); }
+  put.push(dryRun ? '--dry-run' : '--accept');
+  const run = spawnSync(process.execPath, put, { stdio: 'inherit', cwd: path.join(import.meta.dirname, '..') });
+  await fs.rm(operations, { force: true });
+  if (run.status !== 0) process.exit(run.status ?? 1);
+}
+
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 const named = args.filter(arg => !arg.startsWith('--'));
@@ -149,6 +167,7 @@ if (args.includes('--list')) {
   for (const name of STAGE_ORDER) console.log(`${name.padEnd(10)} ${STAGES[name].title}`);
   console.log(`${'seed'.padEnd(10)} The top-level folders, the 72 concept types and the model record`);
   console.log(`${'compare'.padEnd(10)} The seeded concept types against their table`);
+  console.log(`${'workbench'.padEnd(10)} The Archi workbench package, and the screen that shows it`);
   process.exit(0);
 }
 
@@ -162,6 +181,7 @@ if (dryRun && named.length === 0) {
 const file = await target('nendo-archi-build');
 console.log(`Target          ${TARGET_FILE_NAME} (${file.manifest.applicationId})`);
 if (named[0] === 'compare') await compare(file);
+else if (named[0] === 'workbench') await workbench(file, dryRun);
 else if (named[0] === 'seed') await seed(file, dryRun);
 else if (named.length > 0) {
   if (!STAGES[named[0]]) fail(`No stage is called ${named[0]}. --list names them.`);

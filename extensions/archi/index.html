@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Archi</title><link rel="stylesheet" href="view.css"></head>
+<body>
+<header id="own-toolbar" class="own-toolbar" hidden>
+  <input id="own-find" type="search" placeholder="Find in the model…" aria-label="Find in the model">
+  <label>Layer <select id="own-layer"></select></label>
+  <span class="spacer"></span>
+  <button id="own-new-element" type="button">New element…</button>
+  <button id="own-new-folder" type="button">New folder</button>
+  <button id="own-new-view" type="button">New view</button>
+  <button id="own-delete" type="button">Delete…</button>
+</header>
+<main>
+  <section class="pane tree-pane" aria-label="Model tree">
+    <ul id="tree" role="tree" aria-label="Model tree"></ul>
+    <p id="tree-empty" class="quiet" hidden></p>
+  </section>
+  <section class="pane centre-pane" aria-label="Selection" id="centre"></section>
+  <section class="pane properties-pane" aria-label="Properties" id="properties"></section>
+</main>
+<footer><span id="status" role="status">Reading the model…</span></footer>
+<dialog id="new-element">
+  <form method="dialog" id="new-element-form">
+    <h2>New element</h2>
+    <label>Type <select id="new-element-type" required></select></label>
+    <label>Name <input id="new-element-name" maxlength="400" placeholder="The type's name"></label>
+    <p class="quiet" id="new-element-folder"></p>
+    <div class="actions"><button value="cancel" type="submit" formnovalidate>Cancel</button><button value="create" type="submit" class="primary">Create</button></div>
+  </form>
+</dialog>
+<dialog id="confirm-delete">
+  <form method="dialog">
+    <h2 id="confirm-delete-title">Delete</h2>
+    <p id="confirm-delete-text"></p>
+    <div class="actions"><button value="cancel" type="submit">Cancel</button><button value="delete" type="submit" class="danger">Delete</button></div>
+  </form>
+</dialog>
+<script src="/_nendo/api.js"></script>
+<script type="module" src="view.js"></script>
+</body>
+</html>

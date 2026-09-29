@@ -30,6 +30,9 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
 //   pushChanges(), pushTheme(mode | theme), pushContext()   the three events a view hears
 //   fail(method, { code, message }, times)     refuse the next requests of one method
 //   remount()                                   a fresh frame, as a new placeholder would start one
+//   offerWrites(on)                             offer records.create, records.delete and records.batch
+//                                               from the next connect on (W-109); each answers as the
+//                                               host writes, versions, references and all
 //   offerChrome(on)                             offer ui.setToolbar and ui.showMenu from the next
 //                                               connect on (W-090); toolbars and menus record them,
 //                                               and chromeRefusals what Nendo's rules refused (W-091)
@@ -46,6 +49,10 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
   // lane measures a view both on a host that draws its controls and on one that does not.
   const CHROME = ['ui.setToolbar', 'ui.showMenu'];
   let chrome = false, menuPick = null;
+  // Record writes beyond an update, offered only when a probe asks (W-109), so the lanes that pin
+  // the methods a view is offered keep measuring what they always measured.
+  const WRITES = ['records.create', 'records.delete', 'records.batch'];
+  let writes = false;
   const toolbars = [], menus = [], chromeRefusals = [];
   // A declaration is read by the Workbench's own rules before it is recorded, and refused as
   // Nendo refuses it, so a lane never passes a toolbar or a menu that Nendo would not draw.
@@ -88,7 +95,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     const context = fixture.context;
     return {
       apiVersion: config.apiVersion, packageId: config.packageId, configuration: {}, locale: 'en', readOnly: false,
-      ...clone(context), theme: themeOf(context.theme ?? 'light'), methods: chrome ? [...METHODS, ...CHROME] : [...METHODS],
+      ...clone(context), theme: themeOf(context.theme ?? 'light'), methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : [])],
     };
   }
 
@@ -285,9 +292,101 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
         queueMicrotask(() => emit('changes', fixture.changeSequence));
         return clone(record);
       }
+      case 'records.create':
+      case 'records.delete':
+      case 'records.batch': {
+        if (!writes) throw refusal('unknown-method', `${method} is not a method this fixture answers.`);
+        // As the host writes them: each at the version the view read, a reference at its target's
+        // version, a record other records point at never deleted, and a batch whole or not at all.
+        const before = clone(fixture.records);
+        try {
+          const entries = method === 'records.batch' ? batchEntries(params)
+            : [{ op: method === 'records.create' ? 'create' : 'delete', ...clone(params) }];
+          const touched = new Map();
+          const answered = entries.map(entry => writeOne(entry, touched));
+          fixture.changeSequence += 1;
+          queueMicrotask(() => emit('changes', fixture.changeSequence));
+          if (method === 'records.batch') return { records: answered.map(record => ({ entityId: record.entityId, recordId: record.recordId, version: record.deleted ? null : record.version })) };
+          return method === 'records.delete' ? null : clone(answered[0]);
+        } catch (error) {
+          fixture.records = before;
+          throw error;
+        }
+      }
       default:
         throw refusal('unknown-method', `${String(method).slice(0, 80)} is not a method this fixture answers.`);
     }
+  }
+
+  function batchEntries(params) {
+    if (!Array.isArray(params.writes) || params.writes.length === 0 || params.writes.length > 200) throw refusal('invalid-params', 'writes must be a list of 1 to 200 record writes.');
+    const seen = new Set();
+    return params.writes.map((entry, index) => {
+      if (!['create', 'update', 'delete'].includes(entry?.op)) throw refusal('invalid-params', `writes[${index}]: op must be create, update or delete.`);
+      const recordId = entry.recordId ?? `record-${crypto.randomUUID().replaceAll('-', '')}`;
+      if (seen.has(recordId)) throw refusal('invalid-params', `writes[${index}] writes ${recordId} again; put a record's changes in one write.`);
+      seen.add(recordId);
+      return { ...clone(entry), recordId };
+    });
+  }
+
+  /** The reference fields of a record type, from the fixture's schema. */
+  function referenceFields(entityId) {
+    const entity = (fixture.schema?.entities ?? []).find(candidate => candidate.entityId === entityId);
+    return (entity?.fields ?? []).filter(field => field.storageKind === 'reference').map(field => field.fieldId);
+  }
+
+  function findRecord(recordId) {
+    for (const list of Object.values(fixture.records)) {
+      const record = list.find(candidate => candidate.recordId === recordId);
+      if (record !== undefined) return record;
+    }
+    return undefined;
+  }
+
+  function writeOne(entry, touched) {
+    const entityId = text(entry, 'entityId');
+    const list = fixture.records[entityId] ??= [];
+    const checkTargets = (values, targetVersions) => {
+      for (const fieldId of referenceFields(entityId)) {
+        const target = values?.[fieldId];
+        if (target === undefined || target === null) continue;
+        const record = findRecord(target);
+        if (record === undefined) throw refusal('target-not-found', 'That record does not exist in the reference\u2019s target type.');
+        const expected = touched.has(target) ? touched.get(target) : targetVersions?.[fieldId];
+        if (expected === undefined) throw refusal('target-version-required', 'Select the target again so its current version can be checked.');
+        if (record.version !== expected) throw refusal('target-version-conflict', 'The selected target changed. Select it again before saving.');
+      }
+    };
+    if (entry.op === 'create') {
+      const recordId = entry.recordId ?? `record-${crypto.randomUUID().replaceAll('-', '')}`;
+      if (findRecord(recordId) !== undefined) throw refusal('record-exists', 'That record ID is already used.');
+      checkTargets(entry.values, entry.targetVersions);
+      const record = { entityId, recordId, version: 1, values: clone(entry.values ?? {}) };
+      list.push(record);
+      touched.set(recordId, 1);
+      return record;
+    }
+    const record = list.find(candidate => candidate.recordId === entry.recordId);
+    if (record === undefined) throw refusal('record-not-found', 'That record is not in this file.');
+    if (record.version !== entry.version) throw refusal('record-version-conflict', 'The record changed. Review its current values.');
+    if (entry.op === 'update') {
+      checkTargets(entry.values, entry.targetVersions);
+      record.values = { ...record.values, ...clone(entry.values ?? {}) };
+      record.version += Object.keys(entry.values ?? {}).length;
+      touched.set(record.recordId, record.version);
+      return record;
+    }
+    for (const [otherType, others] of Object.entries(fixture.records)) {
+      for (const other of others) {
+        if (other === record) continue;
+        if (referenceFields(otherType).some(fieldId => other.values[fieldId] === record.recordId))
+          throw refusal('record-referenced', `${other.recordId} still points at ${record.recordId}.`);
+      }
+    }
+    list.splice(list.indexOf(record), 1);
+    touched.delete(record.recordId);
+    return { ...record, deleted: true };
   }
 
   function receive(message) {
@@ -355,6 +454,8 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     fail(method, error, times = 1) { failures.push({ method, error: clone(error), times }); return true; },
     remount() { mount(); return true; },
     offerChrome(on) { chrome = on === true; return chrome; },
+    offerWrites(on) { writes = on === true; return writes; },
+    records(entityId) { return clone(fixture.records[entityId] ?? []); },
     toolbars, menus, chromeRefusals,
     pickNext(pick) { menuPick = clone(pick); return true; },
     command(id, value = null, source = 'toolbar') { emit('command', { id, value, source }); return events.length; },

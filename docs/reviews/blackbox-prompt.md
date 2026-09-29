@@ -939,6 +939,11 @@ vocabulary, the examples and the resources — and not from the person.
   the person to press it, then record how many entries History shows for it, what it calls
   them, and the versions the view was answered. Then make the batch fail on its last write
   (a stale version) and record whether any of its earlier writes reached the file.
+- Open the Archi file the repository carries (`workspace/Archi.nendo`) at Views → Archi,
+  an ArchiMate modeller written as a custom view. Using only the keyboard, find an element,
+  open its folder, rename it with F2, and give it a property; then make a new element through
+  Nendo's Add and delete it again. Record what the delete said it would remove, what History
+  shows for it, and whether each change appeared in Studio's lists of the same records.
 - Ask the person, without an agent, to show the package on a second screen and as a
   panel on a record page, from Studio → Surfaces → Custom views. Record whether the
   package's card told them where it was already shown, whether the form let them choose

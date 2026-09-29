@@ -391,6 +391,21 @@ function screenOperations() {
 
 export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages'];
 
+export const PACKAGE_ID = 'org.nendo.archi';
+export const PACKAGE_FOLDER = 'extensions/archi';
+
+/**
+ * The Archi workbench as a screen of the View record type (W-109), placed first among the View
+ * screens so choosing Views opens it. It goes in the same proposal as the package it runs.
+ */
+export function workbenchView() {
+  const { first, second } = screenOperations();
+  const roots = [...first, ...second].filter(operation => operation.operationType === 'ui.addNode' && operation.payload.parentNodeId === null);
+  const position = roots.findIndex(operation => operation.payload.nodeId === 'ar.screen.views');
+  return [op('ui.addNode', { surfaceId: SURFACE, nodeId: 'ar.screen.archi', parentNodeId: null, kind: 'extensionRecordsSurface', position,
+    properties: { definitionVersion: 3, entityId: 'ar.view', title: 'Archi', packageId: PACKAGE_ID, labelFieldId: 'ar.view.name' } })];
+}
+
 // The records every Archi file starts with: Archi's nine top-level folders, in its order, and
 // the 72 concept types. Record IDs are stable, so a rebuild finds what is already there.
 export const ROOT_FOLDERS = FOLDER_KINDS.map((kind, index) => ({
