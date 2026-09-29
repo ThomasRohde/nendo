@@ -10,6 +10,44 @@
 
 ## Context
 
+### Accepted amendment — 2026-09-29 (a related list of links links and unlinks)
+
+Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24), for W-076. Like
+the 2026-09-18 entry it adds nothing to the vocabulary: no kind, no property, no diagnostic,
+no rung. It changes what a `relatedList` does when its record type is a link.
+
+**What was wrong.** A many-to-many relation is a link record type: BCM's application support
+holds a capability, an application, a role and a fit. Adding one meant *Add support*, then
+finding the application in a picker the form did not open, and nothing on either page removed a
+link again short of opening the link record and deleting it from its own page.
+
+**What a link is, without anybody saying so.** A related list's record type is a link when the
+field pointing back is required and the type has at least one other required reference: a
+record of it means nothing without both ends. That is read from the schema, as the 2026-09-18
+entry read Add from the node. Nothing is stored.
+
+**What it authorises.** On such a list, beside Add:
+
+- **Link ‹other type›**, one per other required reference. It opens the link type's create form,
+  as Add does, with the reference back filled in and the other end's picker already open. The
+  link's own fields (role, fit) are on the form, so a link is never created without them.
+- **Remove link** on each row. It asks first, then deletes the link record at its version: an
+  ordinary delete, kept in History and restorable there. The records at either end are never
+  touched.
+
+Both sides work the same way wherever a page shows the relation: the capability's page lists
+its supports through `support.capability`, the application's through `support.application`.
+A custom view does the same through the typed calls it already has — `records.create` with
+both references in `targetVersions`, and `records.delete` — so nothing is added to the view API.
+
+**Declined while a form has unsaved edits**, with the words the 2026-09-18 entry uses, because
+both redraw the page.
+
+**Rejected.** *Link without a form*, creating the link from the picker alone: it would create a
+record whose own required fields nobody filled, or refuse them one at a time. *A stored
+`linkField` property* on the node: rejected for the 2026-09-18 entry's third reason, since
+every link list already built would stay without the buttons until somebody edited it.
+
 ### Accepted amendment — 2026-09-28 (a file's own look)
 
 Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24: "I pre-accept

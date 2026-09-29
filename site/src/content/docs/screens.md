@@ -125,7 +125,11 @@ A record page can contain:
   typing.
 - **Related lists**, which show the records whose reference points at this
   record. **Add** creates a new related record with the reference already filled
-  in. Selecting a row opens it as its own record page.
+  in. Selecting a row opens it as its own record page. When the related records
+  are links between two record types, such as a support joining a capability and
+  an application, the list also offers **Link** followed by the other record type,
+  which opens the form with the picker for the other end already open, and each
+  row offers **Remove link**, which deletes only the link and keeps it in History.
 - **Tiles and charts** over the whole record type.
 - **Commands**, shown as buttons under the header.
 

@@ -1063,6 +1063,22 @@ this feature draws the same relation without the buttons.
 | A row whose record has gone | Says so (*That record is no longer there*) after the redraw that follows the click. It leaves the person on the page they were on, with busy cleared. The read comes before anything moves, so nothing moves. |
 | A related type with no screen | Offers neither, and says so beside the heading. Use shows the record types that have a compiled surface. Without one, the new record has no place to go, and there is no page to open a row on. |
 
+### A related list of links
+
+A related list whose record type is a link offers two more actions (ADR-0004,
+2026-09-29 amendment; W-076). A type is a link when the field pointing back is
+required and at least one other reference of the type is required too: a record of
+it means nothing without both ends. That is read from the schema; nothing is
+authored or stored, and the file's minimum host does not move.
+
+| What it does | The rule |
+| --- | --- |
+| Link ‹other type› | One button per other required reference, beside Add. It opens the same create form as Add, with the reference back filled in and the other end's picker already open. The link type's own fields are on the form, so a link is never saved without them. |
+| Remove link | On each row. It asks first, naming the row, then deletes the link record at the version the row was read at: an ordinary delete, kept in History and restorable there. The records at either end are not touched. |
+| Either side | Wherever a page shows the relation. A capability's page shows its supports through `support.capability`, an application's through `support.application`; each offers Link at the other end. |
+| A custom view | Does the same through the typed calls it already has: `records.create` with both references in `targetVersions`, and `records.delete` ([custom views](custom-views.md)). |
+| Unsaved edits | Declines both, as Add and open do. |
+
 If a relation's window was read against an older revision, it is not the answer
 for that relation. It reads as loading until it is read again, as every other
 window here already does. A record page chases its relations on the same bounded

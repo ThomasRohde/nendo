@@ -332,6 +332,11 @@ that you could not.
   type's own Add button.
 - Change the pre-filled link to a different record before saving, and say whether the
   screen let you, whether you expected it to, and where the record ended up.
+- Author a link record type between two record types (both references required, plus a
+  field of its own such as a role) and a related list of it on each side's page. From one
+  side, use **Link**; from the other, **Remove link**. Record whether the form asked for the
+  link's own field, whether the other side's list showed the link without being reopened,
+  and whether History said what was removed and let the person restore it.
 - Add to a relation whose record type's own page does **not** show the field pointing back
   at the parent. Is the link on the form at all? Save it and then find the record from the
   other end: is it linked?

@@ -145,13 +145,48 @@ export function relatedHeadMarkup(
   title: string,
   target: EntitySnapshot | undefined,
   hasScreen: boolean,
+  links: readonly LinkEnd[] = [],
 ): string {
+  const add = `<button class="secondary-button related-add" type="button" data-related-add="${escapeAttribute(node.semanticId)}"><span class="button-glyph" aria-hidden="true">+</span>Add ${escapeHtml(target?.displayName ?? '')}</button>`;
+  // A link list also links an existing record at its other end (ADR-0004, 2026-09-29).
+  const link = links.map((end) => `<button class="secondary-button related-link" type="button" data-related-link="${escapeAttribute(node.semanticId)}" data-related-link-field="${escapeAttribute(end.fieldId)}">Link ${escapeHtml(end.targetName)}</button>`).join('');
   const action = target === undefined
     ? ''
     : hasScreen
-      ? `<button class="secondary-button related-add" type="button" data-related-add="${escapeAttribute(node.semanticId)}"><span class="button-glyph" aria-hidden="true">+</span>Add ${escapeHtml(target.displayName)}</button>`
+      ? `<span class="related-actions">${link}${add}</span>`
       : `<span class="related-no-screen">${escapeHtml(target.displayName)} has no screen to add one on.</span>`;
   return `<header class="related-head"><h3>${escapeHtml(title)}</h3>${action}</header>`;
+}
+
+/** The other end of a link record type: a required reference beside the one pointing back. */
+export interface LinkEnd {
+  fieldId: string;
+  targetEntityId: string;
+  targetName: string;
+}
+
+/**
+ * The other ends of a related list's record type when that type is a link (ADR-0004,
+ * 2026-09-29): the field pointing back is required, and so is at least one other reference.
+ * A record of such a type means nothing without both ends, which is what makes it a link and
+ * not merely a record that happens to point somewhere else too. Read from the schema; nothing
+ * is stored to say so.
+ */
+export function linkEndsOf(
+  target: EntitySnapshot | undefined,
+  viaFieldId: string | null,
+  entities: readonly EntitySnapshot[],
+): LinkEnd[] {
+  if (target === undefined || viaFieldId === null) return [];
+  const via = target.fields.find((field) => field.fieldId === viaFieldId);
+  if (via === undefined || !via.required) return [];
+  return target.fields
+    .filter((field) => field.fieldId !== viaFieldId && field.required && field.retired !== true && field.reference)
+    .map((field) => ({
+      fieldId: field.fieldId,
+      targetEntityId: field.reference!.targetEntityId,
+      targetName: entities.find((entity) => entity.entityId === field.reference!.targetEntityId)?.displayName ?? field.displayName,
+    }));
 }
 
 /**
@@ -168,12 +203,18 @@ export function relatedRowMarkup(
   recordId: string,
   targetEntityId: string | null,
   opens: boolean,
+  unlinkVersion: number | null = null,
 ): string {
   const cells = displays.map((display, index) => index === 0
     ? `<strong>${escapeHtml(display || '—')}</strong>`
     : `<span>${escapeHtml(display || '—')}</span>`).join('');
+  // A row of a link list removes the link it is (ADR-0004, 2026-09-29): the link record,
+  // never either record it joins.
+  const unlink = unlinkVersion === null || !opens
+    ? ''
+    : `<button class="text-button related-unlink" type="button" data-related-unlink="${escapeAttribute(recordId)}" data-related-entity="${escapeAttribute(targetEntityId ?? '')}" data-related-version="${unlinkVersion}" aria-label="Remove the link ${escapeAttribute(displays[0] || recordId)}">Remove link</button>`;
   return opens
-    ? `<li><button class="related-row" type="button" data-related-open="${escapeAttribute(recordId)}" data-related-entity="${escapeAttribute(targetEntityId ?? '')}" aria-label="Open ${escapeAttribute(displays[0] || recordId)}">${cells}</button></li>`
+    ? `<li${unlink === '' ? '' : ' class="is-link"'}><button class="related-row" type="button" data-related-open="${escapeAttribute(recordId)}" data-related-entity="${escapeAttribute(targetEntityId ?? '')}" aria-label="Open ${escapeAttribute(displays[0] || recordId)}">${cells}</button>${unlink}</li>`
     : `<li>${cells}</li>`;
 }
 
@@ -189,8 +230,9 @@ export function relatedListMarkup(node: SurfaceNodePlan, record: RecordPlan): st
     : undefined;
   const targetEntityId = typeof node.properties.targetEntityId === 'string' ? node.properties.targetEntityId : null;
   const opens = relatedTargetHasScreen(targetEntityId);
-  const head = relatedHeadMarkup(node, title,
-    state.session.entities.find((entity) => entity.entityId === targetEntityId), opens);
+  const target = state.session.entities.find((entity) => entity.entityId === targetEntityId);
+  const links = linkEndsOf(target, typeof node.properties.viaFieldId === 'string' ? node.properties.viaFieldId : null, state.session.entities);
+  const head = relatedHeadMarkup(node, title, target, opens, links);
   const fieldIds = node.children
     .filter((child) => child.kind === 'fieldBinding')
     .map((child) => child.properties.fieldId)
@@ -217,7 +259,7 @@ export function relatedListMarkup(node: SurfaceNodePlan, record: RecordPlan): st
     fieldIds.map((fieldId) => (relatedDerived ?? []).some((field) => field.fieldId === fieldId)
       ? calculatedDisplay(resultFor(related.calculations, fieldId)).text
       : valueDisplay(related.values[fieldId])),
-    related.recordId, targetEntityId, opens)).join('');
+    related.recordId, targetEntityId, opens, links.length > 0 ? related.recordVersion : null)).join('');
   const pager = `<div class="page-controls" aria-label="${escapeAttribute(title)} pages"><span>${page.items.length} shown · Page ${(window?.index ?? 0) + 1}</span><button class="text-button" type="button" data-related-page="-1" data-related-key="${escapeAttribute(key)}" ${(window?.index ?? 0) === 0 ? 'disabled' : ''}>Previous</button><button class="text-button" type="button" data-related-page="1" data-related-key="${escapeAttribute(key)}" ${page.nextCursor === null ? 'disabled' : ''}>Next</button></div>`;
   return `<section class="related-list" data-related="${escapeAttribute(node.semanticId)}">${head}${tiles}<ul class="related-rows">${rows}</ul>${page.nextCursor === null && (window?.index ?? 0) === 0 ? '' : pager}</section>`;
 }

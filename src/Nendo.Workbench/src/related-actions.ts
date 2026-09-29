@@ -1,7 +1,7 @@
-import { refreshDerived } from './actions';
+import { refreshDerived, runMutation } from './actions';
 import { focusedRecords, leaveRecordContext, state, type CreateRelated } from './app-state';
 import { refuseWhileDirty } from './draft-guard';
-import { messageFor } from './format';
+import { escapeHtml, messageFor } from './format';
 import type { ApplicationPlan, RecordPlan, SurfaceNodePlan } from './host';
 import { refreshVisibleTiles } from './panels';
 import { activePlan, applicationPlans, relatedLists } from './plan-selection';
@@ -96,22 +96,48 @@ export function recordInView(plan: ApplicationPlan): RecordPlan | null {
  * `selectedRecordId` is deliberately left alone: the relation still belongs to the record
  * in view, so closing the form or saving it returns there rather than to an empty pane.
  */
-export function beginRelatedCreate(plan: ApplicationPlan, record: RecordPlan, nodeId: string): void {
+export function beginRelatedCreate(plan: ApplicationPlan, record: RecordPlan, nodeId: string, linkFieldId?: string): void {
   if (state.actionInFlight) return;
   const node = relatedLists(plan).find((candidate) => candidate.semanticId === nodeId);
   if (node === undefined) return;
   const targetEntityId = typeof node.properties.targetEntityId === 'string' ? node.properties.targetEntityId : null;
   const viaFieldId = typeof node.properties.viaFieldId === 'string' ? node.properties.viaFieldId : null;
   if (targetEntityId === null || viaFieldId === null || relatedTargetPlan(targetEntityId) === null) return;
-  if (refuseWhileDirty('adding a related record')) return;
+  if (refuseWhileDirty(linkFieldId === undefined ? 'adding a related record' : 'linking a record')) return;
   state.createRelated = {
     targetEntityId,
     viaFieldId,
     parentRecordId: record.semanticId,
     parentVersion: record.version,
     parentLabel: parentLabel(targetEntityId, viaFieldId, record),
+    ...(linkFieldId === undefined ? {} : { linkFieldId }),
   };
   rerender();
+}
+
+/**
+ * Remove a link from a link list (ADR-0004, 2026-09-29): delete the link record at its
+ * version, after asking. The records it joined are untouched, and the delete is an ordinary
+ * one, kept in History and restorable there.
+ */
+export function unlinkRelated(entityId: string, recordId: string, version: number, label: string): void {
+  if (state.actionInFlight || entityId === '' || !Number.isFinite(version)) return;
+  if (refuseWhileDirty('removing a link')) return;
+  const dialog = document.createElement('dialog');
+  dialog.className = 'record-delete-dialog';
+  dialog.setAttribute('aria-labelledby', 'unlink-heading');
+  dialog.innerHTML = `<h2 id="unlink-heading">Remove this link?</h2><p>${escapeHtml(label)}</p>
+    <p>Only the link is deleted. The records at both ends stay as they are, and the link is kept in History, where it can be restored.</p>
+    <div class="form-actions"><button class="secondary-button" data-cancel type="button" autofocus>Cancel</button><button class="primary-button" data-confirm type="button">Remove link</button></div>`;
+  document.body.append(dialog);
+  dialog.addEventListener('close', () => dialog.remove(), { once: true });
+  dialog.querySelector('[data-cancel]')?.addEventListener('click', () => dialog.close());
+  dialog.querySelector('[data-confirm]')?.addEventListener('click', () => {
+    dialog.close();
+    void runMutation('data.deleteRecord', { entityId, recordId, expectedRecordVersion: version, idempotencyKey: `unlink-${crypto.randomUUID()}` },
+      'Link removed. Open History to review or restore it.', true);
+  });
+  dialog.showModal();
 }
 
 /** Abandon the new related record and go back to the page it was started from. */
@@ -138,6 +164,9 @@ export function seedRelatedReference(created: CreateRelated): void {
   if (selected === null) return;
   selected.textContent = `${created.parentLabel} · ${created.parentRecordId}`;
   selected.classList.remove('is-unset');
+  // Link opens the other end's picker, so the first thing asked is which record to link.
+  if (created.linkFieldId !== undefined)
+    content.querySelector<HTMLButtonElement>(`#record-form [data-reference-field="${CSS.escape(created.linkFieldId)}"] .reference-choose`)?.click();
 }
 
 /**
@@ -244,4 +273,9 @@ export function wireRelatedActions(plan: ApplicationPlan, record: RecordPlan): v
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-related-open]'))
     button.addEventListener('click', () =>
       void openRelatedRecord(button.dataset.relatedEntity ?? '', button.dataset.relatedOpen!));
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-related-link]'))
+    button.addEventListener('click', () => beginRelatedCreate(plan, record, button.dataset.relatedLink!, button.dataset.relatedLinkField));
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-related-unlink]'))
+    button.addEventListener('click', () => unlinkRelated(button.dataset.relatedEntity ?? '', button.dataset.relatedUnlink!,
+      Number(button.dataset.relatedVersion), button.closest('li')?.querySelector('strong')?.textContent ?? button.dataset.relatedUnlink!));
 }

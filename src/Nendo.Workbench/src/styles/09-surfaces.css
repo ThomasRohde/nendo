@@ -809,8 +809,27 @@
   text-transform: uppercase;
 }
 
-.related-head .related-add {
+.related-head .related-add,
+.related-head .related-link {
   padding: 4px 10px;
+  font-size: 0.78rem;
+}
+
+/* Add, and on a link list Link beside it (ADR-0004, 2026-09-29). */
+.related-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* A link row: the row that opens the link, and Remove link at its end. */
+.related-rows li.is-link {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.related-rows li.is-link .related-unlink {
+  margin-right: 8px;
   font-size: 0.78rem;
 }
 

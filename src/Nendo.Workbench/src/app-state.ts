@@ -112,6 +112,8 @@ export interface CreateRelated {
   parentRecordId: string;
   parentVersion: number;
   parentLabel: string;
+  /** For Link on a link list: the other end, whose picker opens with the form (ADR-0004, 2026-09-29). */
+  linkFieldId?: string;
 }
 
 /**
