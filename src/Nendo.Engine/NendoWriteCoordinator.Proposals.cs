@@ -148,12 +148,38 @@ public sealed partial class NendoWriteCoordinator
                 throw;
             }
             await ProposalWorkspace.PersistAsync(context, cancellationToken);
-            return context.ToPreview();
+            return PreviewOf(context);
         }
         finally
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>
+    /// The preview a reviewer reads, with what accepting means for consent to the
+    /// file's automatic actions. Worked out here rather than stored, because it is a
+    /// comparison with what the open file requires now, and that moves whenever its
+    /// definitions do.
+    /// </summary>
+    private NendoProposalPreview PreviewOf(ProposalContext context) =>
+        context.ToPreview() with { Behaviour = DescribeBehaviour(context.BehaviourPlan) };
+
+    private NendoProposalBehaviour? DescribeBehaviour(PreparedBehaviourPlan plan)
+    {
+        var after = plan.RequiredGrant;
+        var generated = plan.Generated.Count;
+        var changes = after != _behaviourRequirement;
+        // A file with no writing action after acceptance, or one that keeps exactly the
+        // actions it has without this proposal setting them off, asks nothing new of
+        // the person, and a review that said something anyway would teach them to skip it.
+        if (after is null || (!changes && generated == 0)) return null;
+        return new NendoProposalBehaviour(
+            after.Capabilities.HasFlag(NendoBehaviourCapabilities.CreateRecords),
+            after.Capabilities.HasFlag(NendoBehaviourCapabilities.UpdateRecords),
+            after.Capabilities.HasFlag(NendoBehaviourCapabilities.DeleteRecords),
+            generated,
+            changes);
     }
 
     /// <summary>

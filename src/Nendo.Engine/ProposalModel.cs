@@ -42,6 +42,30 @@ public sealed record NendoProposalEntitySummary(
     int RecordCount,
     bool Retired);
 
+/// <summary>
+/// What accepting a proposal means for this device's consent to the file's automatic
+/// actions, said before acceptance rather than discovered after it (ADR-0009, the
+/// 2026-09-29 amendment). Facts only: whether consent is held right now is the
+/// host's to read, and a review that cached it would keep saying so after a revoke.
+/// </summary>
+/// <param name="CreatesRecords">The file's automatic actions, once accepted, can create records.</param>
+/// <param name="UpdatesRecords">They can change records.</param>
+/// <param name="DeletesRecords">They can delete records.</param>
+/// <param name="GeneratedEffectCount">
+/// Writes the actions made on the validated copy, which acceptance replays. Above zero,
+/// acceptance is refused until consent for the behaviour is held here.
+/// </param>
+/// <param name="ChangesWhatIsApproved">
+/// The behaviour the file holds after acceptance is not the behaviour it holds now, so
+/// consent given today does not carry over and has to be given again afterwards.
+/// </param>
+public sealed record NendoProposalBehaviour(
+    bool CreatesRecords,
+    bool UpdatesRecords,
+    bool DeletesRecords,
+    int GeneratedEffectCount,
+    bool ChangesWhatIsApproved);
+
 public sealed record NendoProposalPreview(
     string ProposalId,
     string Title,
@@ -117,6 +141,13 @@ public sealed record NendoProposalPreview(
     /// sentence about them; a binary file is said by its sizes.
     /// </summary>
     public IReadOnlyList<NendoExtensionFileChange> PackageChanges { get; init; } = [];
+
+    /// <summary>
+    /// What accepting means for consent to automatic actions, or null when there is
+    /// nothing to say: the file would hold no action that writes, or it keeps exactly
+    /// the actions it has and this proposal does not set them off.
+    /// </summary>
+    public NendoProposalBehaviour? Behaviour { get; init; }
 }
 
 public sealed record NendoPromotionOutcome(

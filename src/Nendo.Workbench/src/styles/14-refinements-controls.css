@@ -546,6 +546,18 @@
 }
 .behaviour-approval-actions { margin-top: 4px; }
 
+/* What accepting a proposal means for consent to automatic actions (W-008), first in
+   the review's summary, so the reason Accept waits is on screen when the review opens. The same accent as the approval panel, so the two read as one
+   feature; warning where accepting would be refused or pauses editing. */
+.proposal-consent {
+  --callout-tone: var(--violet);
+  margin: 16px 20px 4px;
+}
+.proposal-consent:not([data-consent="approved"]) { --callout-tone: var(--warning); }
+.proposal-consent h4 { margin: 0; font-size: 0.85rem; }
+.proposal-consent p { margin: 0; line-height: 1.45; font-size: 0.82rem; }
+.proposal-consent-note { color: var(--warning); font-weight: 650; }
+
 /* The record-page header (ADR-0004, 2026-09-14): a band above the form carrying the
    title field, the subtitle field and the accent choice's chip, in the accent's tone. */
 .record-hero {

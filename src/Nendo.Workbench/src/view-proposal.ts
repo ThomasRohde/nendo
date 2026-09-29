@@ -3,6 +3,7 @@ import { state } from './app-state';
 import { client } from './client';
 import { escapeHtml, isProposalPreviewable, messageFor, proposalAuthorLine, proposalStateLabel, reversibilityLabel } from './format';
 import { type ApplicationPlan, type DesktopPromotionView, type OverviewPlan, type ProposalPreview } from './host';
+import { proposalConsent, proposalConsentMarkup } from './proposal-consent';
 import { packageChangesMarkup } from './package-diff-markup';
 import { announce, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
 import { landAddedView } from './view-packages';
@@ -17,13 +18,14 @@ import { renderSurfacePreview } from './surface-preview';
 export function renderProposal(): void {
   const preview = state.proposal!;
   const plan = preview.previewApplications?.[0] ?? null;
+  const consent = proposalConsent(preview.behaviour, state.session.behaviourTrust);
   content.innerHTML = `<div class="proposal-page" data-testid="proposal-review">
     <header class="proposal-heading"><button id="close-proposal" class="text-button" type="button" data-dismiss>Back</button><span class="proposal-state">${escapeHtml(proposalStateLabel(preview.state))}</span><h2>${escapeHtml(preview.title)}</h2><p>${escapeHtml(proposalAuthorLine(preview, state.session.extensions?.packages ?? []))}</p></header>
     <div class="message-slot" role="alert" hidden></div>
     <div class="proposal-layout">
       <section class="proposal-changes"><h3>What changes</h3>${preview.semanticDiff.map((entry) => `<article><span class="change-mark" aria-hidden="true">＋</span><div><strong>${escapeHtml(entry.summary)}</strong><p>${escapeHtml(reversibilityLabel(entry.reversibility))}</p></div></article>`).join('')}${packageChangesMarkup(preview.packageChanges)}</section>
-      <aside class="proposal-summary"><h3>Preview</h3>${plan === null ? isProposalPreviewable(preview.state) ? (preview.packageChanges?.length ?? 0) > 0 ? (preview.packageChanges ?? []).every((change) => change.change === 'removed') ? '<p>Validated. Accepting takes this code out of the file; a view that uses the package then says its package is missing.</p>' : '<p>Validated. Read the code beside this panel: once you accept, it runs wherever a screen or a record page shows its view.</p>' : '<p>Validated for Studio. Review the field and record changes beside this panel. No custom surface is added.</p>' : '<p>No healthy preview is available.</p>' : `<dl><div><dt>Record type</dt><dd>${escapeHtml(plan.entity.displayName)}</dd></div><div><dt>Screen</dt><dd>${escapeHtml(surfaceTitle(plan) ?? '')}</dd></div><div><dt>Operations</dt><dd>${preview.operationCount}</dd></div></dl><p>Explore the read-only screen preview below.</p>`}
-        <div class="proposal-actions"><button id="reject-proposal" class="secondary-button" data-action type="button">Reject</button><button id="accept-proposal" class="primary-button" data-action type="button" ${!isProposalPreviewable(preview.state) ? 'disabled' : ''}>Accept changes</button></div>
+      <aside class="proposal-summary"><h3>Preview</h3>${proposalConsentMarkup(consent)}${plan === null ? isProposalPreviewable(preview.state) ? (preview.packageChanges?.length ?? 0) > 0 ? (preview.packageChanges ?? []).every((change) => change.change === 'removed') ? '<p>Validated. Accepting takes this code out of the file; a view that uses the package then says its package is missing.</p>' : '<p>Validated. Read the code beside this panel: once you accept, it runs wherever a screen or a record page shows its view.</p>' : '<p>Validated for Studio. Review the field and record changes beside this panel. No custom surface is added.</p>' : '<p>No healthy preview is available.</p>' : `<dl><div><dt>Record type</dt><dd>${escapeHtml(plan.entity.displayName)}</dd></div><div><dt>Screen</dt><dd>${escapeHtml(surfaceTitle(plan) ?? '')}</dd></div><div><dt>Operations</dt><dd>${preview.operationCount}</dd></div></dl><p>Explore the read-only screen preview below.</p>`}
+        <div class="proposal-actions"><button id="reject-proposal" class="secondary-button" data-action type="button">Reject</button><button id="accept-proposal" class="primary-button" data-action type="button" ${!isProposalPreviewable(preview.state) || consent?.blocksAcceptance === true ? 'disabled' : ''}>Accept changes</button></div>
         ${preview.diagnostics.map((item) => `<p class="proposal-diagnostic">${escapeHtml(item.message)} ${escapeHtml(item.hint)}</p>`).join('')}
       </aside>
     </div>

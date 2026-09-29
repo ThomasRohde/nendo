@@ -1,4 +1,4 @@
-import { type AgentAccessMode, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type ApplicationPlan, type ApplyResult, type CompileResult, type DesktopMutationView, type DesktopPromotionView, type DesktopSessionView, type EntitySnapshot, type ExtensionFileChange, type ExtensionPackageView, type ProposalPreview, type ReadPage, type RecordPlan, type RecordSnapshot, type RevisionSnapshot, type SemanticDiffEntry, type SurfaceNodePlan, type WorkbenchClient, fileCapabilities } from './host-types';
+import { type AgentAccessMode, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type ApplicationPlan, type ApplyResult, type CompileResult, type DesktopMutationView, type DesktopPromotionView, type DesktopSessionView, type EntitySnapshot, type ExtensionFileChange, type ExtensionPackageView, type ProposalBehaviour, type ProposalPreview, type ReadPage, type RecordPlan, type RecordSnapshot, type RevisionSnapshot, type SemanticDiffEntry, type SurfaceNodePlan, type WorkbenchClient, fileCapabilities } from './host-types';
 import {
   previewFixture,
   previewFixtureForEntity,
@@ -804,6 +804,9 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
           title: rootLabel(fixture.plan, root.kind),
           entityId: fixture.entity.entityId,
         })),
+        // ?consent=approve-after (or approve-first, or split) shows what the review
+        // and the queue say about automatic actions (W-008); absent, the proposal asks nothing.
+        behaviour: previewConsent(),
         // A custom view's code is reviewed as lines (ADR-0013); the preview shows one file changed and one asset replaced.
         packageChanges: [{
           packageId: 'org.example.board-glance',
@@ -1098,8 +1101,23 @@ function isAgentMode(value: string): value is AgentAccessMode {
     value === 'shapeApp' || value === 'unattended';
 }
 
+function previewConsent(): ProposalBehaviour | null {
+  const kind = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('consent');
+  switch (kind) {
+    case 'approve-first':
+      return { createsRecords: false, updatesRecords: true, deletesRecords: false, generatedEffectCount: 2, changesWhatIsApproved: false };
+    case 'approve-after':
+      return { createsRecords: true, updatesRecords: true, deletesRecords: false, generatedEffectCount: 0, changesWhatIsApproved: true };
+    case 'split':
+      return { createsRecords: false, updatesRecords: true, deletesRecords: true, generatedEffectCount: 3, changesWhatIsApproved: true };
+    default:
+      return null;
+  }
+}
+
 function agentProposalSummary(preview: AgentProposalPreview): AgentProposalSummary {
   return {
+    behaviour: preview.preview.behaviour ?? null,
     proposalId: preview.proposalId,
     title: preview.title,
     state: preview.state,

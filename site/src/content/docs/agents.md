@@ -116,6 +116,8 @@ A change set holds at most 128 submitted operations in 32 mutations, and at most
 
 A proposal appears on the Agent page under **Pending changes**, with its title, the number of changes and how reversible they are. **Review changes** shows **What changes**, a line per change, and **What this builds**: record types, fields, screens and records as the file would be. **Accept changes** applies it. **Reject** leaves the file as it was. When you accept one proposal, other waiting proposals become stale, because they were made against the earlier file.
 
+When accepting a proposal involves the file's automatic actions, both the queue and the review say so before you accept. A proposal that sets off actions this computer has not approved asks you to approve them on the Agent page first, and **Accept changes** stays unavailable until you do. A proposal that changes the actions says that editing pauses after you accept, until you approve them again. A proposal that both changes the actions and sets them off cannot be accepted as it stands, and the review asks for the actions first and the records after. An agent reads the same facts in the proposal's `behaviour`.
+
 A change set may contain 29 operation types, and nothing else:
 
 - `schema.*` (12): create, rename and retire record types and fields; make a field required; make a field unique, so no two records can share a value, and have Nendo number it (W-001, W-002…) when a record is created without one; configure a reference; name and colour a choice; keep a record type a tree, and stop keeping it one.

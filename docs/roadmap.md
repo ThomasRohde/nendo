@@ -308,15 +308,16 @@ The other four findings were these:
 - An action whose target reference was empty selected nothing, and no published
   text said that this was the rule.
 - Five tool-argument nodes advertised no type at all.
+- Consent to automatic actions was first mentioned after acceptance. A proposal's
+  review, Pending changes and the MCP preview now say what accepting means for it
+  beforehand, and Accept is withheld where promotion would be refused (W-008,
+  [ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md)
+  2026-09-29 amendment). Consent stays a separate act. One shape still cannot be
+  accepted: a proposal that changes the actions and also sets them off. The review
+  says so and asks for the actions first and the records after.
 
 What remains open:
 
-- **Consent is shown where acceptance happens, but is not in the proposal queue.**
-  When a proposal that adds actions is accepted, the approval panel and the
-  *Approval needed* pill now appear on the Agent page immediately. The consent
-  itself is still a separate act from acceptance, and the proposal list does not
-  carry it. To fold approval into the acceptance dialog is a change to what
-  acceptance means.
 - **An assignment bound to the wrong record installs cleanly.** The published
   example warns about this mistake: a step binds the event record while it
   writes to the referenced record. The step now fails the save, and the failure

@@ -3,13 +3,14 @@ import { state } from './app-state';
 import { client } from './client';
 import { type ConnectionClient, connectionClients, connectionCommand, serverNameFor } from './client-help';
 import { activityLabel, agentModeLabel, escapeAttribute, escapeHtml, formatDateTime, isAgentAccessMode, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel, reviewKindLabel, shortId } from './format';
-import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentStatus, type DesktopPromotionView, type ProposalPreview } from './host';
+import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type DesktopPromotionView, type ProposalPreview } from './host';
 import { announce, clearError, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
 import { applicationPlans, overviewPlan } from './plan-selection';
 import { addedSurfaceSentence } from './surface-model';
 import { behaviourApprovalMarkup, refreshHealth, wireBehaviourApproval } from './view-health';
 import { attachScreenPreview } from './view-proposal';
 import { packageChangesMarkup } from './package-diff-markup';
+import { proposalConsent, proposalConsentMarkup } from './proposal-consent';
 /**
  * Agent access: what this device has granted, where an agent connects, what it
  * has been doing, and the review of anything it proposes.
@@ -101,7 +102,7 @@ export function renderAgent(): void {
       </section>
       <section class="pending-changes"><header><h3>Pending changes</h3><span class="${pendingCount === 0 ? '' : 'pending-badge'}">${pendingCount === 0 ? 'None waiting' : `${pendingCount} waiting`}</span></header>${pendingCount === 0
         ? '<div class="quiet-state"><strong>No changes waiting</strong><p>Agent proposals appear here for your review.</p></div>'
-        : status.pendingProposals.map((pending) => `<article><span class="proposal-spark" aria-hidden="true">✦</span><div><strong>${escapeHtml(pending.title)}</strong><p>${pending.operationCount} proposed changes · ${escapeHtml(reversibilityLabel(pending.reversibility))}</p></div><button class="secondary-button" data-review-agent-proposal="${escapeAttribute(pending.proposalId)}" data-action type="button">Review changes</button></article>`).join('')}</section>
+        : status.pendingProposals.map((pending) => `<article><span class="proposal-spark" aria-hidden="true">✦</span><div><strong>${escapeHtml(pending.title)}</strong><p>${pending.operationCount} proposed changes · ${escapeHtml(reversibilityLabel(pending.reversibility))}${queueConsentNote(pending.behaviour)}</p></div><button class="secondary-button" data-review-agent-proposal="${escapeAttribute(pending.proposalId)}" data-action type="button">Review changes</button></article>`).join('')}</section>
       <section class="agent-activity"><header><h3>Recent activity</h3><span>${status.recentActivity.length} shown</span></header>${activityMarkup(status.recentActivity)}</section>
     </div>
   </div>`;
@@ -136,6 +137,13 @@ export function renderAgent(): void {
   wireBehaviourApproval(content);
 }
 
+// The queue names a consent step beside the size of the change, so a person sees it
+// before opening the review rather than after accepting.
+function queueConsentNote(behaviour: AgentProposalSummary['behaviour']): string {
+  const note = proposalConsent(behaviour, state.session.behaviourTrust)?.queueNote ?? null;
+  return note === null ? '' : ` · <span class="proposal-consent-note">${escapeHtml(note)}</span>`;
+}
+
 export function activityMarkup(activity: AgentActivity[]): string {
   if (activity.length === 0) {
     return '<div class="quiet-state"><strong>No activity yet</strong><p>Reads, edits and proposals will be summarized here.</p></div>';
@@ -145,13 +153,14 @@ export function activityMarkup(activity: AgentActivity[]): string {
 
 export function renderAgentProposal(): void {
   const preview = state.agentProposal!;
+  const consent = proposalConsent(preview.preview.behaviour, state.session.behaviourTrust);
   content.innerHTML = `<div class="proposal-page agent-proposal-page" data-testid="agent-proposal-review">
     <header class="proposal-heading"><button id="close-agent-proposal" class="text-button" type="button" data-dismiss>Back to Agent</button><span class="proposal-state">${escapeHtml(proposalStateLabel(preview.state))}</span><h2>${escapeHtml(preview.title)}</h2><p>An agent prepared these changes. Your active file is unchanged until you accept.</p></header>
     <div class="message-slot" role="alert" hidden></div>
     <div class="proposal-layout">
       <section class="proposal-changes"><h3>What changes</h3>${preview.semanticDiff.map((entry) => `<article><span class="change-mark" aria-hidden="true">＋</span><div><strong>${escapeHtml(entry.summary)}</strong><p>${escapeHtml(reversibilityLabel(entry.reversibility))}</p></div></article>`).join('')}${preview.diagnostics.map((item) => `<article class="proposal-diagnostic"><span class="change-mark" aria-hidden="true">!</span><div><strong>${escapeHtml(item.message)}</strong><p>${escapeHtml(item.hint)}</p></div></article>`).join('')}${packageChangesMarkup(preview.preview.packageChanges)}</section>
-      <aside class="proposal-summary"><h3>What this builds</h3>${agentPreviewMarkup(preview.preview, preview.operationCount)}
-        <div class="proposal-actions"><button id="reject-agent-proposal" class="secondary-button" data-action type="button">Reject</button><button id="accept-agent-proposal" class="primary-button" data-action type="button" ${!isProposalPreviewable(preview.state) || preview.diagnostics.some((item) => item.severity === 'error' || item.severity === 0) ? 'disabled' : ''}>Accept changes</button></div>
+      <aside class="proposal-summary"><h3>What this builds</h3>${proposalConsentMarkup(consent)}${agentPreviewMarkup(preview.preview, preview.operationCount)}
+        <div class="proposal-actions"><button id="reject-agent-proposal" class="secondary-button" data-action type="button">Reject</button><button id="accept-agent-proposal" class="primary-button" data-action type="button" ${!isProposalPreviewable(preview.state) || consent?.blocksAcceptance === true || preview.diagnostics.some((item) => item.severity === 'error' || item.severity === 0) ? 'disabled' : ''}>Accept changes</button></div>
       </aside>
     </div>
   </div>`;

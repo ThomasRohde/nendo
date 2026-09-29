@@ -397,6 +397,101 @@ public sealed class BehaviourProposalTests
     }
 
     /// <summary>The consent the reviewed plan says promoting it will need.</summary>
+    // W-008 (ADR-0009, 2026-09-29 amendment): the review says what accepting means for
+    // consent before anyone presses Accept. Each case below is one sentence the person
+    // is shown, and each is measured from the preview a real validation produced.
+
+    [TestMethod]
+    public async Task AProposalInAFileWithNoAutomaticActionsSaysNothingAboutConsent()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var preview = await coordinator.BeginProposalAsync(ProposalId(), "Add a record type", "test",
+            new NendoChangeSet([new NendoMutation("test", "entity", "test", "Add", [
+                new CreateEntityOperation("notes", "notes", "Notes", "notes"),
+            ])]));
+        Assert.AreEqual(NendoProposalState.Previewable, preview.State);
+        Assert.IsNull(preview.Behaviour, "A file with no automatic actions was reviewed as needing consent.");
+    }
+
+    [TestMethod]
+    public async Task ADataProposalThatSetsOffApprovedActionsSaysSoAndKeepsTheApproval()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await Fixture(coordinator, service);
+        TestBehaviourAuthority.Approving(coordinator);
+
+        var preview = await coordinator.BeginProposalAsync(ProposalId(), "Finish a task", "test", Edit());
+        var behaviour = preview.Behaviour ?? throw new AssertFailedException(
+            "A proposal whose acceptance replays an automatic write said nothing about it.");
+        Assert.AreEqual(1, behaviour.GeneratedEffectCount);
+        Assert.IsFalse(behaviour.ChangesWhatIsApproved,
+            "A data-only proposal was said to change the behaviour the device approved.");
+        Assert.IsTrue(behaviour.UpdatesRecords);
+        Assert.IsFalse(behaviour.DeletesRecords);
+    }
+
+    [TestMethod]
+    public async Task ADefinitionChangeSaysConsentMustBeGivenAgainAfterAcceptance()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await Fixture(coordinator, service);
+        TestBehaviourAuthority.Approving(coordinator);
+
+        // Any definition change moves the revision the grant is scoped to, so what the
+        // device approved today does not carry over, and editing pauses after accepting.
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        var preview = await coordinator.BeginProposalAsync(ProposalId(), "Rename a record type", "test",
+            new NendoChangeSet([new NendoMutation("test", "rename", "test", "Rename", [
+                new RenameEntityOperation("rename", "tasks", "Work items", revision),
+            ])]));
+        var behaviour = preview.Behaviour ?? throw new AssertFailedException(
+            "A proposal after which consent has to be given again said nothing about it.");
+        Assert.IsTrue(behaviour.ChangesWhatIsApproved);
+        Assert.AreEqual(0, behaviour.GeneratedEffectCount);
+    }
+
+    [TestMethod]
+    public async Task AProposalThatBothChangesAndSetsOffTheActionsIsNamedAsOneNobodyCanAccept()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await Fixture(coordinator, service);
+        TestBehaviourAuthority.Approving(coordinator);
+
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        var proposalId = ProposalId();
+        var preview = await coordinator.BeginProposalAsync(proposalId, "Change the rule and edit", "test",
+            new NendoChangeSet([
+                new NendoMutation("test", "redefine", "test", "Change what the action writes", [
+                    new SetBehaviourDefinitionOperation("redefine-action", new NendoActionDefinition(
+                        "project.setTotal", "Set the project total",
+                        [NendoActionStep.SetField("10-total", NendoActionTarget.Referenced("project"),
+                            new NendoActionAssignment("total", "doneCount + 100",
+                                [NendoBehaviourBinding.RelatedFilteredCount("doneCount", "projects", "tasks", "project", "done")], []))]),
+                        revision),
+                ]),
+                new NendoMutation("test", "proposal-edit", "test", "Finish the second task", [
+                    new SetFieldOperation("edit-done", "tasks", "t2", "done", 1, true),
+                ]),
+            ]));
+        var behaviour = preview.Behaviour ?? throw new AssertFailedException("The review said nothing about consent.");
+        Assert.IsTrue(behaviour.ChangesWhatIsApproved);
+        Assert.AreEqual(1, behaviour.GeneratedEffectCount);
+
+        // What the review says has to be what acceptance does: refused, as things stand.
+        var refused = await coordinator.PromoteProposalAsync(proposalId);
+        Assert.IsFalse(refused.Applied, "The review said this cannot be accepted, and it was.");
+
+        // And the queue reads the same preview again later, not a copy frozen at validation.
+        Assert.AreEqual(behaviour, (await coordinator.GetProposalAsync(proposalId)).Behaviour);
+    }
+
     private static async Task<NendoBehaviourGrant> ReviewedGrantAsync(NendoWriteCoordinator coordinator, string proposalId)
     {
         var plan = PreparedBehaviourPlan.Deserialize(await File.ReadAllTextAsync(

@@ -317,6 +317,8 @@ public sealed class UnattendedAcceptanceTests
         var validated = await ValidateStampTriggerAsync(client, session, workspace);
 
         Assert.AreEqual(0, grants.Approvals, "Nothing is approved before the acceptance needs it.");
+        Assert.IsTrue(host.GetPendingProposals().Single().Behaviour?.ChangesWhatIsApproved,
+            "The Pending changes queue does not carry what accepting means for consent.");
         var accepted = await CallAsync<NendoChangeSetAcceptResult>(client, "nendo.change_set.accept", new(session)
         {
             ["changeSetId"] = validated.ChangeSetId,
@@ -500,6 +502,14 @@ public sealed class UnattendedAcceptanceTests
             NendoProposalState.Previewable,
             validated.State,
             JsonSerializer.Serialize(validated.Diagnostics, NendoMcpJson.Options));
+        // W-008: the agent reads what accepting means for consent in the preview it is
+        // handed, not only in the outcome afterwards. This proposal installs an action, so
+        // consent given today would not cover it, and nothing is set off by accepting.
+        var behaviour = validated.Preview.Behaviour
+            ?? throw new AssertFailedException("A proposal that installs an action said nothing about consent to the agent.");
+        Assert.IsTrue(behaviour.ChangesWhatIsApproved);
+        Assert.IsTrue(behaviour.UpdatesRecords);
+        Assert.AreEqual(0, behaviour.GeneratedEffectCount);
         return new StampFixture(begun.ChangeSetId, validated.ProposalId, validated.OperationDigest);
     }
 

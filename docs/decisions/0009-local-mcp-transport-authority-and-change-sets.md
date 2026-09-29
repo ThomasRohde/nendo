@@ -15,6 +15,50 @@
   model and ADR-0007 proposal lifecycle
 - **Related design:** [`../architecture.md`](../architecture.md)
 
+### Accepted amendment — 2026-09-29 (a proposal says what it asks of consent before acceptance)
+
+Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24), for W-008.
+It adds to the review of a proposal and to Pending changes. Acceptance semantics and
+the consent grant do not change.
+
+**What was wrong.** Consent to automatic actions was first mentioned after acceptance,
+by which time editing had paused ("accepted. This file now has automatic actions —
+approve them below"). The queue and the review said nothing. And a proposal whose
+acceptance replays writes an action made on the clone was offered with Accept
+enabled, then refused at promotion with "not been approved on this device". One shape
+could never be accepted by a person at all: a proposal that changes the actions and
+also sets them off. The grant it needs is scoped to a definition revision that exists
+only after acceptance, and a person can approve only what the open file holds now.
+
+**Decision.** A clearer explanation is enough, and acceptance semantics stay as they
+are. Consent stays separate and person-owned. At Unattended the host still records it
+for an agent's own acceptance, as the 2026-09-22 amendment says. A proposal preview
+carries `behaviour`: what the file's actions can do after acceptance (create, update,
+delete), how many writes they made on the clone that acceptance replays, and whether
+the behaviour after acceptance differs from the behaviour the device can approve now.
+It is null when a proposal asks nothing new. The facts are computed when the preview
+is read, not stored, because they compare against what the open file requires, and
+that moves with its definitions. Whether consent is held right now is not part of
+the preview: a preview kept in the queue cannot know about a later approval or a
+withdrawal, so the review reads that from the session. Four sentences follow:
+
+| The proposal | The review says | Accept |
+| --- | --- | --- |
+| sets off actions this device approved | accepting runs them; you approved them here | offered |
+| sets off actions not approved here | approve them on the Agent page first | withheld |
+| changes the actions, sets nothing off | editing pauses after accepting until you approve | offered |
+| changes the actions and sets them off | nobody can accept this as it stands; propose the actions first, the records after | withheld |
+
+Pending changes adds the same step after a proposal's size, so it is visible before
+the review opens. The MCP preview and `nendo://application/proposals` carry the same
+`behaviour`, so an agent can split a proposal before it reaches the person.
+
+**Rejected.** *Approve and accept in one press* for the last row. It would let a
+person consent to a behaviour digest they have not seen in force, from a screen whose
+job is reviewing a change. That is new consent authority, and this amendment does not
+take it. *Letting the clone's grant be approved from the review* has the same problem
+under another name.
+
 ### Accepted amendment — 2026-09-28 (each file keeps its own port)
 
 Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24: "I
@@ -365,3 +409,7 @@ services, at a static loopback address, with no credential.
 - 2026-09-28 — amended: each file keeps its own port, so several files can be
   registered side by side and an agent reaches the same file whatever order they
   open in.
+- 2026-09-29 — amended: a proposal's review, Pending changes and the MCP preview say
+  what accepting means for consent to automatic actions before anyone accepts, and
+  Accept is withheld where promotion would be refused. Acceptance and consent are
+  unchanged.

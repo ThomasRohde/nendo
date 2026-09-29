@@ -240,6 +240,19 @@ per proposal, and `truncated` says where it stopped early. The person sees the s
 list in the **Code** section of the review
 ([custom-view contract](custom-views.md#review)).
 
+The preview also carries `behaviour`: what accepting means for this device's consent
+to the file's automatic actions ([ADR-0009](../decisions/0009-local-mcp-transport-authority-and-change-sets.md),
+2026-09-29 amendment). It is null when the proposal asks nothing new. Otherwise
+`createsRecords`, `updatesRecords` and `deletesRecords` say what the actions can do
+once accepted. `generatedEffectCount` counts the writes they made on the clone, which
+acceptance replays; above zero, acceptance is refused until consent for the behaviour
+is held on this device. `changesWhatIsApproved` says that consent given today does not
+cover the behaviour after acceptance, so editing pauses until it is given again. Both
+at once cannot be accepted, by a person or at Unattended, because consent can only be
+given to actions the file already holds: propose the actions first and the records
+after. Pending changes, and each proposal in `nendo://application/proposals`,
+carry the same `behaviour`.
+
 Each surface in the preview carries an optional `shape`: the size that a reviewer
 cannot infer from a kind and a title. A matrix states its rows, its columns and its
 cell count. A board states how many columns it would have. A board grouped by a

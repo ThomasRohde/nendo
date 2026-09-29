@@ -255,7 +255,7 @@ A file that carries a trigger cannot be edited until a person approves its actio
 
 **Until you approve.** The file opens, reads, calculates, exports and backs up. Only editing is off, for people and agents alike. The status pill reads *Approval needed*. Nendo never switches a trigger off to let a save through.
 
-**Where to approve.** Use *Approve automatic actions* under Health, in File status, or on the Agent page after you accept a proposal that adds actions. *Withdraw approval* takes it back. The panel shows a short digest of the rules, so two different sets of rules look different.
+**Where to approve.** Use *Approve automatic actions* under Health, in File status, or on the Agent page. A proposal's review says beforehand whether accepting it needs approval first, or pauses editing until you approve. *Withdraw approval* takes it back. The panel shows a short digest of the rules, so two different sets of rules look different.
 
 **What it covers.** An approval names the application, this copy of the file, the exact rules, the behaviour contract version, the definition revision, and the kinds of change the actions can make. Any accepted change to the definition asks again, also one that adds only a screen.
 

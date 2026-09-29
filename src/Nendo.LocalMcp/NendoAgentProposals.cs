@@ -121,6 +121,13 @@ public sealed record NendoAgentPreviewSummary(
     /// </summary>
     [Description("What the proposal does to each custom-view package file, as the person reviews it: changed lines with context for text, sizes for anything else.")]
     public IReadOnlyList<NendoExtensionFileChange> PackageChanges { get; init; } = [];
+
+    /// <summary>
+    /// What accepting means for consent to the file's automatic actions, named before
+    /// acceptance so neither the person nor the agent meets it afterwards.
+    /// </summary>
+    [Description("What accepting means for this device's consent to automatic actions, or null when it asks nothing new. createsRecords, updatesRecords and deletesRecords say what the actions can do. generatedEffectCount above zero means acceptance replays writes the actions made, and is refused until consent is held. changesWhatIsApproved means consent given today does not carry over. Both together cannot be accepted: propose the actions first and the records after.")]
+    public NendoProposalBehaviour? Behaviour { get; init; }
 }
 
 public sealed record NendoAgentProposalPreview(
@@ -153,7 +160,11 @@ public sealed record NendoAgentProposalSummary(
     int OperationCount,
     long CapturedDefinitionRevision,
     int DiagnosticCount,
-    NendoReversibilityClass Reversibility);
+    NendoReversibilityClass Reversibility)
+{
+    /// <summary>What accepting means for consent to automatic actions, as the queue says it.</summary>
+    public NendoProposalBehaviour? Behaviour { get; init; }
+}
 
 public sealed class NendoAgentProposalStore
 {
@@ -466,7 +477,10 @@ public sealed class NendoAgentProposalStore
             : preview.SemanticDiff
                 .OrderByDescending(value => value.Reversibility)
                 .First()
-                .Reversibility);
+                .Reversibility)
+    {
+        Behaviour = preview.Behaviour,
+    };
 
     internal static NendoAgentProposalPreview ProjectPreview(NendoProposalPreview preview) => new(
         preview.ProposalId,
@@ -516,6 +530,7 @@ public sealed class NendoAgentProposalStore
             LookBefore = NendoAgentLook.From(preview.LookBefore),
             LookAfter = NendoAgentLook.From(preview.LookAfter),
             PackageChanges = preview.PackageChanges,
+            Behaviour = preview.Behaviour,
         };
     }
 

@@ -399,6 +399,11 @@ that you could not.
 - Author a reusable function, and calculated fields using every way of reaching a value you
   can find — including one calculation that reads another.
 - Author an action and a trigger, so that editing one record changes another.
+- Before the action is accepted, read the proposal's `behaviour` over the wire and ask the
+  person what the review and Pending changes say about automatic actions. Once it is
+  accepted and approved, propose an edit that sets the action off, then one that changes the
+  action and sets it off in the same change set. Report what each preview says, whether
+  Accept was offered, and whether any of it disagreed with what acceptance then did.
 - Create a record whose action target reference is empty. Record what the write said,
   and whether the catalogue had told you what to expect before you tried.
 - Author a screen that shows a field only when a calculation says so.

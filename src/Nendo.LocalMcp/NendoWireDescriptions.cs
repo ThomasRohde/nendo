@@ -84,6 +84,17 @@ internal static class NendoWireDescriptions
             [(typeof(NendoSemanticDiffEntry), nameof(NendoSemanticDiffEntry.Reversibility))] =
                 "reversible, reversibleWithRetainedState or irreversibleDeclared.",
 
+            [(typeof(NendoProposalBehaviour), nameof(NendoProposalBehaviour.CreatesRecords))] =
+                "The file's automatic actions, once accepted, can create records.",
+            [(typeof(NendoProposalBehaviour), nameof(NendoProposalBehaviour.UpdatesRecords))] =
+                "They can change records.",
+            [(typeof(NendoProposalBehaviour), nameof(NendoProposalBehaviour.DeletesRecords))] =
+                "They can delete records.",
+            [(typeof(NendoProposalBehaviour), nameof(NendoProposalBehaviour.GeneratedEffectCount))] =
+                "Writes the actions made on the validated copy, which acceptance replays. Above zero, acceptance is refused until consent for the behaviour is held on this device.",
+            [(typeof(NendoProposalBehaviour), nameof(NendoProposalBehaviour.ChangesWhatIsApproved))] =
+                "The behaviour after acceptance is not the one the device can approve now, so consent is given again afterwards and editing pauses until it is.",
+
             [(typeof(NendoExtensionFileChange), nameof(NendoExtensionFileChange.PackageId))] =
                 "The custom-view package.",
             [(typeof(NendoExtensionFileChange), nameof(NendoExtensionFileChange.Path))] =

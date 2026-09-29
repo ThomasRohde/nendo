@@ -242,6 +242,23 @@ export interface AgentProposalSummary {
   capturedDefinitionRevision: number;
   diagnosticCount: number;
   reversibility: string | number;
+  /** What accepting means for consent to automatic actions; absent when it asks nothing new. */
+  behaviour?: ProposalBehaviour | null;
+}
+
+/**
+ * What accepting a proposal means for this device's consent to the file's automatic
+ * actions (ADR-0009, 2026-09-29 amendment). Facts only: whether consent is held right
+ * now comes from the session's behaviourTrust, which a cached preview cannot know.
+ */
+export interface ProposalBehaviour {
+  createsRecords: boolean;
+  updatesRecords: boolean;
+  deletesRecords: boolean;
+  /** Writes the actions made on the validated copy, which acceptance replays. */
+  generatedEffectCount: number;
+  /** Consent given today does not carry over to the behaviour the file holds afterwards. */
+  changesWhatIsApproved: boolean;
 }
 
 export interface AgentProposalPreview {
@@ -302,6 +319,8 @@ export interface AgentPreviewSummary {
   lookAfter?: ChosenLook | null;
   /** What the proposal does to each custom-view package file, as lines to read. */
   packageChanges?: ExtensionFileChange[];
+  /** What accepting means for consent to automatic actions; absent when it asks nothing new. */
+  behaviour?: ProposalBehaviour | null;
 }
 
 /** One line of a code change: context, removed or added. */
@@ -541,6 +560,8 @@ export interface ProposalPreview {
   /** The look the file chose before and would choose after (W-089); both absent when the proposal does not touch it. */
   lookBefore?: ChosenLook | null;
   lookAfter?: ChosenLook | null;
+  /** What accepting means for consent to automatic actions; absent when it asks nothing new. */
+  behaviour?: ProposalBehaviour | null;
 }
 
 export interface PromotionOutcome {

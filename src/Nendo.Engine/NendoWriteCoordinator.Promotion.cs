@@ -15,7 +15,7 @@ public sealed partial class NendoWriteCoordinator
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            return GetProposal(proposalId).ToPreview();
+            return PreviewOf(GetProposal(proposalId));
         }
         finally
         {
@@ -32,7 +32,7 @@ public sealed partial class NendoWriteCoordinator
         {
             ObjectDisposedException.ThrowIf(_disposed || _replacementRetired, this);
             RequireTrustedSession();
-            return _proposals.Values.Select(context => context.ToPreview()).ToArray();
+            return _proposals.Values.Select(PreviewOf).ToArray();
         }
         finally
         {
