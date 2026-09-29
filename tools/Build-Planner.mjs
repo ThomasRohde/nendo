@@ -1,5 +1,7 @@
 // Builds workspace/Planner.nendo from an empty file over MCP alone, and fills it
-// from the development planner, workspace/Nendo.nendo.
+// from the development planner it replaced on 2026-09-29, workspace/Nendo.nendo.
+// Planner.nendo is the primary planner since then, so migrate and catch-up are
+// history: a rebuild from empty would copy the archive, not the live work.
 //
 //   node tools/Build-Planner.mjs                 the first stage not yet applied
 //   node tools/Build-Planner.mjs <stage>         one named stage
@@ -7,6 +9,7 @@
 //   node tools/Build-Planner.mjs --dry-run       say what would be sent, take no lease
 //   node tools/Build-Planner.mjs migrate         copy every record across
 //   node tools/Build-Planner.mjs compare         measure the copy against the source
+//   node tools/Build-Planner.mjs catch-up        bring a filled copy up to the source
 //
 // The shape is in tools/planner-definition.mjs and the reasons in
 // docs/design/planner.md. One stage is one change set, validated into a proposal.
@@ -265,6 +268,83 @@ async function migrate(from, to, dryRun) {
   });
 }
 
+// Brings a copy that was filled earlier up to the source, record by record: a record the copy
+// lacks is imported, and a carried field that differs is set to the source's value. A record
+// only the copy holds, or one already edited in the copy (its version is past the 1 an import
+// gives it), is named and left alone: that edit is newer than the source. Each write's idempotency key is derived from
+// what it writes, so an interrupted run replays.
+async function catchUp(from, to, dryRun) {
+  const key = (...parts) => 'planner-catch-up-' + crypto.createHash('sha256').update(JSON.stringify(parts)).digest('hex').slice(0, 40);
+  const plan = [];
+  for (const { entityId, transform } of CARRY) {
+    const schema = await to.read.schema(entityId);
+    const fieldIds = new Set(schema.fields.map(f => f.fieldId));
+    const references = new Map(schema.fields.filter(f => f.storageKind === 'reference' && f.reference)
+      .map(f => [f.fieldId, f.reference.targetEntityId]));
+    const held = new Map((await to.read.records(entityId)).map(r => [r.recordId, r]));
+    const missing = [], changed = [];
+    for (const item of await from.read.records(entityId)) {
+      const values = carried(item, fieldIds, transform);
+      const copy = held.get(item.recordId);
+      held.delete(item.recordId);
+      if (!copy) { missing.push({ recordId: item.recordId, values }); continue; }
+      const differs = Object.entries(values).filter(([fieldId, value]) =>
+        JSON.stringify(value?.$nendoNumber ?? value ?? null) !== JSON.stringify(copy.numericLexemes?.[fieldId] ?? copy.values[fieldId] ?? null));
+      if (differs.length > 0 && copy.recordVersion > 1) {
+        console.log(`    !  ${item.recordId} was edited in the copy (version ${copy.recordVersion}); left alone: ${differs.map(([id]) => id).join(', ')}`);
+        continue;
+      }
+      for (const [fieldId, value] of differs) changed.push({ recordId: item.recordId, fieldId, value: value ?? null });
+    }
+    for (const extra of held.keys()) console.log(`    !  ${entityId} ${extra} is in the copy only; left alone`);
+    plan.push({ entityId, references, missing, changed });
+    console.log(`${String(missing.length).padStart(5)} new, ${String(changed.length).padStart(4)} fields changed  ${entityId}`);
+  }
+  if (dryRun) {
+    for (const { changed } of plan) for (const c of changed) console.log(`         ${c.recordId} ${c.fieldId} = ${JSON.stringify(c.value).slice(0, 80)}`);
+    console.log('Dry run: nothing written, no lease taken.');
+    return;
+  }
+
+  await withLease(to.client, async owned => {
+    const versionOf = async (entityId, recordId) =>
+      (await to.read.records(entityId)).find(r => r.recordId === recordId)?.recordVersion;
+    for (const { entityId, references, missing, changed } of plan) {
+      if (missing.length > 0) {
+        // Reference targets are read now, after the types they point at were brought up.
+        const targets = new Map();
+        for (const targetEntityId of new Set(references.values()))
+          targets.set(targetEntityId, new Map((await to.read.records(targetEntityId)).map(r => [r.recordId, r.recordVersion])));
+        const records = missing.map(({ recordId, values }) => {
+          const expected = {};
+          for (const [fieldId, targetEntityId] of references) {
+            const targetId = values[fieldId];
+            if (targetId === null || targetId === undefined) continue;
+            const version = targets.get(targetEntityId).get(targetId);
+            if (version === undefined) fail(`${recordId} points at ${targetId}, which is not in ${targetEntityId}.`);
+            expected[fieldId] = version;
+          }
+          return Object.keys(expected).length > 0 ? { recordId, values, expectedTargetVersions: expected } : { recordId, values };
+        });
+        await to.client.tool('nendo.data.import_records', {
+          ...owned, entityId, format: 'json', records, idempotencyKey: key(entityId, records),
+        });
+        console.log(`${String(records.length).padStart(5)}  ${entityId} imported`);
+      }
+      for (const { recordId, fieldId, value } of changed) {
+        const targetEntityId = references.get(fieldId);
+        const expectedTargetRecordVersion = targetEntityId && value !== null ? await versionOf(targetEntityId, value) : null;
+        await to.client.tool('nendo.data.set_field', {
+          ...owned, entityId, recordId, fieldId, value,
+          expectedRecordVersion: await versionOf(entityId, recordId),
+          expectedTargetRecordVersion, idempotencyKey: key(recordId, fieldId, value),
+        });
+      }
+      if (changed.length > 0) console.log(`${String(changed.length).padStart(5)}  ${entityId} fields set`);
+    }
+  });
+}
+
 // Measures the copy: every source record under its own ID, every carried field
 // equal after the declared transform, nothing extra, every Reference unique.
 async function compare(from, to) {
@@ -311,6 +391,7 @@ async function main() {
     for (const stage of STAGE_ORDER) console.log(`${stage.padEnd(14)}${STAGES[stage].title}`);
     console.log(`${'migrate'.padEnd(14)}Copy every record from the development planner`);
     console.log(`${'compare'.padEnd(14)}Measure the copy against the development planner`);
+    console.log(`${'catch-up'.padEnd(14)}Bring a filled copy up to the development planner`);
     return;
   }
 
@@ -318,10 +399,11 @@ async function main() {
   console.log(`Target          ${to.entry.displayName}  ${to.manifest.applicationId}  ${to.entry.endpoint}`);
   console.log(`Revision        definition ${to.manifest.definitionRevision}, data ${to.manifest.dataRevision}\n`);
 
-  if (name === 'migrate' || name === 'compare') {
+  if (name === 'migrate' || name === 'compare' || name === 'catch-up') {
     const from = await source();
     console.log(`Source          ${from.entry.displayName}  ${from.manifest.applicationId}  (read only)\n`);
     if (name === 'migrate') await migrate(from, to, dryRun);
+    else if (name === 'catch-up') await catchUp(from, to, dryRun);
     else await compare(from, to);
     return;
   }

@@ -228,8 +228,9 @@ than the defect. Say so, and write the one that would have failed.
 ## Workspace
 
 `workspace/` holds the real `.nendo` files this project works in.
-`workspace/Nendo.nendo` is the live Nendo Development planner; the others are
-demo and test files kept because they are worth reopening. Never delete,
+`workspace/Planner.nendo` is the live Nendo Development planner, and
+`workspace/Nendo.nendo` the planner it replaced on 2026-09-29, kept as the archive;
+the others are demo and test files kept because they are worth reopening. Never delete,
 overwrite, reset or use one as a failure fixture. Leave active host-owned
 sidecars to Nendo — `.gitignore` already keeps every `-wal`, `-shm`, journal and
 write-owner file out of git. Use host-owned backup/copy flows for these files;

@@ -20,13 +20,15 @@ import crypto from 'node:crypto';
 import { createNendoMcpClient } from './Nendo-McpClient.mjs';
 import * as station from './station-data.mjs';
 
-// The development planner. Authoring the station into it would be a bad day, so
-// the identity is checked rather than trusted to whichever Nendo answered.
-// NENDO_STATION_PLANNER_ID exists so that guard can be falsified without letting
-// the script write anything: point it at an ID nothing has, run --dry-run, and
-// watch the planner be selected by a build that stops before the lease.
-const PLANNER_APPLICATION_ID =
-  process.env.NENDO_STATION_PLANNER_ID || 'application-7efd926c073f4be9974be19bbc39ff41';
+// The development planners: Planner.nendo, and Nendo.nendo that it replaced on
+// 2026-09-29 and is kept as the archive. Authoring the station into either would be
+// a bad day, so the identity is checked rather than trusted to whichever Nendo
+// answered. NENDO_STATION_PLANNER_ID exists so that guard can be falsified without
+// letting the script write anything: point it at an ID nothing has, run --dry-run,
+// and watch a planner be selected by a build that stops before the lease.
+const PLANNER_APPLICATION_IDS = process.env.NENDO_STATION_PLANNER_ID
+  ? [process.env.NENDO_STATION_PLANNER_ID]
+  : ['application-5c52097771f342d5a648fcb514318e7c', 'application-7efd926c073f4be9974be19bbc39ff41'];
 
 const op = (operationType, payload) => ({ operationType, payload });
 const text = (entityId, fieldId, displayName, required = false, presentation = 'singleLine') =>
@@ -1143,7 +1145,7 @@ async function connect() {
     candidates.push({ entry, client, manifest });
   }
 
-  const station = candidates.filter(c => c.manifest.applicationId !== PLANNER_APPLICATION_ID);
+  const station = candidates.filter(c => !PLANNER_APPLICATION_IDS.includes(c.manifest.applicationId));
   if (candidates.length > 0 && station.length === 0) {
     fail([
       'The only Nendo answering has the development planner open.',

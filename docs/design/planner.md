@@ -10,9 +10,9 @@ and an action whose flag was always on.
 now. It uses a feature only where it answers a question the planner has. It holds
 every record of the old planner under its own record ID and Reference code.
 
-**Nendo.nendo stays the primary planner until the owner decides the switch.** Nothing in
-[dogfooding](../dogfooding.md), `AGENTS.md` or the MCP registrations points at the new
-file yet. W-099 tracks this work.
+**Planner.nendo is the primary planner since 2026-09-29**, when the owner switched.
+[Dogfooding](../dogfooding.md), `AGENTS.md` and the MCP registrations point at it, and
+`Nendo.nendo` is kept as the archive. W-099 built it.
 
 ## How it is built
 
@@ -25,6 +25,7 @@ node tools/Build-Planner.mjs --list       the stages
 node tools/Build-Planner.mjs              every stage not yet applied, in order
 node tools/Build-Planner.mjs migrate      copy every record from Nendo.nendo
 node tools/Build-Planner.mjs compare      measure the copy against Nendo.nendo
+node tools/Build-Planner.mjs catch-up     bring a filled copy up to Nendo.nendo
 ```
 
 - **Finding the files.** The script finds `Planner.nendo` among the running Nendo
@@ -143,23 +144,25 @@ Four tabs follow:
 *Reopen*. Initiatives have *Mark reviewed*, and decisions have *Decide*. The file is
 violet with the letter P, so it is not mistaken for the amber N beside it.
 
-## The switch, when the owner decides it
+## The switch, 2026-09-29
 
-Not done in W-099:
+The owner switched on 2026-09-29, with Planner.nendo already open.
 
-- **Rebuild.** Rebuild `Planner.nendo` from empty, then run `migrate` and `compare` on
-  that day's data.
-- **Port.** Give Planner.nendo port 41763 under Agent → Connection (release it from
-  Nendo.nendo first). Otherwise change `.mcp.json` and `.codex/config.toml`.
-- **Documents.** Update `docs/dogfooding.md`: the file, the application ID, the new
-  types, the commands and the Horizon rule. Update `AGENTS.md` and `CLAUDE.md` wherever
-  they name `Nendo.nendo`.
-- **Guards.** `tools/Build-NendoStation.mjs` holds the planner's application ID as a
-  guard. `tools/Build-Planner.mjs` holds it as its source.
-- **Skill and memory.** Update the `/next` skill wherever it reads a field that changed:
-  Horizon on closed work, and disposition *Tracked in work*. Update the memories that
-  name Nendo.nendo.
-- **The old file.** Keep `Nendo.nendo` as the archive. Do not delete it.
+- **Not rebuilt; caught up.** The copy was the same day's, and the owner had already
+  edited one record in it. So instead of a rebuild from empty, `catch-up` imported the
+  25 Checks the copy lacked and set the 38 fields that had changed since. It leaves alone
+  a record the copy has already edited (version past 1), and names it. `compare` then
+  found two differences, both that edit: C-281, W-089's owner shell, set to Passed in
+  the new file.
+- **Port.** Planner.nendo keeps 41766 on this device. `.mcp.json` and
+  `.codex/config.toml` name it, so Nendo.nendo keeps 41763 and nothing had to be
+  released.
+- **Documents.** `docs/dogfooding.md`, `AGENTS.md`, `workspace/README.md` and the
+  `/next` command name the new file.
+- **Guards.** `tools/Build-NendoStation.mjs` refuses both planners' application IDs.
+  `tools/Build-Planner.mjs` keeps the old one as its source.
+- **The old file.** `Nendo.nendo` is kept as the archive. Do not delete it, and do not
+  plan in it.
 
 ## Known limitations
 

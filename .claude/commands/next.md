@@ -38,7 +38,9 @@ highest.
 ## Process
 
 1. Read `docs/dogfooding.md` — the horizons paragraph, the reference ledger and
-   the reading mechanics.
+   the reading mechanics. The planner is `workspace/Planner.nendo`; closed work
+   has no horizon, and an item that waits on an owner's choice points at a
+   Decision (`nd.work.decision`).
 2. Read `nendo://application/entity/nd.work/records` once, and choose from it by
    the rule above.
 3. Read the chosen item's **Decision standing**, its description (which carries

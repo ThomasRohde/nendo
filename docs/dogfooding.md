@@ -1,10 +1,18 @@
 # Nendo Development
 
 Nendo Development is the primary planner for the development of Nendo. It lives
-in the owner's `workspace/Nendo.nendo`. That file is git-ignored owner data, and
+in the owner's `workspace/Planner.nendo`. That file is git-ignored owner data, and
 this repository does not keep versions of it. The file contains real work. It is
 not a reusable test fixture. The application is authored through MCP and is used
 through the installed host's Use and Studio routes.
+
+**Planner.nendo replaced `workspace/Nendo.nendo` on 2026-09-29.** The old file grew
+by adding each host feature as a test of it; the new one does the same job, designed
+from the feature set ([design](design/planner.md), W-099). Every record crossed with
+its record ID and Reference code, so W-, F-, C- and I- codes mean what they meant.
+History, receipts and record versions did not cross: they stay in `Nendo.nendo`,
+which is kept as the archive. Read it for that history; never plan in it. Where a
+section below describes the old file, it says so.
 
 ## Live planner and next work
 
@@ -20,18 +28,16 @@ Work records (`/next` does this); a Blocked item in Now or Next is a fact about
 the plan, and a Later item needing a decision or ADR is retained work, not a
 scheduled commitment.
 
-**Planning order is unique across the file**, so a board sorted by it has one
-answer. Open work takes the low numbers, delivered work the 100s and dropped
-work the 200s. This keeps All work
-in open-first order. When you add an item, keep the order unique, and do not
-reuse a number. **Move a completed item's order into the delivered range when it
-closes**.
+**Planning order is the order among siblings.** Work can be *Part of* other work
+(`nd.work.parent`, the type's hierarchy), and the *Breakdown* outline drags an
+item into place and splits a bundle into parts. The order is no longer numbered by
+hand into open, delivered and dropped ranges; the numbers the old file gave are
+kept, and nothing needs renumbering when work closes.
 
-**Horizon on a closed item says nothing.** The field is required and has no
-empty value, so delivered and dropped work stays at Later. The completion date
-of that work is its history. The views that plan open work (Roadmap, Now,
-Open work by initiative and Horizon against status) filter it out. All work
-keeps it.
+**Closed work has no horizon.** Horizon is optional: *Complete* and *Drop* clear it,
+and *Reopen* sets it to Next. Work that waits on an owner's choice points at a
+Decision (`nd.work.decision`, `D-` codes), which says the question, the options,
+the recommendation and what was decided.
 **Decision standing on a closed item is its standing at the time it closed**.
 For example, the S4-S7 items read *Within accepted scope* because their
 amendments were accepted, not because the gate was waived.
@@ -53,6 +59,9 @@ record, its Reference and its Checks stay. Reopen restores it in one command.
 The code is never reused. A drop is not a decision that something is wrong. Read
 the description to find which reason applied. Do not delete a planner record to
 tidy up.
+
+The rest of this section records the old file. **Planner.nendo has no review flag
+and no automatic action**: the flag below was always on and said nothing.
 
 **An initiative's last review was an agent's, and the record cannot say so.**
 All six initiatives were cleared on 2026-09-17. Before each clear, every work
@@ -85,27 +94,24 @@ record that history.
 
 ### The planner has its own front page
 
-The front page was accepted on 2026-09-15, at definition revision 30 and minimum
-host **1.23.0**. Use opens on it. It shows:
+Use opens on the front page. It is a tab group:
 
-- a title;
-- a description that says what the file is for;
-- work count;
-- a Delivered ring;
-- breakdowns by status and horizon;
-- a Date range over the completion dates;
-- a Delivery over time section (delivered by month, and the days anything was
-  delivered this year);
-- an Evidence section (check count, checks by outcome and **by method**,
-  findings by disposition);
-- a Lately section with the last five delivered items and the last five
-  observations.
+- **Now**: doing, in review, blocked, ready in Now, the Now list in planning order,
+  and open work by horizon.
+- **Delivery**: delivered, the span, by month, the days anything was delivered, and
+  recently delivered.
+- **Evidence**: checks by outcome and by method, findings by disposition, untriaged,
+  and the latest findings.
+- **Decisions**: open decisions, and open work needing one.
 
-The record types are one step away, in the breadcrumb's record-type picker.
+The record types are one step away, in the breadcrumb's record-type picker. The file
+is violet with the letter P; the archive is the amber N.
 
-The Delivered ring counts over every work item, Dropped included. A ring's
-denominator is its scope, and it cannot be narrowed independently (F-010). The
-separate *Delivery progress* list keeps the non-dropped denominator.
+### How the first planner was set up (Nendo.nendo, 2026-09-15)
+
+The old file's front page was accepted on 2026-09-15, at definition revision 30 and
+minimum host 1.23.0. Its Delivered ring counted over every work item, Dropped
+included, because a ring's denominator is its scope (F-010).
 
 For later priority/status changes, use the live records. Work that waits for a
 decision stays explicit. Intentional product constraints remain Findings; they
@@ -164,10 +170,10 @@ does not prove that a fresh agent session loaded the instructions or used the
 planner. In Claude, `/context` lists loaded memory files. Check that the
 repository `CLAUDE.md` and the imported `AGENTS.md` are present.
 
-Both registrations name the local host at port 41763. Each file keeps its own
-agent port on a device (W-089), and 41763 belongs to the planner because it was the
-first file to claim one on this machine. If Agent → Connection in the planner shows
-another port, set it back to 41763 there; the refusal names the file that has it.
+Both registrations name the local host at port 41766. Each file keeps its own
+agent port on a device (W-089): 41766 is the one Planner.nendo claimed on this
+machine, and the archive keeps 41763. If Agent → Connection in the planner shows
+another port, set it back to 41766 there; the refusal names the file that has it.
 On another device, first open the intended planner in Nendo and confirm the
 application identity. The
 working `.nendo` file is owner data and is git-ignored, so a Git checkout alone
@@ -282,11 +288,13 @@ Proposal acceptance alone does not allow the agent to bypass that interlock.
 
 ### Endpoint and identity
 
-The registered MCP server is `nendo`, at `http://127.0.0.1:41763/mcp` for this
+The registered MCP server is `nendo`, at `http://127.0.0.1:41766/mcp` for this
 installation. Before you author, read `nendo://application/describe`, the live
 vocabulary and the pending proposals. The planner's application ID is
-`application-7efd926c073f4be9974be19bbc39ff41`. A different identity must be
-explained before writes. Instance IDs and edit handles are not durable
+`application-5c52097771f342d5a648fcb514318e7c`. The archive, `Nendo.nendo`, is
+`application-7efd926c073f4be9974be19bbc39ff41`; an agent that finds itself
+connected to it is on the wrong file. A different identity must be explained before
+writes. Instance IDs and edit handles are not durable
 identity.
 
 Acquire editing authority only when you need it. Then:
@@ -303,9 +311,10 @@ acceptance remains the person's action, also after a reconnect.
 
 | Entity ID | Purpose | Important relationships |
 | --- | --- | --- |
-| `nd.initiative` | Outcome, product area, optional target, sources and review flag | Work points here |
-| `nd.work` | Brief, acceptance criteria, horizon, execution, decision standing and dates | `nd.work.initiative` -> initiative |
-| `nd.finding` | Observation, context, severity, disposition and source | Optional `nd.finding.work` -> work |
+| `nd.initiative` | Outcome, product area, status (Active, Paused, Closed), optional target, sources and last reviewed | Work points here |
+| `nd.work` | Brief, acceptance criteria, horizon, execution, decision standing and dates | `nd.work.initiative` -> initiative; `nd.work.parent` -> work (Part of); `nd.work.decision` -> decision |
+| `nd.finding` | Observation, context, severity, disposition, source, and the guard with its falsification | Optional `nd.finding.work` -> work |
+| `nd.decision` | Question, options, recommendation, what was decided and when, and sources | Work that waits on it points here |
 | `nd.check` | Expected/actual result, method, outcome, procedure and environment | Required `nd.check.work` -> work |
 | `nd.link` | One dependency between two work items, with an optional note | Required `nd.link.from` (blocker) and `nd.link.to` (blocked item) -> work |
 
@@ -317,14 +326,17 @@ record. Choices are their displayed strings. Exact numeric values retain the
 host's numeric envelopes.
 
 1. Read existing work and related records before you create a duplicate.
-2. Use **Now / Next / Later** for scheduling intent. Use **Inbox, Ready, Doing,
-   Blocked, Review, Done, Dropped** for execution. Planning order is a stored
+2. Use **Now / Next / Later** for scheduling intent on open work; closed work has
+   none. Use **Inbox, Ready, Doing, Blocked, Review, Done, Dropped** for execution. Planning order is a stored
    number. Optional value/effort ratings inform discussion and never choose
    work.
 3. Read **Decision standing** and the linked repository sources. **Within
    accepted scope** does not replace the ADR or authorize a push, release or
    publication.
-4. Record observations as Findings and exact outcomes as Checks. Select
+4. Record observations as Findings and exact outcomes as Checks. A Finding's
+   disposition is **Untriaged, Investigating, Tracked in work, Accepted limitation**
+   or **Resolved**; the reported-broken loop's guard and its falsification text go in
+   its **Guard and its falsification** field. Select
    **Automated**, **Agent-observed** or **Owner-reported** independently of
    **Not run**, **Passed**, **Failed**, **Blocked** or **Accepted exception**.
 5. When the results of work are ready to assess, send it to Review. Complete it
@@ -361,67 +373,47 @@ populated. Exercise artificial/failure scenarios on a disposable copy.
 
 ### Commands
 
-| Command | Effect |
-| --- | --- |
-| Plan now | Horizon Now; status Ready |
-| Start work — set start date to today | Status Doing; overwrite start date with today |
-| Send to review | Status Review |
-| Complete | Status Done; completion date today |
-| Reopen | Status Ready; clear completion date |
-| Initiative reviewed | Clear review-needed; last-reviewed date today |
+| Command | Command ID | Effect |
+| --- | --- | --- |
+| Plan now | `pl.cmd.planNow` | Horizon Now; status Ready |
+| Start | `pl.cmd.start` | Status Doing; start date today |
+| Send to review | `pl.cmd.review` | Status Review |
+| Complete | `pl.cmd.complete` | Status Done; completion date today; horizon cleared |
+| Drop | `pl.cmd.drop` | Status Dropped; horizon cleared |
+| Reopen | `pl.cmd.reopen` | Status Ready; completion date cleared; horizon Next |
+| Mark reviewed | `pl.cmd.reviewed` | Initiative's last-reviewed date today |
+| Decide | `pl.cmd.decide` | Decision status Decided; decided date today |
 
 These are explicit convenience edits. They are not a guarded state machine. A
-repeated Start resets its date by design. Commands have stable IDs that you can
-find in the compiled surfaces. Use the returned commandId, not a guessed button
-label.
+repeated Start resets its date by design. The old file's IDs
+(`nd.screen.work-start.root` and the rest) do not exist here. Read the IDs from the
+compiled surfaces rather than from a button label.
 
-## Screens, calculations and action
+## Screens and calculations
 
-The work screens are All work, Roadmap, Now, Review queue, Delivery progress,
-Open work by target date, Open work by initiative, Delivered by initiative,
-Horizon against status, Target dates, Delivery history and Work dependencies (a
-custom view over `nd.link`), with a shared tabbed work page. Dependencies have a
-list. Initiatives
-use a gallery and related-work page. Findings have a triage list and
-disposition board. Checks have a list and full evidence form. All required
-create fields appear on the corresponding detail page. No unadvertised defaults
-are assumed.
+| Screen | What it answers |
+| --- | --- |
+| Now | Board by status, horizon Now; its Review column is the review queue |
+| Plan | Board by horizon, open work only |
+| By initiative | Board by initiative, open work only |
+| Breakdown | Outline of Part of, drag to reorder |
+| All work | List, with a count and a status breakdown |
+| Delivery history | Timeline from start to completion, delivered work |
+| Dependencies | The Work dependencies graph over `nd.link` |
 
-**Intentional layout adjustment:** All work stays unfiltered for browsing and
-chart drill-through. Delivery progress excludes Dropped records and carries the
-completion ring, so its denominator is all non-dropped work. In the current
-vocabulary, a ring cannot change its denominator independently of its parent
-query.
+A shared work page carries Brief, Plan, Evidence and Links tabs; a Blocker section
+appears only while the work is Blocked. Initiatives have a gallery and a page with
+open and delivered work; Findings a triage board and a list; Checks a board by
+outcome and a list; Decisions a board and a page with the work waiting on each.
 
-The calculated fields are value per effort, initiative outcome, initiative work
-count, work evidence count, and Is blocked. The last one controls a blocker
-section. Calculations are read-only. They are never used for query ordering,
-filters, grouping or surface totals. Related calculations have a 256-member
-ceiling. The host refuses a partial result, while surface totals use exact
-aggregate reads.
+The calculated fields are *Is blocked*, *Days from start to done*, and counts: a
+work item's Checks, Findings and Parts, an initiative's Work, and the work waiting
+on a Decision. The old file's Score (value per effort) is gone; Value and Effort
+stay as ratings. **There are no automatic actions**, so a schema change never asks
+this device for behaviour consent again.
 
-**Optional scores are quietly empty.** The score is declared to allow an empty
-result over optional ratings. Since the 2026-09-20 amendment to ADR-0008, that
-declaration decides the result: an unrated item reads *Not set*, not a
-missing-input error (W-032; F-015 records what it read before). The score's 1-5
-guard refuses by name with `Refuse('Ratings are 1 to 5.')`. That is the proposal
-that the owner accepted the same day, in place of its old `0 / 0` guard
-(definition revision 39). Do not invent zero ratings, and do not fill a rating
-to make a score appear.
-
-The single installed action sets `nd.initiative.reviewNeeded` to true in these
-cases:
-
-- work is created;
-- work is deleted;
-- the initiative, horizon, status, acceptance criteria or target of work
-  changes.
-
-Reassignment reaches both the previous and the next initiative. An empty
-reference selects no target. Unrelated edits do not flag an initiative. The
-action writes a literal true with no event-record bindings, and it has no
-cascading initiative trigger. Approval covers the exact behavior definition and
-stays device-local.
+The old file had twelve work screens, a Score calculation and one action that raised
+an initiative's review flag on nearly every work edit. They stay in `Nendo.nendo`.
 
 ## Initial inventory and source reconciliation
 
