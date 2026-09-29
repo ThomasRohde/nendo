@@ -33,8 +33,7 @@ move — then carry on to the item chosen above.
 **Ratings never choose the work.** Value, effort and Value per effort are set on
 every open item and are worth reporting, because they inform whether the plan is
 right. They are not a sort key, and an item is not next because its score is
-highest. This was easy to honour while the score was blank on every record and is
-easy to forget now that it renders.
+highest.
 
 ## Process
 

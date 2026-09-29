@@ -93,7 +93,7 @@ make a task easier.
   clients change the same scope. Never revoke another client's lease merely to
   make progress. Include the stable work-item ID, changed paths, exact check
   outcomes and remaining work in the handoff.
-- When the planner is unavailable or still being set up, say so, continue
+- When the planner is unavailable, say so, continue
   already-authorized independent work from repository instructions, and reconcile
   outcomes when it returns. Do not create a replacement planner or silently
   infer priorities from an old export.
@@ -154,9 +154,9 @@ It bites heredocs hardest, since they carry a whole file in one command — a
   an accepted ADR or an explicit task.
 - Do not edit vendored skill files. Update them through
   `tools/Sync-DotnetSkills.ps1` and review the resulting diff.
-- `.codex/config.toml` sets this project's Codex CLI defaults (`gpt-6-astra` at
-  low reasoning). Explicit task or CLI settings take precedence; raise effort for
-  a concrete unresolved problem rather than by default.
+- `.codex/config.toml` registers the `nendo` MCP server for Codex; it pins no
+  model or reasoning level. Raise effort for a concrete unresolved problem rather
+  than by default.
 
 ## UI work
 

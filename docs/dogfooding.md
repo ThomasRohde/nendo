@@ -15,31 +15,14 @@ totals, read the live records. Every imported work item has source references
 and acceptance criteria. The linked checks have concrete procedures. Relevant
 work descriptions name prerequisites and the next design decision.
 
-The planning horizons are intentional. The list below shows them as of the
-second 2026-09-20 triage. Claude Code did that triage after the owner marked
-W-052 and W-054 Done and dropped W-028 as not valuable for this prototype.
+The planning horizons are intentional. Read the current lanes from the live
+Work records (`/next` does this); a Blocked item in Now or Next is a fact about
+the plan, and a Later item needing a decision or ADR is retained work, not a
+scheduled commitment.
 
-- **Now:** one. W-053 (remember which sections a person folded, across reopening
-  the file). The owner asked for it. It is within accepted scope, with effort 1.
-  W-032 (quiet empty results for optional calculations) was the other item. The
-  owner accepted its ADR-0008 amendment, and W-032 was delivered and marked Done
-  the same day.
-- **Next:** three. Each one can start when the owner says so. W-026 (the
-  duplicate startup inspection) is pure waste with no design question. It stays
-  here because nobody opens a large file in this prototype. W-008 (how proposal
-  review explains behaviour consent) is a small decision on the agent-authoring
-  path. W-010 (independent authoring diagnostics together) returns from Later,
-  because this product is now built by agent authoring in bulk. The owner moved
-  it out on 2026-09-17 and decides when it comes back in.
-- **Later:** six. W-045, W-011, W-017 and W-007 each need a decision or an ADR,
-  and none of them shapes the next month. Two are Blocked on something that does
-  not exist yet: a person's billing evidence (W-020) and a machine that can be
-  cut from power (W-030). These are retained future work and decisions. They are
-  not silently scheduled commitments.
-
-10 items are open, 30 are Done and 13 are Dropped. **Planning order is unique
-across the file**, so a board sorted by it has one answer. Open work holds 1-14,
-delivered work holds 101-131 and dropped work holds 201-213. This keeps All work
+**Planning order is unique across the file**, so a board sorted by it has one
+answer. Open work takes the low numbers, delivered work the 100s and dropped
+work the 200s. This keeps All work
 in open-first order. When you add an item, keep the order unique, and do not
 reuse a number. **Move a completed item's order into the delivered range when it
 closes**.
