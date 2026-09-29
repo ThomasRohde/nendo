@@ -406,3 +406,25 @@ test('G30: a key the toolbar declares goes to the Workbench once Nendo accepted 
   assert.deepEqual(workbench.inbox.filter((message) => message.t === 'key').map((message) => message.keys), ['Ctrl+0'],
     'A key the view handled itself, one pressed while typing, or a disabled control’s went to the Workbench.');
 });
+
+test('G31: a view declares its place, starts from context.place, and hears the event place with the context kept current', async (t) => {
+  const view = frame();
+  const workbench = connect(view, { ...baseContext, place: { view: 'v-1' }, methods: [...baseContext.methods, 'ui.setPlace'] }, t);
+  const nendo = view.window.nendo;
+  assert.equal(nendo.has('ui.setPlace'), true);
+  assert.deepEqual(plain(nendo.context.place), { view: 'v-1' }, 'The place the view starts from was not in its context.');
+  const declared = nendo.ui.setPlace({ view: 'v-2' }, { label: 'Layered view' });
+  const request = await workbench.next((message) => message.t === 'req' && message.m === 'ui.setPlace');
+  assert.deepEqual(plain(request.p), { place: { view: 'v-2' }, label: 'Layered view', replace: false });
+  workbench.send({ t: 'res', id: request.id, ok: true, r: null });
+  assert.equal(await declared, null);
+  nendo.ui.setPlace({ view: 'v-2', selected: 'e-1' }, { replace: true });
+  const replaced = await workbench.next((message) => message.t === 'req' && message.m === 'ui.setPlace' && message.id !== request.id);
+  assert.deepEqual(plain(replaced.p), { place: { view: 'v-2', selected: 'e-1' }, label: null, replace: true });
+  const heard = [];
+  nendo.on('place', (place) => heard.push(plain(place)));
+  workbench.send({ t: 'evt', n: 'place', d: { view: 'v-1' } });
+  await until(() => heard.length === 1, 'the place event');
+  assert.deepEqual(heard, [{ view: 'v-1' }]);
+  assert.deepEqual(plain(nendo.context.place), { view: 'v-1' }, 'context.place was left behind the place the view was moved to.');
+});

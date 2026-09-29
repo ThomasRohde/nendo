@@ -62,6 +62,12 @@ export const extensionLimits = {
   menusPerSecond: 4,
   /** The most keys one view hands the Workbench in any second. */
   keysPerSecond: 8,
+  /**
+   * A view's place in Back and Forward (2026-09-29, W-127): at most this many UTF-8 bytes of
+   * JSON, a label of at most `labelCharacters`, and this many declared in any second.
+   */
+  placeBytes: 4 * 1024,
+  placesPerSecond: 20,
 } as const;
 
 /**
@@ -199,6 +205,12 @@ export interface ViewContext {
   readOnly: boolean;
   /** Every method this Workbench answers. `nendo.has(name)` reads it. */
   methods: string[];
+  /**
+   * Where Back or Forward put this view, as it last declared with `nendo.ui.setPlace`; null
+   * when it has declared none here (W-127). A view starts from it, and hears the event `place`
+   * when Back or Forward moves it while it runs.
+   */
+  place?: Json | null;
 }
 
 export type CalculationStateName = 'value' | 'empty' | 'error' | 'pending';
@@ -312,7 +324,7 @@ export interface HelloMessage { nendo: 'hello'; apiVersion: number }
 export interface ConnectMessage { nendo: 'connect'; apiVersion: number; context: ViewContext }
 
 /** Every event a view can hear; `nendo.on` refuses any other name. */
-export const viewEventNames = Object.freeze(['context', 'theme', 'changes', 'command'] as const);
+export const viewEventNames = Object.freeze(['context', 'theme', 'changes', 'command', 'place'] as const);
 export type ViewEventName = typeof viewEventNames[number];
 
 /** Where a command came from: a control in the toolbar, a menu, Ctrl K, its key, or Nendo's Add. */

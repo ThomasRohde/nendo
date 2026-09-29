@@ -690,6 +690,38 @@ try {
   await waitFor(async () => (await heard()).slice(beforeKey).filter(line => line === 'fit::key').length === 2 ? true : null, 'the declared key pressed in the Workbench running its command');
   check('G30 Ctrl K pressed inside a view opens the palette before the view hears it, a key the view keeps reaches it, and a declared key runs its command from inside the view and from the Workbench');
 
+  // G33 (W-127, the owner's F-215): a view takes part in Back and Forward. A place it declares
+  // is a step the Back button names; declaring it again is none; Back and Forward hand the view
+  // its place as the event place; and Back from a record the view opened comes back to the view
+  // at the place it left, whether its frame kept running or started again.
+  assert(await inFrame(chromeFrame, `nendo.has('ui.setPlace')`), 'The view is not offered ui.setPlace.');
+  const backTitle = () => evaluate(`document.querySelector('#nav-back').title`);
+  await inFrame(chromeFrame, `(async () => { window.heardPlaces = []; nendo.on('place', place => heardPlaces.push(place));
+    await nendo.ui.setPlace({ page: 'one' }, { label: 'Page one', replace: true }); await nendo.ui.setPlace({ page: 'two' }, { label: 'Page two' }); return true; })()`);
+  await waitFor(async () => /Page one/.test(await backTitle()) ? true : null, 'Back naming the view\u2019s first page');
+  await inFrame(chromeFrame, `nendo.ui.setPlace({ page: 'two' }, { label: 'Page two' })`);
+  await sleep(200);
+  assert(/Page one/.test(await backTitle()), 'Declaring the place the view already had made a step: Back says ' + JSON.stringify(await backTitle()));
+  await click('#nav-back'); await idle();
+  await waitFor(async () => JSON.stringify(await inFrame(chromeFrame, 'heardPlaces')) === '[{"page":"one"}]' ? true : null, 'Back handing the view its first page');
+  const contextAfterBack = await inFrame(chromeFrame, 'nendo.context.place');
+  assert(contextAfterBack?.page === 'one', 'Back left the view\u2019s context at another place: ' + JSON.stringify(contextAfterBack));
+  const forwardTitle = await evaluate(`document.querySelector('#nav-forward').title`);
+  assert(/Page two/.test(forwardTitle), 'Forward does not name the view\u2019s second page: ' + JSON.stringify(forwardTitle));
+  await click('#nav-forward'); await idle();
+  await waitFor(async () => (await inFrame(chromeFrame, 'heardPlaces.at(-1)?.page')) === 'two' ? true : null, 'Forward handing the view its second page');
+  await inFrame(chromeFrame, `nendo.ui.openRecord('tasks', 't1')`);
+  await waitFor(async () => /Page two/.test(await backTitle()) ? true : null, 'Back from the record naming the view\u2019s page');
+  await click('#nav-back'); await idle();
+  const cameBack = await waitFor(async () => {
+    const running = (await frames()).find(f => f.view === 'probe' && f.state === 'running');
+    if (!running) return null;
+    const session = await frameSession(running.name);
+    const place = await inFrame(session, 'probe.state.ready ? nendo.context?.place ?? "none" : null').catch(() => null);
+    return place?.page === 'two' ? { restarted: running.name !== chromeView.name } : null;
+  }, 'the view back at its second page after Back from the record it opened', 30000);
+  check(`G33 a view takes part in Back and Forward: its places are steps the buttons name, declaring one again is none, Back and Forward hand it the place as the event place, and Back from a record it opened returns it to its page (${cameBack.restarted ? 'started again from its context' : 'its frame kept'})`);
+
   // G32, on every kind of screen and in a narrow window: a Studio page holds the same bar, and in a
   // window at most 840px wide the rail is the bar across the top, which keeps Windows' buttons free
   // and passes its own controls through as the top bar does.

@@ -179,6 +179,12 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
     answer: '{id, value} of the item picked, or null when the menu is dismissed. value is a check\'s new state or a radio item\'s value.',
     note: 'Nendo draws its own menu at that point, for a right-click or a button of the view\'s own.',
   },
+  'ui.setPlace': {
+    call: 'nendo.ui.setPlace(place, {label?, replace?})',
+    params: 'Where the view is: JSON of at most 4 KiB, such as {view: id, selected: id}. label names it on Nendo\'s Back button, at most 80 characters; the view\'s title when left out. replace corrects the step the person is on rather than making one.',
+    answer: 'null.',
+    note: 'A new place is a step in Back and Forward; use replace for a selection and for the place the view starts at. Declaring the place it already has does nothing, so a view may declare its place after restoring it. Back and Forward hand a place back as the event place, and a view that has to start again finds it in context.place. At most twenty a second. Check nendo.has(\'ui.setPlace\') first.',
+  },
 };
 
 /** What api.js adds on top of the method table: no method of their own. */
@@ -291,6 +297,7 @@ export function viewApiReference() {
       context: 'The context, on every connect and whenever it changes, for example after the definition changed.',
       theme: '{mode, tokens}, when the person\'s theme turns light or dark. api.js has already applied it.',
       changes: 'The file\'s change sequence, when anything commits to the file: at most one every 250 ms, carrying the latest. It is a nudge; the view decides what to read again.',
+      place: 'The view\'s place as it declared it with ui.setPlace, or null for none: Back or Forward moved the person there. Show that place; declaring it again does nothing.',
       command: '{id, value, source}: the person pressed one of the view\'s controls. source is toolbar, menu, palette (Ctrl K), key or add. value is a toggle\'s or a check\'s new state, the option chosen, the text searched for, a radio item\'s value, or null for a button or a menu item.',
       names: viewEventNames,
     },

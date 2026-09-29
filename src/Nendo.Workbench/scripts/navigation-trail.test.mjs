@@ -36,6 +36,7 @@ const place = (over = {}) => ({
   proposalId: null,
   agentProposalId: null,
   proposalReturnView: null,
+  viewPlaces: [],
   ...over,
 });
 
@@ -214,4 +215,42 @@ test('closing the file closes the way back to it', () => {
   assert.equal(trail.canGoForward(), false);
   assert.equal(trail.inspect().places.length, 0);
   assert.equal(trail.isRestoring(), false, 'a cleared trail is not left holding a restore');
+});
+
+test('a view that moves makes a step, and a view that corrects its place does not (W-127)', () => {
+  const trail = createTrail();
+  trail.record(place({ surfaceId: 'ar.screen.archi' }));
+  const at = (value, label = 'View') => place({ surfaceId: 'ar.screen.archi', viewPlaces: [{ view: '["screen","archi",null]', value, label }] });
+  trail.record(at({ view: 'v-1' }, 'Main view'));
+  trail.amendCurrent(() => at({ view: 'v-1', selected: 'e-1' }, 'Main view'));
+  trail.record(at({ view: 'v-2' }, 'Layered view'));
+  assert.equal(trail.inspect().places.length, 3, 'Opening a second diagram was not a step.');
+  assert.deepEqual(trail.peekBack().viewPlaces[0].value, { view: 'v-1', selected: 'e-1' }, 'The selection corrected on the first diagram was not the step back.');
+  trail.record(at({ view: 'v-2' }, 'Layered view, renamed'));
+  assert.equal(trail.inspect().places.length, 3, 'A new label on the same place counted as a move.');
+});
+
+const places = await bundleOf('src/view-places.ts');
+
+test('a view keeps its place on the screen it declared it on, and Back puts the old one back (W-127)', () => {
+  const archi = places.viewAnchor({ view: 'use', applicationEntityId: 'ar.model', showOverview: false, surfaceId: 'ar.screen.archi', recordId: null });
+  const record = places.viewAnchor({ view: 'use', applicationEntityId: 'ar.concept', showOverview: false, surfaceId: 'ar.concept.list', recordId: 'ar-1' });
+  const view = places.viewPlaceKey({ placement: 'screen', viewId: 'archi', recordId: null });
+  assert.equal(places.keepViewPlace(archi, { view, value: { view: 'v-1' }, label: 'Main' }), true);
+  assert.equal(places.keepViewPlace(archi, { view, value: { view: 'v-1' }, label: 'Main' }), false, 'The same place declared again counted as a change.');
+  assert.equal(places.keepViewPlace(archi, { view, value: { view: 'v-1' }, label: 'Main view' }), true, 'A new label was not kept.');
+  assert.deepEqual(places.viewPlacesAt(record), [], 'A place declared on one screen appeared on another.');
+  assert.equal(places.keepViewPlace(archi, { view, value: { view: 'v-2' }, label: 'Layered' }), true);
+  places.restoreViewPlaces(archi, [{ view, value: { view: 'v-1' }, label: 'Main view' }]);
+  assert.deepEqual(places.viewPlaceOf(archi, view)?.value, { view: 'v-1' }, 'Back did not put the earlier place back.');
+  places.restoreViewPlaces(archi, []);
+  assert.equal(places.viewPlaceOf(archi, view), null, 'A place the view had not declared yet survived going back to before it.');
+});
+
+test('the places kept are bounded, and it is the one used longest ago that goes', () => {
+  const view = places.viewPlaceKey({ placement: 'recordPage', viewId: 'panel', recordId: null });
+  const anchorOf = (index) => places.viewAnchor({ view: 'use', applicationEntityId: 'e', showOverview: false, surfaceId: `s-${index}`, recordId: null });
+  for (let index = 0; index <= places.viewPlaceCeiling; index += 1) places.keepViewPlace(anchorOf(index), { view, value: index, label: 'x' });
+  assert.equal(places.viewPlaceOf(anchorOf(0), view), null);
+  assert.equal(places.viewPlaceOf(anchorOf(places.viewPlaceCeiling), view)?.value, places.viewPlaceCeiling);
 });

@@ -139,6 +139,8 @@ function install(host: Window & { nendo?: unknown }): void {
       } else if (message.n === 'theme' && context !== null) {
         context = { ...context, theme: message.d as ViewTheme };
         applyTheme(context.theme);
+      } else if (message.n === 'place' && context !== null) {
+        context = { ...context, place: message.d as Json };
       }
       emit(message.n, message.d);
     } else if (message.t === 'ping') {
@@ -569,6 +571,16 @@ function install(host: Window & { nendo?: unknown }): void {
       setToolbar,
       /** One of Nendo's menus at a point in the view, or at a mouse event: the pick as { id, value }, or null. */
       showMenu,
+      /**
+       * Where this view is, for Back and Forward (W-127): JSON of at most 4 KiB, and a label
+       * the Back button shows. A new place is a step; `{ replace: true }` corrects the step the
+       * person is on, for a selection or the place the view starts at. Declaring the place it
+       * already has does nothing. Back and Forward hand a place back as the event `place`, and
+       * a view that starts again finds it in `nendo.context.place`. Ask nendo.has('ui.setPlace')
+       * first.
+       */
+      setPlace: (place: unknown, options: { label?: string; replace?: boolean } = {}): Promise<null> =>
+        call<null>('ui.setPlace', { place: place ?? null, label: options.label ?? null, replace: options.replace === true }),
       get theme(): ViewTheme | null { return context?.theme ?? null; },
     }),
     view: Object.freeze({ loadRecords, loadGraph }),

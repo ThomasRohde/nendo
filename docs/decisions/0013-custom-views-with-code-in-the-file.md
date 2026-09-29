@@ -745,3 +745,8 @@ falsified once, and has the failure text quoted in its planner Check.
 - 2026-09-28 — one row above a view: the breadcrumb picks the record type and the view, and
   a custom view's controls share the Use toolbar's row with Add (W-092, options A and C of
   its canvas). Accepted on the owner's pick and standing pre-acceptance.
+- 2026-09-29 — a view takes part in Back and Forward: `ui.setPlace` declares its place as a
+  step or a correction, the Workbench keeps it for the session against the screen it is on,
+  and hands it back as the event `place` or in `context.place` (W-127, the owner's F-215). No
+  rung: nothing reaches the file. Written with the code, on the owner's standing
+  pre-acceptance.

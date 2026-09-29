@@ -37,6 +37,9 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
 //                                               connect on (W-090); toolbars and menus record them,
 //                                               and chromeRefusals what Nendo's rules refused (W-091)
 //   pickNext(pick), command(id, value, source)  the next menu's answer; a press on the toolbar
+//   offerPlaces(on), places, pushPlace(place),   ui.setPlace from the next connect on (W-127): what
+//   startAt(place)                              the view declared, Back or Forward handing it a
+//                                               place, and the place the next connect starts at
 //   requests, events, hellos, refused, connects what happened, in order
 (() => {
   'use strict';
@@ -53,6 +56,10 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
   // the methods a view is offered keep measuring what they always measured.
   const WRITES = ['records.create', 'records.delete', 'records.batch'];
   let writes = false;
+  // A view's place in Back and Forward (W-127), offered only when a probe asks.
+  const PLACES = ['ui.setPlace'];
+  let placesOffered = false, startPlace = null;
+  const places = [];
   const toolbars = [], menus = [], chromeRefusals = [];
   // A declaration is read by the Workbench's own rules before it is recorded, and refused as
   // Nendo refuses it, so a lane never passes a toolbar or a menu that Nendo would not draw.
@@ -95,7 +102,9 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     const context = fixture.context;
     return {
       apiVersion: config.apiVersion, packageId: config.packageId, configuration: {}, locale: 'en', readOnly: false,
-      ...clone(context), theme: themeOf(context.theme ?? 'light'), methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : [])],
+      ...clone(context), theme: themeOf(context.theme ?? 'light'),
+      methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : []), ...(placesOffered ? PLACES : [])],
+      ...(placesOffered ? { place: clone(startPlace) } : {}),
     };
   }
 
@@ -193,6 +202,15 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
         byNendosRules(method, 'readToolbar', params);
         toolbars.push(clone(params));
         return null;
+      case 'ui.setPlace': {
+        if (!placesOffered) throw refusal('unknown-method', 'ui.setPlace is not a method this fixture answers.');
+        const json = JSON.stringify(params.place ?? null);
+        if (new TextEncoder().encode(json).length > 4096) throw refusal('invalid-params', 'place must be JSON of at most 4096 bytes.');
+        if (params.label !== undefined && params.label !== null && (typeof params.label !== 'string' || params.label.length === 0 || params.label.length > 80))
+          throw refusal('invalid-params', 'label must be text of 1 to 80 characters.');
+        places.push({ place: JSON.parse(json), label: params.label ?? null, replace: params.replace === true, at: now() });
+        return null;
+      }
       case 'ui.showMenu': {
         if (!chrome) throw refusal('unknown-method', 'ui.showMenu is not a method this fixture answers.');
         byNendosRules(method, 'readMenu', params);
@@ -455,6 +473,12 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     remount() { mount(); return true; },
     offerChrome(on) { chrome = on === true; return chrome; },
     offerWrites(on) { writes = on === true; return writes; },
+    offerPlaces(on) { placesOffered = on === true; return placesOffered; },
+    places,
+    /** Back or Forward moved the person to this place of the view's. */
+    pushPlace(place) { emit('place', clone(place)); return events.length; },
+    /** The place the view's next connect starts from, as a view started again after Back finds it. */
+    startAt(place) { startPlace = clone(place); return true; },
     records(entityId) { return clone(fixture.records[entityId] ?? []); },
     toolbars, menus, chromeRefusals,
     pickNext(pick) { menuPick = clone(pick); return true; },

@@ -40,7 +40,8 @@ async function readAll() {
   if (state.openView && !state.model.records.has(state.openView)) state.openView = null;
   if (!state.loaded) {
     state.loaded = true;
-    state.selected = modelRecord()?.recordId ?? null;
+    // Back or Forward, or a return to this screen, starts the workbench where it was.
+    applyPlace(startPlace);
   }
   if (state.selected && !state.model.records.has(state.selected)) state.selected = modelRecord()?.recordId ?? null;
   render();
@@ -632,6 +633,71 @@ function render() {
   renderCentre();
   renderProperties();
   declareToolbar();
+  declarePlace();
+}
+
+// ---------------------------------------------------------------- Back and Forward
+
+/*
+ * Where the workbench is, for Nendo's Back and Forward (W-127): the open view, the record
+ * selected and the object picked on the diagram. Opening another view is a step; a new
+ * selection corrects the step the person is on, so Back from a record page, or from the next
+ * view, comes back to it. Selections are declared once the person pauses, a view at once.
+ */
+let startPlace = null, declaredPlace = null, waitingPlace = null, placeTimer = null;
+
+const placeNow = () => ({ view: state.openView, selected: state.selected, item: state.diagramSelection[0] ?? null });
+const samePlace = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+
+function placeLabel(place) {
+  const record = state.model?.records.get(place.view ?? place.selected);
+  return record ? M.label(state.model, record).slice(0, 80) : 'Model';
+}
+
+function sendPlace(place, replace) {
+  declaredPlace = place;
+  nendo.ui.setPlace(place, { label: placeLabel(place), replace }).catch(error => setStatus(describe(error), true));
+}
+
+function declarePlace() {
+  if (!state.loaded || !nendo.has('ui.setPlace')) return;
+  const place = placeNow();
+  if (samePlace(place, waitingPlace ?? declaredPlace)) return;
+  const step = declaredPlace !== null && place.view !== (waitingPlace ?? declaredPlace).view;
+  clearTimeout(placeTimer);
+  if (step) {
+    // The selection made on the view being left belongs to its step, so it goes first.
+    if (waitingPlace) sendPlace(waitingPlace, true);
+    waitingPlace = null;
+    sendPlace(place, false);
+    return;
+  }
+  if (declaredPlace === null) { sendPlace(place, true); return; }
+  waitingPlace = place;
+  placeTimer = setTimeout(() => { const waiting = waitingPlace; waitingPlace = null; if (waiting) sendPlace(waiting, true); }, 150);
+}
+
+/** Put the workbench where a place says, as far as the model still has it. */
+function applyPlace(place) {
+  const has = id => typeof id === 'string' && state.model.records.has(id);
+  state.openView = has(place?.view) ? place.view : null;
+  state.selected = has(place?.selected) ? place.selected : state.openView ?? modelRecord()?.recordId ?? null;
+  state.diagramSelection = has(place?.item) ? [place.item] : [];
+  state.draftProperties = null;
+  const record = state.model.records.get(state.selected);
+  const folderId = record && (record.entityId === M.E.folder ? record.values['ar.folder.parent']
+    : record.values['ar.concept.folder'] ?? record.values['ar.view.folder']);
+  for (let at = state.model.records.get(folderId); at; at = state.model.records.get(at.values['ar.folder.parent'])) state.expanded.add(at.recordId);
+}
+
+/** Back or Forward moved the person to a place of this workbench's: show it, and declare nothing. */
+function restorePlace(place) {
+  if (!state.loaded) { startPlace = place; return; }
+  clearTimeout(placeTimer);
+  waitingPlace = null;
+  applyPlace(place);
+  declaredPlace = placeNow();
+  render();
 }
 
 function wire() {
@@ -730,7 +796,10 @@ function wire() {
 
 function openRecord() {
   const record = state.model?.records.get(state.selected);
-  if (record) nendo.ui.openRecord(record.entityId, record.recordId).catch(error => setStatus(describe(error), true));
+  if (!record) return;
+  // The selection is the place Back comes back to, so it is declared before the page goes.
+  if (waitingPlace) { clearTimeout(placeTimer); const waiting = waitingPlace; waitingPlace = null; sendPlace(waiting, true); }
+  nendo.ui.openRecord(record.entityId, record.recordId).catch(error => setStatus(describe(error), true));
 }
 
 if (nendo === undefined) {
@@ -741,6 +810,8 @@ if (nendo === undefined) {
   nendo.ready.then(context => {
     document.documentElement.lang = context.locale || 'en';
     state.readOnly = context.readOnly === true;
+    startPlace = context.place ?? null;
+    if (nendo.has('ui.setPlace')) nendo.on('place', restorePlace);
     if (nendo.has('ui.setToolbar')) {
       state.nativeChrome = true;
       nendo.on('command', command => { try { runCommand(command); } catch (error) { setStatus(describe(error), true); } });

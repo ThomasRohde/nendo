@@ -1,5 +1,6 @@
 import { fileScopedClearable, selectedTabs, type DrillState, type ReturnTo, type ViewName } from './app-state';
 import type { CalendarMode, CivilMonth } from './calendar-model';
+import type { ViewPlace } from './view-places';
 
 /**
  * Where somebody has been in this file, so there is a way back from anywhere.
@@ -58,6 +59,12 @@ export interface Place {
    * had been opened from.
    */
   proposalReturnView: ViewName | null;
+  /**
+   * Where each custom view on this place said it was (ADR-0013, 2026-09-29; W-127): the
+   * diagram it had open, the record it had selected. Without it Back rebuilt the screen and the
+   * view started over, and a view's own pages were never steps.
+   */
+  viewPlaces: ViewPlace[];
 }
 
 /**
@@ -85,6 +92,8 @@ export function placeKey(place: Place): string {
     place.proposalId,
     place.agentProposalId,
     place.proposalReturnView,
+    // The values, not the labels: a label is the place's name, like the heading.
+    place.viewPlaces.map((entry) => [entry.view, entry.value]),
   ]);
 }
 

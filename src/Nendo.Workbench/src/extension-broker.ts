@@ -2,7 +2,7 @@ import { plainJson, plainPage, plainRecord, plainTreePage } from './extension-mo
 import { WorkbenchHostError, type RecordSnapshot } from './host-types';
 import {
   apiVersion, extensionLimits, hostKeys, utf8Length,
-  type ConnectMessage, type PortMessage, type SchemaDescription, type ViewCommand, type ViewContext, type ViewTheme,
+  type ConnectMessage, type Json, type PortMessage, type SchemaDescription, type ViewCommand, type ViewContext, type ViewTheme,
 } from './extension-api/protocol';
 import { declaredKeys, readMenu, readToolbar, type CommandValue, type ViewMenuRequest, type ViewToolbar } from './view-toolbar-model';
 
@@ -55,6 +55,11 @@ export interface BrokerUi {
    * it as if it had been pressed in the Workbench.
    */
   key(mount: BrokerMount, keys: string): void;
+  /**
+   * The view says where it is, for Back and Forward (W-127): a new step, or with `replace` a
+   * correction of the step the person is on. Answers whether anything changed.
+   */
+  setPlace(mount: BrokerMount, place: { value: Json; label: string | null; replace: boolean }): boolean;
 }
 
 export interface BrokerDeps {
@@ -81,7 +86,10 @@ interface MethodCall {
   params: Params;
   mount: BrokerMount;
   deps: BrokerDeps;
-  connection: { toastAt: number; stateWrites: number[]; toolbars: number[]; menus: number[]; keys: Set<string> };
+  connection: {
+    toastAt: number; stateWrites: number[]; toolbars: number[]; menus: number[]; keys: Set<string>;
+    places: number[]; placeJson: string; contextJson: string;
+  };
 }
 
 /** At most `limit` of something in any second: the times it happened, pruned, then this one added. */
@@ -583,6 +591,22 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
     withinRate(connection.menus, deps.now(), extensionLimits.menusPerSecond, 'A view asks for at most four menus a second.');
     return deps.ui.showMenu(mount, readMenu(params));
   }),
+  // Where the view is, for Back and Forward (2026-09-29, W-127). The place is plain JSON the
+  // Workbench keeps and hands back; it never reads it.
+  'ui.setPlace': local(({ mount, params, deps, connection }) => {
+    withinRate(connection.places, deps.now(), extensionLimits.placesPerSecond, 'A view declares its place at most twenty times a second.');
+    const value = plainJson(params.place ?? null);
+    const json = JSON.stringify(value);
+    if (utf8Length(json) > extensionLimits.placeBytes)
+      throw invalid(`place must be JSON of at most ${extensionLimits.placeBytes} bytes.`);
+    const label = optionalText(params, 'label', extensionLimits.labelCharacters) ?? null;
+    const replace = optionalBoolean(params, 'replace') ?? false;
+    deps.ui.setPlace(mount, { value, label, replace });
+    // The view knows its own place: neither the event nor the context goes back to it.
+    connection.placeJson = json;
+    connection.contextJson = JSON.stringify(deps.context(mount));
+    return null;
+  }),
 });
 
 /** Every method name, in table order: what a view's context lists and `nendo.has` answers. */
@@ -608,6 +632,9 @@ interface Connection {
   toolbars: number[];
   menus: number[];
   keyTimes: number[];
+  places: number[];
+  /** The place this view has, as it declared it or was last handed it, as JSON. */
+  placeJson: string;
   /** The keys its current toolbar declares: the only keys besides Nendo's it may hand back. */
   keys: Set<string>;
   changesAt: number;
@@ -637,6 +664,11 @@ export interface ExtensionBroker {
    * its key (W-090). Answers whether a connected view was told.
    */
   command(mount: BrokerMount, command: ViewCommand): boolean;
+  /**
+   * Back or Forward put the view's page somewhere else (W-127): hand the view its place, when
+   * it is not the one the view already has.
+   */
+  place(mount: BrokerMount, place: Json): void;
   /** Ping the views that are due, and notice the ones that stopped answering. Called once a second. */
   tick(): void;
   connectionCount(): number;
@@ -782,7 +814,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       const now = deps.now();
       const connection: Connection = {
         mount, port: channel.port1, closed: false, inFlight: 0, queue: [], toastAt: -Infinity, stateWrites: [],
-        toolbars: [], menus: [], keyTimes: [], keys: new Set(),
+        toolbars: [], menus: [], keyTimes: [], keys: new Set(), places: [], placeJson: JSON.stringify(context.place ?? null),
         changesAt: -Infinity, changesPending: null, changesScheduled: false,
         lastHeardAt: now, lastPingAt: now, ping: null, unresponsive: false, contextJson: JSON.stringify(context),
       };
@@ -835,6 +867,16 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       if (connection === undefined || connection.closed) return false;
       post(connection, { t: 'evt', n: 'command', d: { id: command.id, value: command.value, source: command.source } });
       return true;
+    },
+
+    place(mount, place) {
+      const connection = connections.get(mount.key);
+      if (connection === undefined || connection.closed) return;
+      const json = JSON.stringify(place);
+      if (json === connection.placeJson) return;
+      connection.placeJson = json;
+      connection.contextJson = JSON.stringify(deps.context(mount));
+      post(connection, { t: 'evt', n: 'place', d: place });
     },
 
     tick() {

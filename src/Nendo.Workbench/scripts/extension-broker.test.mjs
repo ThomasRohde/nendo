@@ -25,7 +25,7 @@ function harness() {
   const otherWindow = { postMessage: () => { throw new Error('A window this Workbench did not mount was answered.'); } };
   const mount = { key: 'mount-1', origin, frameWindow: () => frameWindow };
   const h = { posted, frameWindow, otherWindow, mount, calls: [], pending: [], timers: [], toasts: [], responsive: [], now: 0, running: true, heights: [], opened: [], canOpen: true,
-    toolbars: [], menus: [], menuAnswer: null, keys: [] };
+    toolbars: [], menus: [], menuAnswer: null, keys: [], places: [] };
   h.broker = broker.createExtensionBroker({
     request: (method, payload) => {
       h.calls.push({ method, payload });
@@ -45,6 +45,7 @@ function harness() {
       setToolbar: (_mount, toolbar) => { h.toolbars.push(toolbar); },
       showMenu: async (_mount, menu) => { h.menus.push(menu); return h.menuAnswer; },
       key: (_mount, keys) => { h.keys.push(keys); },
+      setPlace: (_mount, place) => { h.places.push(place); return true; },
     },
     responsive: (_mount, responsive) => h.responsive.push(responsive),
     now: () => h.now,
@@ -124,6 +125,8 @@ test('the method table is closed: reads, the record writes, preparing a proposal
     // The view's controls in Nendo's own chrome (W-090): the Workbench draws them itself.
     ['ui.setToolbar', null],
     ['ui.showMenu', null],
+    // The view's place in Back and Forward (W-127): the Workbench keeps it and never reads it.
+    ['ui.setPlace', null],
   ];
   const table = broker.brokerTable();
   assert.deepEqual(table.map(({ method, host }) => [method, host]), expected);
@@ -932,4 +935,49 @@ test('G30: a key handed back is taken only when it is Nendo’s or one the toolb
   view.send({ t: 'key', keys: 'Ctrl+K' });
   await settle();
   assert.equal(h.keys.filter((keys) => keys === 'Ctrl+K').length, 1, 'A key was run while views were off.');
+});
+
+test('G31: a place the view declares is plain JSON of at most 4 KiB with a short label, twenty a second', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  view.send({ t: 'req', id: 1, m: 'ui.setPlace', p: { place: { view: 'v-1', selected: null, when: new Date(0).toISOString() }, label: 'Main view' } });
+  assert.equal((await view.next((message) => message.id === 1)).ok, true);
+  assert.deepEqual(h.places, [{ value: { view: 'v-1', selected: null, when: '1970-01-01T00:00:00.000Z' }, label: 'Main view', replace: false }]);
+  view.send({ t: 'req', id: 2, m: 'ui.setPlace', p: { place: { view: 'v-1', selected: 'e-2' }, replace: true } });
+  assert.equal((await view.next((message) => message.id === 2)).ok, true);
+  assert.deepEqual(h.places.at(-1), { value: { view: 'v-1', selected: 'e-2' }, label: null, replace: true }, 'replace, or the missing label, did not reach the Workbench.');
+  view.send({ t: 'req', id: 3, m: 'ui.setPlace', p: { place: { text: 'x'.repeat(4_100) } } });
+  assert.match((await view.next((message) => message.id === 3)).e.message, /at most 4096 bytes/);
+  view.send({ t: 'req', id: 4, m: 'ui.setPlace', p: { place: 1, label: 'y'.repeat(81) } });
+  assert.equal((await view.next((message) => message.id === 4)).ok, false, 'A label longer than 80 characters was taken.');
+  view.send({ t: 'req', id: 5, m: 'ui.setPlace', p: { place: 1, replace: 'yes' } });
+  assert.equal((await view.next((message) => message.id === 5)).ok, false, 'replace that is not true or false was taken.');
+  h.now = 5_000;
+  for (let id = 10; id < 30; id += 1) view.send({ t: 'req', id, m: 'ui.setPlace', p: { place: id } });
+  assert.equal((await view.next((message) => message.id === 29)).ok, true);
+  view.send({ t: 'req', id: 30, m: 'ui.setPlace', p: { place: 30 } });
+  assert.equal((await view.next((message) => message.id === 30)).e.code, 'busy', 'A twenty-first place in one second was taken.');
+});
+
+test('G32: Back or Forward hands a view its place as the event place, never the place it declared itself', async (t) => {
+  const h = harness();
+  h.context = { ...context, place: { view: 'v-1' } };
+  const view = connect(h);
+  t.after(() => close(h));
+  h.broker.place(h.mount, { view: 'v-1' });
+  // The Workbench keeps the place before the broker reads the context again, as view-frames does.
+  h.context = { ...context, place: { view: 'v-2' } };
+  view.send({ t: 'req', id: 1, m: 'ui.setPlace', p: { place: { view: 'v-2' } } });
+  await view.next((message) => message.id === 1);
+  h.broker.place(h.mount, { view: 'v-2' });
+  h.broker.refreshContext(h.mount);
+  h.context = { ...context, place: { view: 'v-1' } };
+  h.broker.place(h.mount, { view: 'v-1' });
+  h.broker.refreshContext(h.mount);
+  const event = await view.next((message) => message.n === 'place');
+  assert.deepEqual(event, { t: 'evt', n: 'place', d: { view: 'v-1' } });
+  await settle();
+  assert.deepEqual(view.inbox.filter((message) => message.t === 'evt').map((message) => message.n), ['place'],
+    'The view heard its own place back, or a context event for a place it was already told.');
 });

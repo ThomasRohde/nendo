@@ -438,6 +438,34 @@ zoom, so they are not theme values. The kit's focus ring answers the first two.
 The navigation calls follow the rules a click follows. While another action runs,
 or while a record page holds unsaved typing, they are refused, and nothing moves.
 
+### Back and Forward
+
+A view with pages of its own, such as a diagram opened from a list, tells Nendo where it is,
+so the person's Back and Forward go through those pages and Back from a record the view
+opened comes back to the page it was on:
+
+```js
+nendo.ready.then((context) => {
+  show(context.place ?? { page: 'start' });          // where Back or a return put this view
+  nendo.on('place', (place) => show(place ?? { page: 'start' }));
+});
+
+function open(page) {
+  show({ page });
+  nendo.ui.setPlace({ page }, { label: titleOf(page) });  // a step, named on Nendo's Back button
+}
+
+function select(id) {
+  nendo.ui.setPlace({ page: current, selected: id }, { label: titleOf(current), replace: true });
+}
+```
+
+A place is plain JSON of at most 4 KiB. `replace: true` corrects the step the person is on,
+for a selection and for the place a view starts at; without it the place is a new step.
+Declaring the place the view already has does nothing, so `show` may declare it too. Answer
+the `place` event by showing the place, never with a new step. Ask
+`nendo.has('ui.setPlace')` first.
+
 ## Controls in Nendo's toolbar
 
 A view draws its content, and Nendo draws its controls (ADR-0013, 2026-09-28). Declare

@@ -516,6 +516,7 @@ Workbench suite, pins the table name by name.
 | `ui.setHeight` | `pixels` | The frame's height | `{pixels}` |
 | `ui.setToolbar` | `items`, `add` | Nendo's toolbar for the view (W-090) | null |
 | `ui.showMenu` | `items`, `x`, `y` | Nendo's menu at a point in the view (W-090) | `{id, value}` of the item picked, or null |
+| `ui.setPlace` | `place`, `label`, `replace` | The view's place in Back and Forward (W-127) | null |
 
 Numbers in the host's answers arrive as plain JSON numbers, which a JavaScript number
 can round. A record keeps each number's exact digits in `exact`, and the aggregate
@@ -762,6 +763,34 @@ Studio's Data view otherwise. `ui.openScreen` takes a screen's root node ID, as
 the height to 80–4,000 pixels and sets it on a record-page panel; a screen fills its
 area, and the answer is the height it has.
 
+### Back and Forward
+
+Since 2026-09-29 (ADR-0013 History; W-127) a view takes part in Nendo's Back and Forward. A
+view keeps its own state in its frame, so before this Back from a record the view had opened
+rebuilt the screen and the view started over, and moving between the view's own pages was
+never a step.
+
+- **Declaring.** `ui.setPlace` takes `place`, plain JSON of at most 4 KiB, a `label` of 1–80
+  characters that the Back and Forward buttons show after the screen's title (the view's title
+  when left out), and `replace`. A new place is a step on the trail. With `replace: true` it
+  corrects the step the person is on instead: for a selection, and for the place the view
+  starts at. Declaring the place the view already has, value and label, does nothing, so a
+  view may declare its place after restoring it. At most 20 a second from one view.
+- **Where it is kept.** The Workbench keeps each view's place against the Nendo place it was
+  declared on (the view, record type, front page, screen and record) and the view's identity
+  there (placement, view ID, and the page's record). A trail entry carries the places of the
+  views on it, and `placeKey` compares their values, not their labels. Kept places are this
+  session's, at most 200, forgotten with the file; nothing reaches the file.
+- **Handing it back.** Back and Forward put the entry's places back before they redraw. A view
+  whose frame kept running hears the event `place` with its place, or null when it had declared
+  none there; a view that starts again, because its screen was left, finds it in
+  `context.place`. The view is never handed back the place it declared itself.
+- **What the view does.** Show the place, and do not declare a step in answer. Anything the
+  model no longer holds, the view drops quietly.
+
+The Archi workbench (`extensions/archi`) declares its open view as a step and its selection as
+a correction.
+
 ### The context
 
 `nendo.ready` resolves with the context, and `nendo.context` holds the latest one.
@@ -782,6 +811,7 @@ area, and the answer is the height it has.
 | `locale` | The browser's language, or `en` |
 | `readOnly` | True when the open file does not accept edits |
 | `methods` | Every method name the broker answers, in table order |
+| `place` | The view's place as it last declared it on this page, or null (W-127). Kept current by the event `place` |
 
 Each field and filter names the record type that holds it: the view's own record
 type first, then its link type. A filter's `operator` is already the query's word
@@ -847,7 +877,7 @@ own:
 ### Events
 
 `nendo.on(name, listener)` subscribes and returns a function that unsubscribes. A
-name other than these four throws `unknown-event`.
+name other than these five throws `unknown-event`.
 
 | Event | Data | When |
 | --- | --- | --- |
@@ -855,6 +885,7 @@ name other than these four throws `unknown-event`.
 | `theme` | `{mode, tokens}` | When the person's theme changes between light and dark |
 | `changes` | The file's change sequence | When anything commits to the open file: at most one every 250 ms to one view, carrying the latest sequence |
 | `command` | `{id, value, source}` | The person pressed one of the controls the view declared: in Nendo's toolbar, one of its menus, Ctrl K, by its key, or Nendo's Add. `source` is `toolbar`, `menu`, `palette`, `key` or `add` (W-090) |
+| `place` | The view's place, or null | Back or Forward moved the person to a place of this view's that differs from the one it has (W-127) |
 
 `nendo.changes.subscribe(listener)` is the same as `nendo.on('changes', listener)`.
 An event is a nudge: the view decides what to read again.
@@ -888,6 +919,7 @@ holds the latest theme.
 | Toolbars | 20 a second from one view; `api.js` sends the latest at most every 100 ms |
 | Menus | 4 a second from one view |
 | Keys handed back | 8 a second from one view; any more that second are dropped |
+| Places | 4 KiB of JSON each, a label of 80 characters, 20 a second from one view; 200 kept in a session |
 
 The in-flight bound keeps a busy view from starving a person's own save of the
 Workbench's bridge.
@@ -1361,6 +1393,20 @@ before any write. View code needs no approval of its own.
 
 ## Evidence
 
+### Back and Forward (W-127)
+
+Measured on 2026-09-29. `DesktopExtensionViewJourneyTests` (G33) drives the probe view in a real
+host: two places make a step whose Back button names "Page one"; declaring the second again makes
+none; Back hands the view `{page: 'one'}` as the event `place` and in `context.place`; Forward hands
+it back; Back from a record the view opened returns it to its page. Falsified by leaving out the
+restore in `settle`: `Timed out: Back handing the view its first page (last: null)`.
+`Review-ArchiWorkbench.ps1` measures the Archi workbench over the fixture broker: opening a second
+diagram is a step carrying the box selected on the first; `place` returns it to the first diagram
+with that box outlined, and a workbench started again from `context.place` opens there, with no
+echo either way. Falsified twice: without the `place` listener, `Back did not return the workbench
+to the first view with its box selected.`; without the start place, `A workbench started again
+after Back did not open the view and the box it was left on.`
+
 ### One row above a view (W-092)
 
 Measured on 2026-09-28. The journey (`DesktopExtensionViewJourneyTests` with
@@ -1623,6 +1669,9 @@ passed. Each guard below was falsified, seen to fail and then restored:
   through the host's new `data.writeRecords`, which admits a view's actor. A record appears
   once; a reference to a record written earlier in the batch is checked against the version
   that write leaves (W-102).
+- 2026-09-29 — `ui.setPlace`, the event `place` and `context.place`: a view's own places are
+  steps in Nendo's Back and Forward, kept by the Workbench for the session and handed back
+  (W-127, the owner's F-215).
 - 2026-09-29 — each file in a review's **Code** section starts folded, and its folded row
   says the lines it adds and removes (W-098). No change to the wire.
 - 2026-09-27 — `schema.describe` names each record type's declared `hierarchy`, so a view

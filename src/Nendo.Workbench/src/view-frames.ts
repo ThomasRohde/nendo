@@ -2,10 +2,11 @@ import { state } from './app-state';
 import { client } from './client';
 import { brokerMethodNames, createExtensionBroker, type BrokerMount, type ExtensionBroker } from './extension-broker';
 import { describeSchema, viewContext, viewTheme, type ViewSpec } from './extension-model';
-import { hostKeys, type CommandSource, type ViewTheme } from './extension-api/protocol';
+import { hostKeys, type CommandSource, type Json, type ViewTheme } from './extension-api/protocol';
 import { openProposalFromView, openRecordFromView, openScreenFromView, openStudioFromView, toastFromView } from './extension-ui';
 import type { ProposalPreview } from './host';
-import { content, root } from './shell';
+import { navigationTrail } from './navigation-trail';
+import { content, refreshChrome, root } from './shell';
 import type { PaletteCommand } from './shortcuts';
 import { icon } from './icons';
 import { closeViewMenu, showViewMenu } from './view-menu';
@@ -18,6 +19,7 @@ import {
 } from './view-frame-markup';
 import { refreshHealth } from './view-health';
 import { importPackage, openCustomViews, saveDevelopment, setViewSwitch, stopDeveloping } from './view-packages';
+import { keepViewPlace, viewAnchor, viewPlaceKey, viewPlaceOf, viewPlacesAt } from './view-places';
 
 /**
  * Custom views on the page (ADR-0013): one cross-origin frame per view, in the placeholder
@@ -97,7 +99,10 @@ export function installViewFrames(): void {
     request: (method, payload) => client.request(method, payload),
     mounts: () => [...mounts.values()].filter((mount) => mount.frame !== null),
     running: () => state.session.extensions?.run === true,
-    context: (mount) => viewContext((mount as Mount).spec, state.session, currentTheme(), navigator.language || 'en', brokerMethodNames),
+    context: (mount) => ({
+      ...viewContext((mount as Mount).spec, state.session, currentTheme(), navigator.language || 'en', brokerMethodNames),
+      place: placeOf(mount as Mount),
+    }),
     describe: () => describeSchema(state.session),
     ui: {
       openRecord: (_mount, target) => openRecordFromView(target.entityId, target.recordId),
@@ -115,6 +120,7 @@ export function installViewFrames(): void {
       setToolbar: (mount, toolbar) => setToolbar(mount as Mount, toolbar),
       showMenu: (mount, menu) => showMenuFor(mount as Mount, menu),
       key: (mount, keys) => keyFromView(mount as Mount, keys),
+      setPlace: (mount, place) => setViewPlace(mount as Mount, place),
     },
     responsive: (mount, responsive) => {
       const view = mount as Mount;
@@ -263,8 +269,39 @@ export function wireViewFrames(scope: ParentNode): void {
     else if (mount.trouble === null && !mount.restarting) start(mount);
     drawTrouble(mount);
     drawToolbar(mount);
+    // A draw that Back or Forward made hands a running view the place it moved to (W-127).
+    broker?.place(mount, placeOf(mount));
     broker?.refreshContext(mount);
   }
+}
+
+// --- The view's place in Back and Forward (ADR-0013, 2026-09-29; W-127) ---------------------
+
+/** The place this view has on the page the person is on, or null when it declared none here. */
+function placeOf(mount: Mount): Json {
+  const here = navigationTrail.current();
+  if (here === null) return null;
+  return viewPlaceOf(viewAnchor(here), viewPlaceKey(mount.spec))?.value ?? null;
+}
+
+/**
+ * The view says where it is. A new place is a step on the trail, and with `replace` it
+ * corrects the step the person is on. A view that is not on the page, held for its review,
+ * has no step to take or correct.
+ */
+function setViewPlace(mount: Mount, place: { value: Json; label: string | null; replace: boolean }): boolean {
+  const here = navigationTrail.current();
+  if (here === null || mount.placeholder === null || !mount.placeholder.isConnected) return false;
+  const anchor = viewAnchor(here);
+  if (!keepViewPlace(anchor, { view: viewPlaceKey(mount.spec), value: place.value, label: place.label ?? mount.spec.title })) return false;
+  // While Back or Forward puts a place back, the trail is held still; the place just kept is
+  // the one it is putting back.
+  if (navigationTrail.isRestoring()) return true;
+  const next = { ...here, viewPlaces: viewPlacesAt(anchor) };
+  if (place.replace) navigationTrail.amendCurrent(() => next);
+  else navigationTrail.record(next);
+  refreshChrome();
+  return true;
 }
 
 function createMount(key: string, spec: ViewSpec, origin: string, entryPoint: string): Mount {

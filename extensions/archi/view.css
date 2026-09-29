@@ -87,13 +87,15 @@ dialog form { display: flex; flex-direction: column; gap: 10px; }
 dialog label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 0.86rem; }
 dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
 
-/* The open view (W-110): archi-online's figures on white paper in both themes, as Archi prints
-   a view; the pane around it, the outline and the navigator take the theme. */
+/* The open view (W-110): archi-online's figures on white in both themes, the whole pane, as Archi
+   draws a view; the outline and the navigator's frame take the theme. */
 .centre-pane.diagram { padding: 0; position: relative; overflow: hidden; }
 .canvas-host { position: absolute; inset: 0; }
-.archi-canvas .stage { display: block; width: 100%; height: 100%; touch-action: none; cursor: default; background: var(--canvas); user-select: none; }
+.archi-canvas .stage { display: block; width: 100%; height: 100%; touch-action: none; cursor: default; background: #ffffff; user-select: none; }
+/* The selection outline is the drawing's only indicator: a click never leaves a focus ring round the view. */
+.archi-canvas .stage, .archi-canvas .stage * { outline: none; }
 .archi-canvas .stage.panning { cursor: grabbing; }
-.archi-canvas .paper { fill: #ffffff; stroke: var(--line-strong); vector-effect: non-scaling-stroke; }
+.archi-canvas .paper { fill: #ffffff; stroke: none; }
 .archi-canvas .selected-box { fill: none; stroke: var(--cobalt); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .archi-canvas .selected-line { fill: none; stroke: var(--cobalt); stroke-width: 4; stroke-opacity: 0.6; vector-effect: non-scaling-stroke; }
 .archi-canvas .navigator { position: absolute; right: 12px; bottom: 12px; width: 180px; height: 120px; border: 1px solid var(--line-strong);

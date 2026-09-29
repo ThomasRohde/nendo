@@ -14,6 +14,7 @@ import { loadOpenedRecordPanels } from './related-actions';
 import { loadFocusedRecord, loadSurfaceWindow } from './reads';
 import { refreshChrome, rerender, setBusy, showError } from './shell';
 import { readsOwnRecords, surfaceById } from './surface-model';
+import { restoreViewPlaces, viewAnchor, viewPlacesAt } from './view-places';
 
 /**
  * Going back, and coming forward again, from anywhere in the file.
@@ -26,6 +27,11 @@ import { readsOwnRecords, surfaceById } from './surface-model';
 
 /** Where the person is now, in enough detail to come back to it. */
 export function placeNow(heading: { eyebrow: string; title: string }): Place {
+  const base = placeOfNendo(heading);
+  return { ...base, viewPlaces: viewPlacesAt(viewAnchor(base)) };
+}
+
+function placeOfNendo(heading: { eyebrow: string; title: string }): Omit<Place, 'viewPlaces'> {
   const plan = activePlan();
   // The record type that is actually on screen, not the one that was picked. Nothing
   // sets `selectedApplicationEntity` until somebody uses the picker, opens a related row
@@ -77,8 +83,13 @@ export function recordPlace(heading: { eyebrow: string; title: string }): void {
 export function backTarget(): Place | null { return navigationTrail.peekBack(); }
 export function forwardTarget(): Place | null { return navigationTrail.peekForward(); }
 
-/** How a place is named on the button that leads to it. */
+/**
+ * How a place is named on the button that leads to it. A place a view named is called by the
+ * view's name for it, under the screen's title: two diagrams on one screen are two places.
+ */
 export function placeName(place: Place): string {
+  const labels = place.viewPlaces.map((entry) => entry.label).filter((label) => label !== '');
+  if (labels.length > 0) return `${place.title} — ${labels.join(', ')}`;
   return place.eyebrow === '' ? place.title : `${place.eyebrow} — ${place.title}`;
 }
 
@@ -208,6 +219,9 @@ async function settle(place: Place): Promise<void> {
   // Only where the place is a review. Everywhere else it is left alone, because it is
   // the property of whichever review is open rather than of the screen.
   if (place.proposalReturnView !== null) state.proposalReturnView = place.proposalReturnView;
+  // Before the redraw: a view on the place is handed its place as the redraw wires it, or as
+  // it starts if it has to start again (W-127).
+  restoreViewPlaces(viewAnchor(place), place.viewPlaces);
   leaveRecordContext();
   const entityId = place.applicationEntityId;
   if (entityId !== null) {

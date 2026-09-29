@@ -949,6 +949,9 @@ vocabulary, the examples and the resources — and not from the person.
   shows for it, and whether each change appeared in Studio's lists of the same records.
   Then open a view in the tree: record whether it draws as ArchiMate notation, what Fit, the
   wheel and the navigator do, and what a click on a box selects in the tree.
+  Open a second view, select a box on it, open that element's record, and press Back twice
+  and Forward twice: record where each press took you, what the Back and Forward buttons
+  named before each press, and whether the box you had selected was still selected.
 - Ask the person, without an agent, to show the package on a second screen and as a
   panel on a record page, from Studio → Surfaces → Custom views. Record whether the
   package's card told them where it was already shown, whether the form let them choose
