@@ -10,6 +10,7 @@
   <button id="own-new-folder" type="button">New folder</button>
   <button id="own-new-view" type="button">New view</button>
   <button id="own-delete" type="button">Delete…</button>
+  <button id="own-validator" type="button" aria-pressed="false">Validator</button>
 </header>
 <main>
   <section class="pane tree-pane" aria-label="Model tree">
@@ -19,6 +20,17 @@
   <section class="pane centre-pane" aria-label="Selection" id="centre"></section>
   <section class="pane properties-pane" aria-label="Properties" id="properties"></section>
 </main>
+<section id="validator" class="validator" aria-label="Validator" hidden>
+  <header class="validator-bar">
+    <strong>Validator</strong>
+    <button id="validate" type="button" class="primary">Validate</button>
+    <button id="validator-rules" type="button">Rules…</button>
+    <span id="validator-summary" class="quiet" role="status"></span>
+    <span class="spacer"></span>
+    <button id="validator-close" type="button" aria-label="Close the validator">×</button>
+  </header>
+  <div id="validator-list" class="validator-list"></div>
+</section>
 <footer><span id="status" role="status">Reading the model…</span></footer>
 <dialog id="new-element">
   <form method="dialog" id="new-element-form">
@@ -34,6 +46,14 @@
     <h2 id="confirm-delete-title">Delete</h2>
     <p id="confirm-delete-text"></p>
     <div class="actions"><button value="cancel" type="submit">Cancel</button><button value="delete" type="submit" class="danger">Delete</button></div>
+  </form>
+</dialog>
+<dialog id="validator-config">
+  <form method="dialog">
+    <h2>Validator rules</h2>
+    <p class="quiet">Archi's checks for common modelling problems. The model-integrity checks always run.</p>
+    <div id="validator-config-list" class="validator-config-list"></div>
+    <div class="actions"><button value="done" type="submit" class="primary">Done</button></div>
   </form>
 </dialog>
 <script src="/_nendo/api.js"></script>

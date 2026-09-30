@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import { FOLDER_KINDS, ROOT_FOLDERS } from '../archi-definition.mjs';
+import { FOLDER_KINDS, MODEL, ROOT_FOLDERS, TYPES } from '../archi-definition.mjs';
 import { fail } from '../archi-mcp.mjs';
 
 const ARCHI_ONLINE = path.resolve(process.env.ARCHI_ONLINE ?? path.join(import.meta.dirname, '..', '..', '..', 'archi-online'));
@@ -160,4 +160,26 @@ export function plan(model) {
     ],
     modelValues, rootIds,
   };
+}
+
+/**
+ * The model as Archi.nendo holds it after tools/Build-Archi.mjs and an import: every record, in
+ * the shape window.nendo reads ({ entityId, recordId, version, values }), sorted by ID, with the
+ * seeded folders, types and model record. `recordIdOf` turns an archi-online id into the ID of
+ * the record that holds it.
+ */
+export function recordSets(model) {
+  const planned = plan(model);
+  const record = (entityId, recordId, values) => ({ entityId, recordId, version: 1, values });
+  const records = {};
+  const add = (entityId, entry) => (records[entityId] ??= []).push(entry);
+  const rootArchiIds = new Map(planned.rootIds.map(({ recordId, archiId }) => [recordId, archiId]));
+  for (const folder of ROOT_FOLDERS) add('ar.folder', record('ar.folder', folder.recordId, { ...folder.values, 'ar.folder.archiId': rootArchiIds.get(folder.recordId) ?? null }));
+  for (const type of TYPES) add('ar.type', record('ar.type', type.recordId, type.values));
+  add('ar.model', record('ar.model', MODEL.recordId, { ...MODEL.values, ...planned.modelValues }));
+  for (const [entityId, list] of planned.writes) for (const entry of list) add(entityId, record(entityId, entry.recordId, entry.values));
+  for (const list of Object.values(records)) list.sort((a, b) => (a.recordId < b.recordId ? -1 : a.recordId > b.recordId ? 1 : 0));
+  const roots = new Map(planned.rootIds.map(({ recordId, archiId }) => [archiId, recordId]));
+  const recordIdOf = id => (id === model.info.id ? MODEL.recordId : roots.get(id) ?? rid(id));
+  return { records, recordIdOf, images: planned.images };
 }

@@ -47,6 +47,102 @@ async (page) => {
   assert(await view.evaluate(() => getComputedStyle(document.getElementById('own-toolbar')).display === 'none'), 'The workbench drew its own toolbar beside Nendo’s.');
   results.read = { rows: first.length, toolbar: toolbar.items.map(item => item.id ?? item.kind) };
 
+  // ---- W-117: the validator reports what archi-online reports for Archisurance (64 nested
+  // elements and 8 duplicate names; tools/archi/validation-parity.json), and each issue opens
+  // what it names: the object on its view, or the concept in the tree.
+  assert(toolbar.items.some(item => item.id === 'validator' && item.kind === 'toggle'), 'Nendo’s row has no Validator toggle.');
+  await page.evaluate(() => window.broker.command('validator', true, 'toolbar'));
+  await until(() => document.querySelectorAll('#validator-list [data-issue]').length > 0, null, 'Opening the validator listed no issues.');
+  const issues = () => view.evaluate(() => ({
+    summary: document.getElementById('validator-summary').textContent,
+    rows: [...document.querySelectorAll('#validator-list [data-issue]')].map(row => ({ index: Number(row.dataset.issue), rule: row.title,
+      severity: row.closest('li').className, message: row.querySelector('.message').textContent })),
+    headings: [...document.querySelectorAll('#validator-list h3, #validator-list h4')].map(h => h.textContent),
+    stale: !document.querySelector('#validator-list .stale')?.hidden,
+    height: document.getElementById('validator').getBoundingClientRect().height,
+  }));
+  const reported = await issues();
+  const tally = rule => reported.rows.filter(row => row.rule === rule).length;
+  assert(reported.summary === '0 errors, 8 warnings, 64 advice' && reported.rows.length === 72 && tally('nested-elements') === 64 && tally('duplicate-name') === 8,
+    `The validator did not report archi-online's 72 issues for Archisurance: ${reported.summary}, ${reported.rows.length} rows.`);
+  assert(reported.headings.join('|') === "Archi's checks (72)|Warnings (8)|Advice (64)", `The issues are not grouped by source and severity: ${reported.headings.join('|')}.`);
+  assert(!reported.stale && reported.height >= 140, `The validator is ${reported.height} px high, or says it is stale when just run.`);
+  // An issue on a view: HRM nested in the Organisation Structure View opens that view with HRM's box outlined where it is drawn.
+  const hrm = reported.rows.find(row => row.message.startsWith("'HRM' is nested"));
+  assert(hrm, 'No issue names HRM nested in its group.');
+  const hrmBox = (await records('ar.item')).find(item => item.recordId === 'ar-3720');
+  const absoluteAt = async id => {
+    const items = await records('ar.item');
+    let x = 0, y = 0;
+    for (let at = items.find(item => item.recordId === id); at; at = items.find(item => item.recordId === at.values['ar.item.parent'])) { x += at.values['ar.item.x']; y += at.values['ar.item.y']; }
+    return { x, y };
+  };
+  await view.click(`#validator-list [data-issue="${hrm.index}"]`);
+  await until(id => document.querySelector('#tree .row[aria-selected="true"]')?.dataset.id === id, hrmBox.values['ar.item.concept'],
+    'Choosing the HRM issue did not select HRM in the tree.');
+  await until(() => document.querySelectorAll('.canvas-host .selection .selected-box').length === 1, null, 'Choosing the HRM issue outlined no box.');
+  const outline = await view.evaluate(() => { const rect = document.querySelector('.canvas-host .selection .selected-box'); return { x: Number(rect.getAttribute('x')) + 2, y: Number(rect.getAttribute('y')) + 2 }; });
+  const expectedAt = await absoluteAt('ar-3720');
+  assert(outline.x === expectedAt.x && outline.y === expectedAt.y, `The outline is at ${JSON.stringify(outline)}, not at HRM's box in the Organisation Structure View, ${JSON.stringify(expectedAt)}.`);
+  const openedName = await view.evaluate(() => document.querySelector('.canvas-host svg.stage')?.getAttribute('aria-label'));
+  assert(openedName === 'The view Organisation Structure View', `The HRM issue opened ${openedName}.`);
+  const marked = await view.evaluate(index => {
+    const probe = value => { const span = document.createElement('span'); span.style.color = value; document.body.append(span); const c = getComputedStyle(span).color; span.remove(); return c; };
+    const current = [...document.querySelectorAll('#validator-list [aria-current="true"]')];
+    return { rows: current.map(row => Number(row.dataset.issue)), background: current[0] ? getComputedStyle(current[0]).backgroundColor : null, expect: probe('var(--nendo-cobalt-soft)') };
+  }, hrm.index);
+  assert(marked.rows.length === 1 && marked.rows[0] === hrm.index && marked.background === marked.expect, `The HRM issue is not the one marked as opened: ${JSON.stringify(marked)}.`);
+  // An issue on a concept: a duplicate name selects that element in the tree, and the view stays open.
+  const duplicate = reported.rows.find(row => row.rule === 'duplicate-name');
+  const duplicateName = /^The name '(.*)' is used more than once/.exec(duplicate.message)[1];
+  await view.click(`#validator-list [data-issue="${duplicate.index}"]`);
+  await until(name => document.querySelector('#tree .row[aria-selected="true"] .label')?.textContent === name, duplicateName,
+    `Choosing a duplicate-name issue did not select ${duplicateName} in the tree.`);
+  // Rules: turning Nested elements off leaves the eight duplicate names, and turning it on brings the 64 back.
+  const setRule = async (rule, on) => {
+    await view.click('#validator-rules');
+    await until(() => document.getElementById('validator-config').open, null, 'Rules… did not open its dialog.');
+    const boxes = await view.evaluate(() => [...document.querySelectorAll('#validator-config-list input')].map(box => box.dataset.rule));
+    assert(boxes.length === 8, `The rules dialog offers ${boxes.length} rules, not Archi's eight.`);
+    await view.evaluate(([id, value]) => { document.querySelector(`#validator-config-list input[data-rule="${id}"]`).checked = value; }, [rule, on]);
+    await view.click('#validator-config button[value="done"]');
+  };
+  await setRule('nested-elements', false);
+  await until(() => document.querySelectorAll('#validator-list [data-issue]').length === 8, null, 'Turning Nested elements off did not leave the eight duplicate names.');
+  await setRule('nested-elements', true);
+  await until(() => document.querySelectorAll('#validator-list [data-issue]').length === 72, null, 'Turning Nested elements on did not bring its 64 issues back.');
+  // A change to the file says the list is of an earlier model, until Validate is pressed again.
+  await page.evaluate(() => { window.broker.touch('ar.model', 'ar.model.r.model'); window.broker.pushChanges(); });
+  await until(() => document.querySelector('#validator-list .stale')?.hidden === false, null, 'A change to the file did not mark the issues as of an earlier model.');
+  await view.click('#validate');
+  await until(() => document.querySelector('#validator-list .stale')?.hidden === true, null, 'Validate did not check the model as it now is.');
+  // Both themes: the panel is Nendo's surface, its rows Nendo's ink.
+  const validatorThemes = {};
+  for (const mode of ['dark', 'light']) {
+    await page.evaluate(value => window.broker.pushTheme(value), mode);
+    await until(value => document.documentElement.dataset.nendoTheme === value, mode, `The ${mode} theme did not reach the page.`);
+    validatorThemes[mode] = await view.evaluate(() => {
+      const probe = value => { const span = document.createElement('span'); span.style.color = value; document.body.append(span); const c = getComputedStyle(span).color; span.remove(); return c; };
+      return { panel: getComputedStyle(document.getElementById('validator')).backgroundColor, row: getComputedStyle(document.querySelector('#validator-list [data-issue]')).color,
+        surface: probe('var(--nendo-surface)'), ink: probe('var(--nendo-ink)') };
+    });
+    const c = validatorThemes[mode];
+    assert(c.panel === c.surface && c.row === c.ink, `In the ${mode} theme the validator is not Nendo's surface and ink: ${JSON.stringify(c)}.`);
+    await page.screenshot({ path: `archi-validator-${mode}.png` });
+  }
+  await page.evaluate(() => window.broker.command('validator', false, 'toolbar'));
+  await until(() => document.getElementById('validator').hidden, null, 'Closing the validator did not hide it.');
+  await page.evaluate(() => window.broker.pushPlace({ view: null, selected: 'ar.model.r.model', item: null }));
+  await until(() => !document.querySelector('.canvas-host') && document.querySelector('#tree .row[aria-selected="true"]')?.dataset.id === 'ar.model.r.model', null,
+    'The workbench did not go back to the model after the validator steps.');
+  // The jumps opened the folders on the way; closed again, the tree is as the steps below expect it.
+  for (let open; (open = await view.evaluate(() => [...document.querySelectorAll('#tree .row[aria-expanded="true"]')].at(-1)?.dataset.id)) && open !== 'ar.model.r.model';) {
+    await view.click(`#tree .row[data-id="${open}"] .twisty`);
+  }
+  // The views the jumps opened are places of their own; the Back and Forward steps below start after them.
+  const placesBeforeViews = await page.evaluate(() => window.broker.places.length);
+  results.validator = { issues: reported.rows.length, summary: reported.summary, hrm: outline, duplicate: duplicateName, themes: validatorThemes };
+
   // ---- The keyboard alone: one tab stop, arrows move and open, Enter reaches the properties.
   await view.focus('#tree .row[tabindex="0"]');
   await page.keyboard.press('ArrowDown');
@@ -358,10 +454,10 @@ async (page) => {
   // as the event place, and a view started again finds it in its context. None of it echoes.
   const declared = await page.evaluate(() => window.broker.places.map(entry => ({ ...entry })));
   assert(declared.length > 0 && declared[0].replace === true, `The place the workbench starts at was not declared as a correction: ${JSON.stringify(declared[0])}.`);
-  const stepTo = declared.findIndex(entry => !entry.replace && entry.place.view === smallest.recordId);
+  const stepTo = declared.findIndex((entry, at) => at >= placesBeforeViews && !entry.replace && entry.place.view === smallest.recordId);
   assert(stepTo > 0, `Opening a second view was not a step: ${JSON.stringify(declared.slice(0, 8))}.`);
   assert(declared[stepTo].label === smallest.values['ar.view.name'], `The step does not carry the view's name for the Back button: ${JSON.stringify(declared[stepTo])}.`);
-  const leftAt = declared.slice(0, stepTo).filter(entry => entry.place.view === opened.recordId).at(-1)?.place;
+  const leftAt = declared.slice(placesBeforeViews, stepTo).filter(entry => entry.place.view === opened.recordId).at(-1)?.place;
   assert(leftAt && leftAt.selected === target.values['ar.item.concept'] && leftAt.item === target.recordId,
     `The box selected on the first view was not in its step, so Back would lose it: ${JSON.stringify(leftAt)}.`);
   const showsPlace = ([viewId, itemId, count]) => document.querySelector('.canvas-host g.content')?.children.length === count + 1
@@ -698,12 +794,30 @@ async (page) => {
 
   // Delete from the view, then Discard: the view is as stored again.
   const objectsStored = (await nodeIds()).length;
+  // The validator checks what the editor shows, waiting edits included (W-117): the actor's only
+  // box deleted from the view, and not committed, makes the actor unused; Discard makes it used again.
+  const actorConcept = (await records('ar.concept')).find(record => record.recordId === itemOf(actorBox)['ar.item.concept']);
+  const unusedActor = `'${actorConcept.values['ar.concept.name'] || 'Business Actor'}' is not used in a View`;
+  const unusedCount = () => view.evaluate(message => [...document.querySelectorAll('#validator-list [data-issue] .message')].filter(m => m.textContent === message).length, unusedActor);
+  await page.evaluate(() => window.broker.command('validator', true, 'toolbar'));
+  await until(() => document.querySelectorAll('#validator-list [data-issue]').length > 0, null, 'The validator listed nothing while editing.');
+  const unusedBefore = await unusedCount();
   const actorAt = await boxOf(actorBox);
   await page.mouse.click(editFrame.x + actorAt.x + actorAt.width / 2, editFrame.y + actorAt.y + actorAt.height / 2);
   await page.keyboard.press('Delete');
   await pendingIs(2, 'The new box deleted from the view: the box and the line drawn to it');
+  await until(() => document.querySelector('#validator-list .stale')?.hidden === false, null, 'An edit did not mark the issues as of an earlier model.');
+  await view.click('#validate');
+  await until(count => document.querySelectorAll('#validator-list [data-issue]').length > 0 && [...document.querySelectorAll('#validator-list .message')].length >= count, unusedBefore, 'Validate listed nothing.');
+  const unusedWaiting = await unusedCount();
+  assert(unusedWaiting === unusedBefore + 1, `With the actor's box deleted and waiting, the validator names it unused ${unusedWaiting} times rather than ${unusedBefore + 1}.`);
   await page.evaluate(() => window.broker.command('discard', null, 'toolbar'));
   await pendingIs(0, 'Discarded');
+  await view.click('#validate');
+  await until(count => document.querySelector('#validator-list .stale')?.hidden === true, null, 'Validate after Discard did not run.');
+  assert(await unusedCount() === unusedBefore, 'After Discard the validator still names the actor unused.');
+  await page.evaluate(() => window.broker.command('validator', false, 'toolbar'));
+  results.validator.whileEditing = { unused: [unusedBefore, unusedWaiting] };
   assert((await nodeIds()).length === objectsStored, 'Discard did not bring the deleted box back.');
 
   // A refused commit keeps the edits waiting, and the file as it was.

@@ -80,6 +80,31 @@ ul.links li button:hover, .field button.value:hover { background: var(--surface-
 .props .row-actions button { padding: 0 6px; }
 .pane-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 
+/* The validator (W-117): archi-online's issues under the workbench, each opening what it names. */
+.validator { flex: 0 0 auto; height: clamp(140px, 32vh, 340px); display: flex; flex-direction: column; border-top: 1px solid var(--line); background: var(--surface); }
+.validator[hidden] { display: none; }
+.validator-bar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+.validator-bar .spacer { flex: 1; }
+.validator-bar #validator-close { border: 0; background: none; font-size: 1.1rem; line-height: 1; padding: 2px 8px; }
+.validator-list { flex: 1; min-height: 0; overflow: auto; padding: 4px 0 8px; }
+.validator-list > .quiet { margin: 10px 14px; }
+.validator-list .stale { margin: 6px 14px; color: var(--muted); font-size: 0.86rem; }
+.validator-list h3 { margin: 10px 14px 2px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.validator-list h4 { margin: 6px 14px 2px; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.validator-list ul { list-style: none; margin: 0; padding: 0; }
+.validator-list li button { display: flex; align-items: baseline; gap: 8px; width: 100%; border: 0; border-radius: 0; background: none; padding: 3px 14px; text-align: left; }
+.validator-list li button:hover { background: var(--surface-soft); }
+.validator-list li button[aria-current="true"] { background: var(--cobalt-soft); }
+.validator-list .severity { flex: none; width: 9px; height: 9px; border-radius: 50%; align-self: center; }
+.validator-list .error .severity { background: var(--danger); }
+.validator-list .warning .severity { background: var(--nendo-tone-amber, #b7791f); }
+.validator-list .advice .severity { background: var(--nendo-tone-blue, #2f6fdb); }
+.validator-list .message { overflow-wrap: anywhere; }
+.validator-list .where { color: var(--muted); font-size: 0.82rem; margin-left: auto; padding-left: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+.validator-config-list { display: flex; flex-direction: column; gap: 6px; }
+.validator-config-list label { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-size: 0.93rem; }
+.validator-config-list small { color: var(--muted); margin-left: auto; }
+
 dialog { border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface-raised); color: var(--ink); min-width: 340px; }
 dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
 dialog h2 { margin: 0 0 12px; font-size: 1.05rem; }

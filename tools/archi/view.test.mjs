@@ -44,7 +44,7 @@ function controller(draft, batch = true) {
     state, editor: { model: () => draft.after, viewId: () => draft.viewId }, editSets: fixture, editBase: draft.before,
     canvasModule: { writesFor }, EDITS_KEY: 'archi-edits',
     localStorage: { setItem: (key, value) => saved.set(key, value), removeItem: key => saved.delete(key) },
-    declareToolbar() {}, describe: error => error.message, setStatus: (message, problem = false) => statuses.push({ message, problem }),
+    declareToolbar() {}, markStale() {}, describe: error => error.message, setStatus: (message, problem = false) => statuses.push({ message, problem }),
     async readAll() { readCalls++; },
     nendo: { has: () => batch, records: {
       async batch(writes) {

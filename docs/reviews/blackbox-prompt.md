@@ -995,6 +995,13 @@ vocabulary, the examples and the resources — and not from the person.
   and retain the draft. Then delete a tree folder whose confirmation counts more
   than 200 records in all; it must be deleted, not refused for its size. Add named and unnamed relationship endpoint cycles and
   open their tree rows and properties; labels must remain finite.
+  Open **Validator** in Nendo's row: record what it says it found in Archisurance, what one
+  nested-element issue opens when chosen, and what a duplicate-name issue selects. Turn a rule
+  off under **Rules…** and record what the list then holds. While editing a view, delete an
+  element's only box from the view without committing, press **Validate**, and record whether
+  the element is now reported as not used in a view; then Discard and validate again. In Use,
+  record what the Elements and Views lists show in their *On views* and *Diagram objects*
+  columns, and whether either list can be filtered to the zeros.
 - Open History in a file you have edited a lot (or a copy of one) and record what it says about
   how many changes the file has recorded. Choose **Fold older history…** and record what the
   dialog says will happen before you confirm, what file appears beside the original, what

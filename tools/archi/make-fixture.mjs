@@ -10,22 +10,11 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ROOT_FOLDERS, TYPES, MODEL } from '../archi-definition.mjs';
-import { parser, plan } from './archimate-records.mjs';
+import { parser, recordSets } from './archimate-records.mjs';
 
 const source = process.argv[2] ?? path.join(import.meta.dirname, '..', '..', '..', 'archi-online', 'public', 'examples', 'Archisurance.archimate');
 const parseArchimate = await parser();
-const planned = plan(parseArchimate(await fs.readFile(source, 'utf8')));
-
-const record = (entityId, recordId, values) => ({ entityId, recordId, version: 1, values });
-const records = {};
-const add = (entityId, entry) => (records[entityId] ??= []).push(entry);
-const rootArchiIds = new Map(planned.rootIds.map(({ recordId, archiId }) => [recordId, archiId]));
-for (const folder of ROOT_FOLDERS) add('ar.folder', record('ar.folder', folder.recordId, { ...folder.values, 'ar.folder.archiId': rootArchiIds.get(folder.recordId) ?? null }));
-for (const type of TYPES) add('ar.type', record('ar.type', type.recordId, type.values));
-add('ar.model', record('ar.model', MODEL.recordId, { ...MODEL.values, ...planned.modelValues }));
-for (const [entityId, list] of planned.writes) for (const entry of list) add(entityId, record(entityId, entry.recordId, entry.values));
-for (const list of Object.values(records)) list.sort((a, b) => (a.recordId < b.recordId ? -1 : a.recordId > b.recordId ? 1 : 0));
+const { records } = recordSets(parseArchimate(await fs.readFile(source, 'utf8')));
 
 // archi-online's own geometry for every view of its own parse: the reference the workbench's
 // mirror is measured against (tools/archi/canvas.test.mjs). Built by build-canvas.mjs first.

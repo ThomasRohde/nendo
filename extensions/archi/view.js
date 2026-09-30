@@ -21,6 +21,7 @@ const state = {
   model: null, selected: null, expanded: new Set(), modelOpen: true, filter: { text: '', layer: '' },
   nativeChrome: false, renaming: null, draftProperties: null, readOnly: false, loaded: false,
   sets: null, openView: null, diagramSelection: [], zoom: 1, editing: false, pending: 0,
+  validator: { open: false, issues: null, of: null, current: null },
 };
 
 // The canvas is archi-online's renderer, bundled; it loads beside the tree, not before it.
@@ -600,6 +601,7 @@ function declareToolbar() {
       { kind: 'button', id: 'commit', label: state.pending > 0 ? `Commit ${state.pending}` : 'Commit', icon: 'check', keys: 'Ctrl+S', disabled: state.pending === 0 },
       { kind: 'button', id: 'discard', label: 'Discard', disabled: state.pending === 0 },
     ] }] : []),
+    { kind: 'toggle', id: 'validator', label: 'Validator', icon: 'info', pressed: state.validator.open },
     ...(state.openView ? [{ kind: 'group', label: 'Zoom', items: [
       { kind: 'button', id: 'zoom-out', label: 'Zoom out', icon: 'minus', iconOnly: true, keys: 'Ctrl+-' },
       { kind: 'button', id: 'fit', label: `Fit (${Math.round(state.zoom * 100)}%)`, keys: 'Ctrl+0' },
@@ -638,6 +640,7 @@ function runCommand({ id, value }) {
     case 'redo': editor?.redo(); break;
     case 'commit': commitEdits(); break;
     case 'discard': discardEdits(); break;
+    case 'validator': showValidator(value === true); break;
   }
 }
 
@@ -684,6 +687,7 @@ function editsChanged() {
   state.pending = writes.length;
   keepEdits(writes);
   declareToolbar();
+  markStale();
 }
 
 function renderEditor(view) {
@@ -764,6 +768,117 @@ function discardEdits() {
   setStatus('The waiting changes were discarded.');
 }
 
+// ---------------------------------------------------------------- the validator (W-117)
+
+/*
+ * Archi's validator is archi-online's, bundled in canvas.js, run on the mirror of the file's
+ * records: its eight checks, which a person can turn off, and its model-integrity pass. While a
+ * view is being edited it validates what the editor shows, waiting edits included. It runs when
+ * opened and when asked, as Archi's does, and says when the model has changed since.
+ */
+const RULES_KEY = 'archi-validator-rules';
+const SEVERITIES = [['error', 'Errors'], ['warning', 'Warnings'], ['advice', 'Advice']];
+const SOURCES = [['hammer', "Archi's checks"], ['integrity', 'Model integrity']];
+
+function validatorConfig() {
+  const config = structuredClone(canvasModule.DEFAULT_VALIDATION_CONFIG);
+  try {
+    const off = JSON.parse(localStorage.getItem(RULES_KEY) ?? '[]');
+    if (Array.isArray(off)) for (const id of off) if (id in config.enabled) config.enabled[id] = false;
+  } catch { /* every rule on */ }
+  return config;
+}
+
+const validatedModel = () => (editor ? editor.model() : canvasModule.buildMirror(state.sets));
+
+function showValidator(open) {
+  state.validator.open = open;
+  $('validator').hidden = !open;
+  $('own-validator').setAttribute('aria-pressed', String(open));
+  declareToolbar();
+  if (open) validate(); else $('validator-list').innerHTML = '';
+}
+
+async function validate() {
+  if (!canvasModule) await canvasReady;
+  if (!canvasModule?.validateModel || !state.sets) { setStatus('The validator has not loaded yet.', true); return; }
+  const model = validatedModel();
+  state.validator = { ...state.validator, issues: canvasModule.validateModel(model, validatorConfig()), of: { sets: state.sets, model: editor ? model : null }, current: null };
+  renderValidator();
+}
+
+function validatorStale() {
+  const of = state.validator.of;
+  return Boolean(of) && (of.sets !== state.sets || (editor ? of.model !== editor.model() : of.model !== null));
+}
+
+function renderValidator() {
+  if (!state.validator.open) return;
+  const { issues } = state.validator;
+  const list = $('validator-list');
+  if (!issues) { list.innerHTML = '<p class="quiet">Validating…</p>'; return; }
+  const count = severity => issues.filter(issue => issue.severity === severity).length;
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  $('validator-summary').textContent = `${plural(count('error'), 'error', 'errors')}, ${plural(count('warning'), 'warning', 'warnings')}, ${count('advice')} advice`;
+  const stale = `<p class="stale" ${validatorStale() ? '' : 'hidden'}>The model has changed since. Validate again to check it as it is now.</p>`;
+  if (issues.length === 0) { list.innerHTML = `${stale}<p class="quiet">No issues found.</p>`; return; }
+  let html = stale, index = 0;
+  const numbered = issues.map(issue => ({ issue, index: index++ }));
+  for (const [source, sourceLabel] of SOURCES) {
+    const section = numbered.filter(({ issue }) => issue.source === source);
+    if (section.length === 0) continue;
+    html += `<h3>${escape(sourceLabel)} (${section.length})</h3>`;
+    for (const [severity, severityLabel] of SEVERITIES) {
+      const group = section.filter(({ issue }) => issue.severity === severity);
+      if (group.length === 0) continue;
+      html += `<h4>${severityLabel} (${group.length})</h4><ul>${group.map(({ issue, index: at }) => {
+        const where = issue.location.modelTree.labelPath.join(' / ') + (issue.location.view?.objectId ? ' · on the view' : '');
+        return `<li class="${severity}"><button type="button" data-issue="${at}" title="${escape(issue.rule)}" ${at === state.validator.current ? 'aria-current="true"' : ''}><span class="severity" aria-label="${escape(severityLabel.replace(/s$/, ''))}"></span><span class="message">${escape(issue.message)}</span><span class="where">${escape(where)}</span></button></li>`;
+      }).join('')}</ul>`;
+    }
+  }
+  list.innerHTML = html;
+}
+
+/** Open what an issue names: the object on its view, or the concept, view or folder in the tree. */
+function openIssue(issue) {
+  const records = state.model.records;
+  const view = issue.location.view;
+  if (view) {
+    if (!records.has(view.viewId)) { setStatus('That view has not been committed yet.', true); return; }
+    state.openView = view.viewId;
+    const objectId = view.objectId;
+    if (!objectId) { select(view.viewId); return; }
+    const concept = records.get(objectId)?.values['ar.item.concept'] ?? editor?.model().nodes[objectId]?.elementId;
+    if (concept && records.has(concept)) select(concept, { fromDiagram: objectId });
+    else if (records.has(objectId)) select(objectId, { fromDiagram: objectId });
+    else { state.selected = view.viewId; state.diagramSelection = [objectId]; render(); }
+    return;
+  }
+  const target = issue.location.modelTree.idPath.at(-1);
+  if (records.has(target)) select(target, { focus: true });
+  else setStatus('That has not been committed yet; it is in the edits waiting on the view.', true);
+}
+
+/** Say that the list is of an earlier model, without drawing it again under the person. */
+function markStale() {
+  const note = state.validator.open && $('validator-list').querySelector('.stale');
+  if (note) note.hidden = !validatorStale();
+}
+
+function configureRules() {
+  const config = validatorConfig();
+  $('validator-config-list').innerHTML = canvasModule.VALIDATION_RULES.map(rule => `<label><input type="checkbox" data-rule="${escape(rule.id)}" ${config.enabled[rule.id] ? 'checked' : ''}>
+    <span>${escape(rule.name)}</span><small>${escape(rule.severity)}</small></label>`).join('');
+  $('validator-config').showModal();
+}
+
+$('validator-config').addEventListener('close', () => {
+  const off = [...$('validator-config-list').querySelectorAll('input[data-rule]')].filter(box => !box.checked).map(box => box.dataset.rule);
+  try { localStorage.setItem(RULES_KEY, JSON.stringify(off)); } catch { /* kept for this visit only */ }
+  validate();
+});
+
 // ---------------------------------------------------------------- the whole page
 
 function setStatus(message, problem = false) {
@@ -778,6 +893,7 @@ function render() {
   renderProperties();
   declareToolbar();
   declarePlace();
+  markStale();
 }
 
 // ---------------------------------------------------------------- Back and Forward
@@ -938,6 +1054,20 @@ function wire() {
   $('own-new-folder').addEventListener('click', newFolder);
   $('own-new-view').addEventListener('click', newView);
   $('own-delete').addEventListener('click', remove);
+  $('own-validator').addEventListener('click', () => showValidator(!state.validator.open));
+  $('validate').addEventListener('click', () => validate());
+  $('validator-rules').addEventListener('click', () => { if (canvasModule) configureRules(); });
+  $('validator-close').addEventListener('click', () => showValidator(false));
+  $('validator-list').addEventListener('click', event => {
+    const row = event.target.closest('[data-issue]');
+    const issue = row && state.validator.issues?.[Number(row.dataset.issue)];
+    if (!issue) return;
+    // The issue opened stays marked, so the next one down is easy to find.
+    for (const marked of $('validator-list').querySelectorAll('[aria-current]')) marked.removeAttribute('aria-current');
+    row.setAttribute('aria-current', 'true');
+    state.validator.current = Number(row.dataset.issue);
+    openIssue(issue);
+  });
 }
 
 function openRecord() {

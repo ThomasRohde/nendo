@@ -22,6 +22,8 @@ export { buildMirror, toRecords, writesFor, applyWrites, createEditor };
 // archi-online's own rules, for the lane that checks the editor offers nothing else.
 export { validRelationshipTypes } from '@archi/model/rules';
 export { RELATIONSHIP_TYPES } from '@archi/model/metamodel';
+// archi-online's validator, Archi 5.9's eight checks and its integrity pass, run on the mirror (W-117).
+export { VALIDATION_RULES, DEFAULT_VALIDATION_CONFIG, validateModel } from '@archi/model/validation';
 declare const __ARCHI_ONLINE_COMMIT__: string;
 export const archiOnlineCommit = __ARCHI_ONLINE_COMMIT__;
 

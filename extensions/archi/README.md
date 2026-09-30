@@ -55,6 +55,19 @@ Open Archi.nendo and choose **Views → Archi** in Use.
   closes only when nothing waits.
   The palette is as wide as you drag its edge (or step it with the arrow keys), and its
   buttons fill the width in columns; the width is kept on this device.
+- **Validator** (W-117), in Nendo's row, opens Archi's validator under the workbench. It is
+  archi-online's: Archi 5.9's eight checks (invalid relationships, unused elements and
+  relationships, empty views, viewpoint violations, nested elements without a nesting
+  relationship, duplicate names, mixed junction relationships) and its model-integrity pass,
+  grouped by source and severity. It runs when opened and on **Validate**, over the file, or
+  over what the editor shows with its waiting edits while a view is being edited, and says
+  when the model has changed since. Choosing an issue opens what it names: the object on its
+  view, outlined, or the concept, view or folder in the tree. **Rules…** turns checks off,
+  on this device.
+- **Without the workbench**, the Elements and Relationships lists have an *On views* column
+  and the Views list a *Diagram objects* column: calculated counts of the diagram objects that
+  show a concept or that a view holds. A 0 is an unused concept or an empty view. A list
+  cannot be filtered on a calculated field, so they are read, or sorted, by eye.
 
 On a Nendo that cannot draw the controls in its own row, the workbench draws them above the
 tree.
@@ -64,10 +77,10 @@ tree.
 - `model.js`: every rule, and every change as the record writes it makes. No DOM, so
   `tools/archi/model.test.mjs` tests it over Archisurance.
 - `view.js`, `view.css`, `index.html`: the tree, the middle and the properties.
-- `canvas.js`: the drawing and the editor. Built by `tools/archi/build-canvas.mjs` from
+- `canvas.js`: the drawing, the editor and the validator. Built by `tools/archi/build-canvas.mjs` from
   `tools/archi/canvas` (the mirror of the records as archi-online's model and its inverse, the
   camera, and the editor's mount) with archi-online's renderer, geometry, router, ViewEditor,
-  Palette and operations at a pinned commit, and React. Every id archi-online makes in it is
+  Palette, operations and validator at a pinned commit, and React. Every id archi-online makes in it is
   a record ID, `ar-id-…`. Do not edit it; rebuild it. A
   rebuild from the same sources is byte for byte the same. `THIRD-PARTY.txt` carries the
   licences of what it includes.
@@ -79,7 +92,10 @@ tree.
 
 `tools/Review-ArchiWorkbench.ps1`, in the production gate: the model tests, the canvas test
 (every Archisurance object's bounds and every connection's route against archi-online's own
-geometry of its own parse, `tools/archi/archisurance-geometry.json`), then the package
+geometry of its own parse, `tools/archi/archisurance-geometry.json`), the validation test
+(each of archi-online's example models and the cases of its validation tests, turned into
+records as an import writes them and validated through the mirror, against what archi-online
+reports: `tools/archi/validation-parity.json`, from `make-validation-fixture.mjs`), then the package
 framed by the fixture broker over Archisurance (`tools/archi/archisurance.json`) in Edge,
 driven with real keys and clicks, with record writes and batches offered.
 `node tools/Build-Archi.mjs workbench` puts the package, and the first time its screen, into

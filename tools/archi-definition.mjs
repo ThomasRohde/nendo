@@ -30,6 +30,16 @@ const tone = (entityId, fieldId, choiceId, toneName) =>
   op('schema.setChoiceMetadata', { entityId, fieldId, choiceId, displayName: choiceId, retired: false, tone: toneName });
 
 /** Split a record type's operations into mutations of at most 16, the first holding its create. */
+// A count of the records that point at this one, as a calculated field (ADR-0008).
+const calculation = (definitionId, entityId, fieldId, displayName, expression, bindings) =>
+  op('behaviour.setDefinition', { definitionId, definitionKind: 'Calculation', body: {
+    entityId, fieldId, displayName, resultType: 'Integer', resultNullable: false, expression, bindings, callAliases: [],
+  } });
+const related = (bindingId, entityId, relatedEntityId, relatedReferenceFieldId) =>
+  ({ bindingId, kind: 'RelatedAggregate', aggregate: 'Count', entityId, relatedEntityId, relatedReferenceFieldId, resultType: 'Integer', nullable: false });
+const column = (listNodeId, fieldId, position) =>
+  op('ui.addNode', { surfaceId: SURFACE, nodeId: `${listNodeId}.${fieldId}`, parentNodeId: listNodeId, kind: 'fieldBinding', position, properties: { fieldId } });
+
 function inMutations(description, operations) {
   const mutations = [];
   const total = Math.ceil(operations.length / 16);
@@ -258,6 +268,26 @@ export const STAGES = {
     mutations: () => inMutations('Screens for concepts, views and folders', screenOperations().first),
   },
 
+  // W-117: how far the validator's checks reach without code. Unused elements and relationships
+  // and empty views are counts of diagram objects, which a calculation keeps and a list shows; a
+  // screen cannot filter on a calculated field (NUI214), so "unused" is a column to sort by eye,
+  // and the validator in the workbench lists them. The other five checks need ArchiMate's tables.
+  counts: {
+    title: 'Archi: count the diagram objects of each concept and each view',
+    needs: ['ar.concept', 'ar.view', 'ar.item'],
+    appliedWhen: async read => read.hasNode('ar.screen.views.ar.view.objects'),
+    mutations: () => inMutations('Count diagram objects', [
+      calculation('ar.calc.occurrences', 'ar.concept', 'ar.concept.occurrences', 'On views', 'occurrences',
+        [related('occurrences', 'ar.concept', 'ar.item', 'ar.item.concept')]),
+      calculation('ar.calc.viewObjects', 'ar.view', 'ar.view.objects', 'Diagram objects', 'objects',
+        [related('objects', 'ar.view', 'ar.item', 'ar.item.view')]),
+      // After the columns and the list's filter and count, as screenOperations() placed them.
+      column('ar.screen.elements', 'ar.concept.occurrences', 5),
+      column('ar.screen.relationships', 'ar.concept.occurrences', 6),
+      column('ar.screen.views', 'ar.view.objects', 3),
+    ]),
+  },
+
   pages: {
     title: 'Archi: screens for diagram items, types, the model and properties',
     needs: ['ar.model', 'ar.folder', 'ar.type', 'ar.concept', 'ar.view', 'ar.item', 'ar.property', 'ar.specialization'],
@@ -389,7 +419,7 @@ function screenOperations() {
   return { first: t.operations.slice(0, cut), second: t.operations.slice(cut) };
 }
 
-export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages'];
+export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages', 'counts'];
 
 export const PACKAGE_ID = 'org.nendo.archi';
 export const PACKAGE_FOLDER = 'extensions/archi';

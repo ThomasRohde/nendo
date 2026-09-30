@@ -127,7 +127,7 @@ not built, with the reason.
 | A view cannot read a file the person picks | `.archimate`, XML and CSV import wait for it | W-104 |
 | A view is only a record-type screen or a record-page panel | The workbench is a screen of View | W-106, Later |
 | The operation-row and revision-row bounds, about 100,000 each | See [the write budget](#the-write-budget) | W-101 (D-002) |
-| A calculated field is shown, not filtered | An *Unused elements* screen cannot filter on an occurrence count; the validator panel does it in code | Measured in W-117 |
+| A calculated field is shown, not filtered | *On views* and *Diagram objects* counts are list columns; no screen can list only the unused (`NUI214`), so the validator does it in code | W-117; see [the validator](#the-validator) |
 | Binary fields are out of scope | Images are dropped on import, with a notice | F-208 |
 | No search across record types | The workbench's tree search covers the model | None |
 
@@ -168,6 +168,40 @@ version-checked so that a record changed since is refused rather than overwritte
 That is compensation done by the view, and it declares no universal undo. W-103 is
 then only needed if undo should also reach History's own compensation. W-112 tries the
 view's route first.
+
+## The validator
+
+W-117. Archi's validator is archi-online's `validateModel`, bundled in `canvas.js` and run on the
+mirror: the eight Archi 5.9 checks, which a person can turn off, and archi-online's
+model-integrity pass. Nothing about the rules is rewritten, so parity is a question of the
+mirror. `tools/archi/validation.test.mjs` answers it: each of archi-online's example models and
+phase fixtures (the two malformed phase 2 files aside, since records cannot hold a connection
+whose end is missing) and each case of archi-online's validation tests, flagged and cleared, is
+turned into records as an import writes them, read back through the mirror and validated. The
+issues, their messages, locations and objects must equal what archi-online reports for the model
+itself (`validation-parity.json`). On 2026-09-30 all 25 did: Archisurance has 64 nested-element
+advices and 8 duplicate names, and the integrity pass finds nothing in any of them. The panel
+jumps to what an issue names, and validates the editor's model, waiting edits included, while a
+view is edited (`Gate-ArchiWorkbench.mjs`).
+
+**How far the checks reach without code**, recorded for Nendo:
+
+| Check | Declarative? | Why |
+| --- | --- | --- |
+| Unused elements, unused relationships | Counted, not listed | A calculated *On views* count (`RelatedAggregate` over Diagram item's concept) shows it in the Elements and Relationships lists; a list cannot filter or sort on a calculated field (`NUI214`), so *only the unused* is not a screen |
+| Empty views | Counted, not listed | The same, as *Diagram objects* on Views; a view of more than 256 objects has no count but `calculation-limit-reached`, the related-row ceiling of a calculation (measured on a view of 300) |
+| Invalid relationships | No | Needs ArchiMate's relationship table (about 4,000 lines), which is package code (D-003); W-105 would make it an Engine constraint |
+| Viewpoint violations | No | Needs the 25 viewpoints' element lists, package code |
+| Nested elements | No | Compares a box's parent box with the relationships between their concepts: two hops over two record types and a type test |
+| Duplicate names | No | Compares records of the same type with each other; a unique field is unique across all concepts, not per type, and would refuse the write rather than report it |
+| Mixed junction relationships | No | Compares the types of every relationship at a junction |
+
+The counts are not free for the workbench, which reads every concept and view after each change
+and so has them calculated each time. Measured on 2026-09-30 against the Engine, reading all
+concepts and views in pages of 200 (median of seven): 1.5 ms without them and 10.2 ms with them
+at Archisurance's size (296 concepts, 17 views, 448 diagram objects), and 12.4 ms against 91.1 ms
+at 5,000 concepts, 200 views and 7,500 objects. That is kept, as the price of a model that says
+which of its concepts are unused without the workbench.
 
 ## The write budget
 
