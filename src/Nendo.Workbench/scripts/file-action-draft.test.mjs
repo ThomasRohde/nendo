@@ -152,3 +152,33 @@ test('R30-008: a finished or refused backup keeps read-only display typing until
     assert.deepEqual(page.retained, ['read-only']);
   }
 });
+
+test('R30-008: opening, creating, reopening or closing a file drops the locked typing and redraws for the file now open', async () => {
+  const other = session({ fileSessionId: 'session-2', fileName: 'Other.nendo' });
+  const closed = session({ fileSessionId: null, fileName: null, hasFile: false });
+  for (const [what, run, after] of [
+    ['Open file', () => f.chooseFile('session.openFile', null), other],
+    ['New file', () => f.chooseFile('session.createFile', null), other],
+    ['a recent file', () => f.runFileAction('file.openRecent', 'recent-1'), other],
+    ['Close file', () => f.runFileAction('file.close'), closed],
+  ]) {
+    typedDraft();
+    f.state.openDraft = null;
+    f.state.retainedDraft = Object.freeze({ reason: 'read-only' });
+    page.reply = (method) => method === 'session.getRecentFiles' ? { files: [], notice: null } : { session: after, notice: null };
+    await run();
+    assert.equal(page.rerenders, 1, `${what} left the previous file's locked form on screen instead of redrawing.`);
+    assert.equal(f.state.retainedDraft, null, `${what} kept the previous file's locked typing, which holds the page against file-follow.`);
+    assert.deepEqual(page.retained, [], `${what} locked the previous file's form again.`);
+  }
+
+  // A cancelled picker leaves the same file open, so the locked typing stays.
+  typedDraft();
+  f.state.openDraft = null;
+  const display = Object.freeze({ reason: 'read-only' });
+  f.state.retainedDraft = display;
+  page.reply = () => ({ session: session(), notice: null });
+  await f.chooseFile('session.openFile', null);
+  assert.equal(page.rerenders, 0, 'A cancelled Open file redrew the locked typing away.');
+  assert.equal(f.state.retainedDraft, display);
+});

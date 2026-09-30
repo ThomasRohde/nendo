@@ -932,7 +932,8 @@ async (page) => {
 
   // ---- R30-004: both named and unnamed valid relationship cycles stay in the tree and
   // render selectable source/target links in Properties, in both themes.
-  const cycleFixture = structuredClone(fixture);
+  // run-code's sandbox has no structuredClone; the fixture is plain JSON.
+  const cycleFixture = JSON.parse(JSON.stringify(fixture));
   const relationsFolder = fixture.records['ar.folder'].find(record => record.values['ar.folder.kind'] === 'Relations').recordId;
   const endpoint = fixture.records['ar.concept'].find(record => record.values['ar.concept.category'] === 'Element').recordId;
   const cycles = [];

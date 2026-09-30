@@ -59,8 +59,14 @@ const modelRecord = () => state.model?.of(M.E.model)[0] ?? null;
 
 /**
  * The writes one gesture makes. Where Nendo offers records.batch they are one revision, named
- * by the gesture, with at most 200 writes. Larger gestures are refused before any write. An
- * older Nendo writes them one by one, in the order planned.
+ * by the gesture; a larger gesture goes in batches of 200, and an older Nendo writes them one
+ * by one, in the order planned, so nothing is written before what it points at.
+ *
+ * An atomic gesture, a Commit of the editor's waiting edits, is the exception (R30-001): its
+ * later writes point at records its earlier writes create, and a second batch cannot name
+ * their versions, so a Commit over 200 writes would save its first batch and have the rest
+ * refused. With records.batch it is sent as one batch or, over 200, refused before anything
+ * is written. The limit is a batch's, so an older Nendo's one-by-one path is not held to it.
  */
 let writing = Promise.resolve();
 /**
@@ -69,30 +75,33 @@ let writing = Promise.resolve();
  * made while the first was still being read back pointed at versions the first had moved on
  * (F-211).
  */
-function write(plan, label) {
-  const run = writing.then(() => writeNow(plan, label));
+function write(plan, label, { atomic = false } = {}) {
+  const run = writing.then(() => writeNow(plan, label, atomic));
   writing = run.catch(() => undefined);
   return run;
 }
 
-async function writeNow(plan, label) {
+async function writeNow(plan, label, atomic) {
   let writes;
   try { writes = typeof plan === 'function' ? plan() : plan; } catch (error) { setStatus(describe(error), true); return; }
   if (writes.length === 0) return;
   if (state.readOnly) { setStatus('This file is open read-only.', true); return; }
-  if (writes.length > 200) {
+  const batched = nendo.has('records.batch');
+  if (atomic && batched && writes.length > 200) {
     setStatus(`${label} was refused: This change needs ${writes.length} record writes; at most 200 can be saved together. Nothing was saved. Reduce the change and try again.`, true);
     return;
   }
   let outcome = `${label}.`, problem = false;
   try {
-    if (nendo.has('records.batch')) {
-      await nendo.records.batch(writes.map(single => ({
-        op: single.op, entityId: single.entityId, recordId: single.recordId,
-        ...(single.version === undefined ? {} : { version: single.version }),
-        ...(single.values === undefined ? {} : { values: single.values }),
-        ...(single.targetVersions === undefined ? {} : { targetVersions: single.targetVersions }),
-      })), { label: label.slice(0, 80) });
+    if (batched) {
+      for (let start = 0; start < writes.length; start += 200) {
+        await nendo.records.batch(writes.slice(start, start + 200).map(single => ({
+          op: single.op, entityId: single.entityId, recordId: single.recordId,
+          ...(single.version === undefined ? {} : { version: single.version }),
+          ...(single.values === undefined ? {} : { values: single.values }),
+          ...(single.targetVersions === undefined ? {} : { targetVersions: single.targetVersions }),
+        })), { label: label.slice(0, 80) });
+      }
     } else {
       for (const single of writes) {
         const at = { entityId: single.entityId, recordId: single.recordId, version: single.version };
@@ -644,7 +653,8 @@ function setFilter(change) {
  * Edit turns the open view into archi-online's own editor: its palette, gestures, magic connector
  * and menus, on a copy of the model. The edits collect there, with Undo and Redo, and Commit
  * writes up to 200 record changes to the file as one revision; a larger change keeps waiting
- * without saving anything. Discard drops them. A box moved five times is
+ * without saving anything (an older Nendo without records.batch writes them one by one).
+ * Discard drops them. A box moved five times is
  * one change of its place when committed, which is what keeps an editing session inside the
  * file's operation-row bound (W-101). The waiting edits are kept in this browser, so leaving the
  * screen, or Back, finds them again; a change to the file meanwhile is carried under them.
@@ -744,7 +754,7 @@ function toggleEditing(on) {
 function commitEdits() {
   if (!editor || state.pending === 0) return;
   const count = state.pending;
-  write(() => waitingWrites(), `Commit ${count} ${count === 1 ? 'change' : 'changes'} to the view`);
+  return write(() => waitingWrites(), `Commit ${count} ${count === 1 ? 'change' : 'changes'} to the view`, { atomic: true });
 }
 
 function discardEdits() {

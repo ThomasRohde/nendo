@@ -33,8 +33,17 @@ function refusedOverDraft(method: string): boolean {
  * form it replaces (R-010). The same file, still editable, keeps the form as it is and only
  * the chrome follows; a file that cannot take the typing any more keeps it on screen locked,
  * as a failed save does.
+ *
+ * Locked typing kept for copying (R30-008) outlives an action that leaves the same file open,
+ * such as a backup. A file action that opened, created or closed a file is the person leaving
+ * it on purpose: the locked form belongs to the file that went, so it is dropped and the page
+ * redrawn for the file now open.
  */
-function keepsDraft(refreshed: DesktopSessionView): boolean {
+function keepsDraft(refreshed: DesktopSessionView, fileChanged: boolean): boolean {
+  if (state.retainedDraft !== null && fileChanged) {
+    state.retainedDraft = null;
+    return false;
+  }
   if (state.retainedDraft !== null) {
     refreshChrome();
     retainDraftReadOnly(state.retainedDraft.reason);
@@ -56,7 +65,7 @@ async function recoverFromFileAction(): Promise<void> {
       const changed = state.session.fileSessionId !== refreshed.fileSessionId;
       if (!changed) {
         state.session = refreshed;
-        if (keepsDraft(refreshed)) return;
+        if (keepsDraft(refreshed, false)) return;
       }
     } catch {
       // Nothing could be read; recoverAfterWriteFailure locks the draft for that.
@@ -313,7 +322,7 @@ export async function showFileActionOutcome(result: DesktopFileActionView): Prom
     if (changed) resetFileView();
     await refreshDerived();
     await refreshRecentFiles();
-    kept = keepsDraft(refreshed);
+    kept = keepsDraft(refreshed, changed);
   } catch {
     refreshNotice = result.refreshNotice ?? 'Refresh the view to see the current file state.';
     kept = recordFormIsDirty();

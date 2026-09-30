@@ -137,6 +137,35 @@ public sealed class DesktopBehaviourGrantTests
     }
 
     [TestMethod]
+    public async Task AnUnsavedApprovalMergedIntoAFullDocumentKeepsItReadable()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var store = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        var acquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim();
+        var holder = Task.Factory.StartNew(() =>
+        {
+            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"));
+            acquired.SetResult();
+            release.Wait();
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        await acquired.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try { store.Approve(Grant() with { ApplicationId = "unsaved" }); }
+        finally { release.Set(); await holder; }
+
+        // Another process fills the document to its bound while this one still holds an
+        // approval it could not save. The next save here merges the two.
+        var other = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        for (var index = 0; index < 512; index++) other.Approve(Grant() with { ApplicationId = $"full-{index}" });
+        var last = Grant() with { ApplicationId = "last" };
+        store.Approve(last);
+
+        var reopened = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        Assert.IsNull(reopened.Notice, "The merged save wrote more approvals than a read admits.");
+        Assert.IsTrue(reopened.IsGranted(last), "The newest approval was lost from a full document.");
+    }
+
+    [TestMethod]
     public async Task ASharedWithdrawalAlsoRevokesAnEarlierUnsavedSessionApproval()
     {
         await using var workspace = new DesktopTestWorkspace();

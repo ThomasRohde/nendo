@@ -337,6 +337,45 @@ runtime test is claimed for a text edit.
 | R30-017 | MCP retains proposal ownership/queue entries until Engine rejection completes; queued cancellation is retryable. | Expected:<1>. Actual:<0>. Reject removed the review queue while waiting for Engine admission. |
 | R30-018 | Public custom-view guide states create/mixed-create and 128-operation compensation limits. | Source comparison against docs/contracts/custom-views.md and the compensation allow-list; no runtime falsification claimed for this prose correction. |
 
+The Windows review of this fix pass corrected the following afterwards. Each behavior
+correction has a guard in an existing lane that failed against the regressed code and
+passed once restored:
+
+- R30-008 follow-up: a retained read-only draft also survived File > Open, New, Recent and
+  Close, so the page kept the old file's locked form and held off file-follow. `keepsDraft`
+  in `src/Nendo.Workbench/src/file-actions.ts` now drops it when the file session changed;
+  a backup or cancelled dialog still keeps it. Guard in `scripts/file-action-draft.test.mjs`;
+  falsification: `AssertionError [ERR_ASSERTION]: Open file left the previous file's locked form on screen instead of redrawing.`
+- R30-001 follow-up: the 200-write refusal sat in the shared `writeNow`, so a large tree
+  folder delete and the non-batch fallback were refused too. The bound now applies only to a
+  Commit (`{ atomic: true }`) sent through `records.batch`; other gestures chunk by 200 as
+  before. Guard in `tools/archi/view.test.mjs`; falsification: `Delete Business (265 writes) was refused: Delete Business was refused: This change needs 265 record writes; at most 200 can be saved together.`
+- R30-014 follow-up: every read now rereads `extension-settings.json`, and any IO or access
+  failure fell back to the defaults, so a briefly busy document turned views back on and the
+  next change saved the defaults over device Off and every file's Off. A busy read now keeps
+  the last document read or saved in full; a change made then stays pending rather than
+  saved. Only a damaged document means defaults. Guard `ABusySettingsDocumentKeepsTheLastSwitchesItRead`;
+  falsification: `Assert.IsFalse failed. 'condition' expression: 'store.Run'. A briefly busy settings document turned custom views back on for the device.`
+- R30-002 follow-up: approvals kept for this session were merged into the read document
+  without its 512 bound, so a save could write a document the next read refuses whole,
+  withdrawing every approval on the device. The merge now keeps the newest 512. Guard
+  `AnUnsavedApprovalMergedIntoAFullDocumentKeepsItReadable`; falsification:
+  `Assert.IsNull failed. 'value' expression: 'reopened.Notice'. The merged save wrote more approvals than a read admits.`
+- R30-002 test premise: `UnattendedWritesTheSameGrantAPersonsApprovalWrites` compared the
+  whole grant document, which now also carries the withdrawal counter the person's revoke
+  moves on. It compares the grant entries. This test was outside the Linux subset.
+- `tools/Gate-ArchiWorkbench.mjs` cloned its fixture with `structuredClone`, which the
+  playwright-cli run-code sandbox does not provide on Windows, so the Archi presentation lane
+  stopped with `ReferenceError: structuredClone is not defined`. It clones through JSON.
+- R30-016 follow-up: the MCP server instructions still said record IDs are unique across
+  the file. They now say a record ID is unique within its record type, as the vocabulary does.
+
+Known and left open, low severity: a background view-stop can write a previous file's
+serving state after a file switch; the device-wide withdrawal counter aborts in-flight
+action saves in other files; a change that pushes the settings document over 256 KiB stays
+pending and makes later saves from that process over-limit too; an exact retry of a move
+committed before this fix pass fails as an idempotency conflict rather than "already there".
+
 Contracts, Archi design notes and the outside-review prompt now describe these
 behaviors. Shipped package sources are Archi 0.3.4 and Systems Lens 1.2.1. Existing
 .nendo files retain their installed packages until the owner accepts a package
@@ -398,11 +437,11 @@ the repository test sources and this report carry the lasting evidence.
 
 ### Remaining handoff
 
-Run the full production lane and rebuild/test the paired payload and installer on
-Windows before closing product qualification. Reconcile these source changes and
-exact Check outcomes into nd.work.r.broad-review-20260930 when the registered
-planner is reachable; do not mark its original previewable proposal accepted or
-the Work Done from this report. Install updated shipped packages through the
-normal host flow when the owner is ready to accept them. The changed source,
-regression guards and this report are submitted together for draft-PR review;
-the remaining Windows lanes keep product qualification open.
+On Windows, 2026-09-30, after the follow-up corrections above:
+`pwsh ./tools/Test-Production.ps1 -SkipRestore` printed `Production verification passed.`
+(Workbench 445, Engine 1029 with 1 skipped, Desktop 379, LocalMcp 169 with 1 skipped,
+Archi and Systems Lens browser lanes, repository gate). The paired payload and installer
+are rebuilt from this state. Reconcile these source changes and exact Check outcomes into
+nd.work.r.broad-review-20260930 when the planner is reachable; do not mark its original
+previewable proposal accepted or the Work Done from this report. Install updated shipped
+packages through the normal host flow when the owner is ready to accept them.

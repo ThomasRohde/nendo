@@ -95,6 +95,9 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
         _grants.RemoveAll(grant => _sessionRevocations.Contains((grant.ApplicationId, grant.InstanceId)));
         foreach (var pending in _sessionGrants)
             if (!_grants.Contains(pending.Grant)) _grants.Add(pending.Grant);
+        // Merged approvals are held to the same bound as saved ones, oldest first, or the
+        // next save would write a document every later read refuses as a whole.
+        if (_grants.Count > MaximumGrants) _grants.RemoveRange(0, _grants.Count - MaximumGrants);
         if (_sessionGrants.Count != 0 || _sessionRevocations.Count != 0)
             Notice = "This approval change applies for now, but could not be saved for the next launch.";
         else if (readable)

@@ -38,6 +38,8 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
     private string _lastNotifiedState = "";
     private readonly HashSet<string> _disabledFiles = new(StringComparer.Ordinal);
     private readonly List<DesktopDevelopmentLink> _links = [];
+    private byte[]? _lastReadBytes;
+    private bool _readInterrupted;
     private string StatePath => Path.Combine(_root, "extension-settings.json");
 
     internal bool Run { get { lock (_sync) { Read(); return _run; } } }
@@ -98,12 +100,26 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
         _disabledFiles.Clear();
         _links.Clear();
         Notice = null;
+        _readInterrupted = false;
         try
         {
-            using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
-            if (stream.Length > MaximumBytes) throw new JsonException("Custom view settings exceed their limit.");
-            var bytes = new byte[checked((int)stream.Length)];
-            stream.ReadExactly(bytes);
+            byte[] bytes;
+            try
+            {
+                using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+                if (stream.Length > MaximumBytes) throw new JsonException("Custom view settings exceed their limit.");
+                bytes = new byte[checked((int)stream.Length)];
+                stream.ReadExactly(bytes);
+            }
+            catch (Exception exception) when (exception is UnauthorizedAccessException ||
+                exception is IOException and not FileNotFoundException and not DirectoryNotFoundException)
+            {
+                // A document that is busy or briefly unreadable is not a damaged one. Keep the
+                // last one read in full, so a passing lock neither turns views back on for the
+                // device nor lets the next change save the defaults over its switches.
+                _readInterrupted = true;
+                bytes = _lastReadBytes ?? throw new IOException("The custom view settings could not be read.", exception);
+            }
             var document = JsonSerializer.Deserialize<StoredExtensionSettings>(bytes, new JsonSerializerOptions { MaxDepth = 4 });
             if (document?.Version != 1 || document.DisabledFiles is not { Count: <= MaximumFiles } files || document.RunGeneration < 0 || document.FileRevision < 0 ||
                 document.FileRevisions is { Count: > MaximumFiles })
@@ -135,6 +151,7 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
                     Path.IsPathFullyQualified(link.Folder))
                     _links.Add(new(link.ApplicationId, link.PackageId, link.Folder));
             }
+            _lastReadBytes = bytes;
         }
         catch (FileNotFoundException) { }
         catch (DirectoryNotFoundException) { }
@@ -211,6 +228,8 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
             {
                 using var guard = DesktopDeviceStateLock.EnterRequired(StatePath);
                 Read();
+                // Saving over a document that could not be read would replace what it holds.
+                if (_readInterrupted) throw new IOException("The custom view settings could not be read.");
                 validate?.Invoke();
                 change();
                 _pendingChanges.Add(new(change, runChoice ? _storedRunGeneration : null, fileChoice,
@@ -265,6 +284,7 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
             }
             File.Move(stage, StatePath, overwrite: true);
             ownedStage = null;
+            _lastReadBytes = bytes;
             Notice = null;
             _pendingChanges.Clear();
         }

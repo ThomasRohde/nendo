@@ -69,7 +69,8 @@ function controller(draft, batch = true) {
   });
   vm.runInContext(section('let writing = Promise.resolve();', '// ---------------------------------------------------------------- the tree') +
     section('function keepEdits(', 'function renderEditor(') +
-    '\nglobalThis.api = { write, waitingWrites, editsChanged };', context);
+    section('function commitEdits(', 'function discardEdits(') +
+    '\nglobalThis.api = { write, waitingWrites, editsChanged, commitEdits };', context);
   context.api.editsChanged();
   return { api: context.api, calls, saved, statuses, state, stored: () => stored, readCalls: () => readCalls };
 }
@@ -79,7 +80,7 @@ for (const [count, extraBox, expected] of [[100, true, 201], [101, false, 202]])
     const host = controller(newElements(count, extraBox));
     assert.equal(host.api.waitingWrites().length, expected);
     const draftBefore = host.saved.get('archi-edits');
-    await host.api.write(() => host.api.waitingWrites(), `Commit ${expected} changes to the view`);
+    await host.api.commitEdits();
     const persisted = Object.values(host.stored()).flat().length - Object.values(fixture).flat().length;
     assert.equal(host.calls.length, 0, `An over-limit Commit sent ${host.calls.length} write requests and persisted ${persisted} records; it must save nothing.`);
     assert.deepEqual(host.stored(), fixture, 'An over-limit Commit partially persisted its dependent records.');
@@ -95,7 +96,7 @@ for (const [count, extraBox, expected] of [[100, true, 201], [101, false, 202]])
 test('exactly 200 dependent writes are sent together and every element and box is saved', async () => {
   const host = controller(newElements(100));
   assert.equal(host.api.waitingWrites().length, 200);
-  await host.api.write(() => host.api.waitingWrites(), 'Commit 200 changes to the view');
+  await host.api.commitEdits();
   assert.equal(host.calls.length, 1);
   assert.equal(host.calls[0].length, 200);
   assert.equal(Object.values(host.stored()).flat().length - Object.values(fixture).flat().length, 200);
@@ -103,12 +104,42 @@ test('exactly 200 dependent writes are sent together and every element and box i
   assert.equal(host.statuses.at(-1).problem, false);
 });
 
-test('an older host also receives no single writes from an over-limit Commit', async () => {
+test('an older host without records.batch is not held to the batch limit: a 202-write Commit goes one by one', async () => {
   const host = controller(newElements(101), false);
-  await host.api.write(() => host.api.waitingWrites(), 'Commit 202 changes to the view');
-  assert.equal(host.calls.length, 0, 'An over-limit Commit began saving records individually.');
-  assert.equal(host.state.pending, 202);
+  await host.api.commitEdits();
+  assert.equal(host.calls.length, 202, 'The one-by-one path was refused by a limit that belongs to records.batch.');
+  assert.ok(!host.statuses.some(status => /at most 200/.test(status.message)), 'An older host was told about a batch limit it does not use.');
 });
+
+// A delete is planned from records that already exist, so a later batch names nothing an
+// earlier one created: over 200 writes it goes in batches of 200, as before R30-001, and is
+// not refused. The largest folder delete the Archisurance fixture offers is over 200 writes.
+function largestFolderDelete() {
+  const model = M.buildModel(fixture);
+  const plans = model.of(M.E.folder).filter(folder => folder.values['ar.folder.parent'])
+    .map(folder => ({ name: M.label(model, folder), writes: M.deletePlan(model, [folder.recordId]).writes }))
+    .sort((left, right) => right.writes.length - left.writes.length);
+  assert.ok(plans[0].writes.length > 200, `The fixture's largest folder delete is only ${plans[0].writes.length} writes.`);
+  return plans[0];
+}
+
+for (const batch of [true, false]) {
+  test(`a folder delete over 200 writes is ${batch ? 'sent in batches of 200' : 'written one by one on an older host'} and not refused`, async () => {
+    const plan = largestFolderDelete();
+    const host = controller(newElements(0), batch);
+    await host.api.write(() => plan.writes, `Delete ${plan.name}`);
+    assert.ok(!host.statuses.some(status => status.problem),
+      `Delete ${plan.name} (${plan.writes.length} writes) was refused: ${host.statuses.map(status => status.message).join(' | ')}`);
+    if (batch) {
+      assert.deepEqual(host.calls.map(call => call.length), [200, plan.writes.length - 200]);
+      const gone = new Set(plan.writes.map(write => write.recordId));
+      assert.ok(!Object.values(host.stored()).flat().some(record => gone.has(record.recordId)), 'A deleted record is still stored.');
+    } else {
+      assert.equal(host.calls.length, plan.writes.length);
+    }
+    assert.equal(host.readCalls(), 1);
+  });
+}
 
 for (const named of [false, true]) for (const surface of ['tree', 'properties']) {
   test(`${named ? 'named' : 'unnamed'} relationship cycles render in ${surface}`, () => {

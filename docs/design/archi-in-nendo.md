@@ -141,7 +141,10 @@ keeps its value. Discard drops the edits. They are kept in the view's `localStor
 view they were made on, so leaving the screen or Back opens the editor on them again, carried
 onto the file as it now stands. A refused commit keeps them waiting. Commit admits
 at most 200 record writes; a larger difference is refused before any request is
-sent and leaves all edits available for undo, adjustment or discard.
+sent and leaves all edits available for undo, adjustment or discard. The bound is the
+Commit's alone: its later writes point at records its earlier ones create, which a second
+batch cannot name. Other gestures, such as deleting a large folder from the tree, still go in
+batches of 200, and a Nendo without `records.batch` writes one by one without a batch limit.
 
 This changes the budget below: rows follow the net change, not the gestures. Two drags of one
 box, an undo and a redo commit as one field set of its place in one revision (measured by

@@ -39,7 +39,7 @@ internal static class NendoServerInstructions
         "Save receiptContext from the grant before writing: after a lost response, nendo.data.get_receipt reads " +
         "the original outcome, and an unresolved receipt is not permission to resubmit with a new key. After a " +
         "reconnect, nendo.lease.status says who holds the lease. " +
-        "Entity, field, record and node IDs are unique across the whole file, not per parent. " +
+        "Entity, field and node IDs are unique across the whole file; a record ID is unique within its record type. " +
         "Compiled screens are exercised in the Use view, not Studio. " +
         "There is no SQL, file, process or network access, and no generic invocation. " +
         Acceptance(mode);

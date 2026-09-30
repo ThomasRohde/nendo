@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Nendo.Engine;
 using Nendo.LocalMcp;
 
@@ -59,7 +60,7 @@ public sealed class DesktopUnattendedConsentTests
         {
             await byHand.OpenAsync(workspace.FilePath);
             Assert.IsTrue((await byHand.ApproveBehaviourAsync()).BehaviourTrust!.IsApproved);
-            expected = await File.ReadAllTextAsync(grantsPath);
+            expected = await GrantsAsync(grantsPath);
             Assert.IsFalse((await byHand.RevokeBehaviourAsync()).BehaviourTrust!.IsApproved);
         }
 
@@ -83,8 +84,16 @@ public sealed class DesktopUnattendedConsentTests
         var view = await session.GetViewAsync();
         Assert.IsTrue(view.BehaviourTrust!.IsApproved);
         Assert.IsTrue(view.Capabilities.Mutate);
-        Assert.AreEqual(expected, await File.ReadAllTextAsync(grantsPath),
+        Assert.AreEqual(expected, await GrantsAsync(grantsPath),
             "The grant an agent's level records differs from the one a person's click records.");
+    }
+
+    // The grant entries only: the document also counts withdrawals, and the person's
+    // revoke above has moved that counter on by the time the agent's grant is written.
+    private static async Task<string> GrantsAsync(string grantsPath)
+    {
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(grantsPath));
+        return document.RootElement.GetProperty("Grants").GetRawText();
     }
 
     [TestMethod]

@@ -162,6 +162,29 @@ public sealed class DesktopExtensionSettingsTests
     }
 
     [TestMethod]
+    public async Task ABusySettingsDocumentKeepsTheLastSwitchesItRead()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        using var store = new DesktopExtensionSettingsStore(workspace.FileHistoryRoot);
+        store.SetRun(false);
+        store.SetFileEnabled("first", false);
+        var path = Path.Combine(workspace.FileHistoryRoot, "extension-settings.json");
+        using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            Assert.IsFalse(store.Run, "A briefly busy settings document turned custom views back on for the device.");
+            Assert.IsFalse(store.FileEnabled("first"), "A briefly busy settings document turned a file's views back on.");
+            store.SetFileEnabled("second", false);
+            Assert.IsFalse(store.FileEnabled("second"), "A change made while the document was busy did not apply to this session.");
+        }
+        store.SetFileEnabled("third", false);
+        using var reopened = new DesktopExtensionSettingsStore(workspace.FileHistoryRoot);
+        Assert.IsFalse(reopened.Run, "A change made after a busy read saved the defaults over device Off.");
+        Assert.IsFalse(reopened.FileEnabled("first"), "A change made after a busy read saved the defaults over a file's Off.");
+        Assert.IsFalse(reopened.FileEnabled("second"));
+        Assert.IsFalse(reopened.FileEnabled("third"));
+    }
+
+    [TestMethod]
     public async Task ADeviceChangeNotifiesAnAlreadyOpenListenerWithoutARead()
     {
         await using var workspace = new DesktopTestWorkspace();

@@ -992,7 +992,8 @@ vocabulary, the examples and the resources — and not from the person.
   leave the screen without committing, come back, and record whether the edit was still
   waiting. In a disposable Archi file, accumulate more than 200 record writes
   (101 elements with their boxes gives 202) and Commit. It must save no records
-  and retain the draft. Add named and unnamed relationship endpoint cycles and
+  and retain the draft. Then delete a tree folder whose confirmation counts more
+  than 200 records in all; it must be deleted, not refused for its size. Add named and unnamed relationship endpoint cycles and
   open their tree rows and properties; labels must remain finite.
 - Open History in a file you have edited a lot (or a copy of one) and record what it says about
   how many changes the file has recorded. Choose **Fold older history…** and record what the
