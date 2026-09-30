@@ -188,7 +188,7 @@ view is edited (`Gate-ArchiWorkbench.mjs`).
 
 | Check | Declarative? | Why |
 | --- | --- | --- |
-| Unused elements, unused relationships | Counted, not listed | A calculated *On views* count (`RelatedAggregate` over Diagram item's concept) shows it in the Elements and Relationships lists; a list cannot filter or sort on a calculated field (`NUI214`), so *only the unused* is not a screen |
+| Unused elements, unused relationships | Counted, not listed | A calculated *On views* count (`RelatedAggregate` over Diagram item's concept) shows it in the Elements list and on a concept's page; a list cannot filter or sort on a calculated field (`NUI214`, refused on Archi.nendo itself), so *only the unused* is not a screen. Nendo's Use list draws only a record's first three fields, so the count is third, and the Relationships list, which needs type, source and target, has it on the page instead (`tools/archi/definition.test.mjs`). Getting it there took two stages: `ui.moveNode` sets one node's position and renumbers none, and siblings on one position read in order of node ID, so the first move tied the count with Folder, behind it |
 | Empty views | Counted, not listed | The same, as *Diagram objects* on Views; a view of more than 256 objects has no count but `calculation-limit-reached`, the related-row ceiling of a calculation (measured on a view of 300) |
 | Invalid relationships | No | Needs ArchiMate's relationship table (about 4,000 lines), which is package code (D-003); W-105 would make it an Engine constraint |
 | Viewpoint violations | No | Needs the 25 viewpoints' element lists, package code |

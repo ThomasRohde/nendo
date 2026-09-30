@@ -64,10 +64,11 @@ Open Archi.nendo and choose **Views → Archi** in Use.
   when the model has changed since. Choosing an issue opens what it names: the object on its
   view, outlined, or the concept, view or folder in the tree. **Rules…** turns checks off,
   on this device.
-- **Without the workbench**, the Elements and Relationships lists have an *On views* column
-  and the Views list a *Diagram objects* column: calculated counts of the diagram objects that
-  show a concept or that a view holds. A 0 is an unused concept or an empty view. A list
-  cannot be filtered on a calculated field, so they are read, or sorted, by eye.
+- **Without the workbench**, in Use: Concepts → Elements shows *On views* in its third
+  column, a concept's page shows it under Details (the way to check a relationship), and
+  Views → Views shows *Diagram objects* in its third column. They are calculated counts of the
+  diagram objects that show a concept or that a view holds; a 0 is an unused concept or an
+  empty view. A list cannot be filtered on a calculated field, so they are read by eye.
 
 On a Nendo that cannot draw the controls in its own row, the workbench draws them above the
 tree.

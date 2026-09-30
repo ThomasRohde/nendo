@@ -30,6 +30,20 @@ const tone = (entityId, fieldId, choiceId, toneName) =>
   op('schema.setChoiceMetadata', { entityId, fieldId, choiceId, displayName: choiceId, retired: false, tone: toneName });
 
 /** Split a record type's operations into mutations of at most 16, the first holding its create. */
+/** The IDs of a screen node's children, in the order the file reads them. */
+async function childOrder(read, nodeId) {
+  const find = node => {
+    if (!node || typeof node !== 'object') return null;
+    if (node.nodeId === nodeId) return node;
+    for (const value of Object.values(node)) {
+      const found = Array.isArray(value) ? value.map(find).find(Boolean) : find(value);
+      if (found) return found;
+    }
+    return null;
+  };
+  return (find(await read.json('nendo://application/surfaces'))?.children ?? []).map(child => child.nodeId);
+}
+
 // A count of the records that point at this one, as a calculated field (ADR-0008).
 const calculation = (definitionId, entityId, fieldId, displayName, expression, bindings) =>
   op('behaviour.setDefinition', { definitionId, definitionKind: 'Calculation', body: {
@@ -288,6 +302,34 @@ export const STAGES = {
     ]),
   },
 
+  // Nendo's Use list draws a record's first three fields and no more (the owner found the counts
+  // missing, 2026-09-30): each count moves to third place, where it is drawn, in place of a
+  // field the tree already shows. Relationships keep type, source and target, and show the count
+  // on the concept's page.
+  countsShown: {
+    title: 'Archi: show the diagram-object counts in the lists and on a concept',
+    needs: ['ar.concept', 'ar.view', 'ar.item'],
+    appliedWhen: async read => read.hasNode('ar.page.concept.details.ar.concept.occurrences'),
+    mutations: () => inMutations('Show the diagram-object counts', [
+      op('ui.moveNode', { surfaceId: SURFACE, nodeId: 'ar.screen.elements.ar.concept.occurrences', parentNodeId: 'ar.screen.elements', position: 2 }),
+      op('ui.moveNode', { surfaceId: SURFACE, nodeId: 'ar.screen.views.ar.view.objects', parentNodeId: 'ar.screen.views', position: 2 }),
+      column('ar.page.concept.details', 'ar.concept.occurrences', 6),
+    ]),
+  },
+
+  // A move sets a node's position and renumbers nothing, and siblings sharing a position read in
+  // order of node ID, so countsShown left each count tied with Folder and after it. Folder goes
+  // after the rest instead, which leaves each count third.
+  folderLast: {
+    title: 'Archi: put the folder after the diagram-object counts',
+    needs: ['ar.concept', 'ar.view', 'ar.item'],
+    appliedWhen: async read => (await childOrder(read, 'ar.screen.elements')).at(-1) === 'ar.screen.elements.ar.concept.folder',
+    mutations: () => inMutations('Put the folder after the counts', [
+      op('ui.moveNode', { surfaceId: SURFACE, nodeId: 'ar.screen.elements.ar.concept.folder', parentNodeId: 'ar.screen.elements', position: 6 }),
+      op('ui.moveNode', { surfaceId: SURFACE, nodeId: 'ar.screen.views.ar.view.folder', parentNodeId: 'ar.screen.views', position: 3 }),
+    ]),
+  },
+
   pages: {
     title: 'Archi: screens for diagram items, types, the model and properties',
     needs: ['ar.model', 'ar.folder', 'ar.type', 'ar.concept', 'ar.view', 'ar.item', 'ar.property', 'ar.specialization'],
@@ -419,7 +461,7 @@ function screenOperations() {
   return { first: t.operations.slice(0, cut), second: t.operations.slice(cut) };
 }
 
-export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages', 'counts'];
+export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages', 'counts', 'countsShown', 'folderLast'];
 
 export const PACKAGE_ID = 'org.nendo.archi';
 export const PACKAGE_FOLDER = 'extensions/archi';
