@@ -329,6 +329,20 @@ async (page) => {
   await until(() => getComputedStyle(document.body).backgroundColor === 'rgb(1, 2, 3)', undefined, 'The schematic does not draw with the Workbench\'s canvas token.');
   await page.evaluate(() => window.broker.pushTheme('dark'));
 
+  // Supply enters and leaves different members of one circuit. The circuit is one
+  // vertex in the ordering: neither member belongs beside the source or its output.
+  await replace(fixture({ nodes: ['a', 'b', 'c', 'd'].map(id => ({ id, label: id.toUpperCase(), status: 'Online' })),
+    edges: [
+      { id: 'ab', sourceId: 'a', targetId: 'b' },
+      { id: 'bc', sourceId: 'b', targetId: 'c' },
+      { id: 'cb', sourceId: 'c', targetId: 'b' },
+      { id: 'cd', sourceId: 'c', targetId: 'd' },
+    ] }), '4 components · 4 feeds · 1 declared source · 2 in a circuit');
+  const circuitColumns = await view.evaluate(() => Object.fromEntries([...document.querySelectorAll('.node')]
+    .map(node => [node.dataset.id, Number(/translate\(([-0-9.]+)/.exec(node.getAttribute('transform'))[1])])));
+  assert(circuitColumns.a < circuitColumns.b && circuitColumns.b === circuitColumns.c && circuitColumns.c < circuitColumns.d,
+    'A circuit was split across supply layers instead of ordered as one component: ' + JSON.stringify(circuitColumns));
+
   // An empty file says so rather than drawing nothing.
   await replace(fixture({ nodes: [], edges: [] }), '0 components · 0 feeds');
   assert(await view.locator('#empty').isVisible(), 'An empty file drew nothing and said nothing.');

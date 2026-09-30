@@ -92,7 +92,7 @@ export function buildModel(sets) {
 export const typeOf = (model, concept) => model.types.get(concept?.values['ar.concept.type']) ?? null;
 
 /** What the tree calls a record: its name, or for an unnamed relationship its type and ends. */
-export function label(model, record) {
+export function label(model, record, path = new Set()) {
   if (!record) return '';
   switch (record.entityId) {
     case E.folder: return record.values['ar.folder.name'] || '(folder)';
@@ -101,9 +101,14 @@ export function label(model, record) {
       const name = record.values['ar.concept.name'];
       const type = typeOf(model, record);
       if (record.values['ar.concept.category'] !== 'Relationship') return name || type?.values['ar.type.name'] || '(element)';
-      const end = id => { const other = model.records.get(id); return other ? label(model, other) : '?'; };
-      const ends = `${end(record.values['ar.concept.source'])} – ${end(record.values['ar.concept.target'])}`;
-      return name ? `${name} (${ends})` : `${type?.values['ar.type.name'] ?? 'Relationship'} (${ends})`;
+      const short = name || type?.values['ar.type.name'] || 'Relationship';
+      if (path.has(record.recordId)) return `${short} [cycle]`;
+      path.add(record.recordId);
+      try {
+        const end = id => { const other = model.records.get(id); return other ? label(model, other, path) : '?'; };
+        const ends = `${end(record.values['ar.concept.source'])} – ${end(record.values['ar.concept.target'])}`;
+        return `${short} (${ends})`;
+      } finally { path.delete(record.recordId); }
     }
     default: return record.recordId;
   }

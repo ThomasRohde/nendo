@@ -63,13 +63,14 @@ public sealed partial class NendoWriteCoordinator
                 await store.BackupToAsync(clonePath, cancellationToken);
                 await using var clone = await SqliteNendoStore.OpenAsync(clonePath, cancellationToken);
                 var cloneAuthority = await clone.GetAuthoritySnapshotAsync(cancellationToken);
+                var activeSequences = await store.GetSequenceCountersAsync(cancellationToken);
                 // The clone runs the actions so the review shows their effects, not
                 // only the operations an author asked for. This is the host choosing to
                 // simulate on a copy nobody edits; promoting the result is a separate
                 // question that needs the owner's approval of the exact plan.
                 clone.BehaviourAuthority = PreviewBehaviourAuthority.Instance;
                 var expansion = new List<(int MutationIndex, BehaviourExecutionContext Context)>();
-                await clone.ApplyChangeSetAsync(
+                var (cloneResult, _) = await clone.ApplyChangeSetAsync(
                     changeSet,
                     cloneAuthority,
                     proposalId,
@@ -77,6 +78,16 @@ public sealed partial class NendoWriteCoordinator
                     cancellationToken,
                     expansion: expansion,
                     failure: failure);
+                var reviewedSequences = await clone.GetSequenceCountersAsync(cancellationToken);
+                var allocatedFields = cloneResult.Revisions.SelectMany(revision => revision.AssignedValues)
+                    .Select(value => value.FieldId).ToHashSet(StringComparer.Ordinal);
+                context.ExpectedSequenceNext = activeSequences
+                    .Where(pair => allocatedFields.Contains(pair.Key) ||
+                        reviewedSequences.TryGetValue(pair.Key, out var next) && next != pair.Value)
+                    .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+                if (changeSet.Mutations.SelectMany(mutation => mutation.Operations)
+                    .OfType<SetFieldSequenceOperation>().Any(operation => operation.Prefix is not null))
+                    context.SequenceDataRevision = active.Manifest.DataRevision;
                 context.BehaviourPlan = CaptureBehaviourPlan(
                     changeSet, expansion, active.Manifest.DataRevision, active.Manifest.DefinitionRevision) with
                 {

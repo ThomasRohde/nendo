@@ -329,7 +329,9 @@ export async function recoverAfterWriteFailure(): Promise<void> {
     // The host itself is unreachable. Keeping the last coherent view is right; what
     // is not right is leaving a Save button that claims an authority nobody checked.
   }
-  const draftState = draft === null
+  const draftState = state.retainedDraft !== null
+    ? { outcome: 'retain-read-only', reason: state.retainedDraft.reason }
+    : draft === null
     ? null
     : decideDraftState(
       draft.session,
@@ -354,6 +356,10 @@ export async function recoverAfterWriteFailure(): Promise<void> {
 }
 
 export function retainDraftReadOnly(reason: DraftReason): void {
+  // Editable input and retained display input have different departure rules. The
+  // latter may be left deliberately, but autonomous chases must hold it even once
+  // focus has moved to a blank area of the page.
+  state.retainedDraft ??= Object.freeze({ reason });
   state.openDraft = null;
   for (const control of content.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
     '#record-form input, #record-form select, #record-form textarea, #record-form button, #record-form [data-action]')) {
@@ -363,7 +369,7 @@ export function retainDraftReadOnly(reason: DraftReason): void {
     // from handing the Save button back a moment later.
     control.dataset.busyWasDisabled = 'true';
   }
-  showError(draftRetentionMessage(reason));
+  showError(draftRetentionMessage(state.retainedDraft.reason));
 }
 
 /**
@@ -504,4 +510,3 @@ export async function prepareApplication(recipe: ApplicationRecipe, returnView: 
     setBusy(false);
   }
 }
-

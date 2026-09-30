@@ -56,6 +56,127 @@ public sealed class DesktopBehaviourGrantTests
     }
 
     [TestMethod]
+    public async Task StaleStoresPreserveOtherApprovalsAndCannotRestoreARevokedGrant()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var first = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        var second = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        var a = Grant();
+        var b = a with { ApplicationId = "application-two", InstanceId = "instance-two" };
+        var c = a with { ApplicationId = "application-three", InstanceId = "instance-three" };
+        first.Approve(a);
+        second.Approve(b);
+        Assert.IsTrue(new DesktopBehaviourGrantStore(workspace.FileHistoryRoot).IsGranted(a),
+            "A stale second approval erased the first file's approval.");
+        first.Revoke(a.ApplicationId, a.InstanceId);
+        second.Approve(c);
+        var reopened = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        Assert.IsFalse(reopened.IsGranted(a), "An unrelated approval restored revoked consent.");
+        Assert.IsTrue(reopened.IsGranted(b));
+        Assert.IsTrue(reopened.IsGranted(c));
+        Assert.IsTrue(first.Persisted && second.Persisted);
+    }
+
+    [TestMethod]
+    public async Task AStoreLoadedBeforeWithdrawalCannotPersistThatGrantAgain()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var first = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        first.Approve(Grant());
+        var stale = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        first.Revoke(Grant().ApplicationId, Grant().InstanceId);
+        stale.Approve(Grant() with { ApplicationId = "application-other", InstanceId = "instance-other" });
+        Assert.IsFalse(new DesktopBehaviourGrantStore(workspace.FileHistoryRoot).IsGranted(Grant()),
+            "An unrelated approval restored revoked consent from a stale store.");
+    }
+
+    [TestMethod]
+    public async Task AnotherStoresWithdrawalIsVisibleEvenAfterExactReapproval()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var owner = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        owner.Approve(Grant());
+        var other = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        var generation = other.RevocationGeneration;
+        owner.Revoke(Grant().ApplicationId, Grant().InstanceId);
+        Assert.IsFalse(other.IsGranted(Grant()), "An already-open authority kept trusting revoked consent.");
+        owner.Approve(Grant());
+        Assert.IsTrue(other.IsGranted(Grant()));
+        Assert.IsGreaterThan(generation, other.RevocationGeneration,
+            "An external withdrawal followed by reapproval did not invalidate work already in flight.");
+    }
+
+    [TestMethod]
+    public async Task AWithdrawalWithoutTheDeviceLockStaysLocalUntilASerializedSave()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var store = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        store.Approve(Grant());
+        var acquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim();
+        var holder = Task.Factory.StartNew(() =>
+        {
+            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"));
+            acquired.SetResult();
+            release.Wait();
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        await acquired.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            store.Revoke(Grant().ApplicationId, Grant().InstanceId);
+            Assert.IsFalse(store.IsGranted(Grant()), "An unsaved withdrawal stopped applying to this session.");
+            Assert.IsFalse(store.Persisted, "The store claimed to persist without owning the shared lock.");
+            Assert.IsNotNull(store.Notice);
+            Assert.IsTrue(new DesktopBehaviourGrantStore(workspace.FileHistoryRoot).IsGranted(Grant()),
+                "The control document was overwritten without owning its lock.");
+        }
+        finally { release.Set(); await holder; }
+        store.Approve(Grant() with { ApplicationId = "other" });
+        Assert.IsFalse(new DesktopBehaviourGrantStore(workspace.FileHistoryRoot).IsGranted(Grant()),
+            "The next serialized save lost the session's unsaved withdrawal.");
+    }
+
+    [TestMethod]
+    public async Task ASharedWithdrawalAlsoRevokesAnEarlierUnsavedSessionApproval()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var store = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        var acquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim();
+        var holder = Task.Factory.StartNew(() =>
+        {
+            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"));
+            acquired.SetResult();
+            release.Wait();
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        await acquired.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            store.Approve(Grant());
+            Assert.IsFalse(store.Persisted);
+            Assert.IsTrue(store.IsGranted(Grant()));
+        }
+        finally { release.Set(); await holder; }
+        var other = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        other.Revoke(Grant().ApplicationId, Grant().InstanceId);
+        Assert.IsFalse(store.IsGranted(Grant()), "An unsaved session approval outran another controller's later withdrawal.");
+        store.Approve(Grant() with { ApplicationId = "other" });
+        Assert.IsFalse(new DesktopBehaviourGrantStore(workspace.FileHistoryRoot).IsGranted(Grant()),
+            "A later save persisted the superseded session approval again.");
+    }
+
+    [TestMethod]
+    public async Task ConcurrentIndependentApprovalsAreAllKept()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var grants = Enumerable.Range(0, 12).Select(index => Grant() with { ApplicationId = "application-" + index }).ToArray();
+        var stores = grants.Select(_ => new DesktopBehaviourGrantStore(workspace.FileHistoryRoot)).ToArray();
+        await Task.WhenAll(grants.Select((grant, index) => Task.Run(() => stores[index].Approve(grant))));
+        var reopened = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        foreach (var grant in grants) Assert.IsTrue(reopened.IsGranted(grant), "Concurrent approvals lost " + grant.ApplicationId);
+    }
+
+    [TestMethod]
     public async Task RevokingRemovesEveryApprovalForThatFileAndMovesTheGeneration()
     {
         await using var workspace = new DesktopTestWorkspace();
@@ -127,6 +248,22 @@ public sealed class DesktopBehaviourGrantTests
         Assert.IsFalse(store.IsGranted(Grant()));
         Assert.IsFalse(store.Persisted);
         Assert.IsNotNull(store.Notice);
+    }
+
+    [TestMethod]
+    public async Task ARepairedSharedDocumentClearsTheEarlierUnreadableNotice()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        Directory.CreateDirectory(workspace.FileHistoryRoot);
+        await File.WriteAllTextAsync(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"), "not json");
+        var stale = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        Assert.IsFalse(stale.Persisted);
+        Assert.IsNotNull(stale.Notice);
+        var other = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        other.Approve(Grant());
+        Assert.IsTrue(stale.IsGranted(Grant()));
+        Assert.IsTrue(stale.Persisted, "A successful shared approval reread kept the old persistence failure.");
+        Assert.IsNull(stale.Notice, "The approved file still reported that nothing is approved.");
     }
 
     [TestMethod]

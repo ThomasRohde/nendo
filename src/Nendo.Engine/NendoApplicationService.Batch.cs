@@ -80,9 +80,9 @@ public sealed partial class NendoApplicationService
 
         var snapshot = await _coordinator.GetDefinitionSnapshotAsync(cancellationToken);
         var entities = snapshot.Entities.ToDictionary(entity => entity.EntityId, StringComparer.Ordinal);
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var seen = new HashSet<(string EntityId, string RecordId)>();
         // The version each record holds once the writes before it have run; a deleted one leaves.
-        var versions = new Dictionary<string, long>(StringComparer.Ordinal);
+        var versions = new Dictionary<(string EntityId, string RecordId), long>();
         var written = new List<NendoWrittenRecord>(request.Writes.Count);
         var operations = new List<NendoOperation>();
         string NextOperationId() => NendoCanonical.DeterministicId(
@@ -95,7 +95,7 @@ public sealed partial class NendoApplicationService
             RequireIdentity(write.RecordId, "record ID");
             if (!entities.TryGetValue(write.EntityId, out var entity))
                 throw new NendoPreconditionException("entity-not-found", $"Entity {write.EntityId} does not exist.");
-            if (!seen.Add(write.RecordId))
+            if (!seen.Add((write.EntityId, write.RecordId)))
             {
                 throw new NendoValidationException(
                     $"Record {write.RecordId} is written twice in one batch; put its changes in one write.");
@@ -108,7 +108,7 @@ public sealed partial class NendoApplicationService
                         throw new NendoValidationException($"Write {index} creates a record, which has no version yet.");
                     operations.Add(new CreateRecordOperation(NextOperationId(), write.EntityId, write.RecordId, write.Values,
                         TargetVersionsWithin(entity, write, versions)));
-                    versions[write.RecordId] = 1;
+                    versions[(write.EntityId, write.RecordId)] = 1;
                     break;
                 case NendoRecordWriteKind.Update:
                     if (write.Values is null || write.Values.Count is < 1 or > 64)
@@ -122,20 +122,20 @@ public sealed partial class NendoApplicationService
                             expected + ordinal, pair.Value, targets.TryGetValue(pair.Key, out var target) ? target : null));
                         ordinal++;
                     }
-                    versions[write.RecordId] = expected + ordinal;
+                    versions[(write.EntityId, write.RecordId)] = expected + ordinal;
                     break;
                 case NendoRecordWriteKind.Delete:
                     if (write.Values is not null || write.ExpectedTargetVersions is not null)
                         throw new NendoValidationException($"Write {index} deletes a record and carries no values.");
                     operations.Add(new DeleteRecordOperation(NextOperationId(), write.EntityId, write.RecordId,
                         RequireWriteVersion(write, index)));
-                    versions.Remove(write.RecordId);
+                    versions.Remove((write.EntityId, write.RecordId));
                     break;
                 default:
                     throw new NendoValidationException($"Write {index} is not a create, an update or a delete.");
             }
             written.Add(new NendoWrittenRecord(write.EntityId, write.RecordId,
-                versions.TryGetValue(write.RecordId, out var version) ? version : null));
+                versions.TryGetValue((write.EntityId, write.RecordId), out var version) ? version : null));
         }
 
         var applied = await _coordinator.ApplyAsync(
@@ -153,10 +153,10 @@ public sealed partial class NendoApplicationService
         // the store states the version it left, which wins over the arithmetic above.
         var committed = applied.GeneratedChanges
             .Where(change => change.RecordVersion is not null)
-            .GroupBy(change => change.RecordId, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.Max(change => change.RecordVersion!.Value), StringComparer.Ordinal);
+            .GroupBy(change => (change.EntityId, change.RecordId))
+            .ToDictionary(group => group.Key, group => group.Max(change => change.RecordVersion!.Value));
         return new NendoRecordWritesResult(applied, [.. written.Select(record =>
-            record.RecordVersion is { } computed && committed.TryGetValue(record.RecordId, out var actual) && actual > computed
+            record.RecordVersion is { } computed && committed.TryGetValue((record.EntityId, record.RecordId), out var actual) && actual > computed
                 ? record with { RecordVersion = actual }
                 : record)]);
     }
@@ -173,7 +173,7 @@ public sealed partial class NendoApplicationService
     private static IReadOnlyDictionary<string, long> TargetVersionsWithin(
         NendoEntitySnapshot entity,
         NendoRecordWrite write,
-        IReadOnlyDictionary<string, long> versions)
+        IReadOnlyDictionary<(string EntityId, string RecordId), long> versions)
     {
         var targets = new Dictionary<string, long>(
             write.ExpectedTargetVersions ?? new Dictionary<string, long>(), StringComparer.Ordinal);
@@ -186,7 +186,8 @@ public sealed partial class NendoApplicationService
                 JsonElement { ValueKind: JsonValueKind.String } element => element.GetString(),
                 _ => null,
             };
-            if (targetId is not null && versions.TryGetValue(targetId, out var version)) targets[field.FieldId] = version;
+            if (targetId is not null && field.Reference is { } reference &&
+                versions.TryGetValue((reference.TargetEntityId, targetId), out var version)) targets[field.FieldId] = version;
         }
         return targets;
     }

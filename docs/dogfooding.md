@@ -319,7 +319,8 @@ acceptance remains the person's action, also after a reconnect.
 | `nd.link` | One dependency between two work items, with an optional note | Required `nd.link.from` (blocker) and `nd.link.to` (blocked item) -> work |
 
 Fields carry the same prefix, for example `nd.work.title`, `nd.work.status` and
-`nd.check.actual`. Record IDs are global. Initial records have names such as
+`nd.check.actual`. Record identity is the record type plus record ID; the planner
+uses distinct prefixed IDs across its types. Initial records have names such as
 `nd.work.r.s4` and similar stable slugs. Future agents should choose a
 descriptive unique ID. They should not reuse an import key for a different
 record. Choices are their displayed strings. Exact numeric values retain the

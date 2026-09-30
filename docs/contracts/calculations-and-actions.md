@@ -397,7 +397,12 @@ per-user preferences under `%LocalAppData%\Nendo`, and never inside a `.nendo`
 file. A file therefore cannot carry its own permission. When a person sends a
 file to someone, the decision to trust the file does not go with it. A
 Duplicate, a Fork, a backup or a copy on another machine all arrive unapproved
-and ask again.
+and ask again. Shared consent changes are serialized across processes and merge
+with the current document inside the lock; another file's approval cannot restore
+revoked consent or erase a new approval. A durable revocation generation also
+invalidates work already in progress after a revoke and reapproval in another
+window. If persistence is unavailable, the explicit choice applies only to this
+session and a notice states that it was not saved.
 
 **Failing closed.** The absence of a grant is not an implicit grant. An Engine
 embedding that supplies no authority refuses. If a grant document is missing,
@@ -572,7 +577,9 @@ unchanged. The draft is therefore still the best copy of what the person
 intended, and the form stays open. The session can instead move underneath the
 form: another file, a withdrawn approval, a read-only transition, or a session
 that could not be read. In that case the typed input stays on screen, saving is
-switched off, and the reason is stated on screen. Values typed against one file
+switched off, and the reason is stated on screen. The retained display draft holds
+automatic redraws even after focus leaves it; backup/cancelled dialogs keep it,
+and deliberate departure releases it. Values typed against one file
 are never applied to another file.
 
 **Work happens away from the UI thread.** A bounded calculation is real

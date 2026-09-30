@@ -55,10 +55,14 @@ host 1.35.0.
 - **A move** (`nendo.data.move_record`, `NendoApplicationService.MoveRecordAsync`) sets
   the parent and, with an order field, places the record before a named sibling or last.
   It expands into `data.setField` operations in one revision: the parent, the order, and,
-  only when the neighbours leave no integer gap, every sibling renumbered in steps of
+  when no integer gap or representable first/last placement remains, every sibling renumbered in steps of
   1,024, each against the version the move read. Each operation keeps its prior value;
   the revision is undone by compensating its operations, since the one-click
-  compensation covers single-operation revisions only.
+  compensation covers supported retained operations, up to 128. Placement arithmetic covers the
+  full signed Int64 range without wrapping. The fresh result includes action
+  writeback to the moved record; exact retries bind the original request terms
+  and replay its historical revision, version and touched IDs before reading
+  current geometry ([operation outcomes](operation-outcomes.md)).
 
 **Reading the tree.** A tree read returns the hierarchy depth-first, siblings in order,
 each record with its parent, depth and child count ([queries](queries.md)); a view reads it

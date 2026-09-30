@@ -35,6 +35,11 @@ public sealed partial class NendoApplicationService
         RequireIdentity(request.RecordId, "record ID");
         RequireContext(request.Context);
         if (request.ExpectedRecordVersion < 1) throw new NendoValidationException("Record versions begin at one.");
+        // Sibling geometry is mutable, so the operation expansion is not the request's
+        // stable identity. Bind every move input into the canonical operation IDs and
+        // recognize its saved receipt before looking at the tree it left behind.
+        var identity = JsonSerializer.Serialize(request);
+        if (await ReplayMoveAsync(request, identity, cancellationToken) is { } replay) return replay;
         var entity = await RequireEntityAsync(request.EntityId, cancellationToken);
         var hierarchy = entity.Hierarchy
             ?? throw new NendoPreconditionException("hierarchy-not-declared", $"{entity.DisplayName} declares no hierarchy, so its records cannot be moved in one.");
@@ -54,7 +59,7 @@ public sealed partial class NendoApplicationService
         var version = request.ExpectedRecordVersion;
         NendoOperation Set(string recordId, string fieldId, long expected, object? value, long? targetVersion = null) =>
             new SetFieldOperation(
-                NendoCanonical.DeterministicId("operation", request.Context.IdempotencyScope, request.Context.IdempotencyKey, operations.Count),
+                MoveOperationId(identity, operations.Count),
                 entity.EntityId, recordId, fieldId, expected, value, targetVersion);
 
         if (currentParent != request.ParentRecordId)
@@ -79,9 +84,10 @@ public sealed partial class NendoApplicationService
             long? placed;
             if (current is { } kept && (at == 0 || lower < kept) && (at == siblings.Count || kept < upper)) placed = kept;
             else if (siblings.Count == 0) placed = NendoHierarchyLimits.OrderGap;
-            else if (at == siblings.Count) placed = lower + NendoHierarchyLimits.OrderGap;
-            else if (at == 0) placed = upper - NendoHierarchyLimits.OrderGap;
-            else placed = lower is { } previous && upper is { } next && next - previous >= 2 ? previous + (next - previous) / 2 : null;
+            else if (at == siblings.Count) placed = lower is { } last ? RepresentableOrder((Int128)last + NendoHierarchyLimits.OrderGap) : null;
+            else if (at == 0) placed = upper is { } first ? RepresentableOrder((Int128)first - NendoHierarchyLimits.OrderGap) : null;
+            else placed = lower is { } previous && upper is { } next && (Int128)next - previous >= 2
+                ? RepresentableOrder(previous + ((Int128)next - previous) / 2) : null;
             if (placed is { } value)
             {
                 if (value != current) operations.Add(Set(request.RecordId, orderField, version, value));
@@ -100,13 +106,61 @@ public sealed partial class NendoApplicationService
             }
         }
 
+        // Another identical caller may have committed while these reads were in flight.
+        if (await ReplayMoveAsync(request, identity, cancellationToken) is { } concurrentReplay) return concurrentReplay;
         if (operations.Count == 0)
             throw new NendoPreconditionException("move-unchanged", $"{request.RecordId} is already there.");
         var applied = await _coordinator.ApplyAsync(new NendoMutation(request.Context.IdempotencyScope, request.Context.IdempotencyKey,
             request.Context.Origin, $"Move {entity.DisplayName} {request.RecordId}", operations), cancellationToken);
+        if (applied.IsIdempotentReplay)
+            return await ReplayMoveAsync(request, identity, cancellationToken)
+                ?? throw new NendoPreconditionException("move-receipt-unavailable", "The committed move's history is no longer available.");
         var touched = operations.Cast<SetFieldOperation>().Select(operation => operation.RecordId).Distinct(StringComparer.Ordinal).ToArray();
         var moved = operations.Cast<SetFieldOperation>().Count(operation => operation.RecordId == request.RecordId);
-        return new(applied, request.ExpectedRecordVersion + moved, touched);
+        var committedVersion = applied.GeneratedChanges
+            .Where(change => change.EntityId == request.EntityId && change.RecordId == request.RecordId && change.RecordVersion is not null)
+            .Select(change => change.RecordVersion!.Value)
+            .Append(request.ExpectedRecordVersion + moved).Max();
+        return new(applied, committedVersion, touched);
+    }
+
+    private static long? RepresentableOrder(Int128 order) => order >= long.MinValue && order <= long.MaxValue ? (long)order : null;
+
+    private static string MoveOperationId(string identity, int ordinal) =>
+        NendoCanonical.DeterministicId("operation", "data.moveRecord", identity, ordinal);
+
+    private async Task<NendoMoveRecordResult?> ReplayMoveAsync(NendoMoveRecordRequest request, string identity,
+        CancellationToken cancellationToken)
+    {
+        var receipt = await _coordinator.GetMutationReceiptAsync(new(request.Context.IdempotencyScope, request.Context.IdempotencyKey), cancellationToken);
+        if (receipt is null) return null;
+        var page = await QueryRevisionOperationsAsync(new(receipt.RevisionId, 100), cancellationToken);
+        if (page.Items.FirstOrDefault()?.OperationId != MoveOperationId(identity, 0))
+            throw new NendoIdempotencyConflictException("This move request already identifies different inputs.");
+
+        var touched = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var authored = 0;
+        var version = request.ExpectedRecordVersion;
+        do
+        {
+            foreach (var stored in page.Items)
+            {
+                if (NendoOperationCodec.Read(stored.CanonicalJson) is not SetFieldOperation field) continue;
+                if (field.OperationId == MoveOperationId(identity, authored))
+                {
+                    authored++;
+                    if (seen.Add(field.RecordId)) touched.Add(field.RecordId);
+                }
+                // Rebuild this revision's version, including action writes, rather than
+                // substituting the current version of a record edited since the move.
+                if (field.EntityId == request.EntityId && field.RecordId == request.RecordId)
+                    version = Math.Max(version, field.ExpectedRecordVersion + 1);
+            }
+            if (page.NextCursor is null) break;
+            page = await QueryRevisionOperationsAsync(new(receipt.RevisionId, 100, page.NextCursor), cancellationToken);
+        } while (true);
+        return new(receipt, version, touched);
     }
 
     private sealed record Sibling(string RecordId, long Version, long? Order);

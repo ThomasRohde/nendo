@@ -12,7 +12,7 @@ export interface ChartSegment {
   label: string;
   /** The exact lexeme to display, or null over a group that contributed nothing. */
   lexeme: string | null;
-  /** The magnitude used for proportion only; never displayed. */
+  /** The numeric amount used for geometry only; signed for trends, never displayed. */
   amount: number;
   /** An inline style setting --status-color, or empty for the muted default. */
   style: string;
@@ -56,6 +56,13 @@ export function proportionOf(lexeme: string | null): number {
   if (lexeme === null) return 0;
   const parsed = Number(lexeme);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+/** A trend keeps the sign; null contributes no height, and its label still says none. */
+export function signedAmountOf(lexeme: string | null): number {
+  if (lexeme === null) return 0;
+  const parsed = Number(lexeme);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function tableToggle(key: string, open: boolean): string {
@@ -146,16 +153,20 @@ export interface ColumnsInput {
  */
 export function columns(input: ColumnsInput): string {
   const pending = statusMarkup(input.status, input.key);
-  const tallest = input.segments.reduce((most, segment) => Math.max(most, segment.amount), 0);
+  const high = input.segments.reduce((most, segment) => Math.max(most, segment.amount), 0);
+  const low = input.segments.reduce((least, segment) => Math.min(least, segment.amount), 0);
+  const span = high - low;
+  const baseline = span === 0 ? 0 : (-low / span) * 100;
   const plot = pending !== null
     ? pending
-    : `<div class="chart-columns" role="group" aria-label="${attribute(input.title)}">${input.segments.map((segment) => {
-      const empty = segment.lexeme === null || segment.amount <= 0;
-      const height = tallest <= 0 || empty ? 0 : Math.max(2, (segment.amount / tallest) * 100);
-      const name = `${segment.label}: ${empty ? 'none' : segment.lexeme}`;
+    : `<div class="chart-columns" style="--chart-zero: ${baseline.toFixed(2)}%" role="group" aria-label="${attribute(input.title)}">${input.segments.map((segment) => {
+      const empty = segment.lexeme === null;
+      const height = span === 0 || empty ? 0 : (Math.abs(segment.amount) / span) * 100;
+      const bottom = segment.amount < 0 ? baseline - height : baseline;
+      const name = `${segment.label}: ${segment.lexeme ?? 'none'}`;
       const drill = input.drillable ? ` data-chart-drill="${attribute(input.key)}" data-chart-group="${segment.key === null ? '' : attribute(segment.key)}" data-chart-unset="false"` : '';
-      return `<button type="button" class="chart-column${empty ? ' is-empty' : ''}" title="${attribute(name)}" aria-label="${attribute(name)}"${drill}${input.drillable ? '' : ' disabled'}>` +
-        `<span class="chart-column-fill" style="height: ${height.toFixed(2)}%" aria-hidden="true"></span>` +
+      return `<button type="button" class="chart-column${empty ? ' is-empty' : segment.amount === 0 ? ' is-zero' : segment.amount < 0 ? ' is-negative' : ''}" title="${attribute(name)}" aria-label="${attribute(name)}"${drill}${input.drillable ? '' : ' disabled'}>` +
+        `<span class="chart-column-fill" style="height: ${height.toFixed(2)}%; bottom: ${bottom.toFixed(2)}%" aria-hidden="true"></span>` +
         `<span class="chart-column-label" aria-hidden="true">${escape(segment.label)}</span></button>`;
     }).join('')}</div>`;
   const table = pending === null && input.tableOpen

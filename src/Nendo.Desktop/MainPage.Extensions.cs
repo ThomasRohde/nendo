@@ -54,6 +54,9 @@ public sealed partial class MainPage : IWorkbenchExtensionHost
     internal void ExtensionDevelopmentChanged(string packageId) =>
         PostWorkbenchEvent(WorkbenchEvents.ExtensionDevelopmentChanged, new { packageId });
 
+    internal void ExtensionSettingsChanged() =>
+        PostWorkbenchEvent(WorkbenchEvents.ExtensionSettingsChanged, null);
+
     Task<IReadOnlyList<ExtensionFrameProcess>> IWorkbenchExtensionHost.ReadFrameProcessesAsync() =>
         ExtensionFrameDiagnostics.ReadAsync(_webView?.CoreWebView2 ?? throw new NendoPreconditionException(
             "workbench-unavailable", "The app view is not running."));

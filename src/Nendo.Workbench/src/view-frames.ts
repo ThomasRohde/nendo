@@ -197,8 +197,9 @@ export function parkViewFrames(): void {
 /** After a redraw: a frame no placeholder adopted belongs to a view that is no longer on screen. */
 export function releaseViewFrames(): void {
   const reviewing = state.view === 'proposal';
+  const running = state.session.extensions?.run === true;
   for (const mount of [...mounts.values()]) {
-    if (mount.seen === generation || (reviewing && heldForReview.has(mount.key))) continue;
+    if (running && (mount.seen === generation || (reviewing && heldForReview.has(mount.key)))) continue;
     dispose(mount);
   }
   if (!reviewing) heldForReview.clear();
@@ -210,6 +211,7 @@ function dispose(mount: Mount): void {
   if (mount.frame !== null) retire(mount.frame);
   mount.frame = null;
   mount.toolbar = null;
+  drawToolbar(mount);
   if (mount.placeholder !== null) observer?.unobserve(mount.placeholder);
   mounts.delete(mount.key);
 }

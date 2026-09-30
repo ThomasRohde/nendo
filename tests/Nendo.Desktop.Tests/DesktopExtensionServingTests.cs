@@ -85,6 +85,35 @@ public sealed class DesktopExtensionServingTests
     }
 
     [TestMethod]
+    public async Task AnotherFileDeviceOffStopsAnAlreadyOpenControllersOriginsAndWriters()
+    {
+        await using var firstWorkspace = new DesktopTestWorkspace();
+        await using var secondWorkspace = new DesktopTestWorkspace();
+        await SeedAsync(firstWorkspace.FilePath);
+        await SeedAsync(secondWorkspace.FilePath);
+        await using var first = new DesktopSessionController(fileHistoryRoot: firstWorkspace.FileHistoryRoot, deviceStateRoot: firstWorkspace.FileHistoryRoot);
+        await using var second = new DesktopSessionController(fileHistoryRoot: secondWorkspace.FileHistoryRoot, deviceStateRoot: firstWorkspace.FileHistoryRoot);
+        await first.OpenAsync(firstWorkspace.FilePath);
+        await second.OpenAsync(secondWorkspace.FilePath);
+        var host = new Uri((await second.GetViewAsync()).Extensions!.Packages.Single().Origin).Host;
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        second.ExtensionSettingsChanged += () => changed.TrySetResult();
+
+        await first.SetExtensionSettingAsync("device", false);
+
+        // The host's authority check reads fresh state even before the polling event/redraw.
+        Assert.AreEqual(403, second.ExtensionOriginStatus(host), "Another file's device Off left an origin running.");
+        Assert.AreEqual(403, (await second.ReadExtensionAssetAsync(host, "")).Status);
+        var refused = Assert.Throws<NendoPreconditionException>(() => second.RequireExtensionWriter(PackageId));
+        Assert.AreEqual("views-off", refused.Code);
+        await changed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.AreEqual("device", (await second.GetViewAsync()).Extensions!.OffReason);
+        await second.SetExtensionSettingAsync("file", false);
+        Assert.IsFalse(new DesktopExtensionSettingsStore(firstWorkspace.FileHistoryRoot).Run,
+            "The already-open controller's file toggle restored device On.");
+    }
+
+    [TestMethod]
     public async Task ClosingTheFileStopsItsOrigins()
     {
         await using var workspace = new DesktopTestWorkspace();

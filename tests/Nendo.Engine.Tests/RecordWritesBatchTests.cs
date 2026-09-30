@@ -106,6 +106,42 @@ public sealed class RecordWritesBatchTests
         Assert.IsNull(replay.Records.Single().RecordVersion, "A replay stated a version the record may no longer hold.");
     }
 
+    [TestMethod]
+    public async Task ReferenceVersionsUseTheTargetTypeWhenRecordIdsCollide()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var (_, service) = await SeedAsync(workspace);
+        await service.CreateRecordAsync(new("folders", "shared", Values("name", "Target"), Context("shared-folder")));
+        await service.CreateRecordAsync(new("notes", "shared", Values("label", "Other type"), Context("shared-note")));
+
+        var result = await service.ApplyRecordWritesAsync(new(
+        [
+            new(NendoRecordWriteKind.Update, "notes", "shared", Values("label", "Edited"), 1),
+            new(NendoRecordWriteKind.Create, "notes", "child", Values("label", "Child", "folder", "shared"),
+                ExpectedTargetVersions: new Dictionary<string, long> { ["folder"] = 1 }),
+        ], Context("colliding-target")));
+
+        Assert.AreEqual(2, result.Records[0].RecordVersion);
+        var child = (await service.QueryRecordsAsync(new("notes", 1) { RecordId = "child" })).Items.Single();
+        Assert.AreEqual("shared", child.Values["folder"].GetString());
+        Assert.AreEqual(1, (await service.QueryRecordsAsync(new("folders", 1) { RecordId = "shared" })).Items.Single().RecordVersion);
+    }
+
+    [TestMethod]
+    public async Task ABatchMayWriteTheSameRecordIdInDifferentTypes()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var (_, service) = await SeedAsync(workspace);
+        var result = await service.ApplyRecordWritesAsync(new(
+        [
+            new(NendoRecordWriteKind.Create, "folders", "shared", Values("name", "Folder")),
+            new(NendoRecordWriteKind.Create, "notes", "shared", Values("label", "Note", "folder", "shared")),
+        ], Context("colliding-writes")));
+
+        CollectionAssert.AreEqual(new long?[] { 1, 1 }, result.Records.Select(record => record.RecordVersion).ToArray());
+        Assert.AreEqual("shared", (await service.QueryRecordsAsync(new("notes", 1) { RecordId = "shared" })).Items.Single().Values["folder"].GetString());
+    }
+
     private static async Task<(NendoWriteCoordinator, NendoApplicationService)> SeedAsync(EngineTestWorkspace workspace)
     {
         var coordinator = await workspace.CreateAsync();

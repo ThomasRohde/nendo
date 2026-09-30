@@ -128,7 +128,7 @@ internal static class NendoAuthoringOperations
     /// </summary>
     internal static IReadOnlyList<string> Rules { get; } =
     [
-        "Identifiers are global to the file: entityId, fieldId, recordId and nodeId are each unique across the whole file, not scoped to a parent, so prefix them with their owner (task, taskTitle).",
+        "Identifiers are global to the file for entityId, fieldId and nodeId. A record is identified by entityId plus recordId; recordId is unique within its record type. Prefix IDs with their owner (task, taskTitle) to keep them readable.",
         "A mutation is the materialization boundary for definitions: a required field sits in the same mutation as its schema.createEntity, or is added optional and made required later. UI nodes are exempt.",
         "expectedDefinitionRevision may be omitted wherever an operation lists it: the host fills in the value for that operation's position. Sent, it is honoured exactly.",
         "ui.addNode takes an inline properties map, so a node and its configuration cost one operation. Each property still expands to one canonical ui.setProperty, counted against the canonicalOperationLimit that every response echoes beside the submitted count.",

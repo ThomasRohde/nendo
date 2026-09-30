@@ -101,21 +101,23 @@
   }
 
   /**
-   * Longest-path layering over the condensed graph, so a component sits to the right
-   * of everything that supplies it. Edges inside one circuit are left out of the
-   * ordering: they are the loop, and keeping them would mean no ordering exists.
+   * Longest-path layering over the condensed graph. A circuit's members share a
+   * layer, to the right of every component feeding the circuit and to the left of
+   * everything it supplies. Internal circuit edges do not order its members.
    */
   function layout() {
     positions.clear();
-    const degree = new Map(nodes.map(node => [node.id, 0]));
-    const forward = new Map(nodes.map(node => [node.id, []]));
+    const groups = [...new Set(component.values())];
+    const degree = new Map(groups.map(group => [group, 0]));
+    const forward = new Map(groups.map(group => [group, new Set()]));
     for (const edge of edges) {
-      if (edge.sourceId === edge.targetId || component.get(edge.sourceId) === component.get(edge.targetId)) continue;
-      forward.get(edge.sourceId).push(edge.targetId);
-      degree.set(edge.targetId, degree.get(edge.targetId) + 1);
+      const source = component.get(edge.sourceId), target = component.get(edge.targetId);
+      if (source === target || forward.get(source).has(target)) continue;
+      forward.get(source).add(target);
+      degree.set(target, degree.get(target) + 1);
     }
-    const layer = new Map(nodes.map(node => [node.id, 0]));
-    const queue = nodes.filter(node => degree.get(node.id) === 0).map(node => node.id);
+    const layer = new Map(groups.map(group => [group, 0]));
+    const queue = groups.filter(group => degree.get(group) === 0);
     for (let at = 0; at < queue.length; at += 1) {
       const id = queue[at];
       for (const target of forward.get(id)) {
@@ -132,7 +134,7 @@
       return (a.band ?? '').localeCompare(b.band ?? '') || a.name.localeCompare(b.name);
     });
     for (const node of ordered) {
-      const at = layer.get(node.id);
+      const at = layer.get(component.get(node.id));
       const column = columns.get(at) ?? [];
       column.push(node); columns.set(at, column);
     }

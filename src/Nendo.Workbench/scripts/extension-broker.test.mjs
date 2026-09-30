@@ -92,6 +92,81 @@ const readMethods = ['data.queryRecords', 'data.treeRecords', 'data.countRecords
 // (WorkbenchMethods.ExtensionWriterMethods). Never promote or reject.
 const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.moveRecord', 'data.writeRecords', 'data.executeCommand', 'proposal.prepareChangeSet', 'extension.state.set'];
 
+test('R30-016: a batch admits the same record ID in different record types', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  const writes = ['nodes', 'other'].map(entityId => ({ op: 'update', entityId, recordId: 'shared', version: 1, values: { title: entityId } }));
+  view.send({ t: 'req', id: 1, m: 'records.batch', p: { writes } });
+  await until(() => h.calls.length > 0 || view.inbox.some(message => message.id === 1));
+  assert.equal(h.calls.length, 1, 'Batch normalization confused equal IDs in different record types.');
+  assert.deepEqual(h.calls[0].payload.writes.map(write => [write.entityId, write.recordId]), [['nodes', 'shared'], ['other', 'shared']]);
+  h.pending[0].resolve({ records: [] });
+  assert.equal((await view.next(message => message.id === 1)).ok, true);
+});
+
+test('R30-015: reserved property names survive record projections, labels, exact digits and calculated values', () => {
+  const fields = JSON.parse('{"__proto__":"kept","constructor":"named","toString":null}');
+  const record = model.plainRecord({ entityId: 'items', recordId: 'one', recordVersion: 1,
+    values: fields, referenceLabels: fields });
+  for (const [key, value] of Object.entries(fields)) {
+    assert.equal(Object.hasOwn(record.values, key), true, `Projection lost own field ${key}.`);
+    assert.equal(record.values[key], value);
+    assert.equal(Object.hasOwn(record.labels, key), true, `Projection lost own label ${key}.`);
+    assert.equal(record.labels[key], value);
+  }
+  const numeric = model.plainRecord({ entityId: 'items', recordId: 'one', recordVersion: 1,
+    values: JSON.parse('{"__proto__":{"$nendoNumber":"12.50"}}'),
+    calculations: ['constructor', 'toString'].map(fieldId => ({ fieldId, state: 'value', value: { $nendoNumber: '3.25' } })) });
+  assert.equal(numeric.values.__proto__, 12.5);
+  assert.equal(Object.hasOwn(numeric.exact, '__proto__'), true, 'Exact digits lost own __proto__ field.');
+  assert.equal(numeric.exact.__proto__, '12.50');
+  for (const key of ['constructor', 'toString']) {
+    assert.equal(Object.hasOwn(numeric.values, key), true, `Calculated projection lost own field ${key}.`);
+    assert.equal(numeric.values[key], 3.25);
+    assert.equal(numeric.calculated[key].exact, '3.25');
+  }
+  assert.equal(Object.getPrototypeOf(record.values), Object.prototype, 'A field changed the result prototype.');
+});
+
+test('R30-015: reserved field IDs reach create requests with reference target versions intact', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  const values = JSON.parse('{"__proto__":"ref-1","constructor":"named","toString":null}');
+  const targetVersions = JSON.parse('{"__proto__":7}');
+  view.send({ t: 'req', id: 1, m: 'records.create', p: { entityId: 'items', values } });
+  await until(() => h.calls.length === 1);
+  assert.equal(h.calls[0].method, 'data.createRecord');
+  assert.deepEqual(h.calls[0].payload.values, values, 'Create normalization lost a reserved field ID.');
+  h.pending[0].resolve({});
+  await until(() => h.calls.length === 2);
+  h.pending[1].resolve({ items: [] });
+  assert.equal((await view.next(message => message.id === 1)).ok, true);
+  view.send({ t: 'req', id: 2, m: 'records.create', p: { entityId: 'items', values, targetVersions } });
+  await until(() => h.calls.length === 3);
+  assert.deepEqual(h.calls[2].payload.expectedTargetVersions, targetVersions, 'Create normalization lost a reserved target version.');
+  h.pending[2].resolve({});
+  await until(() => h.calls.length === 4);
+  h.pending[3].resolve({ items: [] });
+  assert.equal((await view.next(message => message.id === 2)).ok, true);
+});
+
+test('R30-015: JSON state and places keep nested reserved names through write, read and place events', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  const value = JSON.parse('{"__proto__":{"__proto__":"nested","constructor":false},"constructor":0,"toString":null}');
+  assert.deepEqual(model.plainJson(value), value, 'JSON projection lost reserved keys.');
+  view.send({ t: 'req', id: 1, m: 'state.set', p: { key: '__proto__', value } });
+  await until(() => h.calls.length === 1);
+  assert.deepEqual(h.calls[0].payload.value, value, 'State write lost reserved keys.');
+  h.pending[0].resolve({});
+  await until(() => h.calls.length === 2);
+  h.pending[1].resolve({ entries: [{ key: '__proto__', value, version: 1 }] });
+  assert.deepEqual((await view.next(message => message.id === 1)).r, { key: '__proto__', value, version: 1 });
+  view.send({ t: 'req', id: 2, m: 'ui.setPlace', p: { place: value } });
+  assert.equal((await view.next(message => message.id === 2)).ok, true);
+  assert.deepEqual(h.places[0].value, value, 'Place declaration lost reserved keys.');
+  h.broker.place(h.mount, { ...value, restored: true });
+  const event = await view.next(message => message.n === 'place');
+  assert.deepEqual(event.d, { ...value, restored: true }, 'Place event lost reserved keys.');
+});
+
 test('the method table is closed: reads, the record writes, preparing a proposal, and no promote, reject, approve, file, session or agent method', () => {
   const expected = [
     ['schema.describe', null],

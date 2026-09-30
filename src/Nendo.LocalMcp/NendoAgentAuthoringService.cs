@@ -383,24 +383,27 @@ internal sealed class NendoAgentAuthoringService(
                     {
                         return ExactReplay(replay, digest);
                     }
-                    NendoProposalPreview? preview;
+                    string? proposalId;
                     if (_drafts.TryGetValue(changeSetId, out var draft))
                     {
                         RequireDraftOwnership(draft, sessionId, leaseId);
-                        preview = draft.Preview;
+                        proposalId = draft.Preview?.ProposalId;
+                        if (proposalId is not null)
+                        {
+                            await application.RejectProposalAsync(proposalId, cancellationToken);
+                        }
                         _drafts.Remove(changeSetId);
                     }
                     else
                     {
-                        preview = proposals.RemoveOwned(changeSetId, host.HostRunId, sessionId);
-                    }
-                    if (preview is not null)
-                    {
-                        await application.RejectProposalAsync(preview.ProposalId, cancellationToken);
+                        proposalId = proposals.GetOwned(changeSetId, host.HostRunId, sessionId).ProposalId;
+                        // Keep ownership and the review queue until the Engine has
+                        // released the clone. Cancellation while queued remains retryable.
+                        await proposals.RejectAsync(application, proposalId, cancellationToken);
                     }
                     var result = new NendoChangeSetRejectResult(
                         changeSetId,
-                        preview?.ProposalId,
+                        proposalId,
                         "rejected");
                     _rejectReplays.Add(replayKey, new Replay<NendoChangeSetRejectResult>(digest, result));
                     return result;

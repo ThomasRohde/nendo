@@ -5,7 +5,8 @@
 //
 // This runs the component's own <script>, transpiled in memory, against a stand-in for
 // the two elements it touches and a Pagefind whose every answer is held until the test
-// releases it. Nothing is built and no browser is started.
+// releases it. It also measures which excerpt markup reaches the rendered results.
+// Nothing is built and no browser is started.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -85,6 +86,25 @@ test('an answered search is shown', async () => {
   await pending;
   assert.equal(view.results.hidden, false);
   assert.match(view.results.innerHTML, /Records/);
+});
+
+test('search excerpts keep match highlights and strip other markup', async () => {
+  const view = mount();
+  const pending = view.type('record');
+  const call = await view.searchCall(1);
+  call.answer.resolve({
+    results: [{ data: async () => ({
+      url: '/nendo/docs/records',
+      meta: { title: 'Records' },
+      excerpt: '<p>Open <a href="/nendo/docs/records"><mark>record</mark></a> in <strong>Studio</strong>; <marking>other markup</marking>.</p>',
+    }) }],
+  });
+  await pending;
+  assert.match(view.results.innerHTML, /<mark>record<\/mark>/,
+    'The search excerpt stripped Pagefind match highlighting.');
+  assert.equal(view.results.innerHTML,
+    '<a href="/nendo/docs/records"><strong>Records</strong><span>Open <mark>record</mark> in Studio; other markup.</span></a>',
+    'The search excerpt retained markup other than its match highlight.');
 });
 
 test('clearing the field keeps an answer that arrives later hidden', async () => {

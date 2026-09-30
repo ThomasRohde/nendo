@@ -67,6 +67,22 @@ the final record version from that revision. A later edit conflicts without a
 partial inverse. This does not extend compensation to arbitrary
 multi-operation, multi-record or irreversible revisions.
 
+A draft retained after a lost write or authority change is explicit immutable
+state, so losing focus and an automatic file-change/read-chase refresh cannot
+erase the readable values. Deliberate departure may release it.
+
+Hierarchy moves bind the complete request to their receipt before expanding
+against current geometry. An exact retry replays the original revision and
+touched records after sibling reorders or a reopen; changed request terms with
+the same key are refused. Fresh move versions include automatic-action changes
+to the moved record. A replay carries the historical move outcome, so reread the
+record before making a new edit if it may have changed since.
+
+Automatic numbering in a proposal depends on the counters its clone allocated
+from. Promotion reports staleness if those counters advance; it never changes a
+reviewed code silently. Installing or changing a sequence also depends on the
+data revision from which its seed was computed. Preview reserves no active code.
+
 Proposal acceptance keeps the proposal ID and the reviewed operation digest.
 The current Workbench sends both. Under its gate, the coordinator checks that
 digest against the pending proposal or against its committed receipt. A delayed

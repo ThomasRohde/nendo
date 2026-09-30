@@ -25,7 +25,12 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
     private const int MaximumGrants = 512;
 
     private readonly string _root;
+    private readonly object _sync = new();
     private readonly List<StoredGrant> _grants = [];
+    private readonly List<(StoredGrant Grant, long Generation)> _sessionGrants = [];
+    private readonly HashSet<(string Application, string Instance)> _sessionRevocations = [];
+    private long _revocationGeneration;
+    private long _storedRevocationGeneration;
 
     private string StatePath => Path.Combine(_root, "behaviour-grants.json");
 
@@ -36,11 +41,25 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
 
     internal bool Persisted { get; private set; } = true;
 
-    public long RevocationGeneration { get; private set; }
+    public long RevocationGeneration
+    {
+        get { lock (_sync) { Read(); return _revocationGeneration; } }
+    }
 
     internal DesktopBehaviourGrantStore(string root)
     {
         _root = Path.GetFullPath(root);
+        Read();
+    }
+
+    // File replacement is atomic. Every authority check reads current device state, including
+    // the durable withdrawal generation, so another process cannot leave this one trusting
+    // revoked consent (even when consent was approved again before its next check).
+    private void Read()
+    {
+        _grants.Clear();
+        _storedRevocationGeneration = 0;
+        var readable = true;
         try
         {
             using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
@@ -48,8 +67,13 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
             var bytes = new byte[checked((int)stream.Length)];
             stream.ReadExactly(bytes);
             var document = JsonSerializer.Deserialize<StoredGrantDocument>(bytes, new JsonSerializerOptions { MaxDepth = 8 });
-            if (document?.Version != 1 || document.Grants is null || document.Grants.Count > MaximumGrants)
+            if (document?.Version != 1 || document.Grants is null || document.Grants.Count > MaximumGrants || document.RevocationGeneration < 0)
                 throw new JsonException("Unsupported approval document.");
+            _storedRevocationGeneration = document.RevocationGeneration;
+            _revocationGeneration = Math.Max(_revocationGeneration, _storedRevocationGeneration);
+            // An explicit withdrawal in another process also withdraws an approval that
+            // this process could not save. An unrelated future save must not restore it.
+            _sessionGrants.RemoveAll(grant => grant.Generation < _storedRevocationGeneration);
             // The reader fills a missing or null member with null whatever the declared
             // type says, so every entry and every string in it is checked before use.
             foreach (var grant in document.Grants)
@@ -64,45 +88,78 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
         {
             // Nothing is trusted from a state file that could not be read in full.
             _grants.Clear();
+            readable = false;
             Persisted = false;
             Notice = "Saved approvals could not be read, so nothing is approved on this device. Your files and their data are unaffected; approve again to allow automatic actions.";
+        }
+        _grants.RemoveAll(grant => _sessionRevocations.Contains((grant.ApplicationId, grant.InstanceId)));
+        foreach (var pending in _sessionGrants)
+            if (!_grants.Contains(pending.Grant)) _grants.Add(pending.Grant);
+        if (_sessionGrants.Count != 0 || _sessionRevocations.Count != 0)
+            Notice = "This approval change applies for now, but could not be saved for the next launch.";
+        else if (readable)
+        {
+            Persisted = true;
+            Notice = null;
         }
     }
 
     public bool IsGranted(NendoBehaviourGrant required)
     {
         ArgumentNullException.ThrowIfNull(required);
-        foreach (var stored in _grants)
+        lock (_sync)
         {
-            if (stored.Matches(required)) return true;
+            Read();
+            return _grants.Any(stored => stored.Matches(required));
         }
-        return false;
     }
 
     /// <summary>Records consent for exactly this behaviour, in this file, at this revision.</summary>
     internal void Approve(NendoBehaviourGrant grant)
     {
         ArgumentNullException.ThrowIfNull(grant);
-        if (IsGranted(grant)) return;
-        if (_grants.Count >= MaximumGrants) _grants.RemoveAt(0);
-        _grants.Add(StoredGrant.From(grant));
-        Save();
+        Change(() =>
+        {
+            var stored = StoredGrant.From(grant);
+            if (!_sessionGrants.Any(pending => pending.Grant == stored))
+                _sessionGrants.Add((stored, _storedRevocationGeneration));
+            if (_grants.Contains(stored)) return;
+            if (_grants.Count >= MaximumGrants) _grants.RemoveAt(0);
+            _grants.Add(stored);
+        });
     }
 
-    /// <summary>
-    /// Withdraws every approval for one file, whatever behaviour or revision it was
-    /// given for. Revoking is about the file, not about one version of its rules.
-    /// </summary>
-    internal void Revoke(string applicationId, string instanceId)
+    /// <summary>Withdraws every approval for one file, including approvals another process kept.</summary>
+    internal void Revoke(string applicationId, string instanceId) => Change(() =>
     {
-        var removed = _grants.RemoveAll(stored =>
-            string.Equals(stored.ApplicationId, applicationId, StringComparison.Ordinal) &&
-            string.Equals(stored.InstanceId, instanceId, StringComparison.Ordinal));
-        if (removed == 0) return;
-        // Moved before the write, so a save that fails still leaves the withdrawal in
-        // force for this session rather than appearing not to have happened.
-        RevocationGeneration++;
-        Save();
+        _sessionRevocations.Add((applicationId, instanceId));
+        _sessionGrants.RemoveAll(pending => pending.Grant.ApplicationId == applicationId && pending.Grant.InstanceId == instanceId);
+        _grants.RemoveAll(stored => stored.ApplicationId == applicationId && stored.InstanceId == instanceId);
+        // Before the write: an unsaved withdrawal still applies to this session.
+        _revocationGeneration++;
+    });
+
+    private void Change(Action change)
+    {
+        lock (_sync)
+        {
+            try
+            {
+                using var guard = DesktopDeviceStateLock.EnterRequired(StatePath);
+                Read();
+                change();
+                Save();
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // No shared write without serialization. Retain only this session's explicit
+                // choices, which will be merged with a fresh document on the next save.
+                Read();
+                change();
+                Persisted = false;
+                Notice = "This approval change applies for now, but could not be saved for the next launch.";
+            }
+        }
     }
 
     private void Save()
@@ -115,13 +172,15 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
             using (var stream = new FileStream(stage, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
             {
                 ownedStage = stage;
-                JsonSerializer.Serialize(stream, new StoredGrantDocument(1, _grants));
+                JsonSerializer.Serialize(stream, new StoredGrantDocument(1, _grants, _revocationGeneration));
                 stream.Flush(flushToDisk: true);
             }
             File.Move(stage, StatePath, overwrite: true);
             ownedStage = null;
             Persisted = true;
             Notice = null;
+            _sessionGrants.Clear();
+            _sessionRevocations.Clear();
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -129,7 +188,7 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
             // launch. Saying so is better than either losing it silently or pretending
             // it was stored.
             Persisted = false;
-            Notice = "This approval applies for now, but could not be saved for the next launch.";
+            Notice = "This approval change applies for now, but could not be saved for the next launch.";
         }
         finally
         {
@@ -141,7 +200,7 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
         }
     }
 
-    private sealed record StoredGrantDocument(int Version, IReadOnlyList<StoredGrant?> Grants);
+    private sealed record StoredGrantDocument(int Version, IReadOnlyList<StoredGrant?> Grants, long RevocationGeneration = 0);
 
     private sealed record StoredGrant(
         string ApplicationId,

@@ -49,6 +49,12 @@ internal sealed class ProposalContext(
     /// never works it out again.
     /// </summary>
     internal PreparedBehaviourPlan BehaviourPlan { get; set; } = PreparedBehaviourPlan.Empty;
+
+    // Counters used for clone allocations remain dependencies even if removed later.
+    // Installing or changing a sequence seeds it from data, binding the data revision.
+    internal IReadOnlyDictionary<string, long> ExpectedSequenceNext { get; set; } = new Dictionary<string, long>();
+    internal long? SequenceDataRevision { get; set; }
+
     internal NendoProposalState State { get; set; } = NendoProposalState.Draft;
     internal IReadOnlyList<NendoCompilerDiagnostic> Diagnostics { get; set; } = [];
     internal IReadOnlyList<NendoApplicationPlan> PreviewApplications { get; set; } = [];
@@ -184,6 +190,8 @@ internal static class ProposalWorkspace
             preview.TouchedRecords,
             preview.OperationDigest,
             preview.OperationCount,
+            context.ExpectedSequenceNext,
+            context.SequenceDataRevision,
             interpreterVersion = InterpreterVersion,
         };
         await File.WriteAllTextAsync(

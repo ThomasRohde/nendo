@@ -51,7 +51,7 @@ internal sealed class NendoAuthoringTools(
         A payload the host cannot bind is refused here, naming the mutation, operation and key; nothing enters the draft.
         The contract lives in nendo://application/vocabulary, not in this description: operations carries every canonical
         operation with the payload fields it requires and accepts, authoringRules the rules that are easy to break and
-        expensive to discover (identifiers are global to the file; a required field sits in the same mutation as its
+        expensive to discover (definition IDs are global; record IDs are scoped to their type; a required field sits in the same mutation as its
         schema.createEntity), and limits the bounds. nendo://application/examples carries complete change sets you can
         send as they stand.
         A failed validate leaves the draft open: correct it with nendo.change_set.amend rather than starting again.

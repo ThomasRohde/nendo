@@ -122,7 +122,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         : top.map(item => {
           // Pagefind returns the excerpt with the source page's own markup in it, so a
           // result could carry a link inside a link. Keep the match highlight, drop the rest.
-          const excerpt = item.excerpt.replace(/<(?!\/?mark)[^>]*>/g, '');
+          const excerpt = item.excerpt.replace(/<(?!\/?mark\b)[^>]*>/g, '');
           return `<a href="${item.url}"><strong>${item.meta.title ?? item.url}</strong><span>${excerpt}</span></a>`;
         }).join('');
       results.hidden = false;

@@ -2,7 +2,7 @@ import { fileCapabilities, type AgentProposalPreview, type AgentStatus, type Com
 import type { BucketResult, CellResult, GroupedResult } from './charts';
 import type { CalendarMode, CivilMonth } from './calendar-model';
 import { cacheKey, type ReadWindow, type WindowQuery } from './record-window';
-import type { DraftSession } from './draft-state';
+import type { DraftReason, DraftSession } from './draft-state';
 import type { OutlineState } from './outline-model';
 
 /**
@@ -195,6 +195,8 @@ export interface AppState {
   actionInFlight: boolean;
   recentFiles: RecentFiles;
   openDraft: OpenDraft | null;
+  /** A locked display draft holds the page until the person deliberately leaves it. */
+  retainedDraft: Readonly<{ reason: DraftReason }> | null;
   /** Which Help topic is open, and what is typed in its search box. */
   /**
    * What the last thing a person did came to, kept until they do the next thing.
@@ -235,6 +237,7 @@ export const state: AppState = {
   actionInFlight: false,
   recentFiles: { files: [], notice: null },
   openDraft: null,
+  retainedDraft: null,
   lastOutcome: null,
   helpTopicId: 'start',
   helpQuery: '',
@@ -368,4 +371,3 @@ export function leaveRecordContext(): void {
   state.createRelated = null;
   state.returnTo = null;
 }
-

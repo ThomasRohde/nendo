@@ -222,6 +222,7 @@ public sealed partial class MainWindow : Window
         // about. It goes to the renderer alone, which is the only thing that needs it.
         page.Session.FileCommitted += page.FileChanged;
         page.Session.ExtensionDevelopmentChanged += page.ExtensionDevelopmentChanged;
+        page.Session.ExtensionSettingsChanged += page.ExtensionSettingsChanged;
         // The renderer draws the sentence; the taskbar shows the same thing to somebody
         // whose window is behind another one. Both are told, neither waits on a gate.
         page.Session.AgentWorkChanged += work => DispatcherQueue.TryEnqueue(() =>

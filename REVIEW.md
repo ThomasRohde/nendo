@@ -1,6 +1,12 @@
 # Broad Nendo review — 2026-09-30
 
-Status: review complete. 18 findings remain open for owner triage: 3 High, 14 Medium, 1 Low. No Critical finding established. This report was updated as findings arrived; no fixes were applied.
+Status: source fixes for all 18 findings are implemented in the current checkout.
+Component checks and guard falsification are recorded in the fix pass below.
+Full Windows product qualification and a new installer remain to run on Windows.
+
+The original review evidence below describes the pre-fix behavior. Its recorded
+runs and original planner proposal are historical evidence, distinct from this
+implementation pass. No Critical finding was established.
 
 ## Objective and scope
 
@@ -44,7 +50,7 @@ Automated means a command/assertion ran during this review. Agent-observed means
 | R30-017 | Medium | a cancelled MCP rejection orphans a still-previewable proposal |
 | R30-018 | Medium | the public custom-view guide promises undo for changes History cannot compensate |
 
-## Current findings
+## Original findings
 
 ### R30-001 — High: a large Archi Commit partially saves, then refuses its remaining references
 
@@ -278,7 +284,7 @@ These are current documented decisions/qualification limits in `docs/roadmap.md`
 
 Highest-priority correction directions are R30-002/R30-014 (revocation/device Off surviving another controller's save), then R30-001 (partial Archi Commit). Follow-up work should reproduce each defect in an existing running lane, fix it, falsify the guard against the old behavior, restore the fix and retain the literal failure in the corresponding Finding. This review has not performed those implementation steps.
 
-## Handoff
+## Original review handoff
 
 The source review is complete. Fix/triage work remains open. `REVIEW.md` is the only workspace source/document change owned by this review; concurrent history-folding changes and the Archi demo commit are preserved. No product fix, commit, push, publication or owner installation update occurred.
 
@@ -289,3 +295,114 @@ Proposal ID: `proposal-12fa229f3be811e1a73b751515b92714`; captured definition re
 Next action: the owner accepts/reviews the proposal, triages R30-001–R30-018 and selects follow-up work, starting with revoked consent/device Off persistence and partial Archi Commit. Before any fix is closed, add and falsify a measuring regression guard in an existing lane and record its literal failure. REVIEW.md carries the durable evidence; the task-owned artifacts directory is disposable scratch, not a retention archive.
 
 Final report audit: **18 unique finding headings**, counts **3 High / 14 Medium / 1 Low**, UTF-8 decoding successful, **0 CR bytes**, **no BOM**. `git diff --check` exited **0**. The final installer SHA-256 still matched the built value above. Concurrent owner paths were left in place; no branch/index or source ownership changes were made in the main checkout.
+
+
+## Fix pass — 2026-09-30
+
+Codex fetched the newly pushed review and fast-forwarded the clean work branch to
+4795e59. The work is the review's stable item nd.work.r.broad-review-20260930; its
+short Reference was not available here. The registered owner-machine planner is
+not connected in this cloud environment, so no planner proposal or owner data was
+edited and no existing review proposal is claimed accepted. The user explicitly
+authorized implementing these fixes and subsequently requested a draft PR. The
+changes are prepared on codex/fix-review-20260930 against main for that handoff.
+No publication or owner installation change was made by this pass.
+
+### Implemented corrections and measuring guards
+
+The code guards below belong to existing test lanes. Each behavior defect was
+restored temporarily, the new guard failed, and the fix was restored and passed.
+.NET source restorations and builds were serialized. The prose-only guide
+correction was checked against the supported compensation contract; no synthetic
+runtime test is claimed for a text edit.
+
+| Finding | Correction and guard | Literal falsification evidence |
+| --- | --- | --- |
+| R30-001 | Archi commits at most 200 record writes in one batch; larger diffs send no requests and retain the draft. Generated 202-write diff measured in Node and the real browser. | An over-limit Commit sent 2 write requests and persisted 200 records; it must save nothing. |
+| R30-002 | Shared consent changes lock and reread current device state; durable withdrawal generations prevent stale approvals from restoring revoked consent. | An unrelated approval restored revoked consent from a stale store. |
+| R30-003 | Search excerpt sanitization preserves mark tags and strips other markup. Existing site script lane measures both. | AssertionError [ERR_ASSERTION]: The search excerpt stripped Pagefind match highlighting. |
+| R30-004 | Archi labels use cycle detection; named/unnamed cyclic tree rows and endpoint property links render in both themes. | RangeError: Maximum call stack size exceeded |
+| R30-005 | Signed trend columns share a zero baseline; exact negative, zero and null values have distinct accessible labels. | A negative trend lost its signed amount. |
+| R30-006 | Hierarchy placement uses Int128 arithmetic and renumbers unrepresentable first/last placements. Actual tree order and mixed-sign midpoint are measured. | Expected:<-1>. Actual:<2048>. A representable midpoint was lost to ordering overflow. |
+| R30-007 | Complete move requests bind canonical operation IDs; receipt replay precedes geometry expansion, survives reorder/reopen and rejects changed-input key reuse. | Nendo.Engine.NendoPreconditionException: moving is already there. |
+| R30-008 | Explicit retained display-draft state holds read-chase after blur and survives backup/cancelled-dialog paths; deliberate departure releases it. | read-chase lost the retained draft hold after focus left. |
+| R30-009 | Agent settings use scoped controller admission inside the gate. Late requests cannot alter the next file session. | Assert.ThrowsExactlyAsync failed. Expected exception type:<Nendo.Engine.NendoPreconditionException> but no exception was thrown. |
+| R30-010 | Port and lease settings validate before persistence or listener restart; rejection leaves both stores and the active lease unchanged. | A refused expiry saved the chosen file port. |
+| R30-011 | Promotion guards allocated sequence counters, including later-removed sequences; changing/installing a sequence binds its data-derived seed. An unrelated create without allocation still promotes the reviewed code. | Expected:<Stale>. Actual:<Active>. Acceptance silently replaced the reviewed generated code after its sequence advanced. |
+| R30-012 | Fresh move results include automatic-action writeback versions; exact replay reconstructs the historical outcome. | Expected:<3>. Actual:<2>. The move returned the version before its action wrote back. |
+| R30-013 | Systems Lens layers the SCC DAG, then places members in their component column. Browser guard uses A feeds B, B/C circuit, C feeds D. | A circuit was split across supply layers instead of ordered as one component: {"a":40,"b":310,"c":40,"d":310} |
+| R30-014 | Shared view controls merge current state; synchronous host checks and device-change events stop live frames, including frames held during proposal review, without dropping drafts. Later explicit switches supersede old unsaved choices; oversized saves preserve the readable durable document. | An unrelated stale file setting restored the device switch to On. Device Off left the review frame connected. |
+| R30-015 | Projections and normalized writes construct own properties; reserved field IDs and nested JSON state/place keys survive. | Projection lost own field __proto__. Create normalization lost a reserved field ID. JSON projection lost reserved keys. |
+| R30-016 | Batch uniqueness, target versions and generated-version results use entityId plus recordId. Broker and live MCP vocabulary state the same scope. | The selected target changed. Select it again before saving. Batch normalization confused equal IDs in different record types. |
+| R30-017 | MCP retains proposal ownership/queue entries until Engine rejection completes; queued cancellation is retryable. | Expected:<1>. Actual:<0>. Reject removed the review queue while waiting for Engine admission. |
+| R30-018 | Public custom-view guide states create/mixed-create and 128-operation compensation limits. | Source comparison against docs/contracts/custom-views.md and the compensation allow-list; no runtime falsification claimed for this prose correction. |
+
+Contracts, Archi design notes and the outside-review prompt now describe these
+behaviors. Shipped package sources are Archi 0.3.4 and Systems Lens 1.2.1. Existing
+.nendo files retain their installed packages until the owner accepts a package
+update through the normal host flow; they were not modified directly.
+
+### Fix-pass checks and qualification limits
+
+These are fresh Linux/cloud results for the changed source, separate from the
+original Windows review runs above. The environment used .NET SDK 10.0.204 and
+Chromium. No production platform guard was relaxed.
+
+| Command/lane | Literal outcome and scope |
+| --- | --- |
+| In src/Nendo.Workbench: npm run check; npm test; npm run verify:dependencies; npm run build | All exited 0. 444 tests passed, 0 failed. TypeScript and both Vite bundles built; dependency boundary passed. Vite's large-chunk and future config-import notices remain. |
+| node --test tools/archi/model.test.mjs tools/archi/canvas.test.mjs tools/archi/view.test.mjs tools/view-kit/kit.test.mjs | 29 passed, 0 failed; includes generated over-limit commits and cyclic relationship labels. |
+| node artifacts/review-fixes-20260930/archi/browser-gate.mjs | Exit 0; executes existing Gate-ArchiWorkbench.mjs through Playwright/Chromium. Final measurements: commitBound planned 202, requests 0, retained 202; relationshipCycles records 4, propertyRenders 8, themes 2. The Windows Edge wrapper was not run. |
+| node /tmp/nendo-systems-lens-run.mjs | Exit 0; literal Systems Lens browser measurements passed (Chromium, existing Gate-SystemsLens.mjs). The SCC fixture and existing lane assertions passed. |
+| Signed trend geometry through production columns and shipped CSS in Chromium | Positive and negative 250 bars both measured 33.5 px around the same baseline; zero/null markers measured 2 px with distinct exact/none labels. Both themes passed. This is a component browser measurement, not a native desktop journey. |
+| pwsh -NoProfile -File ./tools/Test-Site.ps1 -SkipInstall | Exit 0: 7 script tests passed, 0 failed; Astro check reported 0 errors/warnings/hints; 15 pages built and 402 internal references checked. No publication. |
+| pwsh -NoProfile -File ./tools/Test-ApplicationNeutrality.ps1 | Final exit 0: application-neutral shared boundary (358 source files scanned); client-neutral production source boundary. |
+| dotnet test artifacts/review-fixes-20260930/portable-engine-tests/PortableEngineTests.csproj --no-restore --nologo | Passed! Failed: 0, Passed: 79, Skipped: 0, Total: 79. Actual Engine sources plus the changed tests and proposal/hierarchy baselines, with only Windows instance ownership replaced by a process-local fixture. This is component evidence, not Windows ownership qualification. |
+| dotnet test artifacts/review-fixes-20260930/desktop-controller-tests/PortableDesktopTests.csproj --no-restore --nologo -p:UseSharedCompilation=false -nodeReuse:false --logger 'console;verbosity=normal' | Final unfiltered run exited 0: Passed 47, Failed 0, Total 47. Includes scoped/refused settings, grant and view-control persistence, live host authority/events and MCP rejection cancellation. Fixture boundaries are described below. |
+| dotnet build src/Nendo.LocalMcp/Nendo.LocalMcp.csproj --no-restore --nologo -p:EnableWindowsTargeting=true -p:UseSharedCompilation=false | Build succeeded. 0 Warning(s), 0 Error(s). Engine and LocalMcp compiled; this does not run Windows Desktop. |
+| Native Engine test invocation | Test assemblies compiled, but execution stopped at PlatformNotSupportedException: Local instance ownership currently supports Windows only. The native runtime lane did not pass. |
+| pwsh -NoProfile -File ./tools/Test-Repository.ps1 | Exit 1 at the binary-assets locked-file self-check: a copied demo held without sharing was reported as corrupt/unreadable rather than open in Nendo under Linux. The production gate was left intact. |
+| pwsh -NoProfile -File artifacts/review-fixes-20260930/root/repository-remainder.ps1 | Exit 0 for the unchanged remaining assertions: vendored files/manifests, tracked-file hygiene, LF, ADR structure, 12 contracts across 9 outside-review phases, and shell identity. This scratch wrapper omits only the separately attempted binary lane; its Repository verification passed output is not a full repository-gate pass. |
+| pwsh -NoProfile -File ./tools/Publish-NendoPayload.ps1 | Exit 1 before a payload was produced: The term 'npm.cmd' is not recognized. Windows payload/installer scripts were not modified for this environment. |
+
+Test-Production.ps1 was not run as a full lane: Windows Desktop/runtime is not
+available here. Build-NendoInstaller.ps1, Test-NendoInstaller.ps1 and
+Test-NendoSetupIsolated.ps1 were not run because the publish attempt produced no
+payload. No new installer is delivered by this fix pass, and the original
+review's installer must not be described as containing these fixes.
+
+The portable Desktop/MCP component harness links current Engine, controller,
+device-store and authoring-service source. Its fixture substitutions are Windows
+instance ownership, local file identity, protected discovery ACLs and the native
+workspace interface. It does not qualify WinUI, WebView2, process ownership,
+cross-process Windows mutex behavior or installer execution. Source-linked
+multiple-store tests and actual controller authority/event checks measure the
+device persistence changes; the native notification journey remains for Windows.
+
+Cross-review extended the device guards to cover unsaved approvals, late global
+On and same-file On choices, repeated explicit Off, and stale persistence notices.
+Removing the successful-read reset failed with: A successful shared approval
+reread kept the old persistence failure. Removing the pending file revision
+comparison failed with: An unsaved session file On outran another controller's
+later file Off. The fixes were restored before the final component run.
+Removing the writer's byte admission failed with: An oversized save replaced
+readable device Off with settings that reopen as On. Its restored guard measures
+unchanged durable bytes, repeated reads and reopen against a valid near-limit
+4,096-file fixture.
+
+Final changed-file audit: 74 tracked or new source/document/test paths, UTF-8
+without BOM, 0 CR bytes; git diff --check exited 0. No workspace .nendo path
+changed. Final command logs and portable runners are disposable task scratch
+under artifacts/review-fixes-20260930/ and artifacts/review-fixes/device-state/;
+the repository test sources and this report carry the lasting evidence.
+
+### Remaining handoff
+
+Run the full production lane and rebuild/test the paired payload and installer on
+Windows before closing product qualification. Reconcile these source changes and
+exact Check outcomes into nd.work.r.broad-review-20260930 when the registered
+planner is reachable; do not mark its original previewable proposal accepted or
+the Work Done from this report. Install updated shipped packages through the
+normal host flow when the owner is ready to accept them. The changed source,
+regression guards and this report are submitted together for draft-PR review;
+the remaining Windows lanes keep product qualification open.

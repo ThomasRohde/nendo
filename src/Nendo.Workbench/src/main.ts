@@ -27,6 +27,7 @@ import { beginPlacePickers, endPlacePickers } from './place-pickers';
 import { startTitleBar } from './title-bar';
 import { lookIconMarkup } from './file-look';
 import { chordOf } from './extension-api/protocol';
+import { refreshExtensionSettings } from './extension-settings';
 import { capitalise, messageFor } from './format';
 import {
   CellStyleModule,
@@ -102,6 +103,7 @@ function render(): void {
   destroyGrid();
   // The draft lives in the DOM this is about to replace.
   state.openDraft = null;
+  state.retainedDraft = null;
   // The one place a view is drawn is the one place the trail has to be told about a move,
   // rather than the dozens of call sites that change where somebody is.
   //
@@ -687,6 +689,10 @@ client.onFileChanged?.((changeSequence) => {
   if ((state.session.manifest?.changeSequence ?? 0) >= changeSequence) return;
   follow = followTarget(follow, state.session.fileSessionId, changeSequence);
   followTheFile();
+});
+
+client.onExtensionSettingsChanged?.(() => {
+  void refreshExtensionSettings().catch(error => showError(messageFor(error)));
 });
 
 for (const button of themeButtons) {

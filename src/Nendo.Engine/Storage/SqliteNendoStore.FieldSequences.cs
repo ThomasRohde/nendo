@@ -19,6 +19,10 @@ internal sealed partial class SqliteNendoStore
         return sequences;
     }
 
+    /// <summary>Host-owned proposal dependencies; never exposed to a client as storage state.</summary>
+    internal async Task<IReadOnlyDictionary<string, long>> GetSequenceCountersAsync(CancellationToken ct) =>
+        (await ReadSequencesAsync(null, ct)).ToDictionary(pair => pair.Key, pair => pair.Value.Next, StringComparer.Ordinal);
+
     /// <summary>Reads each field's sequence back onto its mapping, on both read paths.</summary>
     private async Task PopulateFieldSequencesAsync(List<FieldMapping> fields, SqliteTransaction? transaction, CancellationToken ct)
     {

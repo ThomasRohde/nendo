@@ -465,6 +465,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                         sequenceAfter,
                         false)
                     {
+                        AssignedValues = AssignedValues(evidence),
                         GeneratedChanges = chain is not null
                             ? GeneratedChanges(chain)
                             : reviewedForMutation.Length == 0

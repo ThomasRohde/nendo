@@ -11,7 +11,8 @@ Open Archi.nendo and choose **Views → Archi** in Use.
 
 - **The model tree** starts at the model and holds Archi's nine top-level folders in Archi's
   order; a folder shows its folders first, then its concepts and views by name. An unnamed
-  relationship reads as its type and its two ends.
+  relationship reads as its type and its two ends. A cyclic endpoint reference ends with
+  `[cycle]`, so relationships can still be selected and their properties opened.
 - **Find** (Ctrl F) and **Layer**, in Nendo's row above the view, narrow the tree to what
   matches and open the folders on the way to it.
 - **The middle** shows what the selection is part of: a concept's relationships and the views
@@ -45,8 +46,10 @@ Open Archi.nendo and choose **Views → Archi** in Use.
   ArchiMate allows between the two ends, reconnecting, bendpoints, the magic connector,
   marquee selection, Delete from the view and direct renaming. Edits collect rather than
   write: **Undo** (Ctrl Z) and **Redo** (Ctrl Y) work on them, **Commit** (Ctrl S) writes all
-  of them to the file as one revision, and **Discard** drops them. A box moved five times is
-  one change of its place when committed. The waiting edits are kept in this browser, so
+  of them to the file as one revision, up to 200 record writes, and **Discard** drops them.
+  A larger Commit saves nothing and keeps every edit waiting; use Undo to reduce it, then
+  commit. A box moved five times is one change of its place when committed. The waiting
+  edits are kept in this browser, so
   leaving the screen or the file finds them again, opened in the editor; a change to the file
   meanwhile is carried under them, and a commit writes only what the edits changed. Edit
   closes only when nothing waits.

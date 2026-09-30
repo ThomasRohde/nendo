@@ -18,6 +18,12 @@ Studio is available when:
 
 Application content cannot remove, replace or hide the route back to Studio.
 
+Agent connection settings are bound to the file session at request admission
+inside the controller gate. Switching files while a request waits refuses it;
+port and lease duration are both validated before either preference is saved or
+the listener restarts. A refused combined request keeps the current connection
+and edit lease.
+
 ## 2. Experience target
 
 The default Data workspace should feel closer to a modern Notion database table than to a raw SQLite browser. This is a target for interaction quality. It is not a target for visual imitation or feature parity.

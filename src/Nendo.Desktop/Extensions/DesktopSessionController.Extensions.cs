@@ -56,7 +56,33 @@ internal sealed partial class DesktopSessionController
     private volatile ExtensionServing _extensionServing = ExtensionServing.None;
     private readonly ExtensionContentCache _extensionContent = new();
 
-    private DesktopExtensionSettingsStore ExtensionSettings => _extensionSettings ??= new(_deviceStateRoot);
+    internal event Action? ExtensionSettingsChanged;
+
+    private DesktopExtensionSettingsStore ExtensionSettings
+    {
+        get
+        {
+            if (_extensionSettings is not null) return _extensionSettings;
+            var settings = new DesktopExtensionSettingsStore(_deviceStateRoot);
+            settings.Changed += OnExtensionSettingsChanged;
+            return _extensionSettings = settings;
+        }
+    }
+
+    private void OnExtensionSettingsChanged()
+    {
+        if (_disposed) return;
+        var serving = _extensionServing;
+        if (_extensionSettings is { } settings &&
+            (!settings.Run || serving.ApplicationId is { } applicationId && !settings.FileEnabled(applicationId)))
+            _extensionServing = serving with { Run = false };
+        // The device document changes independently of the file's data sequence. Tell the
+        // Workbench to reread it so every already-open file removes its frames as well.
+        ExtensionSettingsChanged?.Invoke();
+    }
+
+    private bool ExtensionsEnabled(ExtensionServing serving) => serving.Run &&
+        ExtensionSettings.Run && serving.ApplicationId is { } applicationId && ExtensionSettings.FileEnabled(applicationId);
 
     /// <summary>
     /// What the origin server may answer, swapped whole whenever the view is read. It is read
@@ -97,7 +123,7 @@ internal sealed partial class DesktopSessionController
     internal void RequireExtensionWriter(string packageId)
     {
         var serving = _extensionServing;
-        if (!serving.Run)
+        if (!ExtensionsEnabled(serving))
             throw new NendoPreconditionException("views-off", "Custom views are off, so a view cannot change this file.");
         if (!serving.Hosts.Values.Any(package => string.Equals(package.PackageId, packageId, StringComparison.Ordinal)))
             throw new NendoPreconditionException("actor-not-allowed", $"This file carries no package {packageId}, so nothing may write in its name.");
@@ -210,7 +236,7 @@ internal sealed partial class DesktopSessionController
     internal int ExtensionOriginStatus(string host)
     {
         var serving = _extensionServing;
-        return !serving.Run ? 403 : serving.Hosts.ContainsKey(host) ? 200 : 404;
+        return !ExtensionsEnabled(serving) ? 403 : serving.Hosts.ContainsKey(host) ? 200 : 404;
     }
 
     private DesktopExtensionRuntimeView DescribeExtensions(NendoSessionSnapshot snapshot, string health)
@@ -284,7 +310,7 @@ internal sealed partial class DesktopSessionController
     internal async Task<DesktopExtensionAsset> ReadExtensionAssetAsync(string host, string path, CancellationToken cancellationToken = default)
     {
         var serving = _extensionServing;
-        if (!serving.Run) return DesktopExtensionAsset.Forbidden;
+        if (!ExtensionsEnabled(serving)) return DesktopExtensionAsset.Forbidden;
         if (!serving.Hosts.TryGetValue(host, out var package)) return DesktopExtensionAsset.NotFound;
         // The serving order's development step: a package this device develops answers from its folder.
         if (ReadDevelopmentAsset(package.PackageId, path) is { } developed) return developed;

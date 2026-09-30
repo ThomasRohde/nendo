@@ -86,6 +86,7 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
   private readonly framesFailedListeners = new Set<(failed: HostFramesFailed) => void>();
   private readonly fileChangedListeners = new Set<(changeSequence: number) => void>();
   private readonly developmentListeners = new Set<(packageId: string) => void>();
+  private readonly extensionSettingsListeners = new Set<() => void>();
   private readonly agentActivityListeners = new Set<(work: AgentWork) => void>();
   private readonly titleBarListeners = new Set<(bar: WindowTitleBar) => void>();
   private readonly journal = new PendingMutationJournal({
@@ -274,6 +275,11 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     return () => { this.developmentListeners.delete(listener); };
   }
 
+  onExtensionSettingsChanged(listener: () => void): () => void {
+    this.extensionSettingsListeners.add(listener);
+    return () => { this.extensionSettingsListeners.delete(listener); };
+  }
+
   onFileChanged(listener: (changeSequence: number) => void): () => void {
     this.fileChangedListeners.add(listener);
     return () => { this.fileChangedListeners.delete(listener); };
@@ -344,6 +350,12 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
         } catch {
           // Nothing here can report a failure the person would act on.
         }
+      }
+      return;
+    }
+    if (message.event === 'extensionSettingsChanged') {
+      for (const listener of this.extensionSettingsListeners) {
+        try { listener(); } catch { /* Another listener must still hear the switch. */ }
       }
       return;
     }

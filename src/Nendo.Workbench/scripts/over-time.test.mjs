@@ -84,6 +84,39 @@ test('an empty bucket keeps its place, its label and its slot in the drawing',()
  assert.ok(markup.includes('data-chart-group="2026-08"'),'and can still be drilled into');
 });
 
+test('R30-005: signed trends draw both sides of zero and label negative, zero and empty buckets exactly',()=>{
+ const result={groups:[
+  {key:'2026-06',valueLexeme:'250',contributingRecords:1},
+  {key:'2026-07',valueLexeme:'-250',contributingRecords:1},
+  {key:'2026-08',valueLexeme:'0',contributingRecords:1},
+  {key:'2026-09',valueLexeme:null,contributingRecords:0},
+ ],start:'2026-06-01',end:'2026-09-30',changeSequence:1};
+ const segments=bucketSegments('month',result);
+ assert.equal(segments[1].amount,-250,'A negative trend lost its signed amount.');
+ const markup=columns({key:'k',title:'Amount',context:'sum',status:{state:'ready'},segments,tableOpen:true,drillable:true});
+ assert.ok(markup.includes('--chart-zero: 50.00%'),'Mixed signs need a zero baseline halfway between equal extrema.');
+ const buttons=[...markup.matchAll(/<button[^>]*class="chart-column[\s\S]*?<\/button>/g)].map(match=>match[0]);
+ assert.ok(buttons[0].includes('height: 50.00%; bottom: 50.00%'),'A positive amount must extend above zero.');
+ assert.ok(buttons[1].includes('height: 50.00%; bottom: 0.00%'),'A negative amount must extend below zero.');
+ assert.ok(buttons[1].includes('aria-label="Jul 2026: -250"'),'A negative trend must announce its exact value.');
+ assert.ok(buttons[2].includes('is-zero') && buttons[2].includes('aria-label="Aug 2026: 0"'),'Numeric zero must be announced as zero.');
+ assert.ok(!buttons[2].includes('is-empty'),'Numeric zero is not an empty aggregate.');
+ assert.ok(buttons[3].includes('is-empty') && buttons[3].includes('aria-label="Sep 2026: none"'),'An empty aggregate must remain distinct from zero.');
+ assert.ok(markup.includes('<th scope="row">Jul 2026</th><td>-250</td>'));
+ assert.ok(markup.includes('<th scope="row">Aug 2026</th><td>0</td>'));
+});
+
+test('R30-005: an all-negative trend puts zero above its columns, while all-zero keeps numeric labels',()=>{
+ const segments=bucketSegments('month',{groups:[{key:'2026-09',valueLexeme:'-250'}]});
+ const input={key:'k',title:'Amount',context:'min',status:{state:'ready'},segments,tableOpen:false,drillable:false};
+ const negative=columns(input);
+ assert.ok(negative.includes('--chart-zero: 100.00%'),'An all-negative trend needs zero at the top.');
+ assert.ok(negative.includes('height: 100.00%; bottom: 0.00%'),'An all-negative trend must have a visible negative column.');
+ const zero=columns({...input,segments:bucketSegments('month',{groups:[{key:'2026-09',valueLexeme:'0'}]})});
+ assert.ok(zero.includes('aria-label="Sep 2026: 0"'),'An all-zero trend must still announce zero.');
+ assert.ok(!zero.includes('NaN') && !zero.includes('Infinity'),'A zero range must not produce invalid geometry.');
+});
+
 test('a grid tones against its busiest day, and zero is its own step',()=>{
  const result={groups:[
   {key:'2026-01-01',valueLexeme:'0',contributingRecords:0},

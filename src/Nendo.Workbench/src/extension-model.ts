@@ -27,9 +27,9 @@ export function plainJson(value: unknown): Json {
   if (value === null || value === undefined) return null;
   if (Array.isArray(value)) return value.map((item) => plainJson(item));
   if (typeof value === 'object') {
-    const result: { [key: string]: Json } = {};
-    for (const [key, item] of Object.entries(value as Record<string, unknown>)) result[key] = plainJson(item);
-    return result;
+    // Define own properties, including names such as __proto__, without invoking
+    // Object.prototype's legacy setters.
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, plainJson(item)]));
   }
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   return typeof value === 'string' || typeof value === 'boolean' ? value : null;
@@ -42,29 +42,31 @@ export function plainJson(value: unknown): Json {
  * column should not have to know which fields are stored.
  */
 export function plainRecord(snapshot: RecordSnapshot): ViewRecord {
-  const values: { [fieldId: string]: Json } = {};
-  const exact: { [fieldId: string]: string } = {};
+  const values = new Map<string, Json>();
+  const exact = new Map<string, string>();
   for (const [fieldId, raw] of Object.entries(snapshot.values ?? {})) {
     const lexeme = exactNumberText(raw);
-    values[fieldId] = lexeme === null ? plainJson(raw) : Number(lexeme);
-    if (lexeme !== null) exact[fieldId] = lexeme;
+    values.set(fieldId, lexeme === null ? plainJson(raw) : Number(lexeme));
+    if (lexeme !== null) exact.set(fieldId, lexeme);
   }
-  const calculated: { [fieldId: string]: ViewCalculation } = {};
+  const calculated = new Map<string, ViewCalculation>();
   for (const result of snapshot.calculations ?? []) {
     const state = calculationState(result.state);
     const lexeme = state === 'value' ? exactNumberText(result.value) : null;
     const value = state !== 'value' ? null : lexeme === null ? plainJson(result.value) : Number(lexeme);
-    calculated[result.fieldId] = {
+    calculated.set(result.fieldId, {
       state, value, exact: lexeme, errorCode: result.errorCode ?? null, errorMessage: result.errorMessage ?? null,
-    };
-    if (!(result.fieldId in values)) {
-      values[result.fieldId] = value;
-      if (lexeme !== null) exact[result.fieldId] = lexeme;
+    });
+    if (!values.has(result.fieldId)) {
+      values.set(result.fieldId, value);
+      if (lexeme !== null) exact.set(result.fieldId, lexeme);
     }
   }
-  const labels: { [fieldId: string]: string | null } = {};
-  for (const [fieldId, label] of Object.entries(snapshot.referenceLabels ?? {})) labels[fieldId] = label ?? null;
-  return { entityId: snapshot.entityId, recordId: snapshot.recordId, version: snapshot.recordVersion, values, exact, labels, calculated };
+  const labels = Object.fromEntries(Object.entries(snapshot.referenceLabels ?? {}).map(([fieldId, label]) => [fieldId, label ?? null]));
+  return {
+    entityId: snapshot.entityId, recordId: snapshot.recordId, version: snapshot.recordVersion,
+    values: Object.fromEntries(values), exact: Object.fromEntries(exact), labels, calculated: Object.fromEntries(calculated),
+  };
 }
 
 /** A page of the host's records, as a view reads it. */

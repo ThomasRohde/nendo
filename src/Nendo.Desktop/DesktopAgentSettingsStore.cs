@@ -66,15 +66,7 @@ internal sealed class DesktopAgentSettingsStore
 
     internal void Save(bool leaseExpiry, int leaseExpirySeconds, bool fixedPort, int port)
     {
-        if (!IsExpirySeconds(leaseExpirySeconds))
-        {
-            throw new NendoValidationException(
-                $"Choose a lease expiry between {MinimumExpirySeconds} and {MaximumExpirySeconds} seconds.");
-        }
-        if (!IsPort(port))
-        {
-            throw new NendoValidationException("Choose a port between 1024 and 65535.");
-        }
+        Validate(leaseExpirySeconds, port);
         LeaseExpiry = leaseExpiry;
         LeaseExpirySeconds = leaseExpirySeconds;
         FixedPort = fixedPort;
@@ -110,6 +102,19 @@ internal sealed class DesktopAgentSettingsStore
                 try { File.Delete(ownedStage); }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
             }
+        }
+    }
+
+    internal static void Validate(int leaseExpirySeconds, int port)
+    {
+        if (!IsExpirySeconds(leaseExpirySeconds))
+        {
+            throw new NendoValidationException(
+                $"Choose a lease expiry between {MinimumExpirySeconds} and {MaximumExpirySeconds} seconds.");
+        }
+        if (!IsPort(port))
+        {
+            throw new NendoValidationException("Choose a port between 1024 and 65535.");
         }
     }
 

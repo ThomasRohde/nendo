@@ -213,6 +213,20 @@ test('a host navigate event reaches its listener', { timeout: 2000 }, async () =
   assert.deepEqual(seen, ['agent', 'health', 'studio']);
 });
 
+test('R30-014: a device custom-view switch event reaches live windows without a data revision change', () => {
+  const f = fixture(); const client = f.client(); let heard = 0;
+  assert.equal(typeof client.onExtensionSettingsChanged, 'function', 'The host adapter must expose device switch events.');
+  client.onExtensionSettingsChanged(() => { throw new Error('An unrelated listener failed.'); });
+  const stop = client.onExtensionSettingsChanged(() => heard++);
+  f.deliver({ protocolVersion: module.protocolVersion - 1, event: 'extensionSettingsChanged', payload: null });
+  assert.equal(heard, 0, 'A different protocol version was heard.');
+  f.deliver({ protocolVersion: module.protocolVersion, event: 'extensionSettingsChanged', payload: null });
+  assert.equal(heard, 1, 'The live device switch was not heard.');
+  stop();
+  f.deliver({ protocolVersion: module.protocolVersion, event: 'extensionSettingsChanged', payload: null });
+  assert.equal(heard, 1, 'A removed listener still heard a switch.');
+});
+
 test('a host event cannot name a route the router does not have', { timeout: 2000 }, async () => {
   const f = fixture(); const client = f.client();
   const seen = [];

@@ -189,20 +189,20 @@ function valuesParam(params: Params): Params {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw invalid('values must be an object of field IDs to values.');
   const entries = Object.entries(value as Params);
   if (entries.length === 0 || entries.length > 64) throw invalid('values must name 1 to 64 fields.');
-  const rebuilt: Params = {};
+  const rebuilt = new Map<string, unknown>();
   for (const [fieldId, item] of entries) {
     if (fieldId.length === 0 || fieldId.length > 256) throw invalid('Each field ID is text of 1 to 256 characters.');
-    if (item === null || typeof item === 'string' || typeof item === 'boolean') rebuilt[fieldId] = item;
+    if (item === null || typeof item === 'string' || typeof item === 'boolean') rebuilt.set(fieldId, item);
     else if (typeof item === 'number') {
       if (!Number.isFinite(item)) throw invalid(`${fieldId} must be a finite number.`);
-      rebuilt[fieldId] = { $nendoNumber: String(item) };
+      rebuilt.set(fieldId, { $nendoNumber: String(item) });
     } else if (typeof item === 'object' && !Array.isArray(item) && Object.keys(item).length === 1 &&
       typeof (item as Params).$nendoNumber === 'string' && /^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test((item as Params).$nendoNumber as string) &&
       ((item as Params).$nendoNumber as string).length <= 128) {
-      rebuilt[fieldId] = { $nendoNumber: (item as Params).$nendoNumber };
+      rebuilt.set(fieldId, { $nendoNumber: (item as Params).$nendoNumber });
     } else throw invalid(`${fieldId} must be null, text, true or false, a number, or { $nendoNumber: '…' }.`);
   }
-  return rebuilt;
+  return Object.fromEntries(rebuilt);
 }
 
 /**
@@ -217,14 +217,14 @@ function targetVersionsParam(params: Params, values: Params): { expectedTargetVe
   if (typeof value !== 'object' || Array.isArray(value)) throw invalid('targetVersions must be an object of reference field IDs to the target record’s version.');
   const entries = Object.entries(value as Params);
   if (entries.length > 64) throw invalid('targetVersions names at most 64 fields.');
-  const rebuilt: Record<string, number> = {};
+  const rebuilt = new Map<string, number>();
   for (const [fieldId, version] of entries) {
     if (!Object.hasOwn(values, fieldId)) throw invalid(`targetVersions names ${fieldId.slice(0, 256)}, which this write does not assign.`);
     if (typeof version !== 'number' || !Number.isSafeInteger(version) || version < 1)
       throw invalid(`targetVersions.${fieldId} must be the target record’s version, a whole number from 1: read it from that record.`);
-    rebuilt[fieldId] = version;
+    rebuilt.set(fieldId, version);
   }
-  return entries.length === 0 ? {} : { expectedTargetVersions: rebuilt };
+  return entries.length === 0 ? {} : { expectedTargetVersions: Object.fromEntries(rebuilt) };
 }
 
 /**
@@ -407,8 +407,9 @@ function recordWritesParam(params: Params): Params[] {
       if (error instanceof WorkbenchHostError) throw invalid(`writes[${index}]: ${error.message}`);
       throw error;
     }
-    if (seen.has(body.recordId)) throw invalid(`writes[${index}] writes ${body.recordId} again; put a record's changes in one write.`);
-    seen.add(body.recordId);
+    const identity = JSON.stringify([body.entityId, body.recordId]);
+    if (seen.has(identity)) throw invalid(`writes[${index}] writes ${body.recordId} again; put a record's changes in one write.`);
+    seen.add(identity);
     return body;
   });
 }

@@ -107,6 +107,18 @@ public sealed partial class NendoWriteCoordinator
             }
 
             var active = await store.GetSessionSnapshotAsync(FileName, Health, cancellationToken);
+            var currentSequences = await store.GetSequenceCountersAsync(cancellationToken);
+            if (context.ExpectedSequenceNext.Any(pair =>
+                    !currentSequences.TryGetValue(pair.Key, out var next) || next != pair.Value) ||
+                (context.SequenceDataRevision is { } dataRevision && active.Manifest.DataRevision != dataRevision))
+            {
+                context.State = NendoProposalState.Stale;
+                const string message = "Automatic numbering changed since this proposal was reviewed; prepare a new proposal.";
+                context.Diagnostics = [new("NPROP011", NendoDiagnosticSeverity.Error, message, null, null,
+                    "Reject this stale proposal and prepare a new proposal against the current file.")];
+                await ProposalWorkspace.PersistAsync(context, cancellationToken);
+                return new NendoPromotionOutcome(proposalId, NendoProposalState.Stale, false, message, null);
+            }
             if (active.Manifest.ApplicationId != context.SourceApplicationId ||
                 active.Manifest.InstanceId != context.SourceInstanceId ||
                 active.Manifest.DefinitionRevision != context.CapturedDefinitionRevision ||

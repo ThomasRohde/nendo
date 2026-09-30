@@ -56,6 +56,7 @@ const session = (overrides = {}) => ({
 function typedDraft() {
   Object.assign(page, { rerenders: 0, chrome: 0, errors: [], requests: [], retained: [], recovered: 0 });
   f.state.actionInFlight = false;
+  f.state.retainedDraft = null;
   f.state.session = session();
   const edited = new Set(['title']);
   f.state.openDraft = { session: { fileSessionId: 'session-1', canMutate: true }, edited };
@@ -132,4 +133,22 @@ test('without unsaved typing, a cancelled Open file still refreshes the page as 
   await f.chooseFile('session.openFile', null);
   assert.deepEqual(page.requests, ['session.openFile']);
   assert.equal(page.rerenders, 1);
+});
+
+test('R30-008: a finished or refused backup keeps read-only display typing until deliberate departure', async () => {
+  for (const refused of [false, true]) {
+    typedDraft();
+    const display = Object.freeze({ reason: 'read-only' });
+    f.state.openDraft = null;
+    f.state.retainedDraft = display;
+    page.reply = (method) => {
+      if (method === 'session.getSnapshot') return session();
+      if (refused) throw new Error('Backup refused.');
+      return { session: session(), notice: 'Backup created.' };
+    };
+    await f.runFileAction('file.backup');
+    assert.equal(page.rerenders, 0, 'A backup redrew the read-only display draft.');
+    assert.equal(f.state.retainedDraft, display, 'A backup dropped the retained display state.');
+    assert.deepEqual(page.retained, ['read-only']);
+  }
 });

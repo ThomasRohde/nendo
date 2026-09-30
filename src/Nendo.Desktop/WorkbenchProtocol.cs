@@ -100,6 +100,7 @@ internal static class WorkbenchEvents
     /// the package ID and nothing else; the renderer reloads that package's views.
     /// </summary>
     internal const string ExtensionDevelopmentChanged = "extensionDevelopmentChanged";
+    internal const string ExtensionSettingsChanged = "extensionSettingsChanged";
 
     /// <summary>
     /// An agent started or finished a call. Payload is whether work is running, the

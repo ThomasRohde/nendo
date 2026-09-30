@@ -200,13 +200,17 @@ internal sealed partial class DesktopSessionController
         int port,
         CancellationToken cancellationToken = default)
     {
-        await _gate.WaitAsync(cancellationToken);
+        await EnterRequestGateAsync(cancellationToken);
         try
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            // Refuse the whole request before either device store changes. A valid
+            // port paired with an invalid expiry must not be kept for the next start.
+            DesktopAgentSettingsStore.Validate(leaseExpirySeconds, port);
             if (_service is { Capabilities.AgentAccess: true } open)
             {
-                // With a file open the Port field is that file's own port. Kept first, because it
-                // is the part that can be refused, and a refused port must change nothing else.
+                // With a file open the Port field is that file's own port. Its
+                // reservation can still be refused, before saving the validated settings.
                 if (fixedPort) Ports().Set(await AgentApplicationIdAsync(open, cancellationToken), _agentFileName, port);
                 Settings().Save(leaseExpiry, leaseExpirySeconds, fixedPort, Settings().Port);
             }

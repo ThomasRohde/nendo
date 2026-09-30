@@ -156,8 +156,8 @@ internal sealed class NendoImportService(NendoApplicationService application)
 
         // A CSV row carries no record ID, so one is derived from the caller's key and the
         // row's position. Stable, which is what makes an exact retry ask for the same
-        // records rather than a second copy of them, and unique to this import, because
-        // record IDs are global to the file rather than scoped to a record type.
+        // records rather than a second copy of them, and distinct from another import
+        // in the same record type. Record identity includes the record type.
         var records = decoded
             .Select((row, index) =>
             {

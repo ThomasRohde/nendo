@@ -277,6 +277,12 @@ and whether the summary tells you the size of a screen — a matrix's cells, a b
 columns — or only its title. A reviewer who cannot answer these from the review is being
 asked to approve something they have not been shown.
 
+Prepare a proposal that creates an automatically numbered record. Before
+acceptance, create another record that consumes that sequence through a separate
+data write. Acceptance must explain staleness and leave the proposed record
+absent. Repeat with a changed sequence prefix: the reviewed code must never be
+silently replaced by a new seed.
+
 ## Phase 3 — Screens
 
 Build every kind of screen the vocabulary describes, including more than one of a kind on
@@ -512,6 +518,10 @@ that you could not.
 - Write repeatedly, a few times a second, for half a minute. Report whether the screen
   keeps up, gives up, or becomes unusable.
 
+Include negative, zero and empty aggregates in a monthly trend. Compare the
+columns, zero baseline, accessible labels and table against the exact stored
+values; a negative value must never be described as none.
+
 ## Phase 4b — Data in bulk, and a level that does not ask
 
 Two surfaces landed on 2026-09-22 and neither has been reviewed from outside.
@@ -645,6 +655,18 @@ problem, named the thing it was refusing, and offered a remedy you could act on:
   what they saw and how long it took to arrive. Report whether anything told you the
   person was not looking — and whether anything should have.
 
+After an unsettled save leaves a form readable but disabled, move focus onto a
+blank area and let another client write to the file. The retained unsaved text
+must remain available for copying through autonomous refresh. Retry a hierarchy
+move with the same key after a sibling reorder; it must identify the original
+revision, including generated changes, without moving the record again. Use
+extreme signed ordering values in a disposable type and check the actual tree
+order after moving first or last.
+
+Cancel a proposal rejection while it waits behind other work, then read the
+pending proposals and retry. A still-previewable proposal must remain listed and
+owned until rejection actually releases it.
+
 ## Phase 7 — Their eyes, not yours
 
 Ask the person to look at the app and tell you, in their words:
@@ -701,6 +723,14 @@ Ask the person to look at the app and tell you, in their words:
   key now say which, and does the key do what the hint says? Close and reopen the window:
   is the choice still there? Then press Ctrl 1 to Ctrl 7, F1, Ctrl B and Alt F from inside
   a text field, and say which of them did something you did not want there.
+
+With two disposable files open, revoke automatic-action consent in one and
+approve the other. Reopen the first and confirm it still requires approval.
+Turn custom views Off globally in one window, then change the other file's switch
+or development link. Both windows must stop their frames and reopening must keep
+Off. Delay a connection-settings request across a file switch: the new file's
+connection must remain unchanged. Submit a valid new port with an invalid lease
+duration together and check both saved and live settings remain unchanged.
 
 ## Phase 8 — A development planner as a real application
 
@@ -898,6 +928,9 @@ vocabulary, the examples and the resources — and not from the person.
   whether the caveat and the verdicts read the same both ways. In the Gantt, press Tab once
   and record whether it lands on the rows as one stop, whether Up, Down, Home and End move
   between them with a ring you can see in both themes, and whether Tab then leaves the chart.
+  In the Lens, make A feed B, B and C form a circuit, and C feed D. The circuit's
+  members must share a column between A and D, including when supply enters and
+  leaves different members.
   Type in Find,
   press Enter, and record what dimmed and what opened.
 - On any Use screen, record what stands between the top bar and the screen's content, row by
@@ -957,7 +990,10 @@ vocabulary, the examples and the resources — and not from the person.
   and record what Commit said was waiting before you pressed it, what History shows for the
   commit, and what Studio's Diagram item list shows for the box you moved. Make one more edit,
   leave the screen without committing, come back, and record whether the edit was still
-  waiting.
+  waiting. In a disposable Archi file, accumulate more than 200 record writes
+  (101 elements with their boxes gives 202) and Commit. It must save no records
+  and retain the draft. Add named and unnamed relationship endpoint cycles and
+  open their tree rows and properties; labels must remain finite.
 - Open History in a file you have edited a lot (or a copy of one) and record what it says about
   how many changes the file has recorded. Choose **Fold older history…** and record what the
   dialog says will happen before you confirm, what file appears beside the original, what
@@ -1022,3 +1058,11 @@ third attempt succeeded after two refusals that did not name the field" is worth
 "good" or "needs improvement".
 
 Do not fix anything. You are reviewing, not repairing.
+
+For a disposable custom-view schema, use semantic field IDs `__proto__`,
+`constructor` and `toString`. Read and create records and round-trip nested JSON
+state/place values; each own key and exact value must survive. Use the same
+record ID in two different types, update one and reference the other in a batch;
+target-version checks must use the target type as well as its record ID. Compare
+the public view guide's History promise against create, mixed-create and
+more-than-128-operation batches: only supported compensation is promised.

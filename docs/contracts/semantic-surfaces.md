@@ -233,7 +233,10 @@ A redraw that nobody asked for waits while the page holds unsaved typing. Such a
 redraw is a read that the screen chases, or the file being followed after a write
 from elsewhere. It already waits in the same way while a menu is open. It occurs
 as soon as the draft is saved or closed. Nothing saves on the person's behalf so
-that their next click can proceed.
+that their next click can proceed. A draft retained read-only after authority
+loss also holds autonomous refresh after focus leaves the form. Its values stay
+readable through file-change/read-chase notifications and backup dialogs until
+the person deliberately leaves the page.
 
 ## The Date calendar
 
@@ -799,7 +802,9 @@ as it cannot group or be totalled.
 An `activityGrid` **counts only** and has no `aggregate` or `fieldId` at all. A
 square toned by a sum is a heat map of a number that a person cannot recover from
 the square. A `trendChart` takes the same exact aggregates as a `summaryTile`,
-and `avg` stays refused by name.
+and `avg` stays refused by name. Signed numeric trend columns share a zero
+baseline: negative values extend below it and positive values above it. Labels
+state negative and zero values; only an empty aggregate is called none.
 
 **The range spends two of the filter budget.** The two bounds are predicates that
 the host adds to the query. So a `trendChart` or an `activityGrid` carries at

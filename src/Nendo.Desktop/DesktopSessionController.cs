@@ -431,6 +431,7 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
                 return;
             }
             _disposed = true;
+            _extensionSettings?.Dispose();
             await CloseFileCoreAsync();
         }
         finally

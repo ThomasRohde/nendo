@@ -550,7 +550,9 @@ commands, through the same typed operations and version checks as a person's edi
   idempotency key, so a request is never applied twice.
 - **Values.** Each value is null, text, true or false, a number, or
   `{"$nendoNumber": "‹digits›"}` for a decimal a JavaScript number would round. The
-  broker rebuilds the map field by field, at most 64 fields.
+  broker rebuilds the map field by field, at most 64 fields. Valid field IDs such as
+  `__proto__`, `constructor` and `toString` remain own properties through reads and
+  writes; JSON state and place keys obey the same rule.
 - **The answer** is the record read back after the write, with its new version, or
   null after a delete.
 - **Not the person's save.** A view's write does not take the Workbench's pending-save
@@ -577,7 +579,9 @@ belong together.
 - A reference to a record created or updated earlier in the same batch needs no
   target version: the Engine checks it against the version that write leaves, which the
   view cannot know. A reference to a record the batch deletes earlier is refused as a
-  missing target.
+  missing target. Each target version is keyed by its target type and record ID;
+  another type holding the same record ID cannot alter that check. A batch may
+  write the same record ID in two different types.
 - There is no move in a batch, because a move reads its siblings from the committed
   file. Set a tree's parent and order fields in an `update`, or call `records.move`.
 - The answer is each record's new version, in the order written, and null for a
@@ -1011,6 +1015,17 @@ A view that is shown runs. Views are off when any of these holds:
 | The file's health is not `normal` | `health` | Health says why | While the file is read-only or needs recovery |
 | **Restart without custom views** | `recovery` | The native recovery panel | Until **Run custom views** is turned on again or Nendo starts again; never saved |
 
+Shared switch and development-link updates reread current device state while
+holding a cross-process document lock, preserving other files' choices. A stale
+controller cannot restore global On while changing its own file. Open controllers
+poll for changes every 250 ms and notify the Workbench to remove affected frames;
+this is an interval, not a delivery-time guarantee. Host authority checks also
+read the switches synchronously. If the shared document cannot be locked or
+saved, the choice remains in the session and the panel reports the persistence
+notice instead of overwriting shared state.
+An explicit later device or same-file switch choice supersedes an older unsaved
+choice; unrelated file or development-link changes preserve it.
+
 When more than one holds, `offReason` names the first of `recovery`, `device`,
 `file` and `health`, in that order.
 
@@ -1046,7 +1061,9 @@ cannot turn off anyone else's. Both switches default to on. The store holds at
 most 256 KiB and 4,096 files. If it cannot be read, views run with the defaults
 for the session, and the panel says: "The saved custom view settings could not be
 read. Views run with the defaults for this session." If a change cannot be saved,
-it applies for the session, and the panel says so.
+it applies for the session, and the panel says so. A save that would exceed the
+256 KiB reader bound keeps the previous readable document and reports the same
+session-only notice.
 
 The session snapshot carries the switches and the packages as `extensions`:
 
@@ -1177,11 +1194,16 @@ The Workbench reaches the host over the bridge (protocol 7) with these methods:
 | `extension.develop.save` | `{packageId}` | The proposal preview Import would prepare from the folder; `extension-not-linked` when the package is not developed on this device |
 | `diagnostics.frameProcesses` | `{}` | Only when `NENDO_NATIVE_DIAGNOSTICS=1`, otherwise `unknown-method`: each browser process with its ID, kind, private working set in bytes and the frames it holds, each `{name, source}` |
 
-The host sends one event of its own for views. `extensionFramesFailed` carries
+The host reports renderer failure through `extensionFramesFailed`, which carries
 `{fileSessionId, frames}`, the names of the view frames whose renderer ended. The
 Workbench ignores it for another file session, and ignores a payload with no
 frames, more than 256, or a name that is not `nendo-view-` and twelve hex digits.
 A view's `changes` events come from the existing `fileChanged` event.
+
+`extensionSettingsChanged` carries null: a shared device control changed without
+changing the file's data sequence. The Workbench rereads the session, discards
+late replies from a replaced file session, and removes disabled frames, including
+those held for proposal review. A focused or retained record draft stays in place.
 
 `extensionDevelopmentChanged` carries `{packageId}` and nothing else: the folder
 behind a developed package changed, or a link started or stopped. The Workbench

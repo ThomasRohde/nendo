@@ -674,6 +674,8 @@ export interface WorkbenchClient {
   onFileChanged?(listener: (changeSequence: number) => void): () => void;
   /** A package developed from a folder changed there; its views load it again (ADR-0013 Phase 4). */
   onExtensionDevelopmentChanged?(listener: (packageId: string) => void): () => void;
+  /** Device custom-view switches changed, including a change made in another window. */
+  onExtensionSettingsChanged?(listener: () => void): () => void;
   /**
    * Listen for an agent starting or finishing a call.
    *

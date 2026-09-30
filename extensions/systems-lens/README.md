@@ -7,7 +7,8 @@ to the one it supplies**, so reading left to right is reading the direction of s
 What it shows that a list cannot:
 
 - **Direction of supply.** Longest-path layering over the condensed graph puts each
-  component to the right of everything that feeds it.
+  circuit's members in one column, to the right of everything that feeds the circuit
+  and to the left of everything it supplies.
 - **Circuits, named exactly.** A coolant loop *is* a cycle, and so is a water loop that
   returns to the tank it draws from. Strongly connected components are marked `loop`; a
   component merely standing in front of one is not.
@@ -107,7 +108,8 @@ on another, and runs the real `api.js` between them in Playwright (msedge). Its 
 carries a reservoir feeding two pumps onto one manifold, a cold plate hanging off one pump
 alone, a three-component coolant circuit, an isolated sensor, a component stored Offline, a
 parallel feed and a markup-shaped label. It measures the layering, exact circuit membership
-and circuit legs, the band read from the System reference's name, state names read from the
+and circuit legs, including supply that enters and leaves different circuit members, the
+band read from the System reference's name, state names read from the
 schema, the summary counts, exactly one `ui.openRecord` per selection, **both take-out
 verdicts by name**, the text alternative, that the view asks only for reads and for opening
 a record, Focus dimming, keyboard traversal, non-selectable chrome, a re-read only after a

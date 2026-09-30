@@ -35,6 +35,11 @@ function refusedOverDraft(method: string): boolean {
  * as a failed save does.
  */
 function keepsDraft(refreshed: DesktopSessionView): boolean {
+  if (state.retainedDraft !== null) {
+    refreshChrome();
+    retainDraftReadOnly(state.retainedDraft.reason);
+    return true;
+  }
   const draft = state.openDraft;
   if (draft === null || !recordFormIsDirty()) return false;
   const decided = decideDraftState(draft.session, { fileSessionId: refreshed.fileSessionId, canMutate: refreshed.capabilities.mutate }, true);
@@ -45,7 +50,7 @@ function keepsDraft(refreshed: DesktopSessionView): boolean {
 
 /** After a file action the host refused: the draft decides first, as it does after a failed save. */
 async function recoverFromFileAction(): Promise<void> {
-  if (recordFormIsDirty()) {
+  if (recordFormIsDirty() || state.retainedDraft !== null) {
     try {
       const refreshed = await client.request<DesktopSessionView>('session.getSnapshot');
       const changed = state.session.fileSessionId !== refreshed.fileSessionId;

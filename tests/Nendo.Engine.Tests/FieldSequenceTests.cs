@@ -134,6 +134,132 @@ public sealed class FieldSequenceTests
             "W-002 was handed out before the sequence was removed, and stays spent after it comes back.");
     }
 
+    [TestMethod]
+    public async Task AReviewedGeneratedCodeIsStaleIfTheActiveSequenceAdvances()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator, service);
+        await SequenceAsync(coordinator, service, "W-", 3);
+        var preview = await NumberedProposalAsync(service);
+        Assert.AreEqual("W-001", await PreviewCodeAsync(coordinator, preview));
+        await CreateAsync(service, "active", null);
+        var before = (await service.GetSnapshotAsync()).Manifest.ChangeSequence;
+
+        var outcome = await service.PromoteProposalAsync(preview.ProposalId);
+
+        Assert.AreEqual(NendoProposalState.Stale, outcome.State,
+            "Acceptance silently replaced the reviewed generated code after its sequence advanced.");
+        Assert.IsFalse(outcome.Applied);
+        Assert.AreEqual(before, (await service.GetSnapshotAsync()).Manifest.ChangeSequence);
+        Assert.IsEmpty((await service.QueryRecordsAsync(new(Entity, 1) { RecordId = "proposed" })).Items);
+        Assert.AreEqual("W-001", Code(await RecordAsync(service, "active")));
+        Assert.AreEqual("NPROP011", (await service.GetProposalAsync(preview.ProposalId)).Diagnostics.Single().Code);
+    }
+
+    [TestMethod]
+    public async Task UnrelatedDataWithoutSequenceAllocationKeepsTheReviewedCode()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator, service);
+        await SequenceAsync(coordinator, service, "W-", 3);
+        var preview = await NumberedProposalAsync(service);
+        var reviewed = await PreviewCodeAsync(coordinator, preview);
+        await CreateAsync(service, "unrelated", "Manual");
+
+        var outcome = await service.PromoteProposalAsync(preview.ProposalId);
+
+        Assert.IsTrue(outcome.Applied, outcome.Message);
+        Assert.AreEqual(reviewed, Code(await RecordAsync(service, "proposed")));
+        Assert.AreEqual("W-002", (await CreateAsync(service, "next", null)).AssignedValues.Single().Value);
+    }
+
+    [TestMethod]
+    public async Task ANewSequenceSeedIsStaleWhenItsSourceDataChanges()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator, service);
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        var proposalId = $"proposal-{Guid.NewGuid():N}";
+        var preview = await service.PrepareProposalAsync(new NendoProposalRequest(proposalId, "Number an item", "test", new([
+            new NendoMutation("sequence-proposal", proposalId + "-schema", "test", "Number automatically",
+                [new SetFieldSequenceOperation("sequence", Entity, "code", "W-", 3, revision)]),
+            new NendoMutation("sequence-proposal", proposalId + "-create", "test", "Create item",
+                [new CreateRecordOperation("create", Entity, "proposed", new Dictionary<string, object?> { ["title"] = "Proposed" })]),
+        ])));
+        Assert.AreEqual("W-001", await PreviewCodeAsync(coordinator, preview));
+        await CreateAsync(service, "active", "W-010");
+
+        Assert.AreEqual(NendoProposalState.Stale, (await service.PromoteProposalAsync(preview.ProposalId)).State,
+            "A newly installed sequence silently changed its reviewed seed.");
+    }
+
+    [TestMethod]
+    public async Task ChangingAnExistingSequencePrefixGuardsItsDataDerivedSeed()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator, service);
+        await SequenceAsync(coordinator, service, "W-", 3);
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        var id = $"proposal-{Guid.NewGuid():N}";
+        var preview = await service.PrepareProposalAsync(new NendoProposalRequest(id, "Change prefix", "test", new([
+            new NendoMutation("sequence-proposal", id + "-prefix", "test", "Change prefix",
+                [new SetFieldSequenceOperation("prefix", Entity, "code", "X-", 3, revision)]),
+            new NendoMutation("sequence-proposal", id + "-create", "test", "Create item",
+                [new CreateRecordOperation("create", Entity, "proposed", new Dictionary<string, object?> { ["title"] = "Proposed" })]),
+        ])));
+        Assert.AreEqual("X-001", await PreviewCodeAsync(coordinator, preview));
+        await CreateAsync(service, "active", "X-010");
+        Assert.AreEqual(NendoProposalState.Stale, (await service.PromoteProposalAsync(id)).State,
+            "Changing a sequence prefix silently reseeded its reviewed code.");
+    }
+
+    [TestMethod]
+    public async Task RemovingASequenceAfterAllocatingStillGuardsTheReviewedAllocation()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator, service);
+        await SequenceAsync(coordinator, service, "W-", 3);
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        var id = $"proposal-{Guid.NewGuid():N}";
+        var preview = await service.PrepareProposalAsync(new NendoProposalRequest(id, "Create then stop numbering", "test", new([
+            new NendoMutation("sequence-proposal", id + "-create", "test", "Create item",
+                [new CreateRecordOperation("create", Entity, "proposed", new Dictionary<string, object?> { ["title"] = "Proposed" })]),
+            new NendoMutation("sequence-proposal", id + "-remove", "test", "Stop numbering",
+                [new SetFieldSequenceOperation("remove", Entity, "code", null, null, revision)]),
+        ])));
+        Assert.AreEqual("W-001", await PreviewCodeAsync(coordinator, preview));
+        await CreateAsync(service, "active", null);
+        Assert.AreEqual(NendoProposalState.Stale, (await service.PromoteProposalAsync(id)).State,
+            "Removing a sequence erased its earlier allocation dependency.");
+    }
+
+    private static Task<NendoProposalPreview> NumberedProposalAsync(NendoApplicationService service)
+    {
+        var id = $"proposal-{Guid.NewGuid():N}";
+        return service.PrepareProposalAsync(new NendoProposalRequest(id, "Create numbered item", "test", new([
+            new NendoMutation("sequence-proposal", id, "test", "Create item",
+                [new CreateRecordOperation("create", Entity, "proposed", new Dictionary<string, object?> { ["title"] = "Proposed" })]),
+        ])));
+    }
+
+    private static async Task<string?> PreviewCodeAsync(NendoWriteCoordinator coordinator, NendoProposalPreview preview)
+    {
+        Assert.AreEqual(NendoProposalState.Previewable, preview.State);
+        await using var clone = await NendoWriteCoordinator.OpenReadOnlyAsync(
+            Path.Combine(coordinator.ProposalRoot, preview.ProposalId, "proposal.nendo"));
+        return Code(await RecordAsync(new NendoApplicationService(clone), "proposed"));
+    }
+
     private static async Task SchemaAsync(NendoWriteCoordinator coordinator, NendoApplicationService service, bool declareUnique = true)
     {
         await coordinator.ApplyAsync(new("test", "schema", "test", "Items", [

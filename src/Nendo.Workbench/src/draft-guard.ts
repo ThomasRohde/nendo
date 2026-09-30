@@ -35,7 +35,7 @@ export function refuseWhileDirty(action: string): boolean {
 
 /**
  * What a redraw that nobody asked for waits on: the person's hold on the page, or their
- * unsaved typing.
+ * unsaved typing, including a draft retained for copying after authority changed.
  *
  * The reads a screen chases and the file being followed both redraw when they land, and
  * both already wait while a menu is open or a control is focused. Unsaved typing is the
@@ -45,5 +45,5 @@ export function refuseWhileDirty(action: string): boolean {
  * interval, so the redraw lands the moment the draft is saved or closed.
  */
 export function holdingThePage(): boolean {
-  return interactionInProgress() || recordFormIsDirty();
+  return interactionInProgress() || recordFormIsDirty() || state.retainedDraft !== null;
 }

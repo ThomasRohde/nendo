@@ -884,6 +884,87 @@ async (page) => {
   assert(view !== null, 'Without Nendo’s row the workbench did not draw its own controls.');
   results.ownToolbar = true;
 
+  // ---- R30-001: restore a real canvas diff with 101 new elements and boxes. Commit must
+  // refuse all 202 writes before the broker receives any, preserving the stored draft.
+  const boundView = fixture.records['ar.view'][0].recordId;
+  const savedDraft = await view.evaluate(async ({ sets, viewId }) => {
+    const { buildMirror, writesFor } = await import('./canvas.js');
+    const before = buildMirror(sets), after = structuredClone(before);
+    const opened = after.views[viewId];
+    const folder = Object.values(after.folders).find(candidate => candidate.folderType === 'business');
+    for (let index = 0; index < 101; index++) {
+      const elementId = `ar-id-bound-element-${index}`, boxId = `ar-id-bound-box-${index}`;
+      after.elements[elementId] = { id: elementId, kind: 'element', type: 'BusinessActor', name: `Actor ${index}`,
+        documentation: '', properties: [], profileIds: [], folderId: folder.id };
+      folder.itemIds.push(elementId);
+      after.nodes[boxId] = { id: boxId, viewId, parentId: viewId, nodeType: 'element', elementId,
+        bounds: { x: index * 10, y: 10, width: 120, height: 55 }, childIds: [], sourceConnectionIds: [], targetConnectionIds: [] };
+      opened.childIds.push(boxId);
+    }
+    const saved = JSON.stringify({ viewId, writes: writesFor(sets, before, after) });
+    localStorage.setItem('archi-edits', saved);
+    return saved;
+  }, { sets: fixture.records, viewId: boundView });
+  assert(JSON.parse(savedDraft).writes.length === 202, 'The over-limit browser draft did not contain 202 dependent writes.');
+  await page.evaluate(({ value, viewId }) => {
+    window.broker.setFixture(value); window.broker.offerChrome(true);
+    window.broker.startAt({ view: viewId, selected: viewId, item: null }); window.broker.remount();
+  }, { value: fixture, viewId: boundView });
+  view = null;
+  for (let attempt = 0; attempt < 400 && view === null; attempt++) {
+    const candidate = page.frames().filter(frame => !frame.isDetached() && frame.url().startsWith(origin + '/')).at(-1);
+    if (candidate && await candidate.evaluate(() => document.querySelectorAll('.archi-editor [data-node-id]').length > 101).catch(() => false)) view = candidate;
+    else await page.waitForTimeout(25);
+  }
+  assert(view !== null, 'The 202-write draft did not reopen in the real editor.');
+  const callsBeforeBound = await page.evaluate(() => window.broker.requests.filter(request => /^records\.(batch|create|update|delete)$/.test(request.m)).length);
+  await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
+  await until(() => /at most 200.*Nothing was saved/.test(document.getElementById('status').textContent), null, 'An over-limit Commit was not refused before saving.');
+  const callsAfterBound = await page.evaluate(() => window.broker.requests.filter(request => /^records\.(batch|create|update|delete)$/.test(request.m)).length);
+  assert(callsAfterBound === callsBeforeBound, `A 202-write Commit sent ${callsAfterBound - callsBeforeBound} write requests.`);
+  assert((await records('ar.concept')).length === fixture.records['ar.concept'].length && (await records('ar.item')).length === fixture.records['ar.item'].length,
+    'An over-limit Commit partially saved its elements or boxes.');
+  assert(await view.evaluate(saved => localStorage.getItem('archi-edits') === saved, savedDraft), 'An over-limit Commit changed the saved editor draft.');
+  results.commitBound = { planned: 202, requests: callsAfterBound - callsBeforeBound, retained: JSON.parse(savedDraft).writes.length };
+  await page.evaluate(() => window.broker.command('discard', null, 'toolbar'));
+  await until(() => localStorage.getItem('archi-edits') === null, null, 'Discard did not drop the over-limit draft.');
+  await page.evaluate(() => { window.broker.startAt(null); window.broker.command('edit', false, 'toolbar'); });
+
+  // ---- R30-004: both named and unnamed valid relationship cycles stay in the tree and
+  // render selectable source/target links in Properties, in both themes.
+  const cycleFixture = structuredClone(fixture);
+  const relationsFolder = fixture.records['ar.folder'].find(record => record.values['ar.folder.kind'] === 'Relations').recordId;
+  const endpoint = fixture.records['ar.concept'].find(record => record.values['ar.concept.category'] === 'Element').recordId;
+  const cycles = [];
+  for (const named of [false, true]) for (const letter of ['A', 'B']) {
+    const id = `ar-cycle-${named ? 'named' : 'unnamed'}-${letter}`;
+    const other = `ar-cycle-${named ? 'named' : 'unnamed'}-${letter === 'A' ? 'B' : 'A'}`;
+    cycleFixture.records['ar.concept'].push({ entityId: 'ar.concept', recordId: id, version: 1, values: {
+      'ar.concept.name': named ? `Cycle ${letter}` : '', 'ar.concept.category': 'Relationship',
+      'ar.concept.type': 'ar.type.r.ServingRelationship', 'ar.concept.folder': relationsFolder,
+      'ar.concept.source': other, 'ar.concept.target': endpoint,
+    }, labels: {} });
+    cycles.push({ id, other, named });
+  }
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, cycleFixture);
+  await page.evaluate(() => window.broker.command('find', '[cycle]', 'toolbar'));
+  await until(() => document.querySelectorAll('#tree .row[data-id^="ar-cycle-"]').length === 4, null, 'The tree did not retain all four cyclic relationships.');
+  let propertyRenders = 0;
+  for (const mode of ['dark', 'light']) {
+    await page.evaluate(value => window.broker.pushTheme(value), mode);
+    await until(value => document.documentElement.dataset.nendoTheme === value, mode, `The cyclic model did not take the ${mode} theme.`);
+    for (const cycle of cycles) {
+      await view.click(`#tree .row[data-id="${cycle.id}"]`);
+      const rendered = await view.evaluate(() => ({ heading: document.querySelector('#properties h2')?.textContent,
+        endpoints: [...document.querySelectorAll('#properties .field button[data-select]')].map(button => button.dataset.select) }));
+      assert(rendered.heading.includes('[cycle]') && rendered.endpoints.includes(cycle.other) && rendered.endpoints.includes(endpoint),
+        `A ${mode} cyclic relationship lost its properties/endpoints: ${JSON.stringify(rendered)}.`);
+      if (cycle.named) assert(rendered.heading.startsWith('Cycle '), 'A cyclic relationship lost its explicit name.');
+      propertyRenders++;
+    }
+  }
+  results.relationshipCycles = { records: 4, propertyRenders, themes: 2 };
+
   assert(errors.length === 0, `The page reported errors: ${errors.join(' | ')}`);
   return JSON.stringify(results);
 }

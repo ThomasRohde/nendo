@@ -139,7 +139,9 @@ read and the model now (`tools/archi/canvas/records.ts`): one revision, a create
 record and a field set per field the edits changed. A field somebody else set in the meantime
 keeps its value. Discard drops the edits. They are kept in the view's `localStorage` with the
 view they were made on, so leaving the screen or Back opens the editor on them again, carried
-onto the file as it now stands. A refused commit keeps them waiting.
+onto the file as it now stands. A refused commit keeps them waiting. Commit admits
+at most 200 record writes; a larger difference is refused before any request is
+sent and leaves all edits available for undo, adjustment or discard.
 
 This changes the budget below: rows follow the net change, not the gestures. Two drags of one
 box, an undo and a redo commit as one field set of its place in one revision (measured by

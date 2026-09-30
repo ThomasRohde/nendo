@@ -2,7 +2,7 @@ import type { FieldPlan, RecordPlan, SurfaceNodePlan } from './host';
 import { clauseFilters, type QueryFilter } from './record-window';
 import { declaredScope, tileEntityId, tileFilters, tileKey, tileScopeLabel, type TileScope } from './summary-tiles';
 import { choiceStyle } from './tones';
-import { proportionOf, type ChartSegment } from './chart-kit';
+import { proportionOf, signedAmountOf, type ChartSegment } from './chart-kit';
 import { exactNumberText } from './scalars';
 
 // Pure composition for the first charts (ADR-0004, 2026-09-14 amendment, S1). A
@@ -150,7 +150,7 @@ export function bucketLabel(bucket: string, key: string | null): string {
 
 /**
  * The columns of a trend, in the host's order, every bucket of the range present. An
- * empty bucket keeps a null lexeme and a zero proportion, so it draws as a gap at zero
+ * empty bucket keeps a null lexeme and a zero amount, so it draws as a gap at zero
  * rather than being left out — the chart shows the shape of the range, not of the data.
  */
 export function bucketSegments(bucket: string, result: BucketResult): ChartSegment[] {
@@ -158,7 +158,7 @@ export function bucketSegments(bucket: string, result: BucketResult): ChartSegme
     key: group.key,
     label: bucketLabel(bucket, group.key),
     lexeme: group.valueLexeme,
-    amount: proportionOf(group.valueLexeme),
+    amount: signedAmountOf(group.valueLexeme),
     style: '',
   }));
 }
