@@ -27,6 +27,8 @@ internal sealed partial class SqliteNendoStore
             """;
         string description;
         string lane;
+        // A change the person folded away (ADR-0021) is gone from the file, and is said to be.
+        var fold = await ReadLatestHistoryFoldAsync(null, cancellationToken);
         await using (var revision = Command(revisionSql, null))
         {
             revision.Parameters.AddWithValue("@revisionId", revisionId);
@@ -35,7 +37,9 @@ internal sealed partial class SqliteNendoStore
             {
                 throw new NendoPreconditionException(
                     "revision-not-found",
-                    "The selected history revision does not exist.");
+                    fold is null
+                        ? "The selected history revision does not exist."
+                        : $"The selected history revision is not in this file. Its older history was folded on {fold.FoldedAt:yyyy-MM-dd}; a folded change cannot be undone here. The full history is in the backup {fold.BackupLabel}.");
             }
             description = reader.GetString(0);
             lane = reader.GetString(1);
@@ -48,6 +52,10 @@ internal sealed partial class SqliteNendoStore
         if (lane == NendoRevisionLane.Genesis.ToString())
         {
             throw new NendoCompensationNotSupportedException("The file-creation revision is irreversible.");
+        }
+        if (lane == NendoRevisionLane.Checkpoint.ToString())
+        {
+            throw new NendoCompensationNotSupportedException("Folded history cannot be undone: the checkpoint stands for changes this file no longer holds.");
         }
 
         var exactReplay = false;

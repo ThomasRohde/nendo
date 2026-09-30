@@ -15,7 +15,7 @@ import { recordPlanOf, recordsForEntity, selectedSurfaceNode, sessionEntity } fr
 import { readsOwnRecords } from './surface-model';
 import {
   WorkbenchHostError, type AgentStatus, type CompileResult, type DesktopMutationView, type DesktopPromotionView,
-  type DesktopSessionView, type ProposalPreview, type ReadPage, type RecordSnapshot, type RevisionSummary,
+  type DesktopSessionView, type HistoryFoldPreview, type HistoryFoldResult, type ProposalPreview, type ReadPage, type RecordSnapshot, type RevisionSummary,
 } from './host';
 
 /**
@@ -132,6 +132,7 @@ export function resetFileView(): void {
   state.compilation = null;
   state.history = [];
   state.historyWindow = null;
+  state.historyFold = null;
   // Every window, total, chart, tab and remembered choice belongs to the file that was
   // open, and each registers itself as file-scoped where it is declared. A reply still in
   // flight for the previous file is discarded by the generation.
@@ -363,6 +364,57 @@ export function retainDraftReadOnly(reason: DraftReason): void {
     control.dataset.busyWasDisabled = 'true';
   }
   showError(draftRetentionMessage(reason));
+}
+
+/**
+ * Folds the file's older history into a checkpoint (ADR-0021), after the person has read what
+ * that gives up. The host makes the backup first; the answer names it.
+ */
+export async function foldHistory(): Promise<void> {
+  const preview = state.historyFold?.preview;
+  if (state.actionInFlight || preview === undefined || !preview.canFold) return;
+  if (!(await confirmFold(preview))) return;
+  state.actionInFlight = true;
+  setBusy(true);
+  clearError();
+  try {
+    const result = await client.request<HistoryFoldResult>('history.fold', {});
+    state.session = await client.request<DesktopSessionView>('session.getSnapshot');
+    state.historyFold = null;
+    await refreshDerived();
+    rerender();
+    announce(`Folded ${result.revisions.toLocaleString()} older changes into one checkpoint. ${result.operationRowsAfter.toLocaleString()} of ${preview.operationCeiling.toLocaleString()} changes are now recorded. The full history is in ${result.backupLabel}, beside the file.`);
+  } catch (error) {
+    showError(messageFor(error));
+  } finally {
+    state.actionInFlight = false;
+    setBusy(false);
+  }
+}
+
+function confirmFold(preview: HistoryFoldPreview): Promise<boolean> {
+  const day = (value: string | null) => value === null ? '' : new Date(value).toLocaleDateString();
+  return new Promise(resolve => {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'record-delete-dialog';
+    dialog.setAttribute('aria-labelledby', 'fold-heading');
+    dialog.innerHTML = `<h2 id="fold-heading">Fold older history?</h2>
+      <p>${preview.revisions.toLocaleString()} changes from ${escapeText(day(preview.firstAt))} to ${escapeText(day(preview.lastAt))}
+      become one checkpoint in History. The most recent ${preview.keep.toLocaleString()} changes stay as they are, and so does every record.</p>
+      <p>First Nendo saves a backup beside this file, with the whole history in it. After the fold, a folded change
+      cannot be undone or inspected here; open the backup to see it.</p>
+      <div class="form-actions"><button class="secondary-button" data-cancel type="button" autofocus>Cancel</button><button class="primary-button" data-confirm type="button">Back up and fold</button></div>`;
+    document.body.append(dialog);
+    let confirmed = false;
+    dialog.addEventListener('close', () => { dialog.remove(); resolve(confirmed); }, { once: true });
+    dialog.querySelector('[data-cancel]')?.addEventListener('click', () => dialog.close());
+    dialog.querySelector('[data-confirm]')?.addEventListener('click', () => { confirmed = true; dialog.close(); });
+    dialog.showModal();
+  });
+}
+
+function escapeText(value: string): string {
+  return value.replace(/[&<>"']/g, character => `&#${character.charCodeAt(0)};`);
 }
 
 export async function compensateRevision(revisionId: string): Promise<void> {

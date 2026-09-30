@@ -521,6 +521,33 @@ export interface ReadPage<T> {
   changeSequence: number;
 }
 
+/** What folding the file's older history would do now (ADR-0021). */
+export interface HistoryFoldPreview {
+  canFold: boolean;
+  reason: string | null;
+  keep: number;
+  revisions: number;
+  operations: number;
+  throughChangeSequence: number | null;
+  firstAt: string | null;
+  lastAt: string | null;
+  operationRows: number;
+  operationCeiling: number;
+  lastFoldedAt: string | null;
+}
+
+/** A fold of older history, done (ADR-0021). */
+export interface HistoryFoldResult {
+  checkpointRevisionId: string;
+  throughChangeSequence: number;
+  revisions: number;
+  operations: number;
+  operationRowsBefore: number;
+  operationRowsAfter: number;
+  backupLabel: string;
+  foldedAt: string;
+}
+
 export interface RevisionSummary {
   revisionId: string;
   createdAt: string;

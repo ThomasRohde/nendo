@@ -17,6 +17,32 @@ internal sealed partial class DesktopSessionController
     internal Task<NendoBackupResult> CreateBackupAsync(string planId, CancellationToken cancellationToken = default) =>
         QueryAsync(service => service.CreateBackupAsync(planId, cancellationToken), cancellationToken);
 
+    internal Task<NendoHistoryFoldPreview> PreviewHistoryFoldAsync(CancellationToken cancellationToken = default) =>
+        QueryAsync(service => service.PreviewHistoryFoldAsync(cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// Folds the open file's older history (ADR-0021): first a backup beside the file, named for
+    /// the day, which keeps the whole history; then the fold, which only a backup of the file as
+    /// it stands allows. The person asked for this in History, having read what it gives up.
+    /// </summary>
+    internal async Task<NendoHistoryFoldResult> FoldHistoryAsync(CancellationToken cancellationToken = default)
+    {
+        var path = _currentPath ?? throw new NendoPreconditionException("history-fold-unavailable", "No file is open.");
+        RequireWritableLocation(path);
+        // Asked first, so a fold with nothing to take leaves no backup behind it.
+        var preview = await PreviewHistoryFoldAsync(cancellationToken);
+        if (!preview.CanFold) throw new NendoPreconditionException("history-fold-nothing", preview.Reason ?? "There is no older history to fold.");
+        var folder = Path.GetDirectoryName(path)!;
+        var name = Path.GetFileNameWithoutExtension(path);
+        var stamp = DateTime.Now.ToString("yyyy-MM-dd HHmm", System.Globalization.CultureInfo.InvariantCulture);
+        var destination = Path.Combine(folder, $"{name} before folding {stamp}.nendo");
+        for (var attempt = 2; File.Exists(destination); attempt++)
+            destination = Path.Combine(folder, $"{name} before folding {stamp} ({attempt}).nendo");
+        var plan = await PrepareBackupAsync(destination, $"history-fold-{Guid.NewGuid():N}", cancellationToken);
+        await CreateBackupAsync(plan.PlanId, cancellationToken);
+        return await QueryAsync(service => service.FoldHistoryAsync(plan.PlanId, cancellationToken), cancellationToken);
+    }
+
     internal Task<NendoRestorePlan> PrepareRestoreAsync(string path, string requestId, CancellationToken cancellationToken = default) =>
         QueryAsync(service => { RequireWritableLocation(_currentPath!); return service.PrepareRestoreAsync(path, requestId, cancellationToken); }, cancellationToken);
 

@@ -958,6 +958,11 @@ vocabulary, the examples and the resources — and not from the person.
   commit, and what Studio's Diagram item list shows for the box you moved. Make one more edit,
   leave the screen without committing, come back, and record whether the edit was still
   waiting.
+- Open History in a file you have edited a lot (or a copy of one) and record what it says about
+  how many changes the file has recorded. Choose **Fold older history…** and record what the
+  dialog says will happen before you confirm, what file appears beside the original, what
+  History shows afterwards, and whether an entry older than the checkpoint can still be
+  compensated. Open the backup it made and record whether the folded entries are there.
 - Ask the person, without an agent, to show the package on a second screen and as a
   panel on a record page, from Studio → Surfaces → Custom views. Record whether the
   package's card told them where it was already shown, whether the form let them choose

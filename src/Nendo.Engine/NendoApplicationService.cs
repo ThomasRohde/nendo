@@ -547,6 +547,14 @@ public sealed partial class NendoApplicationService
         string? expectedOperationDigest = null) =>
         _coordinator.PromoteProposalAsync(proposalId, cancellationToken, expectedOperationDigest);
 
+    /// <summary>What folding the file's older history would do now (ADR-0021). A host operation: no agent or view reaches it.</summary>
+    public Task<NendoHistoryFoldPreview> PreviewHistoryFoldAsync(CancellationToken cancellationToken = default) =>
+        _coordinator.PreviewHistoryFoldAsync(cancellationToken);
+
+    /// <summary>Folds the file's older history, after the backup this session made of it (ADR-0021). A host operation.</summary>
+    public Task<NendoHistoryFoldResult> FoldHistoryAsync(string backupPlanId, CancellationToken cancellationToken = default) =>
+        _coordinator.FoldHistoryAsync(backupPlanId, cancellationToken);
+
     public Task<NendoApplyResult> CompensateRevisionAsync(
         string revisionId,
         string idempotencyKey,

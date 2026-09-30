@@ -73,9 +73,11 @@ The file format gained these rungs and operations:
   The describe resource leads with it, and it belongs to no record type and no
   node.
 - A rung for a file's own look (1.38.0, ADR-0004's 2026-09-28 amendment): the tone
-  and letter of the badge its icons carry, in its own protected table as the last
-  rung of the layout ladder. Only what a file chose is stored; the defaults come
-  from the application ID and the file's name.
+  and letter of the badge its icons carry, in its own protected table on the layout
+  ladder. Only what a file chose is stored; the defaults come from the application ID
+  and the file's name.
+- A rung for folded history (1.39.0, ADR-0021): the evidence of each fold in its own
+  protected table as the last rung of the layout ladder, added by a file's first fold.
 
 Every other boundary below is unchanged.
 
@@ -685,6 +687,16 @@ with 4 MiB of new custom-view package content
 refusal states that nothing changed and that the file still opens. The host gives
 no warning as a file approaches a ceiling
 ([ADR-0012](decisions/0012-safe-mode-compatibility-and-migration.md), 2026-09-17).
+
+Since 2026-09-30 a person can fold a file's older history into one checkpoint revision
+([ADR-0021](decisions/0021-folding-old-history.md)), and History says how much of the row
+bound is used and warns from 80%. The host backs the file up beside itself, then replaces every
+revision older than the kept window (the last 1,000, or fewer when those hold more than 25,000
+operation rows) with a checkpoint that carries their counters and a digest of what they were,
+and records the fold in `__nendo_history_fold`, the last rung of the layout ladder (1.39.0).
+Records, tombstones, later revisions, counters and the change sequence do not change. A folded
+change cannot be compensated or retried as the same write, and its operations are only in the
+backup. A file in daily use therefore keeps accepting writes; the bound itself is unchanged.
 
 ## Agent surface
 

@@ -109,3 +109,10 @@ discards useful concurrency or erases/overstates history.
 - Multi-user collaboration requires vector/causal semantics.
 - The split counters cannot express a required cross-lane invariant.
 - Retained inverse evidence grows beyond the bounded local-file budget.
+
+## Amendments
+
+- 2026-09-30 — [ADR-0021](0021-folding-old-history.md): a person may fold a file's older history
+  into one checkpoint revision, after a backup. History is still never rewound by a write; exact
+  replay and compensation now reach the revisions after the checkpoint, and a folded revision's
+  operations are kept in the backup rather than the file.

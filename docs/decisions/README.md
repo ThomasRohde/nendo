@@ -32,6 +32,7 @@ existed. For this reason the numbering is contiguous by intent.
 | [0018](0018-public-website-and-deployment-lane.md) | Accepted | Public website at `site/`, outside the product boundary, with one CI lane that deploys only it; since 2026-09-23 it carries its own guides and does not render `docs/` |
 | [0019](0019-hierarchies-in-the-schema.md) | Accepted | Declare a self-reference as a hierarchy: the Engine refuses cycles for every client, sibling order, typed move, bounded tree reads, subtree aggregates, a Studio outline and an `outlineSurface`; stages 1 (cost), 2 (declaration, cycle rule, move, MCP), 3 (tree read, `descendantOf`, `records.tree`), 4 (subtree aggregates) and 5 (the Studio outline) delivered at host 1.35.0, 6 (`outlineSurface`) at 1.36.0, and 7 (the Capability Atlas on the declaration) |
 | [0020](0020-unique-and-generated-fields.md) | Accepted | A field can be declared unique, refused by the Engine from every client, and given a sequence the host allocates inside the write; path codes (1.2.3) are a calculated `HierarchyPath`; the planner drops its manual reference ledger. Stages 1 (unique fields), 2 (sequences), 3 (`HierarchyPath`) and 4 (Studio and forms) delivered at host 1.37.0; stage 5 (planner adoption) accepted 2026-09-27 |
+| [0021](0021-folding-old-history.md) | Accepted | A person may fold a file's older history into a checkpoint revision, after a backup, keeping the most recent 1,000 revisions; the file keeps accepting writes past the operation-row bound (W-101) |
 
 ## Amendments in force
 

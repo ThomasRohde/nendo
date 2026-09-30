@@ -54,10 +54,11 @@ Each area below is a gap. Do not read a gap as a feature.
 I-007 builds an offline ArchiMate modeller as a Nendo application, following
 archi-online, to find how far Nendo can be pushed. [The design](design/archi-in-nendo.md)
 names the record types, the scope and the host features it needs: batch writes from a
-view (W-102), a file a view can open (W-104), undo (W-103), and a way past the
-operation-row bound (W-101). The last is the binding one. Measured on Archisurance, a
-file reaches the bound after about 100 hours of active diagram editing, and only
-history compaction removes that wall.
+view (W-102, delivered), a file a view can open (W-104), undo (W-103), and a way past the
+operation-row bound (W-101). The last was the binding one: measured on Archisurance, a file
+reached the bound after about 100 hours of active diagram editing. Since 2026-09-30 a person
+folds older history into a checkpoint from History (ADR-0021, host 1.39.0), so a modelling
+file keeps accepting writes.
 
 ## Next: surfaces and charts
 
@@ -134,7 +135,7 @@ Next, in order:
   delivered (2026-09-26, W-063).
 - **Phase 5, views anywhere**: the `extensionView` root, which the Use "Showing"
   picker offers, and the `extensionTile` on the front page and dashboards, at host
-  1.39.0 (1.35.0 to 1.37.0 went to ADR-0019's hierarchies and outline and ADR-0020's unique fields, and 1.38.0 to a file's own look). Not yet.
+  1.40.0 (1.35.0 to 1.37.0 went to ADR-0019's hierarchies and outline and ADR-0020's unique fields, 1.38.0 to a file's own look, and 1.39.0 to folded history). Not yet.
 
 **Accepted limitation: a received file's code runs.** A view that is shown runs,
 and a file somebody else wrote brings its views' code with it. Nobody on this device

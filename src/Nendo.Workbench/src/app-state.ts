@@ -1,4 +1,4 @@
-import { fileCapabilities, type AgentProposalPreview, type AgentStatus, type CompileResult, type DesktopSessionView, type ProposalPreview, type ReadPage, type RecentFiles, type RecordPlan, type RecordSnapshot, type RevisionSummary } from './host';
+import { fileCapabilities, type AgentProposalPreview, type AgentStatus, type CompileResult, type DesktopSessionView, type ProposalPreview, type ReadPage, type RecentFiles, type RecordPlan, type RecordSnapshot, type RevisionSummary, type HistoryFoldPreview } from './host';
 import type { BucketResult, CellResult, GroupedResult } from './charts';
 import type { CalendarMode, CivilMonth } from './calendar-model';
 import { cacheKey, type ReadWindow, type WindowQuery } from './record-window';
@@ -164,6 +164,8 @@ export interface AppState {
   summaryGeneration: number;
   chartGeneration: number;
   historyWindow: HistoryWindow | null;
+  /** What a fold would do now, read when History is shown, and the change it was read at (ADR-0021). */
+  historyFold: { preview: HistoryFoldPreview; changeSequence: number } | null;
   proposal: ProposalPreview | null;
   agentStatus: AgentStatus | null;
   agentProposal: AgentProposalPreview | null;
@@ -215,6 +217,7 @@ export const state: AppState = {
   summaryGeneration: 0,
   chartGeneration: 0,
   historyWindow: null,
+  historyFold: null,
   proposal: null,
   agentStatus: null,
   agentProposal: null,

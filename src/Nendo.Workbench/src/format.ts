@@ -81,7 +81,7 @@ export function agentModeLabel(value: AgentAccessMode): string {
 
 export function laneLabel(value: string | number): string {
   if (typeof value === 'string') return capitalise(value);
-  return ['Genesis', 'Definition', 'Data'][value] ?? 'Change';
+  return ['Genesis', 'Definition', 'Data', 'Checkpoint'][value] ?? 'Change';
 }
 
 export function reversibilityLabel(value: string | number): string {

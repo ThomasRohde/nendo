@@ -1,8 +1,8 @@
-import { compensateRevision, handlePageFailure } from './actions';
+import { compensateRevision, foldHistory, handlePageFailure } from './actions';
 import { state } from './app-state';
 import { client } from './client';
 import { canCompensate, escapeAttribute, escapeHtml, formatDateTime, laneLabel, operationLabel, reversibilityLabel, shortId } from './format';
-import { type ReadPage, type RevisionSummary, type StoredOperationSnapshot, WorkbenchHostError } from './host';
+import { type HistoryFoldPreview, type ReadPage, type RevisionSummary, type StoredOperationSnapshot, WorkbenchHostError } from './host';
 import { icon } from './icons';
 import { content, rerender, setBusy } from './shell';
 /**
@@ -13,10 +13,13 @@ import { content, rerender, setBusy } from './shell';
 export function renderHistory(): void {
   const ordered = [...state.history].sort((left, right) => right.changeSequence - left.changeSequence);
   content.innerHTML = `<div class="studio-page history-page"><header class="page-heading"><span class="record-total">${state.history.length} revisions shown</span></header><div class="message-slot" role="alert" hidden></div>
+    ${foldMarkup()}
     <div class="page-controls" aria-label="History pages"><span>Page ${(state.historyWindow?.index ?? 0) + 1}</span><button class="text-button" data-history-page="-1" type="button" ${!state.historyWindow || state.historyWindow.index === 0 ? 'disabled' : ''}>Previous</button><button class="text-button" data-history-page="1" type="button" ${!state.historyWindow?.page.nextCursor ? 'disabled' : ''}>Next</button></div>
     ${ordered.length === 0 ? `<div class="quiet-empty"><span class="quiet-empty-glyph" aria-hidden="true">${icon('history')}</span><h3>No revisions yet</h3><p>Every definition and data change you save appears here in one ordered sequence.</p></div>` : ''}
     <div class="history-list" ${ordered.length === 0 ? 'hidden' : ''}>${ordered.map((revision) => `<article class="history-entry"><div class="history-sequence">${revision.changeSequence}</div><div><div class="history-meta"><span class="lane-chip ${laneLabel(revision.lane).toLowerCase()}">${laneLabel(revision.lane)}</span><time>${escapeHtml(formatDateTime(revision.createdAt))}</time>${revision.compensationOfRevisionId ? '<span>Compensation</span>' : ''}</div><h3>${escapeHtml(revision.description)}</h3><p>${revision.operationCount} operations · <button class="text-button" data-history-detail="${escapeAttribute(revision.revisionId)}" type="button">View changes</button></p><div data-operation-detail="${escapeAttribute(revision.revisionId)}"></div><code>${escapeHtml(shortId(revision.revisionId))}</code></div><div class="history-action">${canCompensate(revision, state.history) ? `<span>Current state is checked when requested</span><button class="secondary-button" data-compensate="${escapeAttribute(revision.revisionId)}" data-action type="button">Compensate</button>` : '<span>No compensation offered</span>'}</div></article>`).join('')}</div>
   </div>`;
+  content.querySelector<HTMLButtonElement>('[data-fold-history]')?.addEventListener('click', () => void foldHistory());
+  void loadFoldPreview();
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-compensate]')) {
     button.addEventListener('click', () => void compensateRevision(button.dataset.compensate!));
   }
@@ -24,6 +27,42 @@ export function renderHistory(): void {
     button.addEventListener('click', () => void loadHistoryWindow(Number(button.dataset.historyPage)));
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-history-detail]'))
     button.addEventListener('click', () => void loadHistoryDetails(button.dataset.historyDetail!));
+}
+
+/**
+ * How much of the file's change bound is used, and the way to fold older history (ADR-0021).
+ * Warns from 80%, where a file in daily use has months rather than years left.
+ */
+function foldMarkup(): string {
+  const fold = state.historyFold;
+  if (fold === null || !state.session.capabilities.mutate) return '';
+  const preview: HistoryFoldPreview = fold.preview;
+  const used = preview.operationRows / preview.operationCeiling;
+  const near = used >= 0.8;
+  return `<section class="history-fold callout${near ? ' is-tinted' : ''}" data-history-fold aria-label="Changes recorded in this file">
+    <span class="callout-icon">${icon(near ? 'alert' : 'history')}</span>
+    <strong>${preview.operationRows.toLocaleString()} of ${preview.operationCeiling.toLocaleString()} changes recorded (${Math.round(used * 100)}%)</strong>
+    <p>${near ? 'This file is close to the number of changes it can record. Fold older history to keep writing.' : 'A file records every change until it reaches this number. Folding older history makes room.'}
+    ${preview.lastFoldedAt === null ? '' : ` History was last folded on ${escapeHtml(new Date(preview.lastFoldedAt).toLocaleDateString())}.`}</p>
+    <p><button class="secondary-button" data-fold-history type="button" ${preview.canFold ? '' : 'disabled'}>Fold older history…</button>
+    ${preview.canFold ? '' : `<span class="quiet">${escapeHtml(preview.reason ?? '')}</span>`}</p>
+  </section>`;
+}
+
+let foldLoading = false;
+async function loadFoldPreview(): Promise<void> {
+  const sequence = state.session.manifest?.changeSequence ?? -1;
+  if (foldLoading || !state.session.capabilities.mutate || state.historyFold?.changeSequence === sequence) return;
+  foldLoading = true;
+  try {
+    const preview = await client.request<HistoryFoldPreview>('history.foldPreview', {});
+    state.historyFold = { preview, changeSequence: sequence };
+    if (state.view === 'history') rerender();
+  } catch {
+    // An older host has no fold; History reads as it did.
+  } finally {
+    foldLoading = false;
+  }
 }
 
 export async function loadHistoryWindow(direction: number): Promise<void> {

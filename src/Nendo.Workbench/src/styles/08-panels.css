@@ -674,3 +674,10 @@
 .diff-removed {
   background: color-mix(in srgb, var(--danger) 14%, transparent);
 }
+
+/* How much of the change bound the file has used, and the fold that makes room (ADR-0021). The
+   callout carries the tone; from 80% it is tinted with the warning colour. */
+.history-fold { --callout-tone: var(--muted); margin-bottom: 14px; }
+.history-fold.is-tinted { --callout-tone: var(--warning); }
+.history-fold p { margin: 0; }
+.history-fold p:last-child { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }

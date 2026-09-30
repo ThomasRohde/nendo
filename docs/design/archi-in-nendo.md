@@ -168,7 +168,9 @@ view's route first.
 
 A file refuses writes at 99,000 rows of `__nendo_operation`, and inspects
 `__nendo_revision` against the same bound
-(`SqliteNendoStore.Inspection.cs`). Nothing compacts either table.
+(`SqliteNendoStore.Inspection.cs`). Until 2026-09-30 nothing compacted either table; now a
+person folds older history into a checkpoint ([ADR-0021](../decisions/0021-folding-old-history.md),
+W-101), which brings a file back to what its last 1,000 revisions (at most 25,000 rows) wrote.
 
 **What a write costs.** Read from the Engine, not measured: a record created or deleted
 is one operation row whatever it holds (the bound's own note measures 10,003 rows for

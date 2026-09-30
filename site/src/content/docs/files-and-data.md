@@ -26,7 +26,7 @@ Before Nendo grants any capability, it inspects the whole file. That sets two li
 | Limit | Value | What it means in practice |
 | --- | --- | --- |
 | File size | 256 MiB | About 75,000 records that each carry 1.3 KB of text. A cold open at that size takes several seconds. |
-| Rows in each history or definition table | 100,000 | The history table gains one row for each record write and each later edit, so a file reaches this at about 100,000 writes, whatever their size. |
+| Rows in each history or definition table | 100,000 | The history table gains one row for each record write and each later edit, so a file reaches this at about 100,000 writes, whatever their size. **Fold older history** in History makes room again. |
 
 Nendo refuses a write when the file is within 32 MiB or 1,000 rows of a limit. The 32 MiB leaves room for the largest single change, which is a custom view's code arriving in the file. The refusal says that nothing changed and that the file still opens. Nendo does not warn you as a file approaches a limit. A file over a limit does not open, and Nendo does not change it.
 
@@ -88,7 +88,9 @@ An agent imports through MCP with the same profile and decoding. That path commi
 
 ## History and undo
 
-Each accepted change is a **revision** in History. An entry shows its lane (Definition or Data), how many operations it holds and who made it: you, an agent, or a trigger that ran on your edit. **View changes** opens the operations. CSV batches and agent writes are ordinary entries. History shows 50 entries per page and is never rewritten.
+Each accepted change is a **revision** in History. An entry shows its lane (Definition or Data), how many operations it holds and who made it: you, an agent, or a trigger that ran on your edit. **View changes** opens the operations. CSV batches and agent writes are ordinary entries. History shows 50 entries per page and is never rewritten, except when you fold it.
+
+History also says how many changes the file has recorded, out of the 99,000 it accepts before it refuses writes, and warns from 80%. **Fold older history…** makes room: Nendo saves a backup beside the file with the whole history in it, then replaces the older entries with one **Checkpoint** entry. The most recent 1,000 changes (fewer, if they are large) stay as they were, and so does every record. A folded change can no longer be compensated or inspected in the file; open the backup to see it.
 
 Every operation declares a reversibility class. Nendo shows it in the review before you accept a proposal, and again in History.
 

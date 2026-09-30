@@ -22,7 +22,34 @@ public enum NendoRevisionLane
     Genesis,
     Definition,
     Data,
+    /// <summary>Earlier history folded into one revision (ADR-0021): no operations, not compensable.</summary>
+    Checkpoint,
 }
+
+/// <summary>What folding a file's older history would do now (ADR-0021), for the person to read first.</summary>
+public sealed record NendoHistoryFoldPreview(
+    bool CanFold,
+    string? Reason,
+    int Keep,
+    long Revisions,
+    long Operations,
+    long? ThroughChangeSequence,
+    DateTimeOffset? FirstAt,
+    DateTimeOffset? LastAt,
+    long OperationRows,
+    long OperationCeiling,
+    DateTimeOffset? LastFoldedAt);
+
+/// <summary>A fold of older history, done (ADR-0021).</summary>
+public sealed record NendoHistoryFoldResult(
+    string CheckpointRevisionId,
+    long ThroughChangeSequence,
+    long Revisions,
+    long Operations,
+    long OperationRowsBefore,
+    long OperationRowsAfter,
+    string BackupLabel,
+    DateTimeOffset FoldedAt);
 
 public enum NendoReversibilityClass
 {

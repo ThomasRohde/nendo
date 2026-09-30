@@ -235,6 +235,8 @@ internal sealed partial class SqliteNendoStore
             }
 
             var findings = new List<NendoOpenFinding>();
+            if (layout.Contains("-fold-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.HistoryFoldMinimumHostVersion))
+                return Unreadable("layout-version-mismatch", "A file whose older history was folded requires the declared fold-capable host version.", observedAt);
             if (layout.Contains("-look-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.ApplicationLookMinimumHostVersion))
                 return Unreadable("layout-version-mismatch", "A file's own look requires the declared look-capable host version.", observedAt);
             if (layout.Contains("-rule-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.FieldRuleMinimumHostVersion))
@@ -369,7 +371,8 @@ internal sealed partial class SqliteNendoStore
             try
             {
                 history = await store.ReadRevisionsAsync(null, cancellationToken);
-                if (!HistoryIsConsistent(history) || !IdentityHistoryIsConsistent(history, manifest))
+                var fold = await store.ReadLatestHistoryFoldAsync(null, cancellationToken);
+                if (!HistoryIsConsistent(history, fold) || !IdentityHistoryIsConsistent(history, manifest, fold))
                 {
                     coreValid = false;
                     findings.Add(new("history-inconsistent", "History has inconsistent ordering, counters or operation evidence. It is shown for inspection only."));
@@ -558,17 +561,40 @@ internal sealed partial class SqliteNendoStore
         return drift;
     }
 
-    private static bool HistoryIsConsistent(IReadOnlyList<NendoRevisionSnapshot> history)
+    /// <summary>
+    /// History runs from Genesis without a gap. Since ADR-0021 the revision after Genesis may be
+    /// the checkpoint the latest fold left, at the change sequence it folded through, carrying
+    /// that point's counters and the fold's chain digest; history continues from it.
+    /// </summary>
+    internal static bool HistoryIsConsistent(IReadOnlyList<NendoRevisionSnapshot> history, HistoryFoldRow? fold)
     {
         long definition = 0;
         long data = 0;
+        long expected = 0;
         for (var index = 0; index < history.Count; index++)
         {
             var revision = history[index];
-            if (revision.ChangeSequence != index || revision.DefinitionRevisionBefore != definition || revision.DataRevisionBefore != data)
+            if (index == 1 && revision.Lane == NendoRevisionLane.Checkpoint)
+            {
+                if (fold is null || revision.RevisionId != fold.CheckpointRevisionId || revision.ChangeSequence != fold.LastChangeSequence ||
+                    revision.ChangeSequence < 1 || revision.OperationDigest != fold.ChainDigest || revision.Operations.Count != 0 ||
+                    revision.DefinitionRevisionBefore != 0 || revision.DataRevisionBefore != 0 ||
+                    revision.DefinitionRevisionAfter < 0 || revision.DataRevisionAfter < 0)
+                {
+                    return false;
+                }
+                definition = revision.DefinitionRevisionAfter;
+                data = revision.DataRevisionAfter;
+                expected = revision.ChangeSequence + 1;
+                continue;
+            }
+            // A fold that left no checkpoint after Genesis is a history that lost its start.
+            if (index == 1 && fold is not null) return false;
+            if (revision.ChangeSequence != expected || revision.DefinitionRevisionBefore != definition || revision.DataRevisionBefore != data)
             {
                 return false;
             }
+            expected++;
             if (index == 0)
             {
                 if (revision.Lane != NendoRevisionLane.Genesis || revision.Operations.Count != 0)
@@ -613,16 +639,19 @@ internal sealed partial class SqliteNendoStore
                 return false;
             }
         }
-        return history.Count > 0;
+        return history.Count > 0 && (fold is null || history.Count > 1);
     }
 
     private static bool IsProjectionFailure(Exception exception) => exception is
         SqliteException or NendoException or JsonException or FormatException or
         InvalidCastException or OverflowException or ArgumentException or InvalidOperationException;
 
-    private static bool IdentityHistoryIsConsistent(IReadOnlyList<NendoRevisionSnapshot> history, NendoManifestSnapshot manifest)
+    internal static bool IdentityHistoryIsConsistent(IReadOnlyList<NendoRevisionSnapshot> history, NendoManifestSnapshot manifest, HistoryFoldRow? fold)
     {
-        IdentityTransitionOperation? previous = null;
+        // A fold keeps where the folded transitions had taken the file (ADR-0021), and the chain
+        // continues from there.
+        var lineage = fold?.LineageApplicationId is { } application && fold.LineageInstanceId is { } instance
+            ? (Application: application, Instance: instance) : ((string Application, string Instance)?)null;
         foreach (var revision in history)
         {
             foreach (var operation in revision.Operations.Where(operation => operation.OperationType == "identity.transition"))
@@ -634,12 +663,12 @@ internal sealed partial class SqliteNendoStore
                     transition.Source.DefinitionRevision != revision.DefinitionRevisionBefore ||
                     transition.Source.DataRevision != revision.DataRevisionBefore ||
                     transition.Source.ChangeSequence != revision.ChangeSequence - 1 ||
-                    previous is not null && (transition.Source.ApplicationId != previous.ResultApplicationId ||
-                        transition.Source.InstanceId != previous.ResultInstanceId)) return false;
-                previous = transition;
+                    lineage is { } from && (transition.Source.ApplicationId != from.Application ||
+                        transition.Source.InstanceId != from.Instance)) return false;
+                lineage = (transition.ResultApplicationId, transition.ResultInstanceId);
             }
         }
-        return previous is null || (previous.ResultApplicationId == manifest.ApplicationId && previous.ResultInstanceId == manifest.InstanceId &&
+        return lineage is not { } last || (last.Application == manifest.ApplicationId && last.Instance == manifest.InstanceId &&
             Version.Parse(manifest.MinimumHostVersion) >= Version.Parse(NendoFormat.LifecycleMinimumHostVersion));
     }
 
@@ -704,6 +733,9 @@ internal sealed partial class SqliteNendoStore
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(ApplicationLookSchemaSql, null, CancellationToken.None);
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(HistoryFoldSchemaSql, null, CancellationToken.None);
+        layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync("DROP TABLE __nendo_history_fold;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_application_look;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_field_rule;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_hierarchy;", null, CancellationToken.None);
@@ -758,6 +790,8 @@ internal sealed partial class SqliteNendoStore
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(ApplicationLookSchemaSql, null, CancellationToken.None);
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(HistoryFoldSchemaSql, null, CancellationToken.None);
+        layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         return layouts;
     }
 

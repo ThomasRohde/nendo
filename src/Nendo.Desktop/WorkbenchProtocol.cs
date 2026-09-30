@@ -36,6 +36,8 @@ internal static partial class WorkbenchMethods
     internal const string DataWriteRecords = "data.writeRecords";
     internal const string HealthVerify = "health.verify";
     internal const string HistoryCompensate = "history.compensate";
+    internal const string HistoryFoldPreview = "history.foldPreview";
+    internal const string HistoryFold = "history.fold";
     internal const string AppearanceSet = "appearance.set";
     internal const string AppearanceGet = "appearance.get";
     internal const string AgentGetStatus = "agent.getStatus";
@@ -222,6 +224,8 @@ internal sealed partial class WorkbenchProtocolHandler
             WorkbenchMethods.DataSetField,
             WorkbenchMethods.DataExecuteCommand,
             WorkbenchMethods.ProposalPrepareChangeSet,
+            WorkbenchMethods.HistoryFoldPreview,
+            WorkbenchMethods.HistoryFold,
         ],
         StringComparer.Ordinal);
     private static readonly IReadOnlySet<string> AgentMethods = new HashSet<string>(
@@ -424,6 +428,8 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.DataTreeRecords => await _session.TreeRecordsAsync(Deserialize<NendoTreeQuery>(payload), cancellationToken),
                     WorkbenchMethods.HealthVerify => await _session.VerifyIntegrityAsync(cancellationToken),
                     WorkbenchMethods.HistoryCompensate => await CompensateRevisionAsync(payload, cancellationToken),
+                    WorkbenchMethods.HistoryFoldPreview => await _session.PreviewHistoryFoldAsync(cancellationToken),
+                    WorkbenchMethods.HistoryFold => await _session.FoldHistoryAsync(cancellationToken),
                     WorkbenchMethods.AppearanceSet => ApplyAppearance(payload),
                     WorkbenchMethods.AppearanceGet => _getAppearance?.Invoke() ?? new DesktopAppearanceView("system", "light", false, "Native appearance is unavailable."),
                     WorkbenchMethods.WindowSetTitleBarControls => SetTitleBarControls(payload),

@@ -35,7 +35,9 @@ internal sealed partial class SqliteNendoStore
             signature != known["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-v1"] &&
             signature != known["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-v1"] &&
             signature != known["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-v1"] &&
-            signature != known["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-v1"])
+            signature != known["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-v1"] &&
+            signature != known["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-v1"] &&
+            signature != known["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-v1"])
             throw new NendoRecoveryRequiredException("The protected layout is no longer writable. No compatibility DDL or guessed repair was performed.");
     }
 

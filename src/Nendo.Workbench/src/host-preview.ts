@@ -113,6 +113,10 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
           .sort((left, right) => left.recordId < right.recordId ? -1 : left.recordId > right.recordId ? 1 : 0), payload, `records:${String(payload.entityId)}:${JSON.stringify(filters)}:${String(payload.recordId ?? '')}`);
         break;
       }
+      case 'history.foldPreview':
+        result = { canFold: false, reason: 'The preview host keeps no history to fold.', keep: 0, revisions: 0, operations: 0,
+          throughChangeSequence: null, firstAt: null, lastAt: null, operationRows: this.history.length, operationCeiling: 99_000, lastFoldedAt: null };
+        break;
       case 'history.query':
         result = this.previewPage([...this.history].sort((left, right) => right.changeSequence - left.changeSequence)
           .map(row => ({ ...row, operations: undefined, operationCount: row.operations.length, canRequestCompensation: false })), payload, 'history');
