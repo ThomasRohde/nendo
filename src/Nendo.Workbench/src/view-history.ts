@@ -44,8 +44,11 @@ function foldMarkup(): string {
     <strong>${preview.operationRows.toLocaleString()} of ${preview.operationCeiling.toLocaleString()} changes recorded (${Math.round(used * 100)}%)</strong>
     <p>${near ? 'This file is close to the number of changes it can record. Fold older history to keep writing.' : 'A file records every change until it reaches this number. Folding older history makes room.'}
     ${preview.lastFoldedAt === null ? '' : ` History was last folded on ${escapeHtml(new Date(preview.lastFoldedAt).toLocaleDateString())}.`}</p>
-    <p><button class="secondary-button" data-fold-history type="button" ${preview.canFold ? '' : 'disabled'}>Fold older history…</button>
-    ${preview.canFold ? '' : `<span class="quiet">${escapeHtml(preview.reason ?? '')}</span>`}</p>
+    ${preview.canFold
+      ? `<p><button class="secondary-button" data-fold-history type="button">Fold older history…</button>
+         <span class="quiet">${preview.revisions.toLocaleString()} older changes can be folded; the most recent ${preview.keep.toLocaleString()} stay.</span></p>`
+      // Nothing to fold is said, not offered as a button that cannot be pressed.
+      : `<p class="quiet" data-fold-nothing>Nothing to fold yet. ${escapeHtml(preview.reason ?? '')}</p>`}
   </section>`;
 }
 
