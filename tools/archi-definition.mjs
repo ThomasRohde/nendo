@@ -51,6 +51,8 @@ const calculation = (definitionId, entityId, fieldId, displayName, expression, b
   } });
 const related = (bindingId, entityId, relatedEntityId, relatedReferenceFieldId) =>
   ({ bindingId, kind: 'RelatedAggregate', aggregate: 'Count', entityId, relatedEntityId, relatedReferenceFieldId, resultType: 'Integer', nullable: false });
+const root = (nodeId, properties, position) =>
+  op('ui.addNode', { surfaceId: SURFACE, nodeId, parentNodeId: null, kind: 'recordList', position, properties });
 const column = (listNodeId, fieldId, position) =>
   op('ui.addNode', { surfaceId: SURFACE, nodeId: `${listNodeId}.${fieldId}`, parentNodeId: listNodeId, kind: 'fieldBinding', position, properties: { fieldId } });
 
@@ -330,6 +332,31 @@ export const STAGES = {
     ]),
   },
 
+  // F-222: a list filters on a calculated field (host 1.40.0), so the validator's unused
+  // concepts and empty views are screens of their own, readable without the workbench. Placed
+  // after every other root; siblings on one position read in order of node ID.
+  unused: {
+    title: 'Archi: list the concepts on no view and the empty views',
+    needs: ['ar.concept', 'ar.view', 'ar.item'],
+    appliedWhen: async read => read.hasNode('ar.screen.unused'),
+    mutations: () => inMutations('Unused concepts and empty views', [
+      root('ar.screen.unused', { definitionVersion: 3, entityId: 'ar.concept', title: 'Not on any view', orderByFieldId: 'ar.concept.name', orderDirection: 'ascending' }, 100),
+      column('ar.screen.unused', 'ar.concept.name', 0),
+      column('ar.screen.unused', 'ar.concept.type', 1),
+      column('ar.screen.unused', 'ar.concept.category', 2),
+      op('ui.addNode', { surfaceId: SURFACE, nodeId: 'ar.screen.unused.where.unused', parentNodeId: 'ar.screen.unused', kind: 'filterClause', position: 3,
+        properties: { fieldId: 'ar.concept.occurrences', operator: 'eq', valueKind: 'literal', value: 0 } }),
+      op('ui.addNode', { surfaceId: SURFACE, nodeId: 'ar.screen.unused.count', parentNodeId: 'ar.screen.unused', kind: 'summaryTile', position: 4,
+        properties: { aggregate: 'count', title: 'Not on any view' } }),
+      root('ar.screen.emptyViews', { definitionVersion: 3, entityId: 'ar.view', title: 'Empty views', orderByFieldId: 'ar.view.name', orderDirection: 'ascending' }, 101),
+      column('ar.screen.emptyViews', 'ar.view.name', 0),
+      column('ar.screen.emptyViews', 'ar.view.viewpoint', 1),
+      column('ar.screen.emptyViews', 'ar.view.folder', 2),
+      op('ui.addNode', { surfaceId: SURFACE, nodeId: 'ar.screen.emptyViews.where.empty', parentNodeId: 'ar.screen.emptyViews', kind: 'filterClause', position: 3,
+        properties: { fieldId: 'ar.view.objects', operator: 'eq', valueKind: 'literal', value: 0 } }),
+    ]),
+  },
+
   pages: {
     title: 'Archi: screens for diagram items, types, the model and properties',
     needs: ['ar.model', 'ar.folder', 'ar.type', 'ar.concept', 'ar.view', 'ar.item', 'ar.property', 'ar.specialization'],
@@ -461,7 +488,7 @@ function screenOperations() {
   return { first: t.operations.slice(0, cut), second: t.operations.slice(cut) };
 }
 
-export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages', 'counts', 'countsShown', 'folderLast'];
+export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages', 'counts', 'countsShown', 'folderLast', 'unused'];
 
 export const PACKAGE_ID = 'org.nendo.archi';
 export const PACKAGE_FOLDER = 'extensions/archi';

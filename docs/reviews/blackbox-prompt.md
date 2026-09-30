@@ -1001,7 +1001,14 @@ vocabulary, the examples and the resources — and not from the person.
   element's only box from the view without committing, press **Validate**, and record whether
   the element is now reported as not used in a view; then Discard and validate again. In Use,
   record what the Elements and Views lists show in their *On views* and *Diagram objects*
-  columns, and whether either list can be filtered to the zeros.
+  columns, and what Concepts → *Not on any view* and Views → *Empty views* list. Delete an
+  element's only box from a view, commit, and record whether the element appears in *Not on
+  any view* and in its count. Author a list sorted by a calculated field in a disposable file,
+  and record whether every page continues in that order.
+- In any file, open a list screen whose definition binds more than three fields (in Archi.nendo,
+  Concepts → Relationships binds four): record whether every bound field is drawn as a column,
+  and whether a head row names each column. Give a record type a calculated count of more than
+  256 related records and record whether it shows the number or an error.
 - Open History in a file you have edited a lot (or a copy of one) and record what it says about
   how many changes the file has recorded. Choose **Fold older history…** and record what the
   dialog says will happen before you confirm, what file appears beside the original, what

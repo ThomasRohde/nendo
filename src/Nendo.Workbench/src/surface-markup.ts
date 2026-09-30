@@ -498,8 +498,15 @@ export function listMarkup(plan: ApplicationPlan, node: SurfaceNodePlan | null):
   // The status dot reads the entity's first board grouping, which is a display
   // convenience of the record type rather than of the selected list.
   const board = boardView(plan);
+  const dotFieldId = board?.groupByFieldId ?? surfaceAccentFieldId(plan, selectedSurfaceNode(plan));
   const [headingFieldId, ...detailFieldIds] = listFieldIds(plan, node);
-  return `<div class="record-list" role="list">${plan.records.map((record) => `<button type="button" role="listitem" data-record-id="${escapeAttribute(record.semanticId)}">${accentDot(plan, board?.groupByFieldId ?? surfaceAccentFieldId(plan, selectedSurfaceNode(plan)), record)}<strong>${escapeHtml(recordFieldDisplay(record, headingFieldId, plan.entity.derivedFields) || `Untitled ${plan.entity.displayName}`)}</strong>${detailFieldIds.slice(0, 2).map((fieldId) => `<span>${fieldValueMarkup(plan, record, fieldId, '—')}</span>`).join('')}<small>v${record.version}</small></button>`).join('')}</div>`;
+  // Every field a list declares is a column (F-225: a fourth was silently dropped). A list
+  // that declares none shows its record type's first three fields, not all of them.
+  const details = node !== null && nodeFieldIds(node).length > 0 ? detailFieldIds : detailFieldIds.slice(0, 2);
+  // A record with no value for the dot keeps its place, so every row's columns line up with the head.
+  const dotSpace = dotFieldId ? '<span class="status-dot dot-space" aria-hidden="true"></span>' : '';
+  const head = `<div class="record-list-head" aria-hidden="true">${dotSpace}<strong>${escapeHtml(fieldName(plan, headingFieldId ?? ''))}</strong>${details.map((fieldId) => `<span>${escapeHtml(fieldName(plan, fieldId))}</span>`).join('')}<small></small></div>`;
+  return `<div class="record-list" role="list">${head}${plan.records.map((record) => `<button type="button" role="listitem" data-record-id="${escapeAttribute(record.semanticId)}">${accentDot(plan, dotFieldId ?? null, record) || dotSpace}<strong>${escapeHtml(recordFieldDisplay(record, headingFieldId, plan.entity.derivedFields) || `Untitled ${plan.entity.displayName}`)}</strong>${details.map((fieldId) => `<span>${fieldValueMarkup(plan, record, fieldId, '—')}</span>`).join('')}<small>v${record.version}</small></button>`).join('')}</div>`;
 }
 
 export function drillPillMarkup(plan: ApplicationPlan): string {

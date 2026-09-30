@@ -2,6 +2,17 @@ namespace Nendo.Engine;
 
 internal sealed record NendoReadDiagnostics(long FullAuthorityScans, long FullRecordReads, long FullHistoryReads, long IntegrityChecks);
 
+/// <summary>The bounds of a record query that are not a page's.</summary>
+public static class NendoQueryLimits
+{
+    /// <summary>
+    /// The most records a filter or sort on a calculated field works out before it answers
+    /// (F-222): the calculation has no column, so every record the stored filters leave is
+    /// read and calculated. The same ceiling a declared hierarchy's subtree has.
+    /// </summary>
+    public const int MaximumCalculatedQueryRecords = 10_000;
+}
+
 /// <summary>Bounded typed query. Continuations bind the complete query and file change sequence.</summary>
 public sealed record NendoRecordQuery(string EntityId, int Limit = 50, string? Cursor = null)
 {

@@ -263,7 +263,17 @@ public static class NendoFormat
     /// </summary>
     public const string HistoryFoldMinimumHostVersion = "1.39.0";
 
-    public const string CurrentHostVersion = HistoryFoldMinimumHostVersion;
+    /// <summary>
+    /// A list, board, calendar or tile filtered or sorted by a calculated field (F-222): the
+    /// host computes which records pass and in which order before it reads a page, bounded by
+    /// <see cref="NendoQueryLimits.MaximumCalculatedQueryRecords"/>. A shape of the node tree
+    /// read beside the stored fields, since a calculated field is the one a record type names
+    /// and does not store. 1.40.0 had been reserved in the documents for ADR-0013's views
+    /// anywhere; rungs follow delivery order, so this takes it and that phase moves to the next.
+    /// </summary>
+    public const string CalculatedQueryMinimumHostVersion = "1.40.0";
+
+    public const string CurrentHostVersion = CalculatedQueryMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

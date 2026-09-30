@@ -1965,6 +1965,16 @@ async function assertUnsavedTypingSurvivesEveryMoveOffThePage(label) {
   await clickFound(`document.querySelector('[data-select-surface="axiom-open"]')`); await ready();
   await waitFor(() => evaluate(`document.querySelectorAll('.record-list [data-record-id]').length === 50`),
     `the first page of fifty open axioms (${label})`);
+  // F-225: a list names its columns in a head, and every row's cells start where the head's do.
+  const columns = JSON.parse(await evaluate(`JSON.stringify((()=>{const list=document.querySelector('.record-list');
+    const lefts=e=>[...e.children].map(c=>Math.round(c.getBoundingClientRect().left));
+    const head=list.querySelector('.record-list-head');
+    return {head: head ? lefts(head) : null, names: head ? [...head.children].map(c=>c.textContent) : [],
+      rows: [...list.querySelectorAll('[data-record-id]')].map(lefts)};})())`));
+  assert(columns.head && columns.names.filter(Boolean).length >= 1,
+    `The list has no head naming its columns (${label}): ${JSON.stringify(columns.names)}`);
+  const offRow = columns.rows.find(row => JSON.stringify(row) !== JSON.stringify(columns.head));
+  assert(!offRow, `A row's columns do not line up with the head's (${label}): head ${JSON.stringify(columns.head)}, row ${JSON.stringify(offRow)}`);
   await clickFound(`[...document.querySelectorAll('.record-list [data-record-id]')].find(row=>row.textContent.includes('DATA-01'))`, "DATA-01's row");
   await waitFor(async () => (await recordOnPage()) === 'DATA-01', `DATA-01's page (${label})`);
   await typeInto('axiom-handle', ' (unsaved)');
@@ -2618,7 +2628,8 @@ async function assertTheWidenedSurfacesRun(label) {
   // number and eleven are empty — a chart that drew only the month with records
   // would look completely reasonable and be wrong.
   const trend = await waitFor(async () => {
-    const columns = await evaluate(`[...document.querySelectorAll('.overview-page .chart-trend .chart-column')].map(c=>({empty:c.classList.contains('is-empty'),label:c.getAttribute('aria-label')}))`);
+    // A month counted as 0 is drawn is-zero since the 2026-09-30 review fixes (signed trends), not is-empty.
+    const columns = await evaluate(`[...document.querySelectorAll('.overview-page .chart-trend .chart-column')].map(c=>({empty:c.classList.contains('is-empty')||c.classList.contains('is-zero'),label:c.getAttribute('aria-label')}))`);
     return columns.length > 0 ? columns : null;
   }, `the accepted-by-month trend on the front page (${label})`);
   assert(trend.length === 12,

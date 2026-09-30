@@ -401,7 +401,8 @@ public static class NendoSemanticVocabulary
             "thing an author says about it. A closed section reads nothing until it is opened. Refused on a tab's body " +
             "(NUI313), where the tab strip already opens and closes it, and on every kind but section.",
         ["fieldId"] = "A stored or calculated field of the surface's record type. On a fieldBinding a calculated field is shown, " +
-            "never edited; a filterClause, orderByFieldId, groupByFieldId, dateFieldId, endDateFieldId or summaryTile names a stored field only. " +
+            "never edited; a filterClause or orderByFieldId may name one too, worked out over at most 10,000 records (host 1.40.0); " +
+            "a groupByFieldId, dateFieldId, endDateFieldId or summaryTile names a stored field only. " +
             "On a rangeTile it is the stored Integer, Decimal or Date field whose smallest and largest value the strip states; a Date is " +
             "ordered by comparison, which is why a range reads one where a sum does not.",
         ["entityId"] = "On a root, the record type the surface is about. An overviewSurface has none: it belongs to the file, so each " +

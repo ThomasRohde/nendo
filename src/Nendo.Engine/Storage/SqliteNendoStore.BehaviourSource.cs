@@ -279,6 +279,19 @@ internal sealed partial class SqliteNendoStore
             CancellationToken cancellationToken)
         {
             var (related, pointer) = Locate(binding.RelatedEntityId!, binding.RelatedReferenceFieldId!);
+            // A plain count on a read is the store's own count over the reference's index: one
+            // unit of work, and no related-row ceiling, since no row is read and nothing is
+            // left out (F-223). A save's chain still reads the rows, because a reviewed plan
+            // has to see each record it counted.
+            if (binding.Aggregate == NendoAggregateFunction.Count && observe is null)
+            {
+                budget.SpendWork();
+                await using var counting = store.Command(
+                    $"SELECT COUNT(*) FROM {Quote(related.PhysicalTableName)} WHERE {Quote(pointer.PhysicalColumnName)} = @recordId;",
+                    transaction);
+                counting.Parameters.AddWithValue("@recordId", recordId);
+                return BehaviourValue.Integer((long)(await counting.ExecuteScalarAsync(cancellationToken))!);
+            }
             var valueFieldId = binding.PredicateFieldId ?? binding.ValueFieldId;
             var member = valueFieldId is null ? null : Locate(binding.RelatedEntityId!, valueFieldId).Field;
 

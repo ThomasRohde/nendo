@@ -96,6 +96,11 @@ and the next proposal restores it, the surface comes back selected. Selection,
 the open tab and the month a calendar shows are file-session-local renderer state
 and never reach the `.nendo` file. A file switch clears them.
 
+**A list draws every field it binds** (2026-09-30, F-225): its first `fieldBinding` as the
+row's heading and each later one as a column, in order, under a head row that names them.
+Before, a row drew the first three and dropped the rest without a word, so a column bound
+fourth was never seen. A list that binds no field shows its record type's first three.
+
 Each surface owns its own query and its own read window, keyed by its stable
 semantic ID. A window carries the query it was opened with, from page one onward.
 Every continuation resends exactly those arguments. The host hashes the whole
@@ -1157,6 +1162,7 @@ the shape cannot show (below). The ladder is:
 | An `extensionRecordPanel` (a custom view on a record page) | 1.32 |
 | A custom view that only the open rules accept: no package pin, a configuration with anything in it, a calculated label or field, a filter whose value kind is not `literal`, more fields or panels than the 1.32 rules allowed | 1.34 |
 | An `outlineSurface` | 1.36 |
+| A `filterClause` on, or an `orderByFieldId` naming, a calculated field | 1.40 |
 
 The gaps at 1.17, 1.24, 1.33, 1.35 and 1.37 are rungs that are not shapes of the node tree.
 `1.17.0` goes to a file that stores behaviour definitions (ADR-0008), `1.24.0`
@@ -1166,7 +1172,7 @@ file that declares a hierarchy (ADR-0019), `1.37.0` to one with a unique field (
 that chose its own look (ADR-0004, 2026-09-28). Each
 operation declares that version on its own evidence.
 
-Every row except the 1.27 and 1.34 rows is a shape of the node tree. At 1.19 and 1.22 a
+Every row except the 1.27, 1.34 and 1.40 rows is a shape of the node tree. At 1.19 and 1.22 a
 field operation also raises the rung through its own evidence: a choice tone and a
 rating scale. The 1.27 row is not a shape of the tree. A board grouped by a
 reference and a board grouped by a choice carry the same kind, the
@@ -1178,7 +1184,10 @@ that a custom surface cannot run safely over every authored screen in the file,
 and it would name none of them. The 1.34 row reads the stored fields too: a view
 the 1.32 rules accepted bound stored fields only, so a calculated label or field
 is beyond them. A view those rules accept keeps its earlier rung, and a question the
-tree cannot answer without the fields counts as not beyond.
+tree cannot answer without the fields counts as not beyond. The 1.40 row reads them too: a
+filter on a calculated field and one on a stored field are the same shape, and a field the
+record type names but does not store is a calculated one. The record type is the nearest
+node above that names one: a list's `entityId`, a related list's `targetEntityId`.
 
 The calculation runs over the tree that a mutation leaves behind, not over the
 operations it submitted, for two reasons:

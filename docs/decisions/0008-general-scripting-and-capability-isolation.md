@@ -8,6 +8,37 @@
 - **Depends on:** ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0009 and ADR-0012.
 - **Related design:** [Architecture](../architecture.md), [scalar contract](../contracts/scalars.md), [semantic surfaces](../contracts/semantic-surfaces.md), [ADR-0013](0013-custom-views-with-code-in-the-file.md).
 
+### Accepted amendment — 2026-09-30 (a list filters and sorts by a calculation, and a count reads no rows)
+
+Accepted on the owner's standing pre-acceptance of ADR changes, when the owner asked for the
+findings of the Archi validator work (W-117) to be fixed.
+
+**Context.** Archi counts the diagram objects that show each concept. The count was a
+calculated field, and a list could show it. But no list could hold only the unused concepts,
+because a calculated field could not filter or sort a query (`NUI214`, F-222). And a count over
+more than 256 records was an error, because an aggregate read its rows one by one against the
+related-row ceiling (F-223). A view of 300 objects therefore had no count at all.
+
+**Decision, part one: filter and sort.** A `filterClause` and an `orderByFieldId` may name a
+calculated field, anywhere a stored field is accepted there. The host first reads every record
+that the query's stored predicates leave, with its calculations, and hands the database the ones
+that pass and their order. The page, its continuation, the count and every aggregate therefore
+read one set. The comparison is the one a stored field of the result type takes. A value that
+could not be worked out matches nothing and sorts last. Past 10,000 records the read is refused
+as `calculated-query-too-wide`, the bound a hierarchy's subtree already has. Grouping, ranking,
+totalling, dates and command steps still refuse a calculated field. A file that filters or sorts
+on one needs host 1.40.0, read from the node tree beside the stored fields.
+
+**Decision, part two: a count on a read.** A `RelatedAggregate` `Count` evaluated for a read is
+the store's own count over the reference's index. It reads no row and has no related-row
+ceiling. A filtered count, a sum and every aggregate in a save's chain still read their rows
+against the ceiling, because a reviewed plan has to see each record it counted.
+
+**Consequences.** A read that names a calculated field costs a calculation per record it could
+match, and this ADR's per-record budget applies to each record. Measured on 2026-09-30:
+reading 5,000 records with two counts took 67 ms against 11 ms without them.
+`BehaviourSurfaceTests` and `BehaviourCalculationTests` carry the obligations, each falsified.
+
 ### Accepted amendment — 2026-09-20 (an optional result is quietly empty, and a formula can refuse by name)
 
 The owner accepted both parts of this amendment on 2026-09-20, the day that it was

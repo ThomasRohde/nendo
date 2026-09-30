@@ -93,7 +93,12 @@ file. Thus a file can never carry its own permission, and a copy always asks
 again. The Engine consumes a narrow authority interface and never learns where the
 host keeps approvals.
 
-Studio and custom surfaces both show calculated fields. The approval route is in
+Studio and custom surfaces both show calculated fields, and since 2026-09-30 (ADR-0008's
+amendment of that date, host 1.40.0) a list, board, calendar or tile filters and sorts by one.
+The store reads every record the query's stored predicates leave, at most 10,000, calculates
+them, and gives the SQL of the page, the count and each aggregate the records that pass and
+their order as two functions of the record ID. A plain related count on a read is the store's
+own `COUNT(*)`, without the related-row ceiling. The approval route is in
 File status. The real-host journey drives all of this through the real
 WinUI/WebView2 host.
 [calculations-and-actions.md](contracts/calculations-and-actions.md) records the
@@ -1011,7 +1016,7 @@ pwsh ./tools/Test-UnattendedBuildGate.ps1 -Executable <Nendo.Desktop.exe>
 
 The behaviour gate does the same for calculations and automatic actions. It then
 checks what an agent still cannot do: run what it authored, reach this device's
-consent, or make a surface sort by a calculated field:
+consent, or make a board group by a calculated field:
 
 ```powershell
 pwsh ./tools/Test-BehaviourAuthoringGate.ps1 -Executable <published Nendo.Desktop.exe>

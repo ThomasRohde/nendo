@@ -117,30 +117,93 @@ public sealed class BehaviourSurfaceTests
             "A related list resolves the related record type's calculated fields, not this one's.");
     }
 
+    /// <summary>
+    /// F-222: a list sorted by, and filtered on, a calculated field. Archi could show how many
+    /// diagram objects show each concept but could not list the unused ones. The host works out
+    /// the records a query could match first, so every page, its continuation and the list's
+    /// count agree on one set and one order.
+    /// </summary>
     [TestMethod]
-    public async Task AListShowsACalculatedColumnButCannotSortByOne()
+    public async Task AListSortsByAndFiltersOnACalculatedField()
     {
         await using var workspace = new EngineTestWorkspace();
         var coordinator = await workspace.CreateAsync();
         var service = await SeedAsync(coordinator);
+        // p1 has two tasks from the seed; p2 none, p3 three, p4 one.
+        foreach (var (project, tasks) in new[] { ("p2", 0), ("p3", 3), ("p4", 1) })
+        {
+            await service.CreateRecordAsync(new("projects", project,
+                new Dictionary<string, object?> { ["name"] = project, ["stage"] = "open" }, Context(project)));
+            for (var index = 0; index < tasks; index++)
+                await service.CreateRecordAsync(new("tasks", $"{project}-t{index}",
+                    new Dictionary<string, object?> { ["project"] = project, ["title"] = $"{project} {index}" },
+                    Context($"{project}-t{index}"), new Dictionary<string, long> { ["project"] = 1 }));
+        }
         await ApplyUiAsync(coordinator, [
             .. ListRoot(),
             .. Binding("list-name", "project-list", "name", 0),
             .. Binding("list-count", "project-list", "taskCount", 1),
+            new SetUiPropertyOperation("order-by", "project-surface", "project-list", "orderByFieldId", "taskCount"),
+            new SetUiPropertyOperation("order-direction", "project-surface", "project-list", "orderDirection", "descending"),
+            new AddUiNodeOperation("filter-add", "project-surface", "project-filter", "project-list", "filterClause", 2),
+            new SetUiPropertyOperation("filter-field", "project-surface", "project-filter", "fieldId", "taskCount"),
+            new SetUiPropertyOperation("filter-operator", "project-surface", "project-filter", "operator", "gte"),
+            new SetUiPropertyOperation("filter-value", "project-surface", "project-filter", "value", 1L),
         ]);
         AssertValid(await service.CompileSemanticUiAsync());
+        Assert.AreEqual(NendoFormat.CalculatedQueryMinimumHostVersion, (await service.GetSnapshotAsync()).Manifest.MinimumHostVersion,
+            "A file that filters or sorts on a calculated field did not say it needs a host that can.");
 
-        await coordinator.ApplyAsync(new("test", "sort", "test", "Sort by the calculation", [
-            new SetUiPropertyOperation("order-by", "project-surface", "project-list", "orderByFieldId", "taskCount"),
+        // One project a page, so the continuation carries the calculated order across pages.
+        var filter = new NendoRecordFilter("taskCount", "ge", JsonSerializer.SerializeToElement(1));
+        var order = new List<string>();
+        string? cursor = null;
+        do
+        {
+            var page = await service.QueryRecordsAsync(new NendoRecordQuery("projects", 1, cursor)
+                { SortFieldId = "taskCount", Descending = true, Filters = [filter] });
+            order.AddRange(page.Items.Select(record => record.RecordId));
+            cursor = page.NextCursor;
+        } while (cursor is not null);
+        CollectionAssert.AreEqual(new[] { "p3", "p1", "p4" }, order, "Most tasks first, and the project with none left out.");
+        Assert.AreEqual(3L, (await service.CountRecordsAsync(new NendoRecordCountQuery("projects") { Filters = [filter] })).Count,
+            "The count of a list filtered on a calculated field is not the count of its records.");
+        var unused = await service.QueryRecordsAsync(new NendoRecordQuery("projects")
+            { Filters = [new NendoRecordFilter("taskCount", "eq", JsonSerializer.SerializeToElement(0))] });
+        CollectionAssert.AreEqual(new[] { "p2" }, unused.Items.Select(record => record.RecordId).ToArray());
+
+        // A comparison a stored field of the result type does not take is still refused.
+        await coordinator.ApplyAsync(new("test", "contains", "test", "Search the count", [
+            new SetUiPropertyOperation("filter-contains", "project-surface", "project-filter", "operator", "contains"),
+            new SetUiPropertyOperation("filter-text", "project-surface", "project-filter", "value", "1"),
         ]));
-        var refused = await service.CompileSemanticUiAsync();
-        var diagnostic = AssertRefused(refused, "orderByFieldId");
-        StringAssert.Contains(diagnostic.Message, "sort by it", StringComparison.Ordinal);
-        StringAssert.Contains(diagnostic.Hint, "for display", StringComparison.Ordinal);
+        var refused = AssertRefused(await service.CompileSemanticUiAsync(), "fieldId");
+        StringAssert.Contains(refused.Message, "take 'contains' on it", StringComparison.Ordinal);
+    }
+
+    /// <summary>F-222's bound: a calculated filter reads every record it could match, so past the ceiling it refuses.</summary>
+    [TestMethod]
+    public async Task ACalculatedFilterPastItsBoundIsRefusedRatherThanReadSlowly()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = await SeedAsync(coordinator);
+        var operations = Enumerable.Range(0, NendoQueryLimits.MaximumCalculatedQueryRecords).Select(index =>
+            (NendoOperation)new CreateRecordOperation($"many-{index}", "projects", $"many-{index}",
+                new Dictionary<string, object?> { ["name"] = $"Many {index}", ["stage"] = "open" })).ToArray();
+        foreach (var (chunk, index) in operations.Chunk(2_000).Select((chunk, index) => (chunk, index)))
+            await coordinator.ApplyAsync(new("test", $"many-{index}", "test", "Many projects", chunk));
+        var query = new NendoRecordQuery("projects") { Filters = [new NendoRecordFilter("taskCount", "eq", JsonSerializer.SerializeToElement(0))] };
+        var refused = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => service.QueryRecordsAsync(query));
+        Assert.AreEqual("calculated-query-too-wide", refused.Code);
+        // A stored filter narrows what is worked out, and brings it back within the bound.
+        var narrowed = await service.QueryRecordsAsync(query with { Filters = [.. query.Filters,
+            new NendoRecordFilter("name", "eq", JsonSerializer.SerializeToElement("Project"))] });
+        Assert.IsEmpty(narrowed.Items, "p1 has two tasks, so no project named Project has none.");
     }
 
     [TestMethod]
-    public async Task AFilterATotalAGroupingACalendarAndACommandAllRefuseACalculatedField()
+    public async Task ATotalAGroupingACalendarAndACommandAllRefuseACalculatedField()
     {
         await using var workspace = new EngineTestWorkspace();
         var coordinator = await workspace.CreateAsync();
@@ -153,7 +216,8 @@ public sealed class BehaviourSurfaceTests
             new SetUiPropertyOperation("filter-field", "project-surface", "project-filter", "fieldId", "taskCount"),
             new SetUiPropertyOperation("filter-operator", "project-surface", "project-filter", "operator", "isNotNull"),
         ]);
-        AssertRefused(await service.CompileSemanticUiAsync(), "fieldId");
+        // A filter on a calculated field compiles since F-222; the rest below still refuse.
+        AssertValid(await service.CompileSemanticUiAsync());
 
         await coordinator.ApplyAsync(new("test", "drop-filter", "test", "Remove the filter",
             [new RemoveUiNodeOperation("filter-remove", "project-surface", "project-filter")]));
@@ -211,9 +275,9 @@ public sealed class BehaviourSurfaceTests
         await coordinator.ApplyAsync(new("test", "drop-timeline", "test", "Remove the timeline",
             [new RemoveUiNodeOperation("timeline-remove", "project-surface", "project-timeline")]));
 
-        // A gallery's card order is the database's order, so it refuses a calculated
-        // field as a list does. Its title and accent are display roles refused by their
-        // own codes, which the gallery's own tests cover.
+        // A gallery's card order is a list's order, so since F-222 it sorts by a calculated
+        // field as a list does. Its title and accent are display roles refused by their own
+        // codes, which the gallery's own tests cover.
         await coordinator.ApplyAsync(new("test", "gallery", "test", "Order cards by the calculation", [
             new AddUiNodeOperation("gallery-add", "project-surface", "project-gallery", null, "gallerySurface", 2),
             new SetUiPropertyOperation("gallery-version", "project-surface", "project-gallery", "definitionVersion", NendoSemanticVocabulary.ContractVersion),
@@ -221,7 +285,7 @@ public sealed class BehaviourSurfaceTests
             new SetUiPropertyOperation("gallery-order", "project-surface", "project-gallery", "orderByFieldId", "taskCount"),
             .. Binding("gallery-name", "project-gallery", "name", 0),
         ]));
-        AssertRefused(await service.CompileSemanticUiAsync(), "orderByFieldId");
+        AssertValid(await service.CompileSemanticUiAsync());
         await coordinator.ApplyAsync(new("test", "drop-gallery", "test", "Remove the gallery",
             [new RemoveUiNodeOperation("gallery-remove", "project-surface", "project-gallery")]));
 

@@ -293,8 +293,20 @@ public sealed partial class NendoWriteCoordinator
                 if (!_readOnlySnapshot.Entities.Any(entity => entity.EntityId == query.EntityId))
                     throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
                 var entity = _readOnlySnapshot.Entities.Single(entity => entity.EntityId == query.EntityId);
-                Storage.SqliteNendoStore.ValidateRecordQuery(query, entity.Fields);
+                var derived = entity.DerivedFields.ToDictionary(field => field.FieldId, StringComparer.Ordinal);
+                Storage.SqliteNendoStore.ValidateRecordQuery(query, entity.Fields, derived);
                 var scope = RecordScope(query);
+                // A calculated field is read from the record's calculations, as the store's query
+                // reads it (F-222): a value it could not work out matches nothing and sorts last.
+                NendoStorageKind KindOf(string fieldId) => derived.TryGetValue(fieldId, out var calculated)
+                    ? Storage.SqliteNendoStore.KindOf(calculated.ResultType) : entity.Fields.Single(f => f.FieldId == fieldId).StorageKind;
+                (bool Known, string? Text) ValueOf(NendoRecordSnapshot record, string fieldId)
+                {
+                    if (!derived.ContainsKey(fieldId)) return (true, RecordQuerySemantics.Text(record.Values.GetValueOrDefault(fieldId)));
+                    var result = record.Calculations.FirstOrDefault(calculation => calculation.FieldId == fieldId);
+                    return result?.State switch { NendoCalculationState.Value => (true, RecordQuerySemantics.Text(result.Value)),
+                        NendoCalculationState.Empty => (true, null), _ => (false, null) };
+                }
                 var after = _queryCursors.Decode(query.Cursor, _readOnlySnapshot.Manifest, scope);
                 var subtrees = query.Filters.Where(filter => filter.Operator == "descendantOf").ToDictionary(filter => filter, filter =>
                     entity.Hierarchy?.ParentFieldId == filter.FieldId
@@ -302,14 +314,18 @@ public sealed partial class NendoWriteCoordinator
                         : throw new NendoPreconditionException("hierarchy-not-declared", $"descendantOf reads {entity.DisplayName}'s declared hierarchy, and {filter.FieldId} is not its parent field."));
                 var rows = _readOnlySnapshot.Records.Where(record => record.EntityId == query.EntityId)
                     .Where(record => query.RecordId is null || record.RecordId == query.RecordId)
-                    .Where(record => query.Filters.All(filter => subtrees.TryGetValue(filter, out var subtree) ? subtree.Contains(record.RecordId) : RecordQuerySemantics.Matches(filter.Operator,
-                        entity.Fields.Single(f => f.FieldId == filter.FieldId).StorageKind,
-                        RecordQuerySemantics.Text(record.Values.GetValueOrDefault(filter.FieldId)), RecordQuerySemantics.Text(filter.Value))));
+                    .Where(record => query.Filters.All(filter => subtrees.TryGetValue(filter, out var subtree) ? subtree.Contains(record.RecordId)
+                        : ValueOf(record, filter.FieldId) is { Known: true } value && RecordQuerySemantics.Matches(filter.Operator,
+                            KindOf(filter.FieldId), value.Text, RecordQuerySemantics.Text(filter.Value))));
                 var comparer = Comparer<NendoRecordSnapshot>.Create((left, right) => {
+                    if (query.SortFieldId is not null)
+                    {
+                        var (leftKnown, leftText) = ValueOf(left, query.SortFieldId);
+                        var (rightKnown, rightText) = ValueOf(right, query.SortFieldId);
+                        if (leftKnown != rightKnown) return leftKnown ? -1 : 1;
+                    }
                     var primary = query.SortFieldId is null ? StringComparer.Ordinal.Compare(left.RecordId, right.RecordId)
-                        : RecordQuerySemantics.Compare(entity.Fields.Single(f => f.FieldId == query.SortFieldId).StorageKind,
-                            RecordQuerySemantics.Text(left.Values.GetValueOrDefault(query.SortFieldId)),
-                            RecordQuerySemantics.Text(right.Values.GetValueOrDefault(query.SortFieldId)));
+                        : RecordQuerySemantics.Compare(KindOf(query.SortFieldId), ValueOf(left, query.SortFieldId).Text, ValueOf(right, query.SortFieldId).Text);
                     if (primary != 0) return query.Descending ? -Math.Sign(primary) : Math.Sign(primary);
                     return StringComparer.Ordinal.Compare(left.RecordId, right.RecordId);
                 });

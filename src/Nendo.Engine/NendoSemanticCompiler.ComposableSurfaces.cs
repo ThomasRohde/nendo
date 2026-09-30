@@ -1540,9 +1540,14 @@ public sealed partial class NendoSemanticCompiler
     {
         var fieldId = ReadRequiredString(node, "fieldId", "NUI270", diagnostics);
         var comparison = ReadRequiredString(node, "operator", "NUI271", diagnostics);
-        if (!RefuseCalculatedQueryField(node, "fieldId", fieldId, derived, "filter on it", diagnostics) &&
-            fieldId is not null && !fields.TryGetValue(fieldId, out _))
+        // A calculated field filters as a stored field of its result type does (F-222): the host
+        // works out the records it could match first, within a published bound.
+        var calculated = fieldId is not null && derived.TryGetValue(fieldId, out var derivedField) ? derivedField : null;
+        if (calculated is null && fieldId is not null && !fields.TryGetValue(fieldId, out _))
             AddError(diagnostics, "NUI272", $"Filter field '{fieldId}' does not exist or is retired.", node.NodeId, "fieldId", "Filter on an active field of this record type.");
+        if (calculated is not null && (comparison == "descendantOf" ||
+            (comparison == "contains" && calculated.ResultType != NendoBehaviourScalar.Text)))
+            RefuseCalculatedQueryField(node, "fieldId", fieldId, derived, $"take '{comparison}' on it", diagnostics);
         if (comparison is not null && !NendoSemanticVocabulary.FilterOperators.Contains(comparison))
             AddError(diagnostics, "NUI273", $"Filter operator '{comparison}' is not supported.", node.NodeId, "operator",
                 $"Use one of: {string.Join(", ", NendoSemanticVocabulary.FilterOperators.OrderBy(value => value, StringComparer.Ordinal))}.");
@@ -1572,6 +1577,9 @@ public sealed partial class NendoSemanticCompiler
         }
         if (valueKind == "literal" && fieldId is not null && fields.TryGetValue(fieldId, out var field))
             ValidateLiteral(node, field, value, diagnostics);
+        else if (valueKind == "literal" && calculated is not null)
+            ValidateLiteral(node, new NendoFieldSnapshot(calculated.FieldId, calculated.DisplayName,
+                Storage.SqliteNendoStore.KindOf(calculated.ResultType), false, null, []), value, diagnostics);
     }
 
     /// <summary>A literal must match the storage kind it is compared against.</summary>
@@ -1605,8 +1613,8 @@ public sealed partial class NendoSemanticCompiler
         if (node.Properties.TryGetValue("orderByFieldId", out var orderBy))
         {
             var fieldId = orderBy.ValueKind == JsonValueKind.String ? orderBy.GetString() : null;
-            if (!RefuseCalculatedQueryField(node, "orderByFieldId", fieldId, derived, "sort by it", diagnostics) &&
-                (fieldId is null || !fields.ContainsKey(fieldId)))
+            // A calculated field sorts too (F-222), in the order the host works out before the page.
+            if ((fieldId is null || !derived.ContainsKey(fieldId)) && (fieldId is null || !fields.ContainsKey(fieldId)))
                 AddError(diagnostics, "NUI278", "The ordering field does not exist or is retired.", node.NodeId, "orderByFieldId", "Order by an active field of the listed record type.");
         }
         if (node.Properties.TryGetValue("orderDirection", out var direction))
@@ -1690,12 +1698,11 @@ public sealed partial class NendoSemanticCompiler
     /// <summary>
     /// Refuses a calculated field where a bounded query needs a stored one.
     /// <para>
-    /// Sorting, filtering, grouping and placing a record on a calendar are decided
-    /// by the database over every matching record, not by the page in view. A
-    /// calculated field has no column to read, so honouring one of these would mean
-    /// either computing the whole collection or quietly ordering the loaded page and
-    /// calling it the collection's order. A command step is refused for the opposite
-    /// reason: there is nowhere to write the value to.
+    /// Grouping, ranking, totalling and placing a record on a calendar are decided by the
+    /// database over every matching record, not by the page in view, and a calculated field
+    /// has no column to read. Filtering and sorting are the exception (F-222): the host works
+    /// out the records a query could match first, bounded, and hands SQL the result. A
+    /// command step is refused for the opposite reason: there is nowhere to write the value to.
     /// </para>
     /// </summary>
     /// <param name="action">The verb phrase completing "this host cannot …".</param>
@@ -1712,7 +1719,7 @@ public sealed partial class NendoSemanticCompiler
             $"Field '{fieldId}' is calculated, so this host cannot {action}.",
             node.NodeId, property,
             "Name a stored field. A calculated field can be bound for display on the same surface, " +
-            "but nothing writes to one and no bounded query reads one.");
+            "and filtered or sorted by, but nothing writes to one and nothing groups, ranks or totals it.");
         return true;
     }
 

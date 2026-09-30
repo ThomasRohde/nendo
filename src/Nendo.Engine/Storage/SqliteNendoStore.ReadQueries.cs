@@ -54,8 +54,11 @@ internal sealed partial class SqliteNendoStore
         var entity = mappings
             .SingleOrDefault(value => value.EntityId == query.EntityId)
             ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
+        var derived = await DerivedFieldsOfAsync(entity.EntityId, transaction, cancellationToken);
         ValidateRecordQuery(query, entity.Fields.Select(f => new NendoFieldSnapshot(
-            f.FieldId, f.DisplayName, f.StorageKind, f.Required, f.Presentation, f.Options)).ToArray());
+            f.FieldId, f.DisplayName, f.StorageKind, f.Required, f.Presentation, f.Options)).ToArray(), derived);
+        var selection = await SelectByCalculationAsync(entity, mappings, derived, query.Filters, query.SortFieldId, query.Descending,
+            "nendo_query_calculated", transaction, cancellationToken);
         var (columns, references) = RecordColumns(entity, mappings);
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
@@ -68,7 +71,13 @@ internal sealed partial class SqliteNendoStore
         var direction = query.Descending ? "DESC" : "ASC";
         var comparison = query.Descending ? "<" : ">";
         var order = $"{id} COLLATE BINARY {direction}";
-        if (query.SortFieldId is not null)
+        if (selection?.RankFunction is { } rank)
+        {
+            // The order was worked out before the page; its direction is already in the rank.
+            order = $"{rank}(source_record.{id}) ASC";
+            if (after is not null) predicates.Add($"{rank}(source_record.{id}) > {rank}(@after)");
+        }
+        else if (query.SortFieldId is not null)
         {
             var field = entity.Fields.Single(f => f.FieldId == query.SortFieldId);
             var column = Quote(field.PhysicalColumnName);
@@ -84,7 +93,8 @@ internal sealed partial class SqliteNendoStore
             }
         }
         else if (after is not null) predicates.Add($"{id} {comparison} @after COLLATE BINARY");
-        await AddFilterPredicatesAsync(entity, query.Filters, "nendo_query_filter", predicates, parameters, transaction, cancellationToken);
+        await AddFilterPredicatesAsync(entity, StoredFilters(query.Filters, derived), "nendo_query_filter", predicates, parameters, transaction, cancellationToken);
+        if (selection?.KeepPredicate is { } keep) predicates.Add(keep);
         // Only storage-owned mappings become identifiers. User values are parameters.
         var sql = $"SELECT {string.Join(", ", columns)} FROM {Quote(entity.PhysicalTableName)} source_record " +
             (predicates.Count == 0 ? string.Empty : $"WHERE {string.Join(" AND ", predicates)} ") +
@@ -123,11 +133,14 @@ internal sealed partial class SqliteNendoStore
             ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
         var fields = entity.Fields.Select(f => new NendoFieldSnapshot(
             f.FieldId, f.DisplayName, f.StorageKind, f.Required, f.Presentation, f.Options)).ToArray();
-        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields);
+        var derived = await DerivedFieldsOfAsync(entity.EntityId, transaction, cancellationToken);
+        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields, derived);
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
-        await AddFilterPredicatesAsync(entity, query.Filters, "nendo_count_filter", predicates, parameters, transaction, cancellationToken);
+        await AddFilterPredicatesAsync(entity, StoredFilters(query.Filters, derived), "nendo_count_filter", predicates, parameters, transaction, cancellationToken);
+        if ((await SelectByCalculationAsync(entity, mappings, derived, query.Filters, null, false, "nendo_count_calculated", transaction, cancellationToken))?.KeepPredicate is { } keep)
+            predicates.Add(keep);
 
         var sql = $"SELECT COUNT(*) FROM {Quote(entity.PhysicalTableName)} source_record " +
             (predicates.Count == 0 ? string.Empty : $"WHERE {string.Join(" AND ", predicates)}") + ";";
@@ -155,7 +168,8 @@ internal sealed partial class SqliteNendoStore
             ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
         var fields = entity.Fields.Select(f => new NendoFieldSnapshot(
             f.FieldId, f.DisplayName, f.StorageKind, f.Required, f.Presentation, f.Options)).ToArray();
-        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields);
+        var derived = await DerivedFieldsOfAsync(entity.EntityId, transaction, cancellationToken);
+        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields, derived);
 
         var target = entity.Fields.SingleOrDefault(f => f.FieldId == query.FieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The aggregated field does not exist on this record type.");
@@ -170,7 +184,9 @@ internal sealed partial class SqliteNendoStore
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
-        await AddFilterPredicatesAsync(entity, query.Filters, "nendo_aggregate_filter", predicates, parameters, transaction, cancellationToken);
+        await AddFilterPredicatesAsync(entity, StoredFilters(query.Filters, derived), "nendo_aggregate_filter", predicates, parameters, transaction, cancellationToken);
+        if ((await SelectByCalculationAsync(entity, mappings, derived, query.Filters, null, false, "nendo_aggregate_calculated", transaction, cancellationToken))?.KeepPredicate is { } keep)
+            predicates.Add(keep);
 
         // An unset field contributes nothing, so it is excluded in SQL rather
         // than fetched and discarded. This predicate is always present, so the
@@ -211,7 +227,8 @@ internal sealed partial class SqliteNendoStore
             ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
         var fields = entity.Fields.Select(f => new NendoFieldSnapshot(
             f.FieldId, f.DisplayName, f.StorageKind, f.Required, f.Presentation, f.Options)).ToArray();
-        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields);
+        var derived = await DerivedFieldsOfAsync(entity.EntityId, transaction, cancellationToken);
+        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields, derived);
 
         var grouping = entity.Fields.SingleOrDefault(f => f.FieldId == query.GroupByFieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The grouping field does not exist on this record type.");
@@ -227,7 +244,9 @@ internal sealed partial class SqliteNendoStore
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
-        await AddFilterPredicatesAsync(entity, query.Filters, "nendo_group_filter", predicates, parameters, transaction, cancellationToken);
+        await AddFilterPredicatesAsync(entity, StoredFilters(query.Filters, derived), "nendo_group_filter", predicates, parameters, transaction, cancellationToken);
+        if ((await SelectByCalculationAsync(entity, mappings, derived, query.Filters, null, false, "nendo_group_calculated", transaction, cancellationToken))?.KeepPredicate is { } keep)
+            predicates.Add(keep);
 
         var columns = target is null
             ? Quote(grouping.PhysicalColumnName)
@@ -266,7 +285,8 @@ internal sealed partial class SqliteNendoStore
             ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
         var fields = entity.Fields.Select(f => new NendoFieldSnapshot(
             f.FieldId, f.DisplayName, f.StorageKind, f.Required, f.Presentation, f.Options)).ToArray();
-        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields);
+        var derived = await DerivedFieldsOfAsync(entity.EntityId, transaction, cancellationToken);
+        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields, derived);
 
         var dateField = entity.Fields.SingleOrDefault(f => f.FieldId == query.DateFieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The date field does not exist on this record type.");
@@ -283,7 +303,9 @@ internal sealed partial class SqliteNendoStore
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
-        await AddFilterPredicatesAsync(entity, query.Filters, "nendo_bucket_filter", predicates, parameters, transaction, cancellationToken);
+        await AddFilterPredicatesAsync(entity, StoredFilters(query.Filters, derived), "nendo_bucket_filter", predicates, parameters, transaction, cancellationToken);
+        if ((await SelectByCalculationAsync(entity, mappings, derived, query.Filters, null, false, "nendo_bucket_calculated", transaction, cancellationToken))?.KeepPredicate is { } keep)
+            predicates.Add(keep);
         // The range itself, as the two predicates the compiler already charged the author for.
         predicates.Add($"{Quote(dateField.PhysicalColumnName)} >= @rangeStart");
         predicates.Add($"{Quote(dateField.PhysicalColumnName)} <= @rangeEnd");
@@ -327,7 +349,8 @@ internal sealed partial class SqliteNendoStore
             ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
         var fields = entity.Fields.Select(f => new NendoFieldSnapshot(
             f.FieldId, f.DisplayName, f.StorageKind, f.Required, f.Presentation, f.Options)).ToArray();
-        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields);
+        var derived = await DerivedFieldsOfAsync(entity.EntityId, transaction, cancellationToken);
+        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields, derived);
 
         var rowField = entity.Fields.SingleOrDefault(f => f.FieldId == query.RowByFieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The row field does not exist on this record type.");
@@ -346,7 +369,9 @@ internal sealed partial class SqliteNendoStore
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
-        await AddFilterPredicatesAsync(entity, query.Filters, "nendo_cell_filter", predicates, parameters, transaction, cancellationToken);
+        await AddFilterPredicatesAsync(entity, StoredFilters(query.Filters, derived), "nendo_cell_filter", predicates, parameters, transaction, cancellationToken);
+        if ((await SelectByCalculationAsync(entity, mappings, derived, query.Filters, null, false, "nendo_cell_calculated", transaction, cancellationToken))?.KeepPredicate is { } keep)
+            predicates.Add(keep);
 
         var columns = $"{Quote(rowField.PhysicalColumnName)}, {Quote(columnField.PhysicalColumnName)}" +
             (target is null ? string.Empty : $", {Quote(target.PhysicalColumnName)}");
@@ -398,12 +423,25 @@ internal sealed partial class SqliteNendoStore
         return new(entity.EntityId, reader.GetString(0), reader.GetInt64(1), values) { ReferenceLabels = labels };
     }
 
-    internal static void ValidateRecordQuery(NendoRecordQuery query, IReadOnlyList<NendoFieldSnapshot> fields)
+    internal static void ValidateRecordQuery(NendoRecordQuery query, IReadOnlyList<NendoFieldSnapshot> fields,
+        IReadOnlyDictionary<string, NendoDerivedFieldSnapshot>? derived = null)
     {
-        if (query.SortFieldId is not null && !fields.Any(f => f.FieldId == query.SortFieldId && f.StorageKind != NendoStorageKind.Unsupported))
+        derived ??= new Dictionary<string, NendoDerivedFieldSnapshot>();
+        if (query.SortFieldId is not null && !derived.ContainsKey(query.SortFieldId) &&
+            !fields.Any(f => f.FieldId == query.SortFieldId && f.StorageKind != NendoStorageKind.Unsupported))
             throw new NendoValidationException("The sort field is not a supported field of this record type.");
         foreach (var filter in query.Filters)
         {
+            if (derived.TryGetValue(filter.FieldId, out var calculated))
+            {
+                // A calculated field is compared as a stored field of its result type would be.
+                var kind = KindOf(calculated.ResultType);
+                if (filter.Operator == "descendantOf" || (filter.Operator == "contains" && kind != NendoStorageKind.Text))
+                    throw new NendoValidationException("This filter is not supported for the selected field type.");
+                if (filter.Operator is not ("isNull" or "isNotNull"))
+                    _ = ConvertValue(new(calculated.FieldId, query.EntityId, calculated.DisplayName, "", kind, false, null, []), filter.Value);
+                continue;
+            }
             var field = fields.SingleOrDefault(f => f.FieldId == filter.FieldId)
                 ?? throw new NendoValidationException("The filter field does not belong to this record type.");
             if (field.StorageKind == NendoStorageKind.Unsupported || (filter.Operator == "contains" && field.StorageKind != NendoStorageKind.Text) ||

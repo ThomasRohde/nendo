@@ -29,7 +29,7 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
     call: 'nendo.records.query(query)',
     params: '{entityId, limit?, cursor?, filters?, sortFieldId?, descending?}. limit is 1 to 200, 100 by default; cursor is the previous page\'s nextCursor; filters as under filters.',
     answer: '{items, nextCursor, changeSequence}: items are records, and nextCursor is null on the last page.',
-    note: 'Without sortFieldId, records come in record-ID order. A change to the file between pages refuses the next one with stale-cursor: start again from the first page, as queryAll does. A calculated field can be neither filtered nor sorted by.',
+    note: 'Without sortFieldId, records come in record-ID order. A change to the file between pages refuses the next one with stale-cursor: start again from the first page, as queryAll does. A filter or sort on a calculated field works out every record it could match first, and is refused as calculated-query-too-wide past 10,000 of them.',
   },
   'records.get': {
     call: 'nendo.records.get(entityId, recordId)',

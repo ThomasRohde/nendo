@@ -236,9 +236,10 @@ Studio shows the formula below the value. A finished screen in Use shows the val
 
 ## What screens cannot do with calculated fields
 
-A calculated field can appear on any screen: a record page, a list column, a board card, or a related list. It cannot drive a query, because the database decides the query over every matching record and a calculated field has no column. A screen that uses one for any of these is refused with `NUI214`, and the refusal names the field:
+A calculated field can appear on any screen: a record page, a list column, a board card, or a related list. A list can also be sorted by one, or filtered on one: *Tasks is 0* lists the records nothing points at. Nendo works that out over every record the list could show, up to 10,000 of them; past that, add a filter on an ordinary field to narrow it.
 
-- sort a list, or filter it;
+A calculated field still cannot group or total anything, because the database decides those over every matching record and a calculated field has no column. A screen that uses one for any of these is refused with `NUI214`, and the refusal names the field:
+
 - group a board or a breakdown chart;
 - place a record on a calendar, a timeline, a trend chart or an activity grid;
 - be the rows, columns or rank of a matrix or ranked list;

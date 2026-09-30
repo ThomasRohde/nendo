@@ -526,7 +526,8 @@ A filter is `{fieldId, operator, value}`, with `operator` one of `eq`, `ne`, `lt
 `le`, `gt`, `ge`, `contains`, `isNull` and `isNotNull`, and no `value` for the last
 two. The broker takes at most 64 clauses, and the host refuses a query of more than
 eight. The [query contract](queries.md) has the rest: exact comparisons, cursors
-that bind the file's change sequence, and no filter or sort by a calculated field.
+that bind the file's change sequence, and a filter or sort by a calculated field worked out
+over at most 10,000 records.
 The aggregate words are the ones the Workbench's own tiles and charts use, and the
 vocabulary publishes the closed `bucket` and `range` words.
 

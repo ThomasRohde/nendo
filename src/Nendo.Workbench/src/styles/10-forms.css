@@ -136,6 +136,34 @@ textarea:focus {
 }
 .record-list button > .status-dot,
 .record-list button > small { flex: 0 0 auto; }
+/* The version keeps one width, so the columns of every row line up with the head's. */
+.record-list button > small,
+.record-list-head > small { flex: 0 0 3.5rem; text-align: right; }
+.record-list .dot-space { visibility: hidden; }
+
+/* The head names each column once, above the rows it labels (F-225). */
+.record-list-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.record-list-head > strong,
+.record-list-head > span {
+  flex: 1 1 0;
+  min-width: 0;
+  font-weight: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.record-list-head > .status-dot { flex: 0 0 auto; }
 
 .history-list {
   display: grid;

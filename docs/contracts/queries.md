@@ -16,6 +16,15 @@ up to eight AND predicates. The predicates are:
   and it is refused as `hierarchy-too-wide` when more than 10,000 records sit under that
   record, and as `hierarchy-not-declared` on any other field.
 
+The sort field and any predicate may name a **calculated field** (2026-09-30, F-222). It is
+compared as a stored field of its result type is: `contains` only for a Text result, and
+never `descendantOf`. A calculated field has no column, so the host first reads every record
+the stored predicates leave, with its calculations, and gives the database the ones that pass
+and their order. The page, its continuation, the count and every aggregate read that one set.
+A value that could not be worked out matches no predicate, not even null, and sorts last in
+either direction. The read is refused as `calculated-query-too-wide` when more than 10,000
+records would be worked out; a stored predicate narrows it.
+
 A **tree read** (`NendoTreeQuery`: a record type, an optional root, a depth of 1 to 32 and
 a page of 1 to 200) returns a declared hierarchy depth-first: the records under the root,
 or the whole tree from the top level, siblings in the order field's order, unordered ones

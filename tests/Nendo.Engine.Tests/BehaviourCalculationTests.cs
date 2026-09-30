@@ -217,26 +217,51 @@ public sealed class BehaviourCalculationTests
         var service = new NendoApplicationService(coordinator);
         await Seed(coordinator, service);
         var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(Mutation("sum", new SetBehaviourDefinitionOperation("s",
+            new NendoCalculationDefinition("project.effort", "projects", "effort", "Effort",
+                NendoBehaviourScalar.Integer, false, "effortSum",
+                [NendoBehaviourBinding.RelatedSum("effortSum", "projects", "tasks", "project", "effort", NendoBehaviourScalar.Integer)]),
+            revision)));
+
+        // The fixture holds three tasks. Lowering the host's ceiling reaches the exact
+        // boundary without building a file the size of the ceiling; the ceiling is the
+        // host's to set and never the file's. A total reads every value, so it is bounded.
+        coordinator.BehaviourLimits = NendoBehaviourLimits.Default with { RelatedRows = 3 };
+        Assert.AreEqual(NendoCalculationState.Value, Result(await Project(service), "effort").State);
+
+        coordinator.BehaviourLimits = NendoBehaviourLimits.Default with { RelatedRows = 2 };
+        var refused = Result(await Project(service), "effort");
+        Assert.AreEqual(NendoCalculationState.Error, refused.State,
+            "A collection past the scan ceiling produced a total of the part that was read.");
+        Assert.AreEqual(NendoCalculationCodes.LimitReached, refused.ErrorCode);
+        coordinator.BehaviourLimits = NendoBehaviourLimits.Default;
+    }
+
+    /// <summary>
+    /// F-223: a plain count on a read is the store's own count, so it has no related-row
+    /// ceiling. Archi's count of the diagram objects on a view of 300 read as an error.
+    /// </summary>
+    [TestMethod]
+    public async Task APlainCountOnAReadIsNotBoundedByTheScanCeiling()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await Seed(coordinator, service);
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
         await coordinator.ApplyAsync(Mutation("count", new SetBehaviourDefinitionOperation("c",
             new NendoCalculationDefinition("project.taskCount", "projects", "taskCount", "Tasks",
                 NendoBehaviourScalar.Integer, false, "count",
                 [NendoBehaviourBinding.RelatedCount("count", "projects", "tasks", "project")]),
             revision)));
 
-        // The fixture holds three tasks. Lowering the host's ceiling reaches the exact
-        // boundary without building a file the size of the ceiling; the ceiling is the
-        // host's to set and never the file's.
-        coordinator.BehaviourLimits = NendoBehaviourLimits.Default with { RelatedRows = 3 };
-        Assert.AreEqual(3L, Number(await Project(service), "taskCount"));
-
-        coordinator.BehaviourLimits = NendoBehaviourLimits.Default with { RelatedRows = 2 };
-        var refused = Result(await Project(service), "taskCount");
-        Assert.AreEqual(NendoCalculationState.Error, refused.State,
-            "A collection past the scan ceiling produced a total of the part that was read.");
-        Assert.AreEqual(NendoCalculationCodes.LimitReached, refused.ErrorCode);
-
+        coordinator.BehaviourLimits = NendoBehaviourLimits.Default with { RelatedRows = 1 };
+        Assert.AreEqual(3L, Number(await Project(service), "taskCount"),
+            "A count on a read past the scan ceiling was refused, though the store counts without reading a row.");
+        var listed = await service.QueryRecordsAsync(new NendoRecordQuery("projects", 50));
+        Assert.AreEqual(3L, listed.Items.Single(record => record.RecordId == "p1").Calculations
+            .Single(calculation => calculation.FieldId == "taskCount").Value.GetInt64());
         coordinator.BehaviourLimits = NendoBehaviourLimits.Default;
-        Assert.AreEqual(3L, Number(await Project(service), "taskCount"));
     }
 
     [TestMethod]

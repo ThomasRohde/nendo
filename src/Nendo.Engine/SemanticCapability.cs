@@ -101,6 +101,25 @@ internal static class NendoSemanticCapability
 
         internal bool HasKind(string kind) => _nodes.Any(node => node.Kind == kind);
 
+        /// <summary>
+        /// Whether a filter clause filters on, or a node sorts by, a field its record type does
+        /// not store: a calculated one, since the compiler refuses a field that is neither. The
+        /// record type is the nearest node above that names one. Unknown fields count as absent.
+        /// </summary>
+        internal bool NamesCalculatedField(NendoUiNodeSnapshot node)
+        {
+            var fieldId = node.Kind == "filterClause" ? Text(node, "fieldId") : Text(node, "orderByFieldId");
+            if (fieldId is null) return false;
+            for (NendoUiNodeSnapshot? at = node; at is not null;
+                 at = at.ParentNodeId is not null && _byId.TryGetValue(at.ParentNodeId, out var parent) ? parent : null)
+            {
+                var entityId = at.Kind == "relatedList" ? Text(at, "targetEntityId") : Text(at, "entityId");
+                if (entityId is null) continue;
+                return KnowsEntity(entityId) && StoredKind(entityId, fieldId) is null;
+            }
+            return false;
+        }
+
         /// <summary>The kind of a node's parent, or null for a root or a dangling reference.</summary>
         internal string? ParentKind(NendoUiNodeSnapshot node) =>
             node.ParentNodeId is not null && _byId.TryGetValue(node.ParentNodeId, out var parent) ? parent.Kind : null;
@@ -236,6 +255,11 @@ internal static class NendoSemanticCapability
         new(NendoFormat.OutlineSurfaceMinimumHostVersion,
             "an outline",
             tree => tree.HasKind("outlineSurface")),
+        // Reads the stored fields too: a filter on a calculated field and one on a stored field
+        // are the same shape, and only the record type's stored fields tell them apart.
+        new(NendoFormat.CalculatedQueryMinimumHostVersion,
+            "a filter or sort on a calculated field",
+            tree => tree.Nodes.Any(node => tree.NamesCalculatedField(node))),
     ];
 
     private static readonly string[] EarlierPins = ["packageVersion", "packageDigest", "protocolVersion", "configurationVersion", "configuration"];

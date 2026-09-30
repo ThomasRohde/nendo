@@ -67,8 +67,9 @@ The host classifies every open before it enables normal UI or integrations.
   Downgrade-in-place is not supported.
 - A file that carries custom-view packages needs host 1.33.0
   ([ADR-0013](0013-custom-views-with-code-in-the-file.md)). Open view definitions
-  need 1.34.0, and `extensionView` and `extensionTile` will need 1.40.0, since
-  1.39.0 went to folded history ([ADR-0021](0021-folding-old-history.md)). A declared
+  need 1.34.0, and `extensionView` and `extensionTile` will need 1.41.0, since
+  1.39.0 went to folded history ([ADR-0021](0021-folding-old-history.md)) and 1.40.0 to a
+  filter or sort on a calculated field (ADR-0008, 2026-09-30 amendment). A declared
   hierarchy needs 1.35.0, and an outline of one 1.36.0
   ([ADR-0019](0019-hierarchies-in-the-schema.md)). A unique field needs 1.37.0
   ([ADR-0020](0020-unique-and-generated-fields.md)), and a file's own look 1.38.0

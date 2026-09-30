@@ -127,7 +127,7 @@ not built, with the reason.
 | A view cannot read a file the person picks | `.archimate`, XML and CSV import wait for it | W-104 |
 | A view is only a record-type screen or a record-page panel | The workbench is a screen of View | W-106, Later |
 | The operation-row and revision-row bounds, about 100,000 each | See [the write budget](#the-write-budget) | W-101 (D-002) |
-| A calculated field is shown, not filtered | *On views* and *Diagram objects* counts are list columns; no screen can list only the unused (`NUI214`), so the validator does it in code | W-117; see [the validator](#the-validator) |
+| A calculated field was shown, not filtered | *On views* and *Diagram objects* are counts; since F-222 a list filters on them, so *Not on any view* and *Empty views* are screens | Fixed 2026-09-30; see [the validator](#the-validator) |
 | Binary fields are out of scope | Images are dropped on import, with a notice | F-208 |
 | No search across record types | The workbench's tree search covers the model | None |
 
@@ -188,8 +188,8 @@ view is edited (`Gate-ArchiWorkbench.mjs`).
 
 | Check | Declarative? | Why |
 | --- | --- | --- |
-| Unused elements, unused relationships | Counted, not listed | A calculated *On views* count (`RelatedAggregate` over Diagram item's concept) shows it in the Elements list and on a concept's page; a list cannot filter or sort on a calculated field (`NUI214`, refused on Archi.nendo itself), so *only the unused* is not a screen. Nendo's Use list draws only a record's first three fields, so the count is third, and the Relationships list, which needs type, source and target, has it on the page instead (`tools/archi/definition.test.mjs`). Getting it there took two stages: `ui.moveNode` sets one node's position and renumbers none, and siblings on one position read in order of node ID, so the first move tied the count with Folder, behind it |
-| Empty views | Counted, not listed | The same, as *Diagram objects* on Views; a view of more than 256 objects has no count but `calculation-limit-reached`, the related-row ceiling of a calculation (measured on a view of 300) |
+| Unused elements, unused relationships | Yes | A calculated *On views* count (`RelatedAggregate` over Diagram item's concept) shows in the Elements and Relationships lists and on a concept's page, and Concepts → *Not on any view* lists the concepts whose count is 0. Until F-222 was fixed (2026-09-30) a list could not filter on a calculated field (`NUI214`, refused on Archi.nendo itself), so the count was a column to read by eye. The count is third in Elements and Views, where a host that drew only three fields (F-225) draws it too (`tools/archi/definition.test.mjs`); a `ui.moveNode` sets one node's position and renumbers none, so the first move tied it with Folder, behind it |
+| Empty views | Yes | The same, as *Diagram objects* on Views, with Views → *Empty views*. A view of more than 256 objects had no count but `calculation-limit-reached` (measured on a view of 300) until a plain count on a read became the store's own count (F-223, 2026-09-30) |
 | Invalid relationships | No | Needs ArchiMate's relationship table (about 4,000 lines), which is package code (D-003); W-105 would make it an Engine constraint |
 | Viewpoint violations | No | Needs the 25 viewpoints' element lists, package code |
 | Nested elements | No | Compares a box's parent box with the relationships between their concepts: two hops over two record types and a type test |
@@ -200,7 +200,8 @@ The counts are not free for the workbench, which reads every concept and view af
 and so has them calculated each time. Measured on 2026-09-30 against the Engine, reading all
 concepts and views in pages of 200 (median of seven): 1.5 ms without them and 10.2 ms with them
 at Archisurance's size (296 concepts, 17 views, 448 diagram objects), and 12.4 ms against 91.1 ms
-at 5,000 concepts, 200 views and 7,500 objects. That is kept, as the price of a model that says
+at 5,000 concepts, 200 views and 7,500 objects; with the counts answered by the store's own count
+(F-223), 7.0 ms and 67.3 ms. That is kept, as the price of a model that says
 which of its concepts are unused without the workbench.
 
 ## The write budget

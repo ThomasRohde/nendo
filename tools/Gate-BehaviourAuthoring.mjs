@@ -469,28 +469,28 @@ async function approveInWorkbench() {
 }
 
 /**
- * Sorting is decided by the database over every matching record. A calculated
- * field has no column, so honouring it would mean ordering the loaded page and
- * calling it the collection's order.
+ * Grouping is decided by the database over every matching record, and a calculated
+ * field has no column. A list may sort and filter by one since F-222, because the host
+ * works out the records first; a board's lanes are still the field's stored values.
  */
 async function assertASurfaceCannotSortByACalculation(tool, owned) {
-  const { scoped, validated } = await changeSet(tool, owned, 'Sort by a calculation', [{
-    description: 'A list ordered by a calculated field',
+  const { scoped, validated } = await changeSet(tool, owned, 'Group by a calculation', [{
+    description: 'A board grouped by a calculated field',
     operations: [
-      operation('ui.addNode', { surfaceId: 'probe', nodeId: 'probe-list', parentNodeId: null, kind: 'recordList', position: 0,
-        properties: { definitionVersion: 3, entityId: 'project', title: 'Projects', orderByFieldId: 'taskCount' } }),
+      operation('ui.addNode', { surfaceId: 'probe', nodeId: 'probe-list', parentNodeId: null, kind: 'boardSurface', position: 0,
+        properties: { definitionVersion: 3, entityId: 'project', title: 'Projects', groupByFieldId: 'taskCount' } }),
       operation('ui.addNode', { surfaceId: 'probe', nodeId: 'probe-name', parentNodeId: 'probe-list', kind: 'fieldBinding', position: 0,
         properties: { fieldId: 'projectName' } }),
     ],
   }]);
   assert(String(validated.state).toLowerCase() === 'invalid',
-    `A list ordered by a calculated field validated: ${JSON.stringify(validated)}`);
+    `A board grouped by a calculated field validated: ${JSON.stringify(validated)}`);
   const diagnostic = (validated.diagnostics ?? []).find(item => item.code === 'NUI214');
   assert(diagnostic, `The refusal is ${JSON.stringify(validated.diagnostics)}, not its own code.`);
-  assert(diagnostic.message.includes('taskCount') && /sort/i.test(diagnostic.message),
+  assert(diagnostic.message.includes('taskCount') && /group/i.test(diagnostic.message),
     `The refusal does not name the field or what it refuses: ${diagnostic.message}`);
   assert(/stored field/i.test(diagnostic.hint), `The refusal offers no remedy: ${diagnostic.hint}`);
-  await record('refused-sort-by-calculation.json', diagnostic);
+  await record('refused-group-by-calculation.json', diagnostic);
   await tool('nendo.change_set.reject', { ...scoped, idempotencyKey: crypto.randomUUID() });
 }
 

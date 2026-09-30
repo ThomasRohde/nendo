@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { STAGES, STAGE_ORDER } from '../archi-definition.mjs';
 
-// Nendo's Use list draws a record's first field as its heading and the next two beside it, and
-// nothing after (listMarkup in src/Nendo.Workbench/src/surface-markup.ts). A column bound fourth is
-// never seen: the owner found the On views count missing that way (W-117, 2026-09-30). The screens
-// are replayed here in stage order, moves included, to name what each list draws.
+// The owner found the On views count missing (W-117, 2026-09-30): a Use list drew a record's
+// first three fields and dropped the rest (F-225). Nendo now draws every bound field, but an
+// older host still draws three, so each count is kept among the first three where it can be.
+// The screens are replayed here in stage order, moves included, to name what an older host draws.
 const DRAWN = 3;
 
 async function screens() {
@@ -51,7 +51,7 @@ test('a concept page shows how many diagram objects show the concept', async () 
   assert.ok((children.get('ar.page.concept.details') ?? []).some(id => fields.get(id) === 'ar.concept.occurrences'));
 });
 
-test('what each list binds but does not draw is known', async () => {
+test('what a host drawing three fields leaves out of each list is known', async () => {
   const { lists } = await screens();
   const hidden = Object.fromEntries(Object.entries(lists).filter(([, list]) => list.hidden.length > 0).map(([id, list]) => [id, list.hidden]));
   assert.deepEqual(hidden, {

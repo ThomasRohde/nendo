@@ -182,6 +182,14 @@ ceiling, the aggregate returns an error. It does not return a total of the part
 that was read. An incomplete total that looks like a complete total is worse
 than no total.
 
+**A plain count on a read has no related-row ceiling** (2026-09-30, F-223). A
+`RelatedAggregate` `Count` evaluated for a read is the store's own count over the
+reference's index: it reads no row, leaves nothing out, and costs one unit of work.
+Archi's count of the objects on a view of 300 read as `calculation-limit-reached`
+before. A `FilteredCount` and a `Sum` read every member's value, so they keep the
+ceiling, and so does every aggregate evaluated inside a save's chain, where a
+reviewed plan has to see each record it counted.
+
 ### Actions and triggers
 
 An action step is `SetField`, `CreateRecord` or `DeleteRecord`. It targets
@@ -502,11 +510,19 @@ number.
 
 **On a custom surface** a calculated field binds wherever a stored one does: a
 record page, a list column, a board card, a related list of another record type.
-It may not drive a bounded query. These all refuse a calculated field with code
+Since 2026-09-30 (F-222) it also filters and sorts: a `filterClause` compares it as a
+stored field of its result type is compared (`contains` for a Text result only, never
+`descendantOf`), and `orderByFieldId` orders by it. The host works out every record the
+query's stored filters leave, with its calculations, and hands the database the ones that
+pass and their order, so a page, its continuation, the list's count and every tile over it
+agree. A value that could not be worked out matches no filter, not even `isNull`, and sorts
+last. Past 10,000 records (`NendoQueryLimits.MaximumCalculatedQueryRecords`, the bound a
+hierarchy's subtree has) the read is refused as `calculated-query-too-wide` rather than read
+slowly; a filter on a stored field narrows it. A file that does either needs host 1.40.0.
+
+It may not drive anything else. These all refuse a calculated field with code
 `NUI214`, and the refusal names the field:
 
-- `orderByFieldId`;
-- `filterClause`;
 - the `groupByFieldId` of a board or a `breakdownChart`;
 - the `rowByFieldId` and `columnByFieldId` of a `matrixSurface`;
 - the `rankByFieldId` of a `rankedList`;
@@ -886,7 +902,7 @@ raises them.
 | Function calls | 64 | One counter across nested calls |
 | Text length | 4,096 | On input, and before `Concat` allocates |
 | Cached expressions | 16 | Cleared on reaching the cap |
-| Related rows per chain | 256 | SQL LIMIT plus a charge per row read |
+| Related rows per chain | 256 | SQL LIMIT plus a charge per row read. A plain count on a read reads no row and is not charged against it |
 | Generated changes per chain | 64 | Before each generated write |
 | Exact total | int64, or the .NET decimal range (96-bit coefficient, scale 0–28) | On the fold; refused as `aggregate-not-representable`, never wrapped or rounded. Trailing zeros that only a mixed scale added are shed first, so `decimal.MaxValue + 0.0` is `decimal.MaxValue` |
 
