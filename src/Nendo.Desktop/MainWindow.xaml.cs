@@ -401,6 +401,11 @@ public sealed partial class MainWindow : Window
             presenter.Restore();
         }
         Activate();
+        // Activate shows the window, but a window that is already showing stays behind whatever
+        // is in front of it (owner-reported, 2026-10-01: a file picked from the taskbar's Recent
+        // list while its window sat behind others). The Nendo that received the click has
+        // allowed this process the foreground (DesktopWindowHandoff.TryShow), so it may take it.
+        SetForegroundWindow(Win32Interop.GetWindowFromWindowId(AppWindow.Id));
         _notifier?.ClearAll();
         // Hiding destroyed the taskbar button and showing made a new, bare one. The
         // badge has to be put back on it, and the only reason a person is looking at
@@ -482,4 +487,7 @@ public sealed partial class MainWindow : Window
             Application.Current.Exit();
         }
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr window);
 }
