@@ -107,6 +107,7 @@ function desktopVersion() {
 const work = await fs.mkdtemp(path.join(os.tmpdir(), 'archimate-io-'));
 const problems = [];
 const lines = [];
+let labels = 0;
 let version = null;
 if (!skipDesktop) {
   version = desktopVersion();
@@ -130,6 +131,13 @@ try {
     const reread = canvas.parseArchimateText(saved.xml);
     const ours = compare(`${name}, opened and saved by the workbench`, reference.model, reread);
     if (ours) problems.push(ours);
+    // W-114: every label expression gives archi-online's text after the trip through the records.
+    const labelled = [...Object.values(reference.model.nodes), ...Object.values(reference.model.connections), ...Object.values(reference.model.folders)]
+      .filter(item => item.labelExpression);
+    const differentLabels = labelled.filter(item => canvas.evaluateLabelExpression(reference.model, item.id).text !== canvas.evaluateLabelExpression(reread, item.id).text);
+    labels += labelled.length;
+    if (differentLabels.length > 0) problems.push(`${name}: ${differentLabels.length} of ${labelled.length} label expressions read differently, first ${differentLabels[0].id}: ` +
+      `${JSON.stringify(canvas.evaluateLabelExpression(reference.model, differentLabels[0].id).text)} != ${JSON.stringify(canvas.evaluateLabelExpression(reread, differentLabels[0].id).text)}`);
 
     let desktop = 'not run';
     if (!skipDesktop) {
@@ -155,4 +163,4 @@ if (problems.length > 0) {
   console.error(`\n${problems.join('\n\n')}`);
   process.exit(1);
 }
-console.log(`Every fixture opens and saves with archi-online's semantics${skipDesktop ? '' : `, and Desktop Archi ${version} opens and saves each save the same`}.`);
+console.log(`Every fixture opens and saves with archi-online's semantics, and its ${labels} label expressions read as archi-online reads them${skipDesktop ? '' : `; Desktop Archi ${version} opens and saves each save the same`}.`);

@@ -6,7 +6,8 @@
 // fonts are W-114's. What the mirror leaves out (an image object) is never deleted, because a
 // record is deleted only when the model before the change held it and the model after does not.
 
-import type { DiagramConnection, DiagramNode, ModelState } from '@archi/model/types';
+import type { DiagramConnection, DiagramNode, FontStyle, ModelState } from '@archi/model/types';
+import { serializeFontStyle } from '@archi/model/font-style';
 import type { NendoRecord, RecordSets } from './mirror';
 
 export type Values = Record<string, unknown>;
@@ -109,7 +110,10 @@ export function toRecords(model: ModelState, stored: Map<string, NendoRecord> = 
       'ar.view.viewpoint': view.viewpoint, 'ar.view.router': router });
   }
 
-  const style = (item: Record<string, unknown>) => Object.fromEntries(STYLE.map(name => [`ar.item.${name}`, item[name]]));
+  // A font chosen in the Appearance tab arrives as fontStyle with font cleared (W-114); the
+  // record keeps Archi's own string, as the stored one was kept.
+  const style = (item: Record<string, unknown>) => Object.fromEntries(STYLE.map(name => [`ar.item.${name}`,
+    name === 'font' && item.font === undefined && item.fontStyle ? serializeFontStyle(item.fontStyle as FontStyle) : item[name]]));
   const siblingOrders = new Map<string, Map<string, number>>();
   const orderOf = (node: DiagramNode) => {
     const parent = node.parentId;

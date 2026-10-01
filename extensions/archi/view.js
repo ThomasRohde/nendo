@@ -17,10 +17,17 @@ const tone = name => name ? `var(--nendo-tone-${name})` : '';
 const READS = { models: M.E.model, folders: M.E.folder, types: M.E.type, concepts: M.E.concept,
   specializations: M.E.specialization, views: M.E.view, items: M.E.item, properties: M.E.property };
 
+/*
+ * The Appearance panel beside the view while editing (W-114) takes room from the drawing, so it
+ * starts hidden; the Appearance toggle shows it, and this device remembers the choice.
+ */
+const APPEARANCE_KEY = 'archi-appearance';
+function appearanceKept() { try { return localStorage.getItem(APPEARANCE_KEY) === 'shown'; } catch { return false; } }
+
 const state = {
   model: null, selected: null, expanded: new Set(), modelOpen: true, filter: { text: '', layer: '' },
   nativeChrome: false, renaming: null, draftProperties: null, readOnly: false, loaded: false,
-  sets: null, openView: null, diagramSelection: [], zoom: 1, editing: false, pending: 0, transparent: false,
+  sets: null, openView: null, diagramSelection: [], zoom: 1, editing: false, pending: 0, transparent: false, styleShown: appearanceKept(),
   validator: { open: false, issues: null, of: null, current: null },
 };
 
@@ -620,6 +627,7 @@ function declareToolbar() {
       { kind: 'button', id: 'redo', label: 'Redo', keys: 'Ctrl+Y', disabled: !editor?.canRedo() },
       { kind: 'button', id: 'commit', label: state.pending > 0 ? `Commit ${state.pending}` : 'Commit', icon: 'check', keys: 'Ctrl+S', disabled: state.pending === 0 },
       { kind: 'button', id: 'discard', label: 'Discard', disabled: state.pending === 0 },
+      { kind: 'toggle', id: 'appearance', label: 'Appearance', icon: 'eye', pressed: state.styleShown },
     ] }] : []),
     { kind: 'toggle', id: 'validator', label: 'Validator', icon: 'info', pressed: state.validator.open },
     ...(state.openView ? [{ kind: 'menu', id: 'export', label: 'Export', icon: 'export', items: [
@@ -712,6 +720,12 @@ function runCommand({ id, value }) {
     case 'export-copy': copyView(); break;
     case 'export-transparent': state.transparent = value === true; declareToolbar(); break;
     case 'grid': case 'snap': case 'guides': canvasModule?.setEditorSetting?.(id, value === true); declareToolbar(); break;
+    case 'appearance':
+      state.styleShown = value === true;
+      try { localStorage.setItem(APPEARANCE_KEY, state.styleShown ? 'shown' : 'hidden'); } catch { /* this visit only */ }
+      editor?.showStyle?.(state.styleShown);
+      declareToolbar();
+      break;
     default: if (canvasModule?.ARRANGE_COMMANDS?.includes(id)) arrange(id);
   }
 }
@@ -789,6 +803,7 @@ function renderEditor(view) {
       onIdle: () => { if (editor && editSets !== state.sets) renderCentre(); },
     });
     editor.show(view.recordId);
+    editor.showStyle?.(state.styleShown);
     if (saved) setStatus(`${saved.length} edits were waiting to be committed, and are here again.`);
     editsChanged();
   } else if (editSets !== state.sets && !editor.busy()) {

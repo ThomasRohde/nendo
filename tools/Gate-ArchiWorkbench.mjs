@@ -1008,6 +1008,74 @@ async (page) => {
     await page.evaluate(() => window.broker.command('grid', false, 'toolbar'));
     await until(() => !document.querySelector('.archi-editor .view-grid'), null, 'Hiding the grid left it drawn.');
     results.arrange = { arranged, pasted };
+
+    // ---- W-114: how a box looks, in archi-online's own Appearance and Label tabs beside the view.
+    // Each change waits like a move and commits to the box's record; a font chosen there keeps
+    // Archi's own string; the label expression is drawn; and the workbench started again shows
+    // every value in the tabs.
+    const board = await boxNamed('Board');
+    // Hidden at first, the panel opens from the Appearance toggle in Nendo's row.
+    assert(await view.evaluate(() => document.querySelector('.archi-style')?.hidden === true), 'The Appearance panel was shown before it was asked for.');
+    await page.evaluate(() => window.broker.command('appearance', true, 'toolbar'));
+    await until(() => document.querySelector('.archi-style')?.hidden === false, null, 'The Appearance toggle did not show the panel.');
+    const styleControl = label => view.locator(`.archi-style .appearance-field:has(> label:text-is("${label}")) .appearance-control`);
+    // Showing the panel narrows the canvas, which draws again; the box is clicked where it now is.
+    const selectBoard = async () => {
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const at = await boxOf(board.recordId);
+        await page.mouse.click(editFrame.x + at.x + 10, editFrame.y + at.y + at.height - 8);
+        await page.waitForTimeout(150);
+        if (await view.evaluate(() => !!document.querySelector('.archi-style [data-style-tab="appearance"]'))) return;
+      }
+      throw new Error('Selecting a box did not show its Appearance tab: ' + JSON.stringify(await view.evaluate(() => document.querySelector('.archi-style')?.textContent?.slice(0, 120))));
+    };
+    await selectBoard();
+    await styleControl('Fill Colour').locator('input[type="color"]').fill('#ff8800');
+    await styleControl('Gradient').locator('select').selectOption('1');
+    await styleControl('Line Width').locator('select').selectOption('3');
+    await styleControl('Font').locator('input[type="number"]').fill('14');
+    await styleControl('Font').locator('button', { hasText: 'B' }).click();
+    await view.click('.archi-style [data-style-tab="label"]');
+    const expression = view.locator('.archi-style textarea[aria-label="Label expression"]');
+    await expression.fill('${type}: ${name}');
+    await expression.press('Tab');
+    const preview = await view.locator('.archi-style .label-expression-preview').textContent();
+    assert(preview === 'Business Actor: Board', `The Label tab previews "${preview}".`);
+    await waiting();
+    await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
+    await pendingIs(0, 'The appearance committed');
+    const styled = (await records('ar.item')).find(item => item.recordId === board.recordId).values;
+    const font = String(styled['ar.item.font'] ?? '').split('|');
+    assert(styled['ar.item.fillColor'] === '#ff8800' && styled['ar.item.gradient'] === 1 && styled['ar.item.lineWidth'] === 3 &&
+      font[0] === '1' && font[2] === '14' && font[3] === '1' && styled['ar.item.labelExpression'] === '${type}: ${name}',
+      `Board's record does not hold what the tabs set: ${JSON.stringify({ fill: styled['ar.item.fillColor'], gradient: styled['ar.item.gradient'], lineWidth: styled['ar.item.lineWidth'], font: styled['ar.item.font'], label: styled['ar.item.labelExpression'] })}.`);
+    await until(() => [...document.querySelectorAll('.archi-editor text, .archi-editor div')].some(node => node.textContent === 'Business Actor: Board'), null,
+      'The view does not draw Board by its label expression.');
+    // Started again, the tabs show what the record holds.
+    await page.evaluate(place => { window.broker.startAt(place); window.broker.remount(); }, { view: treeView.recordId, selected: treeView.recordId, item: null });
+    view = null;
+    for (let attempt = 0; attempt < 400 && view === null; attempt += 1) {
+      const candidate = page.frames().filter(frame => !frame.isDetached() && frame.url().startsWith(origin + '/')).at(-1);
+      if (candidate && await candidate.evaluate(() => !!document.querySelector('.canvas-host .paper')).catch(() => false)) view = candidate;
+      else await page.waitForTimeout(25);
+    }
+    assert(view !== null, 'The workbench did not start again on Organisation Tree View.');
+    await page.evaluate(() => window.broker.command('edit', true, 'toolbar'));
+    await until(() => document.querySelectorAll('.archi-editor [data-node-id]').length > 10, null, 'Edit did not open again.');
+    await selectBoard();
+    const shown = await view.evaluate(() => {
+      const control = label => [...document.querySelectorAll('.archi-style .appearance-field')].find(field => field.querySelector(':scope > label')?.textContent === label)?.querySelector('.appearance-control');
+      return { fill: control('Fill Colour').querySelector('input[type="color"]').value, gradient: control('Gradient').querySelector('select').value,
+        lineWidth: control('Line Width').querySelector('select').value, size: control('Font').querySelector('input[type="number"]').value,
+        bold: [...control('Font').querySelectorAll('button')].find(button => button.textContent === 'B')?.classList.contains('active') };
+    });
+    assert(shown.fill === '#ff8800' && shown.gradient === '1' && shown.lineWidth === '3' && shown.size === '14' && shown.bold === true,
+      `Started again, the Appearance tab shows ${JSON.stringify(shown)}.`);
+    await view.click('.archi-style [data-style-tab="label"]');
+    assert(await view.locator('.archi-style textarea[aria-label="Label expression"]').inputValue() === '${type}: ${name}', 'Started again, the Label tab lost the expression.');
+    await page.evaluate(() => window.broker.command('appearance', false, 'toolbar'));
+    await until(() => document.querySelector('.archi-style')?.hidden === true, null, 'The Appearance toggle did not hide the panel.');
+    results.appearance = { fill: shown.fill, gradient: shown.gradient, lineWidth: shown.lineWidth, font: styled['ar.item.font'], label: preview };
   }
 
   // Both themes: the palette and the menus take Nendo's colours; the paper stays white.

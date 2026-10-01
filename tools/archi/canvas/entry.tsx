@@ -21,6 +21,8 @@ import { applyWrites, toRecords, writesFor } from './records';
 import { createEditor, arrangeModel, editorSettings, setEditorSetting, ARRANGE_COMMANDS } from './editor';
 
 export { buildMirror, toRecords, writesFor, applyWrites, createEditor, arrangeModel, editorSettings, setEditorSetting, ARRANGE_COMMANDS };
+// archi-online's label expressions, as the canvas draws them (W-114).
+export { evaluateLabelExpression } from '@archi/model/label-expression';
 // Open and save .archimate files (W-120).
 export { readArchimate, planImport, importBatches, holdsNoModel, modelForExport, exportArchimate, leftOutSentence,
   parseArchimateText, ArchimateFileError, recordIdOf } from './io';

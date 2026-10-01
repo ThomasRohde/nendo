@@ -4,7 +4,7 @@
 // collects them and, on Commit, writes the difference to the file as one revision
 // (records.ts). Undo and Redo are archi-online's own, over what has not been committed.
 
-import { createElement } from 'react';
+import { createElement, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ModelState } from '@archi/model/types';
 import { ViewEditor } from '@archi/canvas/ViewEditor';
@@ -17,6 +17,10 @@ import { reorderViewObjects } from '@archi/model/ops/movement';
 import { duplicateViewObjects } from '@archi/model/ops/duplicate';
 import { copyNodes, cutNodes, hasClipboard, pasteNodes } from '@archi/canvas/clipboard';
 import { sameTypeViewObjectIds } from '@archi/canvas/view-editor/bounds';
+import { AppearanceTab } from '@archi/ui/properties/AppearanceTab';
+import { LabelTab } from '@archi/ui/properties/LabelTab';
+import { resolveTarget } from '@archi/ui/properties/target';
+import { useStore } from '@archi/ui/store-hooks';
 import { ModelStoreProvider } from '@archi/ui/store-hooks';
 import { createModelStore, openView, redo, setActiveModelStore, setSelection, undo, type ModelStore } from '@archi/model/store';
 
@@ -82,6 +86,42 @@ export function setEditorSetting(name: 'grid' | 'snap' | 'guides', on: boolean) 
   useSettingsStore.getState().setSetting(key, on);
 }
 
+/**
+ * How the selected box or line looks (W-114): archi-online's own Appearance and Label tabs, for
+ * one object selected on the view. Each change is an edit waiting to be committed, as a move is.
+ */
+// A view's frame is never allowed the computer's font list (Nendo's frame delegates no
+// local-fonts), and asking for it only reports a violation each time the Appearance tab draws.
+// Without the method, archi-online's tab offers its own common fonts.
+if (typeof window !== 'undefined' && 'queryLocalFonts' in window) {
+  try { Object.defineProperty(window, 'queryLocalFonts', { value: undefined, configurable: true }); } catch { /* left as it is */ }
+}
+
+function StylePanel() {
+  const model = useStore(state => state.model);
+  const selection = useStore(state => state.selection);
+  const readOnly = useStore(state => state.readOnly);
+  const [tab, setTab] = useState<'appearance' | 'label'>('appearance');
+  const ids = selection.source === 'view' ? selection.ids : [];
+  const target = model && ids.length === 1 ? resolveTarget(model, 'view', ids) : null;
+  const object = target?.node ?? target?.connection ?? null;
+  const panel = (children: unknown[]) => createElement('div', { className: 'properties-panel archi-style-panel', 'aria-label': 'Appearance' }, ...children as []);
+  if (!model || !target || !object) {
+    return panel([createElement('p', { key: 'hint', className: 'empty-hint' },
+      ids.length > 1 ? 'Select one box or line to change how it looks.' : 'Select a box or a line on the view to change how it looks.')]);
+  }
+  const tabs = [['appearance', 'Appearance'], ['label', 'Label']] as const;
+  return panel([
+    createElement('div', { key: 'tabs', className: 'prop-tabs', role: 'tablist' }, ...tabs.map(([id, label]) => createElement('button', {
+      key: id, type: 'button', role: 'tab', 'aria-selected': tab === id, className: `prop-tab${tab === id ? ' active' : ''}`, 'data-style-tab': id,
+      onClick: () => setTab(id),
+    }, label))),
+    createElement('div', { key: 'content', className: 'prop-content' }, tab === 'appearance'
+      ? createElement(AppearanceTab, { target, readOnly })
+      : createElement(LabelTab, { key: object.id, model, objectId: object.id, readOnly })),
+  ]);
+}
+
 const PALETTE_KEY = 'archi-palette-width';
 const PALETTE_MIN = 40, PALETTE_MAX = 360, PALETTE_DEFAULT = 112;
 const clampPalette = (width: number) => Math.round(Math.min(PALETTE_MAX, Math.max(PALETTE_MIN, width)));
@@ -112,6 +152,7 @@ export function createEditor(host: HTMLElement, base: ModelState, options: Edito
   let viewId: string | null = null;
   let root: Root | null = createRoot(host);
   let quiet = false;
+  let styleShown = false;
 
   // The palette's width: dragged or stepped with the arrow keys on its splitter, and kept on this
   // device. The buttons wrap, so a wider palette is more columns rather than wider buttons.
@@ -175,6 +216,7 @@ export function createEditor(host: HTMLElement, base: ModelState, options: Edito
         'aria-valuenow': paletteWidth }),
       createElement('div', { key: 'canvas', className: 'archi-editor-canvas' },
         viewId ? createElement(ViewEditor, { key: viewId, viewId }) : null),
+      createElement('div', { key: 'style', className: 'archi-style', hidden: !styleShown }, createElement(StylePanel)),
       createElement(ContextMenuHost, { key: 'menus' }),
       // archi-online asks through its own dialogs, which its app shell hosts: which relationship a
       // box dropped into an element box stands for (W-113). Without the host the question waited
@@ -235,6 +277,9 @@ export function createEditor(host: HTMLElement, base: ModelState, options: Edito
     },
     /** The ids selected on the view. */
     selected: () => [...store.getState().selection.ids],
+    /** The Appearance panel beside the view, shown or not (W-114). */
+    showStyle(on: boolean) { styleShown = on; draw(); },
+    styleShown: () => styleShown,
     zoomIn: () => zoomButton(2),
     zoomOut: () => zoomButton(0),
     zoomActual: () => zoomButton(1),

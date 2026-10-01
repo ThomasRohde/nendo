@@ -63,6 +63,15 @@ Properties. The file you were in does not change.
   A box dropped into an element box is nested in it, and archi-online's own dialog asks which
   relationship the nesting stands for, None among the choices (W-113; before, the question
   had no place to show and the move was lost).
+- **Appearance** (W-114), a toggle in Nendo's row while editing, shows archi-online's own
+  Appearance and Label tabs beside the view for the one box or line selected: fill, line and
+  font colour and opacity, gradient, line width and style, font, text alignment and position,
+  icon, the alternate figure, a note's border, a plain line's ends, and the label expression
+  with its preview. Each change waits like a move and commits to the box's record; the view
+  draws a label expression as archi-online evaluates it. The panel starts hidden, because it
+  takes room from the drawing, and this device remembers the choice. The font list is
+  archi-online's common fonts: a view is never allowed the computer's own list. A legend's
+  options are kept and drawn, but not edited here.
 - **Arrange** (W-113), in Nendo's row while editing, and so in Ctrl K: align the selected
   boxes six ways to the last one selected, match their width, height or size, distribute
   three or more, bring forward or send back, select the same type, duplicate, cut, copy,
@@ -155,4 +164,9 @@ the dialog and commits the relationship chosen, and runs Arrange on boxes select
 clicks: what each commit holds is what archi-online's own operation makes of the same records
 and selection, and what each command means is checked on the boxes themselves (Align left:
 the anchor's x, on boxes of three widths; Match size; equal gaps; Send to back first);
-duplicate and paste as copy make a new element, paste as reference none.
+duplicate and paste as copy make a new element, paste as reference none. The Appearance
+toggle shows the tabs; a fill, a gradient, a line width, a font and a label expression set on
+Board commit to its record, the font as Archi's own string, the view draws the label, and the
+workbench started again shows each in the tabs. `verify-archimate-io.mjs` also checks that
+every label expression in archi-online's fixtures reads as archi-online reads it after the
+trip through the records.
