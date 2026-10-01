@@ -779,6 +779,41 @@ try {
   const narrowBar = await measureTitleBar('a 760 × 700 window', true);
   check(`G32 on Studio › Data ${studioBar.above} px stand above the content, and in a 760 × 700 window the rail is the title bar, its ${narrowBar.controls} controls passed through and none under Windows' buttons`);
 
+  // G36 (W-123): a picture copied to the clipboard by a view's command. Pressed in Nendo's row,
+  // the command reaches a view whose frame does not have focus; a key pressed inside the view
+  // runs it with the view focused. Measured both ways, and with the view taking focus first.
+  await click('#nav-use'); await idle();
+  await click('[data-select-surface="probe"]'); await idle();
+  const clipView = await waitFor(async () => (await frames()).find(f => f.view === 'probe' && f.state === 'running'), 'the probe screen for the clipboard', 30000);
+  const clipFrame = await frameSession(clipView.name);
+  await waitFor(() => inFrame(clipFrame, 'probe.state.ready'), 'the probe handshake for the clipboard');
+  await inFrame(clipFrame, `nendo.ui.setToolbar({ items: [
+    { kind: 'button', id: 'copy-picture', label: 'Copy picture', keys: 'Ctrl+Alt+P' },
+    { kind: 'button', id: 'copy-picture-focused', label: 'Copy picture focused' },
+  ] }).then(() => 'declared')`);
+  await command('Emulation.setFocusEmulationEnabled', { enabled: true }, page);
+  const pressButton = async id => {
+    const at = await waitFor(() => evaluate(`(() => { const b = document.querySelector('button[data-view-command="${id}"]'); if (!b) return null;
+      const r = b.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`), 'the ' + id + ' button');
+    await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y }, page);
+    await command('Input.dispatchMouseEvent', { type: 'mousePressed', x: at.x, y: at.y, button: 'left', clickCount: 1 }, page);
+    await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: at.x, y: at.y, button: 'left', clickCount: 1 }, page);
+  };
+  const copied = async count => waitFor(async () => { const list = await inFrame(clipFrame, 'probe.state.copied'); return list.length >= count ? list[count - 1] : null; }, 'the copy outcome', 10000);
+  await pressButton('copy-picture');
+  const fromRow = await copied(1);
+  await pressButton('copy-picture-focused');
+  const fromRowFocused = await copied(2);
+  await evaluate(`document.querySelector('iframe[name="${clipView.name}"]').focus()`);
+  await inFrame(clipFrame, `document.body.tabIndex = -1; document.body.focus(); true`);
+  await command('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'p', code: 'KeyP', windowsVirtualKeyCode: 80, modifiers: 3 }, page);
+  await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'p', code: 'KeyP', windowsVirtualKeyCode: 80, modifiers: 3 }, page);
+  const fromKey = await copied(3);
+  report.measurements.copyPicture = { fromRow, fromRowFocused, fromKey };
+  assert(/Document is not focused/.test(fromRow.answer) && fromRowFocused.answer === 'copied' && fromRowFocused.focused && fromKey.answer === 'copied',
+    'A picture copied by a view’s command did not behave as measured: ' + JSON.stringify(report.measurements.copyPicture));
+  check(`G36 a view's command from Nendo's row copies a picture once the view takes focus (without it: "${fromRow.answer.replace(/^refused: /, '')}"), and a key pressed inside the view copies it as it is`);
+
   // G34 (W-104): a view reads a file the person chooses with the browser's own file input. The
   // click opens Windows' Open dialog, owned by Nendo's window; closing it is Cancel, and the view
   // hears cancel with nothing chosen. A chosen file arrives whole: its name, its size and its text.

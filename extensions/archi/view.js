@@ -20,7 +20,7 @@ const READS = { models: M.E.model, folders: M.E.folder, types: M.E.type, concept
 const state = {
   model: null, selected: null, expanded: new Set(), modelOpen: true, filter: { text: '', layer: '' },
   nativeChrome: false, renaming: null, draftProperties: null, readOnly: false, loaded: false,
-  sets: null, openView: null, diagramSelection: [], zoom: 1, editing: false, pending: 0,
+  sets: null, openView: null, diagramSelection: [], zoom: 1, editing: false, pending: 0, transparent: false,
   validator: { open: false, issues: null, of: null, current: null },
 };
 
@@ -608,7 +608,7 @@ function declareToolbar() {
     ] },
     { kind: 'button', id: 'rename', label: 'Rename', icon: 'edit', iconOnly: true, keys: 'F2' },
     { kind: 'button', id: 'delete', label: 'Delete…', icon: 'trash', iconOnly: true },
-    { kind: 'menu', id: 'archi-file', label: 'Archi file', icon: 'export', items: [
+    { kind: 'menu', id: 'archi-file', label: 'Archi file', items: [
       { id: 'open-archimate', label: 'Open .archimate…', detail: 'Read an Archi model into this empty one' },
       { id: 'save-archimate', label: 'Save as .archimate', detail: 'Download the model for Archi' },
     ] },
@@ -621,6 +621,14 @@ function declareToolbar() {
       { kind: 'button', id: 'discard', label: 'Discard', disabled: state.pending === 0 },
     ] }] : []),
     { kind: 'toggle', id: 'validator', label: 'Validator', icon: 'info', pressed: state.validator.open },
+    ...(state.openView ? [{ kind: 'menu', id: 'export', label: 'Export', icon: 'export', items: [
+      { id: 'export-png-1', label: 'PNG', detail: 'At the view’s own size' },
+      { id: 'export-png-2', label: 'PNG at 2×', detail: 'Sharp on a slide' },
+      { id: 'export-png-4', label: 'PNG at 4×', detail: 'For print' },
+      { id: 'export-svg', label: 'SVG', detail: 'Shapes and text a drawing program keeps' },
+      { id: 'export-copy', label: 'Copy as picture', detail: 'A PNG, to paste elsewhere' },
+      { kind: 'check', id: 'export-transparent', label: 'Transparent background', checked: state.transparent },
+    ] }] : []),
     ...(state.openView ? [{ kind: 'group', label: 'Zoom', items: [
       { kind: 'button', id: 'zoom-out', label: 'Zoom out', icon: 'minus', iconOnly: true, keys: 'Ctrl+-' },
       { kind: 'button', id: 'fit', label: `Fit (${Math.round(state.zoom * 100)}%)`, keys: 'Ctrl+0' },
@@ -662,6 +670,12 @@ function runCommand({ id, value }) {
     case 'validator': showValidator(value === true); break;
     case 'open-archimate': showOpenArchimate(); break;
     case 'save-archimate': saveArchimate(); break;
+    case 'export-png-1': exportView('png', 1); break;
+    case 'export-png-2': exportView('png', 2); break;
+    case 'export-png-4': exportView('png', 4); break;
+    case 'export-svg': exportView('svg'); break;
+    case 'export-copy': copyView(); break;
+    case 'export-transparent': state.transparent = value === true; declareToolbar(); break;
   }
 }
 
@@ -999,19 +1013,81 @@ async function saveArchimate() {
   if (!canvasModule?.exportArchimate || !state.sets) { setStatus('Saving an .archimate file needs the diagram code, which could not load.', true); return; }
   let file;
   try { file = canvasModule.exportArchimate(state.sets); } catch (error) { setStatus(`The model could not be saved as .archimate: ${describe(error)}`, true); return; }
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(new Blob([file.xml], { type: 'application/xml' }));
-  link.download = file.fileName;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+  download(new Blob([file.xml], { type: 'application/xml' }), file.fileName);
   const waiting = state.pending > 0 ? ` The ${state.pending} edits still waiting to be committed are not in it.` : '';
   setStatus(`Saved ${file.fileName}, ${summary()}.${waiting}`, state.pending > 0);
 }
 
 const isArchimateName = name => /\.(archimate|xml)$/i.test(name);
 const draggedFiles = event => [...(event.dataTransfer?.types ?? [])].includes('Files');
+
+// ---------------------------------------------------------------- view images (W-123)
+
+/*
+ * A view as a picture, as Archi's File › Export › View As Image makes one: archi-online's own
+ * export in canvas.js, cropped to the drawing with a 10-pixel margin, its labels as SVG text in
+ * the canvas's font. The picture is what the view shows, edits still waiting included. Archi's
+ * figures draw the same in both themes, so the only choice is white or transparent behind them.
+ */
+const imageModel = () => (editor ? editor.model() : canvasModule.buildMirror(state.sets));
+const fileBase = name => String(name || 'View').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').trim().slice(0, 120) || 'View';
+
+function openViewRecord() {
+  const view = state.openView ? state.model?.records.get(state.openView) : null;
+  if (!view) setStatus('Open a view in the tree to export it.', true);
+  return view ?? null;
+}
+
+async function exportView(format, scale = 1) {
+  await canvasReady;
+  if (!canvasModule?.viewSvg) { setStatus('Exporting a view needs the diagram code, which could not load.', true); return; }
+  const view = openViewRecord();
+  if (!view) return;
+  const name = fileBase(view.values['ar.view.name']);
+  const background = state.transparent ? 'transparent' : 'white';
+  try {
+    if (format === 'svg') {
+      const { svg, width, height } = canvasModule.viewSvg(imageModel(), view.recordId, background);
+      download(new Blob([svg], { type: 'image/svg+xml' }), `${name}.svg`);
+      setStatus(`Exported ${name}.svg, ${width} × ${height}.`);
+      return;
+    }
+    const png = await canvasModule.viewPng(imageModel(), view.recordId, scale, background);
+    download(png.blob, `${name}.png`);
+    const smaller = png.scale < scale ? `, at ${Math.round(png.scale * 100) / 100}×, the largest one picture holds` : '';
+    setStatus(`Exported ${name}.png, ${png.width} × ${png.height}${smaller}.`);
+  } catch (error) {
+    setStatus(`${name} could not be exported: ${describe(error)}`, true);
+  }
+}
+
+async function copyView() {
+  await canvasReady;
+  if (!canvasModule?.copyViewPng) { setStatus('Copying a view needs the diagram code, which could not load.', true); return; }
+  const view = openViewRecord();
+  if (!view) return;
+  const name = fileBase(view.values['ar.view.name']);
+  try {
+    // Chosen in Nendo's row, the command reaches a frame without focus, and the clipboard refuses
+    // a frame without focus; the view takes it first (measured, G36 in Review-ExtensionViews.mjs).
+    window.focus();
+    await canvasModule.copyViewPng(imageModel(), view.recordId, state.transparent ? 'transparent' : 'white');
+    setStatus(`Copied ${name} to the clipboard as a picture.`);
+  } catch (error) {
+    setStatus(`${name} could not be copied: ${describe(error)}`, true);
+  }
+}
+
+/** Hand a file to the browser's own downloads, which the view's frame allows. */
+function download(blob, name) {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+}
 
 // ---------------------------------------------------------------- the whole page
 
@@ -1191,6 +1267,8 @@ function wire() {
   $('own-validator').addEventListener('click', () => showValidator(!state.validator.open));
   $('own-open-archimate').addEventListener('click', () => showOpenArchimate());
   $('own-save-archimate').addEventListener('click', () => saveArchimate());
+  $('own-export-png').addEventListener('click', () => exportView('png', 2));
+  $('own-export-svg').addEventListener('click', () => exportView('svg'));
   // The picker opens on this click, inside the view: a command from Nendo's toolbar cannot open it.
   $('open-archimate-choose').addEventListener('click', () => $('open-archimate-file').click());
   $('open-archimate-file').addEventListener('change', event => {

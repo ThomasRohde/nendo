@@ -1026,6 +1026,10 @@ vocabulary, the examples and the resources — and not from the person.
   before and after you choose the saved file, what it says is left out, what Open did to
   History, and whether the views draw as they did. Try Open in the first file too, and record
   what it said (W-120).
+  Open a view and choose **Export** in Nendo's row: save it as PNG, PNG at 4× and SVG, and
+  choose **Copy as picture** and paste it into another program. Record each file's size in
+  pixels, whether the SVG opens in a browser with its labels as text, whether anything is cut
+  off at the edges, and what Transparent background changed (W-123).
 - In any file, open a list screen whose definition binds more than three fields (in Archi.nendo,
   Concepts → Relationships binds four): record whether every bound field is drawn as a column,
   and whether a head row names each column. Give a record type a calculated count of more than

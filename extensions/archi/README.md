@@ -81,6 +81,14 @@ Properties. The file you were in does not change.
   each object under the Archi ID it came with, or its record ID without `ar-` when the
   workbench made it. Edits still waiting to be committed are not in it, and the status line
   says so.
+- **Export** (W-123), in Nendo's row while a view is open, makes a picture of the view as
+  Archi's File › Export › View As Image does: **PNG** at the view's own size, at **2×** or at
+  **4×**, **SVG** with every label as text, or **Copy as picture** to paste elsewhere. It is
+  archi-online's own export: cropped to the drawing with a 10-pixel margin, in the canvas's
+  font, and named after the view. **Transparent background** leaves out the white page;
+  Archi's figures draw the same in both themes. The picture is what the view shows, edits
+  still waiting included. A PNG too large for one picture comes out at the largest scale one
+  holds, and the status line says so.
 - **Without the workbench**, in Use: Concepts → Elements and Relationships show an *On views*
   column, a concept's page shows it under Details, and Views → Views shows a *Diagram objects*
   column (third in Elements and Views, so a Nendo that draws only three fields shows them too). They are calculated counts of the
@@ -124,4 +132,7 @@ model, by a drop and through the dialog's file input, and compares every record.
 archi-online's phase fixtures and compares archi-online's semantics of each save with the
 original's, images aside, and has Desktop Archi open and save each one again.
 `node tools/Build-Archi.mjs workbench` puts the package, and the first time its screen, into
-the open Archi.nendo.
+the open Archi.nendo. The lane also exports every Archisurance view from the Export menu:
+the SVG's crop against archi-online's geometry, every element's name as text, the canvas
+font, PNG at 1×, 2× and 4× of the SVG's size, the transparent background, and Copy as picture
+with focus in Nendo's page.

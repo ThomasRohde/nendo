@@ -316,6 +316,13 @@ files a person hands a view), or drops it on the workbench.
 - **Left out.** Images (F-208): image objects, the connections that end on one, pictures on
   figures and specializations, and an archive's image files. The dialog counts each.
 
+**Pictures of a view** (W-123) are archi-online's own export (`renderViewSvg`, in
+`canvas.js`): the view drawn offscreen, its labels turned into SVG text, cropped with Archi's
+10-pixel margin; PNG at 1×, 2× or 4× through a canvas, capped at 16,384 pixels a side and 64
+million in all; SVG; and Copy as picture. Chosen in Nendo's row, a command reaches the view
+without focus, and the clipboard refuses a frame without focus ("Document is not focused."),
+so Copy takes focus first (measured in a real host, G36 of `Review-ExtensionViews.mjs`).
+
 Measured on 2026-10-01 by `tools/archi/verify-archimate-io.mjs`: Archisurance, phase 1
 online and desktop, phase 2 online and desktop, and phase 3, each opened into an empty model,
 saved, and read back by archi-online, have the original's Phase 2 semantics with the images

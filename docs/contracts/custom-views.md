@@ -422,6 +422,11 @@ A view gets most of what a web page gets
   `showOpenFilePicker`, `showSaveFilePicker` and `showDirectoryPicker` to a frame of
   another origin, so a view never holds a file it could write back to; it saves by
   download.
+- **The clipboard from a command** (W-123). A command chosen in Nendo's row reaches a view
+  whose frame does not have focus, and the browser refuses a clipboard write there:
+  "Document is not focused." A view that writes the clipboard from a command calls
+  `window.focus()` first. A key pressed inside the view leaves the focus there, so its
+  command needs nothing more.
 - **Drops** (W-104). A file dragged over a view is the view's. It takes the file by
   cancelling `dragover` and reads the drop's `dataTransfer.files`. A view that does
   not take drops lets one fall: nothing opens and nothing moves. Nendo's drop hint
@@ -1432,6 +1437,18 @@ before any write. View code needs no approval of its own.
 
 ## Evidence
 
+### The clipboard from a command (W-123)
+
+Measured on 2026-10-01 against a Debug build. `DesktopExtensionViewJourneyTests` (G36) clicks a
+button the probe view declared in Nendo's row with real mouse input, and presses its declared
+key inside the view. From the row, `navigator.clipboard.write` of a PNG is refused with
+`NotAllowedError: Failed to execute 'write' on 'Clipboard': Document is not focused.`; after
+`window.focus()` it is copied. From the key pressed inside the view it is copied as it is.
+The window runs hidden, so the lane emulates a focused window, as G30 does. The Archi lane
+measures the workbench's Copy as picture with focus in the fixture broker's page, and failed
+without its `window.focus()`: `Layered View could not be copied: Failed to execute 'write' on
+'Clipboard': Document is not focused.`
+
 ### Files a person hands a view (W-104)
 
 Measured on 2026-10-01 against a Debug build. `DesktopExtensionViewJourneyTests` (G34, G35)
@@ -1757,3 +1774,6 @@ passed. Each guard below was falsified, seen to fail and then restored:
   the view's frame, measured in a real host (G34, G35). The system file pickers are refused to
   a view by the browser. Nendo's drop hint takes no pointer, so it steps aside over a view. No
   method, no rung.
+- 2026-10-01 — the clipboard from a command (W-123): a command chosen in Nendo's row reaches a
+  frame without focus, where the browser refuses a clipboard write; a view takes focus first.
+  Measured in a real host (G36). No method, no rung.

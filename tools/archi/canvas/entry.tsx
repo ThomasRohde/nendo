@@ -10,6 +10,8 @@ import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import type { Bounds, ModelState } from '@archi/model/types';
 import { StaticViewContent } from '@archi/canvas/export/StaticViewSvg';
+import { renderViewSvg } from '@archi/canvas/export/view-image';
+import { copyPngBlobToClipboard, rasterizeSvg, supportsPngClipboard } from '@archi/canvas/export/svg-image';
 import { computeAbsBounds } from '@archi/canvas/view-editor/bounds';
 import { createConnectionRouteResolver, type Point } from '@archi/canvas/geometry';
 import { createNestedConnectionVisibilityResolver } from '@archi/model/ops';
@@ -46,6 +48,33 @@ export function geometry(model: ModelState, viewId: string) {
   }
   return { bounds, routes };
 }
+
+/**
+ * A view as an image (W-123): archi-online's own export, which draws the view offscreen, turns
+ * its labels into SVG text and crops to the drawing with Archi's 10-pixel margin. White or
+ * transparent behind it; the figures are Archi's in either theme, as the canvas draws them.
+ */
+export function viewSvg(model: ModelState, viewId: string, background: 'white' | 'transparent' = 'white') {
+  return renderViewSvg(model, viewId, { background, renderSettings: settings });
+}
+
+/** The largest scale up to `wanted` that one canvas holds for an image of this size. */
+export function pngScale(width: number, height: number, wanted: number) {
+  return Math.min(wanted, 16384 / Math.max(width, height), Math.sqrt(64e6 / (width * height)));
+}
+
+/** A view as a PNG at a scale, or the largest one a canvas holds, and the size it came out. */
+export async function viewPng(model: ModelState, viewId: string, wanted: number, background: 'white' | 'transparent' = 'white') {
+  const { svg, width, height } = viewSvg(model, viewId, background);
+  const scale = pngScale(width, height, wanted);
+  return { blob: await rasterizeSvg(svg, width, height, scale), width: Math.round(width * scale), height: Math.round(height * scale), scale };
+}
+
+/** Copies a view to the clipboard as a PNG, the image handed over as it is drawn. */
+export function copyViewPng(model: ModelState, viewId: string, background: 'white' | 'transparent' = 'white') {
+  return copyPngBlobToClipboard(viewPng(model, viewId, 1, background).then(png => png.blob));
+}
+export { supportsPngClipboard };
 
 export function geometryOf(sets: RecordSets, viewId: string) {
   const { bounds, routes } = geometry(buildMirror(sets), viewId);

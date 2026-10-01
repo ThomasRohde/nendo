@@ -38,7 +38,7 @@ public sealed class DesktopExtensionViewJourneyTests
     /// journey can ask it from inside its own frame and measure the answer.
     /// </summary>
     private const string ProbeScript = """
-        const state = { changes: 0, themes: 0, ready: false, commands: [], keys: [], pick: undefined, file: undefined, dropped: undefined, drags: 0 };
+        const state = { changes: 0, themes: 0, ready: false, commands: [], keys: [], pick: undefined, file: undefined, dropped: undefined, drags: 0, copied: [] };
         window.probe = {
           state,
           async reads() {
@@ -124,6 +124,18 @@ public sealed class DesktopExtensionViewJourneyTests
             if (typeof window[name] !== 'function') return Promise.resolve('absent');
             return window[name]().then(() => 'opened', error => 'refused: ' + error.name + ': ' + error.message);
           },
+          // W-123: a picture to the clipboard from a command, as Copy as picture writes one; with
+          // focus taken first or not.
+          copyPicture(focusFirst) {
+            if (focusFirst) window.focus();
+            const canvas = document.createElement('canvas');
+            canvas.width = 4; canvas.height = 4;
+            canvas.getContext('2d').fillRect(0, 0, 4, 4);
+            const blob = new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            return navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+              .then(() => 'copied', error => 'refused: ' + error.name + ': ' + error.message)
+              .then(answer => ({ answer, focused: document.hasFocus(), active: navigator.userActivation.isActive }));
+          },
           // W-104: a file dropped on the view; the view takes it by cancelling dragover.
           acceptDrops() {
             if (state.accepting) return 'accepting';
@@ -139,6 +151,10 @@ public sealed class DesktopExtensionViewJourneyTests
           },
         };
         nendo.on('command', command => { state.commands.push(command); });
+        nendo.on('command', command => {
+          if (command.id === 'copy-picture' || command.id === 'copy-picture-focused')
+            probe.copyPicture(command.id === 'copy-picture-focused').then(result => { state.copied.push({ ...result, source: command.source, id: command.id }); });
+        });
         window.addEventListener('keydown', event => { state.keys.push((event.ctrlKey ? 'Ctrl+' : '') + event.key); });
         nendo.on('changes', () => { state.changes += 1; });
         nendo.on('theme', () => { state.themes += 1; });

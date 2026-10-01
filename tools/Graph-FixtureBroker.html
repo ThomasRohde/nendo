@@ -46,6 +46,8 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
   const config = '__FIXTURE_CONFIG__';
   // The frame's sandbox, as src/Nendo.Workbench/src/view-frame-markup.ts sets it.
   const SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-pointer-lock allow-presentation';
+  // And the features it delegates, as view-frame-markup.ts's frameAllow: the clipboard among them (W-123).
+  const ALLOW = 'clipboard-read; clipboard-write; fullscreen; web-share; autoplay; encrypted-media; picture-in-picture; geolocation';
   // The methods this fixture answers, which is what the context lists and nendo.has reads.
   const METHODS = ['schema.describe', 'records.query', 'records.get', 'records.tree', 'records.update', 'records.move', 'ui.openRecord', 'commands.run'];
   // A view's controls in Nendo's own chrome (W-090), offered only when a probe asks, so each
@@ -429,6 +431,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     frame.name = 'nendo-view-fixture';
     frame.title = fixture.context.title ?? 'Custom view';
     frame.setAttribute('sandbox', SANDBOX);
+    frame.setAttribute('allow', ALLOW);
     frame.src = config.viewUrl;
     document.body.append(frame);
   }

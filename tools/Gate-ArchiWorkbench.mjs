@@ -1124,6 +1124,101 @@ async (page) => {
   await view.click('#open-archimate button[value="cancel"]');
   results.saveArchimate = { ...savedFile, ids: savedIds.length, bytes: savedXml.length };
 
+  // ---- W-123: every Archisurance view exports from Nendo's row as Archi exports a view: an SVG
+  // cropped to the drawing with a 10-pixel margin, every element's name as SVG text in the
+  // canvas's font, nothing left as HTML; PNG at 1×, 2× and 4× of that size; and a transparent
+  // background when asked. Measured against archi-online's geometry of the same records.
+  const exported = async () => view.evaluate(async () => {
+    const blob = window.savedBlobs.at(-1);
+    return blob ? { type: blob.type, size: blob.size, text: blob.type.includes('svg') ? await blob.text() : null,
+      image: blob.type === 'image/png' ? await createImageBitmap(blob).then(bitmap => [bitmap.width, bitmap.height]) : null } : null;
+  });
+  const exportViews = (await records('ar.view')).sort((a, b) => (a.values['ar.view.name'] < b.values['ar.view.name'] ? -1 : 1));
+  const allItems = await records('ar.item');
+  const allConcepts = new Map((await records('ar.concept')).map(record => [record.recordId, record]));
+  const svgOf = {};
+  for (const exportView of exportViews) {
+    await page.evaluate(value => window.broker.command('find', value, 'toolbar'), exportView.values['ar.view.name']);
+    await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), exportView.recordId, `${exportView.values['ar.view.name']} is not in the tree under Find.`);
+    await view.click(`#tree .row[data-id="${exportView.recordId}"]`);
+    await until(() => !!document.querySelector('.canvas-host g.content'), null, `${exportView.values['ar.view.name']} was not drawn.`);
+    let menu = null;
+    for (let attempt = 0; attempt < 200 && !menu; attempt++) {
+      menu = (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(item => item.id === 'export') ?? null;
+      if (!menu) await page.waitForTimeout(25);
+    }
+    assert(menu?.items.map(item => item.id).join() === 'export-png-1,export-png-2,export-png-4,export-svg,export-copy,export-transparent',
+      `An open view has no Export menu with PNG, SVG, Copy and the background: ${JSON.stringify(menu)}; the row holds ${JSON.stringify((await page.evaluate(() => window.broker.toolbars.at(-1))).items.map(item => item.id ?? item.kind))}, refusals ${JSON.stringify(await page.evaluate(() => window.broker.chromeRefusals))}.`);
+    const blobsBefore = await view.evaluate(() => window.savedBlobs.length);
+    const svgDownload = page.waitForEvent('download', { timeout: 8000 });
+    await page.evaluate(() => window.broker.command('export-svg', null, 'toolbar'));
+    const svgName = (await svgDownload).suggestedFilename();
+    await until(count => window.savedBlobs.length > count, blobsBefore, `${exportView.values['ar.view.name']} did not export an SVG.`);
+    const file = await exported();
+    const box = file.text.match(/viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/)?.slice(1).map(Number);
+    const geometryOf = await view.evaluate(async ({ sets, viewId }) => (await import('./canvas.js')).geometryOf(sets, viewId), { sets: fixture.records, viewId: exportView.recordId });
+    const xs = [], ys = [];
+    for (const b of Object.values(geometryOf.bounds)) { xs.push(b.x, b.x + b.width); ys.push(b.y, b.y + b.height); }
+    for (const route of Object.values(geometryOf.routes)) for (const point of route) { xs.push(point.x); ys.push(point.y); }
+    const drawn = { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) };
+    const names = allItems.filter(item => item.values['ar.item.view'] === exportView.recordId && item.values['ar.item.kind'] === 'Element')
+      .map(item => allConcepts.get(item.values['ar.item.concept'])?.values['ar.concept.name']).filter(Boolean);
+    const texts = [...file.text.matchAll(/<tspan[^>]*>([^<]*)<\/tspan>|<text[^>]*>([^<]+)<\/text>/g)].map(match => match[1] ?? match[2]).join('').replace(/\s+/g, '')
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'");
+    const missing = names.filter(name => !texts.includes(name.replace(/\s+/g, '')));
+    const problems = [];
+    if (svgName !== `${exportView.values['ar.view.name'].replace(/[\\/:*?"<>|]+/g, ' ').trim()}.svg`) problems.push(`named ${svgName}`);
+    if (!box) problems.push('no viewBox');
+    else {
+      if (box[0] > drawn.left - 9 || box[1] > drawn.top - 9 || box[0] + box[2] < drawn.right + 9 || box[1] + box[3] < drawn.bottom + 9) problems.push(`cuts the drawing ${JSON.stringify(drawn)} with ${box}`);
+      if (box[2] > drawn.right - drawn.left + 20 + 60 || box[3] > drawn.bottom - drawn.top + 20 + 60) problems.push(`is ${box[2]} × ${box[3]} round a drawing ${Math.round(drawn.right - drawn.left)} × ${Math.round(drawn.bottom - drawn.top)}`);
+    }
+    if (/<foreignObject/i.test(file.text)) problems.push('keeps HTML labels');
+    if (!/<svg[^>]*style="[^"]*font-family:\s*(?:&quot;|'|")Segoe UI/.test(file.text)) problems.push(`is not in the canvas font: ${file.text.match(/<svg[^>]*>/)?.[0].slice(0, 300)}`);
+    if (!/<rect[^>]*fill="#ffffff"/.test(file.text)) problems.push('has no white background');
+    if (missing.length > 0) problems.push(`lacks ${missing.length} element names, first ${JSON.stringify(missing[0])}`);
+    assert(problems.length === 0, `${exportView.values['ar.view.name']}'s SVG ${problems.join('; ')}.`);
+    svgOf[exportView.recordId] = { width: box[2], height: box[3], names: names.length };
+  }
+  // PNG at each scale, and the transparent background, on the largest view.
+  const largest = exportViews.reduce((best, candidate) => (svgOf[candidate.recordId].width * svgOf[candidate.recordId].height > svgOf[best.recordId].width * svgOf[best.recordId].height ? candidate : best));
+  await page.evaluate(value => window.broker.command('find', value, 'toolbar'), largest.values['ar.view.name']);
+  await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), largest.recordId, 'The largest view is not in the tree under Find.');
+  await view.click(`#tree .row[data-id="${largest.recordId}"]`);
+  const pngs = {};
+  for (const scale of [1, 2, 4]) {
+    const before = await view.evaluate(() => window.savedBlobs.length);
+    const pngDownload = page.waitForEvent('download', { timeout: 15000 });
+    await page.evaluate(id => window.broker.command(id, null, 'toolbar'), `export-png-${scale}`);
+    const pngName = (await pngDownload).suggestedFilename();
+    await until(count => window.savedBlobs.length > count, before, `PNG at ${scale}× was not exported.`);
+    const png = await exported();
+    const expected = [Math.round(svgOf[largest.recordId].width * scale), Math.round(svgOf[largest.recordId].height * scale)];
+    assert(png.type === 'image/png' && png.image[0] === expected[0] && png.image[1] === expected[1] && pngName === `${largest.values['ar.view.name']}.png`,
+      `PNG at ${scale}× is ${JSON.stringify(png.image)} named ${pngName}, not ${JSON.stringify(expected)}.`);
+    pngs[scale] = png.image;
+  }
+  await page.evaluate(() => window.broker.command('export-transparent', true, 'toolbar'));
+  await page.waitForTimeout(100);
+  const transparentBefore = await view.evaluate(() => window.savedBlobs.length);
+  await page.evaluate(() => window.broker.command('export-svg', null, 'toolbar'));
+  await until(count => window.savedBlobs.length > count, transparentBefore, 'The transparent SVG was not exported.');
+  const transparent = await exported();
+  assert(!/<rect[^>]*fill="#ffffff"/.test(transparent.text), 'Transparent background still drew the white page.');
+  const checked = (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(item => item.id === 'export').items.find(item => item.id === 'export-transparent');
+  assert(checked?.checked === true, 'The Export menu does not show the transparent background as chosen.');
+  await page.evaluate(() => window.broker.command('export-transparent', false, 'toolbar'));
+  // Copy as picture, chosen in Nendo's row: focus is in the Workbench's page, as after a click in
+  // its row, so the clipboard takes the PNG only because the view takes focus first (W-123, G36).
+  await page.bringToFront();
+  await page.evaluate(() => { document.body.tabIndex = -1; document.body.focus(); });
+  assert(await page.evaluate(() => document.hasFocus() && document.activeElement === document.body), 'The Workbench page did not hold focus before Copy.');
+  await page.evaluate(() => window.broker.command('export-copy', null, 'toolbar'));
+  await until(name => document.getElementById('status').textContent === `Copied ${name} to the clipboard as a picture.`, largest.values['ar.view.name'],
+    'Copy as picture did not reach the clipboard.');
+  results.exportViews = { views: exportViews.length, largest: largest.values['ar.view.name'], svg: svgOf[largest.recordId], pngs,
+    names: Object.values(svgOf).reduce((sum, entry) => sum + entry.names, 0) };
+
   // ---- W-130 (ADR-0022): a new Archi model keeps the concept types and the top-level folders
   // and leaves the Model record out with the work. The workbench starts one empty model, so the
   // tree has a root, and the nine folders sit under it. Measured in the broker's records.
