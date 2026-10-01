@@ -167,6 +167,10 @@ is an Engine test in that class; the History screen's part is the fold panel des
 
 ## History
 
+- 2026-10-01 — amended by [ADR-0022](0022-new-file-keeping-the-records-an-application-ships-with.md):
+  a new file of the application folds every revision after Genesis, with no kept window, on its
+  staged copy. Its fold row names the source file in place of a backup, because the source
+  keeps the full history. A file's own fold is unchanged.
 - 2026-09-30 — written and accepted on the owner's standing pre-acceptance (W-101, D-002).
 - 2026-09-30 — delivered at host 1.39.0. The kept window counts rows as well as revisions, found
   while measuring: a file written in batches reaches the bound in about 100 revisions, which a

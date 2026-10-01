@@ -253,6 +253,12 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
         MutateAsync(service => service.DeleteRecordAsync(new(entityId, recordId, expectedRecordVersion,
             new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "studio")), cancellationToken), cancellationToken, origin);
 
+    /// <summary>A record's own mark for a new file of the application (ADR-0022); its values and version stay.</summary>
+    internal Task<DesktopMutationView> SetRecordKeptInNewFilesAsync(string entityId, string recordId, bool? kept,
+        string idempotencyKey, CancellationToken cancellationToken = default, string? origin = null) =>
+        MutateAsync(service => service.SetRecordKeptInNewFilesAsync(entityId, recordId, kept,
+            new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "studio"), cancellationToken), cancellationToken, origin);
+
     internal async Task<DesktopMutationView> SetFieldAsync(
         string entityId,
         string recordId,

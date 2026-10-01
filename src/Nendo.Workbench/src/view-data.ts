@@ -1,4 +1,5 @@
 import { prepareApplication, recoverAfterWriteFailure, refreshStudioQuery, reloadReadWindows, runMutation } from './actions';
+import { keptChoice, keptChoices, keptDefaultProposal, keptDefaultSentence, keptFromChoice, keptText } from './new-file';
 import { type CellFocusedEvent, type CellKeyDownEvent, type CellValueChangedEvent, type ColDef, type FullWidthCellKeyDownEvent, type GridApi, type GridOptions, createGrid, themeQuartz } from 'ag-grid-community';
 import { type StudioQuery, recordWindows, state, studioQueries, studioWindows } from './app-state';
 import { calculatedDisplay } from './calculated-fields';
@@ -33,6 +34,8 @@ export interface GridRow {
   referenceLabels?: Record<string, string | null>;
   /** Calculated results, kept out of `values` so no editor ever writes one back. */
   calculations?: Record<string, CalculationResult>;
+  /** The record's own say in whether a new file keeps it (ADR-0022); null follows its type. */
+  keptInNewFiles?: boolean | null;
   /** In the outline, where the row sits: a record's depth and children, or the row that reads more of a level. */
   outline?: { kind: 'node'; depth: number; childCount: number; expanded: boolean; label: string }
     | { kind: 'more'; depth: number; parentKey: string; loaded: number };
@@ -206,6 +209,7 @@ function outlineGridRows(entity: EntitySnapshot, rows: OutlineRow[]): GridRow[] 
       values: { ...row.node.record.values },
       referenceLabels: (row.node.record as RecordSnapshot).referenceLabels ?? undefined,
       calculations: recordPlanOf(row.node.record as RecordSnapshot).calculations,
+      keptInNewFiles: (row.node.record as RecordSnapshot).keptInNewFiles ?? null,
       outline: { kind: 'node', depth: row.depth, childCount: row.node.childCount, expanded: row.expanded, label: outlineLabel(entity, row.node) },
     });
 }
@@ -334,7 +338,7 @@ export function renderData(): void {
     </aside>
     <section class="data-panel" aria-label="${escapeAttribute(entity.displayName)} data">
       <header class="data-toolbar">
-        <div class="data-toolbar-lead"><p>${entity.retired ? 'Retired record type. Stored values remain available for inspection.' : state.session.capabilities.mutate ? 'Edit a cell to save a change.' : 'Read-only data. Editing is off.'}</p>${layoutControl}</div>
+        <div class="data-toolbar-lead"><p>${entity.retired ? 'Retired record type. Stored values remain available for inspection.' : state.session.capabilities.mutate ? 'Edit a cell to save a change.' : 'Read-only data. Editing is off.'}</p>${layoutControl}${keptDefaultMarkup(entity)}</div>
         <button id="data-new-record" class="primary-button" data-action type="button" ${entity.retired ? 'disabled' : ''}>Add ${escapeHtml(entity.displayName)}</button>
       </header>
       ${layout === 'outline' ? outlineToolbarMarkup() : studioQueryMarkup(entity)}
@@ -368,6 +372,12 @@ export function renderData(): void {
     state.creatingRecord = true;
     renderDataCreateDialog(entity);
   });
+  content.querySelector<HTMLButtonElement>('#kept-default')?.addEventListener('click', () => {
+    const revision = state.session.manifest?.definitionRevision;
+    if (revision === undefined) return;
+    const proposal = keptDefaultProposal(entity.entityId, entity.displayName, entity.keptInNewFiles !== true, revision);
+    void prepareApplication({ actionLabel: String(proposal.title), applicationName: state.session.fileName ?? 'This file', proposalPayload: proposal }, 'data');
+  });
   if (layout === 'outline') {
     if (outlineRows.length > 0) mountRecordGrid(entity, records, outlineRows);
     syncMoveButtons(entity);
@@ -375,6 +385,17 @@ export function renderData(): void {
     if (records.length > 0) mountRecordGrid(entity, records);
     wireRecordPager();
   }
+}
+
+/**
+ * What a new file keeps of this record type by default (ADR-0022), and the change that turns
+ * it. A definition change, so it is offered as a proposal the person reviews.
+ */
+function keptDefaultMarkup(entity: EntitySnapshot): string {
+  const keeps = entity.keptInNewFiles === true;
+  const canChange = state.session.capabilities.mutate && !entity.retired;
+  return `<p class="kept-default" data-testid="kept-default">${escapeHtml(keptDefaultSentence(entity.displayName, keeps))}
+    ${canChange ? `<button id="kept-default" class="text-button" data-action type="button">${keeps ? 'Leave them out by default' : 'Keep them by default'}</button>` : ''}</p>`;
 }
 
 export function studioQueryMarkup(entity: EntitySnapshot): string {
@@ -486,6 +507,7 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
     values: { ...record.values },
     referenceLabels: record.referenceLabels,
     calculations: record.calculations,
+    keptInNewFiles: record.keptInNewFiles ?? null,
   }));
   const editable = (field: EntitySnapshot['fields'][number]): ColDef<GridRow> => ({
     colId: field.fieldId,
@@ -585,6 +607,7 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
         } },
       ...entity.fields.filter(field => state.showRetiredData || !field.retired).map(editable),
       ...(entity.derivedFields ?? []).map(calculated),
+      keptColumn(entity),
       { field: 'recordVersion', colId: 'recordVersion', headerName: 'Version', width: 90, editable: false,
         valueFormatter: parameters => parameters.data?.outline?.kind === 'more' ? '' : String(parameters.value ?? '') },
     ],
@@ -627,8 +650,46 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
   }
 }
 
+/**
+ * Whether a new file of this application keeps the record (ADR-0022): its own mark, or its
+ * type's default. A fact about the record rather than a value of it, so a choice here writes
+ * no field and moves no version.
+ */
+function keptColumn(entity: EntitySnapshot): ColDef<GridRow> {
+  const typeKeeps = entity.keptInNewFiles === true;
+  return {
+    colId: 'keptInNewFiles',
+    headerName: 'In new files',
+    headerTooltip: keptDefaultSentence(entity.displayName, typeKeeps),
+    width: 150,
+    editable: (parameters) => parameters.data?.outline?.kind !== 'more' && state.session.capabilities.mutate,
+    cellDataType: false,
+    cellClass: 'kept-cell',
+    valueGetter: (parameters) => parameters.data?.outline?.kind === 'more' ? '' : keptChoice(parameters.data?.keptInNewFiles),
+    valueFormatter: (parameters) => parameters.data?.outline?.kind === 'more' ? '' : keptText(typeKeeps, parameters.data?.keptInNewFiles),
+    valueSetter: (parameters) => {
+      if (parameters.data === undefined) return false;
+      parameters.data.keptInNewFiles = keptFromChoice(parameters.newValue);
+      return true;
+    },
+    cellEditor: 'agSelectCellEditor',
+    cellEditorParams: { values: [...keptChoices] },
+  };
+}
+
 export async function commitGridEdit(event: CellValueChangedEvent<GridRow>): Promise<void> {
   if (event.data === undefined || event.newValue === event.oldValue || event.colDef.colId === undefined) return;
+  if (event.colDef.colId === 'keptInNewFiles') {
+    const target = sessionEntity();
+    if (target === null || target === undefined) return;
+    await runMutation('data.setKeptInNewFiles', {
+      entityId: target.entityId,
+      recordId: event.data.recordId,
+      kept: event.data.keptInNewFiles ?? null,
+      idempotencyKey: mutationKey(),
+    }, 'Saved what a new file keeps.', true);
+    return;
+  }
   const entity = sessionEntity();
   const field = entity?.fields.find((candidate) => candidate.fieldId === event.colDef.colId);
   if (entity === null || entity === undefined || field === undefined) return;

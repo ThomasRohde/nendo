@@ -169,6 +169,7 @@ export function recordPlanOf(record: RecordSnapshot): RecordPlan {
     values: record.values,
     referenceLabels: record.referenceLabels,
     calculations: calculationsOf(record),
+    keptInNewFiles: record.keptInNewFiles ?? null,
   };
 }
 

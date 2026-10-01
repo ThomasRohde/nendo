@@ -37,6 +37,7 @@ internal static partial class WorkbenchMethods
         SessionGetRecentFiles,
         DataCreateRecord,
         DataDeleteRecord,
+        DataSetKeptInNewFiles,
         DataSetField,
         DataSetFields,
         DataMoveRecord,

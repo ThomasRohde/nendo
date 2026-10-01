@@ -9,6 +9,7 @@ import { openCustomViews } from './view-packages';
 import { aboutLookMarkup, chosenLook, lookIconMarkup, lookProposal, lookSentence, normaliseLetter } from './file-look';
 import { recordFormIsDirty, refuseWhileDirty } from './draft-guard';
 import { decideDraftState } from './draft-state';
+import { newFileMenuLabel } from './new-file';
 
 /**
  * The file actions that put another file, or another state of this one, in place of the
@@ -202,7 +203,9 @@ export function renderFileMenu(): void {
     `<button type="button" data-file-action="${method}" ${enabled ? '' : 'disabled'}>${icon(glyph)}<span><strong>${label}</strong><small>${detail}</small></span></button>`;
   menu.innerHTML = `<div class="file-menu-heading">${escapeHtml(state.session.fileName ?? 'No file open')}</div>
     <button type="button" id="about-file" data-file-action="about" ${state.session.hasFile ? '' : 'disabled'}>${icon('file')}<span><strong>About this file</strong><small>What it is for, in the author's words</small></span></button>
-    ${item('session.createFile', 'New file', state.session.hasFile ? 'Close this file to start another' : 'Start with an empty workspace', 'file', !state.session.hasFile && client.mode !== 'unavailable')}
+    ${state.session.hasFile
+      ? item('file.newFile', escapeHtml(newFileMenuLabel(state.session.manifest?.newFileLabel)), 'This application, without this file’s work', 'file', local && state.session.capabilities.backup)
+      : item('session.createFile', 'New file', 'Start with an empty workspace', 'file', client.mode !== 'unavailable')}
     ${item('session.openFile', 'Open file…', 'Choose a Nendo file', 'open', client.mode !== 'unavailable')}
     <div class="file-menu-divider"></div><p class="file-menu-label">Copies</p>
     ${item('file.backup', 'Create backup…', 'Save a recovery copy', 'backup', local && state.session.capabilities.backup)}

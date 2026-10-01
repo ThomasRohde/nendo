@@ -148,6 +148,9 @@ public sealed class NewFileTests
         await service.DeleteRecordAsync(new("items", "i-3", 1, Context("delete-i3")));
         await service.SetExtensionStateAsync(PackageId, "node.view.map", "zoom", "2", null, "Keep zoom",
             new NendoRequestContext("new-file-tests", "zoom", "extension:" + PackageId));
+        // A second version of the package's page: the first stays in the source for its History.
+        await coordinator.ApplyAsync(new("t", "page-2", "test", "A new page", [
+            PutExtensionFileOperation.FromContent("index-2", PackageId, "index.html", null, Encoding.UTF8.GetBytes("<!doctype html><p>2"))]));
         var source = await service.GetSnapshotAsync();
         var sourceDefinition = await service.GetDefinitionSnapshotAsync();
         var sourceHistory = await service.GetHistoryAsync();
@@ -200,6 +203,8 @@ public sealed class NewFileTests
         StringAssert.StartsWith(history[1].Description, $"Started from {Path.GetFileName(workspace.FilePath)}");
         Assert.AreEqual("New", JsonDocument.Parse(history[2].Operations.Single().CanonicalJson).RootElement.GetProperty("payload").GetProperty("kind").GetString());
         Assert.IsEmpty(await fresh.ReadExtensionStateAsync(PackageId, "node.view.map", null), "A view's state came along.");
+        Assert.AreEqual((2L, 1L), (Scalar(workspace.FilePath, "SELECT COUNT(*) FROM __nendo_extension_blob;"), Scalar(destination, "SELECT COUNT(*) FROM __nendo_extension_blob;")),
+            "The new file carries package content no file uses, or the source lost some.");
 
         // Every ID is free, and numbering starts again past what was kept.
         var created = await fresh.CreateRecordAsync(new("items", "i-3", new Dictionary<string, object?> { ["itemName"] = "Again" }, Context("again")));
@@ -349,6 +354,15 @@ public sealed class NewFileTests
     {
         var type = preview.Types.Single(candidate => candidate.EntityId == entityId);
         return (type.Kept, type.LeftOut);
+    }
+
+    private static long Scalar(string path, string sql)
+    {
+        using var connection = new SqliteConnection($"Data Source={path};Mode=ReadOnly;Pooling=False");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        return Convert.ToInt64(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static string Hash(string path)

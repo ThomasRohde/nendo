@@ -323,7 +323,8 @@ internal sealed partial class SqliteNendoStore
     /// <summary>
     /// Turns a staged copy of the source into the start of a new file (ADR-0022), in one write
     /// transaction. Used only on a verified owned stage, never on the active source: removes the
-    /// records left out, every tombstone, the marks of removed records and every view's state;
+    /// records left out, every tombstone, the marks of removed records, every view's state and
+    /// package content no current file uses;
     /// restarts each sequence past what is kept; and folds every revision after Genesis into one
     /// checkpoint (ADR-0021), whose fold row names the source in place of a backup. Returns how
     /// many records were kept and left out, and how many changes were folded.
@@ -386,6 +387,10 @@ internal sealed partial class SqliteNendoStore
                     $"from {fold.FirstAt:yyyy-MM-dd} to {fold.LastAt:yyyy-MM-dd} are folded into this one. The full history stays in {sourceFileName}.");
                 await WriteHistoryFoldAsync(fold, sourceFileName, description, now, transaction, ct);
             }
+            // Earlier package versions were kept so their changes could be undone. With the history
+            // folded nothing can undo them, so only the content a package file uses now is carried.
+            if (await TableExistsAsync("__nendo_extension_blob", transaction, ct))
+                await NonQueryAsync("DELETE FROM __nendo_extension_blob WHERE sha256 NOT IN (SELECT sha256 FROM __nendo_extension_file);", transaction, ct);
             await using (var manifest = Command("UPDATE __nendo_manifest SET minimum_host_version = $version;", transaction))
             {
                 var before = await ReadManifestAsync(transaction, ct);

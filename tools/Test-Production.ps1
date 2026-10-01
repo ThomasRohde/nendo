@@ -263,6 +263,7 @@ try {
         'nendo.data.import_records',
         'nendo.data.move_record',
         'nendo.data.set_field',
+        'nendo.data.set_kept_in_new_files',
         'nendo.health.verify_integrity',
         'nendo.lease.acquire',
         'nendo.lease.release',

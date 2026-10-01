@@ -288,6 +288,13 @@ column mapping. Neither path changes what it commits: the resolved record IDs, t
 the target type has declared unique, so a cell can name at most one record, and a cell that
 names none is refused rather than guessed.
 
+## Amendment — 2026-10-01: a new file numbers again (ADR-0022)
+
+A new file of the application ([ADR-0022](0022-new-file-keeping-the-records-an-application-ships-with.md))
+starts without the source's work, so each sequence restarts one past the highest value the kept
+records hold, or at 1. It is the one place a sequence goes down: inside the file the number is
+still never reused, and the new file holds none of the records the higher numbers named.
+
 ## Consequences
 
 ### Positive

@@ -103,6 +103,13 @@ example; a code typed there is kept if it is free.
 
 Saved views are desirable, but they are secondary to correct editing. The MVP may ship one default view plus one saved custom view per entity before it supports a general view-management system.
 
+### What a new file keeps
+
+Every grid has an *In new files* column (ADR-0022): *Kept* or *Left out* for a record's own
+mark, *Kept (type)* or *Left out (type)* for one that follows its record type. Choosing in the
+cell writes `data.setKeptInNewFiles`, which moves no version. Above the grid a sentence says the
+type's default, with a button that prepares `schema.setKeptInNewFiles` as a proposal.
+
 ## 6. Field presentations
 
 The Studio maps semantic storage and constraints to editors:

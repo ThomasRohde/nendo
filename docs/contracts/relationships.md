@@ -166,6 +166,29 @@ explicitly irreversible, as in the current operation model. Proposal promotion
 replays these same typed operations and preconditions. It never replaces the
 active file.
 
+## What a new file keeps
+
+[ADR-0022](../decisions/0022-new-file-keeping-the-records-an-application-ships-with.md);
+`NewFileTests.cs` asserts it.
+
+- A record type's default, `schema.setKeptInNewFiles` `{entityId, kept}`, is definition:
+  authored in a change set, reversed from History while it is the latest definition change.
+  A type nobody set leaves its records out.
+- A record's own mark, `data.setKeptInNewFiles` `{entityId, recordId, kept}`, is true, false or
+  null to follow its type. It is data, but no value: no field or record version changes and no
+  automatic action runs. Compensation puts the previous mark back, and is refused when the
+  mark changed since. Repeating the current mark is refused as `kept-in-new-files-unchanged`.
+- A deleted record keeps its mark, since its ID stays reserved; a restore finds it.
+- `application.setNewFileLabel` `{label}` names one new file, 1 to 40 characters on one line.
+- A kept record may point only at kept records, its hierarchy parent included. The rule is
+  checked when a new file is previewed and made, not on each write: New is refused as
+  `new-file-reference-left-out`, naming a record, field and target, and nothing is cleared.
+- The new file holds the definition, the kept records with their values, versions and marks,
+  and history of Genesis, one checkpoint and one New transition. Tombstones and view state are
+  not carried, so every ID is free again, and each sequence restarts one past the highest value
+  kept (the one place a sequence goes down). Package content no current file uses is dropped:
+  with the history folded, nothing could restore it.
+
 ## Compatibility and adapters
 
 Protected reference, stable-choice and retirement metadata requires a new

@@ -115,15 +115,17 @@ first, with the costs in Context.
 
 Every record is either **kept in new files** or **left out**.
 
-- **A record type's default** is set by `entity.setKeptInNewFiles` `{entityId, kept}`, a
+- **A record type's default** is set by `schema.setKeptInNewFiles` `{entityId, kept}`, a
   definition-lane operation authored in a change set like any shape change. It is `Reversible` and
   compensates itself. A type nobody has set leaves its records out.
-- **A record's own mark** is set by `record.setKeptInNewFiles` `{entityId, recordId, kept}`, where
+- **A record's own mark** is set by `data.setKeptInNewFiles` `{entityId, recordId, kept}`, where
   `kept` is true, false, or null to follow the type. It is a data-lane operation. It changes no
   value and no record version, so it triggers no automatic action and never makes an edit stale.
   It is `Reversible`, and History names it ("Kept *Business* in new files").
-- **Deletion** carries the record's mark in its retained evidence, and compensating the deletion
-  restores it.
+- **A deleted record keeps its mark.** Its ID stays reserved by its tombstone, so no other
+  record can take the mark over, and restoring the record finds the mark where it was. (Written
+  first as "deletion carries the mark in its evidence"; keeping the row needs no evidence and
+  gives the same result.)
 - **Storage** is one new protected table, `__nendo_new_file_rule` (entity ID, record ID or empty
   for the type's default, kept), and the label table in section 4. Both arrive as one new last rung
   of the layout ladder, added by the first write of either. A Nendo that predates the rung refuses
@@ -131,8 +133,10 @@ Every record is either **kept in new files** or **left out**.
 
 ### 2. Shown where data is shown
 
-- **Studio** shows each type's default with its other settings, and a read-only *Kept in new
-  files* column on every grid, which a filter can use. A row action sets a record's mark.
+- **Studio** shows each type's default above its grid, with a button that prepares the change
+  as a proposal, and an *In new files* column on every grid: *Kept* or *Left out* for a record's
+  own mark, *Kept (type)* or *Left out (type)* for one that follows its type. Choosing in the
+  cell sets or clears the mark.
 - **MCP**: `nendo://application/describe` gives each type's default and how many of its records
   say otherwise. A record read carries `keptInNewFiles` when the record has its own mark. The
   record-creating tools take an optional `keptInNewFiles`, which adds the mark in the same
@@ -151,7 +155,7 @@ make the rule hold.
 ### 4. The application's name for a new file
 
 `application.setNewFileLabel` `{label}`, a definition-lane operation, sets an optional singular
-noun, for example *Archi model*. The File menu then offers **New Archi model…**. Without a label
+noun of 1 to 40 characters on one line, for example *Archi model*. The File menu then offers **New Archi model…**. Without a label
 it offers **New empty copy…**. The label is stored in `__nendo_new_file_label`, one row.
 
 ### 5. Starting the new file
@@ -182,7 +186,7 @@ not an agent, a view or an automatic action, as for Duplicate and Fork (ADR-0010
    overwrite, and opens it in a window of its own.
 
 **What the new file keeps:** the definition (record types, fields, rules, references, hierarchies,
-screens, behaviour, custom-view packages and the blobs they use), the purpose and look, the marks
+screens, behaviour, custom-view packages and the content their current files use), the purpose and look, the marks
 and the label, and the kept records with their values and versions. **What it leaves:** every
 other record, every tombstone, view state, every revision's operations (folded into one digest),
 waiting proposals and every device-local approval.
@@ -254,3 +258,18 @@ waiting proposals and every device-local approval.
 - 2026-10-01 — written and accepted on the owner's standing pre-acceptance, after the owner
   weighed options A to G: a hidden write-time flag (D) became a visible mark, and the per-type
   declaration (B, C) became its default.
+- 2026-10-01 — delivered at host 1.41.0 (W-129): the Engine, MCP, the Desktop File menu and
+  Studio. 1.41.0 had been reserved in the documents for ADR-0013's views anywhere, which moves
+  to 1.42.0. The operations are `schema.setKeptInNewFiles`, `data.setKeptInNewFiles` and
+  `application.setNewFileLabel`; MCP adds `nendo.data.set_kept_in_new_files`, `keptInNewFiles`
+  on the create tools and a `newFile` section in `describe`. A repeated request in the same
+  session answers with the file it made; across sessions an existing destination is refused,
+  as for a backup. Measured: `NewFileTests` (Engine) and `NewFileSurfaceTests` (LocalMcp); the
+  reference rule was falsified, and with it removed the test failed with
+  `Expected "new-file-reference-left-out"`, the read-back validation catching the file
+  instead.
+- 2026-10-01 — measured (`NewFileArchiMeasurementTests`, on a Duplicate of the committed
+  `Archi.nendo`, marked as `tools/Build-Archi.mjs` marks it): 5,004 KiB, 860 records and 97
+  changes became a new file of 1,160 KiB with 81 records, in 352 ms. The first run left 3,492 KiB:
+  the stage kept every earlier package version the history held, which a folded history can no
+  longer restore. New now drops package content no current file uses.

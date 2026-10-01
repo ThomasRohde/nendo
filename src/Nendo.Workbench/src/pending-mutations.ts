@@ -15,7 +15,7 @@ interface RetryStorage {
   removeItem(key: string): void;
 }
 type Send = <T>(method: string, payload?: Record<string, unknown>) => Promise<T>;
-const methods = new Set(['data.createRecord', 'data.deleteRecord', 'data.setField', 'data.setFields', 'data.executeCommand', 'history.compensate', 'proposal.promote']);
+const methods = new Set(['data.createRecord', 'data.deleteRecord', 'data.setKeptInNewFiles', 'data.setField', 'data.setFields', 'data.executeCommand', 'history.compensate', 'proposal.promote']);
 const rejected = new Set(['validation', 'invalid-request', 'idempotency-conflict', 'record-version-conflict',
   'record-referenced', 'record-id-reserved', 'record-version-exhausted', 'deletion-state-conflict',
   'choice-retired', 'label-conflict', 'definition-version-conflict',

@@ -51,6 +51,7 @@ public sealed partial class MainPage
                 case WorkbenchFileAction.Backup: await BackupNativeFileAsync(); break;
                 case WorkbenchFileAction.Duplicate: await CopyNativeFileAsync(NendoIdentityCopyKind.Duplicate); break;
                 case WorkbenchFileAction.Fork: await CopyNativeFileAsync(NendoIdentityCopyKind.Fork); break;
+                case WorkbenchFileAction.NewFile: await NewNativeFileAsync(); break;
                 case WorkbenchFileAction.Restore: await RestoreNativeFileAsync(); break;
                 case WorkbenchFileAction.Upgrade: await UpgradeNativeFileAsync(); break;
                 case WorkbenchFileAction.Inspect: await InspectNativeFileAsync(); break;
@@ -253,6 +254,33 @@ public sealed partial class MainPage
         if (!await ConfirmNativeAsync($"{label} this file?", $"{meaning}\n\nThe copy records an irreversible identity transition. Your open file will not change.", $"Create {label.ToLowerInvariant()}")) return;
         var result = await _session.CreateIdentityCopyAsync(plan.PlanId);
         NativeNotice($"{label} created: {result.DestinationFileName}. Your original file is still open.");
+    }
+
+    /// <summary>
+    /// A new file of this application (ADR-0022): what it keeps and leaves out first, then where,
+    /// then the file, opened in a window of its own. The open file does not change.
+    /// </summary>
+    private async Task NewNativeFileAsync()
+    {
+        var view = await _session.GetViewAsync();
+        var preview = await _session.PreviewNewFileAsync();
+        var title = preview.MenuLabel.TrimEnd('…');
+        if (!preview.CanCreate)
+        {
+            var refusal = NativeDialog(title, new ScrollViewer { MaxHeight = 320, Content = new TextBlock { Text = DesktopNewFilePresentation.Conflicts(preview, view.Entities), TextWrapping = TextWrapping.Wrap } });
+            refusal.CloseButtonText = "Close";
+            await refusal.ShowAsync();
+            return;
+        }
+        var summary = NativeDialog(title, new ScrollViewer { MaxHeight = 320, Content = new TextBlock { Text = DesktopNewFilePresentation.Summary(preview, view.FileName), TextWrapping = TextWrapping.Wrap } });
+        summary.PrimaryButtonText = "Choose where";
+        summary.CloseButtonText = "Cancel";
+        if (await summary.ShowAsync() != ContentDialogResult.Primary) return;
+        var destination = await PickNewDestinationAsync(title, DesktopNewFilePresentation.SuggestedName(preview.Label, view.FileName), ".nendo");
+        if (destination is null) return;
+        var result = await _session.CreateNewFileAsync(destination, $"desktop-new-{Guid.NewGuid():N}");
+        DesktopNewFilePresentation.OpenInItsOwnWindow(destination);
+        NativeNotice($"{result.DestinationFileName} made with {result.KeptRecords:N0} record{(result.KeptRecords == 1 ? "" : "s")}, and opening in its own window. This file was not changed.");
     }
 
     private async void RecoveryRestore_Click(object sender, RoutedEventArgs e) => await RunNativeFileActionAsync(RestoreNativeFileAsync);

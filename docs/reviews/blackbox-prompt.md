@@ -663,6 +663,15 @@ revision, including generated changes, without moving the record again. Use
 extreme signed ordering values in a disposable type and check the actual tree
 order after moving first or last.
 
+Mark what your application ships with. Keep one record type in new files through a change
+set, mark a single record of another type as kept when you create it, and name a new file of
+the application. Read `describe` and say whether its `newFile` section tells you, without
+asking, what a new file would keep and why one could not be made. Then mark a record kept
+whose reference points at a record left out, and ask the person to choose the File menu's new
+file entry: does the refusal name the record and the field, and is the open file unchanged?
+Settle it, have them make the new file, and report what it holds, what its History starts
+with, and whether the file you worked in changed at all.
+
 Cancel a proposal rejection while it waits behind other work, then read the
 pending proposals and retry. A still-previewable proposal must remain listed and
 owned until rejection actually releases it.

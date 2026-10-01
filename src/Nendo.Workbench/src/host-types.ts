@@ -29,6 +29,8 @@ export interface ManifestSnapshot {
   purpose: string | null;
   /** The look the file chose (W-089): a tone and a letter, either null for its default. Null when it chose none. */
   look?: ChosenLook | null;
+  /** The application's own name for one new file of it (ADR-0022), such as "Archi model", or null. */
+  newFileLabel?: string | null;
 }
 
 /** A look as a file stores it: each part, or null where it keeps the default. */
@@ -53,6 +55,8 @@ export interface EntitySnapshot {
   displayName: string;
   /** The record type's declared hierarchy (ADR-0019), or null/absent when it declares none. */
   hierarchy?: { parentFieldId: string; orderFieldId: string | null } | null;
+  /** Whether a new file of this application keeps this type's records unless a record says otherwise (ADR-0022). */
+  keptInNewFiles?: boolean;
   fields: Array<{
     fieldId: string;
     displayName: string;
@@ -90,6 +94,8 @@ export interface RecordSnapshot {
   referenceLabels?: Record<string, string | null>;
   /** In dependency order, so a dependant is read after what it depends on. */
   calculations?: CalculationResult[];
+  /** This record's own say in whether a new file keeps it (ADR-0022); null or absent follows its type. */
+  keptInNewFiles?: boolean | null;
 }
 
 export interface UiNodeSnapshot {
@@ -435,6 +441,8 @@ export interface RecordPlan {
    * produced.
    */
   calculations?: Record<string, CalculationResult>;
+  /** This record's own say in whether a new file keeps it (ADR-0022); null or absent follows its type. */
+  keptInNewFiles?: boolean | null;
 }
 
 /** What a calculated field currently is. */

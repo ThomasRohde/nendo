@@ -90,6 +90,7 @@ At Edit data and above, the agent changes records with these tools:
 | `nendo.data.import_records` | Imports up to 500 rows from CSV text or JSON, committed 50 to a revision. If a later batch is refused, `NENDO_IMPORT_PARTIAL` names the committed and remaining counts, the first uncommitted row and the committed revisions. Retry the identical call and key to replay earlier batches without duplicates. Invalid CSV mappings or a mixed CSV/JSON payload are refused before writing. |
 | `nendo.data.set_field` | Sets one field on one record. |
 | `nendo.data.move_record` | Moves a record in a record type that is kept as a tree: under another parent, to the top level, or before a sibling. |
+| `nendo.data.set_kept_in_new_files` | Says whether a new file of the application keeps one record, leaves it out, or follows its record type. |
 | `nendo.data.delete_record` | Deletes one record. Refused while other records refer to it. |
 | `nendo.data.execute_command` | Runs a command that a screen defines. |
 | `nendo.data.get_receipt` | Reads the outcome of an earlier write. |

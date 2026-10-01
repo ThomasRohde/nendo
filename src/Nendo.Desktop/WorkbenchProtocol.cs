@@ -11,6 +11,7 @@ internal static partial class WorkbenchMethods
     internal const string SessionOpenFile = "session.openFile";
     internal const string DataCreateRecord = "data.createRecord";
     internal const string DataDeleteRecord = "data.deleteRecord";
+    internal const string DataSetKeptInNewFiles = "data.setKeptInNewFiles";
     internal const string DataSetField = "data.setField";
     internal const string DataSetFields = "data.setFields";
     internal const string DataExecuteCommand = "data.executeCommand";
@@ -139,6 +140,9 @@ internal sealed record CreateRecordPayload(
     IReadOnlyDictionary<string, long>? ExpectedTargetVersions = null);
 
 internal sealed record DeleteRecordPayload(string EntityId, string RecordId, long ExpectedRecordVersion, string IdempotencyKey);
+
+/// <summary>A record's own mark for a new file of the application (ADR-0022): true, false or null to follow its type.</summary>
+internal sealed record SetKeptInNewFilesPayload(string EntityId, string RecordId, bool? Kept, string IdempotencyKey);
 
 internal sealed record SetFieldPayload(
     string EntityId,
@@ -404,6 +408,7 @@ internal sealed partial class WorkbenchProtocolHandler
                         : await OpenFileAsync(cancellationToken),
                     WorkbenchMethods.DataCreateRecord => await CreateGenericRecordAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataDeleteRecord => await DeleteGenericRecordAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataSetKeptInNewFiles => await SetKeptInNewFilesAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataSetField => await SetGenericFieldAsync(payload, cancellationToken),
                     WorkbenchMethods.DataSetFields => await SetGenericFieldsAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataMoveRecord => await MoveGenericRecordAsync(payload, writer, cancellationToken),
@@ -574,6 +579,13 @@ internal sealed partial class WorkbenchProtocolHandler
                 StringComparer.Ordinal),
             request.IdempotencyKey,
             cancellationToken, request.ExpectedTargetVersions, writer);
+    }
+
+    private async Task<DesktopMutationView> SetKeptInNewFilesAsync(JsonElement payload, string? writer, CancellationToken cancellationToken)
+    {
+        var request = Deserialize<SetKeptInNewFilesPayload>(payload);
+        return await _session.SetRecordKeptInNewFilesAsync(request.EntityId, request.RecordId, request.Kept,
+            request.IdempotencyKey, cancellationToken, writer);
     }
 
     private async Task<DesktopMutationView> DeleteGenericRecordAsync(JsonElement payload, string? writer, CancellationToken cancellationToken)

@@ -58,6 +58,12 @@ Nendo distinguishes five lifecycle operations:
 Duplicate and Fork use one canonical `identity.transition` operation through a
 dedicated kernel/application-service path.
 
+*Amended 2026-10-01 by [ADR-0022](0022-new-file-keeping-the-records-an-application-ships-with.md):*
+a third kind, **New**, makes a new file of the same application: a Duplicate's identity (the
+application ID kept, a new instance ID), with only the definition and the records the
+application keeps in new files, and its history folded into one checkpoint. Its own coordinator
+path stages, transforms, validates and activates it with no overwrite, as Duplicate does.
+
 - The transition records the source/result IDs and the source revision point in
   ordinary canonical operation history. It introduces no identity sidecar and no
   separate provenance table.

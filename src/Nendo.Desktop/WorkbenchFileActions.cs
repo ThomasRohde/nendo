@@ -1,6 +1,6 @@
 namespace Nendo.Desktop;
 
-internal enum WorkbenchFileAction { Create, Open, OpenRecent, OpenDropped, Close, Backup, Duplicate, Fork, Restore, Upgrade, Inspect, Diagnostics, Export, ResolveRecovery, ImportCsv, ExportCsv }
+internal enum WorkbenchFileAction { Create, Open, OpenRecent, OpenDropped, Close, Backup, Duplicate, Fork, Restore, Upgrade, Inspect, Diagnostics, Export, ResolveRecovery, ImportCsv, ExportCsv, NewFile }
 
 /// <param name="DroppedPath">
 /// Where a dropped file came from. Never read out of the request payload: the page
@@ -39,6 +39,7 @@ internal static partial class WorkbenchMethods
     internal const string FileBackup = "file.backup";
     internal const string FileDuplicate = "file.duplicate";
     internal const string FileFork = "file.fork";
+    internal const string FileNewFile = "file.newFile";
     internal const string FileRestore = "file.restore";
     internal const string FileUpgrade = "file.upgrade";
     internal const string FileInspect = "file.inspect";
@@ -58,6 +59,7 @@ internal sealed partial class WorkbenchProtocolHandler
             [WorkbenchMethods.FileBackup] = WorkbenchFileAction.Backup,
             [WorkbenchMethods.FileDuplicate] = WorkbenchFileAction.Duplicate,
             [WorkbenchMethods.FileFork] = WorkbenchFileAction.Fork,
+            [WorkbenchMethods.FileNewFile] = WorkbenchFileAction.NewFile,
             [WorkbenchMethods.FileRestore] = WorkbenchFileAction.Restore,
             [WorkbenchMethods.FileUpgrade] = WorkbenchFileAction.Upgrade,
             [WorkbenchMethods.FileInspect] = WorkbenchFileAction.Inspect,

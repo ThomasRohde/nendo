@@ -792,6 +792,17 @@ There is no embedded agent, and the project did not adopt AG-UI
 Typed Duplicate, Fork, Backup and Restore have defined identity semantics. The host
 classifies raw copies before any write
 ([ADR-0010](decisions/0010-file-identity-duplicate-fork-backup-and-restore.md)).
+
+A new file of the same application
+([ADR-0022](decisions/0022-new-file-keeping-the-records-an-application-ships-with.md)) keeps
+the definition and only the records kept in new files: a record type's default
+(`schema.setKeptInNewFiles`) or a record's own mark (`data.setKeptInNewFiles`), stored on the
+`newfile` layout rung (host 1.41.0) with the application's name for one
+(`application.setNewFileLabel`). `NendoWriteCoordinator.NewFile.cs` stages a copy,
+`SqliteNendoStore.NewFile.cs` removes what is left out with every tombstone and view state,
+restarts sequences, and folds every revision into one checkpoint with ADR-0021's fold, and an
+identity transition of kind New gives the copy a new instance ID. A kept record that points at
+a left-out one refuses it. The source is never changed.
 The host resolves an interrupted replacement explicitly and never repairs it
 silently. There is no guessed migration and no identity repair.
 

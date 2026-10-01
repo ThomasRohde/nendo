@@ -146,6 +146,13 @@ internal sealed partial class DesktopSessionController
     internal Task<NendoIdentityCopyResult> CreateIdentityCopyAsync(string planId, CancellationToken cancellationToken = default) =>
         QueryAsync(service => service.CreateIdentityCopyAsync(planId, cancellationToken), cancellationToken);
 
+    // A new file of the same application (ADR-0022): what it would keep, then the file itself.
+    internal Task<NendoNewFilePreview> PreviewNewFileAsync(CancellationToken cancellationToken = default) =>
+        QueryAsync(service => service.PreviewNewFileAsync(cancellationToken), cancellationToken);
+
+    internal Task<NendoNewFileResult> CreateNewFileAsync(string path, string requestId, CancellationToken cancellationToken = default) =>
+        QueryAsync(service => { RequireWritableLocation(path); return service.CreateNewFileAsync(path, requestId, cancellationToken); }, cancellationToken);
+
     internal Task<NendoRecoveryExportPlan> PrepareRecoveryExportAsync(string entityId, string path, string requestId,
         CancellationToken cancellationToken = default) =>
         QueryAsync(service => { RequireWritableLocation(path); return service.PrepareRecoveryExportAsync(entityId, path, requestId, cancellationToken); }, cancellationToken);

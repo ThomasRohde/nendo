@@ -534,6 +534,9 @@ code {
 /* The outline of a declared hierarchy (ADR-0019 stage 5): Studio's Data view for a record
    type kept as a tree. The layout switch reuses the theme control's segmented look. */
 .data-toolbar-lead { display: grid; gap: 10px; justify-items: start; }
+/* What a new file of the application keeps of this type (ADR-0022), and the proposal that turns it. */
+.kept-default { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0; font-size: 12px; color: var(--muted); }
+.kept-default .text-button { font-size: 12px; }
 .layout-control button { width: auto; min-width: 0; padding: 0 12px; font-size: 0.85rem; }
 .data-panel > .outline-toolbar { grid-row: 2; }
 .outline-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 18px; border-bottom: 1px solid var(--line); }
