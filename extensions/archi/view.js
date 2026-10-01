@@ -46,6 +46,21 @@ async function readAll() {
   }
   if (state.selected && !state.model.records.has(state.selected)) state.selected = modelRecord()?.recordId ?? null;
   render();
+  startEmptyModel();
+}
+
+/**
+ * A new Archi model (ADR-0022) keeps the concept types and the top-level folders and leaves the
+ * Model record out with the rest of the work, so its tree would have no root. The workbench
+ * starts an empty model there, once a session: a refusal is said and not retried on every read.
+ */
+let emptyModelTried = false;
+function startEmptyModel() {
+  if (emptyModelTried || state.readOnly || !state.model || modelRecord() !== null) return;
+  emptyModelTried = true;
+  write(() => modelRecord() !== null ? [] : [{
+    op: 'create', entityId: M.E.model, recordId: `ar.model.r.${crypto.randomUUID()}`, values: { 'ar.model.name': 'New model' },
+  }], 'Start a new model');
 }
 
 let pendingRead = null;

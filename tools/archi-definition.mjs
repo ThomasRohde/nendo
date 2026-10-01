@@ -357,6 +357,20 @@ export const STAGES = {
     ]),
   },
 
+  // What a new Archi model keeps (ADR-0022, W-130): ArchiMate's concept types are the
+  // application's, so a new file keeps them; the nine top-level folders are marked one by one
+  // when they are seeded. Everything else is a model's work and is left out, the Model record
+  // too: the workbench starts an empty one in a file that has none.
+  newFile: {
+    title: 'Archi: what a new Archi model keeps',
+    needs: ['ar.type', 'ar.folder'],
+    appliedWhen: async read => (await read.json('nendo://application/manifest')).newFileLabel === NEW_FILE_LABEL,
+    mutations: () => inMutations('What a new Archi model keeps', [
+      op('schema.setKeptInNewFiles', { entityId: 'ar.type', kept: true }),
+      op('application.setNewFileLabel', { label: NEW_FILE_LABEL }),
+    ]),
+  },
+
   pages: {
     title: 'Archi: screens for diagram items, types, the model and properties',
     needs: ['ar.model', 'ar.folder', 'ar.type', 'ar.concept', 'ar.view', 'ar.item', 'ar.property', 'ar.specialization'],
@@ -488,7 +502,10 @@ function screenOperations() {
   return { first: t.operations.slice(0, cut), second: t.operations.slice(cut) };
 }
 
-export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages', 'counts', 'countsShown', 'folderLast', 'unused'];
+export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages', 'counts', 'countsShown', 'folderLast', 'unused', 'newFile'];
+
+/** What the File menu calls a new file of Archi: New Archi model… (ADR-0022). */
+export const NEW_FILE_LABEL = 'Archi model';
 
 export const PACKAGE_ID = 'org.nendo.archi';
 export const PACKAGE_FOLDER = 'extensions/archi';
@@ -507,9 +524,12 @@ export function workbenchView() {
 
 // The records every Archi file starts with: Archi's nine top-level folders, in its order, and
 // the 72 concept types. Record IDs are stable, so a rebuild finds what is already there.
+// The top-level folders ship with Archi, so each is kept in a new file (ADR-0022); a folder a
+// person makes follows Folder's default and is left out.
 export const ROOT_FOLDERS = FOLDER_KINDS.map((kind, index) => ({
   recordId: `ar.folder.r.${kind.toLowerCase().replace(/[^a-z]+/g, '-')}`,
   values: { 'ar.folder.name': kind, 'ar.folder.kind': kind, 'ar.folder.order': (index + 1) * 1024 },
+  keptInNewFiles: true,
 }));
 
 export const TYPES = CONCEPT_TYPES.map(type => ({

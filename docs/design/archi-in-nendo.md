@@ -272,6 +272,20 @@ compaction, and meanwhile treat a file as good for about 100 active hours. View 
 such as zoom and open tabs stays in the device's `localStorage`, because every
 `nendo.state` write also costs a row.
 
+## A new model
+
+One file is one model, so a second model is a new file of Archi, made with **File → New Archi
+model…** ([ADR-0022](../decisions/0022-new-file-keeping-the-records-an-application-ships-with.md),
+W-130), never by deleting the first: deleting Archisurance costs 779 operation rows, keeps every
+value in History and reserves every `ar-` record ID, so importing it again collides. What a new
+file keeps is the application's: Concept type keeps its 72 records by default, and the nine
+top-level folders are each marked kept. The rest is a model's work and is left out, the Model
+record too, so the workbench starts an empty one (*New model*) in a file that has none.
+`tools/Build-Archi.mjs` sets the default and the label in its `newFile` stage, marks the folders
+in `seed`, and `compare` checks that a new file would keep 81 records and nothing points out of
+them. The Archi lane (`Gate-ArchiWorkbench.mjs`, `emptyModel`) measures the empty model: one
+model created, nine folders under it.
+
 ## How it is built and checked
 
 - **The file.** `tools/Build-Archi.mjs` builds `workspace/Archi.nendo` from an empty

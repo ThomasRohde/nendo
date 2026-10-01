@@ -20,7 +20,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { STAGES, STAGE_ORDER, CALL_CHARACTERS, ROOT_FOLDERS, TYPES, MODEL, PACKAGE_FOLDER, workbenchView } from './archi-definition.mjs';
+import { STAGES, STAGE_ORDER, CALL_CHARACTERS, ROOT_FOLDERS, TYPES, MODEL, PACKAGE_FOLDER, NEW_FILE_LABEL, workbenchView } from './archi-definition.mjs';
 import { CONCEPT_TYPES } from './archi-concept-types.mjs';
 import { TARGET_FILE_NAME, fail, target, withLease } from './archi-mcp.mjs';
 
@@ -120,6 +120,15 @@ async function seed(file, dryRun) {
       }
       console.log(`    +  ${entityId}: ${records.length}`);
     }
+    // A file seeded before ADR-0022 holds the folders unmarked: mark each one kept, so a new
+    // Archi model starts with them. A folder already marked is left alone.
+    const marked = new Map((await file.read.records('ar.folder')).map(record => [record.recordId, record.keptInNewFiles]));
+    for (const folder of ROOT_FOLDERS.filter(folder => marked.has(folder.recordId) && marked.get(folder.recordId) !== true)) {
+      await file.client.tool('nendo.data.set_kept_in_new_files', {
+        ...owned, entityId: 'ar.folder', recordId: folder.recordId, kept: true, idempotencyKey: `archi-keep-${folder.recordId}`,
+      });
+      console.log(`    +  kept in new files: ${folder.recordId}`);
+    }
   });
 }
 
@@ -139,6 +148,20 @@ async function compare(file) {
   }
   const folders = (await file.read.records('ar.folder')).filter(record => record.values['ar.folder.parent'] === null);
   if (folders.length !== ROOT_FOLDERS.length) problems.push(`${folders.length} top-level folders, not ${ROOT_FOLDERS.length}`);
+  // What a new Archi model keeps (ADR-0022): the concept types by default, each top-level
+  // folder by its own mark, and nothing a kept record points at left behind.
+  const described = await file.read.json('nendo://application/describe');
+  if (described.manifest.newFileLabel !== NEW_FILE_LABEL) problems.push(`the new-file label is ${JSON.stringify(described.manifest.newFileLabel)}, not "${NEW_FILE_LABEL}"`);
+  if (!described.entities.find(entity => entity.entityId === 'ar.type')?.keptInNewFiles) problems.push('concept types are not kept in new files');
+  for (const folder of folders.filter(record => record.keptInNewFiles !== true)) problems.push(`top-level folder ${folder.recordId} is not kept in new files`);
+  const newFile = described.newFile;
+  if (newFile) {
+    const kept = Object.fromEntries(newFile.types.map(type => [type.entityId, type.kept]));
+    const total = newFile.types.reduce((sum, type) => sum + type.kept, 0);
+    console.log(`${newFile.menuLabel} keeps ${total} records: ${kept['ar.type']} concept types and ${kept['ar.folder']} folders`);
+    if (total !== CONCEPT_TYPES.length + ROOT_FOLDERS.length) problems.push(`a new file keeps ${total} records, not ${CONCEPT_TYPES.length + ROOT_FOLDERS.length}`);
+    if (newFile.conflictCount !== 0) problems.push(`${newFile.conflictCount} kept records point at records a new file leaves out`);
+  } else problems.push('describe has no newFile section; is the host older than 1.41.0?');
   const letters = CONCEPT_TYPES.filter(type => type.letter).map(type => type.letter).sort().join('');
   console.log(`${held.size} concept types, ${folders.length} top-level folders; relationship letters ${letters}`);
   if (problems.length > 0) fail(`The seeded records differ from the tables:\n  ${problems.join('\n  ')}`);

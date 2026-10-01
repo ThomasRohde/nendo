@@ -9,6 +9,11 @@ package is `org.nendo.archi`, and this folder is exactly what a file carries.
 
 Open Archi.nendo and choose **Views → Archi** in Use.
 
+**A new model** is **File → New Archi model…** (ADR-0022): a new file of Archi with the 72
+concept types and the nine top-level folders, and none of this model's concepts, views or
+history. The workbench starts an empty model in it, named *New model*; rename it in
+Properties. The file you were in does not change.
+
 - **The model tree** starts at the model and holds Archi's nine top-level folders in Archi's
   order; a folder shows its folders first, then its concepts and views by name. An unnamed
   relationship reads as its type and its two ends. A cyclic endpoint reference ends with

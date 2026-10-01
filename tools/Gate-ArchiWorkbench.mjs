@@ -1080,6 +1080,34 @@ async (page) => {
   }
   results.relationshipCycles = { records: 4, propertyRenders, themes: 2 };
 
+  // ---- W-130 (ADR-0022): a new Archi model keeps the concept types and the top-level folders
+  // and leaves the Model record out with the work. The workbench starts one empty model, so the
+  // tree has a root, and the nine folders sit under it. Measured in the broker's records.
+  const fresh = JSON.parse(JSON.stringify(fixture));
+  for (const key of Object.keys(fresh.records)) if (key !== 'ar.type' && key !== 'ar.folder') fresh.records[key] = [];
+  fresh.records['ar.folder'] = fresh.records['ar.folder'].filter(record => !record.values['ar.folder.parent']);
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.startAt(null); window.broker.remount(); }, fresh);
+  let models = [];
+  for (let attempt = 0; attempt < 400 && models.length === 0; attempt++) {
+    models = await records('ar.model');
+    if (models.length === 0) await page.waitForTimeout(25);
+  }
+  assert(models.length === 1 && models[0].values['ar.model.name'] === 'New model',
+    `The workbench did not start one empty model in a file without one: ${JSON.stringify(models)}.`);
+  view = null;
+  for (let attempt = 0; attempt < 400 && view === null; attempt++) {
+    const candidate = page.frames().filter(frame => !frame.isDetached() && frame.url().startsWith(origin + '/')).at(-1);
+    if (candidate && await candidate.evaluate(() => document.querySelectorAll('#tree .row').length >= 10).catch(() => false)) view = candidate;
+    else await page.waitForTimeout(25);
+  }
+  assert(view !== null, 'The new model’s tree did not show its root and the nine folders.');
+  const freshRows = await rows();
+  assert(freshRows[0].id === models[0].recordId && freshRows.slice(1).filter(row => row.level === 2).length === 9,
+    `The new model's tree is not one root over nine folders: ${JSON.stringify(freshRows.slice(0, 11))}.`);
+  await page.waitForTimeout(300);
+  assert((await records('ar.model')).length === 1, 'The workbench started more than one model.');
+  results.emptyModel = { models: 1, folders: 9 };
+
   assert(errors.length === 0, `The page reported errors: ${errors.join(' | ')}`);
   return JSON.stringify(results);
 }
