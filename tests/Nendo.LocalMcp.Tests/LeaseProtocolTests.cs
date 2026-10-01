@@ -69,9 +69,9 @@ public sealed class LeaseProtocolTests
 
     [TestMethod]
     [DataRow(AgentAccessMode.ReadOnly, 0)]
-    [DataRow(AgentAccessMode.DataMutation, 13)]
-    [DataRow(AgentAccessMode.ApplicationAuthoring, 19)]
-    [DataRow(AgentAccessMode.Unattended, 20)]
+    [DataRow(AgentAccessMode.DataMutation, 14)]
+    [DataRow(AgentAccessMode.ApplicationAuthoring, 20)]
+    [DataRow(AgentAccessMode.Unattended, 21)]
     public async Task OfficialClientSeesOnlyModeAllowlistedLeaseTools(
         AgentAccessMode mode,
         int expectedCount)
@@ -98,9 +98,9 @@ public sealed class LeaseProtocolTests
         var expectedNames = expectedCount switch
         {
             0 => [],
-            13 => DataToolNames,
-            19 => DataToolNames.Concat(AuthoringToolNames).Order(StringComparer.Ordinal).ToArray(),
-            20 => DataToolNames.Concat(AuthoringToolNames).Concat(UnattendedToolNames).Order(StringComparer.Ordinal).ToArray(),
+            14 => DataToolNames,
+            20 => DataToolNames.Concat(AuthoringToolNames).Order(StringComparer.Ordinal).ToArray(),
+            21 => DataToolNames.Concat(AuthoringToolNames).Concat(UnattendedToolNames).Order(StringComparer.Ordinal).ToArray(),
             _ => throw new AssertFailedException($"Unexpected tool count {expectedCount}."),
         };
         CollectionAssert.AreEqual(
@@ -142,7 +142,8 @@ public sealed class LeaseProtocolTests
         "nendo.lease.status" => ["applicationHandle"],
         "nendo.lease.renew" or "nendo.lease.release" => ["leaseId"],
         "nendo.data.create_record" =>
-            ["leaseId", "entityId", "recordId", "values", "idempotencyKey", "expectedTargetVersions"],
+            ["leaseId", "entityId", "recordId", "values", "idempotencyKey", "expectedTargetVersions", "keptInNewFiles"],
+        "nendo.data.set_kept_in_new_files" => ["leaseId", "entityId", "recordId", "kept", "idempotencyKey"],
         "nendo.data.create_records" => ["leaseId", "entityId", "records", "idempotencyKey"],
         "nendo.data.set_field" =>
             ["leaseId", "entityId", "recordId", "fieldId", "expectedRecordVersion", "value", "idempotencyKey", "expectedTargetRecordVersion"],
@@ -174,6 +175,7 @@ public sealed class LeaseProtocolTests
         "nendo.data.import_records",
         "nendo.data.move_record",
         "nendo.data.set_field",
+        "nendo.data.set_kept_in_new_files",
         "nendo.health.verify_integrity",
         "nendo.lease.acquire",
         "nendo.lease.release",

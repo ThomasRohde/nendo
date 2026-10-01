@@ -26,6 +26,7 @@ internal sealed class NendoResourceProjection(
         {
             Purpose = value.Purpose,
             Look = new NendoMcpLook(look.Tone, look.Letter, look.ToneChosen, look.LetterChosen),
+            NewFileLabel = value.NewFileLabel,
         };
     }
 
@@ -64,6 +65,7 @@ internal sealed class NendoResourceProjection(
         {
             Retired = entity.Retired,
             Hierarchy = entity.Hierarchy,
+            KeptInNewFiles = entity.KeptInNewFiles,
             DerivedFields = entity.DerivedFields
                 .OrderBy(field => field.FieldId, StringComparer.Ordinal)
                 .Select(field => new NendoMcpDerivedField(
@@ -97,6 +99,7 @@ internal sealed class NendoResourceProjection(
                 result.CalculationId, result.FieldId, result.State, result.ResultType,
                 result.Value, result.ErrorCode, result.ErrorMessage))
             .ToArray(),
+        KeptInNewFiles = record.KeptInNewFiles,
     };
 
     internal async Task<NendoMcpPage<NendoMcpRecord>> GetRecordsAsync(
@@ -108,21 +111,7 @@ internal sealed class NendoResourceProjection(
         RequireLimit(limit);
         var scope = $"records:{entityId}";
         var page = await application.QueryRecordsAsync(new(entityId, limit, cursors.Decode(cursor, scope)), cancellationToken);
-        var records = page.Items
-            .Select(record => new NendoMcpRecord(
-                record.EntityId,
-                record.RecordId,
-                record.RecordVersion,
-                record.Values)
-            {
-                ReferenceLabels = record.ReferenceLabels,
-                Calculations = record.Calculations
-                    .Select(result => new NendoMcpCalculation(
-                        result.CalculationId, result.FieldId, result.State, result.ResultType,
-                        result.Value, result.ErrorCode, result.ErrorMessage))
-                    .ToArray(),
-            })
-            .ToArray();
+        var records = page.Items.Select(Project).ToArray();
         return new NendoMcpPage<NendoMcpRecord>(
             records,
             page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor));
@@ -175,7 +164,22 @@ internal sealed class NendoResourceProjection(
         {
             Reads = NendoMcpReadIndex.All,
             Extensions = ProjectExtensions(snapshot.ExtensionPackages),
+            NewFile = await GetNewFileAsync(cancellationToken),
         };
+    }
+
+    /// <summary>
+    /// What a new file of this application would keep now (ADR-0022). Null where the file cannot
+    /// say, as in a read-only session, rather than a describe that fails over it.
+    /// </summary>
+    private async Task<NendoMcpNewFile?> GetNewFileAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var preview = await application.PreviewNewFileAsync(cancellationToken);
+            return new(preview.MenuLabel, preview.Types, preview.ConflictCount, preview.Conflicts);
+        }
+        catch (Exception exception) when (exception is NendoException or InvalidOperationException) { return null; }
     }
 
     /// <summary>The most bytes one read of a package file returns.</summary>

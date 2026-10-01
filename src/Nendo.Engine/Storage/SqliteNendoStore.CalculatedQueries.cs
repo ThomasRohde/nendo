@@ -74,7 +74,7 @@ internal sealed partial class SqliteNendoStore
             await using var reader = await read.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct)) records.Add(ReadRecordRow(reader, entity, references));
         }
-        var calculated = await WithCalculationsAsync(records, mappings, transaction, ct);
+        var calculated = await WithKeptMarksAsync(await WithCalculationsAsync(records, mappings, transaction, ct), transaction, ct, entity.EntityId);
 
         var expected = calculatedFilters.Select(filter => filter.Operator is "isNull" or "isNotNull" ? null
             : Convert.ToString(ConvertValue(Calculated(entity, derived[filter.FieldId]), filter.Value), CultureInfo.InvariantCulture)).ToArray();

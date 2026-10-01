@@ -222,6 +222,30 @@ internal static class SemanticDiff
                         ? "Give this file back its default icon."
                         : $"Give this file its own icon: {value.Tone ?? "its default colour"}, {(value.Letter is { } letter ? $"the letter {letter}" : "its default letter")}.",
                     value.Reversibility),
+                SetKeptInNewFilesDefaultOperation value => Entry(
+                    "setKeptInNewFiles",
+                    value.Kept
+                        ? $"Keep {EntityName(names, value.EntityId)} records in a new file of this application, unless a record says otherwise."
+                        : $"Leave {EntityName(names, value.EntityId)} records out of a new file of this application, unless a record says otherwise.",
+                    value.Reversibility,
+                    value.EntityId),
+                SetRecordKeptInNewFilesOperation value => Entry(
+                    "setRecordKeptInNewFiles",
+                    value.Kept switch
+                    {
+                        true => $"Keep record {HumanId(value.RecordId)} in a new file of this application.",
+                        false => $"Leave record {HumanId(value.RecordId)} out of a new file of this application.",
+                        null => $"Let record {HumanId(value.RecordId)} follow {EntityName(names, value.EntityId)}'s default for a new file.",
+                    },
+                    value.Reversibility,
+                    value.EntityId,
+                    value.RecordId),
+                SetNewFileLabelOperation value => Entry(
+                    "setNewFileLabel",
+                    value.Label is null
+                        ? $"Offer a new file of this application as \"{NendoNewFile.DefaultMenuLabel}\"."
+                        : $"Offer a new file of this application as \"{NendoNewFile.MenuLabel(value.Label)}\".",
+                    value.Reversibility),
                 SetApplicationPurposeOperation value => Entry(
                     "setApplicationPurpose",
                     value.Purpose is null

@@ -235,6 +235,8 @@ internal sealed partial class SqliteNendoStore
             }
 
             var findings = new List<NendoOpenFinding>();
+            if (layout.Contains("-newfile-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.NewFileMinimumHostVersion))
+                return Unreadable("layout-version-mismatch", "What a new file keeps requires the declared new-file-capable host version.", observedAt);
             if (layout.Contains("-fold-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.HistoryFoldMinimumHostVersion))
                 return Unreadable("layout-version-mismatch", "A file whose older history was folded requires the declared fold-capable host version.", observedAt);
             if (layout.Contains("-look-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.ApplicationLookMinimumHostVersion))
@@ -304,6 +306,7 @@ internal sealed partial class SqliteNendoStore
             var mappingDrift = await store.ValidateReadableMappingsAsync(mappings, cancellationToken) || !ReferenceMetadataIsValid(mappings) || !ChoiceMetadataIsValid(mappings) ||
                 !RatingScaleMetadataIsValid(mappings) || !ApplicationPurposeIsValid(manifest.Purpose) ||
                 !ApplicationLookIsValid(manifest.Look) ||
+                !NewFileLabelIsValid(manifest.NewFileLabel) ||
                 !await store.RetirementMetadataIsValidAsync(cancellationToken) ||
                 !await store.ExtensionPackagesAreValidAsync(cancellationToken) ||
                 !await store.HierarchyMetadataIsValidAsync(mappings, cancellationToken) ||
@@ -362,6 +365,7 @@ internal sealed partial class SqliteNendoStore
                     Retired = mapping.Retired,
                     DerivedFields = derivedFields.TryGetValue(mapping.EntityId, out var calculated) ? calculated : [],
                     Hierarchy = mapping.Hierarchy,
+                    KeptInNewFiles = mapping.KeptInNewFiles,
                 }).ToArray();
 
             recordsTiming?.Dispose();
@@ -735,6 +739,9 @@ internal sealed partial class SqliteNendoStore
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(HistoryFoldSchemaSql, null, CancellationToken.None);
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(NewFileSchemaSql, null, CancellationToken.None);
+        layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync("DROP TABLE __nendo_new_file_label; DROP TABLE __nendo_new_file_rule;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_history_fold;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_application_look;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_field_rule;", null, CancellationToken.None);
@@ -792,6 +799,8 @@ internal sealed partial class SqliteNendoStore
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(HistoryFoldSchemaSql, null, CancellationToken.None);
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(NewFileSchemaSql, null, CancellationToken.None);
+        layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         return layouts;
     }
 

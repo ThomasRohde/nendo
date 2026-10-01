@@ -74,6 +74,12 @@ public sealed record NendoMcpManifest(
     /// badge its icons carry, whether the file chose them or has them by default.
     /// </summary>
     public NendoMcpLook? Look { get; init; }
+
+    /// <summary>
+    /// The application's own name for one new file of it, such as "Archi model" (ADR-0022), or
+    /// null when it gave none; the File menu then offers "New empty copy…".
+    /// </summary>
+    public string? NewFileLabel { get; init; }
 }
 
 /// <summary>A file's look as it is drawn, and which parts the file chose rather than has by default.</summary>
@@ -101,6 +107,12 @@ public sealed record NendoMcpEntitySchema(
     /// the record type declares none.
     /// </summary>
     public NendoHierarchy? Hierarchy { get; init; }
+
+    /// <summary>
+    /// Whether a new file of this application keeps this type's records unless a record says
+    /// otherwise (ADR-0022). False, the default, leaves them out.
+    /// </summary>
+    public bool KeptInNewFiles { get; init; }
 }
 
 /// <summary>One calculated field, with the formula that produces it.</summary>
@@ -163,6 +175,13 @@ public sealed record NendoMcpRecord(
 
     /// <summary>This record's calculated fields, in dependency order.</summary>
     public IReadOnlyList<NendoMcpCalculation> Calculations { get; init; } = [];
+
+    /// <summary>
+    /// This record's own say in whether a new file keeps it (ADR-0022). Absent when it follows
+    /// its record type's keptInNewFiles.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? KeptInNewFiles { get; init; }
 
     // Additive exact projection; existing clients retain the original scalar values.
     public IReadOnlyDictionary<string, string> NumericLexemes => Values
@@ -270,7 +289,21 @@ public sealed record NendoMcpDescription(
 
     /// <summary>The custom-view packages the file carries, with their files but not their bytes.</summary>
     public IReadOnlyList<NendoMcpExtensionPackage> Extensions { get; init; } = [];
+
+    /// <summary>What a new file of this application would keep now (ADR-0022).</summary>
+    public NendoMcpNewFile? NewFile { get; init; }
 }
+
+/// <summary>
+/// What a new file of this application keeps (ADR-0022): per record type, how many records it
+/// would keep and leave out, and every kept record that points at one left out, which stops
+/// one being made. Only the person makes a new file, from Nendo's File menu.
+/// </summary>
+public sealed record NendoMcpNewFile(
+    string MenuLabel,
+    IReadOnlyList<NendoNewFileTypeCount> Types,
+    long ConflictCount,
+    IReadOnlyList<NendoNewFileConflict> Conflicts);
 
 /// <summary>A custom-view package in the file, as nendo://application/extensions lists it.</summary>
 public sealed record NendoMcpExtensionPackage(

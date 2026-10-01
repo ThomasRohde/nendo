@@ -16,6 +16,8 @@ public sealed partial class NendoWriteCoordinator
         CancellationToken cancellationToken = default)
     {
         if (!Enum.IsDefined(kind)) throw new NendoValidationException("Unknown identity-copy kind.");
+        if (kind == NendoIdentityCopyKind.New)
+            throw new NendoValidationException("A new file of this application is made by CreateNewFileAsync, which leaves the work and history behind.");
         ArgumentException.ThrowIfNullOrWhiteSpace(requestId);
         if (requestId.Length > 200) throw new NendoValidationException("The copy request ID is too long.");
         var destination = ValidatePath(destinationPath);

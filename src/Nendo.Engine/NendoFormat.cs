@@ -273,7 +273,16 @@ public static class NendoFormat
     /// </summary>
     public const string CalculatedQueryMinimumHostVersion = "1.40.0";
 
-    public const string CurrentHostVersion = CalculatedQueryMinimumHostVersion;
+    /// <summary>
+    /// What a new file of the application keeps (ADR-0022): protected tables the node ladder
+    /// cannot see, stated by the operations' evidence and by the layout rung at open, and by a
+    /// file started with New, whose identity transition is of a kind no older host reads.
+    /// 1.41.0 had been reserved in the documents for ADR-0013's views anywhere; rungs follow
+    /// delivery order, so this takes it and that phase moves to the next one.
+    /// </summary>
+    public const string NewFileMinimumHostVersion = "1.41.0";
+
+    public const string CurrentHostVersion = NewFileMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

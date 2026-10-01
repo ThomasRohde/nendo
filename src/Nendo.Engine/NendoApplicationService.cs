@@ -251,21 +251,27 @@ public sealed partial class NendoApplicationService
         ArgumentNullException.ThrowIfNull(request.Values);
         RequireContext(request.Context);
         var entity = await RequireEntityAsync(request.EntityId, cancellationToken);
+        NendoOperation[] operations = [new CreateRecordOperation(
+            NendoCanonical.DeterministicId(
+                "operation",
+                request.Context.IdempotencyScope,
+                request.Context.IdempotencyKey,
+                0),
+            request.EntityId,
+            request.RecordId,
+            request.Values, request.ExpectedTargetVersions)];
+        // A record created already marked carries its mark in the same revision (ADR-0022).
+        if (request.KeptInNewFiles is { } kept)
+            operations = [.. operations, new SetRecordKeptInNewFilesOperation(
+                NendoCanonical.DeterministicId("operation", request.Context.IdempotencyScope, request.Context.IdempotencyKey, 1),
+                request.EntityId, request.RecordId, kept)];
         return await _coordinator.ApplyAsync(
             new NendoMutation(
                 request.Context.IdempotencyScope,
                 request.Context.IdempotencyKey,
                 request.Context.Origin,
                 $"Create {entity.DisplayName}",
-                [new CreateRecordOperation(
-                    NendoCanonical.DeterministicId(
-                        "operation",
-                        request.Context.IdempotencyScope,
-                        request.Context.IdempotencyKey,
-                        0),
-                    request.EntityId,
-                    request.RecordId,
-                    request.Values, request.ExpectedTargetVersions)]),
+                operations),
             cancellationToken);
     }
 
@@ -311,6 +317,11 @@ public sealed partial class NendoApplicationService
                 record.Values,
                 record.ExpectedTargetVersions))
             .ToArray();
+        // Records created already marked carry their marks in the same revision (ADR-0022).
+        var marked = request.Records.Where(record => record.KeptInNewFiles is not null).ToArray();
+        operations = [.. operations, .. marked.Select((record, index) => (NendoOperation)new SetRecordKeptInNewFilesOperation(
+            NendoCanonical.DeterministicId("operation", request.Context.IdempotencyScope, request.Context.IdempotencyKey, request.Records.Count + index),
+            request.EntityId, record.RecordId, record.KeptInNewFiles))];
         return await _coordinator.ApplyAsync(
             new NendoMutation(
                 request.Context.IdempotencyScope,
@@ -554,6 +565,37 @@ public sealed partial class NendoApplicationService
     /// <summary>Folds the file's older history, after the backup this session made of it (ADR-0021). A host operation.</summary>
     public Task<NendoHistoryFoldResult> FoldHistoryAsync(string backupPlanId, CancellationToken cancellationToken = default) =>
         _coordinator.FoldHistoryAsync(backupPlanId, cancellationToken);
+
+    /// <summary>What a new file of the open application would hold now (ADR-0022). A host operation: no agent or view reaches it.</summary>
+    public Task<NendoNewFilePreview> PreviewNewFileAsync(CancellationToken cancellationToken = default) =>
+        _coordinator.PreviewNewFileAsync(cancellationToken);
+
+    /// <summary>Makes a new file of the open application, keeping only what it ships with (ADR-0022). A host operation.</summary>
+    public Task<NendoNewFileResult> CreateNewFileAsync(string destinationPath, string requestId, CancellationToken cancellationToken = default) =>
+        _coordinator.CreateNewFileAsync(destinationPath, requestId, cancellationToken);
+
+    /// <summary>
+    /// Says whether a new file of this application keeps one record (ADR-0022): true or false, or
+    /// null to follow its record type. One Data revision; the record's values and version stay.
+    /// </summary>
+    public async Task<NendoApplyResult> SetRecordKeptInNewFilesAsync(
+        string entityId, string recordId, bool? kept, NendoRequestContext context, CancellationToken cancellationToken = default)
+    {
+        RequireIdentity(entityId, "entity ID");
+        RequireIdentity(recordId, "record ID");
+        RequireContext(context);
+        var entity = await RequireEntityAsync(entityId, cancellationToken);
+        return await _coordinator.ApplyAsync(new NendoMutation(context.IdempotencyScope, context.IdempotencyKey, context.Origin,
+            kept switch
+            {
+                true => $"Keep {entity.DisplayName} in new files",
+                false => $"Leave {entity.DisplayName} out of new files",
+                null => $"{entity.DisplayName} follows its type in new files",
+            },
+            [new SetRecordKeptInNewFilesOperation(
+                NendoCanonical.DeterministicId("operation", context.IdempotencyScope, context.IdempotencyKey, 0),
+                entityId, recordId, kept)]), cancellationToken);
+    }
 
     public Task<NendoApplyResult> CompensateRevisionAsync(
         string revisionId,

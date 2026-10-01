@@ -154,7 +154,7 @@ internal sealed partial class SqliteNendoStore
         var next = nodes.Count > query.Limit
             ? cursors.Encode(manifest, scope, (offset + query.Limit).ToString(CultureInfo.InvariantCulture)) : null;
         var shown = nodes.Take(query.Limit).ToArray();
-        var records = await WithCalculationsAsync(shown.Select(node => node.Record).ToArray(), mappings, transaction, ct);
+        var records = await WithKeptMarksAsync(await WithCalculationsAsync(shown.Select(node => node.Record).ToArray(), mappings, transaction, ct), transaction, ct, entity.EntityId);
         var items = shown.Select((node, index) => new NendoTreeNode(records[index],
             records[index].Values.GetValueOrDefault(parent.FieldId) is { ValueKind: JsonValueKind.String } up ? up.GetString() : null,
             node.Depth, node.Children)).ToArray();

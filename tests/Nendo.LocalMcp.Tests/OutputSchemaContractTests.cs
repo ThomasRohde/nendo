@@ -220,6 +220,15 @@ public sealed class OutputSchemaContractTests
             ["idempotencyKey"] = "contract-command",
         }));
         Assert.AreEqual(3L, commanded.RecordVersion);
+        // A mark is a fact about the record, so it reports the record and no version.
+        var marked = Result<NendoDataApplyResult>(await CallAsync("nendo.data.set_kept_in_new_files", new(owned)
+        {
+            ["entityId"] = CrmAuthoringFixture.DealEntityId,
+            ["recordId"] = "deal-renewal",
+            ["kept"] = true,
+            ["idempotencyKey"] = "contract-keep",
+        }));
+        Assert.IsNull(marked.RecordVersion);
         await CallAsync("nendo.data.delete_record", new(owned)
         {
             ["entityId"] = CrmAuthoringFixture.DealEntityId,

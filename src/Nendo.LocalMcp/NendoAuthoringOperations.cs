@@ -86,6 +86,12 @@ internal static class NendoAuthoringOperations
         Definition("application.setLook",
             "Give this file its own look, or return a part to its default: tone is one of choiceTones, letter one letter or digit; null for either keeps that part's default. The look is how a person tells this file from others open beside it: a badge in that tone with that letter on the Nendo mark, on the window, the taskbar, the notification area and notifications. Every file has one without choosing: the tone comes from the application ID and the letter from the file's name. nendo://application/manifest carries look, as chosen and as drawn.",
             ["tone", "letter"], RevisionScoped),
+        Definition("schema.setKeptInNewFiles",
+            "Say whether a new file of this application keeps this record type's records (ADR-0022): kept true for what the application ships with, such as a lookup of kinds; false, the default, for the person's work. A record may say otherwise with nendo.data.set_kept_in_new_files or keptInNewFiles on create, which suits a type holding both, such as folders whose top level ships with the application. Only the person makes a new file, from Nendo's File menu; nendo://application/describe shows what it would keep under newFile.",
+            ["entityId", "kept"], RevisionScoped),
+        Definition("application.setNewFileLabel",
+            "Name one new file of this application, 1 to 40 characters on one line, such as Archi model: the File menu then offers New Archi model… for a file with the definition and only the records kept in new files. null clears it, and the menu offers New empty copy….",
+            ["label"], RevisionScoped),
         Definition("ui.addNode",
             "Add one node to a surface. parentNodeId is null for a root; position is a zero-based integer. properties sets the node's properties in the same operation, which is how a node and its configuration arrive together instead of as one operation per property.",
             ["surfaceId", "nodeId", "kind", "position"], "parentNodeId", "properties"),
@@ -113,6 +119,9 @@ internal static class NendoAuthoringOperations
             ["entityId", "recordId", "fieldId", "expectedRecordVersion", "value"], "expectedTargetRecordVersion"),
         Data("data.deleteRecord", "Delete one record at its exact current version. Incoming references block the delete; values are retained for guarded restoration.",
             ["entityId", "recordId", "expectedRecordVersion"]),
+        Data("data.setKeptInNewFiles",
+            "Keep one record in a new file of this application (kept true), leave it out (false), or let it follow its record type (null). The same as nendo.data.set_kept_in_new_files, inside a change set.",
+            ["entityId", "recordId", "kept"]),
         Data("data.backfillRetiredField", "Fill one explicitly selected retained value on a retired field, so a field can be made required.",
             ["entityId", "recordId", "fieldId", "expectedRecordVersion", "value"], "expectedTargetRecordVersion"),
         Data("data.convertLegacyReference",
@@ -136,6 +145,7 @@ internal static class NendoAuthoringOperations
         "A payload the host cannot bind is refused by add_operations itself, naming the mutation, the operation and the key, and nothing enters the draft.",
         "A failed validate leaves the draft open and names every independent refusal, up to five, each by operationId: correct them together with nendo.change_set.amend rather than starting again.",
         "Nothing in a change set touches the file until the person accepts the validated proposal in Nendo, or, at Unattended only, nendo.change_set.accept applies it.",
+        "What a new file of the application keeps is data too (ADR-0022): when you seed records the application ships with, such as lookups or top-level folders, keep them (schema.setKeptInNewFiles for a whole type, keptInNewFiles on create for single records) and leave the work out, so the person can start a new file without deleting anything.",
     ];
 
     /// <summary>The accepted payload field names per operation type, taken from the published table.</summary>

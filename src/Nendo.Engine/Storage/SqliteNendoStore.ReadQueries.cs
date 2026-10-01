@@ -112,8 +112,8 @@ internal sealed partial class SqliteNendoStore
         // The same calculations a full snapshot shows, computed the same way. Studio,
         // a custom surface and an agent read through different entry points and must
         // never disagree about what a calculated field currently is.
-        var page = await WithCalculationsAsync(
-            records.Take(query.Limit).ToArray(), mappings, transaction, cancellationToken);
+        var page = await WithKeptMarksAsync(await WithCalculationsAsync(
+            records.Take(query.Limit).ToArray(), mappings, transaction, cancellationToken), transaction, cancellationToken, entity.EntityId);
         return new(page, next, manifest.ChangeSequence);
     }
 
@@ -490,6 +490,7 @@ internal sealed partial class SqliteNendoStore
                             'schema.renameEntity', 'schema.renameField',
                             'behaviour.setDefinition', 'behaviour.removeDefinition',
                             'ui.setProperty', 'application.setPurpose', 'application.setLook', 'schema.declareHierarchy', 'schema.removeHierarchy',
+                            'application.setNewFileLabel', 'schema.setKeptInNewFiles', 'data.setKeptInNewFiles',
                             'extension.setPackage', 'extension.putFile', 'extension.removeFile', 'extension.removePackage')
                             OR (o.operation_type = 'ui.removeNode'
                                 AND json_extract(o.inverse_evidence_json, '$.retainedSubtree[0].kind') IN ('extensionGraphSurface', 'extensionRecordsSurface')

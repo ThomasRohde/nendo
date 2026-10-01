@@ -126,6 +126,13 @@ internal static class CanonicalChangeSetRequestCompiler
             "application.setLook" => new SetApplicationLookOperation(request.OperationId,
                 OptionalString(request.Payload, "tone", 16), OptionalString(request.Payload, "letter", 8),
                 Long(request.Payload, "expectedDefinitionRevision")),
+            "schema.setKeptInNewFiles" => new SetKeptInNewFilesDefaultOperation(request.OperationId, String(request.Payload, "entityId"),
+                Boolean(request.Payload, "kept"), Long(request.Payload, "expectedDefinitionRevision")),
+            "data.setKeptInNewFiles" => new SetRecordKeptInNewFilesOperation(request.OperationId, String(request.Payload, "entityId"),
+                String(request.Payload, "recordId"), NullableBoolean(request.Payload, "kept")),
+            "application.setNewFileLabel" => new SetNewFileLabelOperation(request.OperationId,
+                OptionalString(request.Payload, "label", SetNewFileLabelOperation.MaximumCharacters),
+                Long(request.Payload, "expectedDefinitionRevision")),
             "application.setPurpose" => new SetApplicationPurposeOperation(request.OperationId,
                 OptionalString(request.Payload, "purpose", SetApplicationPurposeOperation.MaximumCharacters),
                 Long(request.Payload, "expectedDefinitionRevision")),
@@ -338,6 +345,17 @@ internal static class CanonicalChangeSetRequestCompiler
             throw new NendoValidationException($"Canonical operation property {name} requires a boolean.");
         }
         return value.GetBoolean();
+    }
+
+    /// <summary>A boolean that must be stated and may be null, where null means something of its own.</summary>
+    private static bool? NullableBoolean(JsonElement source, string name)
+    {
+        if (!source.TryGetProperty(name, out var value) ||
+            value.ValueKind is not (JsonValueKind.True or JsonValueKind.False or JsonValueKind.Null))
+        {
+            throw new NendoValidationException($"Canonical operation property {name} requires true, false or null.");
+        }
+        return value.ValueKind == JsonValueKind.Null ? null : value.GetBoolean();
     }
 
     private static int Integer(JsonElement source, string name)

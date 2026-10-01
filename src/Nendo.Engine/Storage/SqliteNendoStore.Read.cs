@@ -34,6 +34,7 @@ internal sealed partial class SqliteNendoStore
                 Retired = mapping.Retired,
                 DerivedFields = derived.TryGetValue(mapping.EntityId, out var calculated) ? calculated : [],
                 Hierarchy = mapping.Hierarchy,
+                KeptInNewFiles = mapping.KeptInNewFiles,
             })
             .ToArray();
         var records = includeRecords ? await ReadRecordsAsync(mappings, transaction, cancellationToken) : [];
@@ -167,6 +168,7 @@ internal sealed partial class SqliteNendoStore
         {
             Purpose = await ReadApplicationPurposeAsync(transaction, cancellationToken),
             Look = await ReadApplicationLookAsync(transaction, cancellationToken),
+            NewFileLabel = await ReadNewFileLabelAsync(transaction, cancellationToken),
         };
     }
 
@@ -235,6 +237,7 @@ internal sealed partial class SqliteNendoStore
         var retiredFields = await RetiredIdsAsync("field", transaction, cancellationToken);
         var retiredEntities = await RetiredIdsAsync("entity", transaction, cancellationToken);
         var hierarchies = await ReadHierarchiesAsync(transaction, cancellationToken);
+        var keptTypes = await ReadKeptTypesAsync(transaction, cancellationToken);
         for (var index = 0; index < fields.Count; index++) fields[index] = fields[index] with { Retired = retiredFields.Contains(fields[index].FieldId) };
         return entities
             .Select(entity => new EntityMapping(
@@ -245,6 +248,7 @@ internal sealed partial class SqliteNendoStore
             {
                 Retired = retiredEntities.Contains(entity.Id),
                 Hierarchy = hierarchies.GetValueOrDefault(entity.Id),
+                KeptInNewFiles = keptTypes.Contains(entity.Id),
             })
             .ToArray();
     }
@@ -290,7 +294,7 @@ internal sealed partial class SqliteNendoStore
                 target.Values.TryGetValue(field.Reference.LabelFieldId, out var label) && label.ValueKind == JsonValueKind.String
                     ? label.GetString() : null, StringComparer.Ordinal)
         }).ToArray();
-        return await WithCalculationsAsync(labelled, entities, transaction, cancellationToken);
+        return await WithCalculationsAsync(await WithKeptMarksAsync(labelled, transaction, cancellationToken), entities, transaction, cancellationToken);
     }
 
     private async Task<IReadOnlyList<NendoUiNodeSnapshot>> ReadUiNodesAsync(

@@ -34,6 +34,7 @@ internal sealed class NendoDataMutationService(
         NendoObjectInput values,
         string idempotencyKey,
         IReadOnlyDictionary<string, long>? expectedTargetVersions,
+        bool? keptInNewFiles,
         CancellationToken cancellationToken) => AdmitAsync(
             leaseId,
             sessionId,
@@ -43,7 +44,7 @@ internal sealed class NendoDataMutationService(
                         entityId,
                         recordId,
                         ReadValueMap(values.Element),
-                        Context(sessionId, idempotencyKey), expectedTargetVersions),
+                        Context(sessionId, idempotencyKey), expectedTargetVersions, keptInNewFiles),
                     cancellationToken),
                 [recordId],
                 CreatedVersion),
@@ -68,7 +69,8 @@ internal sealed class NendoDataMutationService(
                     return new NendoCreateRecordEntry(
                         record.RecordId,
                         ReadValueMap(record.Values.Element),
-                        record.ExpectedTargetVersions);
+                        record.ExpectedTargetVersions,
+                        record.KeptInNewFiles);
                 }).ToArray();
                 return Touched(
                     await application.CreateRecordsAsync(
@@ -166,6 +168,16 @@ internal sealed class NendoDataMutationService(
             idempotencyKey.Trim(),
             owner);
     }
+
+    /// <summary>A record's own mark for a new file of the application (ADR-0022); its version does not move.</summary>
+    internal Task<NendoDataApplyResult> SetKeptInNewFilesAsync(string sessionId, string leaseId, string entityId, string recordId,
+        bool? kept, string idempotencyKey, CancellationToken cancellationToken) =>
+        AdmitAsync(leaseId, sessionId,
+            async _ => Touched(
+                await application.SetRecordKeptInNewFilesAsync(entityId, recordId, kept, Context(sessionId, idempotencyKey), cancellationToken),
+                [recordId],
+                null),
+            cancellationToken);
 
     internal Task<NendoDataApplyResult> DeleteRecordAsync(string sessionId, string leaseId, string entityId, string recordId,
         long expectedRecordVersion, string idempotencyKey, CancellationToken cancellationToken) =>

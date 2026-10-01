@@ -16,6 +16,7 @@ internal sealed record EntityMapping(
 {
     internal bool Retired { get; init; }
     internal NendoHierarchy? Hierarchy { get; init; }
+    internal bool KeptInNewFiles { get; init; }
 }
 
 internal sealed record FieldMapping(

@@ -98,6 +98,12 @@ public sealed record NendoManifestSnapshot(
     /// must not read as a file that changed its look.
     /// </summary>
     public NendoApplicationLook? Look { get; init; }
+
+    /// <summary>
+    /// The application's own name for one new file of it, such as "Archi model" (ADR-0022), or
+    /// null when it gave none. The File menu offers "New {label}…", or "New empty copy…".
+    /// </summary>
+    public string? NewFileLabel { get; init; }
 }
 
 public sealed record NendoFieldSnapshot(
@@ -169,6 +175,12 @@ public sealed record NendoEntitySnapshot(
 
     /// <summary>The record type's declared hierarchy (ADR-0019), or null when it declares none.</summary>
     public NendoHierarchy? Hierarchy { get; init; }
+
+    /// <summary>
+    /// Whether a new file of this application keeps this type's records unless a record says
+    /// otherwise (ADR-0022). False, the default, leaves them out.
+    /// </summary>
+    public bool KeptInNewFiles { get; init; }
 }
 
 public sealed record NendoRecordSnapshot(
@@ -185,6 +197,13 @@ public sealed record NendoRecordSnapshot(
     /// column, cannot be edited, and may be a value, empty, still loading or an error.
     /// </summary>
     public IReadOnlyList<NendoCalculationResult> Calculations { get; init; } = [];
+
+    /// <summary>
+    /// This record's own say in whether a new file keeps it (ADR-0022): true or false, or null
+    /// when it follows its record type's <see cref="NendoEntitySnapshot.KeptInNewFiles"/>.
+    /// Not a value of the record: it has no field and changes no version.
+    /// </summary>
+    public bool? KeptInNewFiles { get; init; }
 }
 
 public sealed record NendoUiNodeSnapshot(
@@ -318,18 +337,21 @@ public sealed record NendoProposalRequest(
     string Origin,
     NendoChangeSet ChangeSet);
 
+/// <summary>One record to create. <paramref name="KeptInNewFiles"/> marks it in the same revision (ADR-0022); null follows its type.</summary>
 public sealed record NendoCreateRecordRequest(
     string EntityId,
     string RecordId,
     IReadOnlyDictionary<string, object?> Values,
     NendoRequestContext Context,
-    IReadOnlyDictionary<string, long>? ExpectedTargetVersions = null);
+    IReadOnlyDictionary<string, long>? ExpectedTargetVersions = null,
+    bool? KeptInNewFiles = null);
 
 /// <summary>One record inside a bounded batch create.</summary>
 public sealed record NendoCreateRecordEntry(
     string RecordId,
     IReadOnlyDictionary<string, object?> Values,
-    IReadOnlyDictionary<string, long>? ExpectedTargetVersions = null);
+    IReadOnlyDictionary<string, long>? ExpectedTargetVersions = null,
+    bool? KeptInNewFiles = null);
 
 /// <summary>
 /// Several records as one mutation, one revision and one idempotency key. A demo

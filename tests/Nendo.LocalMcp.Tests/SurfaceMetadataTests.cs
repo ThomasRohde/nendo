@@ -20,6 +20,7 @@ public sealed class SurfaceMetadataTests
     private static readonly string[] Destructive =
     [
         "nendo.data.set_field", "nendo.data.move_record", "nendo.data.execute_command", "nendo.data.delete_record",
+        "nendo.data.set_kept_in_new_files",
         "nendo.change_set.amend", "nendo.change_set.reject", "nendo.change_set.accept",
     ];
 
@@ -35,7 +36,7 @@ public sealed class SurfaceMetadataTests
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
 
         var tools = await client.ListToolsAsync();
-        Assert.HasCount(20, tools);
+        Assert.HasCount(21, tools);
         var untitled = tools.Where(tool => string.IsNullOrWhiteSpace(tool.ProtocolTool.Title)).Select(tool => tool.Name).ToList();
         var resources = await client.ListResourcesAsync();
         var templates = await client.ListResourceTemplatesAsync();

@@ -24,6 +24,9 @@ public sealed record NendoRecordInput(
 {
     [property: Description("For each non-null reference field, the current version of its selected target, keyed by field ID.")]
     public IReadOnlyDictionary<string, long>? ExpectedTargetVersions { get; init; }
+
+    [property: Description("Optional. true keeps this record in a new file of the application, false leaves it out; omit to follow its record type's keptInNewFiles. Set in the same revision as the create.")]
+    public bool? KeptInNewFiles { get; init; }
 }
 
 /// <summary>

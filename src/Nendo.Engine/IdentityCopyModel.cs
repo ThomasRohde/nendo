@@ -3,7 +3,12 @@ using System.Text.Json;
 
 namespace Nendo.Engine;
 
-public enum NendoIdentityCopyKind { Duplicate, Fork }
+/// <summary>
+/// How a copy's identity relates to its source (ADR-0010). New (ADR-0022) is a Duplicate's
+/// identity, the same application and a new instance, for a file that starts without the
+/// source's work and history.
+/// </summary>
+public enum NendoIdentityCopyKind { Duplicate, Fork, New }
 
 public sealed record NendoIdentitySourcePoint(
     string ApplicationId, string InstanceId, long DefinitionRevision, long DataRevision, long ChangeSequence)
@@ -37,7 +42,7 @@ public sealed record IdentityTransitionOperation : NendoOperation
         if (source.DefinitionRevision < 0 || source.DataRevision < 0 || source.ChangeSequence < 0 ||
             source.ChangeSequence != checked(source.DefinitionRevision + source.DataRevision) ||
             resultInstanceId == source.InstanceId ||
-            (kind == NendoIdentityCopyKind.Duplicate) != (resultApplicationId == source.ApplicationId) ||
+            (kind != NendoIdentityCopyKind.Fork) != (resultApplicationId == source.ApplicationId) ||
             requestDigest.Length != 64 || requestDigest.Any(character => !Uri.IsHexDigit(character)))
         {
             throw new NendoValidationException("The identity transition does not satisfy the copy contract.");
@@ -107,5 +112,10 @@ internal sealed record IdentityCopyIntent(
             NendoIdentitySourcePoint.From(Source), applicationId, instanceId, RequestDigest);
 
     internal NendoMutation Mutation(IdentityTransitionOperation operation) =>
-        new(Scope, RequestId, "host.file-lifecycle", Kind == NendoIdentityCopyKind.Duplicate ? "Duplicate application" : "Fork application (history retained)", [operation]);
+        new(Scope, RequestId, "host.file-lifecycle", Kind switch
+        {
+            NendoIdentityCopyKind.Duplicate => "Duplicate application",
+            NendoIdentityCopyKind.Fork => "Fork application (history retained)",
+            _ => "New file of this application",
+        }, [operation]);
 }

@@ -31,6 +31,9 @@ internal sealed partial class SqliteNendoStore
     internal sealed record HistoryFoldPolicy(int KeepRevisions, long KeepRows, int KeepAtLeast)
     {
         internal static readonly HistoryFoldPolicy Default = new(1_000, 25_000, 20);
+
+        /// <summary>Folds every revision after Genesis: a new file of the application starts from one checkpoint (ADR-0022).</summary>
+        internal static readonly HistoryFoldPolicy KeepNone = new(0, 0, 0);
     }
 
     /// <summary>
@@ -128,7 +131,7 @@ internal sealed partial class SqliteNendoStore
         // The last revision the fold takes: all but the kept ones, and never one that leaves part
         // of a proposal behind, since a proposal's receipt needs its revisions together.
         var cut = all.Count - 1 - keep;
-        while (cut > 0 && all[cut].ProposalId is { } proposal && all[cut + 1].ProposalId == proposal) cut--;
+        while (cut > 0 && cut + 1 < all.Count && all[cut].ProposalId is { } proposal && all[cut + 1].ProposalId == proposal) cut--;
         var folded = all.Skip(1).Take(cut).ToList();
         if (folded.Count == 0 || folded.All(revision => revision.Lane == NendoRevisionLane.Checkpoint))
             return (null, "Every change old enough to fold belongs to a proposal that also has newer changes. Nothing would be folded.");
@@ -185,74 +188,9 @@ internal sealed partial class SqliteNendoStore
             await RequireSupportedWritableLayoutAsync(transaction, ct);
             var (plan, reason) = await PlanHistoryFoldAsync(policy, transaction, ct);
             if (plan is null) throw new NendoPreconditionException("history-fold-nothing", reason!);
-
-            // The chain digest: what was folded, verifiable against the backup's history.
-            var chain = new StringBuilder(plan.Previous?.ChainDigest ?? "");
-            foreach (var revision in plan.Folded.Where(revision => revision.Lane != NendoRevisionLane.Checkpoint))
-                chain.Append('\n').Append(revision.RevisionId).Append('|').Append(revision.ChangeSequence.ToString(CultureInfo.InvariantCulture)).Append('|').Append(revision.OperationDigest);
-            var chainDigest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(chain.ToString()))).ToLowerInvariant();
-
-            // The identity lineage the folded transitions leave, so the chain after the fold still starts somewhere.
-            var (lineageApplication, lineageInstance) = (plan.Previous?.LineageApplicationId, plan.Previous?.LineageInstanceId);
-            await using (var command = Command("""
-                SELECT o.canonical_json FROM __nendo_operation o JOIN __nendo_revision r ON r.revision_id = o.revision_id
-                WHERE o.operation_type = 'identity.transition' AND r.change_sequence > 0 AND r.change_sequence <= $last
-                ORDER BY r.change_sequence, o.ordinal;
-                """, transaction))
-            {
-                command.Parameters.AddWithValue("$last", plan.Last.ChangeSequence);
-                await using var reader = await command.ExecuteReaderAsync(ct);
-                while (await reader.ReadAsync(ct))
-                {
-                    var transition = IdentityTransitionOperation.ParseCanonical(reader.GetString(0));
-                    (lineageApplication, lineageInstance) = (transition.ResultApplicationId, transition.ResultInstanceId);
-                }
-            }
-
-            await EnsureHistoryFoldLayoutAsync(transaction, ct);
-            await using (var delete = Command("DELETE FROM __nendo_revision WHERE change_sequence > 0 AND change_sequence <= $last;", transaction))
-            {
-                delete.Parameters.AddWithValue("$last", plan.Last.ChangeSequence);
-                await delete.ExecuteNonQueryAsync(ct);
-            }
-            var checkpointId = $"revision-{Guid.NewGuid():N}";
             var description = string.Create(CultureInfo.InvariantCulture,
                 $"Earlier history folded: {plan.Revisions:N0} changes ({plan.Operations:N0} operations) from {plan.FirstAt:yyyy-MM-dd} to {plan.LastAt:yyyy-MM-dd}. The full history is in the backup {backupLabel}.");
-            await using (var insert = Command("""
-                INSERT INTO __nendo_revision(revision_id, created_at, origin, description, lane,
-                    definition_revision_before, definition_revision_after, data_revision_before, data_revision_after,
-                    change_sequence, operation_digest, idempotency_scope, idempotency_key, proposal_id, proposal_digest, compensation_of_revision_id)
-                VALUES ($id, $at, 'kernel', $description, 'Checkpoint', 0, $definition, 0, $data, $sequence, $digest, NULL, NULL, NULL, NULL, NULL);
-                """, transaction))
-            {
-                insert.Parameters.AddWithValue("$id", checkpointId);
-                insert.Parameters.AddWithValue("$at", now.ToString("O", CultureInfo.InvariantCulture));
-                insert.Parameters.AddWithValue("$description", description);
-                insert.Parameters.AddWithValue("$definition", plan.Last.DefinitionAfter);
-                insert.Parameters.AddWithValue("$data", plan.Last.DataAfter);
-                insert.Parameters.AddWithValue("$sequence", plan.Last.ChangeSequence);
-                insert.Parameters.AddWithValue("$digest", chainDigest);
-                await insert.ExecuteNonQueryAsync(ct);
-            }
-            await using (var fold = Command("""
-                INSERT INTO __nendo_history_fold(checkpoint_revision_id, folded_at, first_change_sequence, last_change_sequence,
-                    revisions, operations, chain_digest, lineage_application_id, lineage_instance_id, backup_label, first_at, last_at)
-                VALUES ($id, $at, 1, $last, $revisions, $operations, $digest, $application, $instance, $backup, $first, $lastAt);
-                """, transaction))
-            {
-                fold.Parameters.AddWithValue("$id", checkpointId);
-                fold.Parameters.AddWithValue("$at", now.ToString("O", CultureInfo.InvariantCulture));
-                fold.Parameters.AddWithValue("$last", plan.Last.ChangeSequence);
-                fold.Parameters.AddWithValue("$revisions", plan.Revisions);
-                fold.Parameters.AddWithValue("$operations", plan.Operations);
-                fold.Parameters.AddWithValue("$digest", chainDigest);
-                fold.Parameters.AddWithValue("$application", (object?)lineageApplication ?? DBNull.Value);
-                fold.Parameters.AddWithValue("$instance", (object?)lineageInstance ?? DBNull.Value);
-                fold.Parameters.AddWithValue("$backup", backupLabel);
-                fold.Parameters.AddWithValue("$first", plan.FirstAt.ToString("O", CultureInfo.InvariantCulture));
-                fold.Parameters.AddWithValue("$lastAt", plan.LastAt.ToString("O", CultureInfo.InvariantCulture));
-                await fold.ExecuteNonQueryAsync(ct);
-            }
+            var checkpointId = await WriteHistoryFoldAsync(plan, backupLabel, description, now, transaction, ct);
             await using (var manifest = Command("UPDATE __nendo_manifest SET minimum_host_version = $version;", transaction))
             {
                 var before = await ReadManifestAsync(transaction, ct);
@@ -274,6 +212,82 @@ internal sealed partial class SqliteNendoStore
             if (!committed) transaction.Rollback();
             throw;
         }
+    }
+
+    /// <summary>
+    /// Replaces the planned revisions with one checkpoint and records the fold, inside the
+    /// caller's write transaction. The folded revisions go with their operations, attributions
+    /// and idempotency rows. Returns the checkpoint's revision ID; the minimum host is the caller's.
+    /// </summary>
+    private async Task<string> WriteHistoryFoldAsync(
+        FoldPlan plan, string backupLabel, string description, DateTimeOffset now, SqliteTransaction transaction, CancellationToken ct)
+    {
+        // The chain digest: what was folded, verifiable against the backup's history.
+        var chain = new StringBuilder(plan.Previous?.ChainDigest ?? "");
+        foreach (var revision in plan.Folded.Where(revision => revision.Lane != NendoRevisionLane.Checkpoint))
+            chain.Append('\n').Append(revision.RevisionId).Append('|').Append(revision.ChangeSequence.ToString(CultureInfo.InvariantCulture)).Append('|').Append(revision.OperationDigest);
+        var chainDigest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(chain.ToString()))).ToLowerInvariant();
+
+        // The identity lineage the folded transitions leave, so the chain after the fold still starts somewhere.
+        var (lineageApplication, lineageInstance) = (plan.Previous?.LineageApplicationId, plan.Previous?.LineageInstanceId);
+        await using (var command = Command("""
+            SELECT o.canonical_json FROM __nendo_operation o JOIN __nendo_revision r ON r.revision_id = o.revision_id
+            WHERE o.operation_type = 'identity.transition' AND r.change_sequence > 0 AND r.change_sequence <= $last
+            ORDER BY r.change_sequence, o.ordinal;
+            """, transaction))
+        {
+            command.Parameters.AddWithValue("$last", plan.Last.ChangeSequence);
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var transition = IdentityTransitionOperation.ParseCanonical(reader.GetString(0));
+                (lineageApplication, lineageInstance) = (transition.ResultApplicationId, transition.ResultInstanceId);
+            }
+        }
+
+        await EnsureHistoryFoldLayoutAsync(transaction, ct);
+        await using (var delete = Command("DELETE FROM __nendo_revision WHERE change_sequence > 0 AND change_sequence <= $last;", transaction))
+        {
+            delete.Parameters.AddWithValue("$last", plan.Last.ChangeSequence);
+            await delete.ExecuteNonQueryAsync(ct);
+        }
+        var checkpointId = $"revision-{Guid.NewGuid():N}";
+        await using (var insert = Command("""
+            INSERT INTO __nendo_revision(revision_id, created_at, origin, description, lane,
+                definition_revision_before, definition_revision_after, data_revision_before, data_revision_after,
+                change_sequence, operation_digest, idempotency_scope, idempotency_key, proposal_id, proposal_digest, compensation_of_revision_id)
+            VALUES ($id, $at, 'kernel', $description, 'Checkpoint', 0, $definition, 0, $data, $sequence, $digest, NULL, NULL, NULL, NULL, NULL);
+            """, transaction))
+        {
+            insert.Parameters.AddWithValue("$id", checkpointId);
+            insert.Parameters.AddWithValue("$at", now.ToString("O", CultureInfo.InvariantCulture));
+            insert.Parameters.AddWithValue("$description", description);
+            insert.Parameters.AddWithValue("$definition", plan.Last.DefinitionAfter);
+            insert.Parameters.AddWithValue("$data", plan.Last.DataAfter);
+            insert.Parameters.AddWithValue("$sequence", plan.Last.ChangeSequence);
+            insert.Parameters.AddWithValue("$digest", chainDigest);
+            await insert.ExecuteNonQueryAsync(ct);
+        }
+        await using (var fold = Command("""
+            INSERT INTO __nendo_history_fold(checkpoint_revision_id, folded_at, first_change_sequence, last_change_sequence,
+                revisions, operations, chain_digest, lineage_application_id, lineage_instance_id, backup_label, first_at, last_at)
+            VALUES ($id, $at, 1, $last, $revisions, $operations, $digest, $application, $instance, $backup, $first, $lastAt);
+            """, transaction))
+        {
+            fold.Parameters.AddWithValue("$id", checkpointId);
+            fold.Parameters.AddWithValue("$at", now.ToString("O", CultureInfo.InvariantCulture));
+            fold.Parameters.AddWithValue("$last", plan.Last.ChangeSequence);
+            fold.Parameters.AddWithValue("$revisions", plan.Revisions);
+            fold.Parameters.AddWithValue("$operations", plan.Operations);
+            fold.Parameters.AddWithValue("$digest", chainDigest);
+            fold.Parameters.AddWithValue("$application", (object?)lineageApplication ?? DBNull.Value);
+            fold.Parameters.AddWithValue("$instance", (object?)lineageInstance ?? DBNull.Value);
+            fold.Parameters.AddWithValue("$backup", backupLabel);
+            fold.Parameters.AddWithValue("$first", plan.FirstAt.ToString("O", CultureInfo.InvariantCulture));
+            fold.Parameters.AddWithValue("$lastAt", plan.LastAt.ToString("O", CultureInfo.InvariantCulture));
+            await fold.ExecuteNonQueryAsync(ct);
+        }
+        return checkpointId;
     }
 
     /// <summary>Gives the folded pages back to the file system. Outside any transaction, on the owning connection.</summary>

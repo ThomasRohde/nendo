@@ -62,6 +62,9 @@ internal sealed partial class SqliteNendoStore
             SetFieldSequenceOperation setSequence => await ExecuteSetFieldSequenceAsync(setSequence, transaction, cancellationToken),
             RemoveHierarchyOperation remove => await ExecuteRemoveHierarchyAsync(remove, transaction, cancellationToken),
             SetApplicationLookOperation setLook => await ExecuteSetApplicationLookAsync(setLook, transaction, cancellationToken),
+            SetKeptInNewFilesDefaultOperation keptDefault => await ExecuteSetKeptInNewFilesDefaultAsync(keptDefault, transaction, cancellationToken),
+            SetRecordKeptInNewFilesOperation keptRecord => await ExecuteSetRecordKeptInNewFilesAsync(keptRecord, transaction, cancellationToken),
+            SetNewFileLabelOperation newFileLabel => await ExecuteSetNewFileLabelAsync(newFileLabel, transaction, cancellationToken),
             SetApplicationPurposeOperation setPurpose => await ExecuteSetApplicationPurposeAsync(
                 setPurpose,
                 transaction,
@@ -672,6 +675,7 @@ internal sealed partial class SqliteNendoStore
         {
             Retired = (await RetiredIdsAsync("entity", transaction, cancellationToken)).Contains(entityId),
             Hierarchy = (await ReadHierarchiesAsync(transaction, cancellationToken)).GetValueOrDefault(entityId),
+            KeptInNewFiles = (await ReadKeptTypesAsync(transaction, cancellationToken)).Contains(entityId),
         };
     }
 

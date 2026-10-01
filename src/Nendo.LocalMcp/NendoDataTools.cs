@@ -50,6 +50,7 @@ internal sealed class NendoDataTools(
         [Description("Bounded scalar value map keyed by stable field ID. Send exact integers/decimals as {\"$nendoNumber\":\"numeric lexeme\"}; use numericLexemes from nendo://application/entity/{entityId}/records, never a rounded JavaScript number. A text or singleChoice value is the JSON string itself (Bean), never a string with quote characters inside it; a choice must be one of the field's options exactly. A calculated field (derivedFields in the schema read) cannot be written.")] NendoObjectInput values,
         [Description("Stable key used to make exact retries safe.")] string idempotencyKey,
         [Description("For each non-null reference field, the current version of its selected target, keyed by field ID.")] IReadOnlyDictionary<string, long>? expectedTargetVersions = null,
+        [Description("Optional. true keeps the record in a new file of this application, false leaves it out; omit to follow its record type's keptInNewFiles. Set in the same revision as the create.")] bool? keptInNewFiles = null,
         CancellationToken cancellationToken = default) => ExecuteAsync(
             context,
             "nendo.data.create_record",
@@ -61,6 +62,7 @@ internal sealed class NendoDataTools(
                 values,
                 idempotencyKey,
                 expectedTargetVersions,
+                keptInNewFiles,
                 cancellationToken),
             entityId);
 
@@ -288,6 +290,20 @@ internal sealed class NendoDataTools(
                 () => proposals.PendingCause(host.Mode >= AgentAccessMode.Unattended, names));
         }
     }
+
+    [McpServerTool(Name = "nendo.data.set_kept_in_new_files", Title = "Keep a record in new files, or leave it out", Destructive = true,
+        Idempotent = true, OpenWorld = false, ReadOnly = false, UseStructuredContent = true)]
+    [Description("Say whether a new file of this application keeps one record (ADR-0022): kept true, left out false, or null to follow its record type's keptInNewFiles, which schema.setKeptInNewFiles sets in a change set. Keep what the application ships with, such as a lookup's entries or its top-level folders; leave the person's work out. A kept record may point only at kept records, or the person cannot make a new file: nendo://application/describe lists any under newFile.conflicts. The mark is a fact about the record, not a value: no field or record version changes and no automatic action runs. One Data revision, undone from History.")]
+    public Task<NendoDataApplyResult> SetKeptInNewFilesAsync(RequestContext<CallToolRequestParams> context,
+        [Description("Private application handle returned by nendo.lease.acquire.")] string applicationHandle,
+        [Description("Opaque lease ID returned by nendo.lease.acquire.")] string leaseId,
+        [Description("Stable entity ID.")] string entityId,
+        [Description("Stable record ID.")] string recordId,
+        [Description("true to keep the record in a new file, false to leave it out, null to follow its record type.")] bool? kept,
+        [Description("Stable key used to make exact retries safe.")] string idempotencyKey,
+        CancellationToken cancellationToken = default) => ExecuteAsync(context, "nendo.data.set_kept_in_new_files",
+            () => mutations.SetKeptInNewFilesAsync(applicationHandle, leaseId, entityId, recordId, kept, idempotencyKey, cancellationToken),
+            entityId);
 
     [McpServerTool(Name = "nendo.data.delete_record", Title = "Delete a record", Destructive = true, Idempotent = true,
         OpenWorld = false, ReadOnly = false, UseStructuredContent = true)]
