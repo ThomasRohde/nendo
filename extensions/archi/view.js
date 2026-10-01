@@ -608,6 +608,10 @@ function declareToolbar() {
     ] },
     { kind: 'button', id: 'rename', label: 'Rename', icon: 'edit', iconOnly: true, keys: 'F2' },
     { kind: 'button', id: 'delete', label: 'Delete…', icon: 'trash', iconOnly: true },
+    { kind: 'menu', id: 'archi-file', label: 'Archi file', icon: 'export', items: [
+      { id: 'open-archimate', label: 'Open .archimate…', detail: 'Read an Archi model into this empty one' },
+      { id: 'save-archimate', label: 'Save as .archimate', detail: 'Download the model for Archi' },
+    ] },
     ...(state.openView && !state.readOnly && canvasModule?.createEditor
       ? [{ kind: 'toggle', id: 'edit', label: 'Edit the view', icon: 'edit', pressed: state.editing, keys: 'Ctrl+E' }] : []),
     ...(state.editing ? [{ kind: 'group', label: 'Edits', items: [
@@ -656,6 +660,8 @@ function runCommand({ id, value }) {
     case 'commit': commitEdits(); break;
     case 'discard': discardEdits(); break;
     case 'validator': showValidator(value === true); break;
+    case 'open-archimate': showOpenArchimate(); break;
+    case 'save-archimate': saveArchimate(); break;
   }
 }
 
@@ -894,6 +900,119 @@ $('validator-config').addEventListener('close', () => {
   validate();
 });
 
+// ---------------------------------------------------------------- .archimate files (W-120)
+
+/*
+ * Archi's own files, read and written with archi-online's parser and serializer in canvas.js.
+ * Open reads a model into an empty one, as Archi opens a model into a new tree: a file that
+ * already holds a model says how to make an empty one. The person chooses the file in the
+ * workbench's own dialog, because a picker opens only on a click inside the view, or drops it on
+ * the workbench. Images are left out and counted (F-208). Save downloads the model as plain XML.
+ */
+let opening = null;
+
+async function showOpenArchimate(file = null) {
+  await canvasReady;
+  if (!canvasModule?.readArchimate) { setStatus('Opening an .archimate file needs the diagram code, which could not load.', true); return; }
+  opening = null;
+  const blocked = state.readOnly ? 'This file is open read-only, so nothing can be opened into it.'
+    : !nendo.has('records.batch') ? 'Opening a model needs a newer Nendo, one that saves several records together.'
+    : !canvasModule.holdsNoModel(state.sets)
+      ? 'This file already holds a model. Open the .archimate file in a new one: in Nendo, File › New Archi model…, then Archi file › Open .archimate… there.'
+      : null;
+  $('open-archimate-text').textContent = blocked ??
+    'The model is read into this file’s empty model and saved in a few changes. History cannot undo them; to start again, make a new Archi model.';
+  $('open-archimate-choose').disabled = blocked !== null;
+  $('open-archimate-drop').hidden = blocked !== null;
+  $('open-archimate-summary').textContent = '';
+  $('open-archimate-summary').classList.remove('problem');
+  $('open-archimate-open').disabled = true;
+  const dialog = $('open-archimate');
+  if (!dialog.open) dialog.showModal();
+  if (file && blocked === null) await readChosen(file);
+}
+
+async function readChosen(file) {
+  const summary = $('open-archimate-summary');
+  summary.classList.remove('problem');
+  summary.textContent = `Reading ${file.name}…`;
+  $('open-archimate-open').disabled = true;
+  try {
+    const { model, leftOut } = canvasModule.readArchimate(new Uint8Array(await file.arrayBuffer()));
+    const plan = canvasModule.planImport(model, importTarget(), leftOut);
+    opening = { name: file.name, model, leftOut };
+    const counts = plan.counts;
+    summary.textContent = [`${model.info.name || file.name}: ${counts.elements} elements, ${counts.relationships} relationships, ${counts.views} views.`,
+      canvasModule.leftOutSentence(plan.leftOut)].filter(Boolean).join(' ');
+    $('open-archimate-open').disabled = false;
+  } catch (error) {
+    opening = null;
+    summary.textContent = `${file.name} could not be opened. ${describe(error)}`;
+    summary.classList.add('problem');
+  }
+}
+
+function importTarget() {
+  const rootFolders = {};
+  for (const folder of state.sets.folders ?? []) {
+    if (!folder.values['ar.folder.parent']) rootFolders[folder.values['ar.folder.kind']] = folder.recordId;
+  }
+  return { rootFolders, modelRecordId: modelRecord()?.recordId ?? `ar.model.r.${crypto.randomUUID()}` };
+}
+
+/** The chosen model, written in batches after every earlier gesture, planned from the records as they then stand. */
+function openChosen() {
+  if (!opening) return;
+  const { name, model, leftOut } = opening;
+  opening = null;
+  const run = writing.then(async () => {
+    if (!canvasModule.holdsNoModel(state.sets)) { setStatus(`${name} was not opened: this file holds a model now.`, true); return; }
+    const plan = canvasModule.planImport(model, importTarget(), leftOut);
+    const batches = canvasModule.importBatches(plan, state.sets, 200);
+    let saved = 0, outcome = null, problem = false;
+    try {
+      for (const [index, batch] of batches.entries()) {
+        setStatus(`Opening ${name}: saving ${index + 1} of ${batches.length}…`);
+        await nendo.records.batch(batch, { label: `Open ${name}${batches.length > 1 ? ` (${index + 1} of ${batches.length})` : ''}`.slice(0, 80) });
+        saved += 1;
+      }
+      const counts = plan.counts;
+      outcome = [`Opened ${name}: ${counts.elements} elements, ${counts.relationships} relationships, ${counts.views} views.`,
+        canvasModule.leftOutSentence(plan.leftOut)].filter(Boolean).join(' ');
+    } catch (error) {
+      problem = true;
+      outcome = saved === 0 ? `${name} was not opened: ${describe(error)}`
+        : `${name} was opened only in part: ${saved} of ${batches.length} saves went through before this was refused: ${describe(error)} To start again, make a new Archi model.`;
+    }
+    state.selected = null;
+    await readAll().catch(error => { outcome = `The model could not be read. ${describe(error)}`; problem = true; });
+    if (!problem) select(modelRecord()?.recordId ?? null, { reveal: true });
+    setStatus(outcome, problem);
+  });
+  writing = run.catch(() => undefined);
+  return run;
+}
+
+/** The model as an .archimate file, handed to the browser's own downloads. */
+async function saveArchimate() {
+  await canvasReady;
+  if (!canvasModule?.exportArchimate || !state.sets) { setStatus('Saving an .archimate file needs the diagram code, which could not load.', true); return; }
+  let file;
+  try { file = canvasModule.exportArchimate(state.sets); } catch (error) { setStatus(`The model could not be saved as .archimate: ${describe(error)}`, true); return; }
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([file.xml], { type: 'application/xml' }));
+  link.download = file.fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+  const waiting = state.pending > 0 ? ` The ${state.pending} edits still waiting to be committed are not in it.` : '';
+  setStatus(`Saved ${file.fileName}, ${summary()}.${waiting}`, state.pending > 0);
+}
+
+const isArchimateName = name => /\.(archimate|xml)$/i.test(name);
+const draggedFiles = event => [...(event.dataTransfer?.types ?? [])].includes('Files');
+
 // ---------------------------------------------------------------- the whole page
 
 function setStatus(message, problem = false) {
@@ -1070,6 +1189,32 @@ function wire() {
   $('own-new-view').addEventListener('click', newView);
   $('own-delete').addEventListener('click', remove);
   $('own-validator').addEventListener('click', () => showValidator(!state.validator.open));
+  $('own-open-archimate').addEventListener('click', () => showOpenArchimate());
+  $('own-save-archimate').addEventListener('click', () => saveArchimate());
+  // The picker opens on this click, inside the view: a command from Nendo's toolbar cannot open it.
+  $('open-archimate-choose').addEventListener('click', () => $('open-archimate-file').click());
+  $('open-archimate-file').addEventListener('change', event => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) readChosen(file);
+  });
+  $('open-archimate').addEventListener('close', () => {
+    if ($('open-archimate').returnValue === 'open') openChosen(); else opening = null;
+  });
+  // An .archimate file dropped anywhere on the workbench opens the dialog with it read.
+  document.addEventListener('dragover', event => {
+    if (!draggedFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  });
+  document.addEventListener('drop', event => {
+    if (!draggedFiles(event)) return;
+    event.preventDefault();
+    const file = event.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!isArchimateName(file.name)) { setStatus(`${file.name} is not an Archi model. Archi opens .archimate files.`, true); return; }
+    showOpenArchimate(file);
+  });
   $('validate').addEventListener('click', () => validate());
   $('validator-rules').addEventListener('click', () => { if (canvasModule) configureRules(); });
   $('validator-close').addEventListener('click', () => showValidator(false));

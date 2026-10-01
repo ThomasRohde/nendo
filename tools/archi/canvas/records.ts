@@ -136,7 +136,9 @@ export function toRecords(model: ModelState, stored: Map<string, NendoRecord> = 
       'ar.item.concept': connection.relationshipId, 'ar.item.source': connection.sourceId, 'ar.item.target': connection.targetId,
       'ar.item.bendpoints': connection.bendpoints.length > 0 ? JSON.stringify(connection.bendpoints) : null,
       'ar.item.name': connection.name, 'ar.item.documentation': connection.documentation,
-      'ar.item.connectionType': connection.connectionType, 'ar.item.nameVisible': connection.nameVisible });
+      'ar.item.connectionType': connection.connectionType, 'ar.item.nameVisible': connection.nameVisible,
+      // The order Archi drew it in (W-120), kept as stored: a connection drawn here has none and comes last.
+      'ar.item.order': stored.get(connection.id)?.values['ar.item.order'] ?? null });
   }
   return out;
 }

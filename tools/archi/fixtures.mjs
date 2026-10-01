@@ -10,7 +10,7 @@ const KIND = { Text: 'text', Integer: 'integer', Decimal: 'decimal', Boolean: 'b
 /** schema.describe's entities, as the host would answer them for the file the stages build. */
 export function archiSchema() {
   const entities = new Map();
-  const operations = ['model', 'diagrams'].flatMap(name => STAGES[name].mutations().flatMap(mutation => mutation.operations));
+  const operations = ['model', 'diagrams', 'order'].flatMap(name => STAGES[name].mutations().flatMap(mutation => mutation.operations));
   for (const { operationType, payload } of operations) {
     if (operationType === 'schema.createEntity') entities.set(payload.entityId, { entityId: payload.entityId, displayName: payload.displayName, fields: [], hierarchy: null });
     if (operationType === 'schema.addField') {

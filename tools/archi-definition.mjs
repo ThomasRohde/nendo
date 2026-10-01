@@ -371,6 +371,19 @@ export const STAGES = {
     ]),
   },
 
+  // W-120: Archi keeps a folder's elements, relationships and views in the order its file holds
+  // them, and archi-online's semantics compare that order. Folders had one; concepts and views get
+  // theirs, so a model opened and saved again keeps it.
+  order: {
+    title: 'Archi: keep the order of concepts and views in their folder',
+    needs: ['ar.concept', 'ar.view'],
+    appliedWhen: async read => (await read.schema('ar.concept')).fields.some(field => field.fieldId === 'ar.concept.order'),
+    mutations: () => inMutations('Keep the order of concepts and views in their folder', [
+      integer('ar.concept', 'ar.concept.order', 'Order in folder'),
+      integer('ar.view', 'ar.view.order', 'Order in folder'),
+    ]),
+  },
+
   pages: {
     title: 'Archi: screens for diagram items, types, the model and properties',
     needs: ['ar.model', 'ar.folder', 'ar.type', 'ar.concept', 'ar.view', 'ar.item', 'ar.property', 'ar.specialization'],
@@ -502,7 +515,7 @@ function screenOperations() {
   return { first: t.operations.slice(0, cut), second: t.operations.slice(cut) };
 }
 
-export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages', 'counts', 'countsShown', 'folderLast', 'unused', 'newFile'];
+export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages', 'counts', 'countsShown', 'folderLast', 'unused', 'newFile', 'order'];
 
 /** What the File menu calls a new file of Archi: New Archi model… (ADR-0022). */
 export const NEW_FILE_LABEL = 'Archi model';

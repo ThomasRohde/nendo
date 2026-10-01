@@ -22,6 +22,9 @@ const NODE_TYPE: Record<string, DiagramNode['nodeType']> = { Element: 'element',
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 const optional = <T,>(value: unknown): T | undefined => (value === null || value === undefined ? undefined : (value as T));
+/** By an order field alone, stably: records with the same order, or none, stay as they came. */
+const inOrder = (field: string) => (a: NendoRecord, b: NendoRecord) =>
+  ((a.values[field] as number | null) ?? Number.MAX_SAFE_INTEGER) - ((b.values[field] as number | null) ?? Number.MAX_SAFE_INTEGER);
 const byOrder = (field: string) => (a: NendoRecord, b: NendoRecord) =>
   ((a.values[field] as number | null) ?? Number.MAX_SAFE_INTEGER) - ((b.values[field] as number | null) ?? Number.MAX_SAFE_INTEGER)
   || (a.recordId < b.recordId ? -1 : a.recordId > b.recordId ? 1 : 0);
@@ -72,7 +75,9 @@ export function buildMirror(sets: RecordSets): ModelState {
     if (entry.parentId !== null) delete entry.folderType;
   }
 
-  for (const concept of of('ar.concept')) {
+  // A folder's concepts and views in their order there (W-120); one without an order comes after,
+  // as it came: a concept the workbench made has none.
+  for (const concept of of('ar.concept').sort(inOrder('ar.concept.order'))) {
     const values = concept.values;
     const base = { id: concept.recordId, name: text(values['ar.concept.name']), documentation: text(values['ar.concept.documentation']),
       properties: props(concept.recordId), profileIds: typeof values['ar.concept.specialization'] === 'string' ? [values['ar.concept.specialization'] as string] : [],
@@ -94,7 +99,7 @@ export function buildMirror(sets: RecordSets): ModelState {
     model.folders[base.folderId]?.itemIds.push(concept.recordId);
   }
 
-  for (const view of of('ar.view')) {
+  for (const view of of('ar.view').sort(inOrder('ar.view.order'))) {
     const router = view.values['ar.view.router'];
     const entry: DiagramView = { id: view.recordId, kind: 'view', name: text(view.values['ar.view.name']),
       documentation: text(view.values['ar.view.documentation']), properties: props(view.recordId), folderId: text(view.values['ar.view.folder']),

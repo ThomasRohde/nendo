@@ -1080,6 +1080,50 @@ async (page) => {
   }
   results.relationshipCycles = { records: 4, propertyRenders, themes: 2 };
 
+  // ---- W-120: Save as .archimate hands Archisurance to the browser's downloads as Archi's XML,
+  // each object under the Archi ID it came with. Open into a file that already holds a model is
+  // refused before anything is chosen. The XML saved here is what the new model opens below.
+  // Archisurance as it was before the steps above edited it, so what is saved is its own.
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.startAt(null); window.broker.remount(); }, fixture);
+  view = null;
+  for (let attempt = 0; attempt < 400 && view === null; attempt++) {
+    const candidate = page.frames().filter(frame => !frame.isDetached() && frame.url().startsWith(origin + '/')).at(-1);
+    if (candidate && await candidate.evaluate(() => /120 elements · 176 relationships · 17 views/.test(document.getElementById('status')?.textContent ?? '')).catch(() => false)) view = candidate;
+    else await page.waitForTimeout(25);
+  }
+  assert(view !== null, 'The workbench did not start again on Archisurance.');
+  const fileMenu = (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(item => item.id === 'archi-file');
+  assert(fileMenu && fileMenu.kind === 'menu' && fileMenu.items.map(item => item.id).join() === 'open-archimate,save-archimate',
+    `Nendo's row has no Archi file menu with Open and Save: ${JSON.stringify(fileMenu)}.`);
+  await view.evaluate(() => {
+    window.savedBlobs = [];
+    const original = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = blob => { window.savedBlobs.push(blob); return original(blob); };
+  });
+  const downloading = page.waitForEvent('download', { timeout: 8000 });
+  await page.evaluate(() => window.broker.command('save-archimate', null, 'toolbar'));
+  const download = await downloading;
+  const savedXml = await view.evaluate(() => window.savedBlobs.at(-1).text());
+  const kinds = [...savedXml.matchAll(/<element xsi:type="archimate:(\w+)"/g)].map(match => match[1]);
+  const savedFile = { name: download.suggestedFilename(), views: kinds.filter(kind => kind === 'ArchimateDiagramModel').length,
+    relationships: kinds.filter(kind => kind.endsWith('Relationship')).length };
+  savedFile.elements = kinds.length - savedFile.views - savedFile.relationships;
+  const savedIds = [...savedXml.matchAll(/ id="([^"]+)"/g)].map(match => match[1]);
+  assert(savedFile.name === 'Archisurance.archimate' && /^<\?xml version="1\.0" encoding="UTF-8"\?>\n<archimate:model /.test(savedXml) &&
+    savedFile.elements === 120 && savedFile.relationships === 176 && savedFile.views === 17,
+    `Save as .archimate did not download Archisurance as Archi's XML: ${JSON.stringify(savedFile)}.`);
+  assert(!savedIds.some(id => id.startsWith('ar-') || id.startsWith('ar.')) && new Set(savedIds).size === savedIds.length,
+    'The saved file names an object by its record ID, or one ID twice.');
+  await until(() => /^Saved Archisurance\.archimate, 120 elements/.test(document.getElementById('status').textContent), null, 'The status line did not say what was saved.');
+  await page.evaluate(() => window.broker.command('open-archimate', null, 'toolbar'));
+  await until(() => document.getElementById('open-archimate').open, null, 'Open .archimate… did not open its dialog.');
+  const refusedOpen = await view.evaluate(() => ({ text: document.getElementById('open-archimate-text').textContent,
+    choose: document.getElementById('open-archimate-choose').disabled, open: document.getElementById('open-archimate-open').disabled }));
+  assert(/already holds a model/.test(refusedOpen.text) && /New Archi model/.test(refusedOpen.text) && refusedOpen.choose && refusedOpen.open,
+    `Open into a file that holds a model was not refused before a file was chosen: ${JSON.stringify(refusedOpen)}.`);
+  await view.click('#open-archimate button[value="cancel"]');
+  results.saveArchimate = { ...savedFile, ids: savedIds.length, bytes: savedXml.length };
+
   // ---- W-130 (ADR-0022): a new Archi model keeps the concept types and the top-level folders
   // and leaves the Model record out with the work. The workbench starts one empty model, so the
   // tree has a root, and the nine folders sit under it. Measured in the broker's records.
@@ -1108,6 +1152,77 @@ async (page) => {
   assert((await records('ar.model')).length === 1, 'The workbench started more than one model.');
   results.emptyModel = { models: 1, folders: 9 };
 
+  // ---- W-120: the saved Archisurance opens into the new model. A dropped file opens the dialog
+  // with what it holds and Cancel writes nothing; the picker opens on a click inside the view, and
+  // Open saves the model in batches of at most 200, after which the records are Archisurance's own.
+  const dropFile = xml => view.evaluate(text => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([text], 'Archisurance.archimate', { type: 'application/xml' }));
+    document.getElementById('centre').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+  }, xml);
+  const batchesBeforeDrop = await page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').length);
+  await dropFile(savedXml);
+  await until(() => document.getElementById('open-archimate').open &&
+    /^Archisurance: 120 elements, 176 relationships, 17 views\.$/.test(document.getElementById('open-archimate-summary').textContent), null,
+    'A dropped .archimate file did not open the dialog saying what it holds.');
+  await view.click('#open-archimate button[value="cancel"]');
+  await page.waitForTimeout(300);
+  assert((await records('ar.concept')).length === 0 && (await page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').length)) === batchesBeforeDrop,
+    'Cancel wrote the dropped model.');
+  const savesBefore = await page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').length);
+  await page.evaluate(() => window.broker.command('open-archimate', null, 'toolbar'));
+  await until(() => document.getElementById('open-archimate').open && !document.getElementById('open-archimate-choose').disabled, null,
+    'Open .archimate… did not offer a choice in the new, empty model.');
+  // Choose clicks the dialog's file input with the person's activation, which is what opens
+  // Windows' picker in a view (W-104, G34). The click is caught rather than let through: the CLI
+  // stops running this probe, and still exits 0, once a real file chooser is open.
+  await view.evaluate(() => {
+    window.inputClicks = [];
+    HTMLInputElement.prototype.click = function () { window.inputClicks.push({ id: this.id, type: this.type, accept: this.accept, active: navigator.userActivation.isActive }); };
+  });
+  await view.click('#open-archimate-choose');
+  const inputClicks = await view.evaluate(() => window.inputClicks);
+  assert(inputClicks.length === 1 && inputClicks[0].id === 'open-archimate-file' && inputClicks[0].type === 'file' &&
+    inputClicks[0].accept === '.archimate,.xml' && inputClicks[0].active,
+    `Choose a file… did not click the file input with the person's activation: ${JSON.stringify(inputClicks)}.`);
+  // The file the picker would hand over, set on the input as the picker sets it.
+  await view.evaluate(text => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([text], 'Archisurance.archimate', { type: 'application/xml' }));
+    const input = document.getElementById('open-archimate-file');
+    input.files = transfer.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, savedXml);
+  await until(() => !document.getElementById('open-archimate-open').disabled &&
+    /^Archisurance: 120 elements, 176 relationships, 17 views\.$/.test(document.getElementById('open-archimate-summary').textContent), null,
+    'The chosen file did not say what it holds.');
+  await view.click('#open-archimate-open');
+  try {
+    await view.waitForFunction(() => /^Opened Archisurance\.archimate: 120 elements, 176 relationships, 17 views\.$/.test(document.getElementById('status').textContent), null, { timeout: 20000, polling: 100 });
+  } catch { throw new Error('Open did not finish with Archisurance opened. The view says: ' + JSON.stringify(await status())); }
+  const openSaves = (await page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').map(request => ({ label: request.p.label ?? null, writes: request.p.writes.length })))).slice(savesBefore);
+  assert(openSaves.length === 4 && openSaves.every((batch, index) => batch.writes <= 200 && batch.label === `Open Archisurance.archimate (${index + 1} of 4)`),
+    `The model was not saved in four labelled batches of at most 200: ${JSON.stringify(openSaves)}.`);
+  // The records are the fixture's, value for value; the Model record is the new model's own.
+  const plain = values => JSON.stringify(Object.entries(values).filter(([, value]) => value !== null).sort(([a], [b]) => (a < b ? -1 : 1)));
+  const openedRecords = {};
+  for (const entityId of ['ar.concept', 'ar.view', 'ar.item', 'ar.specialization', 'ar.folder', 'ar.property']) {
+    const want = new Map((fixture.records[entityId] ?? []).map(record => [record.recordId, plain(record.values)]));
+    const got = await records(entityId);
+    const differing = got.filter(record => want.get(record.recordId) !== plain(record.values)).map(record => record.recordId);
+    assert(got.length === want.size && differing.length === 0,
+      `${entityId}: ${got.length} records, not ${want.size}; ${differing.length} differ from Archisurance's, first ${JSON.stringify(differing.slice(0, 3))}.`);
+    openedRecords[entityId] = got.length;
+  }
+  const newModel = (await records('ar.model'))[0];
+  assert((await records('ar.model')).length === 1 && newModel.values['ar.model.name'] === 'Archisurance',
+    'The new model did not take Archisurance\u2019s name, or a second Model record was made.');
+  assert((await rows())[0].label === 'Archisurance', 'The tree does not start at the opened model.');
+  results.openArchimate = { batches: openSaves.map(batch => batch.writes), records: openedRecords };
+
   assert(errors.length === 0, `The page reported errors: ${errors.join(' | ')}`);
+  // Review-ArchiWorkbench.ps1 requires this: the CLI ends a probe early, exit code 0, when a native
+  // dialog or file chooser opens, so only the probe's own last word says it measured everything.
+  results.complete = true;
   return JSON.stringify(results);
 }

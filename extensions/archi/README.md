@@ -69,6 +69,18 @@ Properties. The file you were in does not change.
   when the model has changed since. Choosing an issue opens what it names: the object on its
   view, outlined, or the concept, view or folder in the tree. **Rules…** turns checks off,
   on this device.
+- **Archi file** (W-120), in Nendo's row. **Open .archimate…** reads an Archi model, plain
+  XML or Archi's archive with images, into an empty model: make one with **File → New Archi
+  model…** first, and in a file that already holds a model the dialog says so and offers
+  nothing. Choose the file in the dialog, or drop it anywhere on the workbench. The dialog
+  says what the file holds and what is left out, because Archi.nendo holds no images: image
+  objects, the connections that end on one, and the pictures on figures and specializations.
+  **Open** saves the model in batches of at most 200 record writes, each a change in History
+  named *Open ‹file› (n of m)*. History cannot undo them; to start again, make a new Archi
+  model. **Save as .archimate** downloads the model as plain XML that Desktop Archi opens,
+  each object under the Archi ID it came with, or its record ID without `ar-` when the
+  workbench made it. Edits still waiting to be committed are not in it, and the status line
+  says so.
 - **Without the workbench**, in Use: Concepts → Elements and Relationships show an *On views*
   column, a concept's page shows it under Details, and Views → Views shows a *Diagram objects*
   column (third in Elements and Views, so a Nendo that draws only three fields shows them too). They are calculated counts of the
@@ -86,7 +98,8 @@ tree.
 - `canvas.js`: the drawing, the editor and the validator. Built by `tools/archi/build-canvas.mjs` from
   `tools/archi/canvas` (the mirror of the records as archi-online's model and its inverse, the
   camera, and the editor's mount) with archi-online's renderer, geometry, router, ViewEditor,
-  Palette, operations and validator at a pinned commit, and React. Every id archi-online makes in it is
+  Palette, operations and validator, its `.archimate` parser and serializer, with fflate for
+  Archi's archives (`tools/archi/canvas/io.ts`), at a pinned commit, and React. Every id archi-online makes in it is
   a record ID, `ar-id-…`. Do not edit it; rebuild it. A
   rebuild from the same sources is byte for byte the same. `THIRD-PARTY.txt` carries the
   licences of what it includes.
@@ -103,6 +116,12 @@ geometry of its own parse, `tools/archi/archisurance-geometry.json`), the valida
 records as an import writes them and validated through the mirror, against what archi-online
 reports: `tools/archi/validation-parity.json`, from `make-validation-fixture.mjs`), then the package
 framed by the fixture broker over Archisurance (`tools/archi/archisurance.json`) in Edge,
-driven with real keys and clicks, with record writes and batches offered.
+driven with real keys and clicks, with record writes and batches offered. The io test checks
+the `.archimate` mapping both ways over Archisurance, value for value, and the versions each
+batch names; the lane saves Archisurance from Nendo's row and opens the saved file into a new
+model, by a drop and through the dialog's file input, and compares every record.
+`node tools/archi/verify-archimate-io.mjs`, on request, opens and saves Archisurance and
+archi-online's phase fixtures and compares archi-online's semantics of each save with the
+original's, images aside, and has Desktop Archi open and save each one again.
 `node tools/Build-Archi.mjs workbench` puts the package, and the first time its screen, into
 the open Archi.nendo.

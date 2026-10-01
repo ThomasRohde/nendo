@@ -11,6 +11,8 @@
   <button id="own-new-view" type="button">New view</button>
   <button id="own-delete" type="button">Delete…</button>
   <button id="own-validator" type="button" aria-pressed="false">Validator</button>
+  <button id="own-open-archimate" type="button">Open .archimate…</button>
+  <button id="own-save-archimate" type="button">Save as .archimate</button>
 </header>
 <main>
   <section class="pane tree-pane" aria-label="Model tree">
@@ -46,6 +48,19 @@
     <h2 id="confirm-delete-title">Delete</h2>
     <p id="confirm-delete-text"></p>
     <div class="actions"><button value="cancel" type="submit">Cancel</button><button value="delete" type="submit" class="danger">Delete</button></div>
+  </form>
+</dialog>
+<dialog id="open-archimate" aria-labelledby="open-archimate-title">
+  <form method="dialog">
+    <h2 id="open-archimate-title">Open an Archi model</h2>
+    <p id="open-archimate-text" class="quiet"></p>
+    <div id="open-archimate-drop" class="drop-zone">
+      <span>Drop an .archimate file here, or</span>
+      <button type="button" id="open-archimate-choose">Choose a file…</button>
+      <input type="file" id="open-archimate-file" accept=".archimate,.xml" hidden>
+    </div>
+    <p id="open-archimate-summary" role="status"></p>
+    <div class="actions"><button value="cancel" type="submit" formnovalidate>Cancel</button><button value="open" type="submit" id="open-archimate-open" class="primary" disabled>Open</button></div>
   </form>
 </dialog>
 <dialog id="validator-config">

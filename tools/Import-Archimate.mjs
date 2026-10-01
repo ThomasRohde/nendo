@@ -45,7 +45,7 @@ async function write(file, planned) {
       console.log(`    +  ${entityId}: ${records.length}`);
     }
     // Last, because a changed record moves past version 1: the seeded top-level folders take the
-    // IDs Archi gave them, and the model record its name and metadata.
+    // IDs Archi gave them and what Archi says of them, and the model record its name and metadata.
     const modelRecord = (await file.read.records('ar.model'))[0];
     let version = modelRecord.recordVersion;
     for (const [fieldId, value] of Object.entries(planned.modelValues)) {
@@ -53,12 +53,17 @@ async function write(file, planned) {
         fieldId, expectedRecordVersion: version, value, idempotencyKey: `archi-import-model-${fieldId}-${version}` });
       version = answer.recordVersion;
     }
-    const folders = new Map((await file.read.records('ar.folder')).map(record => [record.recordId, record.recordVersion]));
-    for (const { recordId, archiId } of planned.rootIds) {
-      await file.client.tool('nendo.data.set_field', { ...owned, entityId: 'ar.folder', recordId, fieldId: 'ar.folder.archiId',
-        expectedRecordVersion: folders.get(recordId), value: archiId, idempotencyKey: `archi-import-root-${archiId}` });
+    const folders = new Map((await file.read.records('ar.folder')).map(record => [record.recordId, record]));
+    for (const { recordId, values } of planned.rootUpdates) {
+      let folderVersion = folders.get(recordId).recordVersion;
+      for (const [fieldId, value] of Object.entries(values)) {
+        if (folders.get(recordId).values[fieldId] === value) continue;
+        const answer = await file.client.tool('nendo.data.set_field', { ...owned, entityId: 'ar.folder', recordId, fieldId,
+          expectedRecordVersion: folderVersion, value, idempotencyKey: `archi-import-root-${values['ar.folder.archiId']}-${fieldId}` });
+        folderVersion = answer.recordVersion;
+      }
     }
-    console.log(`    +  ar.model: ${Object.keys(planned.modelValues).length} fields; ${planned.rootIds.length} top-level folders named`);
+    console.log(`    +  ar.model: ${Object.keys(planned.modelValues).length} fields; ${planned.rootUpdates.length} top-level folders named`);
   });
 }
 

@@ -11,8 +11,8 @@ if (-not (Test-Path -LiteralPath $api)) {
     & npm.cmd --prefix (Join-Path $repoRoot 'src/Nendo.Workbench') run build
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $api)) { throw 'The view API could not be built: npm --prefix src/Nendo.Workbench run build failed.' }
 }
-# The workbench's rules over Archisurance (W-109), its validator against archi-online's (W-117), and the kit it carries byte for byte.
-& node --test (Join-Path $PSScriptRoot 'archi/model.test.mjs') (Join-Path $PSScriptRoot 'archi/canvas.test.mjs') (Join-Path $PSScriptRoot 'archi/view.test.mjs') (Join-Path $PSScriptRoot 'archi/validation.test.mjs') (Join-Path $PSScriptRoot 'archi/definition.test.mjs') (Join-Path $PSScriptRoot 'view-kit/kit.test.mjs')
+# The workbench's rules over Archisurance (W-109), its validator against archi-online's (W-117), its .archimate mapping (W-120), and the kit it carries byte for byte.
+& node --test (Join-Path $PSScriptRoot 'archi/model.test.mjs') (Join-Path $PSScriptRoot 'archi/canvas.test.mjs') (Join-Path $PSScriptRoot 'archi/view.test.mjs') (Join-Path $PSScriptRoot 'archi/validation.test.mjs') (Join-Path $PSScriptRoot 'archi/definition.test.mjs') (Join-Path $PSScriptRoot 'archi/io.test.mjs') (Join-Path $PSScriptRoot 'view-kit/kit.test.mjs')
 if ($LASTEXITCODE -ne 0) { throw 'Archi workbench node tests failed.' }
 $run = [Guid]::NewGuid().ToString('N')
 $fixtureModule = [Uri]::new((Join-Path $PSScriptRoot 'archi/fixtures.mjs')).AbsoluteUri
@@ -42,8 +42,12 @@ try {
     [IO.File]::WriteAllText($probePath, $probe, [Text.UTF8Encoding]::new($false))
     & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" open about:blank --browser msedge
     if ($LASTEXITCODE -ne 0) { throw 'Archi browser did not start.' }
-    & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" run-code --filename $probePath
+    $ran = & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" run-code --filename $probePath 2>&1 | Out-String
+    Write-Host $ran
     if ($LASTEXITCODE -ne 0) { throw 'Archi workbench browser measurements failed.' }
+    # The CLI ends a probe early when a native dialog or file chooser opens, and still exits 0; the
+    # probe's own last word is the only sign that it measured everything (W-120).
+    if ($ran -notmatch '\\?"complete\\?":\s*true') { throw 'The Archi workbench probe did not run to its end, so it measured only part of the workbench.' }
 } finally {
     & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" close
     if (-not $server.HasExited) { Stop-Process -Id $server.Id }

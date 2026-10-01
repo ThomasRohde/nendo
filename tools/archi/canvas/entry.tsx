@@ -19,6 +19,9 @@ import { applyWrites, toRecords, writesFor } from './records';
 import { createEditor } from './editor';
 
 export { buildMirror, toRecords, writesFor, applyWrites, createEditor };
+// Open and save .archimate files (W-120).
+export { readArchimate, planImport, importBatches, holdsNoModel, modelForExport, exportArchimate, leftOutSentence,
+  parseArchimateText, ArchimateFileError, recordIdOf } from './io';
 // archi-online's own rules, for the lane that checks the editor offers nothing else.
 export { validRelationshipTypes } from '@archi/model/rules';
 export { RELATIONSHIP_TYPES } from '@archi/model/metamodel';

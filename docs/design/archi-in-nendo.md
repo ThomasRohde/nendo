@@ -286,6 +286,45 @@ in `seed`, and `compare` checks that a new file would keep 81 records and nothin
 them. The Archi lane (`Gate-ArchiWorkbench.mjs`, `emptyModel`) measures the empty model: one
 model created, nine folders under it.
 
+## Archi's own files
+
+The workbench opens and saves `.archimate` files (W-120) with archi-online's parser and
+serializer, bundled in `canvas.js` with fflate for Archi's archives
+(`tools/archi/canvas/io.ts`). The person chooses the file in the workbench's own dialog,
+because a picker opens only on a click inside the view ([ADR-0013](../decisions/0013-custom-views-with-code-in-the-file.md),
+files a person hands a view), or drops it on the workbench.
+
+- **Open into an empty model.** One file is one model, so Open reads into a file with no
+  model yet, which **File → New Archi model…** makes; a file that holds a model is refused
+  before anything is chosen. The mapping is the one `tools/Import-Archimate.mjs` has always
+  used, now shared from `io.ts`: record IDs are `ar-` and the Archi ID, each top-level folder
+  keeps its record and takes Archi's ID, documentation and label expression, and the Model
+  record takes the name, purpose and Dublin Core metadata.
+- **Batches.** Archisurance is 778 records and a Model update: four `records.batch` calls of
+  at most 200, each one revision named *Open ‹file› (n of m)*. A reference to a record an
+  earlier batch made names version 1, one to a record the file held names its version, one
+  within the batch names none. A refusal part-way leaves the earlier batches, and the status
+  line says how many went through.
+- **Order.** Archi keeps a folder's concepts and views, and each object's outgoing and
+  incoming connections, in the order its file holds them, and archi-online's semantics compare
+  that order. The `order` stage gives concepts and views an *Order in folder*; a connection's
+  *Order* is the order Archi drew it in, one sequence that keeps both of each object's lists,
+  since Archi appends a connection to both as it is drawn. A concept, view or connection the
+  workbench makes has none and comes after, as it came.
+- **Save** downloads plain XML, each object under its Archi ID: the one it came with, or its
+  record ID without `ar-`.
+- **Left out.** Images (F-208): image objects, the connections that end on one, pictures on
+  figures and specializations, and an archive's image files. The dialog counts each.
+
+Measured on 2026-10-01 by `tools/archi/verify-archimate-io.mjs`: Archisurance, phase 1
+online and desktop, phase 2 online and desktop, and phase 3, each opened into an empty model,
+saved, and read back by archi-online, have the original's Phase 2 semantics with the images
+taken out, and Desktop Archi 5.9.0.202604140726 opens and saves each save with the same
+semantics. Before the order fields, Archisurance came back with 362 differences
+(`$.folders[0].itemIds[0]: "1393" != "843"`); before the connection order, with 122
+(`$.nodes[24].sourceConnectionIds[0]: "3755" != "3752"`). Files imported before W-120 carry
+no order, so their folders and connections save in record order.
+
 ## How it is built and checked
 
 - **The file.** `tools/Build-Archi.mjs` builds `workspace/Archi.nendo` from an empty
@@ -295,9 +334,9 @@ model created, nine folders under it.
   `tools/archi-concept-types.mjs` the 72 types, generated from archi-online. The empty file
   is made by Nendo itself: `Nendo.Desktop.exe -new <path>`, the command Explorer's New menu
   sends. `tools/Import-Archimate.mjs`
-  loads an `.archimate` file before any host feature exists (W-108): it runs archi-online's
+  loads an `.archimate` file over MCP (W-108): it runs archi-online's
   own `parseArchimate` (bundled with esbuild, jsdom for the `DOMParser`), maps the model
-  onto the record types, writes them over MCP in the order their references need, and
+  onto the record types with the workbench's own mapping (`io.ts`, W-120), writes them in the order their references need, and
   compares every count, bound and bendpoint with the parse. Record IDs are `ar-` and the
   Archi ID, so a reference is known before its target is written.
 - **Parity.** archi-online's fixtures are the oracle: Archisurance, the phase 1 to 3

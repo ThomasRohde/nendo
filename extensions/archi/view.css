@@ -111,6 +111,10 @@ dialog h2 { margin: 0 0 12px; font-size: 1.05rem; }
 dialog form { display: flex; flex-direction: column; gap: 10px; }
 dialog label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 0.86rem; }
 dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
+#open-archimate { max-width: 460px; }
+#open-archimate p { margin: 0; }
+.drop-zone { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; padding: 18px 12px;
+  border: 2px dashed var(--line-strong); border-radius: 8px; color: var(--muted); text-align: center; }
 
 /* The open view (W-110): archi-online's figures on white in both themes, the whole pane, as Archi
    draws a view; the outline and the navigator's frame take the theme. */

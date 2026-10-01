@@ -1020,6 +1020,12 @@ vocabulary, the examples and the resources — and not from the person.
   element's only box from a view, commit, and record whether the element appears in *Not on
   any view* and in its count. Author a list sorted by a calculated field in a disposable file,
   and record whether every page continues in that order.
+  Choose **Archi file → Save as .archimate** in Nendo's row and record where the file went and
+  whether Desktop Archi, if you have it, opens it with the same views. Then make **File → New
+  Archi model…**, open **Archi file → Open .archimate…** there, and record what the dialog says
+  before and after you choose the saved file, what it says is left out, what Open did to
+  History, and whether the views draw as they did. Try Open in the first file too, and record
+  what it said (W-120).
 - In any file, open a list screen whose definition binds more than three fields (in Archi.nendo,
   Concepts → Relationships binds four): record whether every bound field is drawn as a column,
   and whether a head row names each column. Give a record type a calculated count of more than
