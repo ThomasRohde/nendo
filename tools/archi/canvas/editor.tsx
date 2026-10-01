@@ -10,8 +10,77 @@ import type { ModelState } from '@archi/model/types';
 import { ViewEditor } from '@archi/canvas/ViewEditor';
 import { Palette } from '@archi/ui/Palette';
 import { ContextMenuHost } from '@archi/ui/ContextMenu';
+import { AppDialogHost } from '@archi/ui/AppDialog';
+import { alignmentAnchorMode, hydrateSettingsStore, useSettingsStore } from '@archi/settings/app-settings';
+import { alignableNodeIds, alignNodes, distributeNodes, matchSize } from '@archi/model/ops/alignment';
+import { reorderViewObjects } from '@archi/model/ops/movement';
+import { duplicateViewObjects } from '@archi/model/ops/duplicate';
+import { copyNodes, cutNodes, hasClipboard, pasteNodes } from '@archi/canvas/clipboard';
+import { sameTypeViewObjectIds } from '@archi/canvas/view-editor/bounds';
 import { ModelStoreProvider } from '@archi/ui/store-hooks';
 import { createModelStore, openView, redo, setActiveModelStore, setSelection, undo, type ModelStore } from '@archi/model/store';
+
+/**
+ * The arrange commands (W-113), each archi-online's own operation as its context menu runs it, on
+ * the objects of the view among `ids`: one transaction, so one Undo step and one edit waiting to
+ * be committed. Answers a sentence when the selection does not suit the command, else null.
+ */
+export const ARRANGE_COMMANDS = ['align-left', 'align-center', 'align-right', 'align-top', 'align-middle', 'align-bottom',
+  'match-width', 'match-height', 'match-size', 'distribute-horizontal', 'distribute-vertical',
+  'order-front', 'order-forward', 'order-backward', 'order-back', 'select-same-type', 'duplicate',
+  'cut', 'copy', 'paste', 'paste-reference', 'paste-copy'] as const;
+export type ArrangeCommand = typeof ARRANGE_COMMANDS[number];
+
+export function arrangeIn(store: ModelStore, viewId: string, wanted: string[], command: ArrangeCommand): string | null {
+  const model = store.getState().model;
+  if (!model || !model.views[viewId]) return 'Open a view to arrange it.';
+  const ids = wanted.filter(id => model.nodes[id]?.viewId === viewId || model.connections[id]?.viewId === viewId);
+  const settings = useSettingsStore.getState().settings;
+  const anchor = alignmentAnchorMode(settings);
+  const boxes = alignableNodeIds(model, ids);
+  const atLeast = (count: number, list: string[], what: string) => (list.length >= count ? null : `Select at least ${count} ${what} on the view.`);
+  const [verb, mode] = command.split('-') as [string, string];
+  switch (verb) {
+    case 'align': return atLeast(2, boxes, 'boxes') ?? (alignNodes(boxes, mode as 'left', anchor, store), null);
+    case 'match': return atLeast(2, boxes, 'boxes') ?? (matchSize(boxes, mode === 'size' ? 'both' : mode as 'width', anchor, store), null);
+    case 'distribute': return atLeast(3, boxes, 'boxes') ?? (distributeNodes(boxes, mode as 'horizontal', store), null);
+    case 'order': return atLeast(1, ids, 'objects') ?? (reorderViewObjects(ids, mode as 'front', store), null);
+  }
+  switch (command) {
+    case 'select-same-type': return atLeast(1, ids, 'objects') ?? (setSelection('view', sameTypeViewObjectIds(model, viewId, ids), store), null);
+    case 'duplicate': {
+      const refusal = atLeast(1, ids, 'objects');
+      if (refusal) return refusal;
+      setSelection('view', duplicateViewObjects(viewId, ids, settings.pasteOffset, store), store);
+      return null;
+    }
+    case 'cut': return atLeast(1, ids, 'objects') ?? (cutNodes(ids, store), null);
+    case 'copy': return atLeast(1, ids, 'objects') ?? (copyNodes(ids, store), null);
+    default: {
+      if (!hasClipboard()) return 'Nothing has been copied yet.';
+      const how = command === 'paste-reference' ? 'reference' : command === 'paste-copy' ? 'duplicate' : 'default';
+      setSelection('view', pasteNodes(viewId, undefined, store, undefined, how), store);
+      return null;
+    }
+  }
+}
+
+/** The model after one arrange command, as archi-online's own operation leaves it: the reference the lane compares a commit with. */
+export function arrangeModel(model: ModelState, viewId: string, ids: string[], command: ArrangeCommand) {
+  const store = createModelStore({ model: structuredClone(model) });
+  const refusal = arrangeIn(store, viewId, ids, command);
+  return { refusal, model: store.getState().model! };
+}
+
+/** The editor's grid, snapping and guides, as its own empty-canvas menu sets them. */
+export function editorSettings() {
+  const { gridVisible, snapToGrid, snapToAlignmentGuides } = useSettingsStore.getState().settings;
+  return { grid: gridVisible, snap: snapToGrid, guides: snapToAlignmentGuides };
+}
+export function setEditorSetting(name: 'grid' | 'snap' | 'guides', on: boolean) {
+  const key = name === 'grid' ? 'gridVisible' : name === 'snap' ? 'snapToGrid' : 'snapToAlignmentGuides';
+  useSettingsStore.getState().setSetting(key, on);
+}
 
 const PALETTE_KEY = 'archi-palette-width';
 const PALETTE_MIN = 40, PALETTE_MAX = 360, PALETTE_DEFAULT = 112;
@@ -36,6 +105,9 @@ interface EditorOptions {
 export function createEditor(host: HTMLElement, base: ModelState, options: EditorOptions = {}) {
   host.classList.add('archi-editor');
   const store: ModelStore = createModelStore({ model: structuredClone(base) });
+  // The editor's settings as last chosen in this view's origin: the grid, snapping and guides
+  // (W-113). archi-online's app shell reads them at start; without it they reset every visit.
+  hydrateSettingsStore().catch(() => { /* the defaults */ });
   setActiveModelStore(store);
   let viewId: string | null = null;
   let root: Root | null = createRoot(host);
@@ -104,6 +176,10 @@ export function createEditor(host: HTMLElement, base: ModelState, options: Edito
       createElement('div', { key: 'canvas', className: 'archi-editor-canvas' },
         viewId ? createElement(ViewEditor, { key: viewId, viewId }) : null),
       createElement(ContextMenuHost, { key: 'menus' }),
+      // archi-online asks through its own dialogs, which its app shell hosts: which relationship a
+      // box dropped into an element box stands for (W-113). Without the host the question waited
+      // forever and the move never landed.
+      createElement(AppDialogHost, { key: 'dialogs' }),
     ] }));
   };
 
@@ -150,6 +226,15 @@ export function createEditor(host: HTMLElement, base: ModelState, options: Edito
       try { setSelection('tree', ids, store); } finally { quiet = false; }
     },
     setReadOnly(readOnly: boolean) { store.setState({ readOnly }); },
+    /** An arrange command on what is selected on the view (W-113); a sentence when it does not suit. */
+    arrange(command: ArrangeCommand) {
+      if (!viewId) return 'Open a view to arrange it.';
+      const refusal = arrangeIn(store, viewId, store.getState().selection.ids, command);
+      if (refusal === null) host.querySelector<SVGElement>('.view-svg')?.focus();
+      return refusal;
+    },
+    /** The ids selected on the view. */
+    selected: () => [...store.getState().selection.ids],
     zoomIn: () => zoomButton(2),
     zoomOut: () => zoomButton(0),
     zoomActual: () => zoomButton(1),

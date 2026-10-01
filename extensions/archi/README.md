@@ -60,6 +60,18 @@ Properties. The file you were in does not change.
   closes only when nothing waits.
   The palette is as wide as you drag its edge (or step it with the arrow keys), and its
   buttons fill the width in columns; the width is kept on this device.
+  A box dropped into an element box is nested in it, and archi-online's own dialog asks which
+  relationship the nesting stands for, None among the choices (W-113; before, the question
+  had no place to show and the move was lost).
+- **Arrange** (W-113), in Nendo's row while editing, and so in Ctrl K: align the selected
+  boxes six ways to the last one selected, match their width, height or size, distribute
+  three or more, bring forward or send back, select the same type, duplicate, cut, copy,
+  paste, paste as reference (new boxes for the same elements) or as copy (new elements), and
+  show the grid or snap to it and to alignment guides. Each is archi-online's own operation,
+  as its context menu, still there on a right-click, runs it: one edit waiting and one Undo
+  step. Ctrl+click adds to the selection; Ctrl D, X, C and V and the arrow keys work in the
+  view, Shift with an arrow by a grid step, and the format painter is in the palette. The grid
+  and snapping choices are kept in this view's own storage on this device.
 - **Validator** (W-117), in Nendo's row, opens Archi's validator under the workbench. It is
   archi-online's: Archi 5.9's eight checks (invalid relationships, unused elements and
   relationships, empty views, viewpoint violations, nested elements without a nesting
@@ -138,4 +150,9 @@ the open Archi.nendo. The lane also exports every Archisurance view from the Exp
 the SVG's crop against archi-online's geometry, every element's name as text, the canvas
 font, PNG at 1×, 2× and 4× of the SVG's size, the transparent background, and Copy as picture
 with focus in Nendo's page, its picture opaque on the white page even with Transparent
-background in files chosen.
+background in files chosen. In the editor it nests a box in Organisation Tree View through
+the dialog and commits the relationship chosen, and runs Arrange on boxes selected with real
+clicks: what each commit holds is what archi-online's own operation makes of the same records
+and selection, and what each command means is checked on the boxes themselves (Align left:
+the anchor's x, on boxes of three widths; Match size; equal gaps; Send to back first);
+duplicate and paste as copy make a new element, paste as reference none.

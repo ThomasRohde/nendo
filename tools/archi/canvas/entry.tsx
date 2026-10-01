@@ -18,9 +18,9 @@ import { createNestedConnectionVisibilityResolver } from '@archi/model/ops';
 import { DEFAULT_SETTINGS } from '@archi/settings/app-settings';
 import { buildMirror, type RecordSets } from './mirror';
 import { applyWrites, toRecords, writesFor } from './records';
-import { createEditor } from './editor';
+import { createEditor, arrangeModel, editorSettings, setEditorSetting, ARRANGE_COMMANDS } from './editor';
 
-export { buildMirror, toRecords, writesFor, applyWrites, createEditor };
+export { buildMirror, toRecords, writesFor, applyWrites, createEditor, arrangeModel, editorSettings, setEditorSetting, ARRANGE_COMMANDS };
 // Open and save .archimate files (W-120).
 export { readArchimate, planImport, importBatches, holdsNoModel, modelForExport, exportArchimate, leftOutSentence,
   parseArchimateText, ArchimateFileError, recordIdOf } from './io';

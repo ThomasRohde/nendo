@@ -614,6 +614,7 @@ function declareToolbar() {
     ] },
     ...(state.openView && !state.readOnly && canvasModule?.createEditor
       ? [{ kind: 'toggle', id: 'edit', label: 'Edit the view', icon: 'edit', pressed: state.editing, keys: 'Ctrl+E' }] : []),
+    ...(state.editing ? [arrangeMenu()] : []),
     ...(state.editing ? [{ kind: 'group', label: 'Edits', items: [
       { kind: 'button', id: 'undo', label: 'Undo', keys: 'Ctrl+Z', disabled: !editor?.canUndo() },
       { kind: 'button', id: 'redo', label: 'Redo', keys: 'Ctrl+Y', disabled: !editor?.canRedo() },
@@ -636,6 +637,40 @@ function declareToolbar() {
     ] }] : []),
   ];
   nendo.ui.setToolbar({ items, add: 'new-element' }).catch(error => leaveNativeChrome(describe(error)));
+}
+
+/**
+ * Arrange (W-113): archi-online's own commands on what is selected on the view, as its context
+ * menu offers them, here too so they are in Nendo's row and Ctrl K. Each is one edit waiting to
+ * be committed and one Undo step. Cut, copy, paste and duplicate keep their keys in the view.
+ */
+function arrangeMenu() {
+  const settings = canvasModule?.editorSettings?.() ?? { grid: false, snap: true, guides: true };
+  const item = (id, label, detail) => ({ id, label, ...(detail ? { detail } : {}) });
+  return { kind: 'menu', id: 'arrange', label: 'Arrange', icon: 'layers', items: [
+    { kind: 'label', label: 'Align to the last box selected' },
+    item('align-left', 'Align left'), item('align-center', 'Align centre'), item('align-right', 'Align right'),
+    item('align-top', 'Align top'), item('align-middle', 'Align middle'), item('align-bottom', 'Align bottom'),
+    item('match-width', 'Match width'), item('match-height', 'Match height'), item('match-size', 'Match size'),
+    { kind: 'separator' },
+    item('distribute-horizontal', 'Distribute horizontally', 'Three boxes or more'), item('distribute-vertical', 'Distribute vertically', 'Three boxes or more'),
+    { kind: 'separator' },
+    item('order-front', 'Bring to front'), item('order-forward', 'Bring forward'), item('order-backward', 'Send backward'), item('order-back', 'Send to back'),
+    { kind: 'separator' },
+    item('select-same-type', 'Select the same type'), item('duplicate', 'Duplicate', 'Ctrl D in the view'),
+    item('cut', 'Cut', 'Ctrl X in the view'), item('copy', 'Copy', 'Ctrl C in the view'), item('paste', 'Paste', 'Ctrl V in the view'),
+    item('paste-reference', 'Paste as reference', 'New boxes for the same elements'), item('paste-copy', 'Paste as copy', 'New elements'),
+    { kind: 'separator' },
+    { kind: 'check', id: 'grid', label: 'Show grid', checked: settings.grid },
+    { kind: 'check', id: 'snap', label: 'Snap to grid', checked: settings.snap },
+    { kind: 'check', id: 'guides', label: 'Snap to alignment guides', checked: settings.guides },
+  ] };
+}
+
+function arrange(command) {
+  if (!editor) { setStatus('Press Edit to arrange the view.', true); return; }
+  const refusal = editor.arrange(command);
+  if (refusal) setStatus(refusal, true);
 }
 
 function leaveNativeChrome(reason) {
@@ -676,6 +711,8 @@ function runCommand({ id, value }) {
     case 'export-svg': exportView('svg'); break;
     case 'export-copy': copyView(); break;
     case 'export-transparent': state.transparent = value === true; declareToolbar(); break;
+    case 'grid': case 'snap': case 'guides': canvasModule?.setEditorSetting?.(id, value === true); declareToolbar(); break;
+    default: if (canvasModule?.ARRANGE_COMMANDS?.includes(id)) arrange(id);
   }
 }
 

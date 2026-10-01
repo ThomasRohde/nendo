@@ -844,6 +844,172 @@ async (page) => {
   await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
   await pendingIs(0, 'The kept edit committed');
   assert((await storedItem(moving)).values['ar.item.y'] > movedTo.values['ar.item.y'], 'The kept edit did not reach the file.');
+  // ---- W-113: an element box dropped into another element box is nested in it, and Archi asks
+  // which relationship the nesting stands for (archi-online's own dialog, with None among the
+  // choices). The move waits like any other edit and commits with the relationship chosen.
+  {
+    // Organisation Tree View: its element boxes stand at the top of the view, not inside groups.
+    const treeView = (await records('ar.view')).find(record => record.values['ar.view.name'] === 'Organisation Tree View');
+    await page.evaluate(value => window.broker.command('find', value, 'toolbar'), treeView.values['ar.view.name']);
+    await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), treeView.recordId, 'Organisation Tree View is not in the tree under Find.');
+    await view.click(`#tree .row[data-id="${treeView.recordId}"]`);
+    await until(() => document.querySelectorAll('.archi-editor [data-node-id]').length > 10, null, 'The editor did not show Organisation Tree View.');
+    await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
+    const conceptsNow = await records('ar.concept');
+    const conceptOf = new Map(conceptsNow.map(record => [record.recordId, record]));
+    const typeKey = new Map((await records('ar.type')).map(record => [record.recordId, record.values['ar.type.key']]));
+    const related = conceptsNow.filter(record => record.values['ar.concept.category'] === 'Relationship')
+      .map(record => `${record.values['ar.concept.source']} ${record.values['ar.concept.target']}`);
+    const boxes = (await records('ar.item')).filter(item => item.values['ar.item.view'] === treeView.recordId &&
+      item.values['ar.item.kind'] === 'Element' && !item.values['ar.item.parent'])
+      .map(item => ({ id: item.recordId, concept: item.values['ar.item.concept'], width: item.values['ar.item.width'],
+        type: typeKey.get(conceptOf.get(item.values['ar.item.concept'])?.values['ar.concept.type']) }));
+    const pair = await view.evaluate(async ({ boxes, related }) => {
+      const { validRelationshipTypes } = await import('./canvas.js');
+      for (const container of boxes) for (const child of boxes) {
+        if (container.id === child.id || container.width < 120 || !container.type || !child.type) continue;
+        if (related.includes(`${container.concept} ${child.concept}`) || related.includes(`${child.concept} ${container.concept}`)) continue;
+        const allowed = validRelationshipTypes(container.type, child.type);
+        if (['CompositionRelationship', 'AggregationRelationship', 'AssignmentRelationship'].some(type => allowed.includes(type)))
+          return { container, child };
+      }
+      return null;
+    }, { boxes, related });
+    assert(pair, 'No two boxes on Organisation Tree View can be nested with a new relationship.');
+    const childAt = await boxOf(pair.child.id), containerAt = await boxOf(pair.container.id);
+    const from = { x: childAt.x + 6, y: childAt.y + childAt.height / 2 };
+    await drag(from, containerAt.x + containerAt.width / 2 - from.x, containerAt.y + containerAt.height / 2 - from.y);
+    const asked = await view.waitForFunction(() => {
+      const dialog = document.querySelector('.app-dialog');
+      return dialog && dialog.querySelector('select') ? { title: dialog.querySelector('.app-dialog-title')?.textContent ?? '',
+        choices: [...dialog.querySelectorAll('select option')].map(option => option.value) } : null;
+    }, null, { timeout: 4000, polling: 50 }).then(handle => handle.jsonValue()).catch(() => null);
+    assert(asked !== null, `A box dropped into another element box asked nothing about the nesting, and the move is not waiting: Commit says ${JSON.stringify(await toolbarItem('commit'))}.`);
+    const chosen = asked.choices.find(value => value !== '');
+    await view.selectOption('.app-dialog select', chosen);
+    await view.click('.app-dialog button[type="submit"]');
+    await view.waitForFunction(() => !document.querySelector('.app-dialog'), null, { timeout: 4000 });
+    await page.waitForFunction(() => {
+      const find = items => { for (const item of items ?? []) { if (item.id === 'commit') return item; const inner = find(item.items); if (inner) return inner; } return null; };
+      return /^Commit \d+$/.test(find(window.broker.toolbars.at(-1)?.items)?.label ?? '');
+    }, null, { timeout: 8000, polling: 50 });
+    await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
+    await pendingIs(0, 'The nesting committed');
+    const nested = await storedItem(pair.child.id);
+    const relationship = (await records('ar.concept')).find(record => record.values['ar.concept.category'] === 'Relationship' &&
+      record.values['ar.concept.source'] === pair.container.concept && record.values['ar.concept.target'] === pair.child.concept);
+    assert(nested.values['ar.item.parent'] === pair.container.id && relationship,
+      `The nesting did not reach the file: parent ${nested.values['ar.item.parent']}, relationship ${JSON.stringify(relationship?.values ?? null)}.`);
+    results.nesting = { title: asked.title, choices: asked.choices.length, chosen, relationship: typeKey.get(relationship.values['ar.concept.type']) };
+
+    // ---- W-113: Arrange, from Nendo's row, on a selection made with real clicks (Ctrl adds). Each
+    // command commits what archi-online's own operation makes of the same records and selection
+    // (arrangeModel in canvas.js), is one edit waiting and one Undo step, and commits as one batch.
+    const arrangeMenu = await toolbarItem('arrange');
+    assert(arrangeMenu?.kind === 'menu' && ['align-left', 'match-size', 'distribute-vertical', 'order-back', 'duplicate', 'paste-reference', 'paste-copy', 'grid']
+      .every(id => arrangeMenu.items.some(entry => entry.id === id)), `Editing puts no Arrange menu in Nendo's row: ${JSON.stringify(arrangeMenu)?.slice(0, 200)}.`);
+    const allSets = async () => Object.fromEntries(await Promise.all(['ar.model', 'ar.folder', 'ar.type', 'ar.concept', 'ar.specialization', 'ar.view', 'ar.item', 'ar.property']
+      .map(async entityId => [entityId, await records(entityId)])));
+    const boxNamed = async name => {
+      const named = (await records('ar.concept')).find(record => record.values['ar.concept.name'] === name);
+      return (await records('ar.item')).find(item => item.values['ar.item.view'] === treeView.recordId && item.values['ar.item.concept'] === named?.recordId);
+    };
+    const selectBoxes = async names => {
+      const ids = [];
+      for (const [index, name] of names.entries()) {
+        const item = await boxNamed(name);
+        const at = await boxOf(item.recordId);
+        if (index > 0) await page.keyboard.down('Control');
+        await page.mouse.click(editFrame.x + at.x + 10, editFrame.y + at.y + at.height - 8);
+        if (index > 0) await page.keyboard.up('Control');
+        ids.push(item.recordId);
+      }
+      return ids;
+    };
+    const waiting = async () => {
+      await page.waitForFunction(() => {
+        const find = items => { for (const item of items ?? []) { if (item.id === 'commit') return item; const inner = find(item.items); if (inner) return inner; } return null; };
+        return /^Commit \d+$/.test(find(window.broker.toolbars.at(-1)?.items)?.label ?? '');
+      }, null, { timeout: 8000, polling: 50 });
+    };
+    const arranged = {};
+    for (const [command, names] of [['align-left', ['Director of Operations', 'Intermediary Relations', 'Board']], ['match-size', ['Director of Sales', 'Director of Operations']],
+      ['distribute-vertical', ['Board', 'Director of Finance', 'Customer Relations']], ['order-back', ['Car']]]) {
+      const ids = await selectBoxes(names);
+      const sets = await allSets();
+      const reference = await view.evaluate(async ({ sets, viewId, ids, command }) => {
+        const canvas = await import('./canvas.js');
+        const { refusal, model } = canvas.arrangeModel(canvas.buildMirror(sets), viewId, ids, command);
+        return { refusal, bounds: Object.fromEntries(ids.map(id => [id, model.nodes[id].bounds])), order: model.views[viewId].childIds };
+      }, { sets, viewId: treeView.recordId, ids, command });
+      assert(reference.refusal === null, `archi-online refused ${command} on ${names.join(', ')}: ${reference.refusal}.`);
+      const batchesBeforeCommand = (await batches()).length;
+      await page.evaluate(id => window.broker.command(id, null, 'toolbar'), command);
+      await waiting();
+      if (command === 'align-left') {
+        await page.evaluate(() => window.broker.command('undo', null, 'toolbar'));
+        await pendingIs(0, 'Align left undone');
+        await page.evaluate(() => window.broker.command('redo', null, 'toolbar'));
+        await waiting();
+      }
+      await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
+      await pendingIs(0, `${command} committed`);
+      const committed = (await batches()).slice(batchesBeforeCommand);
+      const items = await records('ar.item');
+      const stored = id => { const values = items.find(item => item.recordId === id).values; return { x: values['ar.item.x'], y: values['ar.item.y'], width: values['ar.item.width'], height: values['ar.item.height'] }; };
+      const differing = ids.filter(id => JSON.stringify(stored(id)) !== JSON.stringify({ x: reference.bounds[id].x, y: reference.bounds[id].y, width: reference.bounds[id].width, height: reference.bounds[id].height }));
+      assert(committed.length === 1 && differing.length === 0,
+        `${command} on ${names.join(', ')} committed ${committed.length} batches, and ${differing.length} boxes differ from archi-online's: ${JSON.stringify(differing.map(id => [stored(id), reference.bounds[id]]))}.`);
+      // What each command means, measured on the boxes themselves, not through archi-online's code:
+      // the last box selected is the anchor.
+      const after = ids.map(stored), anchorBox = after.at(-1);
+      const before = ids.map(id => { const values = sets['ar.item'].find(item => item.recordId === id).values; return { x: values['ar.item.x'], y: values['ar.item.y'], width: values['ar.item.width'], height: values['ar.item.height'] }; });
+      const meant = command === 'align-left' ? after.every(box => box.x === before.at(-1).x) && new Set(before.map(box => box.width)).size === before.length
+        : command === 'match-size' ? after.every(box => box.width === anchorBox.width && box.height === anchorBox.height) && JSON.stringify(anchorBox) === JSON.stringify(before.at(-1))
+        : command === 'distribute-vertical' ? (() => { const sorted = [...after].sort((p, q) => p.y - q.y); const gaps = [sorted[1].y - (sorted[0].y + sorted[0].height), sorted[2].y - (sorted[1].y + sorted[1].height)]; return Math.abs(gaps[0] - gaps[1]) <= 1; })()
+        : true;
+      assert(meant, `${command} on ${names.join(', ')} did not do what it says: before ${JSON.stringify(before)}, after ${JSON.stringify(after)}.`);
+      if (command === 'order-back') {
+        const storedOrder = items.filter(item => item.values['ar.item.view'] === treeView.recordId && !item.values['ar.item.parent'] && !/onnection/.test(item.values['ar.item.kind']))
+          .sort((a, b) => (a.values['ar.item.order'] ?? 1e15) - (b.values['ar.item.order'] ?? 1e15) || (a.recordId < b.recordId ? -1 : 1)).map(item => item.recordId);
+        assert(JSON.stringify(storedOrder) === JSON.stringify(reference.order) && reference.order[0] === ids[0],
+          `Send to back left the view's order ${JSON.stringify(storedOrder)}, not archi-online's ${JSON.stringify(reference.order)}.`);
+      }
+      arranged[command] = { boxes: ids.length, writes: committed[0].writes.length };
+    }
+    // Duplicate, and copy with paste as reference and as copy: new boxes, for the same element or a new one.
+    // Finance, because nothing above moved a box over it; a click selects the box drawn on top.
+    const conceptCount = async () => (await records('ar.concept')).length;
+    const pasted = {};
+    for (const [command, names, sameElement] of [['duplicate', ['Car'], false], ['paste-reference', ['Finance'], true], ['paste-copy', ['Finance'], false]]) {
+      const ids = await selectBoxes(names);
+      const source = (await records('ar.item')).find(item => item.recordId === ids[0]);
+      if (command !== 'duplicate') await page.evaluate(() => window.broker.command('copy', null, 'toolbar'));
+      const itemsBefore = new Set((await records('ar.item')).map(item => item.recordId));
+      const conceptsBefore = await conceptCount();
+      await page.evaluate(id => window.broker.command(id, null, 'toolbar'), command);
+      await waiting();
+      await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
+      await pendingIs(0, `${command} committed`);
+      const made = (await records('ar.item')).filter(item => !itemsBefore.has(item.recordId));
+      const concepts = await conceptCount();
+      const newBox = made.find(item => item.values['ar.item.kind'] === 'Element');
+      const fine = newBox && newBox.values['ar.item.view'] === treeView.recordId &&
+        (sameElement ? newBox.values['ar.item.concept'] === source.values['ar.item.concept'] && concepts === conceptsBefore
+          : newBox.values['ar.item.concept'] !== source.values['ar.item.concept'] && concepts === conceptsBefore + 1);
+      assert(fine, `${command} of ${names[0]} did not make a new box for ${sameElement ? 'the same' : 'a new'} element: ${JSON.stringify({ made: made.map(item => item.values['ar.item.concept']), source: source.values['ar.item.concept'], conceptsBefore, concepts })}.`);
+      pasted[command] = { boxes: made.length, newElements: concepts - conceptsBefore };
+    }
+    // The grid, shown and hidden from Nendo's row, as the editor's own menu does.
+    await page.evaluate(() => window.broker.command('grid', true, 'toolbar'));
+    await until(() => !!document.querySelector('.archi-editor .view-grid'), null, 'Show grid drew no grid.');
+    for (let attempt = 0; attempt < 200 && (await toolbarItem('grid'))?.checked !== true; attempt++) await page.waitForTimeout(25);
+    assert((await toolbarItem('grid'))?.checked === true, 'The Arrange menu does not show the grid as on.');
+    await page.evaluate(() => window.broker.command('grid', false, 'toolbar'));
+    await until(() => !document.querySelector('.archi-editor .view-grid'), null, 'Hiding the grid left it drawn.');
+    results.arrange = { arranged, pasted };
+  }
+
   // Both themes: the palette and the menus take Nendo's colours; the paper stays white.
   const editorColours = {};
   for (const mode of ['dark', 'light']) {

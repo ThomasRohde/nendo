@@ -92,7 +92,7 @@ not built, with the reason.
 | Diagram rendering: both figures per type, groups, notes, view references, connections, bendpoints, Manhattan router, nesting, zoom, navigator | In | W-110 |
 | Editing: palette, create, move, resize, nest, connect, reconnect, bendpoints, magic connector, delete, direct rename, with edits collected and committed | In | W-111 |
 | Undo and redo | In | W-103, W-112 |
-| Align, distribute, match size, grid and snap, z-order, copy and paste, duplicate, format painter | In | W-113 |
+| Align, distribute, match size, grid and snap, z-order, copy and paste, duplicate, format painter | In: archi-online's own operations, in its context menu and Nendo's row | W-113 |
 | Appearance: colours, alpha, gradient, line style and width, icons, fonts, text position; label expressions; legends | In | W-114 |
 | Automatic relationships on nesting, Generate View For, ELK layout | In | W-115 |
 | Viewpoints: palette filter, ghosting | In | W-116 |

@@ -1030,6 +1030,12 @@ vocabulary, the examples and the resources — and not from the person.
   choose **Copy as picture** and paste it into another program. Record each file's size in
   pixels, whether the SVG opens in a browser with its labels as text, whether anything is cut
   off at the edges, and what Transparent background changed (W-123).
+  Press Edit on Organisation Tree View. Ctrl+click three boxes of different widths and choose
+  **Arrange → Align left**, then **Undo**, then **Redo**; select a box and **Duplicate** it,
+  **Copy** another and **Paste as reference** and **Paste as copy**; drop one element box into
+  another; turn **Show grid** on. Record what each did, what the drop asked, what Commit said
+  was waiting, and what Studio's lists show afterwards for the elements and their boxes
+  (W-113).
 - In any file, open a list screen whose definition binds more than three fields (in Archi.nendo,
   Concepts → Relationships binds four): record whether every bound field is drawn as a column,
   and whether a head row names each column. Give a record type a calculated count of more than
