@@ -517,6 +517,18 @@ async (page) => {
   await until(() => document.querySelectorAll('.archi-editor [data-node-id]').length > 0 && document.querySelectorAll('.archi-palette .pal-btn').length > 50,
     null, 'Edit did not open the view in archi-online\u2019s editor with its palette.');
   await pendingIs(0, 'An editor with nothing done');
+  // The whole drawing is in sight when Edit opens the view (the owner, W-114).
+  const fitted = await view.waitForFunction(() => {
+    const stage = document.querySelector('.archi-editor .view-svg')?.getBoundingClientRect();
+    const boxes = [...document.querySelectorAll('.archi-editor [data-node-id]')].map(node => node.getBoundingClientRect());
+    if (!stage || boxes.length === 0) return null;
+    const outside = boxes.filter(box => box.left < stage.left - 2 || box.top < stage.top - 2 || box.right > stage.right + 2 || box.bottom > stage.bottom + 2).length;
+    return outside === 0 ? { boxes: boxes.length } : null;
+  }, null, { timeout: 4000, polling: 50 }).then(handle => handle.jsonValue()).catch(async () => ({ outside: await view.evaluate(() => {
+    const stage = document.querySelector('.archi-editor .view-svg').getBoundingClientRect();
+    return [...document.querySelectorAll('.archi-editor [data-node-id]')].filter(node => { const box = node.getBoundingClientRect(); return box.right > stage.right + 2 || box.bottom > stage.bottom + 2 || box.left < stage.left - 2 || box.top < stage.top - 2; }).length;
+  }) }));
+  assert(fitted.boxes > 0, `Edit opened the view with ${fitted.outside} boxes out of sight.`);
   const editFrame = await (await view.frameElement()).boundingBox();
   const boxOf = id => view.evaluate(wanted => {
     const element = document.querySelector(`.archi-editor [data-node-id="${wanted}"]`);
@@ -1030,6 +1042,15 @@ async (page) => {
       throw new Error('Selecting a box did not show its Appearance tab: ' + JSON.stringify(await view.evaluate(() => document.querySelector('.archi-style')?.textContent?.slice(0, 120))));
     };
     await selectBoard();
+    // The tabs in Nendo's manner: the chosen one raised in ink on the raised surface, no accent line.
+    const tabLook = await view.evaluate(() => {
+      const resolve = (property, value) => { const probe = document.createElement('span'); probe.style[property] = value; document.body.append(probe); const out = getComputedStyle(probe)[property]; probe.remove(); return out; };
+      const active = getComputedStyle(document.querySelector('.archi-style [data-style-tab="appearance"]'));
+      return { color: active.color, ink: resolve('color', 'var(--ink)'), background: active.backgroundColor, raised: resolve('backgroundColor', 'var(--surface-raised)'),
+        shadow: active.boxShadow, accent: resolve('color', 'var(--cobalt)') };
+    });
+    assert(tabLook.color === tabLook.ink && tabLook.background === tabLook.raised && !tabLook.shadow.includes(tabLook.accent),
+      `The chosen tab is not drawn in Nendo's manner: ${JSON.stringify(tabLook)}.`);
     await styleControl('Fill Colour').locator('input[type="color"]').fill('#ff8800');
     await styleControl('Gradient').locator('select').selectOption('1');
     await styleControl('Line Width').locator('select').selectOption('3');
@@ -1062,6 +1083,43 @@ async (page) => {
     assert(view !== null, 'The workbench did not start again on Organisation Tree View.');
     await page.evaluate(() => window.broker.command('edit', true, 'toolbar'));
     await until(() => document.querySelectorAll('.archi-editor [data-node-id]').length > 10, null, 'Edit did not open again.');
+    // Edit opened with the Appearance panel already shown, as this device keeps it: the whole
+    // drawing is still in sight (the owner's report, W-114).
+    const inSight = await view.waitForFunction(() => {
+      const stage = document.querySelector('.archi-editor .view-svg')?.getBoundingClientRect();
+      const boxes = [...document.querySelectorAll('.archi-editor [data-node-id]')].map(node => node.getBoundingClientRect());
+      return stage && boxes.length > 0 && boxes.every(box => box.left >= stage.left - 2 && box.top >= stage.top - 2 && box.right <= stage.right + 2 && box.bottom <= stage.bottom + 2);
+    }, null, { timeout: 4000, polling: 50 }).then(() => true).catch(() => false);
+    const cut = inSight ? 0 : await view.evaluate(() => {
+      const stage = document.querySelector('.archi-editor .view-svg').getBoundingClientRect();
+      return [...document.querySelectorAll('.archi-editor [data-node-id]')].filter(node => { const box = node.getBoundingClientRect(); return box.right > stage.right + 2 || box.bottom > stage.bottom + 2 || box.left < stage.left - 2 || box.top < stage.top - 2; }).length;
+    });
+    assert(inSight, `Edit opened with the Appearance panel shown and ${cut} boxes out of sight.`);
+    // A view small enough to show at 100% is fitted too, as the drawing outside Edit is: centred,
+    // not left in the corner (the owner, W-114).
+    // In a window as large as the owner's, where the view fits at 100% and archi-online would leave it there.
+    await page.setViewportSize({ width: 2600, height: 1500 });
+    const smallView = (await records('ar.view')).find(record => record.values['ar.view.name'] === 'Application Structure View');
+    await page.evaluate(value => window.broker.command('find', value, 'toolbar'), smallView.values['ar.view.name']);
+    await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), smallView.recordId, 'Application Structure View is not in the tree under Find.');
+    await view.click(`#tree .row[data-id="${smallView.recordId}"]`);
+    const centred = await view.waitForFunction(count => {
+      const stage = document.querySelector('.archi-editor .view-svg')?.getBoundingClientRect();
+      const boxes = [...document.querySelectorAll('.archi-editor [data-node-id]')].map(node => node.getBoundingClientRect());
+      if (!stage || boxes.length !== count) return null;
+      const left = Math.min(...boxes.map(box => box.left)), right = Math.max(...boxes.map(box => box.right));
+      const top = Math.min(...boxes.map(box => box.top)), bottom = Math.max(...boxes.map(box => box.bottom));
+      const off = { x: Math.round((left + right) / 2 - (stage.left + stage.right) / 2), y: Math.round((top + bottom) / 2 - (stage.top + stage.bottom) / 2) };
+      return Math.abs(off.x) <= 3 && Math.abs(off.y) <= 3 ? off : null;
+    }, (await records('ar.item')).filter(item => item.values['ar.item.view'] === smallView.recordId && !/onnection/.test(item.values['ar.item.kind'])).length,
+    { timeout: 4000, polling: 50 }).then(handle => handle.jsonValue()).catch(() => null);
+    assert(centred !== null, 'Edit left Application Structure View where it lies at 100%, not fitted and centred as the drawing outside Edit is.');
+    await page.setViewportSize({ width: 1400, height: 860 });
+    await page.evaluate(value => window.broker.command('find', value, 'toolbar'), treeView.values['ar.view.name']);
+    await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), treeView.recordId, 'Organisation Tree View is not in the tree under Find.');
+    await view.click(`#tree .row[data-id="${treeView.recordId}"]`);
+    await until(() => document.querySelectorAll('.archi-editor [data-node-id]').length > 10, null, 'The editor did not show Organisation Tree View again.');
+    await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
     await selectBoard();
     const shown = await view.evaluate(() => {
       const control = label => [...document.querySelectorAll('.archi-style .appearance-field')].find(field => field.querySelector(':scope > label')?.textContent === label)?.querySelector('.appearance-control');

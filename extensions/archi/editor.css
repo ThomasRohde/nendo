@@ -737,3 +737,11 @@ body.native-chrome .archi-editor .zoom-controls { display: none; }
 .view-editor.read-only .view-svg {
   touch-action: none;
 }
+
+/* The tabs in Nendo's own manner (the owner, W-114): a strip with the chosen tab raised, as the
+   Workbench's .tablist draws it, not archi-online's accent underline. */
+.archi-style .prop-tabs { gap: 2px; margin: 8px 8px 0; padding: 3px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.archi-style .prop-tab { min-height: 28px; padding: 4px 11px; border-radius: 6px; color: var(--muted); font-size: inherit; font-weight: 600; }
+.archi-style .prop-tab:hover { color: var(--ink); }
+.archi-style .prop-tab.active { color: var(--ink); background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 670; }
+.archi-style .prop-tab:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; }

@@ -776,6 +776,11 @@ function editsChanged() {
   markStale();
 }
 
+/** The whole drawing in sight when the editor opens a view (the owner, W-114), once it is laid out. */
+function fitEditorSoon() {
+  requestAnimationFrame(() => requestAnimationFrame(() => { editor?.fit(); declareToolbar(); }));
+}
+
 function renderEditor(view) {
   const centre = $('centre');
   if (canvas) { canvas.destroy(); canvas = null; drawnSets = null; }
@@ -801,9 +806,10 @@ function renderEditor(view) {
       },
       onOpenView: id => { if (state.model.records.has(id)) select(id); },
       onIdle: () => { if (editor && editSets !== state.sets) renderCentre(); },
+      styleShown: state.styleShown,
     });
     editor.show(view.recordId);
-    editor.showStyle?.(state.styleShown);
+    fitEditorSoon();
     if (saved) setStatus(`${saved.length} edits were waiting to be committed, and are here again.`);
     editsChanged();
   } else if (editSets !== state.sets && !editor.busy()) {
@@ -820,7 +826,7 @@ function renderEditor(view) {
     if (differs) editor.reset(next);
     editsChanged();
   }
-  if (editor.viewId() !== view.recordId) editor.show(view.recordId);
+  if (editor.viewId() !== view.recordId) { editor.show(view.recordId); fitEditorSoon(); }
   if (!selectionFromEditor) editor.select(state.diagramSelection);
 }
 

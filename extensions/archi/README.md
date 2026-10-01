@@ -69,7 +69,8 @@ Properties. The file you were in does not change.
   icon, the alternate figure, a note's border, a plain line's ends, and the label expression
   with its preview. Each change waits like a move and commits to the box's record; the view
   draws a label expression as archi-online evaluates it. The panel starts hidden, because it
-  takes room from the drawing, and this device remembers the choice. The font list is
+  takes room from the drawing, and this device remembers the choice. Its tabs are drawn as
+  Nendo draws tabs. Edit opens a view fitted to the space, as the drawing outside Edit is. The font list is
   archi-online's common fonts: a view is never allowed the computer's own list. A legend's
   options are kept and drawn, but not edited here.
 - **Arrange** (W-113), in Nendo's row while editing, and so in Ctrl K: align the selected

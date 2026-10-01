@@ -135,6 +135,9 @@ interface EditorOptions {
   onOpenView?: (viewId: string) => void;
   /** The pointer was let go in the editor: a change held back while it was pressed may land now. */
   onIdle?: () => void;
+  /** Whether the Appearance panel is shown from the start: archi-online fits a view to the canvas
+   *  it first measures, so the panel must not narrow it afterwards (the owner, W-114). */
+  styleShown?: boolean;
 }
 
 /**
@@ -152,7 +155,7 @@ export function createEditor(host: HTMLElement, base: ModelState, options: Edito
   let viewId: string | null = null;
   let root: Root | null = createRoot(host);
   let quiet = false;
-  let styleShown = false;
+  let styleShown = options.styleShown === true;
 
   // The palette's width: dragged or stepped with the arrow keys on its splitter, and kept on this
   // device. The buttons wrap, so a wider palette is more columns rather than wider buttons.
