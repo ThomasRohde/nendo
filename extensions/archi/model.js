@@ -97,6 +97,8 @@ export function label(model, record, path = new Set()) {
   switch (record.entityId) {
     case E.folder: return record.values['ar.folder.name'] || '(folder)';
     case E.view: return record.values['ar.view.name'] || '(view)';
+    // The model by its name, as the tree heads it; a new model's record ID is a GUID nobody chose.
+    case E.model: return record.values['ar.model.name'] || '(model)';
     case E.concept: {
       const name = record.values['ar.concept.name'];
       const type = typeOf(model, record);

@@ -43,6 +43,13 @@ test('every concept and view of Archisurance is in the tree once, under its fold
   assert.equal(new Set(shown).size, shown.length, 'A record is in the tree twice.');
 });
 
+test('the model reads as its name, never its record ID', () => {
+  const m = model();
+  const root = m.of(E.model)[0];
+  assert.equal(label(m, root), 'Archisurance');
+  assert.equal(label(m, { ...root, recordId: 'ar.model.r.2080a942', values: { ...root.values, 'ar.model.name': null } }), '(model)');
+});
+
 test('an unnamed relationship reads as its type and its two ends', () => {
   const m = model();
   const unnamed = [...m.records.values()].find(r => r.entityId === E.concept && r.values['ar.concept.category'] === 'Relationship' && !r.values['ar.concept.name']);
