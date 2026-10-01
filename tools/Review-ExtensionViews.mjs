@@ -1,5 +1,6 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
+import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -76,8 +77,8 @@ function command(method, params = {}, sessionId, timeout = 15000) {
     socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
   });
 }
-async function evaluateIn(sessionId, expression, timeout) {
-  const result = await command('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sessionId, timeout);
+async function evaluateIn(sessionId, expression, timeout, userGesture = false) {
+  const result = await command('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true, userGesture }, sessionId, timeout);
   if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
   return result.result.value;
 }
@@ -142,6 +143,47 @@ async function frameSession(name) {
   }, 'frame target ' + name);
 }
 const inFrame = (frame, expression, timeout) => evaluateIn(frame.session, expression, timeout);
+// As a click in the frame would: the expression runs with the person's activation.
+const byPerson = (frame, expression, timeout) => evaluateIn(frame.session, expression, timeout, true);
+
+// W-104: the Open dialog Nendo's window owns, found by its owner, its title read, and closed as
+// Cancel closes it. Windows draws it in the browser's process, so it is matched by the window
+// that owns it rather than by the process that drew it.
+const dialogSource = `using System; using System.Collections.Generic; using System.Runtime.InteropServices; using System.Text;
+public static class NendoJourneyDialogs {
+  delegate bool EnumProc(IntPtr window, IntPtr parameter);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc callback, IntPtr parameter);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder text, int length);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr window, StringBuilder text, int length);
+  [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr window, uint relation);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+  [DllImport("user32.dll")] static extern bool PostMessage(IntPtr window, uint message, IntPtr w, IntPtr l);
+  public static string[] Close(uint host) {
+    var found = new List<string>();
+    EnumWindows((window, parameter) => {
+      if (!IsWindowVisible(window)) return true;
+      var name = new StringBuilder(64); GetClassName(window, name, 64);
+      if (name.ToString() != "#32770") return true;
+      uint drawer; GetWindowThreadProcessId(window, out drawer);
+      uint owner = 0; var ownerWindow = GetWindow(window, 4);
+      if (ownerWindow != IntPtr.Zero) GetWindowThreadProcessId(ownerWindow, out owner);
+      if (drawer != host && owner != host) return true;
+      var title = new StringBuilder(256); GetWindowText(window, title, 256);
+      found.Add(title.ToString());
+      PostMessage(window, 0x0010, IntPtr.Zero, IntPtr.Zero);
+      return true;
+    }, IntPtr.Zero);
+    return found.ToArray();
+  }
+}`;
+function closeHostDialog(seconds = 10) {
+  const script = `Add-Type -TypeDefinition @'\n${dialogSource}\n'@\n$deadline = (Get-Date).AddSeconds(${seconds}); $found = @()\n` +
+    `while ($found.Count -eq 0 -and (Get-Date) -lt $deadline) { $found = @([NendoJourneyDialogs]::Close(${Number(processId)})); if ($found.Count -eq 0) { Start-Sleep -Milliseconds 100 } }\n` +
+    `ConvertTo-Json -Compress -InputObject @($found)`;
+  return new Promise((resolve, reject) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { timeout: (seconds + 60) * 1000 },
+    (error, stdout, stderr) => error ? reject(new Error(String(stderr || error.message))) : resolve(JSON.parse(String(stdout).trim() || '[]'))));
+}
 
 // W-093: the title bar as the page draws it and as Windows holds it, on the screen showing. The
 // controls are every one in the bar a person can see; the host's diagnostics answer where the page
@@ -736,6 +778,133 @@ try {
   await waitFor(() => evaluate(`document.documentElement.clientWidth <= 840 && getComputedStyle(document.querySelector('.app-shell')).gridTemplateRows.split(' ').length === 2`), 'the rail across the top of a narrow window');
   const narrowBar = await measureTitleBar('a 760 × 700 window', true);
   check(`G32 on Studio › Data ${studioBar.above} px stand above the content, and in a 760 × 700 window the rail is the title bar, its ${narrowBar.controls} controls passed through and none under Windows' buttons`);
+
+  // G34 (W-104): a view reads a file the person chooses with the browser's own file input. The
+  // click opens Windows' Open dialog, owned by Nendo's window; closing it is Cancel, and the view
+  // hears cancel with nothing chosen. A chosen file arrives whole: its name, its size and its text.
+  // The system file picker is measured too, and what it answers is recorded.
+  // Last of all: the Nendo file dropped at the end is caught on its way to the host, and the
+  // Workbench waits for an answer that does not come.
+  await click('#nav-use'); await idle();
+  await click('[data-select-surface="probe"]'); await idle();
+  const fileView = await waitFor(async () => (await frames()).find(f => f.view === 'probe' && f.state === 'running'), 'the probe screen for files', 30000);
+  const fileFrame = await frameSession(fileView.name);
+  await waitFor(() => inFrame(fileFrame, 'probe.state.ready'), 'the probe handshake for files');
+  const modelText = '<?xml version="1.0" encoding="UTF-8"?>\n<archimate:model name="Café ✓" id="journey"/>\n';
+  const modelPath = path.join(output, 'journey model.archimate');
+  await fs.writeFile(modelPath, modelText, 'utf8');
+  const picking = await byPerson(fileFrame, `probe.pickFile('.archimate')`);
+  assert(picking === 'asked', 'The view asked for a file without the person\u2019s activation: ' + picking);
+  const dialogs = await closeHostDialog();
+  assert(dialogs.length === 1, 'No Open dialog owned by Nendo\u2019s window came up for the view\u2019s file input: ' + JSON.stringify(dialogs));
+  report.measurements.viewFileDialog = dialogs[0];
+  await waitFor(() => inFrame(fileFrame, `probe.state.file === 'cancelled' ? true : null`), 'cancel reaching the view with nothing chosen');
+  const { root: fileRoot } = await command('DOM.getDocument', { depth: 0 }, fileFrame.session);
+  const { nodeId: inputNode } = await command('DOM.querySelector', { nodeId: fileRoot.nodeId, selector: '#probe-file' }, fileFrame.session);
+  await inFrame(fileFrame, `probe.state.file = 'waiting'`);
+  await command('DOM.setFileInputFiles', { files: [modelPath], nodeId: inputNode }, fileFrame.session);
+  const chosen = await waitFor(() => inFrame(fileFrame, `typeof probe.state.file === 'object' && probe.state.file !== null ? probe.state.file : null`), 'the chosen file reaching the view');
+  assert(chosen.name === 'journey model.archimate' && chosen.text === modelText && chosen.size === Buffer.byteLength(modelText),
+    'The chosen file did not arrive whole: ' + JSON.stringify(chosen));
+  // The system pickers would hand a view a file it could write back to. The browser refuses them in
+  // a frame of another origin; a dialog one opened anyway is closed and named.
+  const systemPickers = {};
+  for (const name of ['showOpenFilePicker', 'showSaveFilePicker', 'showDirectoryPicker']) {
+    let answer = await byPerson(fileFrame, `Promise.race([probe.systemPicker(${JSON.stringify(name)}), new Promise(resolve => setTimeout(() => resolve('pending'), 2000))])`, 10000);
+    if (answer === 'pending') answer = 'opened a dialog: ' + JSON.stringify(await closeHostDialog());
+    systemPickers[name] = answer;
+  }
+  report.measurements.viewSystemPickers = systemPickers;
+  assert(Object.values(systemPickers).every(answer => /^refused: SecurityError: .*Cross origin sub frames aren't allowed to show a file picker/.test(answer)),
+    'A system file picker was not refused to the view: ' + JSON.stringify(systemPickers));
+  check(`G34 a view's file input opens Windows' "${dialogs[0]}" dialog owned by Nendo's window, closing it reaches the view as cancel, and a chosen file arrives whole (${chosen.size} bytes); the open, save and directory pickers are each refused with SecurityError: "Cross origin sub frames aren't allowed to show a file picker."`);
+
+  // G35 (W-104): a file dragged onto a view lands in the view when the view takes it, both when the
+  // drag comes straight onto the view and when it crosses Nendo first, and Nendo's own drop hint
+  // steps aside over the view. A view that does not take drops lets a drop fall: nothing opens,
+  // nothing moves. Dropped elsewhere, the file is still Nendo's: a file that is not a Nendo file is
+  // refused by name, and a Nendo file is handed to the host to open. Real drags carrying a file on
+  // disk, through the browser's input.
+  const centre = selector => evaluate(`(() => { const box = ${selector}.getBoundingClientRect(); return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) }; })()`);
+  const onView = await centre(`${probeMount}.querySelector('iframe')`);
+  const onRail = await centre(`document.querySelector('#nav-use')`);
+  const drag = (type, at) => command('Input.dispatchDragEvent', { type, x: at.x, y: at.y, data: { items: [], files: [modelPath], dragOperationsMask: 1 } }, page);
+  const hint = () => evaluate(`document.querySelector('#file-drop-target')?.hidden === false`);
+  const alertText = () => evaluate(`document.querySelector('.message-slot[role="alert"]:not([hidden])')?.textContent ?? ''`);
+  // A drag that crosses from the Workbench into a view's frame moves between two renderers. The
+  // window's own drag tells the one it left and the one it entered; CDP sends each event to the
+  // renderer under its point and tells neither, so the journey does what the window does, and only
+  // when the browser's hit test has put the point in the view: the Workbench no longer hears it.
+  // CDP has no leave for a renderer (its dragCancel ends the whole drag), so the leave is the
+  // dragleave the Workbench's document would get, raised on the element the drag was over.
+  await evaluate(`window.journeyDragovers = 0; window.journeyDragleaves = 0; document.addEventListener('dragover', () => { journeyDragovers += 1; }, true);
+    document.addEventListener('dragleave', () => { journeyDragleaves += 1; }, true); true`);
+  const dropOnView = async (from, label) => {
+    await inFrame(fileFrame, `probe.state.dropped = undefined; probe.state.drags = 0; true`);
+    await drag('dragEnter', from);
+    await drag('dragOver', from);
+    const hintBefore = await hint();
+    const heard = await evaluate('journeyDragovers');
+    await drag('dragOver', onView);
+    const crossed = from !== onView && await evaluate('journeyDragovers') === heard;
+    if (crossed) {
+      await evaluate(`(() => { const transfer = new DataTransfer(); transfer.items.add(new File([''], 'journey model.archimate'));
+        document.elementFromPoint(${from.x}, ${from.y}).dispatchEvent(new DragEvent('dragleave', { bubbles: true, dataTransfer: transfer })); return true; })()`);
+      await drag('dragEnter', onView);
+    }
+    await drag('dragOver', onView);
+    const hintOver = await waitFor(async () => (await hint()) ? null : 'stepped aside', 'the hint stepping aside', 3000)
+      .then(() => false, async () => ({ shown: true, leaves: await evaluate('journeyDragleaves'), overs: await evaluate('journeyDragovers') }));
+    await drag('drop', onView);
+    const dropped = await waitFor(async () => {
+      const value = await inFrame(fileFrame, 'probe.state.dropped ?? null');
+      if (value !== null) return value;
+      return /journey model/.test(await alertText()) ? { refusedByNendo: await alertText() } : null;
+    }, 'the file dropped on the view (' + label + ')', 10000);
+    assert(dropped.text === modelText && dropped.name === 'journey model.archimate',
+      `A file dropped on the view (${label}) did not reach it: ` + JSON.stringify({ dropped, hintBefore, hintOver }));
+    assert(!hintOver && !(await hint()), `Nendo's drop hint stayed over the view (${label}): ` + JSON.stringify(hintOver));
+    return { hintBefore, crossed };
+  };
+  const viewOrigin = await inFrame(fileFrame, 'performance.timeOrigin');
+  const workbenchAt = await evaluate('location.href');
+  await drag('dragEnter', onView);
+  await drag('dragOver', onView);
+  await drag('drop', onView);
+  await sleep(1000);
+  const fell = { alert: await alertText(), hint: await hint(), dropped: await inFrame(fileFrame, 'probe.state.dropped ?? null'),
+    reloaded: await inFrame(fileFrame, 'performance.timeOrigin') !== viewOrigin, moved: await evaluate('location.href') !== workbenchAt };
+  assert(fell.alert === '' && !fell.hint && fell.dropped === null && !fell.reloaded && !fell.moved,
+    'A drop on a view that does not take drops did something: ' + JSON.stringify(fell));
+  await inFrame(fileFrame, `probe.acceptDrops()`);
+  const straight = await dropOnView(onView, 'straight onto the view');
+  assert(!straight.hintBefore, 'Nendo drew its drop hint for a drag that came straight onto the view.');
+  await inFrame(fileFrame, `probe.state.dropped = undefined; true`);
+  await drag('dragEnter', onRail);
+  await drag('dragOver', onRail);
+  await drag('drop', onRail);
+  const refusedDrop = await waitFor(async () => /journey model\.archimate/.test(await alertText()) ? await alertText() : null, 'Nendo refusing a foreign file dropped on its rail');
+  assert(await inFrame(fileFrame, `probe.state.dropped === undefined`), 'The view heard a drop that was not on it.');
+  // A Nendo file dropped on the rail goes to the host as before. The hand-over is caught on its way
+  // out rather than sent: the host's open path is unchanged, and it would ask about this file first.
+  const nendoPath = path.join(output, 'dropped.nendo');
+  await fs.writeFile(nendoPath, '');
+  const caught = await evaluate(`(() => { window.journeyHandoffs = [];
+    chrome.webview.postMessageWithAdditionalObjects = (message, objects) => { journeyHandoffs.push({ method: message.method, files: [...objects].map(file => file.name) }); };
+    return chrome.webview.postMessageWithAdditionalObjects.toString().includes('journeyHandoffs'); })()`);
+  assert(caught, 'The journey could not catch the Workbench\u2019s hand-over to the host.');
+  const nendoDrag = (type, at) => command('Input.dispatchDragEvent', { type, x: at.x, y: at.y, data: { items: [], files: [nendoPath], dragOperationsMask: 1 } }, page);
+  await nendoDrag('dragEnter', onRail);
+  await nendoDrag('dragOver', onRail);
+  await nendoDrag('drop', onRail);
+  const handoff = await waitFor(() => evaluate(`journeyHandoffs.find(item => item.method === 'file.openDropped') ?? null`), 'a Nendo file dropped on the rail handed to the host');
+  assert(handoff.files.length === 1 && handoff.files[0] === 'dropped.nendo', 'The host was handed something else: ' + JSON.stringify(handoff));
+  // Last, because the leave the journey raises is the document's event and not the renderer's: the
+  // Workbench's renderer still holds this drag afterwards, as it would not after a real one.
+  const crossing = await dropOnView(onRail, 'across Nendo first');
+  assert(crossing.hintBefore, 'Nendo did not offer its drop hint while the drag was over its own rail.');
+  assert(crossing.crossed, 'The drag over the view was still the Workbench’s.');
+  check(`G35 a drop on a view that does not take drops falls without effect; a file dropped on a view that takes it reaches it straight on and after crossing Nendo, whose hint steps aside over the view; on the rail a foreign file is refused by name ("${refusedDrop}") and a Nendo file is handed to the host to open`);
 
   console.log('extension views ok');
 } catch (error) {

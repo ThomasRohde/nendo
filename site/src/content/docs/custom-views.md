@@ -49,7 +49,7 @@ A view also needs a definition: a screen, a graph or a record-page panel that na
 | Change records, run commands and propose changes, each in **History** under its package's name | Reach SQL, a file path, another file or a setting of this computer |
 | Hear every change to the file, and draw again | Use Nendo's agent connection |
 | Use the network, including programs on your own computer | Navigate Nendo away, or load Nendo inside itself |
-| Read and write the clipboard, and download files | Accept or reject a proposal |
+| Read and write the clipboard, read a file you choose or drop on it, and download files | Accept or reject a proposal |
 | Keep browser storage for itself, and small values in the file | Put markup of its own in Nendo's toolbar or menus |
 | Ask Nendo to open a record, a screen or Studio, show a sentence, and draw its controls and menus | |
 
@@ -57,7 +57,7 @@ Each package runs on a web address of its own, in a browser process of its own, 
 
 ## Before you open someone else's file
 
-A file that somebody else wrote brings its views' code with it, and that code runs when its view is shown. You have not read it: the review happened wherever the change was made. It can read every record in the file, reach the network, including programs on your own computer, use the clipboard and download files. It can also change your records and run their commands, the way you would. Each change is in **History** under the package's name.
+A file that somebody else wrote brings its views' code with it, and that code runs when its view is shown. You have not read it: the review happened wherever the change was made. It can read every record in the file, reach the network, including programs on your own computer, use the clipboard, read a file you choose or drop on it, and download files. It never gets a file you did not choose. It can also change your records and run their commands, the way you would. Each change is in **History** under the package's name.
 
 History offers **Compensate** where it can reverse a change. It cannot compensate a record creation, a batch that includes a creation, or a batch larger than its 128-operation compensation limit. Delete newly created records separately if you want to remove them. See [History and undo](/nendo/docs/files-and-data#history-and-undo) for the reversibility classes and other limits.
 

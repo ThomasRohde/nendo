@@ -38,7 +38,7 @@ public sealed class DesktopExtensionViewJourneyTests
     /// journey can ask it from inside its own frame and measure the answer.
     /// </summary>
     private const string ProbeScript = """
-        const state = { changes: 0, themes: 0, ready: false, commands: [], keys: [], pick: undefined };
+        const state = { changes: 0, themes: 0, ready: false, commands: [], keys: [], pick: undefined, file: undefined, dropped: undefined, drags: 0 };
         window.probe = {
           state,
           async reads() {
@@ -97,6 +97,45 @@ public sealed class DesktopExtensionViewJourneyTests
             nendo.ui.showMenu([{ id: 'open', label: 'Open' }, { id: 'rename', label: 'Rename', keys: 'F2' }, { kind: 'separator' }, { id: 'delete', label: 'Delete', danger: true }], { x, y })
               .then(pick => { state.pick = pick; }, error => { state.pick = 'error: ' + error.code; });
             return 'asked';
+          },
+          // W-104: a file the person chooses, with the browser's own input; what arrives lands in state.
+          pickFile(accept) {
+            let input = document.getElementById('probe-file');
+            if (!input) {
+              input = document.createElement('input');
+              input.type = 'file';
+              input.id = 'probe-file';
+              input.addEventListener('change', async () => {
+                const file = input.files[0];
+                state.file = file ? { name: file.name, size: file.size, text: await file.text() } : 'none';
+              });
+              input.addEventListener('cancel', () => { state.file = 'cancelled'; });
+              document.body.append(input);
+            }
+            input.accept = accept;
+            input.value = '';
+            state.file = 'waiting';
+            // Opening the dialog uses up the activation, so it is read before the click.
+            const active = navigator.userActivation.isActive;
+            input.click();
+            return active ? 'asked' : 'asked without activation';
+          },
+          systemPicker(name) {
+            if (typeof window[name] !== 'function') return Promise.resolve('absent');
+            return window[name]().then(() => 'opened', error => 'refused: ' + error.name + ': ' + error.message);
+          },
+          // W-104: a file dropped on the view; the view takes it by cancelling dragover.
+          acceptDrops() {
+            if (state.accepting) return 'accepting';
+            state.accepting = true;
+            document.addEventListener('dragenter', event => { state.drags += 1; event.preventDefault(); });
+            document.addEventListener('dragover', event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; });
+            document.addEventListener('drop', async event => {
+              event.preventDefault();
+              const file = event.dataTransfer.files[0];
+              state.dropped = file ? { name: file.name, text: await file.text() } : 'empty';
+            });
+            return 'accepting';
           },
         };
         nendo.on('command', command => { state.commands.push(command); });

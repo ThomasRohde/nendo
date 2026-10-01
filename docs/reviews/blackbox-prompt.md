@@ -869,6 +869,12 @@ vocabulary, the examples and the resources — and not from the person.
   through the view's own API. Record each answer as reported: the first two must fail
   without moving the app, the fetch reaches the network, and the query is the one way
   into the file.
+- Author another version with a file input and a drop zone that show the name, size and
+  first line of a file. Record where the view API told you how a view reads a file.
+  Ask the person to choose a file, then to open the dialog again and cancel it, then to
+  drag a file from Explorer onto the view, and last to drag a `.nendo` file onto the
+  app's left rail. Record what each did, whether the view ever showed a path, and
+  whether the app's own drop hint stepped aside over the view (W-104).
 - Author a second version whose button starts a loop that never ends, have it accepted,
   and ask the person to press it. Record how long before the app said the view was not
   responding, what it offered, whether the rest of the app answered meanwhile, and what

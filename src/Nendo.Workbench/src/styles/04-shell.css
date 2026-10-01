@@ -89,11 +89,14 @@
    Over everything including the title bar, because the drop lands there too and a
    hint that stopped short of the edge would be saying the edge does not count.
    Both themes share the shape and differ only in the tokens; the refusal state is
-   the one place a colour carries meaning, so it also changes the words. */
+   the one place a colour carries meaning, so it also changes the words.
+   It never takes the pointer: a drag over a custom view's frame belongs to the view
+   (ADR-0013, W-104), and the document under the hint still hears the rest. */
 .file-drop-target {
   position: fixed;
   inset: 0;
   z-index: 40;
+  pointer-events: none;
   display: grid;
   place-items: center;
   padding: 24px;

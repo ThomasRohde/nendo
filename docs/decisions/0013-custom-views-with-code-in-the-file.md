@@ -356,6 +356,33 @@ downloads are allowed, anything else gets WebView2's default prompt, and no gran
 is saved, where it would cover every view. The Workbench's own requests are
 denied.
 
+### Files a person hands a view (2026-10-01)
+
+A view reads a file the way a web page does, and Nendo adds no call for it, as it
+adds none for downloads. Measured in a real host (G34, G35):
+
+- **The file input.** A view's own `<input type="file">`, clicked by the person,
+  opens Windows' Open dialog, owned by Nendo's window. The choice is the consent:
+  the view gets that one file as a `File`, with its name, size and bytes, and never
+  its path. `accept` filters the dialog, whose *All files* stays, so a view checks
+  what it got. Cancel reaches the view as the input's `cancel` event.
+- **No size limit from Nendo.** A `File` is a handle. The view reads it in its
+  package's own renderer, and a view that reads a very large file whole costs that
+  renderer, not the Workbench.
+- **No file handles.** The browser refuses `showOpenFilePicker`,
+  `showSaveFilePicker` and `showDirectoryPicker` to a frame of another origin
+  ("Cross origin sub frames aren't allowed to show a file picker."). A view never
+  holds a file it could write back to, and it saves by download.
+- **Drops.** A file dragged over a view is the view's. It takes the file by
+  cancelling `dragover` and reads the drop's `dataTransfer.files`. A view that does
+  not take drops lets one fall: nothing opens and nothing moves. Nendo's drop hint
+  takes no pointer, so it shows while the drag is over Nendo's own parts and steps
+  aside over a view. A file dropped on Nendo's parts is Nendo's, as before.
+
+W-104 proposed a `files.open` call that would show a picker with a size cap. The
+measurement made it unnecessary: it would be a second picker beside the browser's,
+and it would add no protection. No rung: nothing reaches the file.
+
 ### A view's failure stays with the view
 
 - Only a main-frame or browser-process failure sends the app to recovery. A
@@ -750,3 +777,7 @@ falsified once, and has the failure text quoted in its planner Check.
   and hands it back as the event `place` or in `context.place` (W-127, the owner's F-215). No
   rung: nothing reaches the file. Written with the code, on the owner's standing
   pre-acceptance.
+- 2026-10-01 — files a person hands a view: the browser's own file input and a drop on the
+  view's frame, measured in a real host; the system file pickers are refused to a view by the
+  browser, and Nendo's drop hint steps aside over a view. No `files.open` call and no rung
+  (W-104). Written with the measurement, on the owner's standing pre-acceptance.

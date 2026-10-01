@@ -26,7 +26,8 @@ where the change was made. At the Unattended access level, an agent can accept i
 own package proposal, so its code can run before anybody reads it.
 
 A view's code can read every record of its file through Nendo, reach the network
-(loopback included), read and write the clipboard, and download files. It cannot
+(loopback included), read and write the clipboard, read a file the person chooses or
+drops on it, and download files. It cannot
 reach the Workbench's document, the host bridge, SQL, a file path, another file or
 a device setting (see [What a view cannot reach](#what-a-view-cannot-reach)).
 
@@ -412,6 +413,21 @@ A view gets most of what a web page gets
   frame's `allow` attribute delegates only the features it names.
 - **Downloads.** A view may download files. The browser's own download handling
   applies.
+- **Files a person hands it** (W-104). A view's own `<input type="file">`, clicked
+  by the person, opens Windows' Open dialog, owned by Nendo's window. The chosen
+  file arrives as a `File`, with its name, size and bytes, never its path. `accept`
+  filters the dialog, whose *All files* stays, so a view checks what it got. Cancel
+  reaches the view as the input's `cancel` event. Nendo sets no size limit: the view
+  reads the file in its package's own renderer. The browser refuses
+  `showOpenFilePicker`, `showSaveFilePicker` and `showDirectoryPicker` to a frame of
+  another origin, so a view never holds a file it could write back to; it saves by
+  download.
+- **Drops** (W-104). A file dragged over a view is the view's. It takes the file by
+  cancelling `dragover` and reads the drop's `dataTransfer.files`. A view that does
+  not take drops lets one fall: nothing opens and nothing moves. Nendo's drop hint
+  (`.file-drop-target`) takes no pointer, so it shows while the drag is over Nendo's
+  own parts and steps aside over a view. A file dropped on Nendo's parts is Nendo's,
+  as before: a Nendo file opens, and another is refused by name.
 - **New windows.** No second browser window opens. A window the person opened, by
   a click on an `http`, `https` or `mailto` link, opens in the system's default
   browser, unless it points at a view origin or the Workbench. A window a script
@@ -1416,6 +1432,39 @@ before any write. View code needs no approval of its own.
 
 ## Evidence
 
+### Files a person hands a view (W-104)
+
+Measured on 2026-10-01 against a Debug build. `DesktopExtensionViewJourneyTests` (G34, G35)
+drives the probe view in a real host.
+
+- G34: the view's file input, clicked with the person's activation, opens a dialog titled
+  "Open" whose owner window is Nendo's. The lane finds it with `EnumWindows` and closes it
+  with `WM_CLOSE`, which reaches the view as `cancel`. A file set on the input over CDP
+  arrives with its name, its 88 bytes and its text, non-ASCII included.
+  `showOpenFilePicker`, `showSaveFilePicker` and `showDirectoryPicker` each throw
+  `SecurityError: … Cross origin sub frames aren't allowed to show a file picker.`
+- G35: real drags carrying a file on disk, through `Input.dispatchDragEvent`. A drop on a
+  view that does not take drops leaves no message, no hint, no reload and no navigation.
+  Once the view takes drops, the file reaches it straight on and after crossing the rail,
+  where Nendo's hint shows and then steps aside. Dropped on the rail,
+  `journey model.archimate` is refused by name. `dropped.nendo` is handed to the host as
+  `file.openDropped`; the lane catches it on its way out, so the file is not opened.
+
+Before the fix, and again when falsified by taking `pointer-events: none` off
+`.file-drop-target`: `A file dropped on the view (across Nendo first) did not reach it:
+{"dropped":{"refusedByNendo":"journey model.archimate is not a Nendo file. Nendo opens .nendo
+files."},"hintBefore":true,"hintOver":{"shown":true,"leaves":3,"overs":4}}`.
+
+Limits:
+
+- CDP sends each drag event to the renderer under its point, and it has no leave for a
+  renderer: its `dragCancel` ends the drag. So once the browser's hit test has moved the
+  drag into the view, the lane raises the Workbench document's `dragleave` itself and
+  enters the view, as the window's drag does.
+- A drag from Explorer cannot be scripted, so a real Windows drop on a view is not
+  measured.
+- The dialog's list of file types is not read.
+
 ### Back and Forward (W-127)
 
 Measured on 2026-09-29. `DesktopExtensionViewJourneyTests` (G33) drives the probe view in a real
@@ -1704,3 +1753,7 @@ passed. Each guard below was falsified, seen to fail and then restored:
   package copies, for a focus ring, keyboard traversal, a text alternative, fitting and a
   status tone. No new theme keys: text scale, reduced motion and high contrast reach a view
   through the standard media queries and the page's zoom. No change to the wire.
+- 2026-10-01 — files a person hands a view (W-104): the browser's own file input and a drop on
+  the view's frame, measured in a real host (G34, G35). The system file pickers are refused to
+  a view by the browser. Nendo's drop hint takes no pointer, so it steps aside over a view. No
+  method, no rung.
