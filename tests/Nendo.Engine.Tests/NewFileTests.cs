@@ -87,6 +87,9 @@ public sealed class NewFileTests
         Assert.AreEqual(JsonValueKind.Null, top.Values["stamp"].ValueKind);
         Assert.AreEqual(data + 1, snapshot.Manifest.DataRevision, "A mark is one Data revision.");
         Assert.AreEqual(revision + 1, snapshot.Manifest.DefinitionRevision, "A mark changed the definition.");
+        Assert.AreEqual("Keep Folders record top in new files",
+            (await service.GetHistoryAsync()).Single(entry => entry.RevisionId == marked.RevisionId).Description,
+            "History must name the record, or a mark reads as the type's default.");
 
         // The action does run on a rename, so the silence above is the mark's, not the trigger's.
         await service.SetFieldAsync(new("folders", "top", "folderName", 1, "Core", Context("rename")));

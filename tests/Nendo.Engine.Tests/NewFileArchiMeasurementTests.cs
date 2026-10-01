@@ -35,14 +35,17 @@ public sealed class NewFileArchiMeasurementTests
         var service = new NendoApplicationService(coordinator);
         var snapshot = await service.GetSnapshotAsync();
         var revision = snapshot.Manifest.DefinitionRevision;
-        await coordinator.ApplyAsync(new("archi", "ships", "test", "What a new Archi model keeps", [
-            new SetKeptInNewFilesDefaultOperation("keep-types", "ar.type", true, revision),
-            new SetNewFileLabelOperation("label", "Archi model", revision),
-        ]));
+        // Marked as Build-Archi marks it, where the file is not marked already.
+        var definition = new List<NendoOperation>();
+        if (!snapshot.Entities.Single(entity => entity.EntityId == "ar.type").KeptInNewFiles)
+            definition.Add(new SetKeptInNewFilesDefaultOperation("keep-types", "ar.type", true, revision));
+        if (snapshot.Manifest.NewFileLabel is null)
+            definition.Add(new SetNewFileLabelOperation("label", "Archi model", revision));
+        if (definition.Count > 0) await coordinator.ApplyAsync(new("archi", "ships", "test", "What a new Archi model keeps", definition));
         var topLevel = snapshot.Records.Where(record => record.EntityId == "ar.folder" &&
             record.Values["ar.folder.parent"].ValueKind == System.Text.Json.JsonValueKind.Null).ToArray();
         Assert.HasCount(9, topLevel);
-        foreach (var folder in topLevel)
+        foreach (var folder in topLevel.Where(folder => folder.KeptInNewFiles != true))
             await service.SetRecordKeptInNewFilesAsync("ar.folder", folder.RecordId, true, new("archi", $"keep-{folder.RecordId}", "test"));
 
         var preview = await service.PreviewNewFileAsync();

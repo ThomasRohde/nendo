@@ -586,11 +586,12 @@ public sealed partial class NendoApplicationService
         RequireContext(context);
         var entity = await RequireEntityAsync(entityId, cancellationToken);
         return await _coordinator.ApplyAsync(new NendoMutation(context.IdempotencyScope, context.IdempotencyKey, context.Origin,
+            // Names the record, not only its type: "Keep Folders in new files" read as the type's default.
             kept switch
             {
-                true => $"Keep {entity.DisplayName} in new files",
-                false => $"Leave {entity.DisplayName} out of new files",
-                null => $"{entity.DisplayName} follows its type in new files",
+                true => $"Keep {entity.DisplayName} record {recordId} in new files",
+                false => $"Leave {entity.DisplayName} record {recordId} out of new files",
+                null => $"{entity.DisplayName} record {recordId} follows its type in new files",
             },
             [new SetRecordKeptInNewFilesOperation(
                 NendoCanonical.DeterministicId("operation", context.IdempotencyScope, context.IdempotencyKey, 0),
