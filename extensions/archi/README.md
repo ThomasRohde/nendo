@@ -73,6 +73,12 @@ Properties. The file you were in does not change.
   Nendo draws tabs. Edit opens a view fitted to the space, as the drawing outside Edit is. The font list is
   archi-online's common fonts: a view is never allowed the computer's own list. A legend's
   options are kept and drawn, but not edited here.
+- **Viewpoint** (W-116), in a view's properties: None or one of Archi's 25 viewpoints, by
+  name. Elements whose type the viewpoint leaves out are drawn faint, with the lines that end
+  on them, in the drawing and in the editor, and the palette greys out their types; Junction
+  and Grouping are always allowed, and Layered allows everything. The change shows at once.
+  The table is archi-online's port of Archi's, checked against the `viewpoints.xml` Desktop
+  Archi 5.9 ships. A key no viewpoint has, from another tool, is kept and shown as unknown.
 - **Arrange** (W-113), in Nendo's row while editing, and so in Ctrl K: align the selected
   boxes six ways to the last one selected, match their width, height or size, distribute
   three or more, bring forward or send back, select the same type, duplicate, cut, copy,
@@ -168,6 +174,11 @@ the anchor's x, on boxes of three widths; Match size; equal gaps; Send to back f
 duplicate and paste as copy make a new element, paste as reference none. The Appearance
 toggle shows the tabs; a fill, a gradient, a line width, a font and a label expression set on
 Board commit to its record, the font as Archi's own string, the view draws the label, and the
-workbench started again shows each in the tabs. `verify-archimate-io.mjs` also checks that
+workbench started again shows each in the tabs. Picking Strategy for Organisation Tree View in
+its properties ghosts, at once and at 0.4, exactly the boxes and drawn lines archi-online's rules
+name for the stored records, in the editor and outside it, and greys those types in the palette
+at 0.35; None clears both. `node tools/archi/verify-viewpoints.mjs`, on request, compares the bundled table
+with Desktop Archi 5.9's own `viewpoints.xml`: 25 viewpoints by id, name and order, and 1,525
+viewpoint and element type pairs. `verify-archimate-io.mjs` also checks that
 every label expression in archi-online's fixtures reads as archi-online reads it after the
 trip through the records.

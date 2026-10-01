@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { buildMirror, geometry, archiOnlineCommit, toRecords, writesFor } from '../../extensions/archi/canvas.js';
+import { buildMirror, geometry, archiOnlineCommit, toRecords, writesFor, isNodeGhosted, isConnectableGhosted, VIEWPOINTS } from '../../extensions/archi/canvas.js';
 
 // W-110: the workbench draws from a mirror of Archi.nendo's records, through archi-online's own
 // geometry. The reference is archi-online's geometry of its own parse of the same file
@@ -112,4 +112,29 @@ test('committed later, collected edits write only what they changed: a field set
   const writes = writesFor(elsewhere, before, after);
   assert.deepEqual(writes, [{ op: 'update', entityId: 'ar.item', recordId: node.id, version: record.version,
     values: { 'ar.item.x': storedById.get(node.id).values['ar.item.x'] + 40 } }]);
+});
+
+// W-116: a view's viewpoint is the key its record stores, and what the canvas ghosts follows it.
+test("a view's stored viewpoint reaches the mirror, and ghosts exactly the boxes whose type it leaves out, with their lines", () => {
+  const view = records['ar.view'].find(record => record.values['ar.view.name'] === 'Organisation Tree View');
+  assert.equal(view.values['ar.view.viewpoint'], 'organization');
+  const typeKey = new Map(records['ar.type'].map(record => [record.recordId, record.values['ar.type.key']]));
+  const conceptType = new Map(records['ar.concept'].map(record => [record.recordId, typeKey.get(record.values['ar.concept.type'])]));
+  const boxes = records['ar.item'].filter(item => item.values['ar.item.view'] === view.recordId && item.values['ar.item.kind'] === 'Element');
+  for (const [viewpoint, allowed] of [['organization', null], ['strategy', ['Resource', 'Capability', 'ValueStream', 'CourseOfAction', 'Outcome']], [null, null], ['no-such-viewpoint', null]]) {
+    const changed = structuredClone(records);
+    changed['ar.view'].find(record => record.recordId === view.recordId).values['ar.view.viewpoint'] = viewpoint;
+    const mirror = buildMirror(changed);
+    assert.equal(mirror.views[view.recordId].viewpoint, viewpoint ?? undefined);
+    const expected = boxes.filter(item => {
+      const key = conceptType.get(item.values['ar.item.concept']);
+      return allowed !== null && !['Junction', 'Grouping', ...allowed].includes(key);
+    }).map(item => item.recordId).sort();
+    assert.deepEqual(boxes.filter(item => isNodeGhosted(mirror, item.recordId, mirror.views[view.recordId].viewpoint)).map(item => item.recordId).sort(), expected, `${viewpoint}: other boxes ghosted`);
+    const ghostedLines = Object.values(mirror.connections).filter(line => line.viewId === view.recordId && isConnectableGhosted(mirror, line.id, mirror.views[view.recordId].viewpoint));
+    const touching = Object.values(mirror.connections).filter(line => line.viewId === view.recordId && (expected.includes(line.sourceId) || expected.includes(line.targetId)));
+    assert.deepEqual(ghostedLines.map(line => line.id).sort(), touching.map(line => line.id).sort(), `${viewpoint}: other lines ghosted`);
+    if (viewpoint === 'strategy') assert.ok(expected.length > 10 && touching.length > 5, `strategy ghosts only ${expected.length} boxes and ${touching.length} lines`);
+  }
+  assert.equal(VIEWPOINTS.length, 25);
 });

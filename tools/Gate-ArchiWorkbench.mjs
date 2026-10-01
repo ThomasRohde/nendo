@@ -1134,6 +1134,91 @@ async (page) => {
     await page.evaluate(() => window.broker.command('appearance', false, 'toolbar'));
     await until(() => document.querySelector('.archi-style')?.hidden === true, null, 'The Appearance toggle did not hide the panel.');
     results.appearance = { fill: shown.fill, gradient: shown.gradient, lineWidth: shown.lineWidth, font: styled['ar.item.font'], label: preview };
+
+    // ---- W-116: a view's viewpoint, picked in its properties from Archi's 25 by name, ghosts what
+    // it leaves out and greys those types in the palette at once, in the editor and in the drawing
+    // outside it, with nothing loaded again; None shows everything. What is ghosted is what
+    // archi-online's rules name for the records as stored, box by box and line by line.
+    {
+      const picker = '#properties select[data-field="ar.view.viewpoint"]';
+      await page.evaluate(value => window.broker.command('find', value, 'toolbar'), treeView.values['ar.view.name']);
+      await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), treeView.recordId, 'Organisation Tree View is not in the tree under Find.');
+      await view.click(`#tree .row[data-id="${treeView.recordId}"]`);
+      await until(selector => !!document.querySelector(selector), picker, "The view's properties offer no viewpoint to pick.");
+      await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
+      const offered = await view.evaluate(selector => [...document.querySelector(selector).options].map(option => [option.value, option.textContent]), picker);
+      const table = await view.evaluate(async () => (await import('./canvas.js')).VIEWPOINTS.map(viewpoint => [viewpoint.id, viewpoint.name]));
+      const tableByName = [...table].sort((a, b) => a[1].localeCompare(b[1]));
+      assert(table.length === 25 && JSON.stringify(offered) === JSON.stringify([['', 'None'], ...tableByName]),
+        `The viewpoint picker offers ${JSON.stringify(offered.slice(0, 4))}… (${offered.length}), not None and Archi's 25 by name.`);
+      assert(await view.evaluate(selector => document.querySelector(selector).value, picker) === 'organization', "The picker does not show the view's viewpoint, organization.");
+      // Nothing is loaded again: the page and the editor are the ones the steps above used.
+      await view.evaluate(() => { window.viewpointMark = 'kept'; document.querySelector('.archi-editor').dataset.viewpointMark = 'kept'; });
+      const expectedFor = async () => view.evaluate(async ({ sets, viewId }) => {
+        const canvas = await import('./canvas.js');
+        const model = canvas.buildMirror(sets);
+        const viewpoint = model.views[viewId].viewpoint;
+        return {
+          viewpoint: viewpoint ?? null,
+          boxes: Object.keys(model.nodes).filter(id => model.nodes[id].viewId === viewId && canvas.isNodeGhosted(model, id, viewpoint)).sort(),
+          // The lines drawn: a connection nested boxes stand for is not (archi-online's geometry).
+          lines: [...canvas.geometry(model, viewId).routes.keys()].filter(id => canvas.isConnectableGhosted(model, id, viewpoint)).sort(),
+          types: sets['ar.type'].filter(type => type.values['ar.type.category'] === 'Element').map(type => type.values['ar.type.key'])
+            .filter(key => !canvas.isAllowedElementInViewpoint(viewpoint, key)).sort(),
+        };
+      }, { sets: await allSets(), viewId: treeView.recordId });
+      const drawn = scope => view.evaluate(scope => ({
+        boxes: [...document.querySelectorAll(`${scope} [data-node-id] > [data-ghosted="true"]`)].map(node => node.parentElement.dataset.nodeId).sort(),
+        lines: [...document.querySelectorAll(`${scope} [data-conn-id][data-ghosted="true"]`)].map(node => node.dataset.connId).sort(),
+        opacity: [...new Set([...document.querySelectorAll(`${scope} [data-ghosted="true"]`)].map(node => getComputedStyle(node).opacity))],
+        types: [...document.querySelectorAll('.archi-palette .pal-btn:disabled [data-palette-element]')].map(node => node.dataset.paletteElement).sort(),
+        faint: [...new Set([...document.querySelectorAll('.archi-palette .pal-btn:disabled')].map(node => getComputedStyle(node).opacity))],
+        kept: window.viewpointMark === 'kept' && (scope !== '.archi-editor' || document.querySelector('.archi-editor')?.dataset.viewpointMark === 'kept'),
+      }), scope);
+      const pick = async value => {
+        await view.selectOption(picker, value);
+        for (let waited = 0; ; waited += 50) {
+          if (((await records('ar.view')).find(record => record.recordId === treeView.recordId).values['ar.view.viewpoint'] ?? '') === value) break;
+          assert(waited < 8000, `Picking ${value || 'None'} did not reach the view's record.`);
+          await page.waitForTimeout(50);
+        }
+        return expectedFor();
+      };
+      const shows = async (scope, expected, what) => {
+        let seen = null;
+        for (let waited = 0; waited <= 8000; waited += 50) {
+          seen = await drawn(scope);
+          if (JSON.stringify([seen.boxes, seen.lines]) === JSON.stringify([expected.boxes, expected.lines]) &&
+            (scope !== '.archi-editor' || JSON.stringify(seen.types) === JSON.stringify(expected.types))) break;
+          await page.waitForTimeout(50);
+        }
+        const fine = JSON.stringify(seen.boxes) === JSON.stringify(expected.boxes) && JSON.stringify(seen.lines) === JSON.stringify(expected.lines) &&
+          (scope !== '.archi-editor' || JSON.stringify(seen.types) === JSON.stringify(expected.types)) && seen.kept &&
+          (expected.boxes.length + expected.lines.length === 0 ? seen.opacity.length === 0 : JSON.stringify(seen.opacity) === '["0.4"]') &&
+          (scope !== '.archi-editor' || (expected.types.length === 0 ? seen.faint.length === 0 : JSON.stringify(seen.faint) === '["0.35"]'));
+        assert(fine, `${what}: ${expected.viewpoint ?? 'no viewpoint'} should ghost ${expected.boxes.length} boxes and ${expected.lines.length} lines` +
+          `${scope === '.archi-editor' ? ` and grey ${expected.types.length} palette types` : ''}; drawn are ${seen.boxes.length} boxes and ${seen.lines.length} lines at ${JSON.stringify(seen.opacity)}` +
+          `${scope === '.archi-editor' ? `, ${seen.types.length} palette types at ${JSON.stringify(seen.faint)}` : ''}, loaded again: ${!seen.kept}.`);
+        return { boxes: seen.boxes.length, lines: seen.lines.length, types: seen.types.length };
+      };
+      const viewpoints = {};
+      viewpoints.organization = await shows('.archi-editor', await expectedFor(), 'Editing, as stored');
+      const strategy = await pick('strategy');
+      assert(strategy.boxes.length > 10 && strategy.lines.length > 5 && strategy.types.length > 50,
+        `Strategy leaves out only ${strategy.boxes.length} boxes, ${strategy.lines.length} lines and ${strategy.types.length} types of Organisation Tree View.`);
+      viewpoints.strategyEditing = await shows('.archi-editor', strategy, 'Editing, after picking Strategy');
+      await page.evaluate(() => window.broker.command('edit', false, 'toolbar'));
+      await until(() => !!document.querySelector('.canvas-host .paper') && !document.querySelector('.archi-editor'), null, 'Leaving Edit did not return to the drawn view.');
+      viewpoints.strategyDrawn = await shows('.canvas-host', strategy, 'Outside Edit, with Strategy');
+      viewpoints.none = await shows('.canvas-host', await pick(''), 'Outside Edit, after picking None');
+      assert((await records('ar.view')).find(record => record.recordId === treeView.recordId).values['ar.view.viewpoint'] == null, 'None did not clear the stored viewpoint.');
+      viewpoints.organizationDrawn = await shows('.canvas-host', await pick('organization'), 'Outside Edit, after picking Organization again');
+      await page.evaluate(() => window.broker.command('edit', true, 'toolbar'));
+      await until(() => document.querySelectorAll('.archi-editor [data-node-id]').length > 10, null, 'Edit did not open again after the viewpoints.');
+      await view.evaluate(() => { document.querySelector('.archi-editor').dataset.viewpointMark = 'kept'; });
+      viewpoints.organizationEditing = await shows('.archi-editor', await expectedFor(), 'Editing again, with Organization');
+      results.viewpoints = viewpoints;
+    }
   }
 
   // Both themes: the palette and the menus take Nendo's colours; the paper stays white.

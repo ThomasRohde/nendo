@@ -382,6 +382,20 @@ const area = (fieldId, value) => `<textarea data-field="${fieldId}" rows="4">${e
 const options = (fieldId, choices, value, empty) => `<select data-field="${fieldId}">${empty ? `<option value="">${escape(empty)}</option>` : ''}${choices
   .map(choice => `<option value="${escape(choice.id)}" ${choice.id === value ? 'selected' : ''} ${choice.disabled ? 'disabled' : ''}>${escape(choice.label)}</option>`).join('')}</select>`;
 
+/**
+ * Archi's 25 viewpoints by name, as archi-online's properties offer them (W-116); a key no
+ * viewpoint has, from another tool, is kept and named as unknown. Until the canvas has loaded the
+ * stored key is the one choice, and the pane is drawn again when it has.
+ */
+function viewpointChoices(value) {
+  if (!canvasModule) {
+    canvasReady.then(() => { if (canvasModule) renderProperties(); });
+    return value ? [{ id: value, label: value }] : [];
+  }
+  const choices = [...canvasModule.VIEWPOINTS].sort((a, b) => a.name.localeCompare(b.name)).map(viewpoint => ({ id: viewpoint.id, label: viewpoint.name }));
+  return value && !choices.some(choice => choice.id === value) ? [{ id: value, label: `${value} (unknown)` }, ...choices] : choices;
+}
+
 function renderProperties() {
   const model = state.model, record = model?.records.get(state.selected);
   const pane = $('properties');
@@ -410,7 +424,7 @@ function renderProperties() {
     html += '<span class="chip">View</span>' + field('Name', text('ar.view.name', v['ar.view.name'], 'required')) +
       field('Documentation', area('ar.view.documentation', v['ar.view.documentation'])) +
       field('Folder', options('folder', M.folderChoices(model, record.recordId).map(c => ({ ...c, disabled: Boolean(c.reason) && c.id !== v['ar.view.folder'] })), v['ar.view.folder'])) +
-      field('Viewpoint', text('ar.view.viewpoint', v['ar.view.viewpoint'])) +
+      field('Viewpoint', options('ar.view.viewpoint', viewpointChoices(v['ar.view.viewpoint']), v['ar.view.viewpoint'], 'None')) +
       field('Connection router', options('ar.view.router', [{ id: 'Manual', label: 'Manual' }, { id: 'Manhattan', label: 'Manhattan' }], v['ar.view.router'], 'Manual (Archi default)'));
   } else if (record.entityId === M.E.concept) {
     const type = M.typeOf(model, record);

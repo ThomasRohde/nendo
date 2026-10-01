@@ -1037,7 +1037,10 @@ vocabulary, the examples and the resources — and not from the person.
   was waiting, and what Studio's lists show afterwards for the elements and their boxes
   (W-113). Turn on **Appearance**, select a box, give it a fill, a gradient and a bold
   14-point font, and the label expression `${type}: ${name}`; commit, close the file, open
-  it again, and record what the box and the tabs show (W-114).
+  it again, and record what the box and the tabs show (W-114). Select the view itself, pick
+  **Strategy** under Viewpoint in its properties, and record what the drawing and the palette
+  show, inside Edit and outside it; then pick **None** and then the view's own viewpoint again
+  (W-116).
 - In any file, open a list screen whose definition binds more than three fields (in Archi.nendo,
   Concepts → Relationships binds four): record whether every bound field is drawn as a column,
   and whether a head row names each column. Give a record type a calculated count of more than

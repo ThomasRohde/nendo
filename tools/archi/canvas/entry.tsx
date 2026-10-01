@@ -5,12 +5,15 @@
 // React draws the content once per model; pan and zoom move one transform, so a large view
 // pans without drawing again. Hit-testing uses the same geometry the drawing does.
 
-import { createElement } from 'react';
+import { createElement, Fragment } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import type { Bounds, ModelState } from '@archi/model/types';
-import { StaticViewContent } from '@archi/canvas/export/StaticViewSvg';
 import { renderViewSvg } from '@archi/canvas/export/view-image';
+import { NodeFigure } from '@archi/canvas/figures/NodeFigure';
+import { ConnectionView } from '@archi/canvas/ConnectionView';
+import { GHOST_OPACITY, isConnectableGhosted, isNodeGhosted } from '@archi/canvas/view-editor/viewpoint-ghost';
+import { evaluateLabelExpression } from '@archi/model/label-expression';
 import { copyPngBlobToClipboard, rasterizeSvg, supportsPngClipboard } from '@archi/canvas/export/svg-image';
 import { computeAbsBounds } from '@archi/canvas/view-editor/bounds';
 import { createConnectionRouteResolver, type Point } from '@archi/canvas/geometry';
@@ -22,7 +25,10 @@ import { createEditor, arrangeModel, editorSettings, setEditorSetting, ARRANGE_C
 
 export { buildMirror, toRecords, writesFor, applyWrites, createEditor, arrangeModel, editorSettings, setEditorSetting, ARRANGE_COMMANDS };
 // archi-online's label expressions, as the canvas draws them (W-114).
-export { evaluateLabelExpression } from '@archi/model/label-expression';
+export { evaluateLabelExpression };
+// Archi's 25 viewpoints and what each allows, as archi-online ported them from Archi (W-116).
+export { VIEWPOINTS, isAllowedElementInViewpoint, viewpointName } from '@archi/model/data/viewpoints';
+export { GHOST_OPACITY, isNodeGhosted, isConnectableGhosted };
 // Open and save .archimate files (W-120).
 export { readArchimate, planImport, importBatches, holdsNoModel, modelForExport, exportArchimate, leftOutSentence,
   parseArchimateText, ArchimateFileError, recordIdOf } from './io';
@@ -81,6 +87,47 @@ export { supportsPngClipboard };
 export function geometryOf(sets: RecordSets, viewId: string) {
   const { bounds, routes } = geometry(buildMirror(sets), viewId);
   return { bounds: Object.fromEntries(bounds), routes: Object.fromEntries(routes) };
+}
+
+/**
+ * A box and what is nested in it, as archi-online's static view draws them. The figure is ghosted
+ * as archi-online's editor ghosts it (W-116): drawn faint when the view's viewpoint leaves its
+ * element type out, and nothing nested in it with it.
+ */
+function ReadNode({ model, nodeId, viewpoint }: { model: ModelState; nodeId: string; viewpoint: string | undefined }) {
+  const item = model.nodes[nodeId];
+  if (!item) return null;
+  const ghosted = isNodeGhosted(model, nodeId, viewpoint);
+  const { x, y, width, height } = item.bounds;
+  return createElement('g', { transform: `translate(${x},${y})`, 'data-node-id': nodeId },
+    createElement('g', { opacity: ghosted ? GHOST_OPACITY : undefined, 'data-ghosted': ghosted ? 'true' : undefined },
+      createElement(NodeFigure, {
+        node: item,
+        element: item.nodeType === 'element' ? model.elements[item.elementId] : undefined,
+        refView: item.nodeType === 'ref' ? model.views[item.refViewId] : undefined,
+        width, height, model,
+        displayLabel: item.labelExpression !== undefined ? evaluateLabelExpression(model, nodeId, item.labelExpression).text : undefined,
+        legendPreferences: { labels: settings.legendLabels, userColors: settings.legendUserColors },
+      })),
+    ...item.childIds.map(id => createElement(ReadNode, { key: id, model, nodeId: id, viewpoint })));
+}
+
+/** A view as archi-online's static view draws it, the boxes in z-order and then the connections, with Archi's ghosting. */
+function ReadView({ model, viewId, routes }: { model: ModelState; viewId: string; routes: Map<string, Point[]> }) {
+  const view = model.views[viewId];
+  if (!view) return null;
+  const connections = Object.values(model.connections).filter(connection => connection.viewId === viewId && routes.has(connection.id));
+  return createElement(Fragment, null,
+    ...view.childIds.map(id => createElement(ReadNode, { key: id, model, nodeId: id, viewpoint: view.viewpoint })),
+    createElement('g', { key: 'connections' }, connections.map(connection => createElement(ConnectionView, {
+      key: connection.id,
+      conn: connection,
+      rel: connection.relationshipId ? model.relationships[connection.relationshipId] : undefined,
+      points: routes.get(connection.id)!,
+      selected: false,
+      ghosted: isConnectableGhosted(model, connection.id, view.viewpoint),
+      displayLabel: connection.labelExpression !== undefined ? evaluateLabelExpression(model, connection.id, connection.labelExpression).text : undefined,
+    }))));
 }
 
 interface CanvasOptions {
@@ -206,7 +253,7 @@ export function createCanvas(host: HTMLElement, options: CanvasOptions = {}) {
       const changedView = viewId !== nextViewId;
       viewId = nextViewId;
       shape = geometry(model, viewId);
-      flushSync(() => root!.render(createElement(StaticViewContent, { model: model!, viewId: viewId!, renderSettings: settings })));
+      flushSync(() => root!.render(createElement(ReadView, { model: model!, viewId: viewId!, routes: shape.routes })));
       measure();
       selected = selected.filter(id => shape.bounds.has(id) || shape.routes.has(id));
       outline();
