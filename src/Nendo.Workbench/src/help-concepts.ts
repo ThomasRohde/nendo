@@ -46,6 +46,7 @@ export const conceptHelp: HelpProvider = () => [
       { term: 'Raw copy', meaning: 'A copy made in Explorer keeps the same identity. Nendo notices two files with the same identity and does not silently rewrite either.' },
       { term: 'Duplicate', meaning: 'Another instance of the same application, with its history. Use it for a second working copy of the same app.' },
       { term: 'Fork', meaning: 'A new application identity that starts from the current content and remembers where it came from. Use it to branch into something different.' },
+      { term: 'New empty copy', meaning: 'A new file of the same application without this file’s work: its record types, screens and custom views, and only the records the application keeps in new files. Its history starts again. An application can give it its own name, such as New Archi model. Studio’s In new files column says which records it keeps.' },
       { term: 'Backup', meaning: 'An exact recovery copy with identity and history preserved.' },
       { term: 'Restore', meaning: 'Replaces the current file with a chosen backup through a verified staged copy, and keeps the previous file so nothing is lost.' },
     ], paragraphs: ['No copy overwrites an existing destination. Moving or renaming the file changes nothing inside it.'] },
