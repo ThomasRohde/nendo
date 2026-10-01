@@ -564,12 +564,17 @@ try {
     return { above: chromeBox.bottom <= frame.top + 1, height: Math.round(chromeBox.height), images: bar.querySelectorAll('img').length, markup: window.journeyMarkup ?? null,
       pin: bar.querySelector('[data-view-command="pin"]')?.textContent ?? null,
       choice: Boolean(bar.querySelector('.view-switcher [data-view-value="two"]')), search: Boolean(bar.querySelector('input[type="search"][data-view-command="find"]')),
-      menu: Boolean(bar.querySelector('button[data-view-menu="export"][aria-haspopup="menu"]')), keys: bar.querySelector('[data-view-command="fit"]')?.getAttribute('aria-keyshortcuts') ?? null }; })()`),
+      menu: Boolean(bar.querySelector('button[data-view-menu="export"][aria-haspopup="menu"]')), keys: bar.querySelector('[data-view-command="fit"]')?.getAttribute('aria-keyshortcuts') ?? null,
+      idle: (() => { const commit = bar.querySelector('[data-view-command="commit"]'); return commit ? { disabled: commit.disabled, cursor: getComputedStyle(commit).cursor } : null; })() }; })()`),
   'the probe\u2019s toolbar, drawn by Nendo');
   assert(chromeStrip.above && chromeStrip.height >= 28 && chromeStrip.choice && chromeStrip.search && chromeStrip.menu && chromeStrip.keys === 'Control+0',
     'Nendo did not draw the declared toolbar above the frame in its own controls: ' + JSON.stringify(chromeStrip));
   assert(chromeStrip.images === 0 && chromeStrip.markup === null && chromeStrip.pin.includes('<img src=x'), 'A label a view declared became markup in the Workbench: ' + JSON.stringify(chromeStrip));
   report.measurements.viewToolbarHeight = chromeStrip.height;
+  // A view's control disabled because there is nothing to do is not busy (Archi's Commit with no
+  // edits waiting showed the wait cursor, 2026-10-01): the wait cursor is for what a save holds.
+  assert(chromeStrip.idle?.disabled === true && chromeStrip.idle.cursor !== 'wait',
+    'A view’s disabled control shows the busy cursor while nothing runs: ' + JSON.stringify(chromeStrip.idle));
   // With the key hints on, every control keeps its key inside itself: an icon button grows to
   // hold it rather than spilling it over the control beside it.
   await click('#shortcuts-toggle');

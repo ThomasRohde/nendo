@@ -51,10 +51,16 @@ textarea {
     color 120ms ease;
 }
 
+/* Disabled says "not now", not "busy": Commit with nothing waiting, Fold with nothing to fold.
+   The wait cursor is for a control the Workbench holds while a save runs (setBusy marks it). */
 button:disabled,
 input:disabled,
 select:disabled,
 textarea:disabled {
+  cursor: default;
+}
+
+[data-busy-was-disabled]:disabled {
   cursor: wait;
 }
 

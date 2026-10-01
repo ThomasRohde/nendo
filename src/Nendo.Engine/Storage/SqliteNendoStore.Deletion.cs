@@ -107,6 +107,14 @@ internal sealed partial class SqliteNendoStore
             values = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(row.GetString(0))!;
             targets = JsonSerializer.Deserialize<Dictionary<string, long>>(row.GetString(1))!;
         }
+        // A target that was itself deleted at the version this record pointed at, and restored
+        // since, is at the next version with the values it held then, as every restore leaves a
+        // record. That is the target this record was made against: undoing the deletion of a
+        // box and its connections in one revision restores the box first. A target changed
+        // after its restore is past that version and still refuses.
+        foreach (var fieldId in targets.Keys.ToArray())
+            if (await RestoredTargetVersionAsync(operation.EntityId, fieldId, values.GetValueOrDefault(fieldId), targets[fieldId], transaction, ct) is { } restored)
+                targets[fieldId] = restored;
         // Reuse all typed create validation, including required fields, current choices and reference versions.
         await ExecuteCreateRecordAsync(new CreateRecordOperation(operation.OperationId, operation.EntityId, operation.RecordId,
             values.ToDictionary(pair => pair.Key, pair => (object?)pair.Value, StringComparer.Ordinal), targets), transaction, ct, restoring: true);
@@ -122,5 +130,28 @@ internal sealed partial class SqliteNendoStore
             await restored.ExecuteNonQueryAsync(ct);
         }
         return new(operation, Evidence(new { restoredVersion = operation.DeletedVersion + 1 })) { RequiredHostVersion = NendoFormat.DeletionMinimumHostVersion };
+    }
+
+    /// <summary>
+    /// The version a reference's target holds when it was deleted at <paramref name="expected"/>
+    /// and restored since without a change, or null when it was not.
+    /// </summary>
+    private async Task<long?> RestoredTargetVersionAsync(string entityId, string fieldId, JsonElement value, long expected,
+        SqliteTransaction transaction, CancellationToken ct)
+    {
+        if (value.ValueKind != JsonValueKind.String) return null;
+        var field = (await GetEntityMappingAsync(entityId, transaction, ct)).Fields.SingleOrDefault(candidate => candidate.FieldId == fieldId);
+        if (field?.Reference is null) return null;
+        var target = await GetEntityMappingAsync(field.Reference.TargetEntityId, transaction, ct);
+        await using var query = Command($"""
+            SELECT t.{Quote("__nendo_record_version")} FROM {Quote(target.PhysicalTableName)} t
+            JOIN __nendo_deleted_record d ON d.entity_id = @entity AND d.record_id = t.{Quote("__nendo_record_id")}
+            WHERE t.{Quote("__nendo_record_id")} = @record AND d.is_deleted = 0 AND d.deleted_version = @expected
+              AND t.{Quote("__nendo_record_version")} = @expected + 1;
+            """, transaction);
+        query.Parameters.AddWithValue("@entity", target.EntityId);
+        query.Parameters.AddWithValue("@record", value.GetString()!);
+        query.Parameters.AddWithValue("@expected", expected);
+        return await query.ExecuteScalarAsync(ct) is long version ? version : null;
     }
 }

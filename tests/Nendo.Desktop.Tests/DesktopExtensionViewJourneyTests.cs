@@ -86,6 +86,7 @@ public sealed class DesktopExtensionViewJourneyTests
               { kind: 'search', id: 'find', label: 'Find a task', keys: 'Ctrl+Shift+F' },
               { kind: 'spacer' },
               { kind: 'button', id: 'fit', label: 'Fit', keys: 'Ctrl+0' },
+              { kind: 'button', id: 'commit', label: 'Commit', disabled: true },
               { kind: 'button', id: 'zoom-in', label: 'Zoom in', icon: 'plus', iconOnly: true, keys: 'Ctrl+Plus' },
               { kind: 'menu', id: 'export', label: 'Export', icon: 'export', items: [{ id: 'export-svg', label: 'SVG' }, { kind: 'check', id: 'light', label: 'Light', checked: false }] },
             ] }).then(() => 'declared', error => 'refused: ' + error.code + ': ' + error.message);
