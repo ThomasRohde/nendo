@@ -703,9 +703,22 @@ export const STAGES = {
         ...t.asMutations('Show the dependency graph')];
     },
   },
+
+  // A new empty planner (ADR-0022): File → New planner… makes a file with these record types,
+  // screens and views and none of the records, numbering W-001 again. Nothing is kept in new
+  // files, because every record in a planner is its own work.
+  newFile: {
+    title: 'Planner: name a new empty planner',
+    needs: ['nd.work'],
+    appliedWhen: async read => (await read.json('nendo://application/manifest')).newFileLabel === NEW_FILE_LABEL,
+    mutations: () => [{ description: 'Name a new empty planner', operations: [op('application.setNewFileLabel', { label: NEW_FILE_LABEL })] }],
+  },
 };
 
-export const STAGE_ORDER = ['schema', 'colour', 'behaviour', 'work', 'records', 'front', 'dependencies'];
+export const STAGE_ORDER = ['schema', 'colour', 'behaviour', 'work', 'records', 'front', 'dependencies', 'newFile'];
+
+/** What the File menu calls a new file of the planner: New planner… (ADR-0022). */
+export const NEW_FILE_LABEL = 'planner';
 
 async function packageFiles() {
   const manifest = JSON.parse(await fs.readFile(path.join(PACKAGE_FOLDER, 'nendo-package.json'), 'utf8'));

@@ -61,6 +61,7 @@ A `.nendo` file is one application: its record types, records, screens and histo
 | --- | --- |
 | Create a file from Explorer | Right-click in a folder and choose **New › Nendo application**. Explorer names the file; Nendo creates a real empty file and opens it. |
 | Create a file in the app | On the start screen, choose **Create Nendo file**. With a file already open, choose **Close file** from the file menu first; **New file** is available only when no file is open. |
+| Start the same application again | With a file open, choose **New empty copy…** from the file menu, or the name the application gives it, such as **New planner…**. The new file has the record types, screens and views, and only the records the application keeps in new files. See [Files and data](/nendo/docs/files-and-data#copies). |
 | Open a file you have | Double-click it in Explorer, choose **Open Nendo file** on the start screen, or choose **Open file…** from the file menu. |
 | Open a recent file | The start screen lists up to four recent files. Right-click Nendo's taskbar button for the same list. |
 | Drag a file in | Drop one `.nendo` file on the window. Nendo opens one file at a time and refuses a drop of several. |
