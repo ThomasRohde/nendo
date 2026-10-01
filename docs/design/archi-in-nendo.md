@@ -321,7 +321,9 @@ files a person hands a view), or drops it on the workbench.
 10-pixel margin; PNG at 1×, 2× or 4× through a canvas, capped at 16,384 pixels a side and 64
 million in all; SVG; and Copy as picture. Chosen in Nendo's row, a command reaches the view
 without focus, and the clipboard refuses a frame without focus ("Document is not focused."),
-so Copy takes focus first (measured in a real host, G36 of `Review-ExtensionViews.mjs`).
+so Copy takes focus first (measured in a real host, G36 of `Review-ExtensionViews.mjs`). Copy
+always keeps the white page: a transparent picture pasted from Windows' bitmap shows its
+see-through pixels as black (F-231).
 
 Measured on 2026-10-01 by `tools/archi/verify-archimate-io.mjs`: Archisurance, phase 1
 online and desktop, phase 2 online and desktop, and phase 3, each opened into an empty model,

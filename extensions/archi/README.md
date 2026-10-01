@@ -85,8 +85,10 @@ Properties. The file you were in does not change.
   Archi's File › Export › View As Image does: **PNG** at the view's own size, at **2×** or at
   **4×**, **SVG** with every label as text, or **Copy as picture** to paste elsewhere. It is
   archi-online's own export: cropped to the drawing with a 10-pixel margin, in the canvas's
-  font, and named after the view. **Transparent background** leaves out the white page;
-  Archi's figures draw the same in both themes. The picture is what the view shows, edits
+  font, and named after the view. **Transparent background in files** leaves out the white
+  page in the PNG and SVG files; Archi's figures draw the same in both themes. Copy as picture
+  copies at 2×, and always keeps the white page, as Archi's copy does: a program that pastes
+  Windows' bitmap shows see-through pixels as black. The picture is what the view shows, edits
   still waiting included. A PNG too large for one picture comes out at the largest scale one
   holds, and the status line says so.
 - **Without the workbench**, in Use: Concepts → Elements and Relationships show an *On views*
@@ -135,4 +137,5 @@ original's, images aside, and has Desktop Archi open and save each one again.
 the open Archi.nendo. The lane also exports every Archisurance view from the Export menu:
 the SVG's crop against archi-online's geometry, every element's name as text, the canvas
 font, PNG at 1×, 2× and 4× of the SVG's size, the transparent background, and Copy as picture
-with focus in Nendo's page.
+with focus in Nendo's page, its picture opaque on the white page even with Transparent
+background in files chosen.

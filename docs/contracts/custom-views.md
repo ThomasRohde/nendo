@@ -1444,7 +1444,10 @@ button the probe view declared in Nendo's row with real mouse input, and presses
 key inside the view. From the row, `navigator.clipboard.write` of a PNG is refused with
 `NotAllowedError: Failed to execute 'write' on 'Clipboard': Document is not focused.`; after
 `window.focus()` it is copied. From the key pressed inside the view it is copied as it is.
-The window runs hidden, so the lane emulates a focused window, as G30 does. The Archi lane
+G36 also copies a 730 × 1240 picture drawn from SVG, as Archi copies a view, and reads the
+Windows clipboard back as another program would: PNG, bitmap and DIBV5 each hold it intact
+(`730x1240 corner=255,255,255,255 centre=255,255,0,0`). The lane writes the system clipboard of
+the machine it runs on. The window runs hidden, so the lane emulates a focused window, as G30 does. The Archi lane
 measures the workbench's Copy as picture with focus in the fixture broker's page, and failed
 without its `window.focus()`: `Layered View could not be copied: Failed to execute 'write' on
 'Clipboard': Document is not focused.`

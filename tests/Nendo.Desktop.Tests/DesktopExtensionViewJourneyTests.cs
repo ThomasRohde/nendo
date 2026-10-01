@@ -126,11 +126,32 @@ public sealed class DesktopExtensionViewJourneyTests
           },
           // W-123: a picture to the clipboard from a command, as Copy as picture writes one; with
           // focus taken first or not.
-          copyPicture(focusFirst) {
+          copyPicture(focusFirst, drawn) {
             if (focusFirst) window.focus();
+            if (drawn) {
+              // As Archi copies a view: an SVG with a white page, text and a fill, drawn into a canvas
+              // through an image, at a view's size, handed over as the promise of its PNG.
+              const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="730" height="1240" viewBox="0 0 730 1240" style="font-family: Segoe UI">' +
+                '<rect x="0" y="0" width="730" height="1240" fill="#ffffff"/><rect x="300" y="560" width="130" height="120" fill="#ff0000"/>' +
+                '<text x="20" y="30" font-size="12">Layered View</text></svg>';
+              const png = (async () => {
+                const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+                const image = new Image(); image.src = url; await image.decode();
+                const canvas = document.createElement('canvas'); canvas.width = 730; canvas.height = 1240;
+                canvas.getContext('2d').drawImage(image, 0, 0, 730, 1240);
+                URL.revokeObjectURL(url);
+                return new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+              })();
+              return navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+                .then(() => 'copied', error => 'refused: ' + error.name + ': ' + error.message)
+                .then(answer => ({ answer, focused: document.hasFocus(), active: navigator.userActivation.isActive }));
+            }
+            // White, with a red square in the middle: what another program reads back is measured.
             const canvas = document.createElement('canvas');
-            canvas.width = 4; canvas.height = 4;
-            canvas.getContext('2d').fillRect(0, 0, 4, 4);
+            canvas.width = 40; canvas.height = 40;
+            const context = canvas.getContext('2d');
+            context.fillStyle = '#ffffff'; context.fillRect(0, 0, 40, 40);
+            context.fillStyle = '#ff0000'; context.fillRect(10, 10, 20, 20);
             const blob = new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
             return navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
               .then(() => 'copied', error => 'refused: ' + error.name + ': ' + error.message)
@@ -152,8 +173,8 @@ public sealed class DesktopExtensionViewJourneyTests
         };
         nendo.on('command', command => { state.commands.push(command); });
         nendo.on('command', command => {
-          if (command.id === 'copy-picture' || command.id === 'copy-picture-focused')
-            probe.copyPicture(command.id === 'copy-picture-focused').then(result => { state.copied.push({ ...result, source: command.source, id: command.id }); });
+          if (command.id === 'copy-picture' || command.id === 'copy-picture-focused' || command.id === 'copy-drawing')
+            probe.copyPicture(command.id !== 'copy-picture', command.id === 'copy-drawing').then(result => { state.copied.push({ ...result, source: command.source, id: command.id }); });
         });
         window.addEventListener('keydown', event => { state.keys.push((event.ctrlKey ? 'Ctrl+' : '') + event.key); });
         nendo.on('changes', () => { state.changes += 1; });

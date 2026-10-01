@@ -177,6 +177,28 @@ public static class NendoJourneyDialogs {
     return found.ToArray();
   }
 }`;
+// W-123: what another program reads from the Windows clipboard after a view copied a picture:
+// the formats on it, and a corner and the centre pixel of each image format that decodes.
+function readWindowsClipboard() {
+  const script = [
+    'Add-Type -AssemblyName System.Windows.Forms, System.Drawing',
+    '$data = [Windows.Forms.Clipboard]::GetDataObject()',
+    '$out = [ordered]@{ formats = @($data.GetFormats()) }',
+    'function Sample($bitmap) { $c = $bitmap.GetPixel(2, 2); $m = $bitmap.GetPixel([int]($bitmap.Width / 2), [int]($bitmap.Height / 2)); "$($bitmap.Width)x$($bitmap.Height) corner=$($c.A),$($c.R),$($c.G),$($c.B) centre=$($m.A),$($m.R),$($m.G),$($m.B)" }',
+    '$image = [Windows.Forms.Clipboard]::GetImage(); if ($image) { $out.bitmap = Sample (New-Object Drawing.Bitmap $image) }',
+    'if ($data.GetDataPresent("PNG")) { $stream = $data.GetData("PNG"); $out.png = Sample (New-Object Drawing.Bitmap $stream) }',
+    // CF_DIBV5 as a program that takes alpha from it reads it: the header, then a corner and the centre.
+    'if ($data.GetDataPresent("Format17")) { $s = $data.GetData("Format17"); $bytes = New-Object byte[] $s.Length; [void]$s.Read($bytes, 0, $bytes.Length);',
+    '  $size = [BitConverter]::ToInt32($bytes, 0); $w = [BitConverter]::ToInt32($bytes, 4); $h = [BitConverter]::ToInt32($bytes, 8); $bits = [BitConverter]::ToInt16($bytes, 14); $comp = [BitConverter]::ToInt32($bytes, 16);',
+    '  $alphaMask = if ($size -ge 56) { [BitConverter]::ToUInt32($bytes, 52) } else { 0 }; $offset = $size + $(if ($comp -eq 3 -and $size -eq 40) { 12 } else { 0 });',
+    '  $row = $w * 4; $px = { param($x, $y) $yy = if ($h -gt 0) { [Math]::Abs($h) - 1 - $y } else { $y }; $i = $offset + $yy * $row + $x * 4; "$($bytes[$i+3]),$($bytes[$i+2]),$($bytes[$i+1]),$($bytes[$i])" };',
+    '  $out.dibv5 = "header $size ${w}x$h $bits bit compression $comp alphaMask $alphaMask corner=$(& $px 2 2) centre=$(& $px ([int]($w/2)) ([int]([Math]::Abs($h)/2)))" }',
+    'ConvertTo-Json -Compress -InputObject $out',
+  ].join('\n');
+  return new Promise((resolve, reject) => execFile('powershell.exe', ['-STA', '-NoProfile', '-NonInteractive', '-Command', script], { timeout: 60000 },
+    (error, stdout, stderr) => error ? reject(new Error(String(stderr || error.message))) : resolve(JSON.parse(String(stdout).trim() || 'null'))));
+}
+
 function closeHostDialog(seconds = 10) {
   const script = `Add-Type -TypeDefinition @'\n${dialogSource}\n'@\n$deadline = (Get-Date).AddSeconds(${seconds}); $found = @()\n` +
     `while ($found.Count -eq 0 -and (Get-Date) -lt $deadline) { $found = @([NendoJourneyDialogs]::Close(${Number(processId)})); if ($found.Count -eq 0) { Start-Sleep -Milliseconds 100 } }\n` +
@@ -790,6 +812,7 @@ try {
   await inFrame(clipFrame, `nendo.ui.setToolbar({ items: [
     { kind: 'button', id: 'copy-picture', label: 'Copy picture', keys: 'Ctrl+Alt+P' },
     { kind: 'button', id: 'copy-picture-focused', label: 'Copy picture focused' },
+    { kind: 'button', id: 'copy-drawing', label: 'Copy drawing' },
   ] }).then(() => 'declared')`);
   await command('Emulation.setFocusEmulationEnabled', { enabled: true }, page);
   const pressButton = async id => {
@@ -804,15 +827,23 @@ try {
   const fromRow = await copied(1);
   await pressButton('copy-picture-focused');
   const fromRowFocused = await copied(2);
+  const windowsClipboard = await readWindowsClipboard();
   await evaluate(`document.querySelector('iframe[name="${clipView.name}"]').focus()`);
   await inFrame(clipFrame, `document.body.tabIndex = -1; document.body.focus(); true`);
   await command('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'p', code: 'KeyP', windowsVirtualKeyCode: 80, modifiers: 3 }, page);
   await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'p', code: 'KeyP', windowsVirtualKeyCode: 80, modifiers: 3 }, page);
   const fromKey = await copied(3);
-  report.measurements.copyPicture = { fromRow, fromRowFocused, fromKey };
+  // A view's size drawn from SVG, as Archi copies one, read back by another program.
+  await pressButton('copy-drawing');
+  const drawing = await copied(4);
+  const drawingOnWindows = await readWindowsClipboard();
+  report.measurements.copyPicture = { fromRow, fromRowFocused, fromKey, windowsClipboard, drawing, drawingOnWindows };
+  const intact = '730x1240 corner=255,255,255,255 centre=255,255,0,0';
+  assert(drawing.answer === 'copied' && drawingOnWindows?.png === intact && drawingOnWindows?.bitmap === intact && drawingOnWindows?.dibv5?.endsWith('corner=255,255,255,255 centre=255,255,0,0'),
+    'A picture drawn from SVG did not reach the Windows clipboard intact: ' + JSON.stringify(drawingOnWindows));
   assert(/Document is not focused/.test(fromRow.answer) && fromRowFocused.answer === 'copied' && fromRowFocused.focused && fromKey.answer === 'copied',
     'A picture copied by a view’s command did not behave as measured: ' + JSON.stringify(report.measurements.copyPicture));
-  check(`G36 a view's command from Nendo's row copies a picture once the view takes focus (without it: "${fromRow.answer.replace(/^refused: /, '')}"), and a key pressed inside the view copies it as it is`);
+  check(`G36 a view's command from Nendo's row copies a picture once the view takes focus (without it: "${fromRow.answer.replace(/^refused: /, '')}"), and a key pressed inside the view copies it as it is; a 730 × 1240 picture drawn from SVG reaches the Windows clipboard as PNG, bitmap and DIBV5 alike: ${intact}`);
 
   // G34 (W-104): a view reads a file the person chooses with the browser's own file input. The
   // click opens Windows' Open dialog, owned by Nendo's window; closing it is Cancel, and the view

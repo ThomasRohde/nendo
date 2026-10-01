@@ -70,9 +70,9 @@ export async function viewPng(model: ModelState, viewId: string, wanted: number,
   return { blob: await rasterizeSvg(svg, width, height, scale), width: Math.round(width * scale), height: Math.round(height * scale), scale };
 }
 
-/** Copies a view to the clipboard as a PNG, the image handed over as it is drawn. */
-export function copyViewPng(model: ModelState, viewId: string, background: 'white' | 'transparent' = 'white') {
-  return copyPngBlobToClipboard(viewPng(model, viewId, 1, background).then(png => png.blob));
+/** Copies a view to the clipboard as a PNG at a scale, the image handed over as it is drawn. */
+export function copyViewPng(model: ModelState, viewId: string, background: 'white' | 'transparent' = 'white', scale = 2) {
+  return copyPngBlobToClipboard(viewPng(model, viewId, scale, background).then(png => png.blob));
 }
 export { supportsPngClipboard };
 

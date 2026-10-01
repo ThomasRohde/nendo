@@ -1207,15 +1207,43 @@ async (page) => {
   assert(!/<rect[^>]*fill="#ffffff"/.test(transparent.text), 'Transparent background still drew the white page.');
   const checked = (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(item => item.id === 'export').items.find(item => item.id === 'export-transparent');
   assert(checked?.checked === true, 'The Export menu does not show the transparent background as chosen.');
-  await page.evaluate(() => window.broker.command('export-transparent', false, 'toolbar'));
+  // Copy as picture, with Transparent background in files still chosen: the clipboard gets the white page.
   // Copy as picture, chosen in Nendo's row: focus is in the Workbench's page, as after a click in
   // its row, so the clipboard takes the PNG only because the view takes focus first (W-123, G36).
   await page.bringToFront();
   await page.evaluate(() => { document.body.tabIndex = -1; document.body.focus(); });
   assert(await page.evaluate(() => document.hasFocus() && document.activeElement === document.body), 'The Workbench page did not hold focus before Copy.');
+  await view.evaluate(() => {
+    window.clipboardItems = [];
+    const write = navigator.clipboard.write.bind(navigator.clipboard);
+    navigator.clipboard.write = items => { window.clipboardItems.push(items); return write(items); };
+  });
   await page.evaluate(() => window.broker.command('export-copy', null, 'toolbar'));
   await until(name => document.getElementById('status').textContent === `Copied ${name} to the clipboard as a picture.`, largest.values['ar.view.name'],
     'Copy as picture did not reach the clipboard.');
+  // The picture itself, as handed to the clipboard: its size, a corner, and how much of it is
+  // opaque, white, and drawn.
+  const picture = await view.evaluate(async () => {
+    const blob = await window.clipboardItems.at(-1)[0].getType('image/png');
+    const bitmap = await createImageBitmap(blob);
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext('2d');
+    context.drawImage(bitmap, 0, 0);
+    const data = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+    let opaque = 0, white = 0, inked = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] === 255) opaque++;
+      if (data[i + 3] === 255 && data[i] > 245 && data[i + 1] > 245 && data[i + 2] > 245) white++;
+      else if (data[i + 3] > 0) inked++;
+    }
+    const pixels = data.length / 4;
+    return { width: bitmap.width, height: bitmap.height, corner: [...data.slice(0, 4)], opaque: opaque / pixels, white: white / pixels, inked: inked / pixels, type: blob.type };
+  });
+  results.copiedPicture = picture;
+  assert(picture.width === svgOf[largest.recordId].width * 2 && picture.height === svgOf[largest.recordId].height * 2 && picture.opaque === 1 &&
+    picture.corner.join() === '255,255,255,255' && picture.inked > 0.05,
+    `Copy as picture did not hand the clipboard the view on its white page: ${JSON.stringify(picture)}.`);
+  await page.evaluate(() => window.broker.command('export-transparent', false, 'toolbar'));
   results.exportViews = { views: exportViews.length, largest: largest.values['ar.view.name'], svg: svgOf[largest.recordId], pngs,
     names: Object.values(svgOf).reduce((sum, entry) => sum + entry.names, 0) };
 

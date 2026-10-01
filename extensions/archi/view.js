@@ -626,8 +626,8 @@ function declareToolbar() {
       { id: 'export-png-2', label: 'PNG at 2×', detail: 'Sharp on a slide' },
       { id: 'export-png-4', label: 'PNG at 4×', detail: 'For print' },
       { id: 'export-svg', label: 'SVG', detail: 'Shapes and text a drawing program keeps' },
-      { id: 'export-copy', label: 'Copy as picture', detail: 'A PNG, to paste elsewhere' },
-      { kind: 'check', id: 'export-transparent', label: 'Transparent background', checked: state.transparent },
+      { id: 'export-copy', label: 'Copy as picture', detail: 'At 2×, on white, to paste elsewhere' },
+      { kind: 'check', id: 'export-transparent', label: 'Transparent background in files', checked: state.transparent },
     ] }] : []),
     ...(state.openView ? [{ kind: 'group', label: 'Zoom', items: [
       { kind: 'button', id: 'zoom-out', label: 'Zoom out', icon: 'minus', iconOnly: true, keys: 'Ctrl+-' },
@@ -1071,7 +1071,10 @@ async function copyView() {
     // Chosen in Nendo's row, the command reaches a frame without focus, and the clipboard refuses
     // a frame without focus; the view takes it first (measured, G36 in Review-ExtensionViews.mjs).
     window.focus();
-    await canvasModule.copyViewPng(imageModel(), view.recordId, state.transparent ? 'transparent' : 'white');
+    // Always on the white page, as Archi copies a view: a program that pastes Windows' bitmap
+    // shows a transparent picture's see-through pixels as black. At twice the view's size, as
+    // PNG at 2×, so it stays sharp on a slide; at its own size it pasted small (owner, W-123).
+    await canvasModule.copyViewPng(imageModel(), view.recordId, 'white', 2);
     setStatus(`Copied ${name} to the clipboard as a picture.`);
   } catch (error) {
     setStatus(`${name} could not be copied: ${describe(error)}`, true);
