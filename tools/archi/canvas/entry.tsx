@@ -31,7 +31,10 @@ export { VIEWPOINTS, isAllowedElementInViewpoint, viewpointName } from '@archi/m
 export { GHOST_OPACITY, isNodeGhosted, isConnectableGhosted };
 // Open and save .archimate files (W-120).
 export { readArchimate, planImport, importBatches, holdsNoModel, modelForExport, exportArchimate, leftOutSentence,
-  parseArchimateText, ArchimateFileError, recordIdOf } from './io';
+  parseArchimateText, ArchimateFileError, recordIdOf, readExchange, readModelFile, modelFileFormat, exportExchange } from './io';
+// archi-online's own .archimate writer over a model, for the lanes that compare two readings of one file.
+export { serializeArchimate } from '@archi/model/io/archimate-xml/serialize';
+export { serializeExchange } from '@archi/model/io/exchange-xml/serialize';
 // archi-online's own rules, for the lane that checks the editor offers nothing else.
 export { validRelationshipTypes } from '@archi/model/rules';
 export { RELATIONSHIP_TYPES } from '@archi/model/metamodel';

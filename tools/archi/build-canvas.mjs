@@ -49,3 +49,26 @@ const result = await esbuild.build({
 });
 const bytes = Object.values(result.metafile.outputs)[0].bytes;
 console.log(`${out}: ${(bytes / 1024).toFixed(0)} KiB from archi-online ${head.slice(0, 7)}`);
+
+// W-121: the Open Exchange schema check, a file of its own that the workbench loads only when it
+// checks an export: archi-online's validation, libxml2-wasm (MIT; libxml2 itself MIT) with its
+// WebAssembly inlined, and Archi 5.9's five schemas, which archi-online imports as text (`?raw`).
+const xsdOut = path.join(path.dirname(out), 'xsd.js');
+const xsd = await esbuild.build({
+  entryPoints: [path.join(import.meta.dirname, 'canvas', 'xsd.ts')],
+  bundle: true, format: 'esm', platform: 'browser', target: 'es2022', minify: true, legalComments: 'none',
+  outfile: xsdOut, logLevel: 'warning', metafile: true,
+  alias: { '@archi': path.join(ARCHI_ONLINE, 'src') },
+  nodePaths: [path.join(ARCHI_ONLINE, 'node_modules')],
+  // Node's own modules are named only on the path libxml2-wasm takes under Node.
+  external: ['module', 'node:*'],
+  plugins: [{ name: 'raw-text', setup(build) {
+    build.onResolve({ filter: /\?raw$/ }, args => ({ path: path.resolve(args.resolveDir, args.path.replace(/\?raw$/, '')), namespace: 'raw-text' }));
+    build.onLoad({ filter: /.*/, namespace: 'raw-text' }, async args => ({ contents: await (await import('node:fs/promises')).readFile(args.path, 'utf8'), loader: 'text' }));
+  } }],
+  banner: { js: [
+    `// The Open Exchange schema check: built by tools/archi/build-canvas.mjs from archi-online ${head}`,
+    `// (MIT, Copyright (c) archi-online contributors), libxml2-wasm (MIT) and libxml2 (MIT), with Archi 5.9's schemas. Do not edit.`,
+  ].join('\n') },
+});
+console.log(`${xsdOut}: ${(Object.values(xsd.metafile.outputs)[0].bytes / 1024).toFixed(0)} KiB`);

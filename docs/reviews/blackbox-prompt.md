@@ -1028,7 +1028,10 @@ vocabulary, the examples and the resources — and not from the person.
   Archi model…**, open **Archi file → Open .archimate…** there, and record what the dialog says
   before and after you choose the saved file, what it says is left out, what Open did to
   History, and whether the views draw as they did. Try Open in the first file too, and record
-  what it said (W-120).
+  what it said (W-120). Choose **Archi file → Save as Exchange XML**, record what the status
+  line says and how long it took, and, if you have Desktop Archi, import the file there
+  (File › Import › Open Exchange XML Model) and record what it shows. Open the same file in
+  another new Archi model with **Open Exchange XML…** and record what the dialog says (W-121).
   Open a view and choose **Export** in Nendo's row: save it as PNG, PNG at 4× and SVG, and
   choose **Copy as picture** and paste it into another program. Record each file's size in
   pixels, whether the SVG opens in a browser with its labels as text, whether anything is cut

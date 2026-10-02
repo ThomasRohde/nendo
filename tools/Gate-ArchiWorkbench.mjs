@@ -1470,8 +1470,8 @@ async (page) => {
   }
   assert(view !== null, 'The workbench did not start again on Archisurance.');
   const fileMenu = (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(item => item.id === 'archi-file');
-  assert(fileMenu && fileMenu.kind === 'menu' && fileMenu.items.map(item => item.id).join() === 'open-archimate,save-archimate',
-    `Nendo's row has no Archi file menu with Open and Save: ${JSON.stringify(fileMenu)}.`);
+  assert(fileMenu && fileMenu.kind === 'menu' && fileMenu.items.filter(item => item.id).map(item => item.id).join() === 'open-archimate,open-exchange,save-archimate,save-exchange',
+    `Nendo's row has no Archi file menu with Open and Save, for .archimate and Exchange XML: ${JSON.stringify(fileMenu)}.`);
   await view.evaluate(() => {
     window.savedBlobs = [];
     const original = URL.createObjectURL.bind(URL);
@@ -1492,6 +1492,23 @@ async (page) => {
   assert(!savedIds.some(id => id.startsWith('ar-') || id.startsWith('ar.')) && new Set(savedIds).size === savedIds.length,
     'The saved file names an object by its record ID, or one ID twice.');
   await until(() => /^Saved Archisurance\.archimate, 120 elements/.test(document.getElementById('status').textContent), null, 'The status line did not say what was saved.');
+  // W-121: Save as Exchange XML checks the file against Archi 5.9's schemas with libxml2, which
+  // xsd.js brings only now, and downloads it only when it is valid.
+  const xsdLoads = () => view.evaluate(() => performance.getEntriesByType('resource').filter(entry => /\/xsd\.js(\?|$)/.test(entry.name)).length);
+  const xsdBefore = await xsdLoads();
+  const downloadingExchange = page.waitForEvent('download', { timeout: 20000 });
+  await page.evaluate(() => window.broker.command('save-exchange', null, 'toolbar'));
+  const exchangeDownload = await downloadingExchange;
+  const exchangeXml = await view.evaluate(() => window.savedBlobs.at(-1).text());
+  const exchangeFile = { name: exchangeDownload.suggestedFilename(), elements: (exchangeXml.match(/<element identifier=/g) ?? []).length,
+    relationships: (exchangeXml.match(/<relationship identifier=/g) ?? []).length, views: (exchangeXml.match(/<view identifier=/g) ?? []).length,
+    xsdBefore, xsdAfter: await xsdLoads() };
+  assert(exchangeFile.name === 'Archisurance.xml' && exchangeXml.includes('xmlns="http://www.opengroup.org/xsd/archimate/3.0/"') &&
+    exchangeFile.elements === 120 && exchangeFile.relationships === 176 && exchangeFile.views === 17 && exchangeFile.xsdBefore === 0 && exchangeFile.xsdAfter === 1,
+    `Save as Exchange XML did not download Archisurance in The Open Group's format, with the schema check loaded for it alone: ${JSON.stringify(exchangeFile)}.`);
+  await until(() => /^Saved Archisurance\.xml, valid against Archi 5\.9’s schemas, 120 elements/.test(document.getElementById('status').textContent), null,
+    'The status line did not say the Exchange XML was saved valid.');
+  results.saveExchange = { ...exchangeFile, bytes: exchangeXml.length };
   await page.evaluate(() => window.broker.command('open-archimate', null, 'toolbar'));
   await until(() => document.getElementById('open-archimate').open, null, 'Open .archimate… did not open its dialog.');
   const refusedOpen = await view.evaluate(() => ({ text: document.getElementById('open-archimate-text').textContent,
@@ -1661,6 +1678,18 @@ async (page) => {
     document.getElementById('centre').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
   }, xml);
   const batchesBeforeDrop = await page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').length);
+  // W-121: an Open Exchange file dropped on the workbench is told from an .archimate by what it
+  // holds, and read in the browser as archi-online reads it; Cancel writes nothing.
+  await view.evaluate(text => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([text], 'Archisurance.xml', { type: 'application/xml' }));
+    document.getElementById('centre').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+  }, exchangeXml);
+  await until(() => document.getElementById('open-archimate').open &&
+    /^Archisurance: 120 elements, 176 relationships, 17 views\. Read as Open Exchange XML\.$/.test(document.getElementById('open-archimate-summary').textContent), null,
+    'A dropped Exchange XML file did not open the dialog saying what it holds, read as Open Exchange XML.');
+  await view.click('#open-archimate button[value="cancel"]');
+  await until(() => !document.getElementById('open-archimate').open, null, 'Cancel left the dialog open.');
   await dropFile(savedXml);
   await until(() => document.getElementById('open-archimate').open &&
     /^Archisurance: 120 elements, 176 relationships, 17 views\.$/.test(document.getElementById('open-archimate-summary').textContent), null,

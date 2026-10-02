@@ -112,6 +112,13 @@ Properties. The file you were in does not change.
   each object under the Archi ID it came with, or its record ID without `ar-` when the
   workbench made it. Edits still waiting to be committed are not in it, and the status line
   says so.
+  **Open Exchange XML** (W-121): the same dialog reads The Open Group's exchange format,
+  told from an .archimate by what the file holds, as archi-online reads it, and **Open
+  Exchange XML…** in the menu opens it too. **Save as Exchange XML** downloads the model in
+  that format with its folders as the organization, its language and its Dublin Core
+  metadata, after libxml2 has checked it against Archi 5.9's five schemas. A file the
+  schemas refuse is not saved, and the status line names what they refused. The check is
+  `xsd.js`, 1.2 MB, which loads only when you save, not with the workbench.
 - **Export** (W-123), in Nendo's row while a view is open, makes a picture of the view as
   Archi's File › Export › View As Image does: **PNG** at the view's own size, at **2×** or at
   **4×**, **SVG** with every label as text, or **Copy as picture** to paste elsewhere. It is
@@ -164,6 +171,14 @@ model, by a drop and through the dialog's file input, and compares every record.
 `node tools/archi/verify-archimate-io.mjs`, on request, opens and saves Archisurance and
 archi-online's phase fixtures and compares archi-online's semantics of each save with the
 original's, images aside, and has Desktop Archi open and save each one again.
+`node tools/archi/verify-exchange-io.mjs`, on request, opens archi-online's two Exchange
+fixtures and Desktop Archi's own Exchange export of Archisurance as the workbench does, and
+each equals archi-online's reading of it. The workbench's Exchange XML of Archisurance
+validates against Archi 5.9's schemas; Desktop Archi imports it as archi-online does, apart
+from four defaults the two importers fill in differently on Desktop's own export too; and
+read back it loses only what archi-online's own export of Archisurance loses. The io test
+validates the export with libxml2 on every run, and the lane saves it from Nendo's row and
+reads a dropped Exchange file in the browser.
 `node tools/Build-Archi.mjs workbench` puts the package, and the first time its screen, into
 the open Archi.nendo. The lane also exports every Archisurance view from the Export menu:
 the SVG's crop against archi-online's geometry, every element's name as text, the canvas

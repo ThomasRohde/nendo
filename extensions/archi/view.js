@@ -631,7 +631,10 @@ function declareToolbar() {
     { kind: 'button', id: 'delete', label: 'Delete…', icon: 'trash', iconOnly: true },
     { kind: 'menu', id: 'archi-file', label: 'Archi file', items: [
       { id: 'open-archimate', label: 'Open .archimate…', detail: 'Read an Archi model into this empty one' },
+      { id: 'open-exchange', label: 'Open Exchange XML…', detail: 'Read an Open Exchange model into this empty one' },
+      { kind: 'separator' },
       { id: 'save-archimate', label: 'Save as .archimate', detail: 'Download the model for Archi' },
+      { id: 'save-exchange', label: 'Save as Exchange XML', detail: 'Download it in The Open Group’s format, checked against Archi 5.9’s schemas' },
     ] },
     ...(state.openView && !state.readOnly && canvasModule?.createEditor
       ? [{ kind: 'toggle', id: 'edit', label: 'Edit the view', icon: 'edit', pressed: state.editing, keys: 'Ctrl+E' }] : []),
@@ -725,8 +728,9 @@ function runCommand({ id, value }) {
     case 'commit': commitEdits(); break;
     case 'discard': discardEdits(); break;
     case 'validator': showValidator(value === true); break;
-    case 'open-archimate': showOpenArchimate(); break;
+    case 'open-archimate': case 'open-exchange': showOpenArchimate(); break;
     case 'save-archimate': saveArchimate(); break;
+    case 'save-exchange': saveExchange(); break;
     case 'export-png-1': exportView('png', 1); break;
     case 'export-png-2': exportView('png', 2); break;
     case 'export-png-4': exportView('png', 4); break;
@@ -999,12 +1003,12 @@ let opening = null;
 
 async function showOpenArchimate(file = null) {
   await canvasReady;
-  if (!canvasModule?.readArchimate) { setStatus('Opening an .archimate file needs the diagram code, which could not load.', true); return; }
+  if (!canvasModule?.readModelFile) { setStatus('Opening a model file needs the diagram code, which could not load.', true); return; }
   opening = null;
   const blocked = state.readOnly ? 'This file is open read-only, so nothing can be opened into it.'
     : !nendo.has('records.batch') ? 'Opening a model needs a newer Nendo, one that saves several records together.'
     : !canvasModule.holdsNoModel(state.sets)
-      ? 'This file already holds a model. Open the .archimate file in a new one: in Nendo, File › New Archi model…, then Archi file › Open .archimate… there.'
+      ? 'This file already holds a model. Open the model file in a new one: in Nendo, File › New Archi model…, then Archi file › Open .archimate… or Open Exchange XML… there.'
       : null;
   $('open-archimate-text').textContent = blocked ??
     'The model is read into this file’s empty model and saved in a few changes. History cannot undo them; to start again, make a new Archi model.';
@@ -1024,12 +1028,13 @@ async function readChosen(file) {
   summary.textContent = `Reading ${file.name}…`;
   $('open-archimate-open').disabled = true;
   try {
-    const { model, leftOut } = canvasModule.readArchimate(new Uint8Array(await file.arrayBuffer()));
+    // An .archimate file, plain or an archive, or Open Exchange XML (W-121), told apart by what it holds.
+    const { model, leftOut, format } = canvasModule.readModelFile(new Uint8Array(await file.arrayBuffer()));
     const plan = canvasModule.planImport(model, importTarget(), leftOut);
     opening = { name: file.name, model, leftOut };
     const counts = plan.counts;
     summary.textContent = [`${model.info.name || file.name}: ${counts.elements} elements, ${counts.relationships} relationships, ${counts.views} views.`,
-      canvasModule.leftOutSentence(plan.leftOut)].filter(Boolean).join(' ');
+      format === 'exchange' ? 'Read as Open Exchange XML.' : null, canvasModule.leftOutSentence(plan.leftOut)].filter(Boolean).join(' ');
     $('open-archimate-open').disabled = false;
   } catch (error) {
     opening = null;
@@ -1088,6 +1093,33 @@ async function saveArchimate() {
   download(new Blob([file.xml], { type: 'application/xml' }), file.fileName);
   const waiting = state.pending > 0 ? ` The ${state.pending} edits still waiting to be committed are not in it.` : '';
   setStatus(`Saved ${file.fileName}, ${summary()}.${waiting}`, state.pending > 0);
+}
+
+/**
+ * The model as Open Exchange XML (W-121), as archi-online's export makes it, checked first against
+ * Archi 5.9's schemas by libxml2, which xsd.js brings only now. A file that does not validate is
+ * not saved, and the status names the first thing the schemas refused.
+ */
+async function saveExchange() {
+  await canvasReady;
+  if (!canvasModule?.exportExchange || !state.sets) { setStatus('Saving Exchange XML needs the diagram code, which could not load.', true); return; }
+  let file;
+  try { file = canvasModule.exportExchange(state.sets); } catch (error) { setStatus(`The model could not be saved as Exchange XML: ${describe(error)}`, true); return; }
+  setStatus('Checking the Exchange XML against Archi 5.9’s schemas…');
+  let problems;
+  try { problems = await (await import('./xsd.js')).validateExchangeXml(file.xml); } catch (error) {
+    setStatus(`The Exchange XML could not be checked, so it was not saved: ${describe(error)}`, true);
+    return;
+  }
+  if (problems.length > 0) {
+    const first = problems[0];
+    setStatus(`Not saved: the Exchange XML does not validate against Archi 5.9’s schemas${first.line ? ` (line ${first.line})` : ''}: ${first.message}` +
+      (problems.length > 1 ? ` ${problems.length - 1} more.` : ''), true);
+    return;
+  }
+  download(new Blob([file.xml], { type: 'application/xml' }), file.fileName);
+  const waiting = state.pending > 0 ? ` The ${state.pending} edits still waiting to be committed are not in it.` : '';
+  setStatus(`Saved ${file.fileName}, valid against Archi 5.9’s schemas, ${summary()}.${waiting}`, state.pending > 0);
 }
 
 const isArchimateName = name => /\.(archimate|xml)$/i.test(name);
@@ -1342,6 +1374,7 @@ function wire() {
   $('own-validator').addEventListener('click', () => showValidator(!state.validator.open));
   $('own-open-archimate').addEventListener('click', () => showOpenArchimate());
   $('own-save-archimate').addEventListener('click', () => saveArchimate());
+  $('own-save-exchange').addEventListener('click', () => saveExchange());
   $('own-export-png').addEventListener('click', () => exportView('png', 2));
   $('own-export-svg').addEventListener('click', () => exportView('svg'));
   // The picker opens on this click, inside the view: a command from Nendo's toolbar cannot open it.

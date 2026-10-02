@@ -8,6 +8,9 @@
 import { strFromU8, unzipSync } from 'fflate';
 import { parseArchimate } from '@archi/model/io/archimate-xml/parse';
 import { serializeArchimate } from '@archi/model/io/archimate-xml/serialize';
+import { isExchangeXml } from '@archi/model/io/exchange-xml/detect';
+import { parseExchangeDocument } from '@archi/model/io/exchange-xml/parse';
+import { serializeExchange } from '@archi/model/io/exchange-xml/serialize';
 import {
   MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_ENTRY_BYTES, MAX_ARCHIVE_UNCOMPRESSED_BYTES, MAX_DOCUMENT_BYTES, MAX_MODEL_XML_BYTES,
 } from '@archi/model/io/document-limits';
@@ -88,7 +91,11 @@ export function readArchimate(bytes: Uint8Array): { model: ModelState; leftOut: 
   try { model = parseArchimate(xml); } catch (error) {
     throw new ArchimateFileError(`This is not an Archi model that can be opened: ${(error as Error).message}`);
   }
+  return { model, leftOut: leftOutOf(model, archiveImages) };
+}
 
+/** What a model holds that Archi.nendo cannot: image objects, the connections to them, and pictures. */
+function leftOutOf(model: ModelState, archiveImages: number): LeftOut {
   const imageNodes = new Set(Object.values(model.nodes).filter(node => node.nodeType === 'image').map(node => node.id));
   // A connection that ends on an image object, or on such a connection, goes with it.
   const droppedConnections = new Set<string>();
@@ -102,7 +109,32 @@ export function readArchimate(bytes: Uint8Array): { model: ModelState; leftOut: 
   }
   const pictures = Object.values(model.nodes).filter(node => node.nodeType !== 'image' && present((node as { imagePath?: string }).imagePath)).length
     + Object.values(model.profiles).filter(profile => present(profile.imagePath)).length;
-  return { model, leftOut: { imageObjects: imageNodes.size, imageConnections: droppedConnections.size, pictures, archiveImages } };
+  return { imageObjects: imageNodes.size, imageConnections: droppedConnections.size, pictures, archiveImages };
+}
+
+/**
+ * An Open Exchange XML file as archi-online reads it (W-121): The Open Group's format, which
+ * Archi imports as a new model. archi-online refuses a document it cannot read whole, and never
+ * returns part of one; its language is the document's own.
+ */
+export function readExchange(bytes: Uint8Array): { model: ModelState; leftOut: LeftOut; language: string } {
+  if (bytes.length > MAX_MODEL_XML_BYTES) throw new ArchimateFileError(`The file is larger than ${Math.round(MAX_MODEL_XML_BYTES / 1048576)} MiB.`);
+  const result = parseExchangeDocument(new TextDecoder().decode(bytes));
+  if (!result.model || result.errors.length > 0)
+    throw new ArchimateFileError(`This is not an Open Exchange model that can be opened: ${result.errors.map(error => error.message).join(' ') || 'it could not be read.'}`);
+  return { model: result.model, leftOut: leftOutOf(result.model, 0), language: result.language };
+}
+
+/** Which of Archi's two model files these bytes are: an Open Exchange document, or an .archimate, plain or an archive. */
+export function modelFileFormat(bytes: Uint8Array): 'exchange' | 'archimate' {
+  if (isZip(bytes)) return 'archimate';
+  return isExchangeXml(new TextDecoder().decode(bytes.subarray(0, 4096))) ? 'exchange' : 'archimate';
+}
+
+/** Either file, as the Open dialog takes it: what it holds, what is left out, and which format it was. */
+export function readModelFile(bytes: Uint8Array): { model: ModelState; leftOut: LeftOut; format: 'exchange' | 'archimate' } {
+  const format = modelFileFormat(bytes);
+  return { ...(format === 'exchange' ? readExchange(bytes) : readArchimate(bytes)), format };
 }
 
 /** What is left out, as one sentence, or null when nothing is. */
@@ -458,6 +490,18 @@ export function exportArchimate(sets: RecordSets): { xml: string; fileName: stri
   const xml = serializeArchimate(model);
   const base = (model.info.name || 'Model').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').trim().slice(0, 120) || 'Model';
   return { xml, fileName: `${base}.archimate` };
+}
+
+/**
+ * The records as an Open Exchange XML file (W-121), as archi-online's Export Open Exchange model
+ * makes one with its defaults: the folders as the organization, the model's own language and its
+ * Dublin Core metadata. Checking it against Archi 5.9's schemas is xsd.js's, loaded when needed.
+ */
+export function exportExchange(sets: RecordSets): { xml: string; fileName: string } {
+  const model = modelForExport(sets);
+  const xml = serializeExchange(model, { includeOrganization: true, metadata: model.info.metadata });
+  const base = (model.info.name || 'Model').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').trim().slice(0, 120) || 'Model';
+  return { xml, fileName: `${base}.xml` };
 }
 
 /** Parse, for a test or a tool that holds XML text rather than a file's bytes. */

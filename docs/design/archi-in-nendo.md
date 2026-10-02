@@ -100,7 +100,7 @@ not built, with the reason.
 | Analysis: model relations, used in views, Visualiser | In | W-118 |
 | Specializations, properties manager, find and replace | In | W-119 |
 | `.archimate` open and save | In, without images | W-120 |
-| Open Exchange XML, with XSD validation | In | W-121 |
+| Open Exchange XML, with XSD validation | In: opened through the Open dialog, told from an .archimate by its content; saved after libxml2 checks it against Archi 5.9's schemas, in `xsd.js`, loaded only then | W-121 |
 | Archi's three-file CSV | In | W-122 |
 | PNG and SVG export | In | W-123 |
 | Static HTML report | Later | W-124 |

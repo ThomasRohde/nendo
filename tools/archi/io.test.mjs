@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { exportArchimate, holdsNoModel, importBatches, modelForExport, planImport } from '../../extensions/archi/canvas.js';
+import { exportArchimate, exportExchange, holdsNoModel, importBatches, modelFileFormat, modelForExport, planImport } from '../../extensions/archi/canvas.js';
+import { EXCHANGE_SCHEMAS, validateExchangeXml } from '../../extensions/archi/xsd.js';
 import { archiSchema } from './fixtures.mjs';
 
 // W-120: the workbench saves Archi.nendo's records as an .archimate file and opens one into an
@@ -115,4 +116,29 @@ test('a file without a Model record gets one first, which the model’s properti
   assert.deepEqual([writes[0].op, writes[0].entityId, writes[0].recordId, writes[0].values['ar.model.name']], ['create', 'ar.model', 'ar.model.r.made', 'Archisurance']);
   assert.equal(writes.filter(write => write.entityId === 'ar.model').length, 1, 'The Model record was written twice.');
   assert.ok(writes.some(write => write.values['ar.property.model'] === 'ar.model.r.made'));
+});
+
+// W-121: Archisurance saved as Open Exchange XML is valid against Archi 5.9's own schemas, checked
+// by libxml2 as the workbench checks it before saving (xsd.js). Reading it back needs a DOMParser,
+// so that is measured in the review lane and by tools/archi/verify-exchange-io.mjs.
+test('Archisurance saved as Exchange XML validates against Archi 5.9’s five schemas, and a type they do not know does not', async () => {
+  assert.deepEqual(Object.keys(EXCHANGE_SCHEMAS).sort(), ['archimate3_Diagram.xsd', 'archimate3_Model.xsd', 'archimate3_View.xsd', 'dc.xsd', 'xml.xsd']);
+  const { xml, fileName } = exportExchange(records);
+  assert.equal(fileName, 'Archisurance.xml');
+  assert.match(xml, /<model xmlns="http:\/\/www\.opengroup\.org\/xsd\/archimate\/3\.0\/"/);
+  assert.equal((xml.match(/<element identifier=/g) ?? []).length, 120);
+  assert.equal((xml.match(/<relationship identifier=/g) ?? []).length, 176);
+  assert.equal((xml.match(/<view identifier=/g) ?? []).length, 17);
+  assert.match(xml, /<organizations>/, 'The folders were left out of the organization.');
+  assert.deepEqual(await validateExchangeXml(xml), []);
+  const refused = await validateExchangeXml(xml.replace('xsi:type="BusinessActor"', 'xsi:type="NoSuchType"'));
+  assert.ok(refused.length > 0 && refused.every(problem => problem.severity === 'error'));
+  assert.match(refused[0].message, /NoSuchType' of the xsi:type attribute does not resolve to a type definition/);
+});
+
+test('the Open dialog tells Exchange XML from an .archimate by what the file holds', () => {
+  const bytes = text => new TextEncoder().encode(text);
+  assert.equal(modelFileFormat(bytes(exportExchange(records).xml)), 'exchange');
+  assert.equal(modelFileFormat(bytes(exportArchimate(records).xml)), 'archimate');
+  assert.equal(modelFileFormat(new Uint8Array([0x50, 0x4b, 3, 4, 0, 0])), 'archimate', 'An archive is an .archimate.');
 });
