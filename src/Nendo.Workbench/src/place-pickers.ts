@@ -54,8 +54,14 @@ export function drawPlacePickers(markup: string): HTMLElement {
 /** After the page is drawn: a page that drew no pickers gets the plain breadcrumb back. */
 export function endPlacePickers(): void {
   if (drawn) return;
-  const { slot, title } = header();
+  const { slot, eyebrow, title } = header();
   if (slot.firstChild !== null) slot.replaceChildren();
   slot.hidden = true;
+  eyebrow.hidden = eyebrow.textContent === '';
   title.classList.remove('visually-hidden');
+}
+
+/** Whether the page last drawn put its pickers in the breadcrumb, so the header leaves them alone between draws. */
+export function placePickersDrawn(): boolean {
+  return drawn;
 }

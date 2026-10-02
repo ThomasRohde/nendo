@@ -23,7 +23,9 @@ import { holdingThePage, refuseWhileDirty } from './draft-guard';
 import { backTarget, forwardTarget, goBack, goForward, placeName, recordPlace } from './navigation-actions';
 import { state } from './app-state';
 import { installViewFrames, onHostKey, parkViewFrames, releaseViewFrames, runViewKey } from './view-frames';
-import { beginPlacePickers, endPlacePickers } from './place-pickers';
+import { beginPlacePickers, endPlacePickers, placePickersDrawn } from './place-pickers';
+import { fileViewById } from './file-view-model';
+import { viewTitle } from './view-frame-markup';
 import { startTitleBar } from './title-bar';
 import { lookIconMarkup } from './file-look';
 import { chordOf } from './extension-api/protocol';
@@ -229,7 +231,10 @@ function currentHeading(): { eyebrow: string; title: string } {
       case 'health': return { eyebrow: 'Studio', title: 'File health' };
       case 'data': return { eyebrow: 'Studio', title: entity === null ? 'Data' : `${entity.displayName} data` };
       case 'structure': return { eyebrow: 'Studio', title: entity === null ? 'Structure' : `${entity.displayName} structure` };
-      case 'use': return showsOverview() && overview !== null
+      // One of the file's own views is named by its title, as the front page is (W-106).
+      case 'use': return fileViewById(state.fileView) !== null
+        ? { eyebrow: 'Use', title: viewTitle(fileViewById(state.fileView)!) }
+        : showsOverview() && overview !== null
         ? { eyebrow: 'Use', title: overviewTitle(overview) }
         : validUse && current !== null
           ? { eyebrow: `Use · ${current.entity.displayName}`,
@@ -274,7 +279,9 @@ function updateChrome(): void {
   const named = state.session.fileName !== null;
   workspaceTitle.textContent = named ? heading.title : 'No file open';
   sessionContext.textContent = named ? heading.eyebrow : '';
-  sessionContext.hidden = !named;
+  // While the page's pickers stand in the breadcrumb, the eyebrow stays away: a chrome refresh
+  // between two draws, as a view declaring its place makes (W-127), drew it beside them.
+  sessionContext.hidden = !named || placePickersDrawn();
 
   sessionFile.textContent = state.session.fileName ?? '';
   // The file's icon beside its name (W-089). It was on the window's title bar, which is Nendo's

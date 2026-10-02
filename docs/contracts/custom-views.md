@@ -1467,8 +1467,13 @@ host on it, and `tools/Review-FileView.mjs` measures over the debugging port. G3
 on the view, running, and the Showing picker lists `view:workbench` then `tasks`. G38: inside its
 frame the view is handed `{"viewId":"workbench","kind":"extensionView","placement":"screen","entityId":"tasks","recordId":null}`
 and reads records through the API. G39: Studio lists it under *Screens of the file*, Use returns
-to it, and the picker reaches Tasks and the view again. With the opening decision taken out of
-the Workbench, G37 failed: `Timed out: the file opening on its view, running (last: null)`.
+to it, and the picker reaches Tasks and the view again, and Back from Tasks names the view.
+G40: after the view declares its place, the breadcrumb is the picker alone, naming the view. A
+view's place refreshes Nendo's header between two draws (W-127), and that refresh brought the
+eyebrow back beside the pickers, naming the first record type: the owner saw "Use · Concepts /
+Use · Archi". Against the code before the fix G40 failed with `{"eyebrow":"Use · Tasks",
+"heading":"Tasks","picker":"Probe workbench"}`. With the opening decision taken out of the
+Workbench, G37 failed: `Timed out: the file opening on its view, running (last: null)`.
 `scripts/file-views.test.mjs` runs the Workbench's own opening decision: with views off for the
 device, the file opens on its front page. `ExtensionScreenViewTests` holds the compiler's rules
 and rung, and that a file whose screens all belong to the file keeps them: without the fix its

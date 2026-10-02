@@ -93,6 +93,23 @@ try {
   assert(reads.items.length > 0, 'The view of the file read no records through the API.');
   check('G38 the view is handed a screen of the file about Tasks, and reads records: ' + JSON.stringify(context));
 
+  // G40: the breadcrumb names the view, and only it, after the view declares its place, which
+  // refreshes Nendo's header between two draws (W-127). The owner saw "Use · Concepts / Use ·
+  // Archi": the eyebrow came back beside the pickers, naming the first record type.
+  const header = () => evaluate(`(() => {
+    const shown = element => element !== null && !element.hidden && getComputedStyle(element).display !== 'none' && !element.classList.contains('visually-hidden');
+    const eyebrow = document.querySelector('#session-context'), title = document.querySelector('#workspace-title');
+    return { eyebrow: shown(eyebrow) ? eyebrow.textContent : null, title: shown(title) ? title.textContent : null, heading: title?.textContent ?? null,
+      picker: document.querySelector('#place-pickers #use-entity')?.selectedOptions[0]?.textContent ?? null };
+  })()`);
+  const before = await header();
+  await evaluateIn(frame, `nendo.ui.setPlace({ step: 1 }, { label: 'First step', replace: true }).then(() => nendo.ui.setPlace({ step: 2 }, { label: 'Second step' }))`, 15000);
+  await sleep(500);
+  const after = await header();
+  assert([before, after].every(seen => seen.eyebrow === null && seen.title === null && seen.picker === 'Probe workbench' && seen.heading === 'Probe workbench'),
+    `The breadcrumb does not name only the view: before the view declared its place ${JSON.stringify(before)}, after ${JSON.stringify(after)}.`);
+  check('G40 after the view declares its place, the breadcrumb is the picker alone, naming the view: ' + JSON.stringify(after));
+
   // G39: Studio is there, lists the view among the screens of the file, and Use comes back to the view.
   await click('#nav-surfaces'); await idle();
   const listed = await waitFor(() => evaluate(`document.querySelector('[data-testid="file-view-list"]')?.textContent ?? null`), 'the view in Studio’s screens');
@@ -106,7 +123,12 @@ try {
   const again = await waitFor(async () => { const now = await screen(); return now.fileView && now.state === 'running' ? now : null; }, 'the view again from the picker', 30000);
   assert(back.view === 'workbench' && JSON.stringify(tasks.options) === JSON.stringify(['view:workbench', '*tasks']) && again.view === 'workbench',
     `Leaving and coming back: ${JSON.stringify({ back, tasks, again })}.`);
-  check('G39 Studio lists the view as a screen of the file, Use returns to it, and Showing reaches Tasks and the view again');
+  // Back, from Tasks, names the view it returns to, not the first record type.
+  await choose('tasks'); await idle();
+  await waitFor(async () => (await screen()).list, 'Tasks again');
+  const backLabel = await evaluate(`document.querySelector('#nav-back')?.getAttribute('aria-label') ?? null`);
+  assert(/^Back to Probe workbench/.test(backLabel ?? ''), `Back from Tasks says ${JSON.stringify(backLabel)}.`);
+  check('G39 Studio lists the view as a screen of the file, Use returns to it, Showing reaches Tasks and the view again, and Back says ' + JSON.stringify(backLabel));
   console.log('file view ok');
 } finally {
   socket.close();
