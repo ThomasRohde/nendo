@@ -223,6 +223,13 @@ export interface AgentWork {
  * Windows keeps for its own Minimise, Maximise and Close at the left and at the right. Nendo's
  * top bar is the title bar, so it keeps that width free.
  */
+/** A file a view downloaded, saved by the host (F-237): an identifier to show it by, its name and its folder's. */
+export interface HostDownloadSaved {
+  id: string;
+  fileName: string;
+  folder: string;
+}
+
 export interface WindowTitleBar {
   height: number;
   left: number;
@@ -698,6 +705,8 @@ export interface WorkbenchClient {
   onAgentActivity?(listener: (activity: AgentWork) => void): () => void;
   /** Listen for the window's title bar changing shape: a new display scale, so new sizes (W-093). */
   onTitleBarChanged?(listener: (bar: WindowTitleBar) => void): () => void;
+  /** A file a view downloaded is saved; WebView2's own downloads panel is never shown (F-237). */
+  onDownloadSaved?(listener: (saved: HostDownloadSaved) => void): () => void;
   pendingMutation?(): PendingMutation | null;
   retryPendingMutation?(): Promise<DesktopOperationView | null>;
   checkPendingMutation?(): Promise<DesktopOperationView | null>;

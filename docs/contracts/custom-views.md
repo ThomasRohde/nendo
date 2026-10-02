@@ -432,7 +432,10 @@ A view gets most of what a web page gets
   view, to ask whether the file "can harm your device"; after Keep the browser
   process spun and Nendo's window stayed white until every one of its processes was
   ended. So the browser's question about a file type is not asked, and the view says
-  what it saved. Nendo does not yet say where a download went.
+  what it saved. When the file is complete, Nendo says so in its own notice line, with
+  the file's name, its folder and **Show in folder**, which opens Explorer on it. The
+  host posts `downloadSaved` with an identifier, and `downloads.show` takes that
+  identifier, so the page never hands the host a path.
 - **Files a person hands it** (W-104). A view's own `<input type="file">`, clicked
   by the person, opens Windows' Open dialog, owned by Nendo's window. The chosen
   file arrives as a `File`, with its name, size and bytes, never its path. `accept`
@@ -1477,6 +1480,10 @@ no panel opened. G41 in `tools/Review-FileView.mjs` has the probe view save a 20
 with no click in it and measures the file in the journey's own downloads folder, every target the
 browser has, and the page answering. With the host's handling taken out it failed:
 `{"file":{"name":"Probe model.xml","bytes":200055,"pending":[]},"panels":["edge://downloads-hub/"],"answers":"yes"}`.
+The owner then had the file but no word of it, so G41 also measures Nendo's notice: `Saved Probe
+model.xml to downloads.` with Show in folder. While the host looked its window up by the event's
+sender, which WinRT can hand over as another wrapper of the same browser, the notice never came:
+`"notice":null`.
 
 ### A view as a screen of the file (W-106)
 

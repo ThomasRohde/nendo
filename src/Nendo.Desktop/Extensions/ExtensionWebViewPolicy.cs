@@ -17,7 +17,14 @@ namespace Nendo.Desktop;
 /// </summary>
 internal static class ExtensionWebViewPolicy
 {
-    internal static void Attach(CoreWebView2 core)
+    /// <summary>
+    /// Each window's download handler, which tells that window of what it saved (F-237). The event's
+    /// sender may be another wrapper of the same browser, so the window rides in the handler.
+    /// </summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<CoreWebView2,
+        Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2DownloadStartingEventArgs>> DownloadHandlers = new();
+
+    internal static void Attach(CoreWebView2 core, Action<string>? downloadSaved = null)
     {
         core.Settings.AreDefaultContextMenusEnabled = true;
         core.Settings.AreDefaultScriptDialogsEnabled = true;
@@ -27,7 +34,9 @@ internal static class ExtensionWebViewPolicy
         core.FrameCreated += OnFrameCreated;
         core.NewWindowRequested += OnNewWindowRequested;
         core.FrameNavigationStarting += OnFrameNavigationStarting;
-        core.DownloadStarting += OnDownloadStarting;
+        Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2DownloadStartingEventArgs> downloads = (_, args) => OnDownloadStarting(args, downloadSaved);
+        DownloadHandlers.AddOrUpdate(core, downloads);
+        core.DownloadStarting += downloads;
     }
 
     internal static void Detach(CoreWebView2 core)
@@ -37,7 +46,11 @@ internal static class ExtensionWebViewPolicy
         core.FrameCreated -= OnFrameCreated;
         core.NewWindowRequested -= OnNewWindowRequested;
         core.FrameNavigationStarting -= OnFrameNavigationStarting;
-        core.DownloadStarting -= OnDownloadStarting;
+        if (DownloadHandlers.TryGetValue(core, out var downloads))
+        {
+            core.DownloadStarting -= downloads;
+            DownloadHandlers.Remove(core);
+        }
     }
 
     /// <summary>
@@ -47,7 +60,7 @@ internal static class ExtensionWebViewPolicy
     /// into the view, and after Keep the browser process spun and the window stayed white (F-237).
     /// The view says what it saved.
     /// </summary>
-    private static void OnDownloadStarting(CoreWebView2 sender, CoreWebView2DownloadStartingEventArgs args)
+    private static void OnDownloadStarting(CoreWebView2DownloadStartingEventArgs args, Action<string>? saved)
     {
         args.Handled = true;
         // The journeys save into a folder of their own, never the person's Downloads; under native
@@ -55,6 +68,12 @@ internal static class ExtensionWebViewPolicy
         if (DesktopRuntimeConfiguration.NativeDiagnostics &&
             Environment.GetEnvironmentVariable("NENDO_DIAGNOSTICS_DOWNLOAD_FOLDER") is { Length: > 0 } folder)
             args.ResultFilePath = System.IO.Path.Combine(folder, System.IO.Path.GetFileName(args.ResultFilePath));
+        if (saved is null) return;
+        var operation = args.DownloadOperation;
+        operation.StateChanged += (download, _) =>
+        {
+            if (download.State == CoreWebView2DownloadState.Completed) saved(download.ResultFilePath);
+        };
     }
 
     /// <summary>The Workbench draws its own menus; a view gets the browser's, with Inspect.</summary>

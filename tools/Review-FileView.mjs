@@ -126,9 +126,15 @@ try {
   await sleep(1500);
   const panels = (await targets()).filter(target => target.url.startsWith('edge://')).map(target => target.url);
   const answers = await evaluate(`document.querySelector('#studio-content') ? 'yes' : 'no'`, 5000).catch(error => 'no answer: ' + error.message);
-  assert(file.name === saved && file.bytes > 200000 && file.pending.length === 0 && panels.length === 0 && answers === 'yes',
-    `A view's XML download did not save quietly: ${JSON.stringify({ file, panels, answers })}.`);
-  check('G41 a view saves an XML file with no click in it: ' + JSON.stringify({ file: file.name, bytes: file.bytes, panels: panels.length, answers }));
+  // With the panel gone, Nendo says where the file went, and offers to show it (not pressed here:
+  // it opens Explorer on the desktop).
+  const notice = await waitFor(() => evaluate(`(() => { const slot = document.querySelector('.message-slot.is-done');
+    return slot && !slot.hidden ? { text: slot.textContent.replace(/\\s+/g, ' ').trim(), action: slot.querySelector('#outcome-action')?.textContent ?? null } : null; })()`),
+    'the notice of the saved file', 10000).catch(() => null);
+  assert(file.name === saved && file.bytes > 200000 && file.pending.length === 0 && panels.length === 0 && answers === 'yes' &&
+    notice?.text.startsWith(`Saved ${saved} to downloads.`) && notice.action === 'Show in folder',
+    `A view's XML download did not save quietly, with Nendo's notice of it: ${JSON.stringify({ file, panels, answers, notice })}.`);
+  check('G41 a view saves an XML file with no click in it, and Nendo says so: ' + JSON.stringify({ file: file.name, bytes: file.bytes, panels: panels.length, answers, notice }));
 
   // G39: Studio is there, lists the view among the screens of the file, and Use comes back to the view.
   await click('#nav-surfaces'); await idle();

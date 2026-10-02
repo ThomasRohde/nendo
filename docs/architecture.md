@@ -846,6 +846,7 @@ This table gives the current locations, so that you do not need to search.
 | Notifications | `Desktop/DesktopNotifier.cs` (the OS side), `DesktopNotificationContent.cs` (the wording and routes, pure), `DesktopNotificationTrigger.cs` (transition, never condition) |
 | Close behaviour | `Desktop/DesktopShellStore.cs` (device state), `DesktopCloseAction.cs` (the decision, pure), `MainWindow.xaml.cs` |
 | Title bar | `Desktop/MainWindow.TitleBar.cs` (the tall bar, the passthrough regions, the diagnostics), `MainPage.TitleBar.cs` (where the page is in the window), `WorkbenchProtocol.TitleBar.cs` (`window.setTitleBarControls` and its checks, pure); `Workbench/src/title-bar.ts` (measuring the bar's controls), `title-bar-model.ts` (what the page claims, pure), `styles/20-title-bar.css` |
+| Downloads | `Desktop/Extensions/ExtensionWebViewPolicy.cs` (every download handled: no WebView2 panel, F-237), `MainPage.Downloads.cs` (the saved files a notice may show), `WorkbenchProtocol.Downloads.cs` (`downloads.show`); `Workbench/src/main.ts` (the notice of `downloadSaved`) |
 | Renderer entry point | `Workbench/src/main.ts`: the router and the frame. It gives `render` and `updateChrome` to `shell.ts`, so that a view never imports it back |
 | One view per file | `Workbench/src/view-*.ts` (Use surfaces are hand-rolled DOM; AG Grid stays in `view-data.ts`, and `main.ts` registers its modules) |
 | Renderer state | `Workbench/src/app-state.ts`: one `state` object and the caches. It imports no view, so nothing cycles through it |

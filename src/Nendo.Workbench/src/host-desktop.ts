@@ -1,4 +1,4 @@
-import { type AgentWork, type DesktopFileActionView, type DesktopSessionView, type WindowTitleBar } from './host-types';
+import { type AgentWork, type DesktopFileActionView, type DesktopSessionView, type HostDownloadSaved, type WindowTitleBar } from './host-types';
 import { protocolVersion } from './host';
 import { PendingMutationJournal, isJournaledMutation, type PendingMutation } from './pending-mutations';
 import { readTitleBar } from './title-bar-model';
@@ -88,6 +88,7 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
   private readonly developmentListeners = new Set<(packageId: string) => void>();
   private readonly extensionSettingsListeners = new Set<() => void>();
   private readonly agentActivityListeners = new Set<(work: AgentWork) => void>();
+  private readonly downloadSavedListeners = new Set<(saved: HostDownloadSaved) => void>();
   private readonly titleBarListeners = new Set<(bar: WindowTitleBar) => void>();
   private readonly journal = new PendingMutationJournal({
     getItem: key => window.localStorage.getItem(key),
@@ -290,6 +291,11 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     return () => { this.agentActivityListeners.delete(listener); };
   }
 
+  onDownloadSaved(listener: (saved: HostDownloadSaved) => void): () => void {
+    this.downloadSavedListeners.add(listener);
+    return () => { this.downloadSavedListeners.delete(listener); };
+  }
+
   onTitleBarChanged(listener: (bar: WindowTitleBar) => void): () => void {
     this.titleBarListeners.add(listener);
     return () => { this.titleBarListeners.delete(listener); };
@@ -325,6 +331,17 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
         } catch {
           // Nothing here can report a failure the person would act on.
         }
+      }
+      return;
+    }
+    if (message.event === 'downloadSaved') {
+      // Drawn as text, so bounded here as well as at the host.
+      const saved = message.payload as Partial<HostDownloadSaved> | null;
+      if (!saved || typeof saved.id !== 'string' || !/^[0-9a-f]{32}$/.test(saved.id) ||
+          typeof saved.fileName !== 'string' || saved.fileName.length === 0 || saved.fileName.length > 260 ||
+          typeof saved.folder !== 'string' || saved.folder.length > 260) return;
+      for (const listener of this.downloadSavedListeners) {
+        try { listener({ id: saved.id, fileName: saved.fileName, folder: saved.folder }); } catch { /* Another listener must still hear it. */ }
       }
       return;
     }

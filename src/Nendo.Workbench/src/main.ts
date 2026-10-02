@@ -18,7 +18,7 @@ import { activePlan, overviewPlan, selectedSurfaceNode, sessionEntity } from './
 import { showsOverview } from './view-overview';
 import { overviewTitle } from './overview-model';
 import { client } from './client';
-import { announce, applyRail, applyTheme, content, historyBack, historyForward, isThemePreference, navigation, readPreference, readRailCollapsed, railToggle, requiredElement, root, sessionContext, sessionFile, sessionHealth, sessionStatus, sessionVersion, setAgentWork, setBusy, setRenderer, showError, stopInFlightWork, systemDark, themeButtons, workspaceTitle, rerender, markPlace } from './shell';
+import { announce, applyRail, applyTheme, content, historyBack, historyForward, isThemePreference, navigation, readPreference, readRailCollapsed, railToggle, requiredElement, root, sessionContext, sessionFile, sessionHealth, sessionStatus, sessionVersion, setAgentWork, setBusy, setRenderer, showError, showOutcome, stopInFlightWork, systemDark, themeButtons, workspaceTitle, rerender, markPlace } from './shell';
 import { holdingThePage, refuseWhileDirty } from './draft-guard';
 import { backTarget, forwardTarget, goBack, goForward, placeName, recordPlace } from './navigation-actions';
 import { state } from './app-state';
@@ -686,6 +686,16 @@ function followTheFile(): void {
 // Drawn by the shell itself rather than through a render pass: it must appear while a
 // request is queued behind an agent's write, which is exactly when a render cannot run.
 client.onAgentActivity?.((work) => { setAgentWork(work); });
+// A view's download is saved without WebView2's panel, so Nendo says where it went (F-237).
+client.onDownloadSaved?.((saved) => {
+  showOutcome(`Saved ${saved.fileName}${saved.folder === '' ? '' : ` to ${saved.folder}`}.`, {
+    label: 'Show in folder',
+    run: async () => {
+      const shown = await client.request<{ shown: boolean }>('downloads.show', { id: saved.id });
+      if (!shown.shown) showError(`${saved.fileName} is no longer where it was saved.`);
+    },
+  });
+});
 
 // Nendo's top bar is the window's title bar in the Desktop host (W-093).
 startTitleBar(client);

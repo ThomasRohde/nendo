@@ -361,7 +361,8 @@ WebView2's own downloads panel is never shown (2026-10-02, F-237). The panel ask
 `.xml` file a view saved from a command in Nendo's row "can harm your device", because such a
 command carries no click into the view; after Keep, the browser process spun and Nendo's window
 stayed white. Not asking is the trade: a view can put a file of any type in Downloads without the
-browser's question. It cannot open or run it, and the person still has to.
+browser's question. It cannot open or run it, and the person still has to. Nendo says where each
+file went, in its notice line, with Show in folder.
 
 ### Files a person hands a view (2026-10-01)
 

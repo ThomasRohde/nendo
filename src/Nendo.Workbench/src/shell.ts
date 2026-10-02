@@ -110,6 +110,16 @@ function drawOutcome(slot: HTMLElement, outcome: OutcomeNotice): void {
   slot.setAttribute('role', outcome.tone === 'done' ? 'status' : 'alert');
   slot.textContent = outcome.message;
   slot.hidden = false;
+  const action = outcome.action;
+  if (action !== undefined) {
+    const button = document.createElement('button');
+    button.id = 'outcome-action';
+    button.type = 'button';
+    button.className = 'secondary-button';
+    button.textContent = action.label;
+    button.addEventListener('click', () => { void action.run().catch((error: unknown) => showError(error instanceof Error ? error.message : String(error))); });
+    slot.append(' ', button);
+  }
   const refresh = outcome.refresh;
   if (refresh === undefined) return;
   const button = document.createElement('button');
@@ -551,8 +561,8 @@ for (const kind of ['pointerdown', 'keydown'] as const)
  * an error uses, in the tone of a thing that worked rather than a thing that failed,
  * and it does not steal focus — nobody needs taking somewhere after a success.
  */
-export function showOutcome(message: string): void {
-  state.lastOutcome = { view: state.view, message, tone: 'done' };
+export function showOutcome(message: string, action?: OutcomeNotice['action']): void {
+  state.lastOutcome = { view: state.view, message, tone: 'done', ...(action === undefined ? {} : { action }) };
   const slot = messageSlot();
   drawOutcome(slot, state.lastOutcome);
   slot.scrollIntoView({ block: 'nearest' });

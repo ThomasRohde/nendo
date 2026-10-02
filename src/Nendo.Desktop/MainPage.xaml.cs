@@ -172,7 +172,7 @@ public sealed partial class MainPage : Page
             // Custom views run as frames of this document, served from the open file. The
             // Workbench's own content security policy keeps its document local; nothing here
             // narrows what a view's frame may reach.
-            ExtensionWebViewPolicy.Attach(core);
+            ExtensionWebViewPolicy.Attach(core, DownloadSaved);
             _extensionAssets = ExtensionAssetServer.Attach(core, _session, assetRoot);
             DesktopStartupTiming.Mark("webview.navigate");
             core.Navigate(DesktopShellContract.WorkbenchUri.AbsoluteUri);

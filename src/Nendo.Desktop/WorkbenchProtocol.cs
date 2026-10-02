@@ -125,6 +125,13 @@ internal static class WorkbenchEvents
     /// answer <c>window.setTitleBarControls</c> gives.
     /// </summary>
     internal const string TitleBarChanged = "titleBarChanged";
+
+    /// <summary>
+    /// A file a view downloaded is saved (F-237). WebView2's downloads panel is never shown, so this
+    /// is how the person hears of it. Payload is an identifier for <c>downloads.show</c>, the file's
+    /// name and its folder's name.
+    /// </summary>
+    internal const string DownloadSaved = "downloadSaved";
 }
 
 internal sealed record ExtensionFramesFailedPayload(string FileSessionId, IReadOnlyList<string> Frames);
@@ -345,7 +352,8 @@ internal sealed partial class WorkbenchProtocolHandler
             // switch. The controller checks this under its gate, including after
             // every interactive picker/confirmation wait.
             var independent = method is WorkbenchMethods.SessionGetSnapshot or WorkbenchMethods.AppearanceSet or WorkbenchMethods.AppearanceGet or WorkbenchMethods.SessionGetRecentFiles
-                or WorkbenchMethods.WindowSetTitleBarControls or WorkbenchMethods.DiagnosticsTitleBar or WorkbenchMethods.DiagnosticsResizeWindow;
+                or WorkbenchMethods.WindowSetTitleBarControls or WorkbenchMethods.DiagnosticsTitleBar or WorkbenchMethods.DiagnosticsResizeWindow
+                or WorkbenchMethods.DownloadsShow;
             string? expectedSession = null;
             if (protocolVersion < DesktopShellContract.OutcomeBridgeProtocolVersion)
             {
@@ -439,6 +447,7 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.AppearanceSet => ApplyAppearance(payload),
                     WorkbenchMethods.AppearanceGet => _getAppearance?.Invoke() ?? new DesktopAppearanceView("system", "light", false, "Native appearance is unavailable."),
                     WorkbenchMethods.WindowSetTitleBarControls => SetTitleBarControls(payload),
+                    WorkbenchMethods.DownloadsShow => ShowDownload(payload),
                     WorkbenchMethods.DiagnosticsTitleBar when DesktopRuntimeConfiguration.NativeDiagnostics => DiagnoseTitleBar(payload),
                     WorkbenchMethods.DiagnosticsResizeWindow when DesktopRuntimeConfiguration.NativeDiagnostics => ResizeWindow(payload),
                     WorkbenchMethods.AgentGetStatus => await _session.GetAgentStatusAsync(cancellationToken),
@@ -800,7 +809,8 @@ internal sealed partial class WorkbenchProtocolHandler
 
     private static bool IsMethodAvailable(int protocolVersion, string method) =>
         (protocolVersion >= DesktopShellContract.EventBridgeProtocolVersion || method is not
-            (WorkbenchMethods.WindowSetTitleBarControls or WorkbenchMethods.DiagnosticsTitleBar or WorkbenchMethods.DiagnosticsResizeWindow)) &&
+            (WorkbenchMethods.WindowSetTitleBarControls or WorkbenchMethods.DiagnosticsTitleBar or WorkbenchMethods.DiagnosticsResizeWindow or
+             WorkbenchMethods.DownloadsShow)) &&
         (protocolVersion >= DesktopShellContract.SnapshotBridgeProtocolVersion || method != WorkbenchMethods.DataDeleteRecord) &&
         (protocolVersion >= DesktopShellContract.OutcomeBridgeProtocolVersion || method is not
             (WorkbenchMethods.DataGetReceipt or WorkbenchMethods.CompensationGetReceipt or WorkbenchMethods.ProposalGetReceipt or WorkbenchMethods.DataSetFields or

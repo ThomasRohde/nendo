@@ -137,6 +137,8 @@ export interface OutcomeNotice {
   message: string;
   tone: 'done' | 'alert';
   refresh?: (button: HTMLButtonElement) => Promise<void>;
+  /** One step the sentence offers, such as Show in folder for a saved download (F-237). */
+  action?: { label: string; run: () => Promise<void> };
 }
 
 export function emptySession(): DesktopSessionView {
