@@ -8,6 +8,7 @@ import { loadFocusedRecord } from './reads';
 import { loadOpenedRecordPanels } from './related-actions';
 import { announce, rerender, setBusy, showError, showOutcome } from './shell';
 import { useSurfaces } from './surface-model';
+import { fileViewById } from './file-view-model';
 import { renderDataRecordDialog } from './view-data';
 
 /**
@@ -66,6 +67,7 @@ export async function openRecordFromView(entityId: string, recordId: string): Pr
     else if (!focusedRecords.has(recordId)) failure = 'That record is no longer in this file.';
     else if (inUse) {
       state.showOverview = false;
+      state.fileView = null;
       state.selectedApplicationEntity = entityId;
       leaveRecordContext();
       state.selectedRecordId = recordId;
@@ -105,8 +107,12 @@ export async function openScreenFromView(surfaceId: string): Promise<{ opened: b
   const overview = overviewPlan();
   const front = overview !== null && overview.surface.semanticId === rootId;
   const plan = applicationPlans().find((candidate) => useSurfaces(candidate).some((root) => root.semanticId === rootId));
-  if (!front && plan === undefined) throw new WorkbenchHostError('not-found', 'That is not a screen Use can show.');
+  // One of the file's own views is a screen too (W-106).
+  const view = fileViewById(rootId);
+  if (!front && plan === undefined && view === null) throw new WorkbenchHostError('not-found', 'That is not a screen Use can show.');
+  state.fileView = view === null ? null : view.semanticId;
   if (front) state.showOverview = true;
+  else if (view !== null) state.showOverview = false;
   else {
     state.showOverview = false;
     state.selectedApplicationEntity = plan!.entity.semanticId;

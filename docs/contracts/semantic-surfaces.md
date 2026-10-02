@@ -37,8 +37,8 @@ that applies depends on what the root belongs to:
 - `maxRootsPerEntity` applies to a root about a record type.
 - `maxRootsPerFile` applies to a root that belongs to the file.
 
-The S4 `overviewSurface` is the only kind that declares `maxRootsPerFile`, and no
-kind declares both. A client that read only `maxRootsPerEntity` would find no
+The S4 `overviewSurface` declares one and the `extensionView` (ADR-0013 Phase 5,
+W-106) declares eight. No kind declares both. A client that read only `maxRootsPerEntity` would find no
 ceiling at all on the front page, so the vocabulary publishes both.
 Under the ADR-0004 2026-09-12 amendment, `recordList`, `boardSurface`,
 `calendarSurface` and `recordCommand` each declare **eight**. `timelineSurface`
@@ -85,7 +85,9 @@ Use offers every `recordList`, `boardSurface`, `gallerySurface`, `calendarSurfac
 `extensionRecordsSurface` root of the selected record type, in compiled order, each by
 its own title. The file's `overviewSurface` is not among them. It belongs to the
 file, so Use offers it beside the record types and not among the surfaces of one
-type. When the file has an overview, Use opens it first. The selection is a
+type, and the file's `extensionView` roots after it, before the record types. When an
+`extensionView` says `opensFile` and custom views run in the file, Use opens on that
+view; otherwise, when the file has an overview, Use opens it first. The selection is a
 stable surface ID per entity; the default is the first compiled root. Resolution
 by kind returned the first root of a kind, so seven of eight lists on an entity
 could not be shown at all. Also, a board/list *mode* could not name a third view.
@@ -1163,6 +1165,7 @@ the shape cannot show (below). The ladder is:
 | A custom view that only the open rules accept: no package pin, a configuration with anything in it, a calculated label or field, a filter whose value kind is not `literal`, more fields or panels than the 1.32 rules allowed | 1.34 |
 | An `outlineSurface` | 1.36 |
 | A `filterClause` on, or an `orderByFieldId` naming, a calculated field | 1.40 |
+| An `extensionView` (a custom view as a screen of the file) | 1.42 |
 
 The gaps at 1.17, 1.24, 1.33, 1.35 and 1.37 are rungs that are not shapes of the node tree.
 `1.17.0` goes to a file that stores behaviour definitions (ADR-0008), `1.24.0`
@@ -1368,9 +1371,9 @@ follow the write, and reads the sentence again.
 
 ## Custom view definitions
 
-ADR-0013 authorizes three custom-view kinds: the `extensionGraphSurface` and
-`extensionRecordsSurface` roots, and the `extensionRecordPanel` on a record page or
-a record form. Each names a package that the file carries by `packageId`, and the
+ADR-0013 authorizes four custom-view kinds: the `extensionGraphSurface` and
+`extensionRecordsSurface` roots, the `extensionRecordPanel` on a record page or
+a record form, and the `extensionView` root, a screen of the file. Each names a package that the file carries by `packageId`, and the
 view runs that package's code when it is shown. They use the same canonical UI
 operations, semantic review and replay as other roots. A view whose package is not
 in the file compiles with the warning `NUI452`, and the definition is preserved.

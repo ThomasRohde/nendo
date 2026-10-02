@@ -20,7 +20,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { STAGES, STAGE_ORDER, CALL_CHARACTERS, ROOT_FOLDERS, TYPES, MODEL, PACKAGE_FOLDER, NEW_FILE_LABEL, workbenchView } from './archi-definition.mjs';
+import { STAGES, STAGE_ORDER, CALL_CHARACTERS, ROOT_FOLDERS, TYPES, MODEL, PACKAGE_FOLDER, NEW_FILE_LABEL, WORKBENCH_SCREEN, workbenchView } from './archi-definition.mjs';
 import { CONCEPT_TYPES } from './archi-concept-types.mjs';
 import { TARGET_FILE_NAME, fail, target, withLease } from './archi-mcp.mjs';
 
@@ -169,13 +169,15 @@ async function compare(file) {
 }
 
 // The workbench package, with the screen that shows it the first time: tools/Put-NendoPackage.mjs
-// proposes only the files that differ, and accepts at Unattended as the stages do.
+// proposes only the files that differ, and accepts at Unattended as the stages do. Since W-106 the
+// screen is a view of the file that the file opens on; the View type's screen it replaces goes.
 async function workbench(file, dryRun) {
-  const present = await file.read.hasNode('ar.screen.archi');
+  const present = await file.read.hasNode(WORKBENCH_SCREEN);
+  const replacing = !present && await file.read.hasNode('ar.screen.archi');
   const operations = path.join(os.tmpdir(), `archi-workbench-${process.pid}.json`);
   const put = ['tools/Put-NendoPackage.mjs', PACKAGE_FOLDER, '--application', file.manifest.applicationId,
-    '--title', present ? 'Archi: the workbench package' : 'Archi: the workbench package and its screen'];
-  if (!present) { await fs.writeFile(operations, JSON.stringify(workbenchView())); put.push('--operations', operations); }
+    '--title', present ? 'Archi: the workbench package' : 'Archi: the workbench package, as the screen the file opens on'];
+  if (!present) { await fs.writeFile(operations, JSON.stringify(workbenchView({ replacing }))); put.push('--operations', operations); }
   put.push(dryRun ? '--dry-run' : '--accept');
   const run = spawnSync(process.execPath, put, { stdio: 'inherit', cwd: path.join(import.meta.dirname, '..') });
   await fs.rm(operations, { force: true });

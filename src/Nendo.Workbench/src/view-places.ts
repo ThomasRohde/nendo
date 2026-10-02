@@ -28,6 +28,7 @@ export interface ViewAnchor {
   view: string;
   applicationEntityId: string | null;
   showOverview: boolean | null;
+  fileView: string | null;
   surfaceId: string | null;
   recordId: string | null;
 }
@@ -39,7 +40,7 @@ export const viewPlaceCeiling = 200;
 const kept = fileScopedClearable(new Map<string, { anchor: string; place: ViewPlace }>());
 
 export function viewAnchor(place: ViewAnchor): string {
-  return JSON.stringify([place.view, place.applicationEntityId, place.showOverview, place.surfaceId, place.recordId]);
+  return JSON.stringify([place.view, place.applicationEntityId, place.showOverview, place.fileView, place.surfaceId, place.recordId]);
 }
 
 /** A view's identity on its page: the same view on another record is another view. */

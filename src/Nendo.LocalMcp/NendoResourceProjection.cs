@@ -267,6 +267,7 @@ internal sealed class NendoResourceProjection(
         {
             Applications = applications,
             Overview = compilation.Overview is null ? null : ProjectSurfaceNode(compilation.Overview.Surface),
+            Views = compilation.Views.Select(ProjectSurfaceNode).ToArray(),
         };
     }
 

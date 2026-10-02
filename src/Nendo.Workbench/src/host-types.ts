@@ -521,6 +521,8 @@ export interface CompileResult {
   sourceChangeSequence?: number | null;
   applications?: ApplicationPlan[];
   overview?: OverviewPlan | null;
+  /** The file's own views (extensionView, W-106), in authored order: screens beside the front page. */
+  views?: SurfaceNodePlan[];
 }
 
 export interface ReadPage<T> {

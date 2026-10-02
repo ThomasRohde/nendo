@@ -282,7 +282,13 @@ public static class NendoFormat
     /// </summary>
     public const string NewFileMinimumHostVersion = "1.41.0";
 
-    public const string CurrentHostVersion = NewFileMinimumHostVersion;
+    /// <summary>
+    /// A custom view with a screen of its own, and the file opening on it (ADR-0013 Phase 5,
+    /// W-106): a node kind no older host compiles. The tile of the same phase waits for the next rung.
+    /// </summary>
+    public const string FileViewMinimumHostVersion = "1.42.0";
+
+    public const string CurrentHostVersion = FileViewMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

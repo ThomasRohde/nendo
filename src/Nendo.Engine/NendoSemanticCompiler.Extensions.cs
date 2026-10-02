@@ -18,6 +18,14 @@ public sealed partial class NendoSemanticCompiler
         try
         {
             var definition = NendoExtensionViewDefinition.ReadNode(node, nodes);
+            if (definition.IsScreen)
+            {
+                // A screen of its own names at most what it is about; its code reads the rest.
+                if (definition.SubjectEntityId is { } subject && !source.Entities.Any(e => e.EntityId == subject && !e.Retired))
+                    throw Refused($"The record type '{subject}' does not exist or is retired.");
+                WarnWithoutPackage(definition, node, source, diagnostics);
+                return;
+            }
             var b = definition.Binding;
             var nodeType = source.Entities.SingleOrDefault(e => e.EntityId == b.NodeEntityId && !e.Retired)
                 ?? throw Refused($"The record type '{b.NodeEntityId}' does not exist or is retired.");
@@ -41,10 +49,7 @@ public sealed partial class NendoSemanticCompiler
                     throw Refused($"The field '{fieldId}' is not an active field of {Types(nodeType, edgeType)}.");
             }
             ValidateFilters(children, nodeType, edgeType, diagnostics);
-            if (!source.ExtensionPackages.Any(package => package.PackageId == definition.PackageId))
-                diagnostics.Add(new("NUI452", NendoDiagnosticSeverity.Warning,
-                    $"The package {definition.PackageId} is not in this file, so the view has no code to run yet.",
-                    node.NodeId, "packageId", "Add the package to the file: Studio → Surfaces → Custom views → Import, or extension.setPackage and extension.putFile in a change set."));
+            WarnWithoutPackage(definition, node, source, diagnostics);
         }
         catch (NendoPreconditionException error)
         {
@@ -52,6 +57,36 @@ public sealed partial class NendoSemanticCompiler
                 "Name a package, a record type and fields that exist; the view's code reads the rest through the file's API.");
         }
     }
+
+    private static void WarnWithoutPackage(NendoExtensionViewDefinition definition, NendoUiNodeSnapshot node,
+        NendoSessionSnapshot source, ICollection<NendoCompilerDiagnostic> diagnostics)
+    {
+        if (!source.ExtensionPackages.Any(package => package.PackageId == definition.PackageId))
+            diagnostics.Add(new("NUI452", NendoDiagnosticSeverity.Warning,
+                $"The package {definition.PackageId} is not in this file, so the view has no code to run yet.",
+                node.NodeId, "packageId", "Add the package to the file: Studio → Surfaces → Custom views → Import, or extension.setPackage and extension.putFile in a change set."));
+    }
+
+    /// <summary>
+    /// The file's own views (W-106): each a screen with no record type in context, compiled
+    /// childless. At most one opens the file, since a file opens on one screen.
+    /// </summary>
+    private static IReadOnlyList<NendoSurfaceNodePlan> CompileFileViews(IReadOnlyList<NendoUiNodeSnapshot> roots,
+        IReadOnlyList<NendoUiNodeSnapshot> nodes, NendoSessionSnapshot source, ICollection<NendoCompilerDiagnostic> diagnostics)
+    {
+        var views = roots
+            .Where(root => root.Kind == NendoExtensionViewDefinition.ScreenKind)
+            .OrderBy(root => root.Position).ThenBy(root => root.NodeId, StringComparer.Ordinal)
+            .ToArray();
+        foreach (var view in views) ValidateExtensionView(view, nodes, source, diagnostics);
+        foreach (var second in views.Where(OpensFile).Skip(1))
+            AddError(diagnostics, "NUI453", "Another view already opens the file, and a file opens on one screen.", second.NodeId, "opensFile",
+                "Keep opensFile on one extensionView and remove it from the others.");
+        return views.Select(view => new NendoSurfaceNodePlan(view.NodeId, AutomationTarget(view.NodeId), view.Kind, view.Properties, [])).ToArray();
+    }
+
+    private static bool OpensFile(NendoUiNodeSnapshot view) =>
+        view.Properties.TryGetValue("opensFile", out var value) && value.ValueKind == System.Text.Json.JsonValueKind.True;
 
     /// <summary>A field a view may show: an active stored field of a type the host reads, or a calculated field.</summary>
     private static bool IsShowable(NendoEntitySnapshot entity, string fieldId) =>

@@ -40,6 +40,12 @@ public sealed record NendoCompileResult(
     /// which of the plans was the pretend one.
     /// </summary>
     public NendoOverviewPlan? Overview { get; init; }
+
+    /// <summary>
+    /// The file's own custom views (ADR-0013 Phase 5, W-106), in authored order: screens beside
+    /// the front page, each childless, at most one of them saying the file opens on it.
+    /// </summary>
+    public IReadOnlyList<NendoSurfaceNodePlan> Views { get; init; } = [];
 }
 
 /// <summary>

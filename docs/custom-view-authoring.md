@@ -45,8 +45,11 @@ A view also writes records and runs record commands (see
 toolbar and menus, lists them in Ctrl K and runs their keys (see
 [Controls in Nendo's toolbar](#controls-in-nendos-toolbar)).
 
-**Not yet.** A view as a screen of its own (`extensionView`) or a tile on the front
-page (`extensionTile`) arrives with Phase 5.
+**A screen of the file.** An `extensionView` root makes a view a screen of the file
+itself, beside the front page, rather than of one record type: it names `title` and
+`packageId`, and may name `entityId` (what it is about), `configuration` and `opensFile`
+(the file opens on it). It needs host 1.42.0. A tile on the front page
+(`extensionTile`) is not yet built.
 
 A view can never reach the Workbench's own page, the host bridge, SQL, a file path,
 another file or a device setting, and it can never accept a proposal. See

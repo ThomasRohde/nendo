@@ -190,7 +190,10 @@ public sealed class DesktopExtensionViewJourneyTests
     /// Tasks with a calculated field, a decimal and a reference, a list to open them from, a
     /// record page carrying six views from three packages, and a screen drawn by one of them.
     /// </summary>
-    internal static async Task SeedAsync(string path)
+    /// <param name="opensOnView">
+    /// W-106: add a view of the file, run by probe B and about Tasks, that says the file opens on it.
+    /// </param>
+    internal static async Task SeedAsync(string path, bool opensOnView = false)
     {
         await using var coordinator = await NendoWriteCoordinator.CreateAsync(path, "view-journey");
         var service = new NendoApplicationService(coordinator);
@@ -262,6 +265,15 @@ public sealed class DesktopExtensionViewJourneyTests
             .. Panel("panel5", 6, ProbePackages[2]),
             .. Panel("panel6", 7, ProbePackages[2]),
         ]));
+        if (opensOnView)
+            await coordinator.ApplyAsync(new("test", "file-view", "test", "The file's own view", [
+                new AddUiNodeOperation("workbench", "workbench", "workbench", null, NendoExtensionViewDefinition.ScreenKind, 9),
+                new SetUiPropertyOperation("workbench-v", "workbench", "workbench", "definitionVersion", 3),
+                new SetUiPropertyOperation("workbench-t", "workbench", "workbench", "title", "Probe workbench"),
+                new SetUiPropertyOperation("workbench-p", "workbench", "workbench", "packageId", ProbePackages[1]),
+                new SetUiPropertyOperation("workbench-e", "workbench", "workbench", "entityId", "tasks"),
+                new SetUiPropertyOperation("workbench-o", "workbench", "workbench", "opensFile", true),
+            ]));
         await coordinator.ApplyAsync(new("test", "data", "test", "Tasks", [
             new CreateRecordOperation("t1", "tasks", "t1", new Dictionary<string, object?> { ["title"] = "Survey the site", ["starts"] = "2026-10-01", ["estimate"] = 12.50m }),
             new CreateRecordOperation("t2", "tasks", "t2", new Dictionary<string, object?> { ["title"] = "Pour the base", ["starts"] = "2026-10-21", ["estimate"] = 3.25m }),
@@ -270,14 +282,27 @@ public sealed class DesktopExtensionViewJourneyTests
 
     [TestMethod]
     [TestCategory("ExtensionRuntime")]
-    public async Task ViewsRunInlineIsolatedFromTheWorkbenchAndStopWhenSwitchedOff()
+    public Task ViewsRunInlineIsolatedFromTheWorkbenchAndStopWhenSwitchedOff() =>
+        RunJourneyAsync(path => SeedAsync(path), "Review-ExtensionViews.mjs", "extension views ok");
+
+    /// <summary>
+    /// W-106: a file whose view says opensFile opens on it in a real host, the view runs with the
+    /// context of a screen of the file, and Studio and the record type are a choice away.
+    /// tools/Review-FileView.mjs holds the measurements (G37–G39).
+    /// </summary>
+    [TestMethod]
+    [TestCategory("ExtensionRuntime")]
+    public Task AFileOpensOnItsOwnViewAndStudioStaysReachable() =>
+        RunJourneyAsync(path => SeedAsync(path, opensOnView: true), "Review-FileView.mjs", "file view ok");
+
+    private static async Task RunJourneyAsync(Func<string, Task> seed, string script, string passed)
     {
         var root = RepositoryRoot();
         var output = Path.Combine(root, "artifacts", "extension-view-journey-" + Guid.NewGuid().ToString("N"));
         var profile = Path.Combine(output, "device-state");
         Directory.CreateDirectory(output);
         await using var workspace = new DesktopTestWorkspace();
-        await SeedAsync(workspace.FilePath);
+        await seed(workspace.FilePath);
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start(); var port = ((IPEndPoint)listener.LocalEndpoint).Port; listener.Stop();
         var executable = Environment.GetEnvironmentVariable("NENDO_EXTENSION_JOURNEY_EXECUTABLE") ??
@@ -309,7 +334,7 @@ public sealed class DesktopExtensionViewJourneyTests
         {
             var probe = new ProcessStartInfo("node") { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = root,
                 RedirectStandardOutput = true, RedirectStandardError = true };
-            foreach (var arg in new[] { Path.Combine(root, "tools", "Review-ExtensionViews.mjs"), port.ToString(), host.Id.ToString(), output }) probe.ArgumentList.Add(arg);
+            foreach (var arg in new[] { Path.Combine(root, "tools", script), port.ToString(), host.Id.ToString(), output }) probe.ArgumentList.Add(arg);
             using var child = Process.Start(probe)!;
             var stdout = child.StandardOutput.ReadToEndAsync(); var stderr = child.StandardError.ReadToEndAsync();
             try
@@ -320,7 +345,7 @@ public sealed class DesktopExtensionViewJourneyTests
                 // Each guard's measured line, in the test log whether it passes or not.
                 Console.WriteLine(text);
                 Assert.AreEqual(0, child.ExitCode, text + "\nEvidence: " + output);
-                StringAssert.Contains(text, "extension views ok");
+                StringAssert.Contains(text, passed);
             }
             finally { if (!child.HasExited) child.Kill(entireProcessTree: true); }
         }

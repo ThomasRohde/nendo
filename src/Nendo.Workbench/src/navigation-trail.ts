@@ -38,6 +38,8 @@ export interface Place {
   applicationEntityId: string | null;
   studioEntityId: string | null;
   showOverview: boolean | null;
+  /** One of the file's own views, when that is the screen (W-106). */
+  fileView: string | null;
   surfaceId: string | null;
   recordId: string | null;
   /** W-033's one step back, so it comes back with the page it belongs to. */

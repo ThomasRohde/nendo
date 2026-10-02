@@ -7,7 +7,10 @@ package is `org.nendo.archi`, and this folder is exactly what a file carries.
 
 ## Use
 
-Open Archi.nendo and choose **Views → Archi** in Use.
+Open Archi.nendo: it opens on the workbench, a view of the file itself (W-106, Nendo 1.42.0).
+Elsewhere in Use, **Archi** is the first choice in the breadcrumb's first picker, before the
+record types. With custom views off for the file or the device, the file opens on its record
+types as before, and Studio is always a click away.
 
 **A new model** is **File → New Archi model…** (ADR-0022): a new file of Archi with the 72
 concept types and the nine top-level folders, and none of this model's concepts, views or

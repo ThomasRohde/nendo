@@ -12,6 +12,7 @@ import {
   summaryCounts, surfaceErrors, surfaceWindows,
 } from './app-state';
 import { recordPlanOf, recordsForEntity, selectedSurfaceNode, sessionEntity } from './plan-selection';
+import { openingFileView } from './file-view-model';
 import { readsOwnRecords } from './surface-model';
 import {
   WorkbenchHostError, type AgentStatus, type CompileResult, type DesktopMutationView, type DesktopPromotionView,
@@ -127,6 +128,7 @@ export function resetFileView(): void {
   // from the File menu, from Recent, after a restore and on startup, and only one
   // of those was the startup path.
   state.showOverview = null;
+  state.fileView = null;
   state.proposal = null;
   state.agentProposal = null;
   state.compilation = null;
@@ -240,8 +242,11 @@ export async function refreshDerived(attempt = 0): Promise<void> {
   // a file with a front page opens on it, and one without opens on a record type
   // exactly as it did. Already answered for this file, it stays as the person
   // last left it.
-  if (state.showOverview === null)
-    state.showOverview = definition?.isValid === true && (definition.overview ?? null) !== null;
+  // A view of the file that says opensFile comes first, where custom views run (W-106).
+  if (state.showOverview === null) {
+    state.fileView = openingFileView(definition, state.session.extensions);
+    state.showOverview = state.fileView === null && definition?.isValid === true && (definition.overview ?? null) !== null;
+  }
   state.history = revisions?.items ?? [];
   state.historyWindow = revisions === null ? null : { page: revisions, cursors: [null], index: 0 };
   state.agentStatus = status;

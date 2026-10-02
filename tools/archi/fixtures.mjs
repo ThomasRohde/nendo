@@ -44,8 +44,8 @@ export function archiFixture(extra = []) {
   return {
     changeSequence: 1,
     context: {
-      viewId: 'ar.screen.archi', kind: 'extensionRecordsSurface', placement: 'screen', title: 'Archi', entityId: 'ar.view',
-      recordId: null, bindings: { labelFieldId: 'ar.view.name', statusFieldId: null, fields: [], filters: [] }, theme: 'light',
+      viewId: 'ar.screen.workbench', kind: 'extensionView', placement: 'screen', title: 'Archi', entityId: null,
+      recordId: null, bindings: { labelFieldId: null, statusFieldId: null, fields: [], filters: [] }, theme: 'light',
     },
     schema, records: full,
     hierarchies: Object.fromEntries(schema.entities.filter(entity => entity.hierarchy).map(entity => [entity.entityId, entity.hierarchy])),

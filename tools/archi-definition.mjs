@@ -523,16 +523,21 @@ export const NEW_FILE_LABEL = 'Archi model';
 export const PACKAGE_ID = 'org.nendo.archi';
 export const PACKAGE_FOLDER = 'extensions/archi';
 
+/** The workbench's screen: a view of the file (W-106), which the file opens on. */
+export const WORKBENCH_SCREEN = 'ar.screen.workbench';
+
 /**
- * The Archi workbench as a screen of the View record type (W-109), placed first among the View
- * screens so choosing Views opens it. It goes in the same proposal as the package it runs.
+ * The Archi workbench as a screen of the file itself (W-106): listed beside the record types, and
+ * the screen Archi.nendo opens on. It goes in the same proposal as the package it runs. Until
+ * W-106 it was a screen of the View record type (W-109), `ar.screen.archi`; a file that has that
+ * one has it removed in the same proposal, so the workbench is listed once.
  */
-export function workbenchView() {
-  const { first, second } = screenOperations();
-  const roots = [...first, ...second].filter(operation => operation.operationType === 'ui.addNode' && operation.payload.parentNodeId === null);
-  const position = roots.findIndex(operation => operation.payload.nodeId === 'ar.screen.views');
-  return [op('ui.addNode', { surfaceId: SURFACE, nodeId: 'ar.screen.archi', parentNodeId: null, kind: 'extensionRecordsSurface', position,
-    properties: { definitionVersion: 3, entityId: 'ar.view', title: 'Archi', packageId: PACKAGE_ID, labelFieldId: 'ar.view.name' } })];
+export function workbenchView({ replacing = false } = {}) {
+  return [
+    ...(replacing ? [op('ui.removeNode', { surfaceId: SURFACE, nodeId: 'ar.screen.archi' })] : []),
+    op('ui.addNode', { surfaceId: SURFACE, nodeId: WORKBENCH_SCREEN, parentNodeId: null, kind: 'extensionView', position: 0,
+      properties: { definitionVersion: 3, title: 'Archi', packageId: PACKAGE_ID, opensFile: true } }),
+  ];
 }
 
 // The records every Archi file starts with: Archi's nine top-level folders, in its order, and

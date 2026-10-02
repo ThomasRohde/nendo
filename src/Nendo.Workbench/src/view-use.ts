@@ -9,9 +9,8 @@ import { icon } from './icons';
 import { inspectorMarkup, pageFormBody, pageHasTabs } from './page-markup';
 import { drillIntoCell, matrixPending, refreshVisibleTiles, wireCharts, wireSummaryRetry } from './panels';
 import { renderOverview, showsOverview } from './view-overview';
-import { overviewTitle } from './overview-model';
 import { createReadChase } from './read-chase';
-import { activePlan, applicationPlans, overviewPlan, calendarKeyFor, calendarModeFor, calendarMonthFor, chartPending, formFields, referenceColumnsOf, selectedBoard, selectedSurfaceNode, tilePending, timelineKeyFor, timelineModeFor, timelineYearFor, visibleCharts, visibleTiles } from './plan-selection';
+import { activePlan, overviewPlan, calendarKeyFor, calendarModeFor, calendarMonthFor, chartPending, formFields, referenceColumnsOf, selectedBoard, selectedSurfaceNode, tilePending, timelineKeyFor, timelineModeFor, timelineYearFor, visibleCharts, visibleTiles } from './plan-selection';
 import { loadCalendarPage, loadRelatedWindows, loadSurfaceWindow, loadTimelinePage, relatedWindowsPending, wireRecordPager } from './reads';
 import {
   closeRelatedCreate, recordInView, relatedTargetPlan, returnFromRelatedRecord, seedRelatedReference, wireRelatedActions,
@@ -25,6 +24,8 @@ import { wireOutlineSurface } from './outline-surface';
 import { renderSurfaces } from './view-surfaces';
 import { viewAddCommand, wireViewFrames } from './view-frames';
 import { drawPlacePickers } from './place-pickers';
+import { fileViewById, fileViews, fileViewValue, showFileView, showingLabel, showingOptionsMarkup } from './file-view-model';
+import { renderFileView } from './file-views';
 /**
  * The Use view: one selected surface for one record type, the record opened
  * beside it, and the gestures that move a card between board columns.
@@ -136,11 +137,16 @@ function relatedCreateInspector(created: CreateRelated, target: ApplicationPlan)
 export function renderUse(): void {
   // The front page is not one of a record type's surfaces, so it is chosen here
   // rather than in the surface picker. A file without one never reaches this.
+  // One of the file's own views comes first while it is chosen (W-106).
+  const fileView = fileViewById(state.fileView);
+  if (fileView !== null) { renderFileView(fileView); return; }
   const overview = overviewPlan();
   if (overview !== null && showsOverview()) { renderOverview(overview); return; }
   const plan = activePlan();
   if (plan === null) {
     if (overview !== null) { state.showOverview = true; renderOverview(overview); return; }
+    const first = fileViews()[0];
+    if (first !== undefined) { state.fileView = first.semanticId; renderFileView(first); return; }
     state.view = 'surfaces';
     renderSurfaces();
     return;
@@ -157,7 +163,7 @@ export function renderUse(): void {
   const entityName = plan.entity.displayName;
   // Where you are is chosen in the breadcrumb (W-092): its record type and its view are the two
   // pickers. The row below keeps what acts on the screen, and a custom view's controls join it.
-  const pickers = drawPlacePickers(`<span class="place-root">Use</span><span class="place-dot" aria-hidden="true">·</span><label class="place-entity"><span class="visually-hidden">${overview === null ? 'Record type' : 'Showing'}</span><select id="use-entity">${overview === null ? '' : `<option value="">${escapeHtml(overviewTitle(overview))}</option>`}${applicationPlans().map(app => `<option value="${escapeAttribute(app.entity.semanticId)}" ${app.entity.semanticId === plan.entity.semanticId ? 'selected' : ''}>${escapeHtml(app.entity.displayName)}</option>`).join('')}</select><span class="place-chevron" aria-hidden="true">${icon('chevron')}</span></label><span class="place-sep" aria-hidden="true">/</span>${surfaceSelectorMarkup(plan)}`);
+  const pickers = drawPlacePickers(`<span class="place-root">Use</span><span class="place-dot" aria-hidden="true">·</span><label class="place-entity"><span class="visually-hidden">${showingLabel()}</span><select id="use-entity">${showingOptionsMarkup({ overview: false, fileView: null, entityId: plan.entity.semanticId })}</select><span class="place-chevron" aria-hidden="true">${icon('chevron')}</span></label><span class="place-sep" aria-hidden="true">/</span>${surfaceSelectorMarkup(plan)}`);
   const back = `${drillPillMarkup(plan)}${state.returnTo === null ? '' : `<button id="related-back" class="text-button related-back" type="button"><span aria-hidden="true">←</span> Back to ${escapeHtml(state.returnTo.label)}</button>`}`;
   content.innerHTML = `<div class="use-page" data-testid="semantic-application">
     <header class="use-toolbar">${back === '' ? '' : `<div class="toolbar-group">${back}</div>`}${isCustomViewKind(surface?.kind) ? '<div class="view-toolbar-slot" data-view-toolbar-slot></div>' : ''}<div class="toolbar-group use-actions">${surface !== null && readsOwnRecords(surface.kind) ? '' : recordPagerMarkup(plan.entity.semanticId, surface?.semanticId ?? null)}<button id="new-record" class="primary-button" data-action type="button"><span class="button-glyph" aria-hidden="true">+</span>Add ${escapeHtml(entityName)}</button></div></header>
@@ -177,6 +183,7 @@ export function renderUse(): void {
       picker.value = plan.entity.semanticId;
       return;
     }
+    if (chosen.startsWith(fileViewValue)) { showFileView(chosen.slice(fileViewValue.length)); return; }
     if (chosen === '') {
       state.showOverview = true;
       leaveRecordContext();

@@ -660,6 +660,7 @@ internal static class SemanticDiff
         "extensionGraphSurface" => "the custom graph view",
         "extensionRecordsSurface" => "the custom record view",
         "extensionRecordPanel" => "the custom view on the record page",
+        "extensionView" => "the custom view",
         "gallerySurface" => "the gallery",
         "outlineSurface" => "the outline",
         "detailSurface" => "the record page",
@@ -791,6 +792,7 @@ internal static class SemanticDiff
         "extensionGraphSurface" => "Add a custom graph view. It runs its package's code from this file when shown; records remain available in Studio.",
         "extensionRecordsSurface" => "Add a custom view of these records as typed columns. It runs its package's code from this file when shown; records remain available in Studio.",
         "extensionRecordPanel" => "Add a custom view of each record to its page. It runs its package's code from this file when the page shows it, and the page stays editable.",
+        "extensionView" => "Add a custom view as a screen of the file, beside the front page. It runs its package's code from this file when shown; records remain available in Studio.",
         "gallerySurface" => "Add a gallery of cards, one per record.",
         "outlineSurface" => "Add an outline of these records as their tree, a level at a time.",
         "detailSurface" => "Add a record page.",
@@ -874,6 +876,9 @@ internal static class SemanticDiff
             "packageVersion" or "packageDigest" or "protocolVersion" or "configurationVersion" =>
                 $"Keep the earlier pin {operation.PropertyName}; this host reads the package from the file instead.",
             "configuration" => $"Give the view this configuration, which its code reads: {Text(operation.Value, "configuration")}",
+            "opensFile" => operation.Value is { ValueKind: JsonValueKind.True }
+                ? "Open the file on this view."
+                : "Open the file on the front page, not on this view.",
             "edgeEntityId" => $"Read graph relationships from {EntityName(names, Text(operation.Value, "entity"))}.",
             "labelFieldId" => kind == NendoExtensionViewDefinition.NodeKind
                 ? $"Label each graph node with {FieldName(names, Text(operation.Value, "field"))}."

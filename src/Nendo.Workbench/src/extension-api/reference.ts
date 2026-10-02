@@ -260,7 +260,7 @@ export function viewApiReference() {
       'Load the API before your own script, with <script src="/_nendo/api.js"></script>. Every view\'s origin serves it; never copy it into the package.',
       'Await nendo.ready, which resolves with the context. Then read, draw, and draw again on the changes event.',
       'Put the files in the file with a change set: extension.setPackage {packageId, title, entryPoint, version}, then one extension.putFile per file. nendo://application/vocabulary has the payloads under operations and the bounds under limits.extensions, and a file larger than one payload goes in parts with append.',
-      'Show the package with a view definition that names it by packageId: an extensionRecordsSurface or extensionGraphSurface root is a screen of its record type, and an extensionRecordPanel is a panel on a record page. The vocabulary lists each kind\'s properties; nendo://application/examples has put-a-custom-view-in-the-file and show-a-custom-graph to copy.',
+      'Show the package with a view definition that names it by packageId: an extensionRecordsSurface or extensionGraphSurface root is a screen of its record type, an extensionView root is a screen of the file beside the front page (with opensFile, the file opens on it), and an extensionRecordPanel is a panel on a record page. The vocabulary lists each kind\'s properties; nendo://application/examples has put-a-custom-view-in-the-file and show-a-custom-graph to copy.',
       'A package is reviewed as code. At Unattended, nendo.change_set.accept applies your own proposal; below it, the person accepts it in Nendo. Read the files back at nendo://application/extensions.',
     ],
     example,
@@ -272,7 +272,7 @@ export function viewApiReference() {
     context: {
       apiVersion: 'The API version, 1.',
       viewId: 'The view definition\'s node ID.',
-      kind: 'extensionGraphSurface, extensionRecordsSurface or extensionRecordPanel.',
+      kind: 'extensionGraphSurface, extensionRecordsSurface, extensionView or extensionRecordPanel.',
       placement: 'screen, or recordPage for a panel on a record page.',
       title: 'The view\'s title.',
       packageId: 'The package the view runs.',

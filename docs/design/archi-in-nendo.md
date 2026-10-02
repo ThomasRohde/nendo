@@ -29,8 +29,8 @@ D-002, how the editor stays inside the operation-row bound, is open. The
   `.archimate` document.
 - **The Archi window is one custom view.** A package, `extensions/archi`, carries the
   workbench: model tree, diagram editor, palette, properties, validator and analysis.
-  It is a screen of the View record type until a view can be a file's own screen
-  (W-106).
+  It is a view of the file itself, and Archi.nendo opens on it (W-106, host 1.42.0); until
+  then it was a screen of the View record type.
 - **archi-online's model code is reused, not rewritten.** Its `src/model` has no React
   and makes every change inside an Immer transaction. The view keeps a mirror of the
   file's records in archi-online's `ModelState` shape. It runs archi-online's
@@ -125,7 +125,7 @@ not built, with the reason.
 | A view writes one record per call, each its own revision | A gesture is several writes, not atomic, and several History rows | W-102 |
 | No undo | Edits wait in the editor, where archi-online's Undo and Redo work on them, until Commit. See below | W-103, W-112 |
 | A view cannot read a file the person picks | `.archimate`, XML and CSV import wait for it | W-104 |
-| A view is only a record-type screen or a record-page panel | The workbench is a screen of View | W-106, Later |
+| A view was only a record-type screen or a record-page panel | The workbench is a view of the file, which the file opens on | W-106, built 2026-10-02 (host 1.42.0) |
 | The operation-row and revision-row bounds, about 100,000 each | See [the write budget](#the-write-budget) | W-101 (D-002) |
 | A calculated field was shown, not filtered | *On views* and *Diagram objects* are counts; since F-222 a list filters on them, so *Not on any view* and *Empty views* are screens | Fixed 2026-09-30; see [the validator](#the-validator) |
 | Binary fields are out of scope | Images are dropped on import, with a notice | F-208 |

@@ -15,14 +15,28 @@ public sealed record NendoExtensionViewDefinition(string ViewId, string Title, s
     public const string RecordsKind = "extensionRecordsSurface";
     /// <summary>A view on a record page, scoped to that page's one record; its record type is the page's.</summary>
     public const string PanelKind = "extensionRecordPanel";
+    /// <summary>
+    /// A view that is a screen of the file rather than of a record type (ADR-0013 Phase 5, W-106):
+    /// listed beside the front page, and the screen the file opens on when it says so. Its code
+    /// reads the file through the API, so it names no fields and no filters.
+    /// </summary>
+    public const string ScreenKind = "extensionView";
     /// <summary>Whether a node is a custom view of any shape or placement.</summary>
-    public static bool IsViewKind(string? kind) => kind is NodeKind or RecordsKind or PanelKind;
+    public static bool IsViewKind(string? kind) => kind is NodeKind or RecordsKind or PanelKind or ScreenKind;
     /// <summary>Whether a node is a custom view with a screen of its own, rather than a place on a record page.</summary>
-    public static bool IsRootViewKind(string? kind) => kind is NodeKind or RecordsKind;
+    public static bool IsRootViewKind(string? kind) => kind is NodeKind or RecordsKind or ScreenKind;
     /// <summary>Which shape this view is; a graph unless it was read as a record set or a record panel.</summary>
     public string Kind { get; init; } = NodeKind;
     public bool IsRecordSet => Kind == RecordsKind;
     public bool IsRecordPanel => Kind == PanelKind;
+    public bool IsScreen => Kind == ScreenKind;
+    /// <summary>Whether the file opens on this view: an <see cref="ScreenKind"/> that says opensFile.</summary>
+    public bool OpensFile { get; init; }
+    /// <summary>
+    /// The record type the view is about, or null for a screen view that names none. A screen
+    /// view carries it only to tell its code; it is not a binding, and the binding's label is empty.
+    /// </summary>
+    public string? SubjectEntityId => IsScreen && Binding.NodeEntityId.Length == 0 ? null : Binding.NodeEntityId;
 
     /// <summary>The most UTF-8 bytes a view's configuration may hold. A bound, not an optimum: room for a view's settings, not its data.</summary>
     public const int MaximumConfigurationBytes = 16 * 1024;
@@ -66,6 +80,20 @@ public sealed record NendoExtensionViewDefinition(string ViewId, string Title, s
                     throw Invalid("configuration must be JSON text containing an object.");
             }
             catch (JsonException) { throw Invalid("configuration must be valid JSON text, at most 32 levels deep."); }
+        }
+        if (kind == ScreenKind)
+        {
+            if (children.Count > 0)
+                throw Invalid("A view with a screen of its own reads the file through the API, so it has no fieldBinding or filterClause children.");
+            var subject = properties.ContainsKey("entityId") ? Text("entityId") : null;
+            var opens = false;
+            if (properties.TryGetValue("opensFile", out var flag))
+            {
+                if (flag.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) throw Invalid("opensFile must be true or false.");
+                opens = flag.GetBoolean();
+            }
+            return new(viewId, Text("title"), package, configuration, new NendoGraphBinding(subject ?? string.Empty, string.Empty, null, null, null))
+                { Kind = kind, OpensFile = opens };
         }
         // A record set has one record type and no links, so it names no edge type and no
         // endpoints. A record panel is the same with one record, and its record type is the

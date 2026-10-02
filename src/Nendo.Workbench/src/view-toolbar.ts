@@ -72,6 +72,9 @@ function slot(placeholder: HTMLElement, placement: ToolbarHost['placement']): { 
  * away when the view declares none.
  */
 export function drawViewToolbar(placeholder: HTMLElement, host: ToolbarHost): void {
+  // A view of the file has no record type to add to: Nendo's Add is there only for the view's own (W-106).
+  const fileViewAdd = host.placement === 'screen' ? placeholder.closest('.use-page')?.querySelector<HTMLButtonElement>('[data-file-view-add]') : null;
+  if (fileViewAdd !== null && fileViewAdd !== undefined) fileViewAdd.hidden = (host.toolbar?.add ?? null) === null;
   const scope = stripScope(placeholder, host.placement);
   const previous = scope?.querySelector<HTMLElement>(':scope > [data-view-toolbar]') ?? null;
   const inRow = host.placement === 'screen' && rowSlot(placeholder) !== null;

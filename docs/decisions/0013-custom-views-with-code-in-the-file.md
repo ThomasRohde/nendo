@@ -410,10 +410,43 @@ and it would add no protection. No rung: nothing reaches the file.
   `filterClause` may use any value kind. The panel cap goes. A view whose package
   is not in the file gets the warning NUI452, with one step: "Add package to
   file…". NUI451 and the binding digest are retired.
-- **`extensionView` and `extensionTile` (rung 1.42.0; 1.35.0 and 1.36.0 went to ADR-0019's hierarchies and outline, 1.37.0 to ADR-0020's unique fields, 1.38.0 to a file's own look, 1.39.0 to ADR-0021's folded history, 1.40.0 to filtering and sorting on calculated fields and 1.41.0 to ADR-0022's new files, delivered first).** `extensionView` is a root
-  with a package, a title, a configuration and an optional `entityId`. It appears
-  in the Use "Showing" picker. `extensionTile` is a child of `overviewSurface`,
-  `section` or `tabGroup`, sized `tile` or `wide`, with a height.
+- **`extensionView` (rung 1.42.0; 1.35.0 and 1.36.0 went to ADR-0019's hierarchies and outline, 1.37.0 to ADR-0020's unique fields, 1.38.0 to a file's own look, 1.39.0 to ADR-0021's folded history, 1.40.0 to filtering and sorting on calculated fields and 1.41.0 to ADR-0022's new files, delivered first).** `extensionView` is a root
+  of the file, not of a record type, with a package, a title, a configuration and an
+  optional `entityId`. It appears in the Use "Showing" picker. See *A view as a screen of
+  its own*, below.
+- **`extensionTile` (the rung after 1.42.0, not yet delivered).** A child of
+  `overviewSurface`, `section` or `tabGroup`, sized `tile` or `wide`, with a height. It was
+  to share 1.42.0 with `extensionView`. The view came first (W-106), so the tile takes the
+  next rung when it lands.
+
+#### A view as a screen of its own (2026-10-02)
+
+The Archi workbench is a whole application in one view: a model tree, a drawing, properties
+and its own menus. Until now a view could only be one screen of a record type, so Archi.nendo
+put the workbench under its View type and opened on its front page, two steps from it. W-106
+builds `extensionView` and settles what Phase 5 left open: which screen a file opens on.
+
+- **Where it belongs.** An `extensionView` root belongs to the file, as the front page does.
+  The file may hold eight. It carries `definitionVersion`, `title` and `packageId`, and may
+  carry `configuration` and `entityId`. It has no children: it names no fields and no
+  filters, because its code reads the file through the API, and a binding is not a
+  permission. `entityId` names the record type the view is about and reaches the view in its
+  context. It does not move the screen under that type.
+- **Where it is listed.** The first picker of the Use breadcrumb lists the front page, then
+  each view of the file in authored order, then the record types. Studio lists the view among
+  the surfaces. A view of this kind is a place in Back and Forward like any screen, and
+  `ui.openScreen` can open it.
+- **The screen a file opens on.** `opensFile: true` on one `extensionView` makes the file
+  open on it, rather than on the front page or the first record type. At most one view may
+  say so (`NUI453`). It is a Use screen like any other. The rail, the top bar and the picker
+  reach every other screen, and Studio and recovery stay as reachable as before.
+- **When views do not run.** When the device switch, the file's switch, safe mode, a restart
+  without custom views or the file's health keeps views from running, the file opens as if no
+  view said so: the front page, or else the first record type. The view stays in the picker
+  and shows its notice there.
+- **Validation.** The package and the `entityId` follow the rules of every view: a missing
+  record type refuses the view (`NUI450`), and a package the file does not carry is the warning
+  `NUI452`. A file with an `extensionView` needs host 1.42.0, by the rung rule of ADR-0012.
 
 ### Views in Nendo's own chrome (2026-09-28)
 
@@ -578,7 +611,8 @@ before a view runs a command.
 
 - A file that carries packages needs host 1.33.0. A view definition that only the
   open rules accept needs 1.34.0. A definition that the earlier rules accept keeps
-  its rung, 1.29.0 to 1.32.0. `extensionView` and `extensionTile` need 1.42.0.
+  its rung, 1.29.0 to 1.32.0. `extensionView` needs 1.42.0, and `extensionTile` will need
+  the rung after it.
 - An older host refuses writable open of such a file by the rung rule of
   ADR-0012. There is no downgrade-in-place.
 - A file without packages gains no table and keeps its layout.
@@ -622,7 +656,7 @@ contained helper is deleted.
 | 2 | Views run inline from the file, and the helper is deleted: serving, the read API, the kill switches, open definitions, package import and export as folders, and the four packages ported | 1.34.0 |
 | 3 | Views that write: records and commands, proposals to prepare, and state (delivered 2026-09-26) | — |
 | 4 | Develop from a folder: a device-local link, reload on save, and saving the folder as proposals (delivered 2026-09-26) | — |
-| 5 | Views anywhere: `extensionView` and `extensionTile` | 1.42.0 |
+| 5 | Views anywhere: `extensionView` and the screen a file opens on (delivered 2026-10-02, W-106); `extensionTile` not yet | 1.42.0; the tile the next rung |
 
 ## Evidence and validation obligations
 
@@ -781,3 +815,7 @@ falsified once, and has the failure text quoted in its planner Check.
   view's frame, measured in a real host; the system file pickers are refused to a view by the
   browser, and Nendo's drop hint steps aside over a view. No `files.open` call and no rung
   (W-104). Written with the measurement, on the owner's standing pre-acceptance.
+- 2026-10-02 — a view as a screen of its own: `extensionView` is a root of the file, listed in
+  the first picker of the Use breadcrumb, and `opensFile` on one makes the file open on it,
+  unless views do not run there (W-106, rung 1.42.0). `extensionTile` moves to the next rung.
+  Written before the code, on the owner's standing pre-acceptance.

@@ -990,7 +990,10 @@ vocabulary, the examples and the resources — and not from the person.
   the person to press it, then record how many entries History shows for it, what it calls
   them, and the versions the view was answered. Then make the batch fail on its last write
   (a stale version) and record whether any of its earlier writes reached the file.
-- Open the Archi file the repository carries (`workspace/Archi.nendo`) at Views → Archi,
+- Open the Archi file the repository carries (`workspace/Archi.nendo`). Record which screen it
+  opens on, what the breadcrumb's first picker lists and in which order, whether Studio is
+  reachable from there, and which screen the file opens on after you turn custom views off for
+  it in Studio and open it again (W-106). Turn them on again. The workbench is
   an ArchiMate modeller written as a custom view. Using only the keyboard, find an element,
   open its folder, rename it with F2, and give it a property; then make a new element through
   Nendo's Add and delete it again. Record what the delete said it would remove, what History

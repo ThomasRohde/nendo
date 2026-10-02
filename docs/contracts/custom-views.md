@@ -14,7 +14,8 @@ ran views before 2026-09-25 is deleted. The [History](#history) says what it was
 
 Not yet delivered:
 
-- the `extensionView` root and the `extensionTile` (Phase 5).
+- the `extensionTile` on the front page and dashboards (Phase 5; the `extensionView` root
+  of the same phase is delivered, below).
 
 Nothing in this contract describes them as available.
 
@@ -300,6 +301,19 @@ A view is shown in one of two places:
 - **A screen** (`placement` `screen`). An `extensionGraphSurface` or an
   `extensionRecordsSurface` root is a Use screen of its record type, beside the
   other screens of that type. Its frame fills the screen's area.
+- **A screen of the file** (`placement` `screen`, W-106). An `extensionView` root
+  belongs to the file, as the front page does. The first picker of the Use
+  breadcrumb lists the front page, then each view of the file in authored order,
+  then the record types, and the view's frame fills the screen. The view's declared
+  controls share the row under the top bar. Nendo's Add is there only when the view
+  names an `add`, because a view of the file has no record type of its own to add to.
+  Back and Forward know it as a place, `ui.openScreen` opens it by its node ID, and
+  Studio lists it under *Screens of the file*.
+- **The screen a file opens on.** `opensFile: true` on one `extensionView` makes the
+  file open on it, rather than on the front page or the first record type. When
+  custom views do not run in the file (the device or file switch, safe mode, a
+  restart without custom views, the file's health), the file opens as if no view
+  said so, and the view keeps its place in the picker with its notice.
 - **A record page** (`placement` `recordPage`). An `extensionRecordPanel` is a
   titled panel at its authored place on a record page or a record form, about that
   page's record. It starts 360 pixels tall until the view sets its height. On a
@@ -825,11 +839,11 @@ a correction.
 | --- | --- |
 | `apiVersion` | `1` |
 | `viewId` | The view's node ID |
-| `kind` | `extensionGraphSurface`, `extensionRecordsSurface` or `extensionRecordPanel` |
+| `kind` | `extensionGraphSurface`, `extensionRecordsSurface`, `extensionView` or `extensionRecordPanel` |
 | `placement` | `screen` or `recordPage` |
 | `title` | The view's title |
 | `packageId` | The package the view runs |
-| `entityId` | The record type the view is about; on a record page, the page's |
+| `entityId` | The record type the view is about; on a record page, the page's; for an `extensionView`, the one it names, or null |
 | `recordId` | The page's record, for a view on a record page; null elsewhere |
 | `bindings` | `labelFieldId`, `statusFieldId`, `edgeEntityId`, `sourceFieldId`, `targetFieldId`; `fields`, each `{fieldId, entityId}` in authored order; `filters`, each `{fieldId, entityId, operator, value, valueKind, storageKind}` |
 | `configuration` | The definition's configuration, parsed; `{}` when there is none |
@@ -1270,17 +1284,24 @@ set that a person accepts. There is no second pipeline: Studio's Add view form
 `proposal.prepareChangeSet`, as every Studio proposal does. A definition names its
 package by `packageId`, and the view runs that package from the file.
 
-### The three kinds
+### The four kinds
 
 | Kind | Where | Required | Optional | Children |
 | --- | --- | --- | --- | --- |
+| `extensionView` | A root of the file, up to eight | `definitionVersion` (3), `title`, `packageId` | `entityId`, `configuration`, `opensFile` | none |
 | `extensionGraphSurface` | A root, up to eight per record type | `definitionVersion` (3), `entityId`, `title`, `packageId`, `labelFieldId`, `edgeEntityId`, `sourceFieldId`, `targetFieldId` | `statusFieldId`, `configuration` | `fieldBinding`, `filterClause` |
 | `extensionRecordsSurface` | A root, up to eight per record type | `definitionVersion` (3), `entityId`, `title`, `packageId`, `labelFieldId` | `statusFieldId`, `configuration` | `fieldBinding`, `filterClause` |
 | `extensionRecordPanel` | A child of a `detailSurface`, a `recordForm` or a `section`, inside a tab too | `title`, `packageId`, `labelFieldId` | `statusFieldId`, `configuration` | `fieldBinding` |
 
-Each kind also accepts `packageVersion`, `packageDigest`, `protocolVersion` and
-`configurationVersion`, the pins earlier hosts required. They are kept when present
-and read by nothing.
+The three bound kinds also accept `packageVersion`, `packageDigest`, `protocolVersion`
+and `configurationVersion`, the pins earlier hosts required. They are kept when present
+and read by nothing. `extensionView` never had pins and accepts none.
+
+- A view of the file (`extensionView`) names no fields and no filters: its code reads
+  the file through the API. `entityId`, when present, must name an active record type
+  (`NUI450`) and reaches the view as `context.entityId`. It does not make the view a
+  screen of that type. At most one view of a file says `opensFile` (`NUI453`), and a
+  ninth view is refused (`NUI391`).
 
 - A graph's node type is its `entityId`. Its links are records of `edgeEntityId`,
   whose two distinct active Reference fields `sourceFieldId` and `targetFieldId`
@@ -1328,6 +1349,7 @@ that the 1.32 rules accept:
 | An `extensionRecordsSurface` | 1.31.0 |
 | An `extensionRecordPanel` | 1.32.0 |
 | A view that only the open rules accept | **1.34.0** |
+| An `extensionView` (a view of the file) | **1.42.0** |
 
 A view needs 1.34.0 when it says something the 1.32 rules refused
 (`src/Nendo.Engine/SemanticCapability.cs`):
@@ -1416,8 +1438,8 @@ before any write. View code needs no approval of its own.
 ## Compatibility
 
 - A file that carries packages needs host 1.33.0. A view that only the open rules
-  accept needs 1.34.0. `extensionView` and `extensionTile` will need 1.38.0, and
-  are not yet delivered.
+  accept needs 1.34.0. An `extensionView` needs 1.42.0. `extensionTile` will need the
+  rung after it, and is not yet delivered.
 - An older host refuses writable open of such a file by the rung rule of
   [ADR-0012](../decisions/0012-safe-mode-compatibility-and-migration.md). There is
   no downgrade in place.
@@ -1436,6 +1458,21 @@ before any write. View code needs no approval of its own.
   nor writes them, and leaves them where they are.
 
 ## Evidence
+
+### A view as a screen of the file (W-106)
+
+Measured on 2026-10-02 against a Debug build. `DesktopExtensionViewJourneyTests` seeds a file with
+a Tasks list and an `extensionView` run by a probe package that says `opensFile`, starts a real
+host on it, and `tools/Review-FileView.mjs` measures over the debugging port. G37: the file opens
+on the view, running, and the Showing picker lists `view:workbench` then `tasks`. G38: inside its
+frame the view is handed `{"viewId":"workbench","kind":"extensionView","placement":"screen","entityId":"tasks","recordId":null}`
+and reads records through the API. G39: Studio lists it under *Screens of the file*, Use returns
+to it, and the picker reaches Tasks and the view again. With the opening decision taken out of
+the Workbench, G37 failed: `Timed out: the file opening on its view, running (last: null)`.
+`scripts/file-views.test.mjs` runs the Workbench's own opening decision: with views off for the
+device, the file opens on its front page. `ExtensionScreenViewTests` holds the compiler's rules
+and rung, and that a file whose screens all belong to the file keeps them: without the fix its
+front page was dropped (`Expected:<front>. Actual:<>`), so such a file opened on Studio.
 
 ### The clipboard from a command (W-123)
 
@@ -1780,3 +1817,7 @@ passed. Each guard below was falsified, seen to fail and then restored:
 - 2026-10-01 — the clipboard from a command (W-123): a command chosen in Nendo's row reaches a
   frame without focus, where the browser refuses a clipboard write; a view takes focus first.
   Measured in a real host (G36). No method, no rung.
+- 2026-10-02 — a view as a screen of the file (W-106, ADR-0013 Phase 5): the `extensionView`
+  root, listed in the first picker of the Use breadcrumb, and `opensFile`, the screen a file
+  opens on where views run. Rung 1.42.0. Measured in a real host (G37–G39). `extensionTile`
+  moves to the next rung.

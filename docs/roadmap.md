@@ -134,8 +134,9 @@ Next, in order:
   folder on disk, reload on save, and saving the folder back as a proposal, is
   delivered (2026-09-26, W-063).
 - **Phase 5, views anywhere**: the `extensionView` root, which the Use "Showing"
-  picker offers, and the `extensionTile` on the front page and dashboards, at host
-  1.42.0 (1.35.0 to 1.37.0 went to ADR-0019's hierarchies and outline and ADR-0020's unique fields, 1.38.0 to a file's own look, 1.39.0 to folded history, 1.40.0 to filtering and sorting on calculated fields, and 1.41.0 to ADR-0022's new files). Not yet.
+  picker offers and a file may open on, is delivered at host 1.42.0 (2026-10-02,
+  W-106). The `extensionTile` on the front page and dashboards takes the next rung,
+  not yet built. The rungs once reserved for this phase went to what was delivered first: 1.35.0 to 1.37.0 to ADR-0019's hierarchies and outline and ADR-0020's unique fields, 1.38.0 to a file's own look, 1.39.0 to folded history, 1.40.0 to filtering and sorting on calculated fields, and 1.41.0 to ADR-0022's new files.
 
 **Accepted limitation: a received file's code runs.** A view that is shown runs,
 and a file somebody else wrote brings its views' code with it. Nobody on this device

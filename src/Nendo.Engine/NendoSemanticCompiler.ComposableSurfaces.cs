@@ -30,7 +30,9 @@ public sealed partial class NendoSemanticCompiler
             .Where(root => !IsFileScopedRoot(root.Kind))
             .Select(root => (Root: root, EntityId: ReadRequiredString(root, "entityId", "NUI150", diagnostics)))
             .ToArray();
-        foreach (var overview in fileScoped.Where(root => root.Properties.ContainsKey("entityId")))
+        // A view of the file may say what it is about; the front page names nothing.
+        foreach (var overview in fileScoped.Where(root => root.Properties.ContainsKey("entityId") &&
+                     !NendoSemanticVocabulary.Kinds[root.Kind].Properties.Contains("entityId")))
             AddError(diagnostics, "NUI390", $"A {overview.Kind} belongs to the file, so it has no record type of its own.",
                 overview.NodeId, "entityId",
                 "Remove entityId from the root, and name the record type on each tile, chart and recent list inside it.");
@@ -91,7 +93,9 @@ public sealed partial class NendoSemanticCompiler
                     .OrderBy(record => record.RecordId, StringComparer.Ordinal).Select(ToRecordPlan).ToArray())));
         }
 
+        var views = CompileFileViews(fileScoped, nodes, source, diagnostics);
         var overviewPlan = fileScoped
+            .Where(root => root.Kind == "overviewSurface")
             .OrderBy(root => root.Position)
             .ThenBy(root => root.NodeId, StringComparer.Ordinal)
             .Select(root => CompileOverviewNode(root, nodes, source, SurfaceContext.Overview, diagnostics))
@@ -102,6 +106,7 @@ public sealed partial class NendoSemanticCompiler
             : new(true, OrderDiagnostics(diagnostics))
             {
                 Applications = plans.AsReadOnly(),
+                Views = views,
                 Overview = overviewPlan is null
                     ? null
                     : new NendoOverviewPlan(
@@ -273,11 +278,11 @@ public sealed partial class NendoSemanticCompiler
                     .OrderBy(record => record.RecordId, StringComparer.Ordinal).Select(ToRecordPlan).ToArray(),
             }));
         }
-        // The front page holds no records of its own, so a data revision changes
-        // nothing about it and it travels through unchanged.
+        // The front page and the file's views hold no records of their own, so a data
+        // revision changes nothing about them and they travel through unchanged.
         return HasErrors(diagnostics)
             ? Invalid(diagnostics)
-            : new(true, OrderDiagnostics(diagnostics)) { Applications = plans.AsReadOnly(), Overview = definition.Overview };
+            : new(true, OrderDiagnostics(diagnostics)) { Applications = plans.AsReadOnly(), Overview = definition.Overview, Views = definition.Views };
     }
 
     /// <summary>

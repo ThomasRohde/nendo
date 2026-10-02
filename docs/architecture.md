@@ -37,8 +37,10 @@ device package cache, device consent and the native pane. The
 [custom-view contract](contracts/custom-views.md) has the rules, and
 [Authoring a custom view](custom-view-authoring.md) tells how to write a view.
 A view writes records, runs commands, proposes changes and keeps state in the file,
-and a package can be developed from a folder on this device (Phases 3 and 4). Views
-anywhere (Phase 5) are not yet delivered ([roadmap](roadmap.md)). Since 2026-09-28 a
+and a package can be developed from a folder on this device (Phases 3 and 4). A view
+can be a screen of the file, listed beside the front page, and the screen the file
+opens on (`extensionView`, Phase 5, W-106); the tile of the same phase is not yet
+delivered ([roadmap](roadmap.md)). Since 2026-09-28 a
 view's controls can be the Workbench's own: the view declares them, and the Workbench
 draws them in its toolbar and menus, lists them in Ctrl K and runs their keys, and api.js
 hands Nendo's own keys back when they are pressed inside a view (W-090).
@@ -153,8 +155,9 @@ A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
 what a file can contain. `1.11.0` is for composable surfaces. After it, each
 version adds one capability, usually a widened semantic shape. The highest version
-is `1.34.0`, for a custom view defined by rules that earlier hosts refused (ADR-0013,
-2026-09-25). `1.33.0` is for custom-view packages carried in the file, `1.32.0` a
+is `1.42.0`, for a custom view as a screen of the file (`extensionView`, ADR-0013 Phase
+5, W-106). `1.34.0` is for a custom view defined by rules that earlier hosts refused
+(ADR-0013, 2026-09-25). `1.33.0` is for custom-view packages carried in the file, `1.32.0` a
 custom view on a record page (`extensionRecordPanel`), `1.31.0` a custom view of one
 record type as typed columns (`extensionRecordsSurface`), `1.30.0` a view at
 protocol 2 and `1.29.0` a custom graph (`extensionGraphSurface`). A view that the

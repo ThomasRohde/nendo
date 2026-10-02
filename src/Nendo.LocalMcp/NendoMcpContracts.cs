@@ -246,6 +246,12 @@ public sealed record NendoMcpSurfaces(
     /// authored one and looked for it among the record types would not find it.
     /// </summary>
     public NendoMcpSurfaceNode? Overview { get; init; }
+
+    /// <summary>
+    /// The file's own custom views (extensionView), in authored order. Like the front page they
+    /// belong to the file, so they are not among the applications either.
+    /// </summary>
+    public IReadOnlyList<NendoMcpSurfaceNode> Views { get; init; } = [];
 }
 
 public sealed record NendoMcpApplicationSurfaces(string EntityId, string DisplayName)

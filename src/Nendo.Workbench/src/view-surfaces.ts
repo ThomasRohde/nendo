@@ -8,6 +8,8 @@ import { content, requiredElement, rerender, showError } from './shell';
 import { renameBoardProposal } from './studio';
 import { descendants, surfaceRoot } from './surface-model';
 import { customViewsPanel, wireCustomViewsPanel } from './view-packages';
+import { fileViews } from './file-view-model';
+import { viewTitle } from './view-frame-markup';
 /**
  * The Studio catalogue of compiled surfaces: what the current definition builds,
  * what each root is bound to, and what the compiler refused.
@@ -24,7 +26,8 @@ export function renderSurfaces(): void {
       ${plan.surfaces.map((root) => treeSurfaceCard(plan, root)).join('')}
     </div>
     ${boardRename(plan)}`
-      : diagnosticsMarkup(state.compilation)}
+      : fileViews().length > 0 ? '' : diagnosticsMarkup(state.compilation)}
+    ${fileViewsMarkup()}
     ${customViewsPanel()}
   </div>`;
   wireCustomViewsPanel(content);
@@ -47,6 +50,15 @@ export function renderSurfaces(): void {
       void prepareApplication({ actionLabel: 'Rename', applicationName: plan.entity.displayName, proposalPayload: renameBoardProposal(surfaceId, root.semanticId, title) }, 'surfaces');
     } catch (error) { showError(messageFor(error)); }
   });
+}
+
+/** The file's own views (W-106): screens of the file rather than of a record type, listed apart. */
+function fileViewsMarkup(): string {
+  const views = fileViews();
+  if (views.length === 0) return '';
+  return `<div class="page-toolbar"><span class="record-total">Screens of the file</span></div><div class="surface-list" data-testid="file-view-list">${views.map((view) =>
+    surfaceCard('Custom view', viewTitle(view), view.semanticId, ['Custom view', typeof view.properties.packageId === 'string' ? `runs ${view.properties.packageId}` : null,
+      view.properties.opensFile === true ? 'the file opens on it' : null].filter((part) => part !== null).join(' · '))).join('')}</div>`;
 }
 
 export function surfaceCount(plan: ApplicationPlan): number {

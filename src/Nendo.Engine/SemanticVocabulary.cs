@@ -84,6 +84,14 @@ public static class NendoSemanticVocabulary
                         "configurationVersion", "configuration", "labelFieldId", "statusFieldId"),
                     Set("title", "packageId", "labelFieldId"),
                     Set("fieldBinding"), CanBeRoot: false),
+                // A view with a screen of its own (ADR-0013 Phase 5, W-106). It belongs to the file,
+                // as the front page does; its code reads the file through the API, so it names no
+                // fields and no filters, and entityId only says what it is about.
+                [NendoExtensionViewDefinition.ScreenKind] = new(
+                    NendoExtensionViewDefinition.ScreenKind,
+                    Set("definitionVersion", "title", "packageId", "configuration", "entityId", "opensFile"),
+                    Set("definitionVersion", "title", "packageId"),
+                    Set(), CanBeRoot: true, MaxRootsPerFile: MaximumViewRootsPerFile),
                 ["recordForm"] = new(
                     "recordForm",
                     Set("definitionVersion", "entityId", "title"),
@@ -405,11 +413,16 @@ public static class NendoSemanticVocabulary
             "a groupByFieldId, dateFieldId, endDateFieldId or summaryTile names a stored field only. " +
             "On a rangeTile it is the stored Integer, Decimal or Date field whose smallest and largest value the strip states; a Date is " +
             "ordered by comparison, which is why a range reads one where a sum does not.",
-        ["entityId"] = "On a root, the record type the surface is about. An overviewSurface has none: it belongs to the file, so each " +
+        ["opensFile"] = "On an extensionView, true to open the file on this view rather than on the front page or the first record type. " +
+            "At most one view of a file says so (NUI453). Where custom views do not run — the device or file switch off, safe mode, " +
+            "a restart without custom views, a file whose health is not normal — the file opens as if none did.",
+        ["entityId"] = "On an extensionView, optional: the record type the view is about, handed to its code; the view is still a screen of " +
+            "the file, listed beside the front page. " +
+            "On any other root, the record type the surface is about. An overviewSurface has none: it belongs to the file, so each " +
             "summaryTile, breakdownChart, progressTile, rangeTile, trendChart, activityGrid, recentList and rankedList under it names its own record type instead, and that " +
             "property is required there. Anywhere else a tile takes its record type from the surface it sits on, and declaring one is " +
             "refused rather than resolved, because a tile that disagreed with its surface would have two answers.",
-        ["packageId"] = "On an extensionGraphSurface, extensionRecordsSurface or extensionRecordPanel, the ID of a custom-view package carried in this file (extension.setPackage). The view runs that package's code when it is shown, with the file's typed API; a package not yet in the file is a warning (NUI452), and the view says so where it is shown.",
+        ["packageId"] = "On an extensionGraphSurface, extensionRecordsSurface, extensionRecordPanel or extensionView, the ID of a custom-view package carried in this file (extension.setPackage). The view runs that package's code when it is shown, with the file's typed API; a package not yet in the file is a warning (NUI452), and the view says so where it is shown.",
         ["packageVersion"] = "Kept when present and read by nothing: earlier hosts pinned a separately installed package. The package in the file is the one that runs.",
         ["packageDigest"] = "Kept when present and read by nothing: earlier hosts pinned a separately installed archive by its SHA-256.",
         ["protocolVersion"] = "Kept when present and read by nothing: views now speak one API, feature-detected with nendo.has(name).",
@@ -502,6 +515,12 @@ public static class NendoSemanticVocabulary
     /// between is not a front page.
     /// </summary>
     internal const int MaximumOverviewRootsPerFile = 1;
+
+    /// <summary>
+    /// How many extensionView roots one file may own (W-106). The ceiling a record type has for
+    /// each kind of screen, not a measured optimum: a file that is one application needs one.
+    /// </summary>
+    internal const int MaximumViewRootsPerFile = 8;
 
     /// <summary>
     /// How many records a <c>recentList</c> shows. Declared on the node and

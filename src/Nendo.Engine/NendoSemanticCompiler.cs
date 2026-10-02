@@ -20,7 +20,9 @@ public sealed partial class NendoSemanticCompiler
     internal NendoCompileResult ProjectRecords(NendoCompileResult definition, NendoSessionSnapshot source)
     {
         if (definition.Applications.Count > 0) return ProjectComposableRecords(definition, source);
-        return new(definition.IsValid, definition.Diagnostics.ToList().AsReadOnly());
+        // A file whose screens all belong to the file — its views, its front page — has no
+        // records to project, and keeps them as compiled (W-106).
+        return new(definition.IsValid, definition.Diagnostics.ToList().AsReadOnly()) { Overview = definition.Overview, Views = definition.Views };
     }
     private static int? ReadContractVersion(
         IEnumerable<NendoUiNodeSnapshot?> roots,

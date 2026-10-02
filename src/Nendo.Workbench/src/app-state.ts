@@ -187,6 +187,12 @@ export interface AppState {
    * never moves a person off the screen they were reading.
    */
   showOverview: boolean | null;
+  /**
+   * The file's own view Use is showing (ADR-0013 Phase 5, W-106), by its root's semantic ID,
+   * or null. It comes before the front page and the record types while the file still has it.
+   * Settled with showOverview when the definition arrives: a view that says opensFile.
+   */
+  fileView: string | null;
   creatingRecord: boolean;
   /** A record being added from a related list, or null when none is. */
   createRelated: CreateRelated | null;
@@ -231,6 +237,7 @@ export const state: AppState = {
   selectedEntityId: null,
   selectedApplicationEntity: null,
   showOverview: null,
+  fileView: null,
   creatingRecord: false,
   createRelated: null,
   returnTo: null,

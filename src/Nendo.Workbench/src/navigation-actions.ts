@@ -15,6 +15,7 @@ import { loadFocusedRecord, loadSurfaceWindow } from './reads';
 import { refreshChrome, rerender, setBusy, showError } from './shell';
 import { readsOwnRecords, surfaceById } from './surface-model';
 import { restoreViewPlaces, viewAnchor, viewPlacesAt } from './view-places';
+import { fileViewById, showsFileView } from './file-view-model';
 
 /**
  * Going back, and coming forward again, from anywhere in the file.
@@ -50,6 +51,7 @@ function placeOfNendo(heading: { eyebrow: string; title: string }): Omit<Place, 
     applicationEntityId: entityId,
     studioEntityId: state.selectedEntityId,
     showOverview: state.showOverview,
+    fileView: showsFileView() ? state.fileView : null,
     surfaceId,
     recordId: state.selectedRecordId,
     returnTo: state.returnTo,
@@ -132,6 +134,7 @@ function whyPlaceIsGone(place: Place): string | null {
   // renderUse falls through to a record type when the front page has gone, which is the
   // same silent substitution.
   if (place.showOverview === true && overviewPlan() === null) return 'This file no longer has a front page.';
+  if (place.fileView !== null && fileViewById(place.fileView) === null) return 'This file no longer has that view.';
   if (place.applicationEntityId === null) return null;
   const plan = applicationPlans().find((candidate) => candidate.entity.semanticId === place.applicationEntityId);
   if (plan === undefined) return 'That record type no longer has a screen.';
@@ -215,6 +218,7 @@ async function settle(place: Place): Promise<void> {
   state.selectedEntityId = place.studioEntityId;
   state.selectedApplicationEntity = place.applicationEntityId;
   state.showOverview = place.showOverview;
+  state.fileView = place.fileView;
   state.helpTopicId = place.helpTopicId;
   // Only where the place is a review. Everywhere else it is left alone, because it is
   // the property of whichever review is open rather than of the screen.

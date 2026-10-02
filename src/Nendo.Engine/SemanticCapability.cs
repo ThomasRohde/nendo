@@ -251,7 +251,8 @@ internal static class NendoSemanticCapability
             tree => tree.HasKind(NendoExtensionViewDefinition.PanelKind)),
         new(NendoFormat.OpenCustomViewsMinimumHostVersion,
             "a custom view defined beyond what earlier hosts read",
-            tree => tree.Nodes.Any(view => NendoExtensionViewDefinition.IsViewKind(view.Kind) && BeyondEarlierHosts(tree, view))),
+            tree => tree.Nodes.Any(view => NendoExtensionViewDefinition.IsViewKind(view.Kind) &&
+                view.Kind != NendoExtensionViewDefinition.ScreenKind && BeyondEarlierHosts(tree, view))),
         new(NendoFormat.OutlineSurfaceMinimumHostVersion,
             "an outline",
             tree => tree.HasKind("outlineSurface")),
@@ -260,6 +261,9 @@ internal static class NendoSemanticCapability
         new(NendoFormat.CalculatedQueryMinimumHostVersion,
             "a filter or sort on a calculated field",
             tree => tree.Nodes.Any(node => tree.NamesCalculatedField(node))),
+        new(NendoFormat.FileViewMinimumHostVersion,
+            "a custom view with a screen of its own",
+            tree => tree.HasKind(NendoExtensionViewDefinition.ScreenKind)),
     ];
 
     private static readonly string[] EarlierPins = ["packageVersion", "packageDigest", "protocolVersion", "configurationVersion", "configuration"];

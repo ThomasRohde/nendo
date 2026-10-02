@@ -24,7 +24,7 @@ existed. For this reason the numbering is contiguous by intent.
 | [0010](0010-file-identity-duplicate-fork-backup-and-restore.md) | Accepted | Raw copy classification plus typed Duplicate, Fork, Backup and Restore |
 | [0011](0011-local-sqlite-journal-and-copy-discipline.md) | Accepted | Local rollback DELETE, FULL synchronous operation, bounded busy behaviour, host-owned copy discipline |
 | [0012](0012-safe-mode-compatibility-and-migration.md) | Accepted | Explicit normal/read-only/recovery/rejected states, staged migration, permanent host safe mode |
-| [0013](0013-custom-views-with-code-in-the-file.md) | Accepted | Custom views carry their code in the file and run inline in the Workbench, with no install or consent; Phases 0–2 delivered (reads), Phases 3–5 ahead |
+| [0013](0013-custom-views-with-code-in-the-file.md) | Accepted | Custom views carry their code in the file and run inline in the Workbench, with no install or consent; Phases 0–4 delivered, and of Phase 5 a view as a screen of the file that a file opens on (W-106); the front-page tile ahead |
 | [0014](0014-drop-embedded-agent-mcp-is-the-agent-surface.md) | Accepted | Drop the embedded agent; the local MCP interface is the agent surface. AG-UI not adopted |
 | [0015](0015-host-owned-database-studio-and-ag-grid-community.md) | Accepted | Host-owned Studio, containing UI architecture, AG Grid Community as the grid substrate |
 | [0016](0016-vendor-pinned-dotnet-agent-skills.md) | Accepted | Pinned curated first-party .NET agent skills |

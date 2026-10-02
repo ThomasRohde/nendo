@@ -493,7 +493,7 @@ internal sealed partial class SqliteNendoStore
                             'application.setNewFileLabel', 'schema.setKeptInNewFiles', 'data.setKeptInNewFiles',
                             'extension.setPackage', 'extension.putFile', 'extension.removeFile', 'extension.removePackage')
                             OR (o.operation_type = 'ui.removeNode'
-                                AND json_extract(o.inverse_evidence_json, '$.retainedSubtree[0].kind') IN ('extensionGraphSurface', 'extensionRecordsSurface')
+                                AND json_extract(o.inverse_evidence_json, '$.retainedSubtree[0].kind') IN ('extensionGraphSurface', 'extensionRecordsSurface', 'extensionView')
                                 AND json_array_length(o.inverse_evidence_json, '$.retainedSubtree') BETWEEN 1 AND 16
                                 -- The inverse restores a childless root only, so a view that
                                 -- carried disclosed fields or filters is not offered it. Every
