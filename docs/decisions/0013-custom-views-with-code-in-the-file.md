@@ -356,6 +356,13 @@ downloads are allowed, anything else gets WebView2's default prompt, and no gran
 is saved, where it would cover every view. The Workbench's own requests are
 denied.
 
+A download goes to the person's Downloads folder under a name that overwrites nothing, and
+WebView2's own downloads panel is never shown (2026-10-02, F-237). The panel asked whether an
+`.xml` file a view saved from a command in Nendo's row "can harm your device", because such a
+command carries no click into the view; after Keep, the browser process spun and Nendo's window
+stayed white. Not asking is the trade: a view can put a file of any type in Downloads without the
+browser's question. It cannot open or run it, and the person still has to.
+
 ### Files a person hands a view (2026-10-01)
 
 A view reads a file the way a web page does, and Nendo adds no call for it, as it
@@ -815,6 +822,9 @@ falsified once, and has the failure text quoted in its planner Check.
   view's frame, measured in a real host; the system file pickers are refused to a view by the
   browser, and Nendo's drop hint steps aside over a view. No `files.open` call and no rung
   (W-104). Written with the measurement, on the owner's standing pre-acceptance.
+- 2026-10-02 — downloads without the browser's panel: the host saves a view's download to
+  Downloads and never shows WebView2's downloads panel, whose question about an `.xml` file froze
+  Nendo after Keep (F-237). On the owner's standing pre-acceptance.
 - 2026-10-02 — a view as a screen of its own: `extensionView` is a root of the file, listed in
   the first picker of the Use breadcrumb, and `opensFile` on one makes the file open on it,
   unless views do not run there (W-106, rung 1.42.0). `extensionTile` moves to the next rung.

@@ -27,6 +27,7 @@ internal static class ExtensionWebViewPolicy
         core.FrameCreated += OnFrameCreated;
         core.NewWindowRequested += OnNewWindowRequested;
         core.FrameNavigationStarting += OnFrameNavigationStarting;
+        core.DownloadStarting += OnDownloadStarting;
     }
 
     internal static void Detach(CoreWebView2 core)
@@ -36,6 +37,24 @@ internal static class ExtensionWebViewPolicy
         core.FrameCreated -= OnFrameCreated;
         core.NewWindowRequested -= OnNewWindowRequested;
         core.FrameNavigationStarting -= OnFrameNavigationStarting;
+        core.DownloadStarting -= OnDownloadStarting;
+    }
+
+    /// <summary>
+    /// A download goes to the person's Downloads folder, under a name that overwrites nothing,
+    /// without WebView2's own downloads panel. That panel opened over Nendo's window to ask about
+    /// an Exchange XML file a view saved from a command in Nendo's row, which carries no click
+    /// into the view, and after Keep the browser process spun and the window stayed white (F-237).
+    /// The view says what it saved.
+    /// </summary>
+    private static void OnDownloadStarting(CoreWebView2 sender, CoreWebView2DownloadStartingEventArgs args)
+    {
+        args.Handled = true;
+        // The journeys save into a folder of their own, never the person's Downloads; under native
+        // diagnostics alone, the folder a test names in the environment is the one saved to.
+        if (DesktopRuntimeConfiguration.NativeDiagnostics &&
+            Environment.GetEnvironmentVariable("NENDO_DIAGNOSTICS_DOWNLOAD_FOLDER") is { Length: > 0 } folder)
+            args.ResultFilePath = System.IO.Path.Combine(folder, System.IO.Path.GetFileName(args.ResultFilePath));
     }
 
     /// <summary>The Workbench draws its own menus; a view gets the browser's, with Inspect.</summary>

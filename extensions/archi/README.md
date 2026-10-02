@@ -118,7 +118,9 @@ Properties. The file you were in does not change.
   that format with its folders as the organization, its language and its Dublin Core
   metadata, after libxml2 has checked it against Archi 5.9's five schemas. A file the
   schemas refuse is not saved, and the status line names what they refused. The check is
-  `xsd.js`, 1.2 MB, which loads only when you save, not with the workbench.
+  `xsd.js`, 1.2 MB, which loads only when you save, not with the workbench. Like every
+  download, the file goes to Downloads, as `Archisurance (1).xml` when `Archisurance.xml` is
+  already there (F-237).
 - **Export** (W-123), in Nendo's row while a view is open, makes a picture of the view as
   Archi's File › Export › View As Image does: **PNG** at the view's own size, at **2×** or at
   **4×**, **SVG** with every label as text, or **Copy as picture** to paste elsewhere. It is

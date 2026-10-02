@@ -425,8 +425,14 @@ A view gets most of what a web page gets
   Anything else gets WebView2's default prompt. No answer is saved in the profile,
   where it would cover every view. The Workbench's own requests are denied. The
   frame's `allow` attribute delegates only the features it names.
-- **Downloads.** A view may download files. The browser's own download handling
-  applies.
+- **Downloads.** A view may download files. Each goes to the person's Downloads
+  folder under a name that overwrites nothing, `Name (1).xml` beside `Name.xml`, and
+  WebView2's own downloads panel never opens (F-237). That panel opened when a view
+  saved an `.xml` file from a command in Nendo's row, which carries no click into the
+  view, to ask whether the file "can harm your device"; after Keep the browser
+  process spun and Nendo's window stayed white until every one of its processes was
+  ended. So the browser's question about a file type is not asked, and the view says
+  what it saved. Nendo does not yet say where a download went.
 - **Files a person hands it** (W-104). A view's own `<input type="file">`, clicked
   by the person, opens Windows' Open dialog, owned by Nendo's window. The chosen
   file arrives as a `File`, with its name, size and bytes, never its path. `accept`
@@ -1459,6 +1465,19 @@ before any write. View code needs no approval of its own.
 
 ## Evidence
 
+### Downloads without the browser's panel (F-237)
+
+Measured on 2026-10-02. In the owner's installed Nendo, Archi's Save as Exchange XML from Nendo's
+row opened WebView2's downloads panel, "Archisurance.xml can harm your device. Do you want to keep
+it anyway? Keep | Delete", and after Keep the browser process held a core and the window went
+white; a restarted Nendo joined the same process and stayed white. Reproduced in a Debug build on
+a copy of Archi.nendo: the download stayed `Unconfirmed … .crdownload` under an
+`edge://downloads-hub/` target. With the download handled by the host, the file was saved whole and
+no panel opened. G41 in `tools/Review-FileView.mjs` has the probe view save a 200 kB XML file
+with no click in it and measures the file in the journey's own downloads folder, every target the
+browser has, and the page answering. With the host's handling taken out it failed:
+`{"file":{"name":"Probe model.xml","bytes":200055,"pending":[]},"panels":["edge://downloads-hub/"],"answers":"yes"}`.
+
 ### A view as a screen of the file (W-106)
 
 Measured on 2026-10-02 against a Debug build. `DesktopExtensionViewJourneyTests` seeds a file with
@@ -1714,7 +1733,8 @@ The [Phase 0 spike](../../prototypes/iframe-views/FINDINGS.md) measured the
 browser particulars (S1–S22) on a synthetic harness, not the Workbench, on
 2026-09-25 with WebView2 runtime 153.
 
-Not measured in a product lane: the clipboard, downloads, pop-ups, script dialogs,
+Not measured in a product lane (the clipboard since W-123's G36, and downloads since F-237's G41, are):
+pop-ups, script dialogs,
 DevTools and context menus in a view (the spike measured them, S10, S13, S15, S19
 and S22); the memory budget against the four real packages rather than the probes;
 and every property of Phases 3 to 5.
@@ -1826,3 +1846,6 @@ passed. Each guard below was falsified, seen to fail and then restored:
   root, listed in the first picker of the Use breadcrumb, and `opensFile`, the screen a file
   opens on where views run. Rung 1.42.0. Measured in a real host (G37–G39). `extensionTile`
   moves to the next rung.
+- 2026-10-02 — downloads without WebView2's panel (F-237): a view's download goes to Downloads
+  under a name that overwrites nothing, and the browser's panel, whose question about an `.xml`
+  file froze Nendo after Keep, never opens. Measured in a real host (G41).

@@ -58,6 +58,16 @@ public sealed class DesktopExtensionViewJourneyTests
             });
           },
           parentDocument() { try { return parent.document ? 'reachable' : 'none'; } catch (error) { return 'blocked:' + error.name; } },
+          // F-237: an XML file saved as a command from Nendo's row saves it, with no click in the view.
+          downloadXml(name) {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n<probe>' + 'x'.repeat(200000) + '</probe>\n'], { type: 'application/xml' }));
+            link.download = name;
+            document.body.append(link);
+            link.click();
+            link.remove();
+            return name;
+          },
           navigateTop() { try { top.location.href = 'https://example.com/'; return 'navigated'; } catch (error) { return 'blocked:' + error.name; } },
           nestWorkbench() {
             return new Promise(resolve => {
@@ -327,6 +337,8 @@ public sealed class DesktopExtensionViewJourneyTests
         await File.WriteAllTextAsync(Path.Combine(develop, "index.html"), ProbeHtml.Replace("<html lang=\"en\">", "<html lang=\"en\" data-source=\"folder-1\">", StringComparison.Ordinal));
         await File.WriteAllTextAsync(Path.Combine(develop, "probe.js"), ProbeScript);
         launch.Environment["NENDO_DIAGNOSTICS_DEVELOPMENT_FOLDER"] = develop;
+        // F-237: a view's downloads go to a folder of the journey's own.
+        launch.Environment["NENDO_DIAGNOSTICS_DOWNLOAD_FOLDER"] = Directory.CreateDirectory(Path.Combine(output, "downloads")).FullName;
         launch.Environment["WEBVIEW2_USER_DATA_FOLDER"] = Path.Combine(output, "webview");
         launch.Environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=" + port;
         using var host = Process.Start(launch)!;

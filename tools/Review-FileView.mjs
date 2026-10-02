@@ -110,6 +110,26 @@ try {
     `The breadcrumb does not name only the view: before the view declared its place ${JSON.stringify(before)}, after ${JSON.stringify(after)}.`);
   check('G40 after the view declares its place, the breadcrumb is the picker alone, naming the view: ' + JSON.stringify(after));
 
+  // G41: a view saving an XML file with no click inside it, as Save as Exchange XML from Nendo's
+  // row does, saves it whole, without WebView2's downloads panel. That panel asked whether the file
+  // "can harm your device", and after Keep the browser process spun and Nendo's window went white
+  // (F-237). Measured: the file, its bytes, every target the browser has, and the page answering.
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const downloads = path.join(output, 'downloads');
+  const saved = await evaluateIn(frame, `probe.downloadXml('Probe model.xml')`, 15000);
+  const file = await waitFor(async () => {
+    const names = await fs.readdir(downloads).catch(() => []);
+    const done = names.find(name => name === saved);
+    return done ? { name: done, bytes: (await fs.stat(path.join(downloads, done))).size, pending: names.filter(name => name.endsWith('.crdownload')) } : null;
+  }, 'the saved XML file in the journey\'s downloads folder', 20000).catch(async () => ({ name: null, names: await fs.readdir(downloads).catch(() => []) }));
+  await sleep(1500);
+  const panels = (await targets()).filter(target => target.url.startsWith('edge://')).map(target => target.url);
+  const answers = await evaluate(`document.querySelector('#studio-content') ? 'yes' : 'no'`, 5000).catch(error => 'no answer: ' + error.message);
+  assert(file.name === saved && file.bytes > 200000 && file.pending.length === 0 && panels.length === 0 && answers === 'yes',
+    `A view's XML download did not save quietly: ${JSON.stringify({ file, panels, answers })}.`);
+  check('G41 a view saves an XML file with no click in it: ' + JSON.stringify({ file: file.name, bytes: file.bytes, panels: panels.length, answers }));
+
   // G39: Studio is there, lists the view among the screens of the file, and Use comes back to the view.
   await click('#nav-surfaces'); await idle();
   const listed = await waitFor(() => evaluate(`document.querySelector('[data-testid="file-view-list"]')?.textContent ?? null`), 'the view in Studio’s screens');
