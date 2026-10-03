@@ -917,9 +917,16 @@ async (page) => {
     // ---- W-113: Arrange, from Nendo's row, on a selection made with real clicks (Ctrl adds). Each
     // command commits what archi-online's own operation makes of the same records and selection
     // (arrangeModel in canvas.js), is one edit waiting and one Undo step, and commits as one batch.
-    const arrangeMenu = await toolbarItem('arrange');
-    assert(arrangeMenu?.kind === 'menu' && ['align-left', 'match-size', 'distribute-vertical', 'order-back', 'duplicate', 'paste-reference', 'paste-copy', 'grid']
-      .every(id => arrangeMenu.items.some(entry => entry.id === id)), `Editing puts no Arrange menu in Nendo's row: ${JSON.stringify(arrangeMenu)?.slice(0, 200)}.`);
+    // Four short menus, each holding only its own commands (the owner found one menu of 27 crowded).
+    const editingMenus = {};
+    for (const id of ['arrange', 'clipboard', 'layout', 'editor-settings']) editingMenus[id] = (await toolbarItem(id))?.items?.filter(entry => entry.id).map(entry => entry.id) ?? null;
+    assert(JSON.stringify(editingMenus) === JSON.stringify({
+      arrange: ['align-left', 'align-center', 'align-right', 'align-top', 'align-middle', 'align-bottom', 'match-width', 'match-height', 'match-size',
+        'distribute-horizontal', 'distribute-vertical', 'order-front', 'order-forward', 'order-backward', 'order-back'],
+      clipboard: ['cut', 'copy', 'paste', 'paste-reference', 'paste-copy', 'duplicate', 'select-same-type'],
+      layout: ['layout-right', 'layout-down'],
+      'editor-settings': ['grid', 'snap', 'guides', 'automatic-relationships'],
+    }), `Editing does not put Arrange, Copy and paste, Lay out and the editor's settings in Nendo's row as four menus: ${JSON.stringify(editingMenus)}.`);
     const allSets = async () => Object.fromEntries(await Promise.all(['ar.model', 'ar.folder', 'ar.type', 'ar.concept', 'ar.specialization', 'ar.view', 'ar.item', 'ar.property']
       .map(async entityId => [entityId, await records(entityId)])));
     const boxNamed = async name => {
@@ -1016,7 +1023,7 @@ async (page) => {
     await page.evaluate(() => window.broker.command('grid', true, 'toolbar'));
     await until(() => !!document.querySelector('.archi-editor .view-grid'), null, 'Show grid drew no grid.');
     for (let attempt = 0; attempt < 200 && (await toolbarItem('grid'))?.checked !== true; attempt++) await page.waitForTimeout(25);
-    assert((await toolbarItem('grid'))?.checked === true, 'The Arrange menu does not show the grid as on.');
+    assert((await toolbarItem('grid'))?.checked === true, "The editor's settings do not show the grid as on.");
     await page.evaluate(() => window.broker.command('grid', false, 'toolbar'));
     await until(() => !document.querySelector('.archi-editor .view-grid'), null, 'Hiding the grid left it drawn.');
     results.arrange = { arranged, pasted };
@@ -1218,6 +1225,133 @@ async (page) => {
       await view.evaluate(() => { document.querySelector('.archi-editor').dataset.viewpointMark = 'kept'; });
       viewpoints.organizationEditing = await shows('.archi-editor', await expectedFor(), 'Editing again, with Organization');
       results.viewpoints = viewpoints;
+    }
+
+    // ---- W-115: Archi's automation, each archi-online's own operation with ELK in a worker.
+    // Auto-layout from the Lay out menu commits what archi-online's layout makes of the same
+    // records, as one Undo step and one batch of moves; the automatic relationships preferences
+    // decide whether the line a nesting stands for is drawn; Generate View For makes a view of an
+    // element and those related to it, laid out as archi-online lays it out, in one batch, opened
+    // in the editor, and Undo there takes it away again.
+    {
+      const automation = {};
+      const elkWorker = async () => view.evaluate(async () => (await fetch('vendor/elkjs/elk-worker.min.js')).ok);
+      assert(await elkWorker(), 'The ELK worker is not in the package.');
+
+      // One box selected lays out the whole view, as archi-online's scope says.
+      const ids = await selectBoxes(['Board']);
+      const sets = await allSets();
+      const reference = await view.evaluate(async ({ sets, viewId, ids }) => {
+        const canvas = await import('./canvas.js');
+        const { refusal, model } = await canvas.layoutModel(canvas.buildMirror(sets), viewId, ids, 'down');
+        const of = id => model.nodes[id]?.bounds ?? null;
+        return { refusal, bounds: Object.fromEntries(Object.keys(model.nodes).filter(id => model.nodes[id].viewId === viewId).map(id => [id, of(id)])),
+          bends: Object.fromEntries(Object.values(model.connections).filter(c => c.viewId === viewId).map(c => [c.id, c.bendpoints])) };
+      }, { sets, viewId: treeView.recordId, ids });
+      assert(reference.refusal === null, `archi-online refused to lay out Organisation Tree View: ${reference.refusal}.`);
+      const batchesBeforeLayout = (await batches()).length;
+      await page.evaluate(() => window.broker.command('layout-down', null, 'toolbar'));
+      await waiting();
+      await page.evaluate(() => window.broker.command('undo', null, 'toolbar'));
+      await pendingIs(0, 'The layout undone');
+      await page.evaluate(() => window.broker.command('redo', null, 'toolbar'));
+      await waiting();
+      await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
+      await pendingIs(0, 'The layout committed');
+      const laidOut = (await batches()).slice(batchesBeforeLayout);
+      const itemsNow = await records('ar.item');
+      const storedBounds = id => { const values = itemsNow.find(item => item.recordId === id).values; return { x: values['ar.item.x'], y: values['ar.item.y'], width: values['ar.item.width'], height: values['ar.item.height'] }; };
+      const differing = Object.keys(reference.bounds).filter(id => JSON.stringify(storedBounds(id)) !== JSON.stringify(reference.bounds[id]));
+      const bendsDiffer = Object.keys(reference.bends).filter(id => JSON.stringify(JSON.parse(itemsNow.find(item => item.recordId === id).values['ar.item.bendpoints'] ?? '[]')) !== JSON.stringify(reference.bends[id]));
+      const top = itemsNow.filter(item => item.values['ar.item.view'] === treeView.recordId && !item.values['ar.item.parent'] && !/onnection/.test(item.values['ar.item.kind'])).map(item => storedBounds(item.recordId));
+      const overlap = top.some((a, i) => top.slice(i + 1).some(b => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height));
+      assert(laidOut.length === 1 && laidOut[0].writes.every(write => write.op === 'update') && differing.length === 0 && bendsDiffer.length === 0 && !overlap,
+        `The layout committed ${laidOut.length} batches (${JSON.stringify(laidOut.map(batch => [...new Set(batch.writes.map(write => write.op))]))}); ${differing.length} boxes and ${bendsDiffer.length} lines differ from archi-online's, overlapping: ${overlap}.`);
+      automation.layout = { boxes: top.length, writes: laidOut[0].writes.length };
+
+      // The automatic relationships preferences: Archi's defaults shown; nested connections off
+      // draws the line W-113's nesting stands for, in the editor; the defaults hide it again.
+      const nestedLine = itemsNow.find(item => item.values['ar.item.concept'] === relationship.recordId && item.values['ar.item.view'] === treeView.recordId);
+      assert(nestedLine, "W-113's nesting left no line for its relationship on the view.");
+      const lineDrawn = () => view.evaluate(id => !!document.querySelector(`.archi-editor [data-conn-id="${id}"]`), nestedLine.recordId);
+      assert(!(await lineDrawn()), 'The line a nesting stands for is drawn in the editor.');
+      await page.evaluate(() => window.broker.command('automatic-relationships', null, 'toolbar'));
+      await until(() => document.querySelector('#arm-settings')?.open === true, null, 'Automatic relationships opened no dialog.');
+      const shownArm = await view.evaluate(() => ({
+        checks: [...document.querySelectorAll('#arm-settings [data-arm]')].map(box => [box.dataset.arm, box.checked]),
+        masks: [...document.querySelectorAll('#arm-settings [data-arm-mask]')].map(set => [set.dataset.armMask, set.querySelectorAll('input:checked').length, set.querySelectorAll('input').length]),
+      }));
+      assert(JSON.stringify(shownArm) === JSON.stringify({ checks: [['useNestedConnections', true], ['createRelationWhenAddingNewElementToContainer', true],
+        ['createRelationWhenAddingModelTreeElementToContainer', true], ['createRelationWhenMovingElementToContainer', true]],
+        masks: [['newRelationsTypes', 6, 11], ['newReverseRelationsTypes', 0, 11], ['hiddenRelationsTypes', 11, 11]] }),
+        `The dialog does not show Archi's defaults: ${JSON.stringify(shownArm)}.`);
+      await view.uncheck('#arm-settings [data-arm="useNestedConnections"]');
+      await view.click('#arm-settings button[value="save"]');
+      await until(id => !!document.querySelector(`.archi-editor [data-conn-id="${id}"]`), nestedLine.recordId, 'With nested connections off, the line a nesting stands for is still not drawn.');
+      await page.evaluate(() => window.broker.command('automatic-relationships', null, 'toolbar'));
+      await until(() => document.querySelector('#arm-settings')?.open === true, null, 'Automatic relationships did not open again.');
+      await view.click('#arm-settings button[value="defaults"]');
+      await until(id => !document.querySelector(`.archi-editor [data-conn-id="${id}"]`), nestedLine.recordId, "Archi's defaults did not hide the line again.");
+      automation.nestedLine = { hidden: true, shownWhenOff: true };
+
+      // Generate View For the element of a box selected on the view.
+      const board = (await records('ar.concept')).find(record => record.values['ar.concept.name'] === 'Board');
+      await selectBoxes(['Board']);
+      const options = { focusIds: [board.recordId], name: 'Board View', depth: 1, direction: 'both', allInternalRelationships: false };
+      const generatedReference = await view.evaluate(async ({ sets, options }) => {
+        const canvas = await import('./canvas.js');
+        const { result, model } = await canvas.generatedViewModel(canvas.buildMirror(sets), options);
+        return { elements: result.elementIds, relationships: result.relationshipIds,
+          bounds: Object.fromEntries(result.nodeIds.map(id => [model.nodes[id].elementId, model.nodes[id].bounds])) };
+      }, { sets: await allSets(), options });
+      const batchesBeforeGenerate = (await batches()).length;
+      await page.evaluate(() => window.broker.command('generate-view', null, 'toolbar'));
+      await until(() => document.querySelector('#generate-view')?.open === true, null, 'Generate view for opened no dialog.');
+      const offered = await view.evaluate(() => ({ name: document.querySelector('#generate-view-name').value, depth: document.querySelector('#generate-view-depth').value,
+        direction: document.querySelector('#generate-view-direction').value, viewpoints: document.querySelectorAll('#generate-view-viewpoint option').length }));
+      assert(offered.name === 'Board View' && offered.depth === '1' && offered.direction === 'both' && offered.viewpoints > 1,
+        `The dialog does not start from archi-online's defaults for Board: ${JSON.stringify(offered)}.`);
+      await view.click('#generate-view button[value="generate"]');
+      let generatedView = null;
+      for (let waited = 0; !generatedView; waited += 50) {
+        generatedView = (await records('ar.view')).find(record => record.values['ar.view.name'] === 'Board View');
+        assert(waited < 15000, 'Generate View For made no view named Board View.');
+        if (!generatedView) await page.waitForTimeout(50);
+      }
+      await pendingIs(0, 'The generated view saved');
+      const generatedBatches = (await batches()).slice(batchesBeforeGenerate);
+      const generatedItems = (await records('ar.item')).filter(item => item.values['ar.item.view'] === generatedView.recordId);
+      const generatedBoxes = generatedItems.filter(item => item.values['ar.item.kind'] === 'Element');
+      const generatedLines = generatedItems.filter(item => item.values['ar.item.kind'] === 'Relationship connection');
+      const boundsDiffer = generatedBoxes.filter(item => JSON.stringify({ x: item.values['ar.item.x'], y: item.values['ar.item.y'], width: item.values['ar.item.width'], height: item.values['ar.item.height'] })
+        !== JSON.stringify(generatedReference.bounds[item.values['ar.item.concept']]));
+      assert(generatedBatches.length === 1 && generatedBatches[0].writes.every(write => write.op === 'create') && generatedBatches[0].writes.length === 1 + generatedItems.length &&
+        JSON.stringify(generatedBoxes.map(item => item.values['ar.item.concept']).sort()) === JSON.stringify([...generatedReference.elements].sort()) &&
+        JSON.stringify(generatedLines.map(item => item.values['ar.item.concept']).sort()) === JSON.stringify([...generatedReference.relationships].sort()) &&
+        boundsDiffer.length === 0 && generatedBoxes.length > 1,
+        `Generate View For saved ${generatedBatches.length} batches of ${JSON.stringify(generatedBatches.map(batch => batch.writes.length))} writes, ${generatedBoxes.length} boxes and ${generatedLines.length} lines ` +
+        `where archi-online makes ${generatedReference.elements.length} and ${generatedReference.relationships.length}; ${boundsDiffer.length} boxes are placed elsewhere.`);
+      await until(count => document.querySelectorAll('.archi-editor [data-node-id]').length === count, generatedBoxes.length, 'The generated view did not open in the editor.');
+      // Undo in the editor takes it away: deletes waiting, committed as one batch.
+      await page.evaluate(() => window.broker.command('undo', null, 'toolbar'));
+      await waiting();
+      const batchesBeforeUndo = (await batches()).length;
+      await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
+      await pendingIs(0, 'The generated view undone and committed');
+      const undone = (await batches()).slice(batchesBeforeUndo);
+      const gone = !(await records('ar.view')).some(record => record.recordId === generatedView.recordId) &&
+        !(await records('ar.item')).some(item => item.values['ar.item.view'] === generatedView.recordId);
+      assert(undone.length === 1 && undone[0].writes.every(write => write.op === 'delete') && gone,
+        `Undo did not take the generated view away in one batch of deletes: ${JSON.stringify(undone.map(batch => batch.writes.map(write => write.op)))}, gone: ${gone}.`);
+      automation.generated = { boxes: generatedBoxes.length, lines: generatedLines.length, writes: generatedBatches[0].writes.length, undone: undone[0].writes.length };
+
+      // Back to Organisation Tree View for the steps that follow.
+      await page.evaluate(value => window.broker.command('find', value, 'toolbar'), treeView.values['ar.view.name']);
+      await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), treeView.recordId, 'Organisation Tree View is not in the tree under Find.');
+      await view.click(`#tree .row[data-id="${treeView.recordId}"]`);
+      await until(() => document.querySelectorAll('.archi-editor [data-node-id]').length > 10, null, 'The editor did not show Organisation Tree View again.');
+      await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
+      results.automation = automation;
     }
   }
 

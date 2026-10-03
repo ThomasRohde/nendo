@@ -98,7 +98,48 @@ function itemMarkup(item: ToolbarItem, prefix: string): string {
  */
 export function viewToolbarMarkup(toolbar: ViewToolbar, options: { title: string; compact: boolean; prefix: string; inline?: boolean }): string {
   if (toolbar.items.length === 0) return '';
-  return `<div class="view-toolbar${options.compact ? ' is-compact' : ''}${options.inline === true ? ' is-inline' : ''}" role="toolbar" aria-label="${escapeAttribute(options.title)}" data-view-toolbar>${toolbar.items.map((item) => itemMarkup(item, options.prefix)).join('')}</div>`;
+  // In the Use toolbar's row the strip keeps to one line and ends with More (W-115).
+  const items = toolbar.items.map((item) => itemMarkup(item, options.prefix)).join('');
+  const more = options.inline === true
+    ? `<button type="button" class="view-toolbar-button is-icon" data-view-more aria-haspopup="menu" aria-expanded="false" aria-label="More" title="More" hidden>${icon('more')}</button>`
+    : '';
+  return `<div class="view-toolbar${options.compact ? ' is-compact' : ''}${options.inline === true ? ' is-inline' : ''}" role="toolbar" aria-label="${escapeAttribute(options.title)}" data-view-toolbar>${items}${more}</div>`;
+}
+
+/**
+ * What More holds for the controls the row has no room for (W-115), in their order: a button as
+ * a command, a toggle as a check, a menu's items and a group's buttons under its label, and a
+ * select's or a choice's options as radio items under its label. A search box is never put in
+ * More, and a text, a separator or a spacer says nothing there.
+ */
+export function overflowMenu(items: readonly ToolbarItem[], hidden: readonly number[]): MenuItem[] {
+  const out: MenuItem[] = [];
+  let labelled = false;
+  // A labelled part stands apart from what is around it; single commands run on together.
+  const section = (entries: MenuItem[]): void => {
+    if (entries.length === 0) return;
+    const titled = entries[0].kind === 'label';
+    if (out.length > 0 && (titled || labelled)) out.push({ kind: 'separator' });
+    out.push(...entries);
+    labelled = titled;
+  };
+  const pressable = (item: ToolbarButton | ToolbarToggle): MenuItem => item.kind === 'toggle'
+    ? { kind: 'check', id: item.id, label: item.label, checked: item.pressed, keys: item.keys, disabled: item.disabled }
+    : { kind: 'item', id: item.id, label: item.label, detail: null, icon: item.icon, keys: item.keys, disabled: item.disabled, danger: false };
+  for (const index of hidden) {
+    const item = items[index];
+    switch (item?.kind) {
+      case 'button': case 'toggle': section([pressable(item)]); break;
+      case 'menu': section([{ kind: 'label', label: item.label }, ...item.items.map((entry): MenuItem => (item.disabled && 'disabled' in entry ? { ...entry, disabled: true } : entry))]); break;
+      case 'group': section([{ kind: 'label', label: item.label }, ...item.items.map(pressable)]); break;
+      case 'select': case 'choice':
+        section([{ kind: 'label', label: item.label }, ...item.options.map((option): MenuItem =>
+          ({ kind: 'radio', id: item.id, value: option.value, label: option.label, checked: option.value === item.value, disabled: option.disabled || item.disabled }))]);
+        break;
+      default: break;
+    }
+  }
+  return out;
 }
 
 /**

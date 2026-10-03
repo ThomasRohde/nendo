@@ -522,6 +522,12 @@ for less of it and chose A with C from the canvas
 The title bar holding the top bar (option E) was built as W-093 on 2026-09-28; the Console
 direction and the architecture describe it.
 
+On 2026-10-03 the owner saw the Archi workbench's row wrap to three lines in a narrower window,
+with Add pushed off its edge, and chose both of two ways out (W-115): the workbench shows its
+editing controls as icons, and the row keeps to one line, putting what does not fit, from the
+end, in Nendo's own **More** menu; Ctrl K lists every command as before. Add keeps its width
+whatever the row holds.
+
 ### No install, no consent, no pins
 
 A view that is shown runs. The controls are kill switches, all of them

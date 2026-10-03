@@ -136,6 +136,54 @@ try {
     `A view's XML download did not save quietly, with Nendo's notice of it: ${JSON.stringify({ file, panels, answers, notice })}.`);
   check('G41 a view saves an XML file with no click in it, and Nendo says so: ' + JSON.stringify({ file: file.name, bytes: file.bytes, panels: panels.length, answers, notice }));
 
+  // G42: a view's row as full as the Archi workbench's while editing, in a window 1,100 pixels wide.
+  // The owner saw it wrap to three lines with Nendo's Add pushed off the window's edge (W-115).
+  // Measured: Add whole inside the window, the row one line, and what does not fit in Nendo's
+  // More menu, from which a choice reaches the view; at 2,600 pixels everything is in the row.
+  assert(await evaluateIn(frame, `probe.crowd()`, 15000) === 'declared', 'The probe could not declare its crowded row.');
+  const row = () => evaluate(`(() => {
+    const strip = document.querySelector('.use-toolbar [data-view-toolbar]');
+    const add = document.querySelector('.use-toolbar [data-file-view-add]');
+    const box = element => { const r = element.getBoundingClientRect(); return { left: Math.round(r.left), right: Math.round(r.right), top: Math.round(r.top), bottom: Math.round(r.bottom), width: Math.round(r.width) }; };
+    const shown = element => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden';
+    const children = strip ? [...strip.children].filter(shown) : [];
+    const ids = element => [element, ...element.querySelectorAll('*')].filter(node => node.matches('[data-view-command], [data-view-menu]')).map(node => node.dataset.viewMenu ?? node.dataset.viewCommand);
+    // One line: the strip no taller than its tallest control (controls of other heights sit at other tops).
+    const tallest = Math.max(0, ...children.map(child => box(child).bottom - box(child).top));
+    const height = strip ? box(strip).bottom - box(strip).top : 0;
+    return { width: innerWidth, add: add && shown(add) ? box(add) : null, lines: tallest === 0 ? 0 : Math.round(height / tallest),
+      shown: [...new Set(children.flatMap(ids))], more: Boolean(strip?.querySelector('[data-view-more]') && shown(strip.querySelector('[data-view-more]'))),
+      sizes: Object.fromEntries([['page', '.use-page'], ['toolbar', '.use-toolbar'], ['slot', '.use-toolbar > [data-view-toolbar-slot]'], ['strip', '.use-toolbar [data-view-toolbar]'], ['actions', '.use-toolbar > .use-actions']]
+        .map(([name, selector]) => { const element = document.querySelector(selector); return [name, element ? box(element) : null]; })) };
+  })()`);
+  const declared = ['find', 'layer', 'new', 'rename', 'delete', 'file', 'edit', 'arrange', 'clipboard', 'layout', 'settings', 'undo', 'redo', 'commit', 'discard', 'appearance', 'validator', 'export', 'zoom-out', 'fit', 'zoom-in'];
+  await command('Emulation.setDeviceMetricsOverride', { width: 1100, height: 760, deviceScaleFactor: 1, mobile: false }, page);
+  try {
+    const narrow = await waitFor(async () => { const now = await row(); return now.shown.includes('find') ? now : null; }, 'the crowded row drawn');
+    await sleep(400);
+    const fitted = await row();
+    assert(fitted.add !== null && fitted.add.right <= fitted.width && fitted.add.left >= 0 && fitted.lines === 1 && fitted.more,
+      `In a window ${fitted.width} pixels wide the row does not keep Add inside it on one line with More: ${JSON.stringify(fitted)}.`);
+    // Every control the row does not show is in More, and a choice there reaches the view.
+    const hidden = declared.filter(id => !fitted.shown.includes(id));
+    await evaluate(`document.querySelector('.use-toolbar [data-view-more]').click()`);
+    const offered = await waitFor(() => evaluate(`(() => { const menu = document.querySelector('[data-view-menu-open]'); return menu ? [...menu.querySelectorAll('[data-menu-index]')].map(item => item.textContent.trim()) : null; })()`), 'the More menu');
+    const before = (await evaluateIn(frame, `probe.state.commands.length`, 5000));
+    const pick = offered.findIndex(text => text.startsWith('Discard'));
+    assert(hidden.length > 0 && pick >= 0, `More offers ${JSON.stringify(offered)} for the hidden ${JSON.stringify(hidden)}.`);
+    await evaluate(`document.querySelectorAll('[data-view-menu-open] [data-menu-index]')[${pick}].click()`);
+    const heard = await waitFor(async () => { const commands = await evaluateIn(frame, `probe.state.commands`, 5000); return commands.length > before ? commands.at(-1) : null; }, 'the view hearing the choice from More');
+    assert(heard.id === 'discard' && heard.source === 'menu', `Discard from More reached the view as ${JSON.stringify(heard)}.`);
+    await command('Emulation.setDeviceMetricsOverride', { width: 2600, height: 900, deviceScaleFactor: 1, mobile: false }, page);
+    const wide = await waitFor(async () => { const now = await row(); return !now.more ? now : null; }, 'the row with room for everything', 8000).catch(async () => row());
+    assert(!wide.more && wide.lines === 1 && declared.every(id => wide.shown.includes(id)) && wide.add?.right <= wide.width,
+      `With room for everything the row is ${JSON.stringify(wide)}.`);
+    check('G42 a crowded row keeps Add in a narrow window, on one line, with the rest in More, which reaches the view: ' +
+      JSON.stringify({ narrow: { width: fitted.width, add: fitted.add.right, hidden: hidden.length }, wide: { width: wide.width, shown: wide.shown.length } }));
+  } finally {
+    await command('Emulation.clearDeviceMetricsOverride', {}, page).catch(() => {});
+  }
+
   // G39: Studio is there, lists the view among the screens of the file, and Use comes back to the view.
   await click('#nav-surfaces'); await idle();
   const listed = await waitFor(() => evaluate(`document.querySelector('[data-testid="file-view-list"]')?.textContent ?? null`), 'the view in Studio’s screens');

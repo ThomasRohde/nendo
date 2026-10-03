@@ -11,6 +11,8 @@
 // runs the package or its tests needs archi-online.
 
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
@@ -39,6 +41,9 @@ const result = await esbuild.build({
     build.onLoad({ filter: /[\\/]model[\\/]id\.ts$/ }, args => path.resolve(args.path) === idModule
       ? { contents: `export function newId(): string { return 'ar-id-' + crypto.randomUUID().replace(/-/g, ''); }`, loader: 'ts' }
       : undefined);
+  } }, { name: 'elk-in-a-worker', setup(build) {
+    // archi-online's layouts load ELK whole on the page; here they run it in a worker (W-115).
+    build.onResolve({ filter: /^elkjs\/lib\/elk\.bundled\.js$/ }, () => ({ path: path.join(import.meta.dirname, 'canvas', 'elk.ts') }));
   } }],
   nodePaths: [path.join(ARCHI_ONLINE, 'node_modules')],
   define: { 'process.env.NODE_ENV': '"production"', __ARCHI_ONLINE_COMMIT__: JSON.stringify(head) },
@@ -49,6 +54,17 @@ const result = await esbuild.build({
 });
 const bytes = Object.values(result.metafile.outputs)[0].bytes;
 console.log(`${out}: ${(bytes / 1024).toFixed(0)} KiB from archi-online ${head.slice(0, 7)}`);
+
+// W-115: the ELK worker the layouts run in, from the elkjs release whose API the bundle carries,
+// copied unchanged with its licence. extensions/archi/vendor/elkjs/README.md records the hashes.
+const elkjs = path.dirname(require.resolve('elkjs/package.json'));
+const elkVersion = JSON.parse(readFileSync(path.join(elkjs, 'package.json'), 'utf8')).version;
+const elkOut = path.join(path.dirname(out), 'vendor', 'elkjs');
+mkdirSync(elkOut, { recursive: true });
+for (const [from, to] of [['lib/elk-worker.min.js', 'elk-worker.min.js'], ['LICENSE.md', 'LICENSE.md']]) {
+  copyFileSync(path.join(elkjs, from), path.join(elkOut, to));
+  console.log(`${path.join(elkOut, to)}: elkjs ${elkVersion}, sha256 ${createHash('sha256').update(readFileSync(path.join(elkOut, to))).digest('hex')}`);
+}
 
 // W-121: the Open Exchange schema check, a file of its own that the workbench loads only when it
 // checks an export: archi-online's validation, libxml2-wasm (MIT; libxml2 itself MIT) with its

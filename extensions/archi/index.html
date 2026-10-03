@@ -74,6 +74,28 @@
     <div class="actions"><button value="done" type="submit" class="primary">Done</button></div>
   </form>
 </dialog>
+<dialog id="generate-view" aria-labelledby="generate-view-title">
+  <form method="dialog">
+    <h2 id="generate-view-title">Generate view for</h2>
+    <p class="quiet" id="generate-view-text"></p>
+    <label>Name <input id="generate-view-name" maxlength="400" required></label>
+    <label>Viewpoint <select id="generate-view-viewpoint"></select></label>
+    <div class="dialog-row">
+      <label>Depth <select id="generate-view-depth"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
+      <label>Direction <select id="generate-view-direction"><option value="both">Both</option><option value="outgoing">Outgoing</option><option value="incoming">Incoming</option></select></label>
+    </div>
+    <label class="check"><input type="checkbox" id="generate-view-internal"> Include all relationships between the elements</label>
+    <div class="actions"><button value="cancel" type="submit" formnovalidate>Cancel</button><button value="generate" type="submit" class="primary">Generate</button></div>
+  </form>
+</dialog>
+<dialog id="arm-settings" aria-labelledby="arm-settings-title">
+  <form method="dialog">
+    <h2 id="arm-settings-title">Automatic relationships</h2>
+    <p class="quiet" id="arm-settings-text"></p>
+    <div id="arm-settings-list" class="arm-settings-list"></div>
+    <div class="actions"><button value="defaults" type="submit" formnovalidate>Restore defaults</button><button value="cancel" type="submit" formnovalidate>Cancel</button><button value="save" type="submit" class="primary">Save</button></div>
+  </form>
+</dialog>
 <script src="/_nendo/api.js"></script>
 <script type="module" src="view.js"></script>
 </body>

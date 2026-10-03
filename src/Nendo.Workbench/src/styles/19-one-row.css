@@ -92,8 +92,9 @@
 
 /* --- The Use toolbar's one row ------------------------------------------------------ */
 
-/* Add keeps the right-hand end whatever else the row holds. */
-.use-toolbar > .use-actions { margin-left: auto; }
+/* Add keeps the right-hand end whatever else the row holds, at its own width: a full view's row
+   squeezed it to 25 pixels and pushed its button off the window's edge (W-115). */
+.use-toolbar > .use-actions { flex: 0 0 auto; margin-left: auto; }
 
 .use-toolbar > .view-toolbar-slot { display: flex; flex: 1 1 auto; min-width: 0; }
 .use-toolbar > .view-toolbar-slot:empty { display: none; }
@@ -106,6 +107,11 @@
   border: 0;
   background: transparent;
 }
+
+/* One line beside Add: what does not fit goes into More, at the end of the row (W-115). */
+.view-toolbar.is-inline { flex-wrap: nowrap; }
+.view-toolbar.is-inline > [data-view-overflow] { display: none; }
+.view-toolbar.is-inline > [data-view-more] { flex: 0 0 auto; }
 
 /* A view's summary, declared as text, takes the row's free space and is cut short rather than
    pushing the controls onto a second line; mono text, such as a zoom level, keeps its size. */

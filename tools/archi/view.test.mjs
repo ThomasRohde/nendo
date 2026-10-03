@@ -187,3 +187,30 @@ test('the same relationship at both endpoints is labelled twice without being mi
   const model = M.buildModel({ records: [leaf, relation, outer] });
   assert.equal(M.label(model, outer), 'Relationship (Relationship (Actor – Actor) – Relationship (Actor – Actor))');
 });
+
+test("on a Nendo without W-115's icons the row is declared again with words where they would be, and not left for the view's own", async () => {
+  const declared = [];
+  let left = null;
+  const context = vm.createContext({
+    M, describe: error => error?.message ?? String(error), summary: () => '1 element',
+    state: { nativeChrome: true, filter: { text: '', layer: '' }, openView: 'ar-view', readOnly: false, editing: true, pending: 0, styleShown: false, validator: { open: false }, zoom: 1, transparent: false },
+    canvasModule: { createEditor() {}, editorSettings: () => ({ grid: false, snap: true, guides: true }) },
+    editor: { canUndo: () => false, canRedo: () => false },
+    leaveNativeChrome: reason => { left = reason; },
+    nendo: { ui: { setToolbar(toolbar) {
+      declared.push(toolbar);
+      const icons = JSON.stringify(toolbar).match(/"icon":"(clipboard|layout|undo|redo)"/g);
+      return icons ? Promise.reject(new Error(`items[9].icon must be one of Nendo's icons: plus, minus, layers.`)) : Promise.resolve();
+    } } },
+  });
+  vm.runInContext(section('function declareToolbar(', 'function arrange(') + '\ndeclareToolbar();', context);
+  for (let waited = 0; declared.length < 2 && waited < 50; waited++) await new Promise(resolve => setTimeout(resolve, 10));
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(declared.length, 2, 'The row was not declared again.');
+  assert.equal(left, null, `The workbench left Nendo's row: ${left}.`);
+  const plain = JSON.stringify(declared[1]);
+  assert.doesNotMatch(plain, /"icon":"(clipboard|layout|undo|redo)"/);
+  const find = (items, id) => items.flatMap(item => [item, ...(item.items ?? [])]).find(item => item.id === id);
+  for (const id of ['clipboard', 'layout', 'undo', 'redo']) assert.equal(find(declared[1].items, id).iconOnly, false, `${id} has no words.`);
+  assert.equal(find(declared[1].items, 'arrange').icon, 'layers', 'An icon every Nendo has was dropped too.');
+});

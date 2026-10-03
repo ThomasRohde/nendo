@@ -148,3 +148,18 @@ test('G30: keys are one spelling: a key event and a declaration meet, a symbol i
   assert.equal(markup.keyDisplay('Ctrl+Shift+ArrowUp'), 'Ctrl Shift ↑');
   assert.equal(markup.keyAria('Ctrl+Plus'), 'Control+Plus');
 });
+
+test('W-115: More holds what the row has no room for, each as Nendo would pick it from a menu, and the row ends with More only in the Use toolbar', () => {
+  // Everything after the search: separator, Pan, the Zoom group, the text and Export.
+  const more = markup.overflowMenu(toolbar.items, [6, 7, 8, 9, 10]);
+  const shape = more.map((item) => item.kind === 'separator' ? '—' : item.kind === 'label' ? `[${item.label}]`
+    : `${item.kind}:${item.id}${item.kind === 'radio' ? '=' + item.value : ''}${item.checked ? '*' : ''}${item.disabled ? '!' : ''}`);
+  assert.deepEqual(shape, ['check:pan*', '—', '[Zoom]', 'item:zoom-out', 'item:fit', 'item:zoom-in!', '—', '[Export]',
+    'item:export-svg', 'item:export-png', '—', '[Layout]', 'radio:layout=compact*', 'radio:layout=ordered', 'check:light']);
+  // A choice and a select become radio items under their label; a search never goes in More.
+  const choices = markup.overflowMenu(toolbar.items, [2, 3, 5]).map((item) => item.kind === 'label' ? `[${item.label}]` : item.kind === 'radio' ? `${item.id}=${item.value}${item.checked ? '*' : ''}` : item.kind);
+  assert.deepEqual(choices, ['[Levels]', 'levels=1', 'levels=2*', 'levels=3', 'levels=All', 'separator', '[Colour <b>]', 'colour=maturity*', 'colour=gap']);
+  const inline = markup.viewToolbarMarkup(toolbar, { title: 'Capability map', compact: false, prefix: 'vt-2', inline: true });
+  assert.match(inline, /<button type="button" class="view-toolbar-button is-icon" data-view-more aria-haspopup="menu" aria-expanded="false" aria-label="More" title="More" hidden>.*<\/button><\/div>$/);
+  assert.doesNotMatch(markup.viewToolbarMarkup(toolbar, { title: 'Capability map', compact: false, prefix: 'vt-3' }), /data-view-more/);
+});

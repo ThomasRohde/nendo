@@ -101,6 +101,29 @@ public sealed class DesktopExtensionViewJourneyTests
               { kind: 'menu', id: 'export', label: 'Export', icon: 'export', items: [{ id: 'export-svg', label: 'SVG' }, { kind: 'check', id: 'light', label: 'Light', checked: false }] },
             ] }).then(() => 'declared', error => 'refused: ' + error.code + ': ' + error.message);
           },
+          // A row as full as the Archi workbench's while editing, with Nendo's Add (the owner's report, W-115).
+          crowd() {
+            const button = (id, label, extra = {}) => ({ kind: 'button', id, label, ...extra });
+            const menu = (id, label, icon, ids) => ({ kind: 'menu', id, label, ...(icon ? { icon } : {}), items: ids.map(([item, text]) => ({ id: item, label: text })) });
+            return nendo.ui.setToolbar({ add: 'probe-add', items: [
+              { kind: 'search', id: 'find', label: 'Find', placeholder: 'Find…' },
+              { kind: 'select', id: 'layer', label: 'Layer', value: 'all', options: [{ value: 'all', label: 'All layers' }, { value: 'business', label: 'Business' }] },
+              { kind: 'text', text: '120 elements · 170 relationships · 17 views' },
+              menu('new', 'New', 'plus', [['new-element', 'Element…'], ['new-view', 'View']]),
+              button('rename', 'Rename', { icon: 'edit', iconOnly: true }), button('delete', 'Delete…', { icon: 'trash', iconOnly: true }),
+              menu('file', 'Archi file', null, [['open-file', 'Open…'], ['save-file', 'Save']]),
+              { kind: 'toggle', id: 'edit', label: 'Edit the view', icon: 'edit', pressed: true },
+              menu('arrange', 'Arrange', 'layers', [['align-left', 'Align left'], ['align-top', 'Align top']]),
+              menu('clipboard', 'Copy and paste', null, [['cut', 'Cut'], ['copy', 'Copy'], ['paste', 'Paste']]),
+              menu('layout', 'Lay out', null, [['layout-right', 'Left to right'], ['layout-down', 'Top to bottom']]),
+              { kind: 'menu', id: 'settings', label: 'Editor settings', icon: 'settings', iconOnly: true, items: [{ kind: 'check', id: 'grid', label: 'Show grid', checked: false }] },
+              { kind: 'group', label: 'Edits', items: [button('undo', 'Undo'), button('redo', 'Redo'), button('commit', 'Commit', { icon: 'check', disabled: true }),
+                button('discard', 'Discard'), { kind: 'toggle', id: 'appearance', label: 'Appearance', icon: 'eye', pressed: false }] },
+              { kind: 'toggle', id: 'validator', label: 'Validator', icon: 'info', pressed: false },
+              menu('export', 'Export', 'export', [['export-svg', 'SVG'], ['export-png', 'PNG']]),
+              { kind: 'group', label: 'Zoom', items: [button('zoom-out', 'Zoom out', { icon: 'minus', iconOnly: true }), button('fit', 'Fit (100%)'), button('zoom-in', 'Zoom in', { icon: 'plus', iconOnly: true })] },
+            ] }).then(() => 'declared', error => 'refused: ' + error.code + ': ' + error.message);
+          },
           // Nendo's menu at a point in this frame; the pick lands in state when the person makes it.
           menu(x, y) {
             state.pick = 'waiting';

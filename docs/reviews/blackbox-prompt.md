@@ -1037,16 +1037,26 @@ vocabulary, the examples and the resources — and not from the person.
   pixels, whether the SVG opens in a browser with its labels as text, whether anything is cut
   off at the edges, and what Transparent background changed (W-123).
   Press Edit on Organisation Tree View. Ctrl+click three boxes of different widths and choose
-  **Arrange → Align left**, then **Undo**, then **Redo**; select a box and **Duplicate** it,
-  **Copy** another and **Paste as reference** and **Paste as copy**; drop one element box into
-  another; turn **Show grid** on. Record what each did, what the drop asked, what Commit said
+  **Arrange → Align left**, then **Undo**, then **Redo**; select a box and **Copy and paste →
+  Duplicate** it, **Copy** another and **Paste as reference** and **Paste as copy**; drop one
+  element box into another; turn **Show grid** on behind the gear. Record what each did, what the drop asked, what Commit said
   was waiting, and what Studio's lists show afterwards for the elements and their boxes
   (W-113). Turn on **Appearance**, select a box, give it a fill, a gradient and a bold
   14-point font, and the label expression `${type}: ${name}`; commit, close the file, open
   it again, and record what the box and the tabs show (W-114). Select the view itself, pick
   **Strategy** under Viewpoint in its properties, and record what the drawing and the palette
   show, inside Edit and outside it; then pick **None** and then the view's own viewpoint again
-  (W-116).
+  (W-116). Choose **Lay out → Top to bottom** with nothing selected, then with two
+  boxes selected, and record what moved, whether any boxes overlap, what Undo did and what
+  Commit said was waiting. Open **Automatic relationships…** behind the gear, record what it offers
+  and its defaults, turn a reverse type on and drop a box into another, and record what the
+  drop asked; turn **Use nested connections** off and record what the nested boxes then show.
+  Right-click an element in the tree and choose **Generate view for…**, with depth 2: record
+  what the new view holds, how long it took, what History shows for it, and what Undo did when
+  you were editing and when you were not (W-115). With a view in Edit, make the window
+  narrower step by step, and record at each width whether Nendo's row stays one line, whether
+  Add stays whole on screen, what the More menu at the row's end holds, and whether a choice
+  made there does what the same control does in the row.
 - In any file, open a list screen whose definition binds more than three fields (in Archi.nendo,
   Concepts → Relationships binds four): record whether every bound field is drawn as a column,
   and whether a head row names each column. Give a record type a calculated count of more than

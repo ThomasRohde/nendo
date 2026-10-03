@@ -11,7 +11,12 @@ import { ViewEditor } from '@archi/canvas/ViewEditor';
 import { Palette } from '@archi/ui/Palette';
 import { ContextMenuHost } from '@archi/ui/ContextMenu';
 import { AppDialogHost } from '@archi/ui/AppDialog';
-import { alignmentAnchorMode, hydrateSettingsStore, useSettingsStore } from '@archi/settings/app-settings';
+import { alignmentAnchorMode, DEFAULT_SETTINGS, hydrateSettingsStore, SETTING_SECTIONS, useSettingsStore, type SettingKey } from '@archi/settings/app-settings';
+import { ARM_RELATIONSHIP_BITS, ARM_RELATIONSHIP_ORDER } from '@archi/model/automatic-relationships';
+import { relationshipLabel } from '@archi/model/metamodel';
+import { runElkLayout } from '@archi/extensions/layout/elk';
+import { JView, JVisual, wrap } from '@archi/scripting/jarchi/wrappers';
+import { generateViewFor, type GeneratedViewOptions } from '@archi/model/ops/generate-view';
 import { alignableNodeIds, alignNodes, distributeNodes, matchSize } from '@archi/model/ops/alignment';
 import { reorderViewObjects } from '@archi/model/ops/movement';
 import { duplicateViewObjects } from '@archi/model/ops/duplicate';
@@ -74,6 +79,74 @@ export function arrangeModel(model: ModelState, viewId: string, ids: string[], c
   const store = createModelStore({ model: structuredClone(model) });
   const refusal = arrangeIn(store, viewId, ids, command);
   return { refusal, model: store.getState().model! };
+}
+
+export type LayoutDirection = 'right' | 'down';
+
+/**
+ * Auto-layout (W-115): archi-online's ELK layout as its app.layout.elk runs it. The boxes selected
+ * on the view when there are two or more, else every box at the top of the view, are placed in
+ * layers in `direction`, and the lines between them routed at right angles; what is nested in a
+ * box moves with it. One transaction, so one Undo step and one edit waiting to be committed.
+ * Answers a sentence when there is nothing to lay out, else null.
+ */
+export async function layoutIn(store: ModelStore, viewId: string, wanted: string[], direction: LayoutDirection): Promise<string | null> {
+  const model = store.getState().model;
+  const view = model?.views[viewId] ? wrap(viewId, store) : undefined;
+  if (!(view instanceof JView)) return 'Open a view to lay it out.';
+  if (store.getState().readOnly) return 'This file is open read-only.';
+  const selected = wanted.map(id => (model!.nodes[id]?.viewId === viewId ? wrap(id, store) : undefined))
+    .filter((visual): visual is JVisual => visual instanceof JVisual);
+  const result = await runElkLayout({ view, selectedVisuals: selected, direction });
+  return result.nodeCount === 0 ? 'The view has no boxes to lay out.' : null;
+}
+
+/** The model after a layout, as archi-online's own leaves it: the reference the lane compares a commit with. */
+export async function layoutModel(model: ModelState, viewId: string, ids: string[], direction: LayoutDirection) {
+  const store = createModelStore({ model: structuredClone(model) });
+  const refusal = await layoutIn(store, viewId, ids, direction);
+  return { refusal, model: store.getState().model! };
+}
+
+/**
+ * Generate View For (W-115): archi-online's operation, which builds a view around the elements
+ * in `options.focusIds` from their relationships, to a depth and in a direction, lays it out with
+ * ELK and adds it in one transaction. On a store of its own when nothing is being edited.
+ */
+export function generateViewIn(store: ModelStore, options: GeneratedViewOptions) {
+  return generateViewFor(store, options);
+}
+
+/** The model with a view generated for `options`, and what was made: for the workbench and the lane. */
+export async function generatedViewModel(model: ModelState, options: GeneratedViewOptions) {
+  const store = createModelStore({ model: structuredClone(model) });
+  const result = await generateViewFor(store, options);
+  return { result, model: store.getState().model! };
+}
+
+/**
+ * Archi's automatic relationships preferences (W-115), as archi-online's settings list them: when
+ * nesting offers a relationship, which types it offers parent to child and child to parent, and
+ * which a nesting stands for, so their lines are not drawn. Kept in this view's origin with the
+ * editor's other settings.
+ */
+const ARM_SECTION = SETTING_SECTIONS.find(section => section.id === 'automatic-relationships')!;
+const ARM_KEYS = new Set<string>(ARM_SECTION.rows.map(row => row.key));
+
+export function automaticRelationshipSettings() {
+  const settings = useSettingsStore.getState().settings as unknown as Record<string, unknown>;
+  const defaults = DEFAULT_SETTINGS as unknown as Record<string, unknown>;
+  return {
+    title: ARM_SECTION.title, description: ARM_SECTION.description,
+    rows: ARM_SECTION.rows.map(row => ({ key: row.key, kind: row.kind, label: row.label, description: row.description,
+      value: settings[row.key] as boolean | number, initial: defaults[row.key] as boolean | number })),
+    types: ARM_RELATIONSHIP_ORDER.map(type => ({ type, label: relationshipLabel(type), bit: ARM_RELATIONSHIP_BITS[type] })),
+  };
+}
+
+export function setAutomaticRelationshipSetting(key: string, value: boolean | number) {
+  if (!ARM_KEYS.has(key)) throw new Error(`${key} is not an automatic relationships setting.`);
+  useSettingsStore.getState().setSetting(key as SettingKey, value);
 }
 
 /** The editor's grid, snapping and guides, as its own empty-canvas menu sets them. */
@@ -278,6 +351,14 @@ export function createEditor(host: HTMLElement, base: ModelState, options: Edito
       if (refusal === null) host.querySelector<SVGElement>('.view-svg')?.focus();
       return refusal;
     },
+    /** Auto-layout (W-115) of what is selected on the view, or the whole view; a sentence when it does not suit. */
+    async layout(direction: LayoutDirection) {
+      if (!viewId) return 'Open a view to lay it out.';
+      const ids = store.getState().selection.source === 'view' ? store.getState().selection.ids : [];
+      return layoutIn(store, viewId, ids, direction);
+    },
+    /** Generate View For (W-115) on the model with every edit not yet committed: one Undo step. */
+    generateView: (options: GeneratedViewOptions) => generateViewFor(store, options),
     /** The ids selected on the view. */
     selected: () => [...store.getState().selection.ids],
     /** The Appearance panel beside the view, shown or not (W-114). */

@@ -18,12 +18,18 @@ import { copyPngBlobToClipboard, rasterizeSvg, supportsPngClipboard } from '@arc
 import { computeAbsBounds } from '@archi/canvas/view-editor/bounds';
 import { createConnectionRouteResolver, type Point } from '@archi/canvas/geometry';
 import { createNestedConnectionVisibilityResolver } from '@archi/model/ops';
-import { DEFAULT_SETTINGS } from '@archi/settings/app-settings';
+import { hydrateSettingsStore, useSettingsStore } from '@archi/settings/app-settings';
 import { buildMirror, type RecordSets } from './mirror';
 import { applyWrites, toRecords, writesFor } from './records';
-import { createEditor, arrangeModel, editorSettings, setEditorSetting, ARRANGE_COMMANDS } from './editor';
+import { createEditor, arrangeModel, editorSettings, setEditorSetting, ARRANGE_COMMANDS, layoutModel, generatedViewModel,
+  automaticRelationshipSettings, setAutomaticRelationshipSetting } from './editor';
 
 export { buildMirror, toRecords, writesFor, applyWrites, createEditor, arrangeModel, editorSettings, setEditorSetting, ARRANGE_COMMANDS };
+// W-115: auto-layout, Generate View For and the automatic relationships preferences, with ELK in a worker.
+export { layoutModel, generatedViewModel, automaticRelationshipSettings, setAutomaticRelationshipSetting };
+export { useElkWorkerFactory, ELK_WORKER_URL } from './elk';
+export { analyzeNestingChange, applyNestingChange, createNestedConnectionVisibilityResolver } from '@archi/model/ops';
+export { createModelStore } from '@archi/model/store';
 // archi-online's label expressions, as the canvas draws them (W-114).
 export { evaluateLabelExpression };
 // Archi's 25 viewpoints and what each allows, as archi-online ported them from Archi (W-116).
@@ -44,11 +50,21 @@ declare const __ARCHI_ONLINE_COMMIT__: string;
 export const archiOnlineCommit = __ARCHI_ONLINE_COMMIT__;
 
 const SVG = 'http://www.w3.org/2000/svg';
-const settings = { ...DEFAULT_SETTINGS, legendLabels: {}, legendUserColors: {} };
+/**
+ * How a view is drawn: the person's settings as archi-online keeps them in this view's origin, the
+ * same the editor reads, so a connection that a nesting stands for (W-115) is hidden or drawn
+ * alike in both. Legends keep archi-online's own labels and colours.
+ */
+const renderSettings = () => ({ ...useSettingsStore.getState().settings, legendLabels: {}, legendUserColors: {} });
+const LEGEND_PREFERENCES = { labels: {}, userColors: {} };
+let preferences: Promise<void> | null = null;
+/** The settings kept in this view's origin, read once; a view drawn before then is drawn again. */
+export const loadPreferences = () => (preferences ??= hydrateSettingsStore().catch(() => undefined));
 
 /** Every diagram object's bounds on the view, absolute, and every connection's route. */
 export function geometry(model: ModelState, viewId: string) {
   const bounds = computeAbsBounds(model, viewId);
+  const settings = renderSettings();
   const visible = createNestedConnectionVisibilityResolver(model, settings);
   const route = createConnectionRouteResolver(model, bounds, { isVisible: visible, orthogonalAnchors: settings.useOrthogonalConnectionAnchors, prewarmViewId: viewId });
   const routes = new Map<string, Point[]>();
@@ -66,7 +82,7 @@ export function geometry(model: ModelState, viewId: string) {
  * transparent behind it; the figures are Archi's in either theme, as the canvas draws them.
  */
 export function viewSvg(model: ModelState, viewId: string, background: 'white' | 'transparent' = 'white') {
-  return renderViewSvg(model, viewId, { background, renderSettings: settings });
+  return renderViewSvg(model, viewId, { background, renderSettings: renderSettings() });
 }
 
 /** The largest scale up to `wanted` that one canvas holds for an image of this size. */
@@ -110,7 +126,7 @@ function ReadNode({ model, nodeId, viewpoint }: { model: ModelState; nodeId: str
         refView: item.nodeType === 'ref' ? model.views[item.refViewId] : undefined,
         width, height, model,
         displayLabel: item.labelExpression !== undefined ? evaluateLabelExpression(model, nodeId, item.labelExpression).text : undefined,
-        legendPreferences: { labels: settings.legendLabels, userColors: settings.legendUserColors },
+        legendPreferences: LEGEND_PREFERENCES,
       })),
     ...item.childIds.map(id => createElement(ReadNode, { key: id, model, nodeId: id, viewpoint })));
 }
@@ -298,8 +314,14 @@ export function createCanvas(host: HTMLElement, options: CanvasOptions = {}) {
     camera: () => ({ scale, tx, ty }),
     geometry: () => ({ bounds: Object.fromEntries(shape.bounds), routes: Object.fromEntries(shape.routes) }),
     viewId: () => viewId,
-    destroy() { root?.unmount(); root = null; host.replaceChildren(); },
+    destroy() { unsubscribe(); root?.unmount(); root = null; host.replaceChildren(); },
   };
+  // A change to how nestings are drawn, here or in the editor, draws the view again.
+  const drawnBy = (settings: Record<string, unknown>) => `${settings.useNestedConnections} ${settings.hiddenRelationsTypes}`;
+  const unsubscribe = useSettingsStore.subscribe((next, previous) => {
+    if (drawnBy(next.settings as never) !== drawnBy(previous.settings as never) && model && viewId && root) controller.show(model, viewId, { keepCamera: true });
+  });
+  void loadPreferences();
 
   // Pan by dragging the paper: a drag that moves less than four pixels is a click.
   let drag: { x: number; y: number; moved: boolean; pointer: number } | null = null;

@@ -94,7 +94,7 @@ not built, with the reason.
 | Undo and redo | In | W-103, W-112 |
 | Align, distribute, match size, grid and snap, z-order, copy and paste, duplicate, format painter | In: archi-online's own operations, in its context menu and Nendo's row | W-113 |
 | Appearance: colours, alpha, gradient, line style and width, icons, fonts, text position; label expressions; legends | In: archi-online's Appearance and Label tabs beside the view; legend options kept and drawn, not edited | W-114 |
-| Automatic relationships on nesting, Generate View For, ELK layout | In | W-115 |
+| Automatic relationships on nesting, Generate View For, ELK layout | In: archi-online's nesting, its preferences page, Generate View For and app.layout.elk layout, with ELK in a worker from the package; a generated view is saved as one revision, and History cannot reverse it, since it creates records | W-115 |
 | Viewpoints: palette filter, ghosting | In: archi-online's table, checked against Desktop Archi 5.9's `viewpoints.xml`; picked in a view's properties, and ghosted in the drawing as in the editor | W-116 |
 | Validator: the eight Archi 5.9 checks | In | W-117 |
 | Analysis: model relations, used in views, Visualiser | In | W-118 |
