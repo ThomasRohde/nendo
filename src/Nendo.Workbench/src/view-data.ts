@@ -1,6 +1,6 @@
 import { prepareApplication, recoverAfterWriteFailure, refreshStudioQuery, reloadReadWindows, runMutation } from './actions';
 import { keptChoice, keptChoices, keptDefaultProposal, keptDefaultSentence, keptFromChoice, keptText } from './new-file';
-import { type CellFocusedEvent, type CellKeyDownEvent, type CellValueChangedEvent, type ColDef, type FullWidthCellKeyDownEvent, type GridApi, type GridOptions, createGrid, themeQuartz } from 'ag-grid-community';
+import { type CellFocusedEvent, type CellKeyDownEvent, type CellValueChangedEvent, type ColDef, type ColumnResizedEvent, type FullWidthCellKeyDownEvent, type GridApi, type GridOptions, createGrid, themeQuartz } from 'ag-grid-community';
 import { type StudioQuery, fileScopedClearable, recordWindows, state, studioQueries, studioWindows } from './app-state';
 import { calculatedDisplay } from './calculated-fields';
 import { client } from './client';
@@ -16,7 +16,9 @@ import { emptyWindowQuery, windowRequest } from './record-window';
 import { ratingMarkup, ratingScaleOf, ratingSteps } from './rating';
 import { exactNumberText, parseScalar } from './scalars';
 import { announce, content, requiredElement, rerender, setBusy, showError } from './shell';
-import { recordTypeProposal } from './studio';
+import { recordTypeProposal, renameSchemaProposal } from './studio';
+import { type ColumnWidths, nextSort, queryStatusText, rememberWidths, rememberedWidths, sortOf, withFilter, withSort } from './studio-columns';
+import { StudioHeader, type StudioHeaderOptions } from './studio-header';
 import { type StudioLayout, captureOutlineRead, outlineErrorIsCurrent, outlines, readOutlineLevel, refreshOutline, studioLayouts, studioOutlineErrors } from './studio-outline';
 import { recordPagerMarkup } from './surface-markup';
 import { choiceStyle } from './tones';
@@ -78,6 +80,84 @@ let gridApi: GridApi<GridRow> | null = null;
 export function destroyGrid(): void {
   gridApi?.destroy();
   gridApi = null;
+}
+
+// ------------------------------------------------------------------------------------------
+// Columns the person shapes: widths kept for this device, a header click that sorts every
+// record of the type through the host, and a header rename that ends in a reviewed proposal.
+
+// The widths of this file session, by record type. Storage seeds them and keeps them for the
+// next session; when the device refuses storage they still hold until the file closes.
+const columnWidths = new Map<string, ColumnWidths>();
+fileScopedClearable({ clear() { columnWidths.clear(); headerFocusAfterDraw = null; } });
+// A sort made from the keyboard puts the focus back on its header once the table is redrawn.
+let headerFocusAfterDraw: string | null = null;
+
+function deviceStorage(): Storage | null {
+  try { return typeof window === 'undefined' ? null : window.localStorage; } catch { return null; }
+}
+
+function widthsFor(entityId: string): ColumnWidths {
+  let widths = columnWidths.get(entityId);
+  if (widths === undefined) {
+    const applicationId = state.session.manifest?.applicationId;
+    const storage = deviceStorage();
+    widths = applicationId && storage !== null ? rememberedWidths(storage, applicationId, entityId) : {};
+    columnWidths.set(entityId, widths);
+  }
+  return widths;
+}
+
+function keepColumnWidths(entityId: string, event: ColumnResizedEvent<GridRow>): void {
+  // Only what the person did: a drag of the edge, or a double-click that fits the content.
+  if (!event.finished || (event.source !== 'uiColumnResized' && event.source !== 'autosizeColumns')) return;
+  const changed: ColumnWidths = {};
+  for (const column of event.columns ?? []) changed[column.getColId()] = column.getActualWidth();
+  if (Object.keys(changed).length === 0) return;
+  const applicationId = state.session.manifest?.applicationId;
+  const storage = deviceStorage();
+  columnWidths.set(entityId, applicationId && storage !== null
+    ? rememberWidths(storage, applicationId, entityId, changed)
+    : { ...widthsFor(entityId), ...changed });
+}
+
+/** Where a column starts before the person sizes it: wide enough for what its kind holds. */
+function defaultWidth(field: EntitySnapshot['fields'][number]): number {
+  if (field.presentation === 'longText') return 300;
+  if (field.presentation === 'singleChoice') return 170;
+  if (field.presentation === 'date') return 140;
+  if (ratingScaleOf(field) !== null) return 150;
+  const kind = storageLabel(field.storageKind);
+  return kind === 'Boolean' ? 110 : kind === 'Integer' || kind === 'Decimal' || kind === 'Date' ? 130 : kind === 'Date time' ? 180 : kind === 'Reference' ? 210 : 200;
+}
+
+/** A remembered width replaces the column's own sizing, flex included. */
+function withRememberedWidth(column: ColDef<GridRow>, widths: ColumnWidths): ColDef<GridRow> {
+  const width = column.colId === undefined ? undefined : widths[column.colId];
+  return width === undefined ? column : { ...column, width, flex: undefined };
+}
+
+function sortByColumn(entity: EntitySnapshot, columnId: string, byKeyboard: boolean): void {
+  if (state.actionInFlight) return;
+  const query = studioQueries.get(entity.entityId);
+  const sort = nextSort(query, columnId);
+  headerFocusAfterDraw = byKeyboard ? columnId : null;
+  const name = [...entity.fields, ...(entity.derivedFields ?? [])].find(field => field.fieldId === columnId)?.displayName ?? columnId;
+  void applyStudioQuery(entity.entityId, withSort(query, sort),
+    sort.sortFieldId === null ? 'Back to record order.' : `Sorted by ${name}, ${sort.descending ? 'descending' : 'ascending'}.`);
+}
+
+function renameColumn(entity: EntitySnapshot, fieldId: string, name: string): void {
+  const revision = state.session.manifest?.definitionRevision;
+  if (revision === undefined) return;
+  try {
+    const proposal = renameSchemaProposal(entity.entityId, fieldId, name, revision);
+    void prepareApplication({ actionLabel: String(proposal.title), applicationName: entity.displayName, proposalPayload: proposal }, 'data');
+  } catch (error) { showError(messageFor(error)); }
+}
+
+function studioHeader(options: StudioHeaderOptions): Pick<ColDef<GridRow>, 'headerComponent' | 'headerComponentParams'> {
+  return { headerComponent: StudioHeader, headerComponentParams: options };
 }
 
 // ------------------------------------------------------------------------------------------
@@ -364,19 +444,22 @@ function keptDefaultMarkup(entity: EntitySnapshot): string {
     ${canChange ? `<button id="kept-default" class="text-button" data-action type="button">${keeps ? 'Leave them out by default' : 'Keep them by default'}</button>` : ''}</p>`;
 }
 
+/**
+ * The filter above the table. Sorting is the column headers' job: a click on a field's name
+ * sorts every record of the type by it, so the form only says which records to show.
+ */
 export function studioQueryMarkup(entity: EntitySnapshot): string {
   const query = studioQueries.get(entity.entityId);
   const options = (selected: string | null | undefined): string => entity.fields
     .filter(field => storageLabel(field.storageKind) !== 'Unsupported')
     .map(field => `<option value="${escapeAttribute(field.fieldId)}" ${selected === field.fieldId ? 'selected' : ''}>${escapeHtml(field.displayName)}</option>`).join('');
-  return `<form id="studio-query" class="studio-query" aria-label="Sort and filter records">
-    <label>Sort by<select name="sort"><option value="">Record order</option>${options(query?.sortFieldId)}</select></label>
-    <label>Direction<select name="direction"><option value="asc">Ascending</option><option value="desc" ${query?.descending ? 'selected' : ''}>Descending</option></select></label>
+  const nameOf = (fieldId: string): string => [...entity.fields, ...(entity.derivedFields ?? [])].find(field => field.fieldId === fieldId)?.displayName ?? fieldId;
+  return `<form id="studio-query" class="studio-query" aria-label="Filter records">
     <label>Filter field<select name="field"><option value="">All records</option>${options(query?.fieldId)}</select></label>
     <label>Match<select name="operator">${[['contains','Contains text'],['eq','Equals'],['ne','Does not equal'],['lt','Less than'],['le','At most'],['gt','Greater than'],['ge','At least'],['isNull','Not set'],['isNotNull','Has a value']].map(([op,label])=>`<option value="${op}" ${query?.operator === op ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
     <label>Value<input name="value" type="text" value="${escapeAttribute(query?.text ?? '')}" /></label>
-    <button class="secondary-button" data-action type="submit">Apply</button><button id="clear-query" class="text-button" data-action type="button">Clear</button>
-    <p class="query-status" role="status">${query ? 'Filtered or sorted · applies to all records in this type' : ''}</p>
+    <button class="secondary-button" data-action type="submit">Apply</button><button id="clear-query" class="text-button" data-action type="button" ${query ? '' : 'hidden'}>Clear</button>
+    <p class="query-status" role="status">${escapeHtml(queryStatusText(query, nameOf))}</p>
   </form>`;
 }
 
@@ -397,20 +480,18 @@ export function wireStudioQuery(entity: EntitySnapshot): void {
   fieldControl.addEventListener('change', update); operator.addEventListener('change', update); update();
   form.addEventListener('submit', event => {
     event.preventDefault();
-    const data = new FormData(form);
     const field = entity.fields.find(field => field.fieldId === fieldControl.value);
     try {
       const filters: StudioQuery['filters'] = field ? [{ fieldId: field.fieldId, operator: operator.value,
         ...(['isNull','isNotNull'].includes(operator.value) ? {} : { value: parseScalar(storageLabel(field.storageKind), value.value) }) }] : [];
       if (filters.some(filter => 'value' in filter && filter.value === null)) throw new Error('Choose Not set to find missing values.');
-      void applyStudioQuery(entity.entityId, { sortFieldId: String(data.get('sort') || '') || null,
-        descending: data.get('direction') === 'desc', fieldId: fieldControl.value, operator: operator.value, text: value.value, filters });
+      void applyStudioQuery(entity.entityId, withFilter(studioQueries.get(entity.entityId), { fieldId: fieldControl.value, operator: operator.value, text: value.value, filters }));
     } catch (error) { showError(messageFor(error)); }
   });
   requiredElement<HTMLButtonElement>('#clear-query').addEventListener('click', () => void applyStudioQuery(entity.entityId, null));
 }
 
-export async function applyStudioQuery(entityId: string, query: StudioQuery | null): Promise<void> {
+export async function applyStudioQuery(entityId: string, query: StudioQuery | null, message?: string): Promise<void> {
   if (state.actionInFlight) return;
   state.actionInFlight = true; setBusy(true);
   const previous = studioQueries.get(entityId);
@@ -418,7 +499,7 @@ export async function applyStudioQuery(entityId: string, query: StudioQuery | nu
     if (query) studioQueries.set(entityId, query); else { studioQueries.delete(entityId); studioWindows.delete(entityId); }
     await reloadReadWindows();
     state.selectedRecordId = null; state.creatingRecord = false; rerender();
-    announce(query ? 'Query applied.' : 'Showing all records.');
+    announce(message ?? (query ? 'Query applied.' : 'Showing all records.'));
   } catch (error) {
     if (previous) studioQueries.set(entityId, previous); else studioQueries.delete(entityId);
     showError(messageFor(error));
@@ -475,13 +556,25 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
     calculations: record.calculations,
     keptInNewFiles: record.keptInNewFiles ?? null,
   }));
+  // The outline keeps the tree's order, so only the flat table sorts.
+  const query = outlineRows === undefined ? studioQueries.get(entity.entityId) : undefined;
+  const sorts = outlineRows === undefined;
+  // One text column takes the room the others leave, so the table fills the panel without
+  // squeezing every column to its minimum; the rest start at a width that suits their kind.
+  const primaryFieldId = outlineRows === undefined
+    ? entity.fields.find(field => !field.retired && storageLabel(field.storageKind) === 'Text' && field.presentation !== 'singleChoice' && field.presentation !== 'longText')?.fieldId
+    : undefined;
   const editable = (field: EntitySnapshot['fields'][number]): ColDef<GridRow> => ({
     colId: field.fieldId,
     headerName: field.displayName,
+    ...studioHeader({
+      sort: sortOf(query, field.fieldId),
+      onSort: sorts && !field.retired && storageLabel(field.storageKind) !== 'Unsupported' ? byKeyboard => sortByColumn(entity, field.fieldId, byKeyboard) : null,
+      onRename: state.session.capabilities.mutate && !entity.retired && !field.retired ? name => renameColumn(entity, field.fieldId, name) : null,
+    }),
     editable: (parameters) => parameters.data?.outline?.kind !== 'more' &&
       state.session.capabilities.mutate && !entity.retired && !field.retired && storageLabel(field.storageKind) !== 'Reference',
-    minWidth: 135,
-    flex: field.presentation === 'longText' || field.required ? 1 : undefined,
+    ...(field.fieldId === primaryFieldId ? { minWidth: 220, flex: 1 } : { minWidth: 90, width: defaultWidth(field) }),
     valueGetter: (parameters) => {
       const value = parameters.data?.values[field.fieldId] ?? null;
       return exactNumberText(value) ?? value;
@@ -542,12 +635,19 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
     colId: field.fieldId,
     headerName: field.displayName,
     headerTooltip: `Calculated: ${field.expression}`,
+    // The host sorts by a calculated value as it sorts by a stored one.
+    ...studioHeader({ sort: sortOf(query, field.fieldId), onSort: sorts ? byKeyboard => sortByColumn(entity, field.fieldId, byKeyboard) : null, onRename: null }),
     editable: false,
     minWidth: 135,
     cellClass: 'calculated-cell',
     cellDataType: false,
     valueGetter: (parameters) => calculatedDisplay(parameters.data?.calculations?.[field.fieldId]).text,
   });
+  const openRow = (recordId: string | undefined): void => {
+    const record = records.find(item => item.semanticId === recordId);
+    if (record && !state.actionInFlight) renderDataRecordDialog(entity, record);
+  };
+  const widths = widthsFor(entity.entityId);
   const options: GridOptions<GridRow> = {
     theme: nendoGridTheme,
     // In the outline, Alt, Shift and an arrow key move the record; the grid must not move the focus first.
@@ -557,27 +657,43 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
     rowData,
     columnDefs: [
       ...(outlineRows !== undefined ? [outlineColumn(entity)] : []),
-      { colId: 'openRecord', headerName: '', width: 92, cellClass: 'record-open-cell', editable: false, sortable: false,
+      // Opening a record is a quiet icon at the row's start: faint until the row is pointed
+      // at or focused, so a column of identical buttons no longer outweighs the data.
+      { colId: 'openRecord', headerName: '', width: 40, pinned: 'left', resizable: false, cellClass: 'record-open-cell', editable: false, sortable: false,
         cellRenderer: (parameters: { data?: GridRow }) => {
           if (parameters.data?.outline?.kind === 'more') return '';
           const button = document.createElement('button');
           button.type = 'button';
           button.className = 'record-open-button';
-          button.textContent = 'Open';
+          button.tabIndex = -1;
+          button.innerHTML = icon('expand');
+          button.title = 'Open the record';
           button.setAttribute('aria-label', `Open ${entity.displayName} record`);
-          button.addEventListener('click', () => {
-            const record = records.find(item => item.semanticId === parameters.data?.recordId);
-            if (record && !state.actionInFlight) renderDataRecordDialog(entity, record);
-          });
+          button.addEventListener('click', () => openRow(parameters.data?.recordId));
           return button;
         } },
-      ...entity.fields.filter(field => state.showRetiredData || !field.retired).map(editable),
-      ...(entity.derivedFields ?? []).map(calculated),
-      keptColumn(entity),
-      { field: 'recordVersion', colId: 'recordVersion', headerName: 'Version', width: 90, editable: false,
-        valueFormatter: parameters => parameters.data?.outline?.kind === 'more' ? '' : String(parameters.value ?? '') },
+      ...[
+        ...entity.fields.filter(field => state.showRetiredData || !field.retired).map(editable),
+        ...(entity.derivedFields ?? []).map(calculated),
+        keptColumn(entity),
+        { field: 'recordVersion', colId: 'recordVersion', headerName: 'Version', width: 90, editable: false,
+          valueFormatter: parameters => parameters.data?.outline?.kind === 'more' ? '' : String(parameters.value ?? '') } satisfies ColDef<GridRow>,
+      ].map(column => withRememberedWidth(column, widths)),
     ],
     onCellValueChanged: (event) => void commitGridEdit(event),
+    onColumnResized: (event) => keepColumnWidths(entity.entityId, event),
+    // Enter or Space on the open cell opens the record, as a click on its icon does.
+    onCellKeyDown: (event: CellKeyDownEvent<GridRow> | FullWidthCellKeyDownEvent<GridRow>) => {
+      const key = event.event instanceof KeyboardEvent ? event.event : null;
+      if (key === null || !('colDef' in event) || (key.key !== 'Enter' && key.key !== ' ')) return;
+      if (event.colDef.colId === 'openRecord' && event.data?.outline?.kind !== 'more') {
+        key.preventDefault();
+        openRow(event.data?.recordId);
+      } else if (outlineRows !== undefined && event.data?.outline?.kind === 'node' && event.colDef.colId === 'outline' && event.data.outline.childCount > 0) {
+        key.preventDefault();
+        void toggleOutline(entity, event.data.recordId).catch(error => showError(messageFor(error)));
+      }
+    },
     ...(outlineRows === undefined ? {} : {
       onCellFocused: (event: CellFocusedEvent<GridRow>) => {
         // The outline grid neither sorts nor filters, so a displayed index is an index into its rows.
@@ -585,16 +701,12 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
         outlineFocus = row?.outline?.kind === 'node' ? row.recordId : null;
         syncMoveButtons(entity);
       },
-      onCellKeyDown: (event: CellKeyDownEvent<GridRow> | FullWidthCellKeyDownEvent<GridRow>) => {
-        const key = event.event instanceof KeyboardEvent ? event.event : null;
-        if (key === null || !('colDef' in event) || event.data?.outline?.kind !== 'node') return;
-        if ((key.key === 'Enter' || key.key === ' ') && event.colDef.colId === 'outline' && event.data.outline.childCount > 0) {
-          key.preventDefault();
-          void toggleOutline(entity, event.data.recordId).catch(error => showError(messageFor(error)));
-        }
-      },
     }),
     ensureDomOrder: true,
+    // Every column is drawn, not only those in view. A record type has tens of fields at most
+    // and a page of rows is bounded, so this costs little, and a column scrolled out of sight
+    // still exists for a screen reader, a find in the page and a measurement.
+    suppressColumnVirtualisation: true,
     getRowId: (parameters) => parameters.data.recordId,
     singleClickEdit: false,
     stopEditingWhenCellsLoseFocus: true,
@@ -609,6 +721,10 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
     event.stopPropagation();
     void moveInOutline(entity, moveKeys[event.key]);
   }, true);
+  if (headerFocusAfterDraw !== null) {
+    gridApi.setFocusedHeader(headerFocusAfterDraw);
+    headerFocusAfterDraw = null;
+  }
   // The focused record keeps its place across a move, an open or a redraw.
   if (outlineRows !== undefined && outlineFocus !== null) {
     const index = rowData.findIndex(row => row.recordId === outlineFocus);

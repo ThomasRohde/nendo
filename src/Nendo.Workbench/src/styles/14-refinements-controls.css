@@ -395,30 +395,109 @@
    rather than stretching the full width of the panel. */
 .rename-form { grid-template-columns: minmax(0, 26rem) auto; justify-content: start; }
 
-/* A row action has its own compact control, centered independently of the
-   grid's text baseline and inherited cell line height. */
+/* Opening a record is a quiet icon at the row's start. It stays faint until the
+   row is pointed at or holds the focus, so a column of identical controls no
+   longer outweighs the data beside it; it never disappears, so it is still found. */
 .record-grid .record-open-cell {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
 }
 .record-open-button {
-  display: inline-flex;
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted);
+  opacity: 0.35;
+  cursor: pointer;
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+.record-open-button .outline-icon { width: 15px; height: 15px; flex: 0 0 15px; }
+.record-grid .ag-row:hover .record-open-button,
+.record-grid .ag-row-focus .record-open-button,
+.record-grid .ag-cell-focus .record-open-button { opacity: 1; }
+.record-open-button:hover { background: var(--cobalt-soft); color: var(--cobalt); }
+.record-open-button:focus-visible { opacity: 1; outline: 2px solid var(--cobalt); outline-offset: 1px; }
+
+/* A field's header: its name sorts the records, the pencil renames the field.
+   The pencil shows on hover or focus, like the open icon; the sort arrow shows
+   faintly on hover and firmly on the column the records are sorted by. */
+.studio-header {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  min-width: 56px;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+}
+.studio-header-label {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+button.studio-header-label { cursor: pointer; }
+.studio-header-label .ag-header-cell-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.studio-header-label:hover .ag-header-cell-text { color: var(--ink); }
+.studio-sort-indicator { display: inline-grid; flex: 0 0 auto; place-items: center; color: var(--muted); opacity: 0; transition: opacity 120ms ease; }
+.studio-sort-indicator .outline-icon { width: 13px; height: 13px; flex: 0 0 13px; }
+button.studio-header-label:hover .studio-sort-indicator[data-sort="none"] { opacity: 0.45; }
+.studio-sort-indicator:not([data-sort="none"]) { color: var(--cobalt); opacity: 1; }
+.studio-header-rename {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+.studio-header-rename .outline-icon { width: 13px; height: 13px; flex: 0 0 13px; }
+.record-grid .ag-header-cell:hover .studio-header-rename,
+.record-grid .ag-header-cell:focus-within .studio-header-rename,
+.record-grid .ag-header-cell.ag-header-cell:focus .studio-header-rename { opacity: 1; }
+.studio-header-rename:hover { background: var(--cobalt-soft); color: var(--cobalt); }
+.studio-header-input {
+  width: 100%;
+  min-width: 0;
   height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--line-strong);
+  padding: 0 8px;
+  border: 1px solid var(--cobalt);
   border-radius: var(--radius-control);
   background: var(--surface-raised);
   color: var(--ink);
-  font-size: 0.76rem;
+  font: inherit;
+  font-size: 0.85rem;
   font-weight: 600;
-  line-height: 1;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--cobalt-soft);
 }
-.record-open-button:hover { border-color: var(--cobalt); background: var(--cobalt-soft); }
-.record-open-button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+.record-grid .ag-header-cell[aria-sort="ascending"] .ag-header-cell-text,
+.record-grid .ag-header-cell[aria-sort="descending"] .ag-header-cell-text { color: var(--ink); }
+
+/* The column edge is where a width is dragged, and double-clicked to fit. */
+.record-grid .ag-header-cell-resize::after { background-color: var(--line-strong); }
+.record-grid .ag-header-cell:hover .ag-header-cell-resize::after { background-color: var(--cobalt); }
 
 /* A calculated field. Deliberately not styled as a disabled input: a disabled
    control says "not right now", where this is never something anyone edits. The

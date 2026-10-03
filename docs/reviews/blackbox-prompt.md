@@ -582,7 +582,9 @@ anybody first.
 This matters more than the happy path. For each, record whether the refusal named the
 problem, named the thing it was refusing, and offered a remedy you could act on:
 
-- Sorting, filtering, grouping or totalling a list by a calculated field.
+- Grouping or totalling a list by a calculated field. (Sorting and filtering by one are
+  allowed.) Then sort or filter by one over more than 10,000 records of a type, which must
+  be refused with a remedy rather than read slowly.
 - Writing to a calculated field, through a single-field edit and through a create.
 - A form made only of calculated fields.
 - Adding to, amending or re-validating a change set after it validated.
@@ -683,6 +685,12 @@ Ask the person to look at the app and tell you, in their words:
 - Open a record in Studio › Data. Ask them where they would change its status and where
   they would read its longest text, without pointing at either. Ask what the panel on
   the right is for. Then make the window narrow and ask whether anything went missing.
+- In Studio › Data, ask them to put the records in order by one column, then back the way
+  they were; to make a column wider and check it stays wide after an edit and after
+  reopening the file; to rename a column; and to open a record from the table. Note
+  whether they found the sort on the header, the rename on the header, and the open
+  control at the start of the row without being shown, and whether the rename ending in a
+  review page surprised them.
 - Do the calculated fields read correctly in both Studio and the Use view, and is it clear
   which fields nobody can type into? Open the record from a list or board in the Use view
   — Studio's editor always shows every stored field, whatever the screens say.

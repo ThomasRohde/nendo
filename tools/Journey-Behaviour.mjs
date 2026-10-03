@@ -121,17 +121,33 @@ async function openProjectRecord(recordId) {
   await click('#nav-data'); await ready();
   await click('[data-entity-id="projects"]'); await ready();
   // The grid's own cell classes, measured by what their rules do: a calculated column
-  // carries the accent, and the Open button is centred in its cell.
+  // carries the accent, and the open icon is centred in its cell.
   const cells = await evaluate(`(() => {
     const row = document.querySelector('.ag-row[row-id="${recordId}"]');
     const open = row?.querySelector('.ag-cell[col-id="openRecord"]');
+    const button = open?.querySelector('.record-open-button');
     const calculated = row?.querySelector('.ag-cell[col-id="taskCount"]');
-    return { open: open ? { classed: open.classList.contains('record-open-cell'), display: getComputedStyle(open).display } : null,
-      calculated: calculated ? { classed: calculated.classList.contains('calculated-cell'), shadow: getComputedStyle(calculated).boxShadow } : null };
+    return { open: open ? { classed: open.classList.contains('record-open-cell'), display: getComputedStyle(open).display,
+        width: open.getBoundingClientRect().width, text: button?.textContent ?? null, icon: !!button?.querySelector('svg'),
+        opacity: button ? Number(getComputedStyle(button).opacity) : null } : null,
+      calculated: calculated ? { classed: calculated.classList.contains('calculated-cell'), tint: getComputedStyle(calculated).backgroundColor } : null };
   })()`);
   assert(cells.open?.classed === true && cells.open.display === 'flex',
     `Studio's Open cell lost its class, so its rule never applies: ${JSON.stringify(cells.open)}`);
-  assert(cells.calculated?.classed === true && cells.calculated.shadow !== 'none',
+  // Opening a record is a quiet icon, not a column of labelled buttons: a narrow cell, no
+  // words, and faint until the row is pointed at (the pointer is elsewhere here).
+  assert(cells.open.width <= 48 && cells.open.text === '' && cells.open.icon && cells.open.opacity < 0.6,
+    `Studio's open control is no longer a quiet icon at the row's start: ${JSON.stringify(cells.open)}`);
+  // A calculated column's header sorts through the host, and says so to assistive technology.
+  // The header states its sort once the grid has set the header up, so this waits for it.
+  const header = await waitFor(() => evaluate(`(() => {
+    const cell = document.querySelector('.record-grid .ag-header-cell[col-id="taskCount"]');
+    return cell?.hasAttribute('aria-sort') ? { label: !!cell.querySelector('button.studio-header-label'), sort: cell.getAttribute('aria-sort') } : null;
+  })()`), 'the sort state on a Studio column header');
+  assert(header.label === true && header.sort === 'none',
+    `Studio's column header lost its sort control or its aria-sort: ${JSON.stringify(header)}`);
+  // Its accent is a tint since W-096 took the coloured left edges away, so the tint is what is measured.
+  assert(cells.calculated?.classed === true && !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(cells.calculated.tint),
     `Studio's calculated column lost its class, so it reads like a stored one: ${JSON.stringify(cells.calculated)}`);
   await click(`.ag-row[row-id="${recordId}"] .record-open-button`);
   await waitFor(() => evaluate(`!!document.querySelector('#record-form')`), `the ${recordId} record page`);

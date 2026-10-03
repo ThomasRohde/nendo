@@ -103,14 +103,27 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         break;
       case 'data.queryRecords': {
         // The preview answers the outline's find box -- `contains` on text, and one record by ID --
-        // and nothing else; every other sort and filter needs the native host.
+        // and a stored field's plain sort, so Studio's column headers can be tried; every other
+        // filter needs the native host.
         const filters = Array.isArray(payload.filters) ? payload.filters as Array<{ fieldId: string; operator: string; value: unknown }> : [];
-        if (payload.sortFieldId || payload.descending || filters.some(filter => filter.operator !== 'contains'))
-          throw new WorkbenchHostError('native-query-required', 'Open the native Nendo app to use typed sorting and filtering.');
+        if (filters.some(filter => filter.operator !== 'contains'))
+          throw new WorkbenchHostError('native-query-required', 'Open the native Nendo app to use typed filtering.');
         const matches = (row: RecordSnapshot): boolean => (typeof payload.recordId !== 'string' || row.recordId === payload.recordId) &&
           filters.every(filter => String(row.values[filter.fieldId] ?? '').toLowerCase().includes(String(filter.value).toLowerCase()));
+        const byId = (left: RecordSnapshot, right: RecordSnapshot): number => left.recordId < right.recordId ? -1 : left.recordId > right.recordId ? 1 : 0;
+        const sortFieldId = typeof payload.sortFieldId === 'string' ? payload.sortFieldId : null;
+        const byField = (left: RecordSnapshot, right: RecordSnapshot): number => {
+          if (sortFieldId === null) return 0;
+          const a = left.values[sortFieldId] ?? null;
+          const b = right.values[sortFieldId] ?? null;
+          // Missing values sort last here; the native host has its own typed order.
+          if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1;
+          const order = typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b));
+          return payload.descending ? -order : order;
+        };
         result = this.previewPage(this.session.records.filter(row => row.entityId === payload.entityId && matches(row))
-          .sort((left, right) => left.recordId < right.recordId ? -1 : left.recordId > right.recordId ? 1 : 0), payload, `records:${String(payload.entityId)}:${JSON.stringify(filters)}:${String(payload.recordId ?? '')}`);
+          .sort((left, right) => byField(left, right) || byId(left, right)), payload,
+          `records:${String(payload.entityId)}:${JSON.stringify(filters)}:${String(payload.recordId ?? '')}:${sortFieldId ?? ''}:${payload.descending ? 'desc' : 'asc'}`);
         break;
       }
       case 'history.foldPreview':

@@ -84,6 +84,17 @@ The first MVP should provide:
 - accessible names, roles, errors and focus;
 - stable semantic test targets based on entity, field and record IDs.
 
+**Columns as built.** A column's header carries the field's name. Clicking it, or Enter
+on the focused header, sorts every record of the type by that field through
+`data.queryRecords` — ascending, descending, then record order — never a reorder of the
+loaded page; a calculated column sorts the same way, and the outline does not sort. The
+filter above the table keeps the sort and the sort keeps the filter. A width is dragged at
+the column's edge, or fitted by double-clicking it, and kept for the device by application
+ID and record type, never in the file. The header's pencil, or F2, renames the field: Enter
+prepares `schema.renameField` as a proposal to review. Opening a record is an icon at the
+row's start, faint until the row is pointed at or focused; Enter or Space on that cell
+opens it too. Movable and hideable columns are not built.
+
 **An outline for a declared hierarchy** ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)).
 A record type that declares a hierarchy opens as an outline, with a switch to the flat
 table. The outline is a pinned first column: each record indented by its depth, a toggle

@@ -34,6 +34,7 @@ import { capitalise, messageFor } from './format';
 import {
   CellStyleModule,
   ClientSideRowModelModule,
+  ColumnAutoSizeModule,
   DateEditorModule,
   ModuleRegistry,
   RenderApiModule,
@@ -54,11 +55,13 @@ import { typeGlyph } from './type-icons';
 import './styles.css';
 
 // An option or API call whose module is missing is ignored after a console error, so the
-// grid still draws: `cellClass` needs CellStyle, `ensureIndexVisible` needs ScrollApi.
+// grid still draws: `cellClass` needs CellStyle, `ensureIndexVisible` needs ScrollApi, and a
+// double-click on a column's edge fits it to its content only with ColumnAutoSize.
 // Journey-Behaviour.mjs fails on either the error or a missing cell class.
 ModuleRegistry.registerModules([
   CellStyleModule,
   ClientSideRowModelModule,
+  ColumnAutoSizeModule,
   DateEditorModule,
   RenderApiModule,
   ScrollApiModule,

@@ -83,7 +83,7 @@ Studio is the part of Nendo that the host provides for every file. No file conte
 
 | Area | What it shows | What you can do there |
 | --- | --- | --- |
-| **Data** | Each record type as a table, with a record editor. A record type kept as a tree opens as an outline, with a switch to the table. | Add, edit and delete records; sort, filter and search; open **Show retired data**. In an outline, open and close records and move one with **Move up**, **Move down**, **Indent** and **Outdent**, or Alt, Shift and an arrow key. |
+| **Data** | Each record type as a table, with a record editor. A record type kept as a tree opens as an outline, with a switch to the table. | Add, edit and delete records; click a column's name to sort by it, drag its edge to resize it, or use its pencil to rename the field; filter and search; open **Show retired data**. In an outline, open and close records and move one with **Move up**, **Move down**, **Indent** and **Outdent**, or Alt, Shift and an arrow key. |
 | **Structure** | Record types and their fields. | **Add field**, **Rename**, **Rename record type**, **Edit choices**, make a field required or optional, **Make unique**, **Number automatically**, retire and reactivate. Each change opens a proposal for you to review. |
 | **Surfaces** | The screens the file defines and what each one is bound to. | Read screen definitions and their diagnostics. |
 | **History** | Every saved change, in order, with its lane and its reversibility. | **View changes** on an entry, and **Compensate** where Nendo can reverse it. |
