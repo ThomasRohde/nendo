@@ -537,6 +537,23 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
 
   .rail .nav-item.nav-section { margin: 0; }
 
+  /* The bar keeps Windows' buttons free (20-title-bar.css), so it has to fit beside them: the
+     file is named in the status line, and Agent and Help are their icons, named on hover. */
+  .brand-word { display: none; }
+  .rail-foot .nav-item,
+  .rail .help-nav { justify-content: center; width: 36px; padding: 0; }
+  .rail-foot .nav-symbol,
+  .rail .help-nav .nav-symbol { display: inline-flex; }
+  .rail-foot .nav-item > span:not(.nav-symbol),
+  .rail .help-nav > span:not(.nav-symbol) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
   .palette-trigger { width: 36px; padding: 0; justify-content: center; }
 }
 
