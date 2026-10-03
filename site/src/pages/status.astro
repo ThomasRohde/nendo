@@ -1,6 +1,5 @@
 ---
 import Page from '../layouts/Page.astro';
-import Prose from '../components/Prose.astro';
 
 
 // Condensed from the "Not qualified" table in docs/roadmap.md, in plainer words.
@@ -42,20 +41,6 @@ const gaps = [
   heading="Where Nendo stands."
   lede="What works today, and where each claim comes from: an automated test, or the author's own use. Where nothing was checked, the page says so."
 >
-  <section class="page section">
-    <p class="eyebrow">Where it is</p>
-    <h2>Version 0.12.0: the core loop works.</h2>
-    <Prose>
-      <p>
-        The core loop works end to end, as an unsigned per-user install for Windows x64.
-        Four reference applications, each a different shape, put the idea to the test:
-        Idea Garden, Decision Log, the Axiom Register and Nendo Station. The last two were
-        built from an empty file by an agent working only through MCP, which learned what
-        it could build from the interface rather than from the source.
-      </p>
-    </Prose>
-  </section>
-
   <section class="page section">
     <p class="eyebrow">Not qualified</p>
     <h2>What Nendo does not claim yet.</h2>

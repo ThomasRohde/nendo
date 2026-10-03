@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import BrandMark from '../components/BrandMark.astro';
 import Shot from '../components/Shot.astro';
+import { version } from '../version';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const repository = 'https://github.com/ThomasRohde/nendo';
@@ -42,7 +43,7 @@ const showcase = [
 >
   <section class="page hero">
     <div class="hero-text">
-      <p class="tag"><span class="dot"></span>Experimental research prototype, v0.12.0 for Windows x64</p>
+      <p class="tag"><span class="dot"></span>Experimental research prototype, v{version} for Windows x64</p>
       <h1>Malleable software in a single file.</h1>
       <p class="hero-lede">
         A Nendo application is one SQLite file. It starts empty, and you and your coding
