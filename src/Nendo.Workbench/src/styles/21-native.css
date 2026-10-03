@@ -1,0 +1,507 @@
+/* G · Mica with tabs (trial): the window as a Windows 11 app.
+   Slice 21 of styles.css; it loads last and restates the shell the slices above draw.
+
+   The window ground is Mica. In the Desktop host the page is transparent wherever the ground
+   shows -- the title band, the navigation and the status line -- and the host's MicaBackdrop
+   shows through (data-backdrop="mica"). In a browser there is no backdrop, and --mica stands in
+   for it. The work sits on one opaque layer with a rounded top-left corner, as WinUI's
+   NavigationView draws its content, and the places kept open are tabs over that layer, the
+   active one joined to it. */
+
+/* The window ground. Not one of the tokens a custom view is handed (themeTokenNames): a view
+   draws on the layer, never on the ground. */
+:root { --mica: #eef1f6; }
+:root[data-theme="dark"] { --mica: #1e2024; }
+
+:root {
+  --radius-control: 4px;
+  --radius-panel: 8px;
+  --radius-shell: 8px;
+  --nav-hover: color-mix(in srgb, var(--ink) 6%, transparent);
+  --nav-pressed: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+html,
+body {
+  background: var(--mica);
+}
+
+:root[data-backdrop="mica"],
+:root[data-backdrop="mica"] body,
+:root[data-backdrop="mica"] .app-shell {
+  background: transparent;
+}
+
+.app-shell { background: transparent; }
+
+/* --- The navigation ------------------------------------------------------------ */
+
+.rail {
+  gap: 0;
+  padding: 0 4px 6px;
+  border-right: 0;
+  background: transparent;
+}
+
+.brand {
+  justify-content: flex-start;
+  gap: 10px;
+  height: var(--title-bar-height, 48px);
+  margin: 0 -4px;
+  padding: 0 8px 0 16px;
+  border-bottom: 0;
+}
+
+.brand img {
+  width: 16px;
+  height: 16px;
+}
+
+.brand-lockup { flex: 0 1 auto; min-width: 0; gap: 10px; }
+
+.brand-word {
+  overflow: hidden;
+  font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand .file-menu summary {
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.brand .file-menu summary:hover,
+.brand .file-menu[open] summary { background: var(--nav-hover); }
+.brand .file-menu summary .outline-icon { width: 14px; height: 14px; }
+.brand #file-icon { display: none; }
+
+.brand .file-menu-panel {
+  top: calc(100% + 2px);
+  right: auto;
+  left: 0;
+}
+
+.rail-head {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding-bottom: 4px;
+}
+
+.rail .rail-toggle {
+  flex: 0 0 40px;
+  width: 40px;
+  min-width: 40px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  background: transparent;
+}
+
+.rail .rail-toggle:hover { background: var(--nav-hover); }
+.rail .rail-toggle .outline-icon { width: 16px; height: 16px; }
+
+.primary-nav,
+.studio-nav,
+.nav-places,
+.rail-foot {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.nav-places[hidden] { display: none; }
+
+.studio-nav::before,
+.rail-foot::before {
+  content: "";
+  height: 1px;
+  margin: 6px 12px 2px;
+  background: var(--line-strong);
+}
+
+.rail-foot { margin-top: auto; padding-top: 2px; }
+.help-nav { margin-top: 4px; }
+
+.rail .nav-item,
+.nav-place {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 12px 0 16px;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  text-align: left;
+}
+
+.rail .nav-item > span:not(.nav-symbol),
+.nav-place > span:not(.nav-symbol) {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rail .nav-item:hover:not(:disabled),
+.nav-place:hover { background: var(--nav-hover); }
+.rail .nav-item:active:not(:disabled),
+.nav-place:active { background: var(--nav-pressed); color: var(--muted); }
+.rail .nav-item:disabled { color: color-mix(in srgb, var(--ink) 40%, transparent); }
+
+.rail .nav-symbol .outline-icon,
+.nav-place .nav-symbol .outline-icon { width: 16px; height: 16px; }
+
+/* Selected is a fill and a short accent pill at the leading edge, as NavigationView draws it. */
+.rail .nav-item.is-selected:not(.nav-section),
+.nav-place.is-selected {
+  border: 0;
+  color: var(--ink);
+  background: var(--nav-hover);
+  font-weight: 400;
+}
+
+.rail .nav-item.is-selected:not(.nav-section)::before,
+.nav-place.is-selected::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 3px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 2px;
+  background: var(--cobalt);
+}
+
+/* Use and Studio head their sections. Each is still the way to its section, so it is a button. */
+.rail .nav-item.nav-section {
+  min-height: 36px;
+  margin-top: 2px;
+  border: 0;
+  background: transparent;
+  font-weight: 600;
+}
+
+.rail .nav-item.nav-section .nav-symbol { display: none; }
+.rail .nav-item.nav-section:hover:not(:disabled) { background: var(--nav-hover); }
+
+/* The key hints sit at the end of a row. */
+.rail .nav-item .kbd-hint { margin-left: auto; }
+
+/* --- The tabs ------------------------------------------------------------------ */
+
+.workspace {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: transparent;
+}
+
+.tab-strip {
+  position: relative;
+  z-index: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 0;
+  height: var(--title-bar-height, 48px);
+  padding: 0 calc(8px + var(--title-bar-right, 0px)) 0 8px;
+}
+
+.tab-strip[hidden] { display: none; }
+
+.tab {
+  display: flex;
+  flex: 0 1 236px;
+  align-items: center;
+  min-width: 96px;
+  height: 36px;
+  margin-bottom: 2px;
+  padding-right: 4px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  color: var(--muted);
+}
+
+.tab:hover:not(.is-active) { background: var(--nav-hover); }
+
+.tab.is-active {
+  height: 38px;
+  margin-bottom: 0;
+  border-color: var(--line);
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+.tab-main {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 6px 0 12px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+}
+
+.tab-main .outline-icon { flex: 0 0 16px; width: 16px; height: 16px; }
+
+.tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-close,
+.tab-new {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: inherit;
+  background: transparent;
+}
+
+.tab-close .outline-icon { width: 12px; height: 12px; }
+.tab-close:hover,
+.tab-new:hover { background: var(--nav-hover); }
+.tab-close:disabled { visibility: hidden; }
+
+.tab-new {
+  width: 32px;
+  height: 28px;
+  margin: 0 0 6px 2px;
+  color: var(--ink);
+}
+
+.tab-new .outline-icon { width: 14px; height: 14px; }
+
+.tab-main:focus-visible,
+.tab-close:focus-visible,
+.tab-new:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
+/* --- The layer the work sits on -------------------------------------------------- */
+
+.workspace-layer {
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  margin-top: -1px;
+  border: 1px solid var(--line);
+  border-right: 0;
+  border-bottom: 0;
+  border-top-left-radius: 8px;
+  background: var(--canvas);
+  overflow: hidden;
+}
+
+.workspace-layer > .workspace-header { grid-row: 1; }
+.workspace-layer > .file-notice { grid-row: 2; }
+.workspace-layer > .busy-bar { grid-row: 3; }
+.workspace-layer > .workbench { grid-row: 4; }
+
+.workbench {
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* The address row: Back and Forward, where this tab is, and the command box. */
+html:root .workspace-layer .workspace-header {
+  justify-content: flex-start;
+  gap: 4px;
+  min-height: 0;
+  padding: 10px 20px 6px 16px;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.workspace-header .history-control {
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.workspace-header .history-control button {
+  width: 36px;
+  min-width: 36px;
+  height: 32px;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+}
+
+.workspace-header .history-control button:not(:disabled):hover { background: var(--nav-hover); }
+.workspace-header .history-control button:disabled { opacity: 0.4; }
+
+.workspace-identity {
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 32px;
+  margin-left: 4px;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--line);
+  border-bottom-color: var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+}
+
+.address-icon { display: inline-flex; margin-right: 4px; color: var(--muted); }
+.address-icon .outline-icon { width: 16px; height: 16px; }
+
+.workspace-identity .location { color: var(--ink); font-size: 14px; }
+.workspace-identity .location::after {
+  content: "›";
+  margin: 0 2px 0 8px;
+  color: var(--muted);
+  font-family: inherit;
+}
+
+html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
+
+.workspace-header .header-controls { flex: none; margin-left: 8px; }
+
+.palette-trigger {
+  width: clamp(220px, 24vw, 340px);
+  height: 32px;
+  border-color: var(--line);
+  border-bottom-color: var(--line-strong);
+  background: var(--surface);
+  font-size: 14px;
+}
+
+.palette-trigger:hover { background: var(--surface-soft); }
+
+/* --- The status line, on the ground -------------------------------------------- */
+
+.status-bar {
+  min-height: 28px;
+  padding: 0 8px 0 16px;
+  border-top: 0;
+  color: var(--muted);
+  background: transparent;
+  font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  font-size: 12px;
+}
+
+.status-bar .theme-control {
+  gap: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.status-bar .theme-control button,
+.status-bar .shortcuts-toggle {
+  width: 26px;
+  min-width: 26px;
+  height: 22px;
+  min-height: 22px;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  background: transparent;
+  box-shadow: none;
+}
+
+.status-bar .theme-control button .outline-icon,
+.status-bar .shortcuts-toggle .outline-icon { width: 14px; height: 14px; }
+.status-bar .theme-control button:hover,
+.status-bar .shortcuts-toggle:hover { color: var(--ink); background: var(--nav-hover); }
+.status-bar .theme-control button[aria-pressed="true"],
+.status-bar .shortcuts-toggle[aria-pressed="true"] { color: var(--ink); background: var(--nav-hover); }
+
+/* --- Wide windows only ------------------------------------------------------------ */
+
+@media (min-width: 841px) {
+  .app-shell { grid-template-columns: 280px minmax(0, 1fr); }
+
+  /* The command box keeps its words at every width the rail runs down the side: an empty box
+     with a magnifier in it reads as a field nobody can type in. */
+  .palette-trigger { width: clamp(200px, 26vw, 340px); padding: 0 6px 0 10px; justify-content: flex-start; }
+  .palette-trigger-text { display: block; }
+  .palette-trigger kbd { display: inline-block; }
+
+  /* A file with many record types scrolls its own list; Studio, Agent and Help stay in reach. */
+  .primary-nav { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+
+  /* Folded, the navigation is icons; the file's name and its menu wait for it to open. */
+  :root[data-rail="collapsed"] .rail { gap: 0; padding: 0 4px 6px; }
+  :root[data-rail="collapsed"] .brand {
+    flex-direction: row;
+    justify-content: center;
+    height: var(--title-bar-height, 48px);
+    margin: 0 -4px;
+    padding: 0;
+  }
+  :root[data-rail="collapsed"] .brand .file-menu { display: none; }
+  :root[data-rail="collapsed"] .rail-head { justify-content: center; }
+  :root[data-rail="collapsed"] .rail .nav-item,
+  :root[data-rail="collapsed"] .nav-place {
+    justify-content: center;
+    width: 40px;
+    min-height: 36px;
+    margin: 0 auto;
+    padding: 0;
+  }
+  :root[data-rail="collapsed"] .rail .nav-item.nav-section .nav-symbol { display: inline-flex; }
+  :root[data-rail="collapsed"] .nav-place > span:not(.nav-symbol) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  :root[data-rail="collapsed"] .studio-nav::before,
+  :root[data-rail="collapsed"] .rail-foot::before { margin: 6px 6px 2px; }
+}
+
+/* A narrow window keeps the bar across the top; tabs wait for a wider one. */
+@media (max-width: 840px) {
+  .tab-strip { display: none; }
+  .workspace-layer { margin-top: 0; border: 0; border-radius: 0; }
+  .rail-head, .nav-places, .rail-foot::before, .studio-nav::before { display: none; }
+}
+
+/* The dark accent is light, so what sits on it is dark: white on it does not reach 4.5:1. */
+:root[data-theme="dark"] .entity-icon,
+:root[data-theme="dark"] .permission-step[aria-pressed="true"] .step-marker {
+  color: var(--canvas);
+}

@@ -43,31 +43,31 @@ export interface GridRow {
 
 export const nendoGridTheme = themeQuartz
   .withParams({
-    accentColor: '#6b3fd6',
+    accentColor: '#005fb8',
     backgroundColor: '#ffffff',
-    borderColor: '#e2e5ea',
+    borderColor: '#e5e5e5',
     browserColorScheme: 'light',
     fontFamily: '"Segoe UI Variable Text", "Segoe UI", sans-serif',
     fontSize: 13,
-    foregroundColor: '#14171c',
-    headerBackgroundColor: '#f8f9fa',
-    headerTextColor: '#5b6370',
+    foregroundColor: '#1b1b1b',
+    headerBackgroundColor: '#ffffff',
+    headerTextColor: '#5d5d5d',
     oddRowBackgroundColor: '#ffffff',
-    rowHoverColor: '#f1f2f5',
-    selectedRowBackgroundColor: '#efe9fd',
+    rowHoverColor: '#f3f3f4',
+    selectedRowBackgroundColor: '#e5eff9',
     spacing: 6,
   }, 'light')
   .withParams({
-    accentColor: '#9d6bff',
-    backgroundColor: '#14171c',
-    borderColor: '#262a33',
+    accentColor: '#60cdff',
+    backgroundColor: '#2d2e30',
+    borderColor: '#3b3c3e',
     browserColorScheme: 'dark',
-    foregroundColor: '#e7e9ed',
-    headerBackgroundColor: '#181b21',
-    headerTextColor: '#9aa1ad',
-    oddRowBackgroundColor: '#14171c',
-    rowHoverColor: '#1c2027',
-    selectedRowBackgroundColor: '#251c3a',
+    foregroundColor: '#ffffff',
+    headerBackgroundColor: '#2d2e30',
+    headerTextColor: '#c5c5c5',
+    oddRowBackgroundColor: '#2d2e30',
+    rowHoverColor: '#38393b',
+    selectedRowBackgroundColor: '#1f3a4a',
   }, 'dark');
 
 // The grid instance currently mounted, if any. It is disposed on every render:

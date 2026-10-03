@@ -48,6 +48,8 @@ import { storageKindName } from './extension-model';
 import { icon, type IconName } from './icons';
 import { openPalette } from './command-palette';
 import { matchShortcut, shortcut, shortcutForKeys, shortcutsShownFrom, shortcutsStorageKey, type ShortcutId } from './shortcuts';
+import { drawTabs, wireOpenInNewTab } from './workspace-tabs';
+import { drawRailPlaces } from './rail-places';
 import './styles.css';
 
 // An option or API call whose module is missing is ignored after a console error, so the
@@ -284,6 +286,12 @@ function updateChrome(): void {
   sessionContext.hidden = !named || placePickersDrawn();
 
   sessionFile.textContent = state.session.fileName ?? '';
+  // The file, named at the title bar's left end over the navigation (G).
+  brandFile.textContent = named ? state.session.fileName!.replace(/\.nendo$/i, '') : 'Nendo';
+  brandFile.title = state.session.fileName ?? '';
+  const addressIcon: IconName = state.view === 'use' ? 'box' : state.view === 'agent' || state.view === 'agentProposal' ? 'agent'
+    : state.view === 'help' ? 'help' : state.view === 'proposal' ? 'studio' : state.view;
+  if (addressGlyph.dataset.icon !== addressIcon) { addressGlyph.innerHTML = icon(addressIcon); addressGlyph.dataset.icon = addressIcon; }
   // The file's icon beside its name (W-089). It was on the window's title bar, which is Nendo's
   // top bar now (W-093), so the status bar, where the file is named, carries it instead.
   const look = state.session.look ?? null;
@@ -332,6 +340,8 @@ function updateChrome(): void {
   navigation.studio.classList.toggle('is-selected', studioSelected);
   if (studioSelected) navigation.studio.setAttribute('aria-current', 'true');
   else navigation.studio.removeAttribute('aria-current');
+  drawRailPlaces();
+  drawTabs();
 }
 
 /** Keep the typed values visible and stop anything on this page from saving them. */
@@ -377,6 +387,11 @@ applyRail(readRailCollapsed());
 railToggle.addEventListener('click', () => { applyRail(root.dataset.rail !== 'collapsed', true); });
 requiredElement<HTMLElement>('#file-icon').innerHTML = icon('file');
 const statusFileIcon = requiredElement<HTMLElement>('#status-file-icon');
+const brandFile = requiredElement<HTMLElement>('#brand-file');
+const addressGlyph = requiredElement<HTMLElement>('#address-icon');
+// Mica shows through the page in the Desktop host (G); a browser has no backdrop to show.
+root.dataset.backdrop = client.mode === 'desktop' ? 'mica' : 'none';
+wireOpenInNewTab(requiredElement<HTMLElement>('#app-rail'));
 requiredElement<HTMLElement>('.file-chevron').innerHTML = icon('chevron');
 for (const button of themeButtons) {
   button.innerHTML = icon(button.dataset.themeOption as 'system' | 'light' | 'dark');

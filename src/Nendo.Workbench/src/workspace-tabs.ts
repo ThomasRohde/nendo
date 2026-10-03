@@ -1,0 +1,189 @@
+import { fileScopedClearable, state } from './app-state';
+import { refuseWhileDirty } from './draft-guard';
+import { escapeAttribute, escapeHtml } from './format';
+import { icon, type IconName } from './icons';
+import { revisitCurrent } from './navigation-actions';
+import { navigationTrail, type Place } from './navigation-trail';
+import { announce, refreshChrome, requiredElement } from './shell';
+
+/**
+ * The places a person keeps open, as tabs in the title bar (G, trial; the Mica-with-tabs canvas).
+ *
+ * A tab is a trail. The window draws from one trail, `navigationTrail`, and each tab keeps its own
+ * places and cursor; switching tabs swaps the saved trail in and puts its current place back, the
+ * way a step back does. So Back and Forward belong to the tab, as they do in File Explorer, and a
+ * tab costs nothing while it is not on screen: no frame, no read, only a list of places.
+ *
+ * Tabs are the window's, not the file's. They are cleared with the file, like the trail.
+ */
+
+interface Saved { places: Place[]; cursor: number }
+interface Tab { id: number; saved: Saved | null }
+
+let tabs: Tab[] = [{ id: 1, saved: null }];
+let active = 0;
+let nextId = 2;
+
+export const workspaceTabs = fileScopedClearable({
+  clear(): void {
+    tabs = [{ id: nextId++, saved: null }];
+    active = 0;
+  },
+});
+
+const strip = requiredElement<HTMLElement>('#tab-strip');
+
+function placeOf(tab: Tab, index: number): Place | null {
+  if (index === active) return navigationTrail.current();
+  const saved = tab.saved;
+  return saved === null || saved.cursor < 0 ? null : saved.places[saved.cursor] ?? null;
+}
+
+/** What a tab is called: the record type and the view on a Use screen, Studio and its page elsewhere. */
+export function tabLabel(place: Place | null): string {
+  if (place === null) return state.session.fileName === null ? 'No file open' : 'New tab';
+  if (place.eyebrow.startsWith('Use · ')) return `${place.eyebrow.slice('Use · '.length)} · ${place.title}`;
+  if (place.eyebrow === 'Studio' && place.title !== 'Studio') return `Studio · ${place.title}`;
+  return place.title;
+}
+
+function tabIcon(place: Place | null): IconName {
+  switch (place?.view) {
+    case 'use': return place.showOverview === true ? 'home' : place.fileView !== null ? 'surfaces' : 'box';
+    case 'data': case 'structure': case 'surfaces': case 'history': case 'health': case 'help': return place.view;
+    case 'agent': case 'agentProposal': return 'agent';
+    case 'proposal': return 'studio';
+    default: return 'file';
+  }
+}
+
+/** Draw the strip. Called with the rest of the chrome, so a tab's name follows every move. */
+export function drawTabs(): void {
+  const open = state.session.fileName !== null;
+  strip.hidden = !open;
+  if (!open) { strip.innerHTML = ''; return; }
+  const only = tabs.length === 1;
+  strip.innerHTML = tabs.map((tab, index) => {
+    const place = placeOf(tab, index);
+    const label = tabLabel(place);
+    const selected = index === active;
+    return `<div class="tab${selected ? ' is-active' : ''}" data-tab-index="${index}">
+      <button class="tab-main" type="button" role="tab" aria-selected="${selected}" data-tab="${index}" title="${escapeAttribute(label)}">${icon(tabIcon(place))}<span class="tab-label">${escapeHtml(label)}</span></button>
+      <button class="tab-close" type="button" data-close-tab="${index}" aria-label="Close ${escapeAttribute(label)}" title="Close tab (Ctrl+W)" ${only ? 'disabled' : ''}>${icon('close')}</button>
+    </div>`;
+  }).join('') + `<button id="tab-new" class="tab-new" type="button" aria-label="New tab" title="New tab (Ctrl+T)">${icon('plus')}</button>`;
+}
+
+/** Keep the place on screen in a second tab, and move to it. Nothing redraws: it is the same place. */
+export function newTab(): void {
+  if (state.session.fileName === null) return;
+  const here = navigationTrail.current();
+  tabs[active].saved = navigationTrail.inspect();
+  const tab: Tab = { id: nextId++, saved: null };
+  tabs.splice(active + 1, 0, tab);
+  active += 1;
+  navigationTrail.load(here === null ? { places: [], cursor: -1 } : { places: [here], cursor: 0 });
+  refreshChrome();
+  announce('New tab opened.');
+}
+
+export async function activateTab(index: number): Promise<void> {
+  if (index === active || index < 0 || index >= tabs.length) return;
+  if (state.actionInFlight || refuseWhileDirty('switching tabs')) return;
+  tabs[active].saved = navigationTrail.inspect();
+  const saved = tabs[index].saved ?? { places: [], cursor: -1 };
+  tabs[index].saved = null;
+  active = index;
+  navigationTrail.load(saved);
+  await revisitCurrent();
+  focusActiveTab();
+}
+
+export async function closeTab(index: number): Promise<void> {
+  if (tabs.length === 1 || index < 0 || index >= tabs.length) return;
+  if (index !== active) {
+    tabs.splice(index, 1);
+    if (index < active) active -= 1;
+    refreshChrome();
+    return;
+  }
+  // The tab on screen goes: show the one beside it first, so nothing is drawn from a trail that has gone.
+  const next = index + 1 < tabs.length ? index + 1 : index - 1;
+  const before = active;
+  await activateTab(next);
+  if (active === before) return; // The move was refused, so the tab stays.
+  tabs.splice(index, 1);
+  if (index < active) active -= 1;
+  refreshChrome();
+}
+
+function focusActiveTab(): void {
+  strip.querySelector<HTMLButtonElement>(`[data-tab="${active}"]`)?.focus({ preventScroll: true });
+}
+
+strip.addEventListener('click', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  const close = target?.closest<HTMLButtonElement>('[data-close-tab]');
+  if (close) { void closeTab(Number(close.dataset.closeTab)); return; }
+  const main = target?.closest<HTMLButtonElement>('[data-tab]');
+  if (main) { void activateTab(Number(main.dataset.tab)); return; }
+  if (target?.closest('#tab-new')) newTab();
+});
+
+// A middle click closes a tab, as it does in every tabbed Windows app.
+strip.addEventListener('auxclick', (event) => {
+  if (event.button !== 1) return;
+  const tab = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-tab-index]') : null;
+  if (tab) { event.preventDefault(); void closeTab(Number(tab.dataset.tabIndex)); }
+});
+
+strip.addEventListener('keydown', (event) => {
+  const main = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-tab]') : null;
+  if (main === null) return;
+  const at = Number(main.dataset.tab);
+  if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+    event.preventDefault();
+    const to = (at + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    strip.querySelector<HTMLButtonElement>(`[data-tab="${to}"]`)?.focus();
+  } else if (event.key === 'Delete') {
+    event.preventDefault();
+    void closeTab(at);
+  }
+});
+
+/**
+ * Ctrl+T, Ctrl+W and Ctrl+Tab, as File Explorer and Terminal have them. They stand aside for a
+ * modal, like the window's other keys.
+ */
+document.addEventListener('keydown', (event) => {
+  if (event.defaultPrevented || !event.ctrlKey || event.altKey || event.metaKey) return;
+  if (document.querySelector('dialog[open]') !== null || state.session.fileName === null) return;
+  const key = event.key.toLowerCase();
+  if (key === 't' && !event.shiftKey) { event.preventDefault(); newTab(); }
+  else if (key === 'w' && !event.shiftKey) { event.preventDefault(); void closeTab(active); }
+  else if (event.key === 'Tab') {
+    event.preventDefault();
+    void activateTab((active + (event.shiftKey ? -1 : 1) + tabs.length) % tabs.length);
+  }
+});
+
+/**
+ * Open something from the navigation in a new tab: a Ctrl+click, or a middle click, on any of its
+ * routes. The tab is made first, so the route then moves the new tab rather than the old one.
+ */
+export function wireOpenInNewTab(rail: HTMLElement): void {
+  rail.addEventListener('click', (event) => {
+    if (!event.ctrlKey) return;
+    const route = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('.nav-item, .nav-place') : null;
+    if (route === null || route.disabled) return;
+    newTab();
+  }, true);
+  rail.addEventListener('auxclick', (event) => {
+    if (event.button !== 1) return;
+    const route = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('.nav-item, .nav-place') : null;
+    if (route === null || route.disabled) return;
+    event.preventDefault();
+    newTab();
+    route.click();
+  });
+}

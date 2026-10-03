@@ -28,7 +28,7 @@ const controlSelector = [
  * Where the title bar's controls are: the top bar, and the rail, whose head is the bar's left end
  * and which is itself the bar across the top of a narrow window.
  */
-const bandSelector = '.workspace-header, .rail';
+const bandSelector = '.workspace-header, .rail, .tab-strip';
 
 /** A menu or a dialog: while one is open, a press anywhere closes it, so the page takes the whole bar. */
 const layerSelector = 'dialog[open], [data-view-menu-open], .workspace-header details[open], .rail details[open]';

@@ -240,7 +240,7 @@ export function applyRail(collapsed: boolean, persist = false): void {
   const label = collapsed ? 'Expand navigation' : 'Collapse navigation';
   railToggle.setAttribute('aria-label', label);
   railToggle.title = label;
-  railToggle.innerHTML = icon(collapsed ? 'chevronRight' : 'chevronLeft');
+  railToggle.innerHTML = icon('menu');
   if (!persist) return;
   try {
     window.localStorage.setItem(railStorageKey, collapsed ? 'collapsed' : 'expanded');

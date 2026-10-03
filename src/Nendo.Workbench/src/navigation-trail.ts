@@ -156,8 +156,13 @@ export interface Trail {
   setRestoring(restoring: boolean): void;
   isRestoring(): boolean;
   clear(): void;
-  /** The trail's length and where in it the person is. For the tests, and for nothing else. */
+  /** The trail's length and where in it the person is. For the tests, and for workspace tabs. */
   inspect(): { places: Place[]; cursor: number };
+  /**
+   * Take on another tab's trail whole (G, trial). Each tab of the window keeps its own way back
+   * and forward; the trail the window draws from is the active tab's, swapped in here.
+   */
+  load(saved: { places: Place[]; cursor: number }): void;
 }
 
 /**
@@ -212,6 +217,11 @@ export function createTrail(ceiling: number = trailCeiling): Trail {
     isRestoring: () => restoring,
     clear(): void { places = []; cursor = -1; restoring = false; },
     inspect: () => ({ places: [...places], cursor }),
+    load(saved: { places: Place[]; cursor: number }): void {
+      places = [...saved.places];
+      cursor = Math.min(saved.cursor, places.length - 1);
+      restoring = false;
+    },
   };
 }
 

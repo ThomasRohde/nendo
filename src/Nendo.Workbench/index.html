@@ -14,33 +14,38 @@
   <body>
     <div class="app-shell">
       <aside id="app-rail" class="rail" aria-label="Nendo workspace">
+        <!-- The title bar's left end, over the navigation: the file and its File menu (G). -->
         <div class="brand" aria-label="Nendo">
           <span class="brand-lockup">
             <img src="/nendo-mark.png" alt="" />
-            <span class="brand-word" aria-hidden="true">nendo</span>
+            <span id="brand-file" class="brand-word">Nendo</span>
           </span>
+          <details id="file-menu" class="file-menu">
+            <summary aria-label="File"><span id="file-icon" aria-hidden="true"></span>File<span class="file-chevron" aria-hidden="true"></span></summary>
+            <div id="file-actions" class="file-menu-panel" aria-label="File actions"></div>
+          </details>
+        </div>
+
+        <div class="rail-head">
           <!-- Collapses the rail to icons. Its width is the person's, kept for the
                device like the theme, so it is chrome rather than anything in the file. -->
           <button id="rail-toggle" class="icon-button rail-toggle" type="button" aria-expanded="true" aria-controls="app-rail"></button>
         </div>
 
         <nav class="primary-nav" aria-label="Primary">
-          <button id="nav-use" class="nav-item" type="button" disabled>
+          <!-- The section heading is the way to Use; the file's record types and views follow it. -->
+          <button id="nav-use" class="nav-item nav-section" type="button" disabled>
             <span class="nav-symbol" aria-hidden="true">✣</span>
             <span>Use</span><kbd class="kbd-hint" aria-hidden="true">Ctrl 1</kbd>
           </button>
-          <button id="nav-studio" class="nav-item is-selected" type="button" aria-current="page">
-            <span class="nav-symbol" aria-hidden="true">⌁</span>
-            <span>Studio</span>
-          </button>
-          <button id="nav-agent" class="nav-item" type="button" disabled>
-            <span class="nav-symbol" aria-hidden="true">✦</span>
-            <span>Agent</span><kbd class="kbd-hint" aria-hidden="true">Ctrl 7</kbd>
-          </button>
+          <div id="nav-places" class="nav-places" role="group" aria-label="Record types and views"></div>
         </nav>
 
         <div class="studio-nav" aria-label="Studio sections">
-          <p>Studio</p>
+          <button id="nav-studio" class="nav-item nav-section" type="button">
+            <span class="nav-symbol" aria-hidden="true">⌁</span>
+            <span>Studio</span>
+          </button>
           <button id="nav-data" class="nav-item is-subtle" type="button" disabled>
             <span class="nav-symbol" aria-hidden="true">▤</span>
             <span>Data</span><kbd class="kbd-hint" aria-hidden="true">Ctrl 2</kbd>
@@ -63,59 +68,60 @@
           </button>
         </div>
 
+        <div class="rail-foot">
+          <button id="nav-agent" class="nav-item" type="button" disabled>
+            <span class="nav-symbol" aria-hidden="true">✦</span>
+            <span>Agent</span><kbd class="kbd-hint" aria-hidden="true">Ctrl 7</kbd>
+          </button>
+        </div>
         <button id="nav-help" class="nav-item help-nav" type="button"><span class="nav-symbol" aria-hidden="true"></span><span>Help</span><kbd class="kbd-hint" aria-hidden="true">F1</kbd></button>
       </aside>
 
       <main class="workspace">
-        <header class="workspace-header">
-          <div class="workspace-identity">
-            <p id="session-context" class="location">Studio</p>
-            <h1 id="workspace-title">No file open</h1>
-            <!-- On a Use screen the breadcrumb is where the record type and the view are
-                 chosen (W-092): place-pickers.ts draws the two pickers here. -->
-            <div id="place-pickers" class="place-pickers" hidden></div>
-          </div>
+        <!-- The places kept open, in the title bar over the content (workspace-tabs.ts). -->
+        <div id="tab-strip" class="tab-strip" role="tablist" aria-label="Open places"></div>
 
-          <div class="header-controls">
-            <!-- One box that goes anywhere the window can go (command-palette.ts). -->
-            <button id="palette-open" class="palette-trigger" type="button" aria-haspopup="dialog" aria-controls="command-palette" aria-keyshortcuts="Control+K">
-              <span id="palette-icon" aria-hidden="true"></span>
-              <span class="palette-trigger-text">Go to or run a command</span>
-              <kbd aria-hidden="true">Ctrl K</kbd>
-            </button>
+        <div class="workspace-layer">
+          <!-- The address row: Back and Forward, where this tab is, and the command box. -->
+          <header class="workspace-header">
             <div class="history-control" role="group" aria-label="History">
               <button id="nav-back" type="button" aria-label="Back" title="Back" disabled></button>
               <button id="nav-forward" type="button" aria-label="Forward" title="Forward" disabled></button>
             </div>
-            <details id="file-menu" class="file-menu">
-              <summary aria-label="File"><span id="file-icon" aria-hidden="true"></span>File<span class="file-chevron" aria-hidden="true"></span></summary>
-              <div id="file-actions" class="file-menu-panel" aria-label="File actions"></div>
-            </details>
-            <div class="theme-control" role="group" aria-label="Appearance">
-              <button type="button" data-theme-option="system" aria-label="System" title="System theme" aria-pressed="true"></button>
-              <button type="button" data-theme-option="light" aria-label="Light" title="Light theme" aria-pressed="false"></button>
-              <button type="button" data-theme-option="dark" aria-label="Dark" title="Dark theme" aria-pressed="false"></button>
+            <div class="workspace-identity">
+              <span id="address-icon" class="address-icon" aria-hidden="true"></span>
+              <p id="session-context" class="location">Studio</p>
+              <h1 id="workspace-title">No file open</h1>
+              <!-- On a Use screen the breadcrumb is where the record type and the view are
+                   chosen (W-092): place-pickers.ts draws the two pickers here. -->
+              <div id="place-pickers" class="place-pickers" hidden></div>
             </div>
-            <!-- Every shortcut beside its control, for the person who asked to see them.
-                 Kept for the device, like the theme. -->
-            <button id="shortcuts-toggle" class="shortcuts-toggle" type="button" aria-pressed="false" aria-label="Show keyboard shortcuts" title="Show keyboard shortcuts" aria-keyshortcuts="Control+/"></button>
+
+            <div class="header-controls">
+              <!-- One box that goes anywhere the window can go (command-palette.ts). -->
+              <button id="palette-open" class="palette-trigger" type="button" aria-haspopup="dialog" aria-controls="command-palette" aria-keyshortcuts="Control+K">
+                <span id="palette-icon" aria-hidden="true"></span>
+                <span class="palette-trigger-text">Search or run a command</span>
+                <kbd aria-hidden="true">Ctrl K</kbd>
+              </button>
+            </div>
+          </header>
+
+          <p id="file-notice" class="file-notice" role="status" hidden></p>
+
+          <!-- Only for work that is actually taking a while. Appearing for every
+               request would make a fast host look busy; never appearing would leave a
+               long calculation with no way out but closing the window. -->
+          <div id="busy-bar" class="busy-bar" role="status" hidden>
+            <span class="busy-spinner" aria-hidden="true"></span>
+            <span id="busy-message">Still working…</span>
+            <button id="stop-request" class="text-button" type="button">Stop</button>
           </div>
-        </header>
 
-        <p id="file-notice" class="file-notice" role="status" hidden></p>
-
-        <!-- Only for work that is actually taking a while. Appearing for every
-             request would make a fast host look busy; never appearing would leave a
-             long calculation with no way out but closing the window. -->
-        <div id="busy-bar" class="busy-bar" role="status" hidden>
-          <span class="busy-spinner" aria-hidden="true"></span>
-          <span id="busy-message">Still working…</span>
-          <button id="stop-request" class="text-button" type="button">Stop</button>
+          <section class="workbench" aria-label="Nendo Studio workbench">
+            <div id="studio-content" class="studio-content" aria-busy="true"></div>
+          </section>
         </div>
-
-        <section class="workbench" aria-label="Nendo Studio workbench">
-          <div id="studio-content" class="studio-content" aria-busy="true"></div>
-        </section>
 
         <footer id="session-status" class="status-bar" aria-label="Session status" hidden>
           <span class="status-file">
@@ -134,8 +140,17 @@
               <span aria-hidden="true"></span>
               Saved locally
             </span>
-<span class="status-keys kbd-hint" aria-hidden="true"><kbd>Ctrl K</kbd> commands <kbd>Ctrl /</kbd> hide shortcuts</span>
-                        <span id="session-version" class="status-version"></span>
+            <span class="status-keys kbd-hint" aria-hidden="true"><kbd>Ctrl K</kbd> commands <kbd>Ctrl /</kbd> hide shortcuts</span>
+            <!-- The theme and the key hints, at the quiet end of the window (G). -->
+            <span class="theme-control" role="group" aria-label="Appearance">
+              <button type="button" data-theme-option="system" aria-label="System" title="System theme" aria-pressed="true"></button>
+              <button type="button" data-theme-option="light" aria-label="Light" title="Light theme" aria-pressed="false"></button>
+              <button type="button" data-theme-option="dark" aria-label="Dark" title="Dark theme" aria-pressed="false"></button>
+            </span>
+            <!-- Every shortcut beside its control, for the person who asked to see them.
+                 Kept for the device, like the theme. -->
+            <button id="shortcuts-toggle" class="shortcuts-toggle" type="button" aria-pressed="false" aria-label="Show keyboard shortcuts" title="Show keyboard shortcuts" aria-keyshortcuts="Control+/"></button>
+            <span id="session-version" class="status-version"></span>
           </span>
         </footer>
       </main>

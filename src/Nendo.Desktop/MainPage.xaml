@@ -10,7 +10,8 @@
     Unloaded="Page_Unloaded"
     mc:Ignorable="d">
 
-    <Grid x:Name="ShellGrid" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <!-- Transparent, so the window's Mica shows through the Workbench (G). -->
+    <Grid x:Name="ShellGrid" Background="Transparent">
         <Grid x:Name="WebHost" />
 
         <Border

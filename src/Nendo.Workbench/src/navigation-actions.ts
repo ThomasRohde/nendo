@@ -203,6 +203,44 @@ async function travel(direction: 'back' | 'forward'): Promise<void> {
   if (failure !== null) showError(failure);
 }
 
+/**
+ * Put the screen back on the place the trail is on now, without stepping (G, trial).
+ *
+ * Switching tabs swaps the whole trail, so the place to show is the new trail's current one.
+ * It is checked and read exactly as a step back is. A place that has gone leaves the screen as
+ * it is, and the next draw records that screen on the tab.
+ */
+export async function revisitCurrent(): Promise<void> {
+  const target = navigationTrail.current();
+  if (target === null) { rerender(); return; }
+  const gone = whyPlaceIsGone(target);
+  if (gone !== null) { showError(gone); refreshChrome(); return; }
+  state.actionInFlight = true;
+  setBusy(true);
+  try {
+    if (target.recordId !== null && target.applicationEntityId !== null)
+      await loadFocusedRecord(target.applicationEntityId, target.recordId);
+  } catch (error) {
+    state.actionInFlight = false;
+    setBusy(false);
+    showError(messageFor(error));
+    return;
+  }
+  navigationTrail.setRestoring(true);
+  let failure: string | null = null;
+  try {
+    await settle(target.recordId !== null && !focusedRecords.has(target.recordId) ? { ...target, recordId: null } : target);
+  } catch (error) {
+    failure = messageFor(error);
+  } finally {
+    state.actionInFlight = false;
+    setBusy(false);
+    rerender();
+    navigationTrail.setRestoring(false);
+  }
+  if (failure !== null) showError(failure);
+}
+
 function capitalised(text: string): string { return text.charAt(0).toUpperCase() + text.slice(1); }
 
 /** Forget a place that is no longer there, and stay put. */

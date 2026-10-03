@@ -145,9 +145,8 @@ public sealed partial class MainPage : Page
 
             _webView = new WebView2
             {
-                DefaultBackgroundColor = ActualTheme == ElementTheme.Dark
-                    ? Windows.UI.Color.FromArgb(255, 15, 17, 21)
-                    : Windows.UI.Color.FromArgb(255, 243, 244, 246),
+                // Transparent, so the window's Mica shows wherever the page leaves its ground (G).
+                DefaultBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0),
                 IsTabStop = true,
             };
             AutomationProperties.SetAutomationId(_webView, "workbench.webview");
