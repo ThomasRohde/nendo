@@ -459,7 +459,8 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
   .palette-trigger kbd { display: inline-block; }
 
   /* A file with many record types scrolls its own list; Studio, Agent and Help stay in reach. */
-  .primary-nav { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+  .primary-nav { flex: 0 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; }
+  :root[data-rail="collapsed"] .primary-nav { scrollbar-width: none; }
 
   /* Folded, the navigation is icons; the file's name and its menu wait for it to open. */
   :root[data-rail="collapsed"] .rail { gap: 0; padding: 0 4px 6px; }

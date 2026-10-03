@@ -44,7 +44,11 @@ function placeOf(tab: Tab, index: number): Place | null {
 /** What a tab is called: the record type and the view on a Use screen, Studio and its page elsewhere. */
 export function tabLabel(place: Place | null): string {
   if (place === null) return state.session.fileName === null ? 'No file open' : 'New tab';
-  if (place.eyebrow.startsWith('Use · ')) return `${place.eyebrow.slice('Use · '.length)} · ${place.title}`;
+  if (place.eyebrow.startsWith('Use · ')) {
+    const type = place.eyebrow.slice('Use · '.length);
+    // A view named after its record type would read "Crew · Crew".
+    return place.title === type ? type : `${type} · ${place.title}`;
+  }
   if (place.eyebrow === 'Studio' && place.title !== 'Studio') return `Studio · ${place.title}`;
   return place.title;
 }
