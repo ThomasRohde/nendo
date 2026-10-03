@@ -1037,18 +1037,18 @@ vocabulary, the examples and the resources — and not from the person.
   pixels, whether the SVG opens in a browser with its labels as text, whether anything is cut
   off at the edges, and what Transparent background changed (W-123).
   Press Edit on Organisation Tree View. Ctrl+click three boxes of different widths and choose
-  **Arrange → Align left**, then **Undo**, then **Redo**; select a box and **Duplicate** it,
-  **Copy** another and **Paste as reference** and **Paste as copy**; drop one element box into
-  another; turn **Show grid** on. Record what each did, what the drop asked, what Commit said
+  **Arrange → Align left**, then **Undo**, then **Redo**; select a box and **Copy and paste →
+  Duplicate** it, **Copy** another and **Paste as reference** and **Paste as copy**; drop one
+  element box into another; turn **Show grid** on behind the gear. Record what each did, what the drop asked, what Commit said
   was waiting, and what Studio's lists show afterwards for the elements and their boxes
   (W-113). Turn on **Appearance**, select a box, give it a fill, a gradient and a bold
   14-point font, and the label expression `${type}: ${name}`; commit, close the file, open
   it again, and record what the box and the tabs show (W-114). Select the view itself, pick
   **Strategy** under Viewpoint in its properties, and record what the drawing and the palette
   show, inside Edit and outside it; then pick **None** and then the view's own viewpoint again
-  (W-116). Choose **Arrange → Lay out top to bottom** with nothing selected, then with two
+  (W-116). Choose **Lay out → Top to bottom** with nothing selected, then with two
   boxes selected, and record what moved, whether any boxes overlap, what Undo did and what
-  Commit said was waiting. Open **Arrange → Automatic relationships…**, record what it offers
+  Commit said was waiting. Open **Automatic relationships…** behind the gear, record what it offers
   and its defaults, turn a reverse type on and drop a box into another, and record what the
   drop asked; turn **Use nested connections** off and record what the nested boxes then show.
   Right-click an element in the tree and choose **Generate view for…**, with depth 2: record

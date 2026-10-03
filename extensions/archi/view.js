@@ -639,7 +639,7 @@ function declareToolbar() {
     ] },
     ...(state.openView && !state.readOnly && canvasModule?.createEditor
       ? [{ kind: 'toggle', id: 'edit', label: 'Edit the view', icon: 'edit', pressed: state.editing, keys: 'Ctrl+E' }] : []),
-    ...(state.editing ? [arrangeMenu()] : []),
+    ...(state.editing ? editingMenus() : []),
     ...(state.editing ? [{ kind: 'group', label: 'Edits', items: [
       { kind: 'button', id: 'undo', label: 'Undo', keys: 'Ctrl+Z', disabled: !editor?.canUndo() },
       { kind: 'button', id: 'redo', label: 'Redo', keys: 'Ctrl+Y', disabled: !editor?.canRedo() },
@@ -666,36 +666,43 @@ function declareToolbar() {
 }
 
 /**
- * Arrange (W-113): archi-online's own commands on what is selected on the view, as its context
- * menu offers them, here too so they are in Nendo's row and Ctrl K. Each is one edit waiting to
- * be committed and one Undo step. Cut, copy, paste and duplicate keep their keys in the view.
+ * The editor's menus in Nendo's row while editing, so they are in Ctrl K too: Arrange (W-113),
+ * Copy and paste, Lay out (W-115), and the editor's settings behind the gear. Each command is
+ * archi-online's own, as its context menu runs it: one edit waiting to be committed and one Undo
+ * step. Cut, copy, paste and duplicate keep their keys in the view.
  */
-function arrangeMenu() {
+function editingMenus() {
   const settings = canvasModule?.editorSettings?.() ?? { grid: false, snap: true, guides: true };
   const item = (id, label, detail) => ({ id, label, ...(detail ? { detail } : {}) });
-  return { kind: 'menu', id: 'arrange', label: 'Arrange', icon: 'layers', items: [
-    { kind: 'label', label: 'Align to the last box selected' },
-    item('align-left', 'Align left'), item('align-center', 'Align centre'), item('align-right', 'Align right'),
-    item('align-top', 'Align top'), item('align-middle', 'Align middle'), item('align-bottom', 'Align bottom'),
-    item('match-width', 'Match width'), item('match-height', 'Match height'), item('match-size', 'Match size'),
-    { kind: 'separator' },
-    item('distribute-horizontal', 'Distribute horizontally', 'Three boxes or more'), item('distribute-vertical', 'Distribute vertically', 'Three boxes or more'),
-    { kind: 'separator' },
-    item('order-front', 'Bring to front'), item('order-forward', 'Bring forward'), item('order-backward', 'Send backward'), item('order-back', 'Send to back'),
-    { kind: 'separator' },
-    item('select-same-type', 'Select the same type'), item('duplicate', 'Duplicate', 'Ctrl D in the view'),
-    item('cut', 'Cut', 'Ctrl X in the view'), item('copy', 'Copy', 'Ctrl C in the view'), item('paste', 'Paste', 'Ctrl V in the view'),
-    item('paste-reference', 'Paste as reference', 'New boxes for the same elements'), item('paste-copy', 'Paste as copy', 'New elements'),
-    { kind: 'separator' },
-    { kind: 'check', id: 'grid', label: 'Show grid', checked: settings.grid },
-    { kind: 'check', id: 'snap', label: 'Snap to grid', checked: settings.snap },
-    { kind: 'check', id: 'guides', label: 'Snap to alignment guides', checked: settings.guides },
-    { kind: 'separator' },
-    { kind: 'label', label: 'Lay out with ELK: the boxes selected, or the whole view' },
-    item('layout-right', 'Lay out left to right'), item('layout-down', 'Lay out top to bottom'),
-    { kind: 'separator' },
-    item('automatic-relationships', 'Automatic relationships…', 'What nesting a box offers, and which lines it hides'),
-  ] };
+  return [
+    { kind: 'menu', id: 'arrange', label: 'Arrange', icon: 'layers', items: [
+      { kind: 'label', label: 'Align to the last box selected' },
+      item('align-left', 'Align left'), item('align-center', 'Align centre'), item('align-right', 'Align right'),
+      item('align-top', 'Align top'), item('align-middle', 'Align middle'), item('align-bottom', 'Align bottom'),
+      item('match-width', 'Match width'), item('match-height', 'Match height'), item('match-size', 'Match size'),
+      { kind: 'separator' },
+      item('distribute-horizontal', 'Distribute horizontally', 'Three boxes or more'), item('distribute-vertical', 'Distribute vertically', 'Three boxes or more'),
+      { kind: 'separator' },
+      item('order-front', 'Bring to front'), item('order-forward', 'Bring forward'), item('order-backward', 'Send backward'), item('order-back', 'Send to back'),
+    ] },
+    { kind: 'menu', id: 'clipboard', label: 'Copy and paste', items: [
+      item('cut', 'Cut', 'Ctrl X in the view'), item('copy', 'Copy', 'Ctrl C in the view'), item('paste', 'Paste', 'Ctrl V in the view'),
+      item('paste-reference', 'Paste as reference', 'New boxes for the same elements'), item('paste-copy', 'Paste as copy', 'New elements'),
+      { kind: 'separator' },
+      item('duplicate', 'Duplicate', 'Ctrl D in the view'), item('select-same-type', 'Select the same type'),
+    ] },
+    { kind: 'menu', id: 'layout', label: 'Lay out', items: [
+      { kind: 'label', label: 'With ELK: the boxes selected, or the whole view' },
+      item('layout-right', 'Left to right'), item('layout-down', 'Top to bottom'),
+    ] },
+    { kind: 'menu', id: 'editor-settings', label: 'Editor settings', icon: 'settings', iconOnly: true, items: [
+      { kind: 'check', id: 'grid', label: 'Show grid', checked: settings.grid },
+      { kind: 'check', id: 'snap', label: 'Snap to grid', checked: settings.snap },
+      { kind: 'check', id: 'guides', label: 'Snap to alignment guides', checked: settings.guides },
+      { kind: 'separator' },
+      item('automatic-relationships', 'Automatic relationships…', 'What nesting a box offers, and which lines it hides'),
+    ] },
+  ];
 }
 
 function arrange(command) {

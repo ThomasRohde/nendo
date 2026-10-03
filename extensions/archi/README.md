@@ -82,20 +82,23 @@ Properties. The file you were in does not change.
   and Grouping are always allowed, and Layered allows everything. The change shows at once.
   The table is archi-online's port of Archi's, checked against the `viewpoints.xml` Desktop
   Archi 5.9 ships. A key no viewpoint has, from another tool, is kept and shown as unknown.
-- **Arrange** (W-113), in Nendo's row while editing, and so in Ctrl K: align the selected
-  boxes six ways to the last one selected, match their width, height or size, distribute
-  three or more, bring forward or send back, select the same type, duplicate, cut, copy,
-  paste, paste as reference (new boxes for the same elements) or as copy (new elements), and
-  show the grid or snap to it and to alignment guides. Each is archi-online's own operation,
-  as its context menu, still there on a right-click, runs it: one edit waiting and one Undo
-  step. Ctrl+click adds to the selection; Ctrl D, X, C and V and the arrow keys work in the
-  view, Shift with an arrow by a grid step, and the format painter is in the palette. The grid
-  and snapping choices are kept in this view's own storage on this device.
-- **Lay out** and **Automatic relationships** (W-115), in the Arrange menu. **Lay out left to
-  right** and **top to bottom** place the boxes selected, or every box at the top of the view
+- **Arrange**, **Copy and paste** and the **editor settings** (W-113), four menus in Nendo's row
+  while editing with **Lay out**, and so in Ctrl K. Arrange aligns the selected boxes six ways
+  to the last one selected, matches their width, height or size, distributes three or more,
+  and brings them forward or sends them back. Copy and paste holds cut, copy, paste, paste as
+  reference (new boxes for the same elements) or as copy (new elements), duplicate and select
+  the same type. The gear holds the grid, snapping to it and to alignment guides, and
+  Automatic relationships. Each command is archi-online's own operation, as its context menu,
+  still there on a right-click, runs it: one edit waiting and one Undo step. Ctrl+click adds to
+  the selection; Ctrl D, X, C and V and the arrow keys work in the view, Shift with an arrow by
+  a grid step, and the format painter is in the palette. The grid and snapping choices are kept
+  in this view's own storage on this device. One Arrange menu of 27 entries was too crowded
+  (the owner, W-115).
+- **Lay out** and **Automatic relationships** (W-115). **Lay out → Left to right** and **Top to
+  bottom** place the boxes selected, or every box at the top of the view
   when fewer than two are, in layers with ELK, and route the lines between them at right
   angles; what is nested in a box moves with it. It is archi-online's own layout: one edit
-  waiting and one Undo step. **Automatic relationships…** is Archi's preferences page for
+  waiting and one Undo step. **Automatic relationships…**, behind the gear, is Archi's preferences page for
   nesting: whether nesting a box made from the palette, dropped from the tree or moved offers a
   relationship, which types it offers parent to child and child to parent (a Specialization
   always runs child to parent), and which types a nesting stands for, so their lines are not
@@ -231,7 +234,7 @@ until nested connections are turned off; configured reverse types run child to p
 made from the palette inside another is four creates in one Undo step; a box taken out gets the
 line its nesting stood for; a generated view holds the element and those related to it without
 overlaps, as creates only; and a layout writes only places and bends, without overlaps. The
-lane lays Organisation Tree View out from the Arrange menu and commits exactly archi-online's
+lane lays Organisation Tree View out from the Lay out menu and commits exactly archi-online's
 layout of the same records, every box and bend, as one batch of moves after an Undo and Redo;
 shows the automatic relationships dialog with Archi's defaults and draws the line of the
 nesting above once nested connections are off; and generates a view for Board while editing,

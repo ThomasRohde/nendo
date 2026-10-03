@@ -917,9 +917,16 @@ async (page) => {
     // ---- W-113: Arrange, from Nendo's row, on a selection made with real clicks (Ctrl adds). Each
     // command commits what archi-online's own operation makes of the same records and selection
     // (arrangeModel in canvas.js), is one edit waiting and one Undo step, and commits as one batch.
-    const arrangeMenu = await toolbarItem('arrange');
-    assert(arrangeMenu?.kind === 'menu' && ['align-left', 'match-size', 'distribute-vertical', 'order-back', 'duplicate', 'paste-reference', 'paste-copy', 'grid']
-      .every(id => arrangeMenu.items.some(entry => entry.id === id)), `Editing puts no Arrange menu in Nendo's row: ${JSON.stringify(arrangeMenu)?.slice(0, 200)}.`);
+    // Four short menus, each holding only its own commands (the owner found one menu of 27 crowded).
+    const editingMenus = {};
+    for (const id of ['arrange', 'clipboard', 'layout', 'editor-settings']) editingMenus[id] = (await toolbarItem(id))?.items?.filter(entry => entry.id).map(entry => entry.id) ?? null;
+    assert(JSON.stringify(editingMenus) === JSON.stringify({
+      arrange: ['align-left', 'align-center', 'align-right', 'align-top', 'align-middle', 'align-bottom', 'match-width', 'match-height', 'match-size',
+        'distribute-horizontal', 'distribute-vertical', 'order-front', 'order-forward', 'order-backward', 'order-back'],
+      clipboard: ['cut', 'copy', 'paste', 'paste-reference', 'paste-copy', 'duplicate', 'select-same-type'],
+      layout: ['layout-right', 'layout-down'],
+      'editor-settings': ['grid', 'snap', 'guides', 'automatic-relationships'],
+    }), `Editing does not put Arrange, Copy and paste, Lay out and the editor's settings in Nendo's row as four menus: ${JSON.stringify(editingMenus)}.`);
     const allSets = async () => Object.fromEntries(await Promise.all(['ar.model', 'ar.folder', 'ar.type', 'ar.concept', 'ar.specialization', 'ar.view', 'ar.item', 'ar.property']
       .map(async entityId => [entityId, await records(entityId)])));
     const boxNamed = async name => {
@@ -1016,7 +1023,7 @@ async (page) => {
     await page.evaluate(() => window.broker.command('grid', true, 'toolbar'));
     await until(() => !!document.querySelector('.archi-editor .view-grid'), null, 'Show grid drew no grid.');
     for (let attempt = 0; attempt < 200 && (await toolbarItem('grid'))?.checked !== true; attempt++) await page.waitForTimeout(25);
-    assert((await toolbarItem('grid'))?.checked === true, 'The Arrange menu does not show the grid as on.');
+    assert((await toolbarItem('grid'))?.checked === true, "The editor's settings do not show the grid as on.");
     await page.evaluate(() => window.broker.command('grid', false, 'toolbar'));
     await until(() => !document.querySelector('.archi-editor .view-grid'), null, 'Hiding the grid left it drawn.');
     results.arrange = { arranged, pasted };
@@ -1221,16 +1228,13 @@ async (page) => {
     }
 
     // ---- W-115: Archi's automation, each archi-online's own operation with ELK in a worker.
-    // Auto-layout from the Arrange menu commits what archi-online's layout makes of the same
+    // Auto-layout from the Lay out menu commits what archi-online's layout makes of the same
     // records, as one Undo step and one batch of moves; the automatic relationships preferences
     // decide whether the line a nesting stands for is drawn; Generate View For makes a view of an
     // element and those related to it, laid out as archi-online lays it out, in one batch, opened
     // in the editor, and Undo there takes it away again.
     {
       const automation = {};
-      const arrangeNow = await toolbarItem('arrange');
-      assert(['layout-right', 'layout-down', 'automatic-relationships'].every(id => arrangeNow.items.some(entry => entry.id === id)),
-        `The Arrange menu offers no layout or automatic relationships: ${JSON.stringify(arrangeNow.items.map(entry => entry.id))}.`);
       const elkWorker = async () => view.evaluate(async () => (await fetch('vendor/elkjs/elk-worker.min.js')).ok);
       assert(await elkWorker(), 'The ELK worker is not in the package.');
 
