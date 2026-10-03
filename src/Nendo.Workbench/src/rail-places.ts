@@ -3,7 +3,8 @@ import { leaveRecordContext, state } from './app-state';
 import { refuseWhileDirty } from './draft-guard';
 import { fileViews, showsFileView } from './file-view-model';
 import { escapeAttribute, escapeHtml, messageFor } from './format';
-import { icon, type IconName } from './icons';
+import { icon } from './icons';
+import { typeGlyph } from './type-icons';
 import { overviewTitle } from './overview-model';
 import { activePlan, applicationPlans, overviewPlan } from './plan-selection';
 import { requiredElement, rerender, showError } from './shell';
@@ -18,15 +19,15 @@ import { showsOverview } from './view-overview';
 
 const list = requiredElement<HTMLElement>('#nav-places');
 
-interface RailPlace { value: string; label: string; icon: IconName }
+interface RailPlace { value: string; label: string; glyph: string }
 
 function railPlaces(): RailPlace[] {
   if (!state.session.capabilities.customSurfaces || state.compilation?.isValid !== true) return [];
   const overview = overviewPlan();
   return [
-    ...(overview === null ? [] : [{ value: 'overview', label: overviewTitle(overview), icon: 'home' as const }]),
-    ...fileViews().map((view) => ({ value: `view:${view.semanticId}`, label: viewTitle(view), icon: 'surfaces' as const })),
-    ...applicationPlans().map((plan) => ({ value: `type:${plan.entity.semanticId}`, label: plan.entity.displayName, icon: 'box' as const })),
+    ...(overview === null ? [] : [{ value: 'overview', label: overviewTitle(overview), glyph: icon('home') }]),
+    ...fileViews().map((view) => ({ value: `view:${view.semanticId}`, label: viewTitle(view), glyph: icon('surfaces') })),
+    ...applicationPlans().map((plan) => ({ value: `type:${plan.entity.semanticId}`, label: plan.entity.displayName, glyph: typeGlyph(plan.entity.displayName) })),
   ];
 }
 
@@ -45,7 +46,7 @@ export function drawRailPlaces(): void {
   const current = currentValue();
   const markup = places.map((place) => {
     const selected = place.value === current;
-    return `<button class="nav-place${selected ? ' is-selected' : ''}" type="button" data-rail-place="${escapeAttribute(place.value)}"${selected ? ' aria-current="page"' : ''} title="${escapeAttribute(place.label)}"><span class="nav-symbol" aria-hidden="true">${icon(place.icon)}</span><span>${escapeHtml(place.label)}</span></button>`;
+    return `<button class="nav-place${selected ? ' is-selected' : ''}" type="button" data-rail-place="${escapeAttribute(place.value)}"${selected ? ' aria-current="page"' : ''} title="${escapeAttribute(place.label)}"><span class="nav-symbol" aria-hidden="true">${place.glyph}</span><span>${escapeHtml(place.label)}</span></button>`;
   }).join('');
   // Redrawn only when it changed, so a press is never lost to a chrome refresh under the pointer.
   if (markup === drawn) return;

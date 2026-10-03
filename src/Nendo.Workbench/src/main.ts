@@ -50,6 +50,7 @@ import { openPalette } from './command-palette';
 import { matchShortcut, shortcut, shortcutForKeys, shortcutsShownFrom, shortcutsStorageKey, type ShortcutId } from './shortcuts';
 import { drawTabs, wireOpenInNewTab } from './workspace-tabs';
 import { drawRailPlaces } from './rail-places';
+import { typeGlyph } from './type-icons';
 import './styles.css';
 
 // An option or API call whose module is missing is ignored after a console error, so the
@@ -289,9 +290,15 @@ function updateChrome(): void {
   // The file, named at the title bar's left end over the navigation (G).
   brandFile.textContent = named ? state.session.fileName!.replace(/\.nendo$/i, '') : 'Nendo';
   brandFile.title = state.session.fileName ?? '';
-  const addressIcon: IconName = state.view === 'use' ? 'box' : state.view === 'agent' || state.view === 'agentProposal' ? 'agent'
+  const addressIcon: IconName = state.view === 'use' ? (fileViewById(state.fileView) !== null ? 'surfaces' : showsOverview() ? 'home' : 'box') : state.view === 'agent' || state.view === 'agentProposal' ? 'agent'
     : state.view === 'help' ? 'help' : state.view === 'proposal' ? 'studio' : state.view;
-  if (addressGlyph.dataset.icon !== addressIcon) { addressGlyph.innerHTML = icon(addressIcon); addressGlyph.dataset.icon = addressIcon; }
+  // On a record type's screen the address carries that type's icon, as the navigation and the tab do.
+  const typeName = state.view === 'use' && !showsOverview() && fileViewById(state.fileView) === null ? current?.entity.displayName ?? null : null;
+  const glyphKey = typeName === null ? addressIcon : `type:${typeName}`;
+  if (addressGlyph.dataset.icon !== glyphKey) {
+    addressGlyph.innerHTML = typeName === null ? icon(addressIcon) : typeGlyph(typeName);
+    addressGlyph.dataset.icon = glyphKey;
+  }
   // The file's icon beside its name (W-089). It was on the window's title bar, which is Nendo's
   // top bar now (W-093), so the status bar, where the file is named, carries it instead.
   const look = state.session.look ?? null;

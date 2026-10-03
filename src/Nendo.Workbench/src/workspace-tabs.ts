@@ -2,6 +2,8 @@ import { fileScopedClearable, state } from './app-state';
 import { refuseWhileDirty } from './draft-guard';
 import { escapeAttribute, escapeHtml } from './format';
 import { icon, type IconName } from './icons';
+import { applicationPlans } from './plan-selection';
+import { typeGlyph } from './type-icons';
 import { revisitCurrent } from './navigation-actions';
 import { navigationTrail, type Place } from './navigation-trail';
 import { announce, refreshChrome, requiredElement } from './shell';
@@ -47,6 +49,15 @@ export function tabLabel(place: Place | null): string {
   return place.title;
 }
 
+/** A Use tab on a record type carries that type's icon, as the navigation does. */
+function tabGlyph(place: Place | null): string {
+  if (place?.view === 'use' && place.showOverview !== true && place.fileView === null && place.applicationEntityId !== null) {
+    const plan = applicationPlans().find((candidate) => candidate.entity.semanticId === place.applicationEntityId);
+    if (plan !== undefined) return typeGlyph(plan.entity.displayName);
+  }
+  return icon(tabIcon(place));
+}
+
 function tabIcon(place: Place | null): IconName {
   switch (place?.view) {
     case 'use': return place.showOverview === true ? 'home' : place.fileView !== null ? 'surfaces' : 'box';
@@ -68,7 +79,7 @@ export function drawTabs(): void {
     const label = tabLabel(place);
     const selected = index === active;
     return `<div class="tab${selected ? ' is-active' : ''}" data-tab-index="${index}">
-      <button class="tab-main" type="button" role="tab" aria-selected="${selected}" data-tab="${index}" title="${escapeAttribute(label)}">${icon(tabIcon(place))}<span class="tab-label">${escapeHtml(label)}</span></button>
+      <button class="tab-main" type="button" role="tab" aria-selected="${selected}" data-tab="${index}" title="${escapeAttribute(label)}">${tabGlyph(place)}<span class="tab-label">${escapeHtml(label)}</span></button>
       <button class="tab-close" type="button" data-close-tab="${index}" aria-label="Close ${escapeAttribute(label)}" title="Close tab (Ctrl+W)" ${only ? 'disabled' : ''}>${icon('close')}</button>
     </div>`;
   }).join('') + `<button id="tab-new" class="tab-new" type="button" aria-label="New tab" title="New tab (Ctrl+T)">${icon('plus')}</button>`;

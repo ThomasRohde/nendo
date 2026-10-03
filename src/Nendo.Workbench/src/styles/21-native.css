@@ -500,6 +500,32 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
   .rail-head, .nav-places, .rail-foot::before, .studio-nav::before { display: none; }
 }
 
+/* A record type whose name suggests no icon: its letters on a tile in one of the choice tones
+   (type-icons.ts). The tone tints the tile and colours the letters, so it reads in both themes. */
+.type-tile {
+  --tile: var(--tone-grey);
+  display: inline-grid;
+  flex: 0 0 18px;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  color: var(--tile);
+  background: color-mix(in srgb, var(--tile) 16%, transparent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.type-tile[data-tone="red"] { --tile: var(--tone-red); }
+.type-tile[data-tone="orange"] { --tile: var(--tone-orange); }
+.type-tile[data-tone="amber"] { --tile: var(--tone-amber); }
+.type-tile[data-tone="green"] { --tile: var(--tone-green); }
+.type-tile[data-tone="teal"] { --tile: var(--tone-teal); }
+.type-tile[data-tone="blue"] { --tile: var(--tone-blue); }
+.type-tile[data-tone="violet"] { --tile: var(--tone-violet); }
+
 /* The dark accent is light, so what sits on it is dark: white on it does not reach 4.5:1. */
 :root[data-theme="dark"] .entity-icon,
 :root[data-theme="dark"] .permission-step[aria-pressed="true"] .step-marker {
