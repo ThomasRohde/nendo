@@ -123,7 +123,7 @@ not built, with the reason.
 | No list or JSON field kind | Bendpoints and legend options as JSON text | None; noted, not requested |
 | No rule refuses an invalid relationship on every path | The view offers only valid types; the validator reports the rest | W-105, Later (D-003) |
 | A view writes one record per call, each its own revision | A gesture is several writes, not atomic, and several History rows | W-102 |
-| No undo | Edits wait in the editor, where archi-online's Undo and Redo work on them, until Commit. See below | W-103, W-112 |
+| No undo | The workbench undoes and redoes what it saved, by writing each gesture's opposite, version-checked; edits waiting in the editor use archi-online's own. See below | W-112, built 2026-10-03; W-103 not needed here |
 | A view cannot read a file the person picks | `.archimate`, XML and CSV import wait for it | W-104 |
 | A view was only a record-type screen or a record-page panel | The workbench is a view of the file, which the file opens on | W-106, built 2026-10-02 (host 1.42.0) |
 | The operation-row and revision-row bounds, about 100,000 each | See [the write budget](#the-write-budget) | W-101 (D-002) |
@@ -162,12 +162,23 @@ is every gesture that is undone, discarded or made again before it is committed.
 Editing a view holds file changes back while the pointer is pressed, because archi-online
 cancels a drag whose model is replaced under it.
 
-**Undo may not need the host.** archi-online keeps every transaction's inverse
-patches. The view can offer undo by writing a gesture's inverse as a new revision,
-version-checked so that a record changed since is refused rather than overwritten.
-That is compensation done by the view, and it declares no universal undo. W-103 is
-then only needed if undo should also reach History's own compensation. W-112 tries the
-view's route first.
+**Undo did not need the host (W-112, 2026-10-03).** Every gesture the workbench writes is one
+`records.batch`, so the workbench keeps its opposite: a create is undone by a delete, an update
+by putting its fields back, a delete by making each record again under its own record ID with
+every value it had, in the reverse order (`undoStep` and `planStep` in `model.js`). Undo writes
+that as one revision and Redo writes the opposite of the undo. Each step names, for every record,
+the state it expects the record in and the state it leaves it in, and these states are shared
+objects whose versions are brought up to date as steps run: an undone delete makes the record
+again at version 1, so a version number alone cannot say which state a step means, and the first
+attempt, which matched steps by number, refused a redo across a delete in the lane. A record
+changed, deleted, made again or newly pointed at by somebody else is refused before anything is
+sent, with the reason, and nothing is written. While edits wait in the editor, Undo and Redo are
+archi-online's own over them; once committed, the commit is one step of the file's.
+
+That is compensation done by the view, and it declares no universal undo: the steps are the
+visit's, a gesture over 200 writes or made without `records.batch` is not undoable, and History
+still cannot reverse a batch that creates records. W-103, undo through History's own
+compensation, is not needed for the workbench.
 
 ## The validator
 

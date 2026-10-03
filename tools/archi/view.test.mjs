@@ -196,6 +196,7 @@ test("on a Nendo without W-115's icons the row is declared again with words wher
     state: { nativeChrome: true, filter: { text: '', layer: '' }, openView: 'ar-view', readOnly: false, editing: true, pending: 0, styleShown: false, validator: { open: false }, zoom: 1, transparent: false },
     canvasModule: { createEditor() {}, editorSettings: () => ({ grid: false, snap: true, guides: true }) },
     editor: { canUndo: () => false, canRedo: () => false },
+    undoName: () => null, redoName: () => null,
     leaveNativeChrome: reason => { left = reason; },
     nendo: { ui: { setToolbar(toolbar) {
       declared.push(toolbar);

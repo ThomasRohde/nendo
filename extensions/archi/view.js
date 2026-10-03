@@ -67,7 +67,7 @@ function startEmptyModel() {
   emptyModelTried = true;
   write(() => modelRecord() !== null ? [] : [{
     op: 'create', entityId: M.E.model, recordId: `ar.model.r.${crypto.randomUUID()}`, values: { 'ar.model.name': 'New model' },
-  }], 'Start a new model');
+  }], 'Start a new model', { undoable: false });
 }
 
 let pendingRead = null;
@@ -92,38 +92,61 @@ const modelRecord = () => state.model?.of(M.E.model)[0] ?? null;
  * is written. The limit is a batch's, so an older Nendo's one-by-one path is not held to it.
  */
 let writing = Promise.resolve();
+
+/*
+ * Undo and Redo of what the file has saved (W-112). Each gesture written as one batch leaves its
+ * opposite, planned by model.js: Undo writes it as a new revision, version-checked, so a record
+ * changed, deleted or used since refuses the whole undo and nothing is written. An undo leaves a
+ * redo the same way. The steps are this visit's; a gesture over 200 writes, or one made by a Nendo
+ * without records.batch, is not undoable here, because its writes were not one revision.
+ */
+const saved = { undo: [], redo: [] };
+// The state each record the steps wrote is in now (model.js, undoStep): shared by the steps that
+// expect it, so an undo that moves a record's version on is followed by every step kept.
+const states = new Map();
+const STEPS_KEPT = 50;
 /**
  * One gesture's writes, after every earlier gesture and the reread it caused: `plan` is called
  * only then, so it plans from the records as they now stand. Planned at once, a second edit
  * made while the first was still being read back pointed at versions the first had moved on
  * (F-211).
  */
-function write(plan, label, { atomic = false } = {}) {
-  const run = writing.then(() => writeNow(plan, label, atomic));
+function write(plan, label, { atomic = false, undoable = true, history = null } = {}) {
+  const run = writing.then(() => writeNow(plan, label, atomic, undoable, history));
   writing = run.catch(() => undefined);
   return run;
 }
 
-async function writeNow(plan, label, atomic) {
+/**
+ * Writes one gesture and reads the model back. `history` is set for an undo or a redo: {kind,
+ * entry}, the step being taken. Answers whether the writes were saved.
+ */
+async function writeNow(plan, label, atomic, undoable, history) {
   let writes;
-  try { writes = typeof plan === 'function' ? plan() : plan; } catch (error) { setStatus(describe(error), true); return; }
-  if (writes.length === 0) return;
-  if (state.readOnly) { setStatus('This file is open read-only.', true); return; }
+  const before = state.model;
+  try { writes = typeof plan === 'function' ? plan() : plan; } catch (error) {
+    setStatus(history ? `${label} was refused: ${describe(error)} Nothing was changed.` : describe(error), true);
+    return false;
+  }
+  if (writes.length === 0) return false;
+  if (state.readOnly) { setStatus('This file is open read-only.', true); return false; }
   const batched = nendo.has('records.batch');
   if (atomic && batched && writes.length > 200) {
     setStatus(`${label} was refused: This change needs ${writes.length} record writes; at most 200 can be saved together. Nothing was saved. Reduce the change and try again.`, true);
-    return;
+    return false;
   }
   let outcome = `${label}.`, problem = false;
+  const answers = [];
   try {
     if (batched) {
       for (let start = 0; start < writes.length; start += 200) {
-        await nendo.records.batch(writes.slice(start, start + 200).map(single => ({
+        const answer = await nendo.records.batch(writes.slice(start, start + 200).map(single => ({
           op: single.op, entityId: single.entityId, recordId: single.recordId,
           ...(single.version === undefined ? {} : { version: single.version }),
           ...(single.values === undefined ? {} : { values: single.values }),
           ...(single.targetVersions === undefined ? {} : { targetVersions: single.targetVersions }),
         })), { label: label.slice(0, 80) });
+        answers.push(...(answer?.records ?? []));
       }
     } else {
       for (const single of writes) {
@@ -134,12 +157,57 @@ async function writeNow(plan, label, atomic) {
       }
     }
   } catch (error) {
-    outcome = `${label} was refused: ${describe(error)}`;
+    outcome = `${label} was refused: ${describe(error)}${history ? ' Nothing was changed.' : ''}`;
     problem = true;
   }
+  if (!problem) remember(before, writes, answers, batched, label, undoable, history);
   // Said once the model is read back, so what the status line reports is what the view shows.
   await readAll().catch(error => { outcome = `The model could not be read. ${describe(error)}`; problem = true; });
   setStatus(outcome, problem);
+  return !problem;
+}
+
+/** Keeps the opposite of what was just saved: a gesture's undo, an undo's redo, a redo's undo. */
+function remember(before, writes, answers, batched, label, undoable, history) {
+  const one = batched && writes.length <= 200 && answers.length === writes.length;
+  let step = null;
+  if (one && undoable) {
+    try {
+      step = history ? M.oppositeStep(before, history.entry.step, writes, answers, states) : M.undoStep(before, writes, answers, states);
+    } catch { step = null; }
+  }
+  const entry = step ? { label: history?.entry.label ?? label, step } : null;
+  if (history?.kind === 'undo') { if (entry) saved.redo.push(entry); return; }
+  // A new gesture leaves nothing to redo; a redo leaves the rest of what can be redone.
+  if (!history) saved.redo = [];
+  if (entry) saved.undo.push(entry);
+  if (saved.undo.length > STEPS_KEPT) saved.undo.shift();
+}
+
+/** What Undo and Redo would do now: the editor's waiting edit first, then what the file saved. */
+function undoName() {
+  if (editor?.canUndo()) return editor.undoLabel?.() || 'the last edit';
+  return saved.undo.at(-1)?.label ?? null;
+}
+function redoName() {
+  if (editor?.canRedo()) return editor.redoLabel?.() || 'the last edit';
+  return saved.redo.at(-1)?.label ?? null;
+}
+
+function undoAny() {
+  if (editor?.canUndo()) { editor.undo(); return; }
+  const entry = saved.undo.pop();
+  if (!entry) { setStatus('There is nothing to undo.', true); return; }
+  declareToolbar();
+  write(() => M.planStep(state.model, entry.step), `Undo ${entry.label}`, { atomic: true, history: { kind: 'undo', entry } });
+}
+
+function redoAny() {
+  if (editor?.canRedo()) { editor.redo(); return; }
+  const entry = saved.redo.pop();
+  if (!entry) { setStatus('There is nothing to redo.', true); return; }
+  declareToolbar();
+  write(() => M.planStep(state.model, entry.step), `Redo ${entry.label}`, { atomic: true, history: { kind: 'redo', entry } });
 }
 
 // ---------------------------------------------------------------- the tree
@@ -639,9 +707,12 @@ function declareToolbar() {
     ] },
     ...(state.openView && !state.readOnly && canvasModule?.createEditor
       ? [{ kind: 'toggle', id: 'edit', label: 'Edit the view', icon: 'edit', pressed: state.editing, keys: 'Ctrl+E' }] : []),
+    // Undo and Redo name what they would do (W-112), here, in Ctrl K and in More.
+    ...(!state.readOnly ? [{ kind: 'group', label: 'Undo and redo', items: [
+      { kind: 'button', id: 'undo', label: undoName() ? `Undo ${undoName()}`.slice(0, 80) : 'Undo', icon: 'undo', iconOnly: true, keys: 'Ctrl+Z', disabled: !undoName() },
+      { kind: 'button', id: 'redo', label: redoName() ? `Redo ${redoName()}`.slice(0, 80) : 'Redo', icon: 'redo', iconOnly: true, keys: 'Ctrl+Y', disabled: !redoName() },
+    ] }] : []),
     ...(state.editing ? [{ kind: 'group', label: 'Edits', items: [
-      { kind: 'button', id: 'undo', label: 'Undo', icon: 'undo', iconOnly: true, keys: 'Ctrl+Z', disabled: !editor?.canUndo() },
-      { kind: 'button', id: 'redo', label: 'Redo', icon: 'redo', iconOnly: true, keys: 'Ctrl+Y', disabled: !editor?.canRedo() },
       { kind: 'button', id: 'commit', label: state.pending > 0 ? `Commit ${state.pending}` : 'Commit', icon: 'check', keys: 'Ctrl+S', disabled: state.pending === 0 },
       { kind: 'button', id: 'discard', label: 'Discard', disabled: state.pending === 0 },
       { kind: 'toggle', id: 'appearance', label: 'Appearance', icon: 'eye', iconOnly: true, pressed: state.styleShown },
@@ -755,8 +826,8 @@ function runCommand({ id, value }) {
     case 'zoom-out': if (editor) editor.zoomOut(); else canvas?.zoom(0.8); break;
     case 'fit': if (editor) editor.fit(); else canvas?.fit(); break;
     case 'edit': toggleEditing(value === true); break;
-    case 'undo': editor?.undo(); break;
-    case 'redo': editor?.redo(); break;
+    case 'undo': undoAny(); break;
+    case 'redo': redoAny(); break;
     case 'commit': commitEdits(); break;
     case 'discard': discardEdits(); break;
     case 'validator': showValidator(value === true); break;
@@ -901,7 +972,9 @@ function toggleEditing(on) {
 function commitEdits() {
   if (!editor || state.pending === 0) return;
   const count = state.pending;
-  return write(() => waitingWrites(), `Commit ${count} ${count === 1 ? 'change' : 'changes'} to the view`, { atomic: true });
+  // Once saved, the edits are undone as one step of the file's (W-112), not one by one in the editor.
+  return write(() => waitingWrites(), `Commit ${count} ${count === 1 ? 'change' : 'changes'} to the view`, { atomic: true })
+    .then(ok => { if (ok) { editor?.clearHistory?.(); declareToolbar(); } return ok; });
 }
 
 function discardEdits() {
@@ -974,7 +1047,7 @@ $('generate-view').addEventListener('close', async () => {
         setStatus(`${label} was refused: it needs more than 200 record writes, and at most 200 can be saved together. Nothing was saved. Choose a smaller depth.`, true);
         return;
       }
-      await write(() => waitingWrites(), label, { atomic: true });
+      if (await write(() => waitingWrites(), label, { atomic: true })) { editor?.clearHistory?.(); declareToolbar(); }
     } else {
       const { result, model } = await canvasModule.generatedViewModel(request.model, options);
       made = result;

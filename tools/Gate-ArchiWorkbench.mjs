@@ -33,6 +33,68 @@ async (page) => {
   })));
   const selected = async () => (await rows()).find(row => row.selected) ?? null;
   const results = {};
+  // W-112: the model as the fixture holds it, value for value, the batches the view has sent, and
+  // one control of Nendo's row as the view last declared it.
+  const modelNow = async () => JSON.stringify(await Promise.all(['ar.model', 'ar.folder', 'ar.concept', 'ar.view', 'ar.item', 'ar.property'].map(async entityId =>
+    (await records(entityId)).map(record => [record.recordId, Object.entries(record.values).filter(([, value]) => value !== null).sort(([a], [b]) => (a < b ? -1 : 1))])
+      .sort(([a], [b]) => (a < b ? -1 : 1)))));
+  const batchCount = () => page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').length);
+  const control = id => page.evaluate(wanted => {
+    const find = items => { for (const item of items ?? []) { if (item.id === wanted) return item; const inner = find(item.items); if (inner) return inner; } return null; };
+    return find(window.broker.toolbars.at(-1)?.items);
+  }, id);
+  /**
+   * Undo or Redo pressed in Nendo's row, waited for: one batch more, and the status line saying
+   * the step was done, which the view writes once it has read the model back and declared its row
+   * again. Two steps can share a name, and a reread left over from the step before can declare the
+   * row in between, so the line is cleared first and only the step's own sentence counts. Then
+   * the other button names the step.
+   */
+  /** One of the row's controls carrying a label, waited for: the row is declared at most twenty times a second. */
+  const labelIs = async (id, wanted, what) => {
+    let now = null;
+    for (let waited = 0; waited <= 3000; waited += 50) {
+      now = (await control(id))?.label;
+      if (now === wanted) return;
+      await page.waitForTimeout(50);
+    }
+    throw new Error(`${what}: the row offers ${JSON.stringify(now)}, not ${wanted}.`);
+  };
+  const rowQuiet = async () => {
+    let count = -1, still = 0;
+    for (let waited = 0; still < 8 && waited < 5000; waited += 50) {
+      const now = await page.evaluate(() => window.broker.toolbars.length);
+      still = now === count ? still + 1 : 0;
+      count = now;
+      await page.waitForTimeout(50);
+    }
+  };
+  const step = async which => {
+    const before = await batchCount();
+    const pressed = await control(which);
+    assert(pressed && !pressed.disabled, `${which} is not offered: ${JSON.stringify(pressed)}.`);
+    const name = pressed.label.replace(/^(Undo|Redo) /, '');
+    const other = which === 'undo' ? `Redo ${name}` : `Undo ${name}`;
+    await view.evaluate(() => { document.getElementById('status').textContent = ''; });
+    await page.evaluate(id => window.broker.command(id, null, 'toolbar'), which);
+    for (let waited = 0; ; waited += 50) {
+      if (await batchCount() === before + 1 && await status() === `${pressed.label}.`) break;
+      if (waited > 8000) throw new Error(`${pressed.label} did not finish: ${await batchCount() - before} batches; the view says ${JSON.stringify(await status())}.`);
+      await page.waitForTimeout(50);
+    }
+    // A view declares its row at most twenty times a second, so the row naming the step can land
+    // a moment after the sentence; and two steps can share a name, so the row is read once no
+    // declaration has come for a while, not as soon as a label matches.
+    await rowQuiet();
+    let now = null;
+    for (let waited = 0; waited <= 3000; waited += 50) {
+      now = (await control(which === 'undo' ? 'redo' : 'undo'))?.label;
+      if (now === other.slice(0, 80)) break;
+      await page.waitForTimeout(50);
+    }
+    assert(now === other.slice(0, 80), `After ${pressed.label} the row offers ${JSON.stringify(now)}, not ${other}; the view says ${JSON.stringify(await status())}.`);
+    return name;
+  };
 
   // ---- It reads the whole model, and names it in Nendo's row, with its controls there too.
   await until(() => /120 elements · 176 relationships · 17 views/.test(document.getElementById('status').textContent), null,
@@ -204,6 +266,7 @@ async (page) => {
   results.lists = lists;
   await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
 
+  const beforeTreeGestures = { model: await modelNow(), batches: await batchCount() };
   // ---- F2 renames in the tree; the properties write a field; the property list writes records.
   await view.click(`#tree .row[data-id="${customer.recordId}"]`).catch(async () => {
     await page.evaluate(() => window.broker.command('find', 'Customer', 'toolbar'));
@@ -270,7 +333,7 @@ async (page) => {
   while (home?.values['ar.folder.parent']) home = folders.find(folder => folder.recordId === home.values['ar.folder.parent']);
   assert(created && home?.recordId === application.recordId && (await records('ar.concept')).length === beforeCount + 1,
     `The new Application Component is not in the Application tree: ${JSON.stringify(created?.values)}.`);
-  assert((await selected())?.id === created.recordId, 'The new element is not selected.');
+  assert((await selected())?.id === created.recordId, `The new element is not selected: ${JSON.stringify(await selected())}; the view says ${JSON.stringify(await status())}; Nendo refused ${JSON.stringify(await page.evaluate(() => window.broker.chromeRefusals))}.`);
   results.create = { recordId: created.recordId };
 
   // ---- A drag onto a folder of another layer is refused; onto a folder of its own layer it moves.
@@ -317,6 +380,48 @@ async (page) => {
   const batches = await page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').length);
   assert(batches === requestsBefore + 1, `The delete took ${batches - requestsBefore} batches, not one.`);
   results.delete = { question, relationships: relationships.length, boxes: boxes.length };
+
+  // ---- W-112: Undo and Redo of what the file saved, from Nendo's row. Every gesture since the
+  // rename -- a rename, a documentation, two property lists, a new element, a move and a delete
+  // with its relationships and boxes -- walked back one revision each to the model as it was, value
+  // for value, and forward again to the model as it is. Undo names what it undoes. Then an undo of
+  // a record somebody else changed since is refused, says why, and writes nothing.
+  {
+    const afterGestures = { model: await modelNow(), batches: await batchCount() };
+    const gestures = afterGestures.batches - beforeTreeGestures.batches;
+    await labelIs('undo', 'Undo Delete Policyholder', 'Undo does not name the delete');
+    const undone = [];
+    for (let index = 0; index < gestures; index += 1) undone.push(await step('undo'));
+    await page.waitForTimeout(300);
+    assert(await modelNow() === beforeTreeGestures.model, `Undoing ${gestures} gestures (${undone.join(' | ')}) did not put the model back as it was.`);
+    const redone = [];
+    for (let index = 0; index < gestures; index += 1) redone.push(await step('redo'));
+    await page.waitForTimeout(300);
+    assert(await modelNow() === afterGestures.model, `Redoing ${gestures} gestures (${redone.join(' | ')}) did not make the model as it was after them.`);
+    assert(JSON.stringify(redone) === JSON.stringify([...undone].reverse()), `Redo did not make the steps again in order: ${redone.join(' | ')}.`);
+
+    // Somebody else changes what an undo would put back: refused, said, nothing written.
+    const portal = await byName('ar.concept', 'Broker portal');
+    await page.evaluate(() => window.broker.command('find', 'Broker portal', 'toolbar'));
+    await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), portal.recordId, 'Broker portal is not in the tree under Find.');
+    await view.click(`#tree .row[data-id="${portal.recordId}"]`);
+    await page.keyboard.press('F2');
+    await until(() => !!document.querySelector('#tree input.rename'), null, 'F2 did not start a rename of Broker portal.');
+    await page.keyboard.press('Control+A');
+    await page.keyboard.type('Partner portal');
+    await page.keyboard.press('Enter');
+    await until(() => document.getElementById('status').textContent === 'Rename Broker portal.', null, 'The rename of Broker portal was not written.');
+    await page.evaluate(id => { window.broker.touch('ar.concept', id); window.broker.pushChanges(); }, portal.recordId);
+    await page.waitForTimeout(400);
+    const touched = { model: await modelNow(), batches: await batchCount() };
+    await labelIs('undo', 'Undo Rename Broker portal', 'Undo does not name the rename');
+    await page.evaluate(() => window.broker.command('undo', null, 'toolbar'));
+    await until(() => document.getElementById('status').textContent === 'Undo Rename Broker portal was refused: Partner portal has changed since. Nothing was changed.',
+      null, 'An undo of a record changed since did not say why it was refused.');
+    assert(await modelNow() === touched.model && await batchCount() === touched.batches, 'A refused undo wrote something.');
+    await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
+    results.undo = { gestures, undone, refused: 'Partner portal has changed since' };
+  }
   await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
 
 
@@ -643,6 +748,19 @@ async (page) => {
     `Two drags, an undo and a redo did not commit as one revision setting the box's place: ${JSON.stringify(committed).slice(0, 400)}.`);
   const movedTo = await storedItem(moving);
   assert(movedTo.values['ar.item.x'] > startedAt.values['ar.item.x'] + 60, `The box was not moved in the file: ${startedAt.values['ar.item.x']} to ${movedTo.values['ar.item.x']}.`);
+  // W-112: once committed, the edits are one step of the file's. Undo puts the box back where it
+  // started, in one revision, and Redo moves it again; nothing is left waiting either way.
+  await labelIs('undo', 'Undo Commit 1 change to the view', 'Undo does not name the commit');
+  await step('undo');
+  await pendingIs(0, 'The commit undone');
+  const backAt = await storedItem(moving);
+  assert(backAt.values['ar.item.x'] === startedAt.values['ar.item.x'] && backAt.values['ar.item.y'] === startedAt.values['ar.item.y'],
+    `Undo did not put the box back where it started: ${backAt.values['ar.item.x']},${backAt.values['ar.item.y']}.`);
+  await step('redo');
+  await pendingIs(0, 'The commit redone');
+  const againAt = await storedItem(moving);
+  assert(againAt.values['ar.item.x'] === movedTo.values['ar.item.x'] && againAt.values['ar.item.y'] === movedTo.values['ar.item.y'],
+    `Redo did not move the box again: ${againAt.values['ar.item.x']},${againAt.values['ar.item.y']}.`);
 
   // A new element from the palette, and relationships only of the types archi-online allows.
   const nodeIds = () => view.evaluate(() => [...document.querySelectorAll('.archi-editor [data-node-id]')].map(element => element.getAttribute('data-node-id')));
@@ -1332,12 +1450,11 @@ async (page) => {
         `Generate View For saved ${generatedBatches.length} batches of ${JSON.stringify(generatedBatches.map(batch => batch.writes.length))} writes, ${generatedBoxes.length} boxes and ${generatedLines.length} lines ` +
         `where archi-online makes ${generatedReference.elements.length} and ${generatedReference.relationships.length}; ${boundsDiffer.length} boxes are placed elsewhere.`);
       await until(count => document.querySelectorAll('.archi-editor [data-node-id]').length === count, generatedBoxes.length, 'The generated view did not open in the editor.');
-      // Undo in the editor takes it away: deletes waiting, committed as one batch.
-      await page.evaluate(() => window.broker.command('undo', null, 'toolbar'));
-      await waiting();
+      // Undo takes it away as one step of the file's (W-112): one batch of deletes, nothing waiting.
       const batchesBeforeUndo = (await batches()).length;
-      await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
-      await pendingIs(0, 'The generated view undone and committed');
+      await labelIs('undo', 'Undo Generate view Board View', 'Undo does not name the generated view');
+      await step('undo');
+      await pendingIs(0, 'The generated view undone');
       const undone = (await batches()).slice(batchesBeforeUndo);
       const gone = !(await records('ar.view')).some(record => record.recordId === generatedView.recordId) &&
         !(await records('ar.item')).some(item => item.values['ar.item.view'] === generatedView.recordId);

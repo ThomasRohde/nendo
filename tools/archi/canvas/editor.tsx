@@ -334,6 +334,14 @@ export function createEditor(host: HTMLElement, base: ModelState, options: Edito
     canRedo: () => store.getState().redoStack.length > 0,
     undo: () => undo(store),
     redo: () => redo(store),
+    /** What Undo and Redo would undo or make again: archi-online's own name for the gesture (W-112). */
+    undoLabel: () => store.getState().undoStack.at(-1)?.label ?? null,
+    redoLabel: () => store.getState().redoStack.at(-1)?.label ?? null,
+    /** Forget the editor's own steps once they are saved: Undo then takes back the commit (W-112). */
+    clearHistory() {
+      quiet = true;
+      try { store.setState({ undoStack: [], redoStack: [] }); } finally { quiet = false; }
+    },
     /** Select objects on the view, as a selection made in the tree. */
     select(ids: string[]) {
       // The editor's own selection is the view's, with its handles; handing it back as the tree's

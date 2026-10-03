@@ -109,13 +109,25 @@ Properties. The file you were in does not change.
   drawn. Archi's defaults: six types offered, none reversed, every type hidden while nested.
   The choices are kept in this view's own storage on this device, for every Archi model, and
   the drawing outside Edit follows them as the editor does.
+- **Undo** (Ctrl Z) and **Redo** (Ctrl Y) (W-112), in Nendo's row, on every screen. While edits
+  wait in the editor they undo and redo those, by archi-online's own steps. Otherwise they undo
+  what the file has saved, one gesture at a time and newest first: a rename, a change in the
+  properties, a property list, a new element, folder or view, a move, a delete with everything it
+  took, a commit of the editor's edits, a generated view. The button names the gesture, so Ctrl K
+  and More list *Undo Rename Customer*. Each undo and each redo is one revision, version-checked:
+  if something it would put back has changed since, been deleted, come back, or is now used by
+  something new, it is refused, says which and why, and writes nothing. The steps are this
+  visit's: they go when the workbench is left, and a change made elsewhere refuses the steps it
+  touches. A gesture of more
+  than 200 writes, or one made on a Nendo without `records.batch`, is not undoable here. An undo
+  is the workbench writing the change's opposite; it is not History's Compensate, and Nendo
+  claims no universal undo.
 - **Generate view for…** (W-115), in the tree's menu on an element and in New: a new view of
   the element, or of the boxes selected on the view while editing, and the elements related to
   them, to a depth of one to six, incoming, outgoing or both, optionally with every
   relationship between them and with a viewpoint the elements fit. It is archi-online's own
   operation, laid out with ELK, and it is saved at once as one revision and opened. While
-  editing it is also one Undo step there: Undo and Commit take the view away again. Outside
-  Edit, delete the view to take it away; History cannot reverse a change that creates records.
+  editing or not, Undo takes it away again, as one revision (W-112).
 - **Validator** (W-117), in Nendo's row, opens Archi's validator under the workbench. It is
   archi-online's: Archi 5.9's eight checks (invalid relationships, unused elements and
   relationships, empty views, viewpoint violations, nested elements without a nesting
@@ -243,4 +255,13 @@ layout of the same records, every box and bend, as one batch of moves after an U
 shows the automatic relationships dialog with Archi's defaults and draws the line of the
 nesting above once nested connections are off; and generates a view for Board while editing,
 equal box for box to archi-online's, saved as one batch of creates, opened in the editor, and
-taken away by Undo and Commit as one batch of deletes.
+taken away by Undo as one batch of deletes.
+
+Undo and Redo of what the file saved (W-112) are measured in the same lane, on Archisurance:
+nine gestures in the tree -- a rename, three documentation changes, two property lists, a new
+element, a move and a delete with its relationships, lines and boxes -- undone one revision each
+until every record holds exactly what it held before them, then redone until every record holds
+what it held after them; a commit of the editor's edits undone and redone; and an undo of a
+record somebody else changed meanwhile refused with *‹name› has changed since. Nothing was
+changed.* and no write. `tools/archi/model.test.mjs` checks each gesture's undo and redo over
+Archisurance, the refusals, and a chain walked back across a delete and forward again.
