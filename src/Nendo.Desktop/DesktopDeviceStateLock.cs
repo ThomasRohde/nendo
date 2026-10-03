@@ -12,6 +12,11 @@ namespace Nendo.Desktop;
 /// session choice and report it rather than risk restoring another file's revoked choice.
 /// </para>
 /// <para>
+/// A required lock waits longer. It guards a choice a person just made, and every holder
+/// writes through to disk: on a busy disk a few such writes in a row outlast a second, and
+/// giving up then keeps the choice for this session only. A few seconds' wait costs less.
+/// </para>
+/// <para>
 /// Enter and dispose on the same thread, with no await between them: a mutex belongs to the
 /// thread that took it, and one released from another thread is not released.
 /// </para>
@@ -19,6 +24,7 @@ namespace Nendo.Desktop;
 internal sealed class DesktopDeviceStateLock : IDisposable
 {
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan RequiredPatience = TimeSpan.FromSeconds(5);
 
     private Mutex? _mutex;
 
@@ -41,7 +47,7 @@ internal sealed class DesktopDeviceStateLock : IDisposable
             mutex = new Mutex(false, $@"Local\Nendo.DeviceState.v1.{document}");
             try
             {
-                if (mutex.WaitOne(Patience)) return new DesktopDeviceStateLock(mutex);
+                if (mutex.WaitOne(required ? RequiredPatience : Patience)) return new DesktopDeviceStateLock(mutex);
             }
             catch (AbandonedMutexException)
             {

@@ -206,6 +206,32 @@ public sealed class DesktopBehaviourGrantTests
     }
 
     [TestMethod]
+    public async Task AnApprovalWaitsOutAnotherWindowsSlowSave()
+    {
+        // Another window holds the lock for two seconds, as a write-through save on a busy
+        // disk can. A person's approval made meanwhile is saved, not kept for this session only.
+        await using var workspace = new DesktopTestWorkspace();
+        var store = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        var acquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var holder = Task.Factory.StartNew(() =>
+        {
+            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"));
+            acquired.SetResult();
+            Thread.Sleep(TimeSpan.FromSeconds(2));
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        await acquired.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        store.Approve(Grant());
+        waited.Stop();
+        await holder;
+
+        Assert.IsTrue(store.Persisted,
+            $"An approval gave up after {waited.ElapsedMilliseconds} ms on a lock held for 2000 ms: {store.Notice}");
+        Assert.IsTrue(new DesktopBehaviourGrantStore(workspace.FileHistoryRoot).IsGranted(Grant()),
+            "An approval made while another window saved was missing after reopening.");
+    }
+
+    [TestMethod]
     public async Task RevokingRemovesEveryApprovalForThatFileAndMovesTheGeneration()
     {
         await using var workspace = new DesktopTestWorkspace();
