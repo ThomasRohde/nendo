@@ -208,6 +208,14 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+== elkjs (ELK's layouts, W-115): elk-api.js in canvas.js, and vendor/elkjs/elk-worker.min.js
+
+elkjs 0.11.1, https://github.com/kieler/elkjs, built from the Eclipse Layout Kernel,
+https://github.com/eclipse-elk/elk. Copyright (c) 2017 and 2021 Kiel University and others.
+Offered under EPL-2.0 OR GPL-3.0-or-later, and used here under the Eclipse Public License 2.0,
+whose full text is vendor/elkjs/LICENSE.md. The source code of this object code is at
+https://github.com/kieler/elkjs (tag 0.11.1). vendor/elkjs/README.md records the files' hashes.
+
 == The Open Exchange schemas in xsd.js, as Archi 5.9 ships them (via archi-online)
 
 Archi, https://github.com/archimatetool/archi, MIT License

@@ -626,6 +626,7 @@ function declareToolbar() {
       { id: 'new-element', label: 'Element…', detail: 'Of any ArchiMate element type' },
       { id: 'new-folder', label: 'Folder', detail: 'Inside the selected folder' },
       { id: 'new-view', label: 'View', detail: 'In the Views folder' },
+      { id: 'generate-view', label: 'View for the selected elements…', detail: 'Generate View For: the elements and those related to them' },
     ] },
     { kind: 'button', id: 'rename', label: 'Rename', icon: 'edit', iconOnly: true, keys: 'F2' },
     { kind: 'button', id: 'delete', label: 'Delete…', icon: 'trash', iconOnly: true },
@@ -689,6 +690,11 @@ function arrangeMenu() {
     { kind: 'check', id: 'grid', label: 'Show grid', checked: settings.grid },
     { kind: 'check', id: 'snap', label: 'Snap to grid', checked: settings.snap },
     { kind: 'check', id: 'guides', label: 'Snap to alignment guides', checked: settings.guides },
+    { kind: 'separator' },
+    { kind: 'label', label: 'Lay out with ELK: the boxes selected, or the whole view' },
+    item('layout-right', 'Lay out left to right'), item('layout-down', 'Lay out top to bottom'),
+    { kind: 'separator' },
+    item('automatic-relationships', 'Automatic relationships…', 'What nesting a box offers, and which lines it hides'),
   ] };
 }
 
@@ -717,6 +723,10 @@ function runCommand({ id, value }) {
     case 'new-element': newElement(); break;
     case 'new-folder': newFolder(); break;
     case 'new-view': newView(); break;
+    case 'generate-view': generateView(); break;
+    case 'layout-right': layoutView('right'); break;
+    case 'layout-down': layoutView('down'); break;
+    case 'automatic-relationships': showAutomaticRelationships(); break;
     case 'rename': startRename(); break;
     case 'delete': remove(); break;
     case 'zoom-in': if (editor) editor.zoomIn(); else canvas?.zoom(1.25); break;
@@ -878,6 +888,118 @@ function discardEdits() {
   editsChanged();
   setStatus('The waiting changes were discarded.');
 }
+
+// ---------------------------------------------------------------- automation (W-115)
+
+/*
+ * Archi's automation, each archi-online's own operation. Auto-layout runs ELK on the open view in
+ * the editor: one edit waiting and one Undo step, committed like any other. Generate View For
+ * builds a view around the elements selected (boxes on the view while editing, else the element
+ * in the tree), lays it out with ELK and saves it at once, as one revision; while editing it is
+ * also one Undo step in the editor. Automatic relationships are Archi's preferences for what
+ * nesting a box offers and which lines a nesting stands for; the canvas and the editor both
+ * draw by them. ELK runs in a worker from vendor/elkjs.
+ */
+let generating = null;
+
+function generateFocus() {
+  const model = editor?.model();
+  const boxes = editor ? editor.selected().map(id => model.nodes[id]?.elementId).filter(Boolean) : [];
+  if (boxes.length > 0) return [...new Set(boxes)];
+  const record = state.model?.records.get(treeSelection());
+  return record?.entityId === M.E.concept && record.values['ar.concept.category'] === 'Element' ? [record.recordId] : [];
+}
+
+function generateView() {
+  if (state.readOnly || !state.model) { setStatus('This file is open read-only.', true); return; }
+  if (!canvasModule?.generatedViewModel) { setStatus('The editor has not loaded yet.', true); return; }
+  if (state.pending > 0) { setStatus(`Commit or discard the ${state.pending} waiting ${state.pending === 1 ? 'change' : 'changes'} first.`, true); return; }
+  const focus = generateFocus();
+  if (focus.length === 0) { setStatus('Select an element in the tree, or boxes on the view, to generate a view for.', true); return; }
+  const model = editor ? editor.model() : canvasModule.buildMirror(state.sets);
+  const elements = focus.map(id => model.elements[id]);
+  generating = { focus, model };
+  $('generate-view-text').textContent = focus.length === 1
+    ? `A new view of ${elements[0].name || 'the element'} and the elements related to it, laid out by ELK.`
+    : `A new view of the ${focus.length} selected elements and those related to them, laid out by ELK.`;
+  $('generate-view-name').value = focus.length === 1 ? `${elements[0].name || 'Element'} View` : 'Generated View';
+  const fits = canvasModule.VIEWPOINTS.filter(viewpoint => elements.every(element => canvasModule.isAllowedElementInViewpoint(viewpoint.id, element.type)));
+  $('generate-view-viewpoint').innerHTML = `<option value="">None</option>${fits.map(viewpoint => `<option value="${escape(viewpoint.id)}">${escape(viewpoint.name)}</option>`).join('')}`;
+  $('generate-view-depth').value = '1';
+  $('generate-view-direction').value = 'both';
+  $('generate-view-internal').checked = false;
+  $('generate-view').returnValue = '';
+  $('generate-view').showModal();
+  $('generate-view-name').select();
+}
+
+$('generate-view').addEventListener('close', async () => {
+  const request = generating;
+  generating = null;
+  if ($('generate-view').returnValue !== 'generate' || !request) return;
+  const options = { focusIds: request.focus, name: $('generate-view-name').value.trim() || 'Generated View',
+    viewpointId: $('generate-view-viewpoint').value || undefined, depth: Number($('generate-view-depth').value),
+    direction: $('generate-view-direction').value, allInternalRelationships: $('generate-view-internal').checked };
+  const label = `Generate view ${options.name}`;
+  setStatus('Generating the view…');
+  let made = null;
+  try {
+    if (editor) {
+      // On the editor's model, so Undo there takes the view away again.
+      made = await editor.generateView(options);
+      if (state.pending > 200) {
+        editor.undo();
+        setStatus(`${label} was refused: it needs more than 200 record writes, and at most 200 can be saved together. Nothing was saved. Choose a smaller depth.`, true);
+        return;
+      }
+      await write(() => waitingWrites(), label, { atomic: true });
+    } else {
+      const { result, model } = await canvasModule.generatedViewModel(request.model, options);
+      made = result;
+      await write(() => canvasModule.writesFor(state.sets, request.model, model), label, { atomic: true });
+    }
+  } catch (error) { setStatus(`${label} was refused: ${describe(error)}`, true); return; }
+  if (!state.model?.records.has(made.viewId)) return;
+  select(made.viewId);
+  const counted = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  setStatus(`${label}: ${counted(made.nodeIds.length, 'element', 'elements')} and ${counted(made.connectionIds.length, 'relationship', 'relationships')}${made.truncated ? ', cut short at 1,000 concepts' : ''}, in one revision.`);
+});
+
+async function layoutView(direction) {
+  if (!editor) { setStatus('Press Edit to lay out the view.', true); return; }
+  setStatus('Laying out the view…');
+  try {
+    const refusal = await editor.layout(direction);
+    setStatus(refusal ?? 'Laid out by ELK. Commit to keep it, or Undo.', refusal !== null);
+  } catch (error) { setStatus(`The layout was refused: ${describe(error)}`, true); }
+}
+
+function showAutomaticRelationships() {
+  if (!canvasModule?.automaticRelationshipSettings) { setStatus('The editor has not loaded yet.', true); return; }
+  const { description, rows, types } = canvasModule.automaticRelationshipSettings();
+  $('arm-settings-text').textContent = `${description} Kept in this browser, for every Archi model.`;
+  $('arm-settings-list').innerHTML = rows.map(row => row.kind === 'boolean'
+    ? `<label class="check"><input type="checkbox" data-arm="${escape(row.key)}" ${row.value ? 'checked' : ''}><span>${escape(row.label)}<small>${escape(row.description)}</small></span></label>`
+    : `<fieldset data-arm-mask="${escape(row.key)}"><legend>${escape(row.label)}</legend><p>${escape(row.description)}</p><div class="arm-types">${types.map(entry =>
+      `<label><input type="checkbox" data-bit="${entry.bit}" ${row.value & entry.bit ? 'checked' : ''}>${escape(entry.label)}</label>`).join('')}</div></fieldset>`).join('');
+  $('arm-settings').returnValue = '';
+  $('arm-settings').showModal();
+}
+
+$('arm-settings').addEventListener('close', () => {
+  const choice = $('arm-settings').returnValue;
+  if (choice !== 'save' && choice !== 'defaults') return;
+  for (const row of canvasModule.automaticRelationshipSettings().rows) {
+    let value = row.initial;
+    if (choice === 'save') {
+      const box = $('arm-settings-list').querySelector(`[data-arm="${row.key}"]`);
+      const mask = $('arm-settings-list').querySelector(`[data-arm-mask="${row.key}"]`);
+      value = box ? box.checked : [...mask.querySelectorAll('input[data-bit]:checked')].reduce((sum, input) => sum | Number(input.dataset.bit), 0);
+    }
+    canvasModule.setAutomaticRelationshipSetting(row.key, value);
+  }
+  setStatus(choice === 'save' ? 'Automatic relationships saved.' : "Automatic relationships are Archi's defaults again.");
+});
 
 // ---------------------------------------------------------------- the validator (W-117)
 
@@ -1315,6 +1437,7 @@ function wire() {
       { id: 'new-element', label: 'New element…', disabled: state.readOnly },
       { id: 'new-folder', label: 'New folder', disabled: state.readOnly },
       { id: 'new-view', label: 'New view', disabled: state.readOnly },
+      { id: 'generate-view', label: 'Generate view for…', disabled: state.readOnly || record.values['ar.concept.category'] !== 'Element' },
       { kind: 'separator' },
       { id: 'open', label: 'Open record page', icon: 'external' },
       { id: 'delete', label: 'Delete…', icon: 'trash', danger: true, disabled: state.readOnly || !deletable },

@@ -91,6 +91,24 @@ Properties. The file you were in does not change.
   step. Ctrl+click adds to the selection; Ctrl D, X, C and V and the arrow keys work in the
   view, Shift with an arrow by a grid step, and the format painter is in the palette. The grid
   and snapping choices are kept in this view's own storage on this device.
+- **Lay out** and **Automatic relationships** (W-115), in the Arrange menu. **Lay out left to
+  right** and **top to bottom** place the boxes selected, or every box at the top of the view
+  when fewer than two are, in layers with ELK, and route the lines between them at right
+  angles; what is nested in a box moves with it. It is archi-online's own layout: one edit
+  waiting and one Undo step. **Automatic relationships…** is Archi's preferences page for
+  nesting: whether nesting a box made from the palette, dropped from the tree or moved offers a
+  relationship, which types it offers parent to child and child to parent (a Specialization
+  always runs child to parent), and which types a nesting stands for, so their lines are not
+  drawn. Archi's defaults: six types offered, none reversed, every type hidden while nested.
+  The choices are kept in this view's own storage on this device, for every Archi model, and
+  the drawing outside Edit follows them as the editor does.
+- **Generate view for…** (W-115), in the tree's menu on an element and in New: a new view of
+  the element, or of the boxes selected on the view while editing, and the elements related to
+  them, to a depth of one to six, incoming, outgoing or both, optionally with every
+  relationship between them and with a viewpoint the elements fit. It is archi-online's own
+  operation, laid out with ELK, and it is saved at once as one revision and opened. While
+  editing it is also one Undo step there: Undo and Commit take the view away again. Outside
+  Edit, delete the view to take it away; History cannot reverse a change that creates records.
 - **Validator** (W-117), in Nendo's row, opens Archi's validator under the workbench. It is
   archi-online's: Archi 5.9's eight checks (invalid relationships, unused elements and
   relationships, empty views, viewpoint violations, nested elements without a nesting
@@ -155,6 +173,9 @@ tree.
   licences of what it includes.
 - `editor.css`: archi-online's own rules for its editor, palette and menus, with its colour
   variables mapped onto Nendo's tokens.
+- `vendor/elkjs/`: the ELK worker that layouts run in (W-115), elkjs 0.11.1 unchanged, with its
+  licence and hashes. `canvas.js` builds archi-online's layouts against
+  `tools/archi/canvas/elk.ts`, which starts this worker, rather than loading ELK on the page.
 - `kit/nendo-view-kit.js`: the view kit, byte for byte (`tools/view-kit/kit.test.mjs`).
 
 ## Checked by
@@ -202,3 +223,17 @@ with Desktop Archi 5.9's own `viewpoints.xml`: 25 viewpoints by id, name and ord
 viewpoint and element type pairs. `verify-archimate-io.mjs` also checks that
 every label expression in archi-online's fixtures reads as archi-online reads it after the
 trip through the records.
+`tools/archi/automation.test.mjs` (W-115) runs archi-online's nesting, Generate View For and
+layout on Archisurance's records with the vendored ELK worker, and checks that the writes each
+makes, read back, are the model archi-online left: a move within a parent offers nothing; a
+nesting offers only the default types (Specialization child to parent) and its line is hidden
+until nested connections are turned off; configured reverse types run child to parent; a box
+made from the palette inside another is four creates in one Undo step; a box taken out gets the
+line its nesting stood for; a generated view holds the element and those related to it without
+overlaps, as creates only; and a layout writes only places and bends, without overlaps. The
+lane lays Organisation Tree View out from the Arrange menu and commits exactly archi-online's
+layout of the same records, every box and bend, as one batch of moves after an Undo and Redo;
+shows the automatic relationships dialog with Archi's defaults and draws the line of the
+nesting above once nested connections are off; and generates a view for Board while editing,
+equal box for box to archi-online's, saved as one batch of creates, opened in the editor, and
+taken away by Undo and Commit as one batch of deletes.

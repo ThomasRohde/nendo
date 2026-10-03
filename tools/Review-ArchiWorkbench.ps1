@@ -12,7 +12,7 @@ if (-not (Test-Path -LiteralPath $api)) {
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $api)) { throw 'The view API could not be built: npm --prefix src/Nendo.Workbench run build failed.' }
 }
 # The workbench's rules over Archisurance (W-109), its validator against archi-online's (W-117), its .archimate mapping (W-120), and the kit it carries byte for byte.
-& node --test (Join-Path $PSScriptRoot 'archi/model.test.mjs') (Join-Path $PSScriptRoot 'archi/canvas.test.mjs') (Join-Path $PSScriptRoot 'archi/view.test.mjs') (Join-Path $PSScriptRoot 'archi/validation.test.mjs') (Join-Path $PSScriptRoot 'archi/definition.test.mjs') (Join-Path $PSScriptRoot 'archi/io.test.mjs') (Join-Path $PSScriptRoot 'view-kit/kit.test.mjs')
+& node --test (Join-Path $PSScriptRoot 'archi/model.test.mjs') (Join-Path $PSScriptRoot 'archi/canvas.test.mjs') (Join-Path $PSScriptRoot 'archi/view.test.mjs') (Join-Path $PSScriptRoot 'archi/validation.test.mjs') (Join-Path $PSScriptRoot 'archi/definition.test.mjs') (Join-Path $PSScriptRoot 'archi/io.test.mjs') (Join-Path $PSScriptRoot 'archi/automation.test.mjs') (Join-Path $PSScriptRoot 'view-kit/kit.test.mjs')
 if ($LASTEXITCODE -ne 0) { throw 'Archi workbench node tests failed.' }
 $run = [Guid]::NewGuid().ToString('N')
 $fixtureModule = [Uri]::new((Join-Path $PSScriptRoot 'archi/fixtures.mjs')).AbsoluteUri

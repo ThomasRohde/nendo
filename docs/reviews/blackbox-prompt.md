@@ -1046,7 +1046,14 @@ vocabulary, the examples and the resources — and not from the person.
   it again, and record what the box and the tabs show (W-114). Select the view itself, pick
   **Strategy** under Viewpoint in its properties, and record what the drawing and the palette
   show, inside Edit and outside it; then pick **None** and then the view's own viewpoint again
-  (W-116).
+  (W-116). Choose **Arrange → Lay out top to bottom** with nothing selected, then with two
+  boxes selected, and record what moved, whether any boxes overlap, what Undo did and what
+  Commit said was waiting. Open **Arrange → Automatic relationships…**, record what it offers
+  and its defaults, turn a reverse type on and drop a box into another, and record what the
+  drop asked; turn **Use nested connections** off and record what the nested boxes then show.
+  Right-click an element in the tree and choose **Generate view for…**, with depth 2: record
+  what the new view holds, how long it took, what History shows for it, and what Undo did when
+  you were editing and when you were not (W-115).
 - In any file, open a list screen whose definition binds more than three fields (in Archi.nendo,
   Concepts → Relationships binds four): record whether every bound field is drawn as a column,
   and whether a head row names each column. Give a record type a calculated count of more than
