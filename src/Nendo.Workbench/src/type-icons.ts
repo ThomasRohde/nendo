@@ -28,7 +28,7 @@ const table: Array<[IconName, string[]]> = [
   ['formSurface', ['order', 'inspection', 'check', 'audit', 'checklist', 'review', 'request', 'form', 'application']],
   ['task', ['task', 'todo', 'action', 'work', 'job', 'ticket', 'step', 'chore', 'deliverable']],
   ['document', ['document', 'note', 'report', 'page', 'article', 'log', 'file', 'entry', 'journal', 'minute', 'policy', 'contract']],
-  ['lightbulb', ['idea', 'proposal', 'suggestion', 'concept', 'opportunity', 'insight']],
+  ['lightbulb', ['proposal', 'suggestion', 'concept', 'opportunity', 'insight']],
   ['pin', ['location', 'site', 'place', 'area', 'room', 'zone', 'address', 'venue', 'station', 'region', 'country', 'city']],
   ['open', ['project', 'programme', 'program', 'portfolio', 'initiative', 'campaign', 'folder', 'collection']],
   ['tag', ['category', 'tag', 'label', 'type', 'kind', 'topic', 'theme', 'class']],
