@@ -1053,7 +1053,10 @@ vocabulary, the examples and the resources — and not from the person.
   drop asked; turn **Use nested connections** off and record what the nested boxes then show.
   Right-click an element in the tree and choose **Generate view for…**, with depth 2: record
   what the new view holds, how long it took, what History shows for it, and what Undo did when
-  you were editing and when you were not (W-115).
+  you were editing and when you were not (W-115). With a view in Edit, make the window
+  narrower step by step, and record at each width whether Nendo's row stays one line, whether
+  Add stays whole on screen, what the More menu at the row's end holds, and whether a choice
+  made there does what the same control does in the row.
 - In any file, open a list screen whose definition binds more than three fields (in Archi.nendo,
   Concepts → Relationships binds four): record whether every bound field is drawn as a column,
   and whether a head row names each column. Give a record type a calculated count of more than

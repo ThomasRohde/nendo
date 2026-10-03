@@ -18,6 +18,8 @@ export const toolbarIcons = [
   'plus', 'minus', 'search', 'fit', 'pan', 'export', 'filter', 'list', 'link', 'focus', 'more', 'check',
   'edit', 'external', 'trash', 'arrowUp', 'arrowDown', 'chevronLeft', 'chevronRight', 'indent', 'outdent',
   'layers', 'chain', 'refresh', 'settings', 'eye', 'command', 'info',
+  // W-115, for the Archi workbench's row: Copy and paste, Lay out, Undo and Redo.
+  'clipboard', 'layout', 'undo', 'redo',
 ] as const;
 export type ToolbarIcon = typeof toolbarIcons[number];
 

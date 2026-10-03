@@ -639,16 +639,16 @@ function declareToolbar() {
     ] },
     ...(state.openView && !state.readOnly && canvasModule?.createEditor
       ? [{ kind: 'toggle', id: 'edit', label: 'Edit the view', icon: 'edit', pressed: state.editing, keys: 'Ctrl+E' }] : []),
-    ...(state.editing ? editingMenus() : []),
     ...(state.editing ? [{ kind: 'group', label: 'Edits', items: [
-      { kind: 'button', id: 'undo', label: 'Undo', keys: 'Ctrl+Z', disabled: !editor?.canUndo() },
-      { kind: 'button', id: 'redo', label: 'Redo', keys: 'Ctrl+Y', disabled: !editor?.canRedo() },
+      { kind: 'button', id: 'undo', label: 'Undo', icon: 'undo', iconOnly: true, keys: 'Ctrl+Z', disabled: !editor?.canUndo() },
+      { kind: 'button', id: 'redo', label: 'Redo', icon: 'redo', iconOnly: true, keys: 'Ctrl+Y', disabled: !editor?.canRedo() },
       { kind: 'button', id: 'commit', label: state.pending > 0 ? `Commit ${state.pending}` : 'Commit', icon: 'check', keys: 'Ctrl+S', disabled: state.pending === 0 },
       { kind: 'button', id: 'discard', label: 'Discard', disabled: state.pending === 0 },
-      { kind: 'toggle', id: 'appearance', label: 'Appearance', icon: 'eye', pressed: state.styleShown },
+      { kind: 'toggle', id: 'appearance', label: 'Appearance', icon: 'eye', iconOnly: true, pressed: state.styleShown },
     ] }] : []),
-    { kind: 'toggle', id: 'validator', label: 'Validator', icon: 'info', pressed: state.validator.open },
-    ...(state.openView ? [{ kind: 'menu', id: 'export', label: 'Export', icon: 'export', items: [
+    ...(state.editing ? editingMenus() : []),
+    { kind: 'toggle', id: 'validator', label: 'Validator', icon: 'info', iconOnly: true, pressed: state.validator.open },
+    ...(state.openView ? [{ kind: 'menu', id: 'export', label: 'Export', icon: 'export', iconOnly: true, items: [
       { id: 'export-png-1', label: 'PNG', detail: 'At the view’s own size' },
       { id: 'export-png-2', label: 'PNG at 2×', detail: 'Sharp on a slide' },
       { id: 'export-png-4', label: 'PNG at 4×', detail: 'For print' },
@@ -662,12 +662,27 @@ function declareToolbar() {
       { kind: 'button', id: 'zoom-in', label: 'Zoom in', icon: 'plus', iconOnly: true, keys: 'Ctrl+Plus' },
     ] }] : []),
   ];
-  nendo.ui.setToolbar({ items, add: 'new-element' }).catch(error => leaveNativeChrome(describe(error)));
+  nendo.ui.setToolbar({ items: knownIcons(items), add: 'new-element' }).catch(error => {
+    // A Nendo from before W-115 has no clipboard, layout, undo or redo icon and refuses the
+    // row: it is declared again with words where those icons would be.
+    if (!plainIcons && /icon/i.test(describe(error))) { plainIcons = true; declareToolbar(); return; }
+    leaveNativeChrome(describe(error));
+  });
+}
+
+const NEW_ICONS = new Set(['clipboard', 'layout', 'undo', 'redo']);
+let plainIcons = false;
+function knownIcons(items) {
+  if (!plainIcons) return items;
+  const plain = item => (NEW_ICONS.has(item.icon) ? { ...item, icon: undefined, iconOnly: false } : item);
+  return items.map(item => (item.kind === 'group' ? { ...item, items: item.items.map(plain) } : plain(item)));
 }
 
 /**
  * The editor's menus in Nendo's row while editing, so they are in Ctrl K too: Arrange (W-113),
- * Copy and paste, Lay out (W-115), and the editor's settings behind the gear. Each command is
+ * Copy and paste, Lay out (W-115), and the editor's settings behind the gear, each an icon whose
+ * name shows on hover, so the row fits beside Add; Nendo puts what still does not fit in More
+ * (the owner, W-115). Each command is
  * archi-online's own, as its context menu runs it: one edit waiting to be committed and one Undo
  * step. Cut, copy, paste and duplicate keep their keys in the view.
  */
@@ -675,7 +690,7 @@ function editingMenus() {
   const settings = canvasModule?.editorSettings?.() ?? { grid: false, snap: true, guides: true };
   const item = (id, label, detail) => ({ id, label, ...(detail ? { detail } : {}) });
   return [
-    { kind: 'menu', id: 'arrange', label: 'Arrange', icon: 'layers', items: [
+    { kind: 'menu', id: 'arrange', label: 'Arrange', icon: 'layers', iconOnly: true, items: [
       { kind: 'label', label: 'Align to the last box selected' },
       item('align-left', 'Align left'), item('align-center', 'Align centre'), item('align-right', 'Align right'),
       item('align-top', 'Align top'), item('align-middle', 'Align middle'), item('align-bottom', 'Align bottom'),
@@ -685,13 +700,13 @@ function editingMenus() {
       { kind: 'separator' },
       item('order-front', 'Bring to front'), item('order-forward', 'Bring forward'), item('order-backward', 'Send backward'), item('order-back', 'Send to back'),
     ] },
-    { kind: 'menu', id: 'clipboard', label: 'Copy and paste', items: [
+    { kind: 'menu', id: 'clipboard', label: 'Copy and paste', icon: 'clipboard', iconOnly: true, items: [
       item('cut', 'Cut', 'Ctrl X in the view'), item('copy', 'Copy', 'Ctrl C in the view'), item('paste', 'Paste', 'Ctrl V in the view'),
       item('paste-reference', 'Paste as reference', 'New boxes for the same elements'), item('paste-copy', 'Paste as copy', 'New elements'),
       { kind: 'separator' },
       item('duplicate', 'Duplicate', 'Ctrl D in the view'), item('select-same-type', 'Select the same type'),
     ] },
-    { kind: 'menu', id: 'layout', label: 'Lay out', items: [
+    { kind: 'menu', id: 'layout', label: 'Lay out', icon: 'layout', iconOnly: true, items: [
       { kind: 'label', label: 'With ELK: the boxes selected, or the whole view' },
       item('layout-right', 'Left to right'), item('layout-down', 'Top to bottom'),
     ] },

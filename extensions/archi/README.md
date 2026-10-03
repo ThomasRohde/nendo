@@ -83,7 +83,11 @@ Properties. The file you were in does not change.
   The table is archi-online's port of Archi's, checked against the `viewpoints.xml` Desktop
   Archi 5.9 ships. A key no viewpoint has, from another tool, is kept and shown as unknown.
 - **Arrange**, **Copy and paste** and the **editor settings** (W-113), four menus in Nendo's row
-  while editing with **Lay out**, and so in Ctrl K. Arrange aligns the selected boxes six ways
+  while editing with **Lay out**, each an icon whose name shows on hover, and so in Ctrl K.
+  Undo, Redo, Appearance, Validator and Export are icons too, so the row fits beside Add; what
+  still does not fit in a narrow window is in Nendo's More menu at the row's end. On a Nendo
+  from before W-115, which lacks the clipboard, layout, undo and redo icons, those controls
+  carry their words instead. Arrange aligns the selected boxes six ways
   to the last one selected, matches their width, height or size, distributes three or more,
   and brings them forward or sends them back. Copy and paste holds cut, copy, paste, paste as
   reference (new boxes for the same elements) or as copy (new elements), duplicate and select

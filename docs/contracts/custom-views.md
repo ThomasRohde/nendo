@@ -741,7 +741,13 @@ in Ctrl K, shows and runs their keys, and sends each press back as the event `co
   Development strip and the frame. It uses the view switcher's segments, the labelled
   select, bordered buttons, a search box and the File menu's panel for a menu, and a
   non-mono `text` item takes the row's free space and is cut short with its whole text as a
-  title rather than push the controls onto a second line. On a record page the same
+  title rather than push the controls onto a second line. The row keeps to one line beside
+  Add, which keeps its own width (W-115): controls that do not fit go, from the end, into
+  Nendo's **More** menu at the row's end, and come back as the row widens. In More a button is
+  a command, a toggle a check, a menu's or a group's items stand under its label, and a
+  select's or a choice's options are radio items under its label; a search box stays in the
+  row, and a text, a separator or a spacer says nothing there. A choice in More sends the
+  command with the source `menu`. On a record page the same
   controls sit in the panel's header, beside its title. The frame cannot reach either. The
   toolbar is drawn again from the Workbench's copy on every redraw, and a search box the
   person is typing in is kept, caret and all.
@@ -1567,6 +1573,22 @@ echo either way. Falsified twice: without the `place` listener, `Back did not re
 to the first view with its box selected.`; without the start place, `A workbench started again
 after Back did not open the view and the box it was left on.`
 
+### One line beside Add (W-115)
+
+Measured on 2026-10-03 in a Debug build, G42 in `tools/Review-FileView.mjs`
+(`DesktopExtensionViewJourneyTests.AFileOpensOnItsOwnViewAndStudioStaysReachable`): the probe
+view declares a row as full as the Archi workbench's while editing, 21 controls with Add, and
+the journey sets the window 1,100 pixels wide over the debugging port. Add stays whole inside
+the window, the row is one line ending with More, every control the row does not show is in
+More, and Discard chosen there reaches the view as `{id: 'discard', source: 'menu'}`; at 2,600
+pixels More goes and every control is in the row. Before the change the owner saw the row
+wrap to three lines with Add cut off at the window's edge, and the guard failed against that
+code with `In a window 1100 pixels wide the row does not keep Add inside it on one line with
+More: {"width":1100,"add":{"left":1059,"right":1124,...},"lines":4,...,"actions":{"left":1059,
+"right":1084,...,"width":25}}`: the row had squeezed Add's place to 25 pixels and its button
+stood 24 pixels past the edge. `scripts/view-toolbar.test.mjs` holds what More lists for each
+kind of control.
+
 ### One row above a view (W-092)
 
 Measured on 2026-09-28. The journey (`DesktopExtensionViewJourneyTests` with
@@ -1856,3 +1878,8 @@ passed. Each guard below was falsified, seen to fail and then restored:
 - 2026-10-02 — downloads without WebView2's panel (F-237): a view's download goes to Downloads
   under a name that overwrites nothing, and the browser's panel, whose question about an `.xml`
   file froze Nendo after Keep, never opens. Measured in a real host (G41).
+- 2026-10-03 — one line beside Add (W-115): on a screen the row keeps to one line, and what
+  does not fit goes into Nendo's More menu; Add keeps its width, where a full row had pushed it
+  off the window. Four icons join the set: `clipboard`, `layout`, `undo` and `redo`. An older
+  Nendo refuses a row that names them, so a view that wants to run there declares it again
+  without them. Measured in a real host (G42). No method, no rung.

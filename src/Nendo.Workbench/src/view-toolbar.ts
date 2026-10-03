@@ -1,8 +1,8 @@
 import type { CommandSource } from './extension-api/protocol';
 import { focusWithoutInteraction } from './shell';
 import { showViewMenu } from './view-menu';
-import { viewToolbarMarkup } from './view-toolbar-markup';
-import type { CommandValue, ToolbarItem, ToolbarMenu, ViewToolbar } from './view-toolbar-model';
+import { overflowMenu, viewToolbarMarkup } from './view-toolbar-markup';
+import type { CommandValue, MenuItem, ToolbarItem, ToolbarMenu, ViewToolbar } from './view-toolbar-model';
 
 /**
  * A custom view's toolbar on the page (ADR-0013, 2026-09-28; W-090): drawn from what the view
@@ -112,12 +112,58 @@ export function drawViewToolbar(placeholder: HTMLElement, host: ToolbarHost): vo
     }
   }
   previous?.remove();
+  if (inRow) keepToOneLine(strip);
   if (focused !== null && !strip.contains(focused) && document.activeElement !== focused) focusWithoutInteraction(counterpart(strip, focused));
+}
+
+/**
+ * The Use toolbar's row keeps to one line beside Add (W-115): when the view's controls do not
+ * fit, the last ones go into More, from the end, and come back as the row widens. The search box
+ * stays. The owner saw a full row wrap to three lines with Add pushed off the window's edge.
+ */
+function fitRow(strip: HTMLElement): void {
+  const more = strip.querySelector<HTMLButtonElement>(':scope > [data-view-more]');
+  if (more === null) return;
+  // Each control is one element, in the declaration's order: its place there is its index.
+  const items = [...strip.children].filter((child): child is HTMLElement => child instanceof HTMLElement && child !== more);
+  for (const item of items) item.removeAttribute('data-view-overflow');
+  more.hidden = true;
+  const limit = strip.getBoundingClientRect().right + 0.5;
+  const overflows = (): boolean => [...strip.children].some((child) => child instanceof HTMLElement && !child.hidden
+    && !child.hasAttribute('data-view-overflow') && child.getBoundingClientRect().right > limit);
+  if (!overflows()) return;
+  more.hidden = false;
+  for (let index = items.length - 1; index >= 0 && overflows(); index--) {
+    if (!items[index].matches('.view-toolbar-search')) items[index].setAttribute('data-view-overflow', '');
+  }
+  // A separator or a spacer left at the end of what shows goes with what follows it.
+  for (let index = items.length - 1; index >= 0; index--) {
+    if (items[index].hasAttribute('data-view-overflow')) continue;
+    if (!items[index].matches('.view-toolbar-separator, .toolbar-spacer')) break;
+    items[index].setAttribute('data-view-overflow', '');
+  }
+}
+
+function keepToOneLine(strip: HTMLElement): void {
+  fitRow(strip);
+  const observer = new ResizeObserver(() => {
+    if (!strip.isConnected) { observer.disconnect(); return; }
+    fitRow(strip);
+  });
+  observer.observe(strip);
+}
+
+/** The places in the declaration of the controls the row has put in More. */
+function overflowed(strip: HTMLElement): number[] {
+  return [...strip.children].filter((child) => !child.hasAttribute('data-view-more'))
+    .flatMap((child, index) => (child.hasAttribute('data-view-overflow') ? [index] : []));
 }
 
 function wire(strip: HTMLElement, host: ToolbarHost): void {
   strip.addEventListener('click', (event) => {
     const target = event.target as Element;
+    const moreButton = target.closest<HTMLButtonElement>('button[data-view-more]');
+    if (moreButton !== null) { void openMore(moreButton, strip, host); return; }
     const menuButton = target.closest<HTMLButtonElement>('button[data-view-menu]');
     if (menuButton !== null) { void openMenu(menuButton, host); return; }
     const button = target.closest<HTMLButtonElement>('button[data-view-command]');
@@ -166,11 +212,25 @@ async function openMenu(button: HTMLButtonElement, host: ToolbarHost): Promise<v
   button.setAttribute('aria-expanded', 'true');
   const index = await showViewMenu(menu.items, { below: button.getBoundingClientRect() }, menu.label, button);
   button.setAttribute('aria-expanded', 'false');
-  const item = index === null ? undefined : menu.items[index];
+  sendPicked(index === null ? undefined : menu.items[index], host);
+}
+
+function sendPicked(item: MenuItem | undefined, host: ToolbarHost): void {
   if (item === undefined) return;
   if (item.kind === 'item' && !item.disabled) host.send(item.id, null, 'menu');
   else if (item.kind === 'check' && !item.disabled) host.send(item.id, !item.checked, 'menu');
   else if (item.kind === 'radio' && !item.disabled) host.send(item.id, item.value, 'menu');
+}
+
+/** More: the controls the row has no room for, as one of Nendo's menus. */
+async function openMore(button: HTMLButtonElement, strip: HTMLElement, host: ToolbarHost): Promise<void> {
+  if (host.toolbar === null) return;
+  const entries = overflowMenu(host.toolbar.items, overflowed(strip));
+  if (entries.length === 0) return;
+  button.setAttribute('aria-expanded', 'true');
+  const index = await showViewMenu(entries, { below: button.getBoundingClientRect() }, 'More', button);
+  button.setAttribute('aria-expanded', 'false');
+  sendPicked(index === null ? undefined : entries[index], host);
 }
 
 /** Put the person in a view's search box, as its key or its Ctrl K entry asks. */
