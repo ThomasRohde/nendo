@@ -91,6 +91,8 @@ Studio is the part of Nendo that the host provides for every file. No file conte
 
 Three more items sit beside Studio in the navigation. **Use** opens the screens the file defines (lists, boards, calendars, record pages); it has nothing to show until the file has screens. Under it the navigation lists the file's front page, its views and its record types, each with an icon, so you can go straight to one. **Agent** controls agent access. **Help** is built in and works with no file open.
 
+The places you keep open are tabs across the top of the window, and each tab has its own Back and Forward. **Ctrl T** or **+** opens a new tab on the screen you are on, **Ctrl W** closes one and **Ctrl Tab** moves to the next. Ctrl-click or middle-click anything in the navigation to open it in a new tab. Under the tabs, the address row shows where you are, and the box at its right end (**Ctrl K**) goes anywhere or runs a command. The theme (System, Light or Dark) is at the right end of the status bar.
+
 ## Your first record type and records, by hand
 
 You do not need an agent for this.

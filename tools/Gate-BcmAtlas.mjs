@@ -269,7 +269,7 @@ async (page) => {
   assert(JSON.stringify(svg.legend) === JSON.stringify(map.legend), 'The SVG\u2019s legend is not the map\u2019s: ' + JSON.stringify(svg.legend));
   assert(svg.heading === 'Capability map' && svg.texts > map.names.length, `The SVG's text is not text: ${svg.texts} text elements.`);
   assert(!/var\(|<style|foreignObject/.test(svg.text), 'The SVG uses what a slide editor may not keep.');
-  assert(svg.background === '#f3f4f6', 'The light theme\u2019s export is not on the light canvas: ' + svg.background);
+  assert(svg.background === '#f9f9fa', 'The light theme\u2019s export is not on the light canvas: ' + svg.background);
   results.export = { name: svg.name, width: svg.width, height: svg.height, cards: svg.names.length };
   // The camera plays no part: zoomed in and panned, the same file.
   await view.click('#zoom-in');
@@ -286,12 +286,12 @@ async (page) => {
   results.export.png = [png.width, png.height];
   // In the dark theme the export takes the dark canvas; Light colours for print, white paper and dark ink.
   await page.evaluate(value => window.broker.pushTheme(value), 'dark');
-  await until(value => getComputedStyle(document.documentElement).backgroundColor === value, 'rgb(15, 17, 21)', 'The dark theme never reached the view.');
+  await until(value => getComputedStyle(document.documentElement).backgroundColor === value, 'rgb(39, 40, 41)', 'The dark theme never reached the view.');
   const dark = await exported('svg', false), print = await exported('svg', true);
-  assert(dark.background === '#0f1115', 'The dark theme\u2019s export is not on the dark canvas: ' + dark.background);
+  assert(dark.background === '#272829', 'The dark theme\u2019s export is not on the dark canvas: ' + dark.background);
   assert(print.background === '#ffffff' && print.text.includes('fill="#14171c"'), 'Light colours for print did not give white paper and dark ink.');
   await page.evaluate(value => window.broker.pushTheme(value), 'light');
-  await until(value => getComputedStyle(document.documentElement).backgroundColor === value, 'rgb(243, 244, 246)', 'The light theme never came back.');
+  await until(value => getComputedStyle(document.documentElement).backgroundColor === value, 'rgb(249, 249, 250)', 'The light theme never came back.');
   assert(await view.evaluate(() => window.__bcmLayouts) === 1, 'Exporting packed the map again; it must write the packing it has.');
 
   // A change made elsewhere refreshes the cards but leaves the camera where the person put it.
@@ -340,7 +340,7 @@ async (page) => {
   await until(() => /635 total$/.test(document.getElementById('status').textContent) && document.getElementById('notice').hidden, null, 'The map did not come back when the hierarchy did.');
 
   // Both themes take the Workbench's tokens, and a narrow pane does not scroll sideways.
-  for (const [mode, canvas] of [['dark', 'rgb(15, 17, 21)'], ['light', 'rgb(243, 244, 246)']]) {
+  for (const [mode, canvas] of [['dark', 'rgb(39, 40, 41)'], ['light', 'rgb(249, 249, 250)']]) {
     await page.evaluate(value => window.broker.pushTheme(value), mode);
     await until(value => getComputedStyle(document.documentElement).backgroundColor === value, canvas, `The ${mode} theme never reached the view.`);
   }

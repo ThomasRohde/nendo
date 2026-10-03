@@ -147,10 +147,11 @@ try {
   await waitFor(() => evaluate(`document.querySelector('#nav-use') && !document.querySelector('#nav-use').disabled`), 'an open file');
   await ready();
   // The picture is the page at an emulated size, not the window, so Windows' own Minimise,
-  // Maximise and Close are not in it. The top bar keeps no width free for them (W-093), and
-  // looks as it does in a browser.
+  // Maximise and Close are not in it, and neither is the Mica behind the page, which a
+  // screenshot of the page draws as nothing. The title band keeps no width free for the
+  // buttons, and the ground is painted as a browser paints it (--mica), as it looks there.
   await waitFor(() => evaluate(`document.documentElement.dataset.titleBar === 'window'`), 'the title bar the host answered with');
-  await evaluate(`delete document.documentElement.dataset.titleBar`);
+  await evaluate(`delete document.documentElement.dataset.titleBar; document.documentElement.dataset.backdrop = 'none'`);
   const measured = await evaluate('`${innerWidth}x${innerHeight}@${devicePixelRatio}`');
   console.log(`Capturing at ${measured} (${layoutWidth * deviceScale}x${layoutHeight * deviceScale} pixels).`);
 
@@ -189,6 +190,17 @@ try {
     }
   }
   await fs.writeFile(path.join(output, 'surfaces.json'), JSON.stringify({ hasOverview, kinds: [...byKind.entries()] }, null, 2));
+
+  // Two places kept open, so the tabs in the title band show what they are: the shots are
+  // taken in the first, and the second stays on History.
+  await clickFound('#nav-use');
+  await ready();
+  await clickFound('#tab-new');
+  await ready();
+  await clickFound('#nav-history');
+  await ready();
+  await clickFound('[data-tab="0"]');
+  await ready();
 
   const kindShots = [
     ['board', k => k.includes('board')],
