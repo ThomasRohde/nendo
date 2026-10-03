@@ -48,7 +48,7 @@ import { storageKindName } from './extension-model';
 import { icon, type IconName } from './icons';
 import { openPalette } from './command-palette';
 import { matchShortcut, shortcut, shortcutForKeys, shortcutsShownFrom, shortcutsStorageKey, type ShortcutId } from './shortcuts';
-import { drawTabs, wireOpenInNewTab } from './workspace-tabs';
+import { closeActiveTab, cycleTab, drawTabs, newTab, wireOpenInNewTab } from './workspace-tabs';
 import { drawRailPlaces } from './rail-places';
 import { typeGlyph } from './type-icons';
 import './styles.css';
@@ -472,6 +472,12 @@ document.addEventListener('keydown', event => {
 function runShortcut(id: ShortcutId): void {
   if (id === 'palette') { openPalette(); return; }
   if (id === 'hints') { shortcutsToggle.click(); return; }
+  // The tabs belong to the window, not to a control on it (G).
+  if (id === 'newTab' || id === 'closeTab' || id === 'nextTab') {
+    if (state.session.fileName === null) return;
+    if (id === 'newTab') newTab(); else if (id === 'closeTab') closeActiveTab(); else cycleTab(1);
+    return;
+  }
   if (id === 'file') {
     fileDetails.open = true;
     fileDetails.querySelector<HTMLButtonElement>('#file-actions button:not(:disabled)')?.focus();

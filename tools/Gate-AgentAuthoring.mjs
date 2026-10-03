@@ -1594,25 +1594,26 @@ async function assertBackAndForwardWalkTheTrail(label) {
   await waitFor(() => evaluate(`document.querySelector('[data-testid="drill-pill"]')?.textContent?.includes('Status: Accepted')`),
     `the drilled list again, reached with Alt+Right (${label})`);
 
-  // The two segments are one control dressed alike, in both themes. Measured rather than
-  // looked at: a screenshot shows two rounded boxes whether or not they agree, and the
-  // point of sharing the rule is that they cannot drift.
+  // The arrows lead the address row (Mica with tabs, docs/design/mica-direction.md): as tall as
+  // the breadcrumb box and the command box beside them, borderless, in both themes. Measured
+  // rather than looked at: a screenshot shows a row whether or not its controls line up.
   for (const theme of ['light', 'dark']) {
     await evaluate(`document.documentElement.setAttribute('data-theme', ${JSON.stringify(theme)})`);
     const measured = await evaluate(`(() => {
       const box = element => { const s = getComputedStyle(element); return [s.borderTopColor, s.borderTopWidth, s.borderRadius, s.backgroundColor, s.padding].join('|'); };
       const button = element => { const s = getComputedStyle(element); return [s.width, s.height, s.borderRadius].join('|'); };
+      const height = element => Math.round(element.getBoundingClientRect().height);
       return {
-        group: [box(document.querySelector('.history-control')), box(document.querySelector('.theme-control'))],
-        button: [button(document.querySelector('#nav-back')), button(document.querySelector('[data-theme-option="light"]'))],
+        group: box(document.querySelector('.history-control')),
+        row: [height(document.querySelector('#nav-back')), height(document.querySelector('.workspace-identity')), height(document.querySelector('#palette-open'))],
         idle: getComputedStyle(document.querySelector('#nav-forward')).opacity,
         live: getComputedStyle(document.querySelector('#nav-back')).opacity,
       };
     })()`);
-    assert(measured.group[0] === measured.group[1],
-      `The two header segments disagree about their own box in ${theme} (${label}): ${measured.group.join(' vs ')}`);
-    assert(measured.button[0] === measured.button[1],
-      `The arrows and the theme buttons are different sizes in ${theme} (${label}): ${measured.button.join(' vs ')}`);
+    assert(measured.group.split('|')[1] === '0px',
+      `The arrows sit in a bordered box in ${theme} (${label}): ${measured.group}`);
+    assert(new Set(measured.row).size === 1,
+      `The arrows, the breadcrumb and the command box are not one height in ${theme} (${label}): ${measured.row.join(' / ')}`);
     assert(Number(measured.live) === 1 && Number(measured.idle) < 0.6,
       `A direction that leads nowhere is not told apart from one that does in ${theme} (${label}): ${measured.live} / ${measured.idle}`);
     await screenshot(`back-forward-${theme}-${label}.png`);

@@ -160,13 +160,14 @@ It bites heredocs hardest, since they carry a whole file in one command — a
 
 ## UI work
 
-- Use [`docs/design/console-direction.md`](docs/design/console-direction.md) as
-  the selected visual direction (Console, chosen 2026-09-26). The Molded Workbench
-  mockups are superseded for look and feel. Their workflow coverage still says
-  which states each area has to present.
-- Preserve the shared shell (rail, top bar, status bar), the permanent Studio
-  route and the Nendo logo treatment. Colours come from the tokens in
-  `02-tokens.css`, never from a literal. One screenshot is not an isolated page.
+- Use [`docs/design/mica-direction.md`](docs/design/mica-direction.md) as
+  the selected visual direction (Mica with tabs, chosen 2026-10-03). Console and
+  the Molded Workbench mockups are superseded for look and feel. The mockups'
+  workflow coverage still says which states each area has to present.
+- Preserve the shared shell (Mica title band with the tabs, navigation, address
+  row, status line), the permanent Studio route and the Nendo logo treatment.
+  Colours come from the tokens in `02-tokens.css`, never from a literal. One
+  screenshot is not an isolated page.
 - Support the device theme preference: System follows Windows; Light and Dark are
   explicit overrides. Apply the effective theme to the app frame, Studio, custom
   surfaces, dialogs, title bar and safe mode, and verify UI work in both states.

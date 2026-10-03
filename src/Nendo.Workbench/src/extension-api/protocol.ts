@@ -77,13 +77,13 @@ export const extensionLimits = {
  */
 export const hostKeys: readonly string[] = Object.freeze([
   'Ctrl+K', 'Ctrl+1', 'Ctrl+2', 'Ctrl+3', 'Ctrl+4', 'Ctrl+5', 'Ctrl+6', 'Ctrl+7',
-  'F1', 'Ctrl+B', 'Alt+F', 'Ctrl+/', 'Alt+ArrowLeft', 'Alt+ArrowRight',
+  'F1', 'Ctrl+B', 'Alt+F', 'Ctrl+/', 'Alt+ArrowLeft', 'Alt+ArrowRight', 'Ctrl+T', 'Ctrl+W', 'Ctrl+Tab',
 ]);
 
 /** Keys named by a word, in the case a normalised key spells them. */
 const namedKeys = [
   'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown',
-  'Delete', 'Backspace', 'Enter', 'Space', 'Plus',
+  'Delete', 'Backspace', 'Enter', 'Space', 'Tab', 'Plus',
   'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
 ];
 const symbolKeys = '=-[];\',./\\`';

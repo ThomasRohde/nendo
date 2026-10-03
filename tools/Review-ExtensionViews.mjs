@@ -210,9 +210,9 @@ function closeHostDialog(seconds = 10) {
 // W-093: the title bar as the page draws it and as Windows holds it, on the screen showing. The
 // controls are every one in the bar a person can see; the host's diagnostics answer where the page
 // starts in the window, the regions Windows holds and what Windows answers at a point: an empty
-// part of the bar, Minimise, Maximise, Close and the content. In a narrow, tall window the rail is
-// the bar across the top and the top bar sits under it, so only there may more than the bar stand
-// above the content.
+// part of the bar, Minimise, Maximise, Close and the content. Under the bar is the address row
+// (Mica with tabs), and nothing else stands above the content. In a narrow, tall window the rail
+// is the bar across the top and the address row sits under it.
 async function measureTitleBar(where, narrow = false) {
   let last = null;
   const settled = await waitFor(async () => {
@@ -223,11 +223,13 @@ async function measureTitleBar(where, narrow = false) {
           if (s.overflowX === 'visible' && s.overflowY === 'visible') continue; const c = a.getBoundingClientRect();
           left = Math.max(left, c.left); top = Math.max(top, c.top); right = Math.min(right, c.right); bottom = Math.min(bottom, c.bottom); }
         return right > left && bottom > top ? { x: left, y: top, width: right - left, height: bottom - top } : null; };
-      const controls = [...document.querySelectorAll('.workspace-header, .rail')].flatMap(band =>
+      const controls = [...document.querySelectorAll('.workspace-header, .rail, .tab-strip')].flatMap(band =>
         [...band.querySelectorAll('button, a[href], input, select, textarea, summary, label, [tabindex]:not([tabindex="-1"])')]
           .filter(e => e.getBoundingClientRect().top < 48).map(e => ({ name: e.id || e.getAttribute('aria-label') || e.className || e.tagName, box: visible(e, band) })))
         .filter(c => c.box !== null).map(c => ({ name: c.name, ...c.box }));
-      return { controls, width: document.documentElement.clientWidth, content: document.querySelector('.workbench').getBoundingClientRect().top };
+      const header = document.querySelector('.workspace-header').getBoundingClientRect();
+      return { controls, width: document.documentElement.clientWidth, content: document.querySelector('.workbench').getBoundingClientRect().top,
+        headerTop: header.top, headerBottom: header.bottom };
     })()`);
     if (drawn === null) return null;
     const probe = await gate('diagnostics.titleBar', { points: [] });
@@ -241,7 +243,7 @@ async function measureTitleBar(where, narrow = false) {
     const d = await gate('diagnostics.titleBar', { points });
     const within = (c, r) => r.x <= c.x + 1 && r.y <= c.y + 1 && r.x + r.width >= c.x + c.width - 1 && r.y + r.height >= Math.min(c.y + c.height, d.bar.height) - 1;
     last = {
-      where, pageTop: d.pageTop, pageLeft: d.pageLeft, bar: d.bar, content: drawn.content, empty,
+      where, pageTop: d.pageTop, pageLeft: d.pageLeft, bar: d.bar, content: drawn.content, headerTop: drawn.headerTop, headerBottom: drawn.headerBottom, empty,
       codes: d.hits.map(h => h.code),
       caption: d.caption.some(r => r.x <= 0.5 && r.y <= 0.5 && r.height >= d.bar.height - 0.5 && r.width >= d.clientWidth - d.bar.right - 1),
       uncovered: drawn.controls.filter(c => !d.passthrough.some(r => within(c, r))).map(c => c.name),
@@ -252,7 +254,8 @@ async function measureTitleBar(where, narrow = false) {
   }, 'every control in the title bar passed through on ' + where).catch(error => { throw new Error(error.message + ' ' + JSON.stringify(last)); });
   assert(settled.pageTop === 0 && settled.pageLeft === 0, `The page does not start at the window's top edge on ${where}: ` + JSON.stringify(settled));
   assert(Math.abs(settled.bar.height - 48) < 0.5, `Windows' title bar is not the tall one on ${where}: ` + JSON.stringify(settled));
-  assert(narrow || settled.content <= settled.bar.height + 0.5, `More than the title bar stands above the content on ${where}: ` + JSON.stringify(settled));
+  assert(narrow || (settled.headerTop <= settled.bar.height + 1.5 && settled.content <= settled.headerBottom + 0.5),
+    `More than the title bar and the address row stands above the content on ${where}: ` + JSON.stringify(settled));
   assert(settled.caption && settled.empty !== null, `Windows does not hold the bar as the caption on ${where}: ` + JSON.stringify(settled));
   assert(settled.underButtons.length === 0, `A control sits under Windows' own buttons on ${where}: ` + JSON.stringify(settled));
   assert(settled.codes.join() === '2,8,9,20,1', `Windows does not answer caption, Minimise, Maximise, Close and content on ${where}: ` + JSON.stringify(settled));
@@ -691,7 +694,7 @@ try {
     const d = await gate('diagnostics.titleBar', { points: [] });
     return d.passthrough.length > 1 && !d.passthrough.some(r => r.width >= d.clientWidth - d.bar.right - 1) ? true : null;
   }, 'the closed File menu giving the bar back to the window');
-  check(`G32 the top bar is the window's title bar: the page starts at the window's top edge and ${titleBar.above} px stand above the content, the bar's own ${menuBar.bar.height}; Windows holds it as the caption and passes each of its ${titleBar.controls} controls through, none under Windows' own ${Math.round(menuBar.bar.right)} px of buttons, which answer as Minimise, Maximise and Close; an open menu takes the whole bar and gives it back`);
+  check(`G32 the title band is the window's title bar: the page starts at the window's top edge and ${titleBar.above} px stand above the content, the bar's own ${menuBar.bar.height} and the address row under it; Windows holds it as the caption and passes each of its ${titleBar.controls} controls through, none under Windows' own ${Math.round(menuBar.bar.right)} px of buttons, which answer as Minimise, Maximise and Close; an open menu takes the whole bar and gives it back`);
 
   // G28: a press in the strip, Nendo's own Add and a Ctrl K entry each reach the view as a command.
   const heard = () => inFrame(chromeFrame, 'probe.state.commands.map(c => [c.id, c.value, c.source].join(":"))');

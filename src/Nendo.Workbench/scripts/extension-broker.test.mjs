@@ -992,7 +992,7 @@ test('G30: a key handed back is taken only when it is Nendo’s or one the toolb
   t.after(() => close(h));
   view.send({ t: 'key', keys: 'Ctrl+K' });
   view.send({ t: 'key', keys: 'Ctrl+0' });
-  view.send({ t: 'key', keys: 'Ctrl+W' });
+  view.send({ t: 'key', keys: 'Ctrl+E' });
   view.send({ t: 'key', keys: ['Ctrl+K'] });
   await settle();
   assert.deepEqual(h.keys, ['Ctrl+K'], 'A key the view never declared, or not a key at all, was run.');

@@ -347,7 +347,7 @@ export function viewApiReference() {
         'On a screen the controls sit in Nendo\'s row under the top bar, before Add; on a record page, in the panel\'s header. Ctrl K lists them under the view\'s title.',
         'Nendo\'s row keeps to one line: controls that do not fit go, from the end, into Nendo\'s More menu (a toggle as a check, a menu\'s or a group\'s items under its label, a select\'s or a choice\'s options as radio items) and come back as the row widens. A search box stays; a text gives way. A choice made in More reaches the view as a command with source menu.',
       ],
-      keys: 'Ctrl, Alt and Shift in that order, then one key: a letter, a digit, a symbol, Plus, an arrow, Home, End, PageUp, PageDown, Delete, Backspace, Enter, Space, or F2 to F12, as "Ctrl+Shift+F" or "Alt+ArrowUp". Every key but F2 to F12 needs Ctrl or Alt. No two controls declare one key, and Nendo\'s own keys cannot be declared: pressed in a view, api.js hands those to Nendo.',
+      keys: 'Ctrl, Alt and Shift in that order, then one key: a letter, a digit, a symbol, Plus, an arrow, Home, End, PageUp, PageDown, Delete, Backspace, Enter, Space, Tab, or F2 to F12, as "Ctrl+Shift+F" or "Alt+ArrowUp". Every key but F2 to F12 needs Ctrl or Alt. No two controls declare one key, and Nendo\'s own keys cannot be declared: pressed in a view, api.js hands those to Nendo.',
       hostKeys,
       icons: toolbarIcons,
     },

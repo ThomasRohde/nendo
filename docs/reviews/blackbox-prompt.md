@@ -720,17 +720,24 @@ Ask the person to look at the app and tell you, in their words:
   long it took to appear, and whether it said who was writing. Ask them what they would
   click to stop it, and record whether what they name actually would.
 - Can they reach approval and the file actions with the keyboard alone?
-- The window has a new look: dense, dark-first, one violet accent. Ask them, before you
-  say anything, whether it reads as one application in Light and in Dark, and whether any
+- The window has a new look: a Windows 11 app on Mica, with the Windows blue accent, the
+  file's record types in the navigation and tabs across the top. Ask them, before you say
+  anything, whether it reads as one native application in Light and in Dark, and whether any
   screen still looks like it belongs to an older one. Name the screen.
+- Tabs. Ask them to keep two record types and Structure open at once and move between them,
+  first with the pointer and then with the keyboard alone. Record what they tried first
+  (Ctrl T, the + button, a Ctrl-click or a middle click in the navigation), whether Back and
+  Forward in one tab ever moved another, what a tab is called, and what Ctrl W did on the
+  last tab. Ask whether each record type's icon in the navigation says what it is, and name
+  any that misleads.
 - Ask them to get to Structure, then to a different view of a record type, then to
   Create backup, without touching the navigation on the left. Watch whether they find the
   box at the top (Ctrl K) and whether what they type finds what they meant. Does a command
   that is switched off on screen show up anyway? With unsaved typing on a record page, does
   a command that leaves the page ask first, as the click would?
-- Turn on the keyboard button at the right of the top bar. Does every control that has a
+- Turn on the keyboard button at the right of the status bar. Does every control that has a
   key now say which, and does the key do what the hint says? Close and reopen the window:
-  is the choice still there? Then press Ctrl 1 to Ctrl 7, F1, Ctrl B and Alt F from inside
+  is the choice still there? Then press Ctrl 1 to Ctrl 7, F1, Ctrl B, Alt F, Ctrl T, Ctrl W and Ctrl Tab from inside
   a text field, and say which of them did something you did not want there.
 
 With two disposable files open, revoke automatic-action consent in one and
@@ -948,7 +955,7 @@ vocabulary, the examples and the resources — and not from the person.
   leaves different members.
   Type in Find,
   press Enter, and record what dimmed and what opened.
-- On any Use screen, record what stands between the top bar and the screen's content, row by
+- On any Use screen, record what stands between the tabs and the screen's content, row by
   row, and where the record type and the view are chosen. Switch both from the breadcrumb
   with the pointer and with the keyboard, and record whether Ctrl K still offers them. On a
   custom view's screen, record whether the view's controls and Add share one row, what the

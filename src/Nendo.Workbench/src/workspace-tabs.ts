@@ -166,20 +166,21 @@ strip.addEventListener('keydown', (event) => {
   }
 });
 
-/**
- * Ctrl+T, Ctrl+W and Ctrl+Tab, as File Explorer and Terminal have them. They stand aside for a
- * modal, like the window's other keys.
- */
+/** The next tab, or the one before it: Ctrl Tab is in the shortcut table, Ctrl Shift Tab here. */
+export function cycleTab(step: 1 | -1): void {
+  void activateTab((active + step + tabs.length) % tabs.length);
+}
+
+/** The tab on screen goes, as Ctrl W does. */
+export function closeActiveTab(): void {
+  void closeTab(active);
+}
+
 document.addEventListener('keydown', (event) => {
-  if (event.defaultPrevented || !event.ctrlKey || event.altKey || event.metaKey) return;
+  if (event.defaultPrevented || !event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey || event.key !== 'Tab') return;
   if (document.querySelector('dialog[open]') !== null || state.session.fileName === null) return;
-  const key = event.key.toLowerCase();
-  if (key === 't' && !event.shiftKey) { event.preventDefault(); newTab(); }
-  else if (key === 'w' && !event.shiftKey) { event.preventDefault(); void closeTab(active); }
-  else if (event.key === 'Tab') {
-    event.preventDefault();
-    void activateTab((active + (event.shiftKey ? -1 : 1) + tabs.length) % tabs.length);
-  }
+  event.preventDefault();
+  cycleTab(-1);
 });
 
 /**

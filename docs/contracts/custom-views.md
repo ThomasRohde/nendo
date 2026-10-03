@@ -305,7 +305,7 @@ A view is shown in one of two places:
   belongs to the file, as the front page does. The first picker of the Use
   breadcrumb lists the front page, then each view of the file in authored order,
   then the record types, and the view's frame fills the screen. The view's declared
-  controls share the row under the top bar. Nendo's Add is there only when the view
+  controls share the row under the address row. Nendo's Add is there only when the view
   names an `add`, because a view of the file has no record type of its own to add to.
   Back and Forward know it as a place, `ui.openScreen` opens it by its node ID, and
   Studio lists it under *Screens of the file*.
@@ -735,7 +735,7 @@ in Ctrl K, shows and runs their keys, and sends each press back as the event `co
   Nothing a view declares becomes markup, a class, a style or an attribute name. The icons
   are the Workbench's own outline icons, by name.
 - **Where it is drawn.** On a screen, the toolbar is drawn in the Workbench's markup in the
-  Use toolbar's one row under the top bar, before Nendo's Add (W-092): the breadcrumb above
+  Use toolbar's one row under the address row, before Nendo's Add (W-092): the breadcrumb above
   holds the record type and the view, so that row holds only what acts on the screen. A
   page without that row draws the strip at the top of the view's placeholder, above the
   Development strip and the frame. It uses the view switcher's segments, the labelled
@@ -776,7 +776,7 @@ in Ctrl K, shows and runs their keys, and sends each press back as the event `co
   A disabled control is left out.
 - **Keys.** A declared key is `Ctrl`, `Alt` and `Shift`, in that order, and one key: a
   letter, a digit, a symbol, `Plus`, an arrow, Home, End, PageUp, PageDown, Delete,
-  Backspace, Enter, Space, or F2 to F12. Every key but F2 to F12 needs Ctrl or Alt. Shift on
+  Backspace, Enter, Space, Tab, or F2 to F12. Every key but F2 to F12 needs Ctrl or Alt. Shift on
   a symbol is left to the keyboard. Nendo's own keys (`hostKeys` in `protocol.ts`, the
   shortcut table's) are refused. The Workbench runs a declared key wherever focus is in its
   document, except in a text field. It shows the key in the control's `aria-keyshortcuts`,

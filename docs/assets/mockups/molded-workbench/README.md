@@ -1,7 +1,7 @@
 # Nendo Molded Workbench mockups
 
 - **Direction:** A — Molded Workbench
-- **Status:** Superseded for look and feel on 2026-09-26 by [Console](../../../design/console-direction.md). Kept as a record of the workflow states each area has to present. Not implementation evidence and not a containing-UI architecture decision
+- **Status:** Superseded for look and feel on 2026-09-26 by [Console](../../../design/console-direction.md), and Console on 2026-10-03 by [Mica with tabs](../../../design/mica-direction.md). Kept as a record of the workflow states each area has to present. Not implementation evidence and not a containing-UI architecture decision
 - **Generated:** 2026-09-01
 - **Generator:** Codex built-in image generation
 - **Brand reference:** [`../../brand/nendo.png`](../../brand/nendo.png)

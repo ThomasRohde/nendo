@@ -494,11 +494,50 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
   :root[data-rail="collapsed"] .rail-foot::before { margin: 6px 6px 2px; }
 }
 
-/* A narrow window keeps the bar across the top; tabs wait for a wider one. */
+/* A narrow window keeps the navigation as one bar across the top, which is then the title bar;
+   tabs, the file's places and the section headings wait for a wider window. */
 @media (max-width: 840px) {
   .tab-strip { display: none; }
+  .workspace { padding: 0; }
   .workspace-layer { margin-top: 0; border: 0; border-radius: 0; }
-  .rail-head, .nav-places, .rail-foot::before, .studio-nav::before { display: none; }
+  .rail-head, .nav-places, .rail-foot::before, .studio-nav::before,
+  .studio-nav .nav-section, .rail .nav-symbol { display: none; }
+
+  .rail {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+    height: var(--title-bar-height, 48px);
+    padding: 0 8px 0 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .brand { flex: none; margin: 0; }
+
+  .primary-nav,
+  .studio-nav,
+  .rail-foot {
+    display: flex;
+    flex: none;
+    flex-direction: row;
+    gap: 2px;
+    margin: 0;
+  }
+
+  .rail-foot { margin-left: auto; }
+  .help-nav { flex: none; margin: 0; }
+
+  .rail .nav-item {
+    width: auto;
+    min-height: 32px;
+    padding: 0 10px;
+  }
+
+  .rail .nav-item.nav-section { margin: 0; }
+
+  .palette-trigger { width: 36px; padding: 0; justify-content: center; }
 }
 
 /* A record type whose name suggests no icon: its letters on a tile in one of the choice tones

@@ -89,7 +89,7 @@ Studio is the part of Nendo that the host provides for every file. No file conte
 | **History** | Every saved change, in order, with its lane and its reversibility. | **View changes** on an entry, and **Compensate** where Nendo can reverse it. |
 | **Health** | Whether the file is ready for editing, read-only or in recovery, and the last integrity check. | Create and restore backups, export readable data, re-inspect the file, and approve automatic actions on this computer. |
 
-Three more items sit beside Studio in the navigation. **Use** opens the screens the file defines (lists, boards, calendars, record pages); it has nothing to show until the file has screens. **Agent** controls agent access. **Help** is built in and works with no file open.
+Three more items sit beside Studio in the navigation. **Use** opens the screens the file defines (lists, boards, calendars, record pages); it has nothing to show until the file has screens. Under it the navigation lists the file's front page, its views and its record types, each with an icon, so you can go straight to one. **Agent** controls agent access. **Help** is built in and works with no file open.
 
 ## Your first record type and records, by hand
 

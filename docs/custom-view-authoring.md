@@ -474,7 +474,7 @@ the `place` event by showing the place, never with a new step. Ask
 A view draws its content, and Nendo draws its controls (ADR-0013, 2026-09-28). Declare
 them, and Nendo draws them with its own parts:
 
-- on a screen, in the one row under Nendo's top bar, before Nendo's Add (the breadcrumb
+- on a screen, in the one row under Nendo's address row, before Nendo's Add (the breadcrumb
   above it names the record type and the view), or in your panel's header on a record
   page;
 - in Ctrl K, under your view's title, with their keys;

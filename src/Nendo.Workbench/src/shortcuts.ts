@@ -11,7 +11,7 @@
 
 export type ShortcutId =
   | 'palette' | 'use' | 'data' | 'structure' | 'surfaces' | 'history' | 'health' | 'agent'
-  | 'help' | 'back' | 'forward' | 'rail' | 'file' | 'hints';
+  | 'help' | 'back' | 'forward' | 'rail' | 'file' | 'hints' | 'newTab' | 'closeTab' | 'nextTab';
 
 export interface Shortcut {
   id: ShortcutId;
@@ -37,6 +37,10 @@ export const shortcuts: readonly Shortcut[] = [
   { id: 'rail', keys: 'Ctrl B', aria: 'Control+B', label: 'Fold or open the navigation' },
   { id: 'file', keys: 'Alt F', aria: 'Alt+F', label: 'File menu' },
   { id: 'hints', keys: 'Ctrl /', aria: 'Control+/', label: 'Show or hide keyboard shortcuts' },
+  // The places kept open as tabs (workspace-tabs.ts), as File Explorer and Terminal have them.
+  { id: 'newTab', keys: 'Ctrl T', aria: 'Control+T', label: 'New tab' },
+  { id: 'closeTab', keys: 'Ctrl W', aria: 'Control+W', label: 'Close tab' },
+  { id: 'nextTab', keys: 'Ctrl Tab', aria: 'Control+Tab', label: 'Next tab' },
 ];
 
 export function shortcut(id: ShortcutId): Shortcut {
@@ -75,6 +79,9 @@ export function matchShortcut(event: KeyLike): ShortcutId | null {
     if (key === 'k') return 'palette';
     if (key === 'b') return 'rail';
     if (key === '/') return 'hints';
+    if (key === 't') return 'newTab';
+    if (key === 'w') return 'closeTab';
+    if (key === 'Tab') return 'nextTab';
     const numbered: Record<string, ShortcutId> = {
       '1': 'use', '2': 'data', '3': 'structure', '4': 'surfaces', '5': 'history', '6': 'health', '7': 'agent',
     };

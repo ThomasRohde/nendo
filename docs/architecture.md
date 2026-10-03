@@ -480,31 +480,44 @@ adds this: an unsolicited `{protocolVersion, event, payload}` message that carri
 a route name. The message has no `requestId`. Thus a renderer at versions 2–6
 drops it, as it drops any other message that it did not request.
 
-### The top bar is the title bar
+### The title band is the title bar
 
-Since W-093 the window draws no title bar of its own
-([console direction](design/console-direction.md)). `MainWindow.TitleBar.cs`
-extends the page into the title bar and asks Windows for the tall title bar, 48
-pixels, the top bar's own height. The page fills the window from its top edge, so the
-top bar and the rail's head are the window's top row, and 48 pixels stand above every
-screen's content where 80 did (114 in a window 720 pixels tall or less, whose top bar
-was 82). Windows draws Minimise, Maximise and Close over the right end of the top bar,
-and holds the rest of those 48 pixels as the caption: a drag moves the window, a
-double-click maximises it, a right-click opens its menu, and Maximise offers the snap
-layouts.
+Since W-093 the window draws no title bar of its own, and since 2026-10-03 the band is the
+Mica-with-tabs title band ([Mica direction](design/mica-direction.md)). `MainWindow.TitleBar.cs`
+extends the page into the title bar and asks Windows for the tall title bar, 48 pixels, the
+band's own height. The page fills the window from its top edge. Over the navigation the band
+carries the Nendo mark, the file's name and the File menu; over the work it carries the tab
+strip. Under it, on the layer, the address row holds Back, Forward, the breadcrumb and the
+command box, and nothing else stands above a screen's content. Windows draws Minimise,
+Maximise and Close over the right end of the band, and holds the rest of those 48 pixels as
+the caption: a drag moves the window, a double-click maximises it, a right-click opens its menu,
+and Maximise offers the snap layouts.
+
+The window's ground is Mica. `MainWindow.xaml` sets a `MicaBackdrop`, `ShellGrid` in
+`MainPage.xaml` is transparent, and the WebView2's `DefaultBackgroundColor` has an alpha of 0,
+so the backdrop shows wherever the page leaves its ground: the band, the navigation and the
+status line. The page marks itself `data-backdrop="mica"` in the Desktop host and keeps its
+ground transparent there; in a browser it paints `--mica` instead.
 
 The page's controls in that band would be caption too, so the page claims them.
-`title-bar.ts` measures every control in the top bar and the rail that shows in the band,
-and sends their boxes with `window.setTitleBarControls` whenever one moves, appears or
+`title-bar.ts` measures every control in the navigation and the tab strip that shows in the
+band, and sends their boxes with `window.setTitleBarControls` whenever one moves, appears or
 goes. The host hands them to Windows as passthrough regions
 (`InputNonClientPointerSource`) in the screen's own pixels. Its answer is the title bar:
 its height and the width Windows keeps for its buttons, 144 pixels in the tall bar. The
-page keeps that width free (`styles/20-title-bar.css`). `titleBarChanged`, a member of the
-closed unsolicited-event set, carries the same answer when a new display scale changes
-it. While a menu or a dialog is open the page claims the whole bar up to Windows'
-buttons, so a press there closes the menu as it did before. The file is named in the
-status bar, with its icon, and on the taskbar. In a window at most 840 pixels wide and
-more than 600 tall the rail is the bar across the top, and it is the title bar instead.
+tab strip keeps that width free (`styles/21-native.css`, from `--title-bar-right`).
+`titleBarChanged`, a member of the closed unsolicited-event set, carries the same answer when a
+new display scale changes it. While a menu or a dialog is open the page claims the whole bar up
+to Windows' buttons, so a press there closes the menu as it did before. The file is named at the
+band's left end, in the status line with its icon, and on the taskbar. In a window at most 840
+pixels wide and more than 600 tall the navigation is the bar across the top, and it is the title
+bar instead; tabs wait for a wider window.
+
+Each tab is a trail of places (`workspace-tabs.ts`). The window draws from one trail,
+`navigationTrail`; switching tabs saves it on the tab being left and loads the other tab's,
+then puts its current place back as a step back does (`revisitCurrent` in
+`navigation-actions.ts`). A tab off screen holds a list of places and nothing else. Tabs are
+the window's, are never written to the file, and are cleared with the file, like the trail.
 
 The recovery panel loads the Nendo mark when it is shown, not with the page. Once the
 TitleBar control's icon was gone, that picture in the collapsed panel was the first the
@@ -513,10 +526,10 @@ window loaded, and it brought the process down inside XAML at every start (F-202
 `diagnostics.titleBar` and `diagnostics.resizeWindow` answer only under
 `NENDO_NATIVE_DIAGNOSTICS=1`: the regions Windows holds, what Windows answers at points
 of the page, and a window of a given size. The extension-view journey measures with them
-(G32): the page starts at the window's top edge and 48 pixels stand above the content on a
-Use screen and in Studio; every control is passed through and none sits under Windows'
+(G32): the page starts at the window's top edge and only the band and the address row stand
+above the content on a Use screen and in Studio; every control is passed through and none sits under Windows'
 buttons, which answer as Minimise, Maximise and Close; an open menu takes the bar and gives
-it back; and a 760 × 700 window's rail is the title bar. Windows answers `WM_NCHITTEST` over
+it back; and a 760 × 700 window's navigation bar is the title bar. Windows answers `WM_NCHITTEST` over
 a passed-through control as caption all the same, so only a real pointer shows that a press
 there reaches the page.
 
@@ -846,6 +859,7 @@ This table gives the current locations, so that you do not need to search.
 | Notifications | `Desktop/DesktopNotifier.cs` (the OS side), `DesktopNotificationContent.cs` (the wording and routes, pure), `DesktopNotificationTrigger.cs` (transition, never condition) |
 | Close behaviour | `Desktop/DesktopShellStore.cs` (device state), `DesktopCloseAction.cs` (the decision, pure), `MainWindow.xaml.cs` |
 | Title bar | `Desktop/MainWindow.TitleBar.cs` (the tall bar, the passthrough regions, the diagnostics), `MainPage.TitleBar.cs` (where the page is in the window), `WorkbenchProtocol.TitleBar.cs` (`window.setTitleBarControls` and its checks, pure); `Workbench/src/title-bar.ts` (measuring the bar's controls), `title-bar-model.ts` (what the page claims, pure), `styles/20-title-bar.css` |
+| Shell (Mica with tabs) | `Workbench/src/workspace-tabs.ts` (the tabs, one trail each), `rail-places.ts` (the file's places in the navigation), `type-icons.ts` (record type icons guessed from names), `styles/21-native.css`; `Desktop/MainPage.xaml` (transparent, so Mica shows) |
 | Downloads | `Desktop/Extensions/ExtensionWebViewPolicy.cs` (every download handled: no WebView2 panel, F-237), `MainPage.Downloads.cs` (the saved files a notice may show), `WorkbenchProtocol.Downloads.cs` (`downloads.show`); `Workbench/src/main.ts` (the notice of `downloadSaved`) |
 | Renderer entry point | `Workbench/src/main.ts`: the router and the frame. It gives `render` and `updateChrome` to `shell.ts`, so that a view never imports it back |
 | One view per file | `Workbench/src/view-*.ts` (Use surfaces are hand-rolled DOM; AG Grid stays in `view-data.ts`, and `main.ts` registers its modules) |

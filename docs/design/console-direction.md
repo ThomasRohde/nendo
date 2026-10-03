@@ -1,7 +1,9 @@
 # Console: the visual direction
 
-- **Status:** Selected by the owner on 2026-09-26 (W-067). It replaces Molded
-  Workbench as the visual reference.
+- **Status:** Superseded on 2026-10-03 by [Mica with tabs](mica-direction.md), which
+  keeps Console's keyboard, custom-view controls and record page and replaces its look
+  and shell. Selected by the owner on 2026-09-26 (W-067), when it replaced Molded
+  Workbench.
 - **Source:** six whole-app directions on a design canvas,
   <https://claude.ai/artifact/X83iVHbXjoFDMQVbcnaT8w>. The owner chose C, Console.
   The canvas is private to the owner. This document describes the direction as
