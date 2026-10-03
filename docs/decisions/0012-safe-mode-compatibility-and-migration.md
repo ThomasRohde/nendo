@@ -156,6 +156,15 @@ write ceiling is 224 MiB. The rows reserve is 1,000. The full record, with its
 recorded outcomes, is the entry for this date in the
 [decision index](README.md#amendments-in-force).
 
+Implementation correction, 2026-10-03 (R02-025): the early ceilings remain unchanged,
+but their reserves do not bound every accepted transaction. A supported 200-record,
+64-field batch expands to 12,800 operations before automatic actions. Both direct writes
+and proposal promotion now measure the pending transaction's pages, schema objects,
+each table and total live records against the existing open limits before committing.
+Overflow rolls the whole transaction back. The regression guard exercises the largest
+record batch and a smaller batch whose generated effects alone cross the remaining gap;
+the older 128-operation sample is no longer described as a maximum.
+
 ## Consequences
 
 ### Positive

@@ -476,6 +476,13 @@ is also wrong if a matching record was created after the review. A stale plan is
 refused and asks for a new preview. Nothing is ever recomputed to make
 acceptance succeed.
 
+The data-revision dependency remains even when an evaluated condition read an
+empty collection, produced no effects, and left no external record in its read
+set. A newly added member can change that condition. The guard is broader than
+that case: a data change set in a file with any trigger captures the behaviour
+it ran under, whether or not a trigger matched, so every such proposal goes
+stale when any record changes before acceptance. That is conservative by intent.
+
 Promotion then applies exactly the reviewed operations with expansion switched
 off. If the triggers ran again, they would add new effects on top of the
 reviewed effects. Generated IDs and ordering were fixed at review. A repeated

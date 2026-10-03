@@ -79,6 +79,9 @@ try {
     Invoke-Checked 'dotnet' @('build', 'Nendo.slnx', '--no-restore', '--nologo') '.NET build'
     Invoke-Checked 'dotnet' @('test', 'Nendo.slnx', '--no-build', '--no-restore', '--nologo', '--logger', 'trx') '.NET tests'
 
+    Write-Host '== Tool boundaries =='
+    Invoke-Checked 'node' @('--test', (Join-Path $PSScriptRoot 'put-package.test.mjs'), (Join-Path $PSScriptRoot 'clipboard-probe.test.mjs')) 'Package uploader and clipboard probe boundaries'
+
     Write-Host '== Production boundaries =='
     & (Join-Path $PSScriptRoot 'Test-ApplicationNeutrality.ps1')
 

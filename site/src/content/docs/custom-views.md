@@ -35,6 +35,11 @@ There are three ways to propose a package:
 - **An agent** writes the package over MCP with the operations `extension.setPackage` and `extension.putFile`, in a change set, and you accept it. See [Agents](/nendo/docs/agents).
 - **A script.** From a clone of the repository, `node tools/Put-NendoPackage.mjs <folder>` proposes a package folder into the file that a running Nendo has open.
 
+The script leaves the proposal for you to accept. With `--accept`, only
+Unattended access permits it to accept its own proposal. If acceptance loses its
+response, the script reports the uncertainty and exits unsuccessfully: inspect
+Pending changes and History before trying again.
+
 Each way proposes only what differs from the package the file already carries. When you accept a change to a package's code, its views start again on the new code. In the same panel, **Export…** writes a package to a folder, and **Remove…** takes it out of the file, again as a proposal.
 
 A copy of the file carries its views' code. If a view names a package that the file does not carry, the view says so and offers **Add package to file…**, which is Import.

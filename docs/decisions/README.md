@@ -187,19 +187,19 @@ existed. For this reason the numbering is contiguous by intent.
   it: the previous bound reached people only as the words in its own refusal, and
   it drifted from the constant it described.
 
-  **The reserve is headroom, and the headroom is measured.** The cost of a commit
-  is not known before the commit, so the ceiling must sit far enough below the
-  bound that no single write can cross the gap. The bytes reserve is **32 MiB**,
-  so the byte write ceiling is 224 MiB. The largest change this product accepts is
-  a change set with 4 MiB of new custom-view package content
-  ([ADR-0013](0013-custom-views-with-code-in-the-file.md)). It grows the file by
-  about **4.3 MB**, under a quarter of the reserve. The largest change of records
+  **The reserve is early headroom; the transaction is measured before commit.**
+  The bytes reserve is **32 MiB**, so the byte write ceiling is 224 MiB. A
+  change set with 4 MiB of new custom-view package content
+  ([ADR-0013](0013-custom-views-with-code-in-the-file.md)) grows the file by
+  about **4.3 MB**, under a quarter of the reserve. A representative change of records
   measured **446,464 bytes** on 2026-09-17: a change set at the published
   128-operation ceiling, with records of the size that the 2026-09-16 amendment
   measured, 1,306 bytes of text each. Each test asserts the relationship, not the
-  number, so a commit that becomes more costly fails there and not in somebody's
-  file. The rows reserve is **1,000**, against at most 129 rows for the record
-  commit: 128 operations and the revision that carries them.
+  number. The rows reserve is **1,000**. Implementation correction on 2026-10-03,
+  R02-025: those samples do not bound all accepted writes. A 200-record, 64-field
+  batch expands to 12,800 operations before automatic actions. Both write paths
+  now check the actual pending transaction's pages, schema objects and rows before
+  commit and roll back overflow against the existing open limits.
 
   **What this does not do.** A file already over either bound still has no route
   to its data, and this amendment does not give it one. It also does not warn on

@@ -29,7 +29,7 @@ const PUT_FILE_BYTES = 70 * 1024;
 // The local MCP takes a request body of at most 256 KiB, so a call, and therefore a mutation,
 // carries at most about 200,000 characters of operations: two parts of a large file.
 const CALL_CHARACTERS = 200_000;
-const OPERATIONS_PER_MUTATION = 16, MUTATIONS_PER_CALL = 8;
+const OPERATIONS_PER_MUTATION = 16, OPERATIONS_PER_CALL = 16, MUTATIONS_PER_CALL = 8;
 
 function fail(message) {
   console.error(`\n${message}\n`);
@@ -157,18 +157,20 @@ async function main() {
     if (extra.length > 0) {
       mutations.push({ description: `Adjust the views that show ${manifest.packageId}`, operations: extra, size: JSON.stringify(extra).length });
     }
-    let batch = [], characters = 0;
+    let batch = [], characters = 0, operationCount = 0;
     const send = async () => {
       if (batch.length === 0) return;
       await client.tool('nendo.change_set.add_operations', {
         ...owned, changeSetId: draft.changeSetId, mutations: batch.map(({ description, operations }) => ({ description, operations })), idempotencyKey: crypto.randomUUID(),
       });
-      batch = []; characters = 0;
+      batch = []; characters = 0; operationCount = 0;
     };
     for (const mutation of mutations) {
-      if (batch.length === MUTATIONS_PER_CALL || characters + mutation.size > CALL_CHARACTERS) await send();
+      if (batch.length === MUTATIONS_PER_CALL || characters + mutation.size > CALL_CHARACTERS ||
+          operationCount + mutation.operations.length > OPERATIONS_PER_CALL) await send();
       batch.push(mutation);
       characters += mutation.size;
+      operationCount += mutation.operations.length;
     }
     await send();
     console.log(`Sent            ${mutations.length} mutations`);
@@ -186,9 +188,16 @@ async function main() {
       return;
     }
     let accepted;
+    const acceptanceKey = crypto.randomUUID();
     try {
-      accepted = await client.tool('nendo.change_set.accept', { ...owned, changeSetId: draft.changeSetId, idempotencyKey: crypto.randomUUID() });
-    } catch {
+      accepted = await client.tool('nendo.change_set.accept', { ...owned, changeSetId: draft.changeSetId, idempotencyKey: acceptanceKey });
+    } catch (error) {
+      if (error.code !== 'NENDO_UNATTENDED_REQUIRED') {
+        console.error(`\nAcceptance was not confirmed for ${draft.changeSetId}: ${error.message ?? String(error)}.`);
+        console.error(`Proposal: ${title}. Inspect Pending changes and History before running again; a lost response may follow a committed acceptance.`);
+        process.exitCode = 1;
+        return;
+      }
       console.log('\nValidated, but this file is not at Unattended, so it is not accepted here. In Nendo, review and accept the proposal');
       console.log(`  ${title}`);
       return;

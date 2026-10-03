@@ -938,6 +938,10 @@ function fillSelect(name, options, current, empty = 'Not assessed') {
     const [optionValue, label] = Array.isArray(option) ? option : [option, option];
     field.append(new Option(label, String(optionValue)));
   }
+  // Existing ratings may predate a changed display scale. Keep their exact value
+  // selectable so saving another field does not silently turn the rating into null.
+  if (current != null && ![...field.options].some(option => option.value === String(current)))
+    field.append(new Option(`${current} (current value)`, String(current)));
   field.value = current == null ? '' : String(current);
 }
 
@@ -984,7 +988,8 @@ async function save(event) {
     if (binding.has(part)) values[binding.fields[part]] = form.elements[part].value.trim() || null;
   }
   for (const part of ['maturity', 'target']) {
-    if (binding.has(part)) values[binding.fields[part]] = form.elements[part].value ? Number(form.elements[part].value) : null;
+    if (binding.has(part === 'maturity' ? 'maturity-stored' : part))
+      values[binding.fields[part]] = form.elements[part].value ? Number(form.elements[part].value) : null;
   }
   const parentId = binding.parentFieldId === null ? null : form.elements.parent.value || null;
   if (binding.parentFieldId !== null) values[binding.parentFieldId] = parentId;

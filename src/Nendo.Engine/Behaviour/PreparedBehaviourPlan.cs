@@ -51,7 +51,11 @@ internal sealed record PreparedBehaviourPlan(
     internal static PreparedBehaviourPlan Empty { get; } =
         new([], [], 0, 0, string.Empty, NendoBehaviourContract.Version);
 
-    internal bool IsEmpty => Generated.Count == 0 && ReadSet.Count == 0;
+    // An evaluated condition can read an empty collection and generate no effects.
+    // The captured behaviour digest distinguishes that plan from no evaluation at
+    // all, and survives persistence without depending on a nonempty record read set.
+    // Keep the existing conservative data-revision guard for every captured chain.
+    internal bool IsEmpty => BehaviourDigest.Length == 0 && Generated.Count == 0 && ReadSet.Count == 0;
 
     /// <summary>
     /// Covers the generated effects, the preconditions and the behaviour that produced

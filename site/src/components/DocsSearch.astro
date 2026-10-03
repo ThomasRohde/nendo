@@ -36,7 +36,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     position: absolute;
     z-index: 20;
     left: 0;
-    width: min(430px, 82vw);
+    /* The documentation rail scrolls, so a wider child is clipped at its edge. */
+    width: min(430px, 100%);
     margin-top: 6px;
     max-height: 58vh;
     overflow-y: auto;

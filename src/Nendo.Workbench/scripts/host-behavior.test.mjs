@@ -102,6 +102,55 @@ test('an absent receipt retains the exact payload and key for explicit retry', {
   assert.equal(f.values.size, 0);
 });
 
+test('R02-013: a lost hierarchy move response survives reload, blocks a new key and retries the exact move', { timeout: 2000 }, async () => {
+  const f = fixture(); const first = f.client(); await first.request('session.getSnapshot');
+  const move = { entityId: 'work', recordId: 'child', expectedRecordVersion: 7, parentRecordId: 'parent',
+    expectedParentVersion: 3, beforeRecordId: 'sibling', idempotencyKey: 'move-original' };
+  const original = first.request('data.moveRecord', move).catch(error => error);
+  assert.equal(f.values.size, 1, 'The hierarchy move was dispatched without retaining its exact retry request.');
+  f.timeout(); await original;
+  const reloaded = f.client(); await reloaded.request('session.getSnapshot');
+  assert.deepEqual(reloaded.pendingMutation().payload, move);
+  assert.equal(reloaded.pendingMutation().method, 'data.moveRecord');
+  await assert.rejects(reloaded.request('data.moveRecord', { ...move, idempotencyKey: 'move-new' }), /previous|pending|confirm/i);
+  assert.equal(await reloaded.checkPendingMutation(), null);
+  assert.equal(f.state.mutations.length, 1, 'Receipt lookup resubmitted an unresolved move.');
+  const retry = reloaded.retryPendingMutation(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.state.mutations[1].method, 'data.moveRecord');
+  assert.deepEqual(f.state.mutations[1].payload, move);
+  f.respond(f.state.mutations[1], { mutation: receipt('move-original'), session: f.state.snapshot });
+  assert.equal((await retry).mutation.revisionId, 'revision-move-original');
+  assert.equal(f.values.size, 0);
+});
+
+test('R02-013: a committed move is resolved by receipt after timeout and reload without resubmission', { timeout: 2000 }, async () => {
+  const f = fixture(); const first = f.client(); await first.request('session.getSnapshot');
+  const original = first.request('data.moveRecord', { entityId: 'work', recordId: 'child', expectedRecordVersion: 7,
+    parentRecordId: null, beforeRecordId: null, idempotencyKey: 'move-committed' }).catch(error => error);
+  f.timeout(); await original;
+  assert.equal(f.values.size, 1, 'The timed-out move lost its request before receipt reconciliation.');
+  const reloaded = f.client(); await reloaded.request('session.getSnapshot');
+  f.state.receipt = receipt('move-committed');
+  const recovered = await reloaded.checkPendingMutation();
+  assert.equal(recovered.mutation.revisionId, 'revision-move-committed');
+  assert.equal(f.requests.at(-1).method, 'data.getReceipt');
+  assert.deepEqual(f.requests.at(-1).payload, { idempotencyKey: 'move-committed' });
+  assert.equal(f.state.mutations.length, 1, 'A committed move was submitted again.');
+  assert.equal(f.values.size, 0);
+});
+
+test('R02-013: definitive hierarchy refusals release the retained request', { timeout: 2000 }, async () => {
+  for (const code of ['hierarchy-not-declared', 'hierarchy-order-not-declared', 'hierarchy-sibling-not-found',
+    'hierarchy-too-wide', 'hierarchy-cycle', 'hierarchy-too-deep', 'move-unchanged']) {
+    const f = fixture(); const client = f.client(); await client.request('session.getSnapshot');
+    const failed = client.request('data.moveRecord', { entityId: 'work', recordId: 'child', expectedRecordVersion: 7,
+      parentRecordId: null, beforeRecordId: null, idempotencyKey: 'refused-move' }).catch(error => error);
+    f.respond(f.state.mutations[0], null, { code, message: 'Move refused before commit.' });
+    assert.equal((await failed).code, code);
+    assert.equal(f.values.size, 0, `${code} left a known refusal marked as an unconfirmed move.`);
+  }
+});
+
 test('the retained request is isolated from later caller edits and rejects oversized input before dispatch', { timeout: 2000 }, async () => {
   const f = fixture();
   const client = f.client();

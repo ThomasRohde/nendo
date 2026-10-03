@@ -1118,6 +1118,42 @@ vocabulary, the examples and the resources — and not from the person.
 
 ## What to produce
 
+For the October 3 corrections, use disposable files and check these boundaries:
+
+- In Archi, enter a new property's key and value quickly while a save is delayed;
+  force one save refusal and retry. Compare every final key/value with what was
+  typed. Overlap an older and newer refresh, and inspect the diagram's accessible
+  text for actual concept names.
+- Switch two files with the same record-type IDs and change sequence while a
+  Studio outline read is pending. Expand and paginate, start a draft while a read
+  waits, and retry a failed read without editing the file. Record whether old
+  records appear or draft text disappears. Move a hierarchy record, lose its
+  response and reload the renderer; inspect receipt recovery and exact retry.
+- In BCM, edit only an owner when maturity comes from assessments, including a
+  configuration with no stored maturity. Repeat with stored ratings above and
+  below the displayed scale. Read stored values afterwards. In Systems Lens,
+  remove a member of a circuit that has no source and inspect the other member's
+  explanation; it must not claim to remain fed.
+- Compare filtered pages, counts, numeric/grouped/date/matrix aggregates in
+  writable and read-only copies, including calculated and hierarchy filters.
+  Preview New empty copy from the read-only file. For a fold, remove or replace
+  the required backup before confirming and check that history stays intact.
+- Create a record whose automatic action deletes it, then inspect the batch
+  response. Use equal record IDs in two types with an action writing the other
+  type; compare returned versions to rereads. Import JSON with explicit true,
+  false and inherited new-file marks across fifty-row boundaries and retry the
+  same request. Review a no-effect proposal whose condition counts an empty
+  collection, add a member elsewhere, and try accepting it.
+- Cancel invalid proposal validation while cleanup is waiting, then amend and
+  validate the same draft. Upload a package of sixteen files, and one accompanied
+  by sixteen configuration operations. Interrupt acceptance and distinguish the
+  uncertainty from an explicit access-level refusal.
+- With two windows open, change lease expiry in one and the port choice in the
+  other. Reopen and inspect both saved choices. On the documentation site at
+  1024 and 1280 pixels, search and click the right edge of each result in both
+  themes. Keep destructive stage-corruption and near-limit batch experiments to
+  task-owned fixtures; compare refused writes with the file's subsequent open.
+
 `findings.md` in your working directory, with raw responses under `evidence/`:
 
 - What you built, in one paragraph.

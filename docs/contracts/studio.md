@@ -92,6 +92,12 @@ the 200 read. Enter or Space opens or closes the focused record. Move up, Move d
 and Outdent — or Alt+Shift and an arrow — move it with `data.moveRecord`; a move that would
 pass siblings not yet read is not offered. The other columns edit as in the table.
 
+Outline rows, layout choices and pending reads belong to the open file session. A file
+switch clears them even when both files have the same type IDs and change sequence;
+late replies from the old session cannot refill the cache. Background reads wait to
+redraw while the person is interacting or holds an edited or retained draft. A failed
+read offers **Try reading again**, which can retry the same revision.
+
 **Unique and numbered fields** ([ADR-0020](../decisions/0020-unique-and-generated-fields.md)).
 Structure shows a field's rules beside its requirement: a *Unique* tag, and *Numbered* with an
 example code (`Numbered W-001`). A single-line Text or plain Integer field offers **Make unique**

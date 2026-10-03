@@ -47,7 +47,7 @@ public sealed partial class NendoWriteCoordinator
             if (_readOnlySnapshot is not null)
             {
                 if (!Capabilities.ReadData) throw new NendoPreconditionException("data-unavailable", "Data cannot be safely interpreted for this file.");
-                var matching = _readOnlySnapshot.Records.Count(record => record.EntityId == query.EntityId);
+                var matching = FilteredSnapshotRecords(query.EntityId, query.Filters).Count();
                 return new(query.EntityId, matching, _readOnlySnapshot.Manifest.ChangeSequence);
             }
             return await GetStore().CountRecordsAsync(query, cancellationToken);
@@ -75,7 +75,7 @@ public sealed partial class NendoWriteCoordinator
                 // the same exact lexemes, so the fold is the same fold.
                 if (!Capabilities.ReadData) throw new NendoPreconditionException("data-unavailable", "Data cannot be safely interpreted for this file.");
                 var accumulator = new ExactAggregate(query.Aggregate, integral: false);
-                foreach (var record in _readOnlySnapshot.Records.Where(record => record.EntityId == query.EntityId))
+                foreach (var record in FilteredSnapshotRecords(query.EntityId, query.Filters))
                 {
                     if (!record.Values.TryGetValue(query.FieldId, out var value)) continue;
                     if (value.ValueKind == System.Text.Json.JsonValueKind.Number) accumulator.Add(value.GetDecimal());
@@ -130,7 +130,7 @@ public sealed partial class NendoWriteCoordinator
                 var fold = new GroupedAggregateFold(
                     GroupedAggregateFold.KeysOf(grouping.StorageKind, grouping.Presentation, grouping.Options), query.Aggregate, integral: false);
                 // The same fold over the same exact lexemes, so the snapshot answers what the file would.
-                foreach (var record in _readOnlySnapshot.Records.Where(record => record.EntityId == query.EntityId))
+                foreach (var record in FilteredSnapshotRecords(query.EntityId, query.Filters))
                 {
                     var key = record.Values.TryGetValue(query.GroupByFieldId, out var stored) ? GroupedAggregateFold.KeyText(stored) : null;
                     decimal? value = query.FieldId is not null &&
@@ -186,7 +186,7 @@ public sealed partial class NendoWriteCoordinator
                 _ = entity.Fields.SingleOrDefault(field => field.FieldId == query.DateFieldId)
                     ?? throw new NendoPreconditionException("field-not-found", "The date field does not exist on this record type.");
                 var fold = new GroupedAggregateFold(buckets.Keys, query.Aggregate, integral: false);
-                foreach (var record in _readOnlySnapshot.Records.Where(record => record.EntityId == query.EntityId))
+                foreach (var record in FilteredSnapshotRecords(query.EntityId, query.Filters))
                 {
                     var stored = record.Values.TryGetValue(query.DateFieldId, out var raw) ? GroupedAggregateFold.KeyText(raw) : null;
                     var key = buckets.KeyOf(stored);
@@ -259,7 +259,7 @@ public sealed partial class NendoWriteCoordinator
                     GroupedAggregateFold.KeysOf(columnField.StorageKind, columnField.Presentation, columnField.Options),
                     query.Aggregate, integral: false);
                 // The same fold over the same exact lexemes, so the snapshot answers what the file would.
-                foreach (var record in _readOnlySnapshot.Records.Where(record => record.EntityId == query.EntityId))
+                foreach (var record in FilteredSnapshotRecords(query.EntityId, query.Filters))
                 {
                     var rowKey = record.Values.TryGetValue(query.RowByFieldId, out var storedRow) ? GroupedAggregateFold.KeyText(storedRow) : null;
                     var columnKey = record.Values.TryGetValue(query.ColumnByFieldId, out var storedColumn) ? GroupedAggregateFold.KeyText(storedColumn) : null;
@@ -274,6 +274,33 @@ public sealed partial class NendoWriteCoordinator
         }
         catch (NendoRecoveryRequiredException) { EnterRecovery(); throw; }
         finally { _gate.Release(); }
+    }
+
+    // Pages and every fold consume the same typed set in a read-only snapshot.
+    private IEnumerable<NendoRecordSnapshot> FilteredSnapshotRecords(string entityId, IReadOnlyList<NendoRecordFilter> filters)
+    {
+        var snapshot = _readOnlySnapshot!;
+        var entity = snapshot.Entities.SingleOrDefault(entity => entity.EntityId == entityId)
+            ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
+        var derived = entity.DerivedFields.ToDictionary(field => field.FieldId, StringComparer.Ordinal);
+        Storage.SqliteNendoStore.ValidateRecordQuery(new(entityId) { Filters = filters }, entity.Fields, derived);
+        NendoStorageKind KindOf(string fieldId) => derived.TryGetValue(fieldId, out var calculated)
+            ? Storage.SqliteNendoStore.KindOf(calculated.ResultType) : entity.Fields.Single(field => field.FieldId == fieldId).StorageKind;
+        (bool Known, string? Text) ValueOf(NendoRecordSnapshot record, string fieldId)
+        {
+            if (!derived.ContainsKey(fieldId)) return (true, RecordQuerySemantics.Text(record.Values.GetValueOrDefault(fieldId)));
+            var result = record.Calculations.FirstOrDefault(calculation => calculation.FieldId == fieldId);
+            return result?.State switch { NendoCalculationState.Value => (true, RecordQuerySemantics.Text(result.Value)),
+                NendoCalculationState.Empty => (true, null), _ => (false, null) };
+        }
+        var records = snapshot.Records.Where(record => record.EntityId == entityId).ToArray();
+        var subtrees = filters.Where(filter => filter.Operator == "descendantOf").ToDictionary(filter => filter, filter =>
+            entity.Hierarchy?.ParentFieldId == filter.FieldId
+                ? SnapshotSubtree(records, entity.Hierarchy, filter.Value.GetString()!)
+                : throw new NendoPreconditionException("hierarchy-not-declared", $"descendantOf reads {entity.DisplayName}'s declared hierarchy, and {filter.FieldId} is not its parent field."));
+        return records.Where(record => filters.All(filter => subtrees.TryGetValue(filter, out var subtree) ? subtree.Contains(record.RecordId)
+            : ValueOf(record, filter.FieldId) is { Known: true } value && RecordQuerySemantics.Matches(filter.Operator,
+                KindOf(filter.FieldId), value.Text, RecordQuerySemantics.Text(filter.Value))));
     }
 
     public async Task<NendoPage<NendoRecordSnapshot>> QueryRecordsAsync(
@@ -308,15 +335,8 @@ public sealed partial class NendoWriteCoordinator
                         NendoCalculationState.Empty => (true, null), _ => (false, null) };
                 }
                 var after = _queryCursors.Decode(query.Cursor, _readOnlySnapshot.Manifest, scope);
-                var subtrees = query.Filters.Where(filter => filter.Operator == "descendantOf").ToDictionary(filter => filter, filter =>
-                    entity.Hierarchy?.ParentFieldId == filter.FieldId
-                        ? SnapshotSubtree(_readOnlySnapshot.Records.Where(record => record.EntityId == query.EntityId).ToArray(), entity.Hierarchy, filter.Value.GetString()!)
-                        : throw new NendoPreconditionException("hierarchy-not-declared", $"descendantOf reads {entity.DisplayName}'s declared hierarchy, and {filter.FieldId} is not its parent field."));
-                var rows = _readOnlySnapshot.Records.Where(record => record.EntityId == query.EntityId)
-                    .Where(record => query.RecordId is null || record.RecordId == query.RecordId)
-                    .Where(record => query.Filters.All(filter => subtrees.TryGetValue(filter, out var subtree) ? subtree.Contains(record.RecordId)
-                        : ValueOf(record, filter.FieldId) is { Known: true } value && RecordQuerySemantics.Matches(filter.Operator,
-                            KindOf(filter.FieldId), value.Text, RecordQuerySemantics.Text(filter.Value))));
+                var rows = FilteredSnapshotRecords(query.EntityId, query.Filters)
+                    .Where(record => query.RecordId is null || record.RecordId == query.RecordId);
                 var comparer = Comparer<NendoRecordSnapshot>.Create((left, right) => {
                     if (query.SortFieldId is not null)
                     {

@@ -53,6 +53,8 @@ investment, neutral) and the compact and ordered reference layouts.
   versioned write; a refused one shows the map as the file holds it and says why.
 - **Edit** and **+ Child** change the model; **Open record** opens Nendo's own record page
   with the related application support and initiatives.
+  A capability edit leaves assessment-derived maturity alone. An existing rating outside
+  the displayed scale stays selected as its current value until explicitly changed or cleared.
 - **Export** writes the map as **SVG**, to edit, or **PNG**, twice the size, for a slide: the
   scope at the chosen levels in the chosen colour, with a title, the file's banner and the
   legend, whatever part of it the camera shows. The SVG is plain shapes and text with hex

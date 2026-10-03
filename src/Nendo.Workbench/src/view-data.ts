@@ -1,13 +1,13 @@
 import { prepareApplication, recoverAfterWriteFailure, refreshStudioQuery, reloadReadWindows, runMutation } from './actions';
 import { keptChoice, keptChoices, keptDefaultProposal, keptDefaultSentence, keptFromChoice, keptText } from './new-file';
 import { type CellFocusedEvent, type CellKeyDownEvent, type CellValueChangedEvent, type ColDef, type FullWidthCellKeyDownEvent, type GridApi, type GridOptions, createGrid, themeQuartz } from 'ag-grid-community';
-import { type StudioQuery, recordWindows, state, studioQueries, studioWindows } from './app-state';
+import { type StudioQuery, fileScopedClearable, recordWindows, state, studioQueries, studioWindows } from './app-state';
 import { calculatedDisplay } from './calculated-fields';
 import { client } from './client';
 import { choiceDisplay, escapeAttribute, escapeHtml, messageFor, mutationKey, storageLabel, valueDisplay } from './format';
 import { type CalculationResult, type EntitySnapshot, type ReadPage, type RecordPlan, type RecordSnapshot } from './host';
 import { icon } from './icons';
-import { type MoveDirection, type OutlineLevel, type OutlineNode, type OutlineRow, type OutlineState, TOP, emptyOutline, movePayload, moveTarget, visibleRows } from './outline-model';
+import { type MoveDirection, type OutlineNode, type OutlineRow, movePayload, moveTarget, visibleRows } from './outline-model';
 import { activePlan, currentRecipe, derivedFor, recordPlanOf, recordsForEntity, sessionEntity, snapshotFieldPlans } from './plan-selection';
 import { wireRecordPager } from './reads';
 import { wireRecordForm } from './record-form';
@@ -17,6 +17,7 @@ import { ratingMarkup, ratingScaleOf, ratingSteps } from './rating';
 import { exactNumberText, parseScalar } from './scalars';
 import { announce, content, requiredElement, rerender, setBusy, showError } from './shell';
 import { recordTypeProposal } from './studio';
+import { type StudioLayout, captureOutlineRead, outlineErrorIsCurrent, outlines, readOutlineLevel, refreshOutline, studioLayouts, studioOutlineErrors } from './studio-outline';
 import { recordPagerMarkup } from './surface-markup';
 import { choiceStyle } from './tones';
 /**
@@ -84,12 +85,8 @@ export function destroyGrid(): void {
 // as an outline; the flat table stays one click away. Levels are read from the host a parent at
 // a time and read again whenever the file has moved on.
 
-type StudioLayout = 'table' | 'outline';
-const studioLayouts = new Map<string, StudioLayout>();
-const outlines = new Map<string, OutlineState>();
-// The change each outline was last asked to catch up to, so a reload never loops on a lag.
-const outlineRequested = new Map<string, number>();
 let outlineFocus: string | null = null;
+fileScopedClearable({ clear() { outlineFocus = null; } });
 const moveKeys: Readonly<Record<string, MoveDirection>> = { ArrowUp: 'up', ArrowDown: 'down', ArrowRight: 'indent', ArrowLeft: 'outdent' };
 
 function isMoveKey(event: KeyboardEvent): boolean {
@@ -100,51 +97,15 @@ function layoutOf(entity: EntitySnapshot): StudioLayout {
   return entity.hierarchy ? studioLayouts.get(entity.entityId) ?? 'outline' : 'table';
 }
 
-interface TreeNodeResult { record: RecordSnapshot; parentRecordId: string | null; depth: number; childCount: number }
-
-async function readLevel(entityId: string, parentKey: string, cursor: string | null): Promise<OutlineLevel & { changeSequence: number }> {
-  const page = await client.request<ReadPage<TreeNodeResult>>('data.treeRecords', {
-    entityId, rootRecordId: parentKey === TOP ? null : parentKey, depth: 1, limit: 200, cursor,
-  });
-  return { items: page.items as OutlineNode[], nextCursor: page.nextCursor, changeSequence: page.changeSequence };
-}
-
-/** Reads the top level and every open record's children again, keeping what was open. */
-async function loadOutline(entityId: string): Promise<void> {
-  const previous = outlines.get(entityId);
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const top = await readLevel(entityId, TOP, null);
-    const next = emptyOutline(entityId, top.changeSequence);
-    next.levels.set(TOP, top);
-    let consistent = true;
-    for (const id of previous?.expanded ?? []) {
-      try {
-        const level = await readLevel(entityId, id, null);
-        if (level.changeSequence !== top.changeSequence) { consistent = false; break; }
-        next.levels.set(id, level);
-        next.expanded.add(id);
-      } catch { /* A record that has gone is simply no longer open. */ }
-    }
-    if (!consistent) continue;
-    outlines.set(entityId, next);
-    return;
-  }
-}
-
-function refreshOutline(entity: EntitySnapshot): void {
-  const sequence = state.session.manifest?.changeSequence ?? 0;
-  if (outlineRequested.get(entity.entityId) === sequence) return;
-  outlineRequested.set(entity.entityId, sequence);
-  void loadOutline(entity.entityId).then(rerender, error => showError(messageFor(error)));
-}
-
 async function toggleOutline(entity: EntitySnapshot, recordId: string): Promise<void> {
   const outline = outlines.get(entity.entityId);
   if (outline === undefined) return;
   outlineFocus = recordId;
   if (outline.expanded.delete(recordId)) { rerender(); return; }
   if (!outline.levels.has(recordId)) {
-    const level = await readLevel(entity.entityId, recordId, null);
+    const current = captureOutlineRead();
+    const level = await readOutlineLevel(entity.entityId, recordId, null);
+    if (!current()) return;
     if (level.changeSequence !== outline.changeSequence) { refreshOutline(entity); return; }
     outline.levels.set(recordId, level);
   }
@@ -156,7 +117,9 @@ async function readMore(entity: EntitySnapshot, parentKey: string): Promise<void
   const outline = outlines.get(entity.entityId);
   const level = outline?.levels.get(parentKey);
   if (outline === undefined || level === undefined || level.nextCursor === null) return;
-  const more = await readLevel(entity.entityId, parentKey, level.nextCursor);
+  const current = captureOutlineRead();
+  const more = await readOutlineLevel(entity.entityId, parentKey, level.nextCursor);
+  if (!current()) return;
   if (more.changeSequence !== outline.changeSequence) { refreshOutline(entity); return; }
   outline.levels.set(parentKey, { items: [...level.items, ...more.items], nextCursor: more.nextCursor });
   rerender();
@@ -318,7 +281,8 @@ export function renderData(): void {
 
   const layout = layoutOf(entity);
   const outline = layout === 'outline' ? outlines.get(entity.entityId) : undefined;
-  if (layout === 'outline' && (outline === undefined || outline.changeSequence !== state.session.manifest?.changeSequence)) refreshOutline(entity);
+  const outlineError = studioOutlineErrors.get(entity.entityId);
+  if (layout === 'outline' && !outlineErrorIsCurrent(entity.entityId) && (outline === undefined || outline.changeSequence !== state.session.manifest?.changeSequence)) refreshOutline(entity);
   const outlineRows = outline === undefined ? [] : visibleRows(outline);
   const outlineRecords = outlineRows.flatMap(row => row.kind === 'node' ? [recordPlanOf(row.node.record as RecordSnapshot)] : []);
   const records = layout === 'outline' ? outlineRecords : recordsForEntity(entity.entityId, null);
@@ -342,6 +306,7 @@ export function renderData(): void {
         <button id="data-new-record" class="primary-button" data-action type="button" ${entity.retired ? 'disabled' : ''}>Add ${escapeHtml(entity.displayName)}</button>
       </header>
       ${layout === 'outline' ? outlineToolbarMarkup() : studioQueryMarkup(entity)}
+      ${layout === 'outline' && outlineError !== undefined ? `<p class="query-status" role="alert">${escapeHtml(outlineError)} <button class="secondary-button" type="button" data-studio-outline-retry>Try reading again</button></p>` : ''}
       <div class="message-slot data-message" role="alert" hidden></div>
       ${(layout === 'outline' ? outlineRows.length : records.length) > 0
         ? `<div id="record-grid" class="record-grid${layout === 'outline' ? ' outline-grid' : ''}" data-testid="record-grid" aria-label="${escapeAttribute(entity.displayName)} ${layout === 'outline' ? 'outline' : 'records'}"></div>`
@@ -350,6 +315,7 @@ export function renderData(): void {
     </section>
   </div>`;
   wireNewEntity();
+  content.querySelector<HTMLButtonElement>('[data-studio-outline-retry]')?.addEventListener('click', () => refreshOutline(entity));
   if (layout === 'table') wireStudioQuery(entity);
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-layout]')) {
     button.addEventListener('click', () => {

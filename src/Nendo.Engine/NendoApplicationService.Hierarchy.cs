@@ -17,7 +17,8 @@ public sealed record NendoMoveRecordRequest(
     NendoRequestContext Context);
 
 /// <summary>What a move wrote: the moved record's new version and every record it touched.</summary>
-public sealed record NendoMoveRecordResult(NendoApplyResult Applied, long RecordVersion, IReadOnlyList<string> TouchedRecordIds);
+/// <summary>RecordVersion is null when an automatic action deleted the moved record.</summary>
+public sealed record NendoMoveRecordResult(NendoApplyResult Applied, long? RecordVersion, IReadOnlyList<string> TouchedRecordIds);
 
 public sealed partial class NendoApplicationService
 {
@@ -117,10 +118,10 @@ public sealed partial class NendoApplicationService
                 ?? throw new NendoPreconditionException("move-receipt-unavailable", "The committed move's history is no longer available.");
         var touched = operations.Cast<SetFieldOperation>().Select(operation => operation.RecordId).Distinct(StringComparer.Ordinal).ToArray();
         var moved = operations.Cast<SetFieldOperation>().Count(operation => operation.RecordId == request.RecordId);
-        var committedVersion = applied.GeneratedChanges
-            .Where(change => change.EntityId == request.EntityId && change.RecordId == request.RecordId && change.RecordVersion is not null)
-            .Select(change => change.RecordVersion!.Value)
-            .Append(request.ExpectedRecordVersion + moved).Max();
+        var authoredVersion = request.ExpectedRecordVersion + moved;
+        var generated = applied.GeneratedChanges.LastOrDefault(change => change.EntityId == request.EntityId && change.RecordId == request.RecordId);
+        long? committedVersion = generated is null ? authoredVersion
+            : generated.RecordVersion is { } written ? Math.Max(written, authoredVersion) : null;
         return new(applied, committedVersion, touched);
     }
 
@@ -142,11 +143,15 @@ public sealed partial class NendoApplicationService
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var authored = 0;
         var version = request.ExpectedRecordVersion;
+        var deleted = false;
         do
         {
             foreach (var stored in page.Items)
             {
-                if (NendoOperationCodec.Read(stored.CanonicalJson) is not SetFieldOperation field) continue;
+                var operation = NendoOperationCodec.Read(stored.CanonicalJson);
+                if (operation is DeleteRecordOperation deletion && deletion.EntityId == request.EntityId && deletion.RecordId == request.RecordId)
+                    deleted = true;
+                if (operation is not SetFieldOperation field) continue;
                 if (field.OperationId == MoveOperationId(identity, authored))
                 {
                     authored++;
@@ -160,7 +165,7 @@ public sealed partial class NendoApplicationService
             if (page.NextCursor is null) break;
             page = await QueryRevisionOperationsAsync(new(receipt.RevisionId, 100, page.NextCursor), cancellationToken);
         } while (true);
-        return new(receipt, version, touched);
+        return new(receipt, deleted ? null : version, touched);
     }
 
     private sealed record Sibling(string RecordId, long Version, long? Order);

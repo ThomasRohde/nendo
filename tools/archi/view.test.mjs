@@ -4,6 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 import * as M from '../../extensions/archi/model.js';
 import { buildMirror, writesFor, applyWrites } from '../../extensions/archi/canvas.js';
+import { textAlternative } from '../../extensions/archi/kit/nendo-view-kit.js';
 
 // Execute the shipped write controller/property renderer. The stand-ins cover only the
 // service and DOM boundaries; the diff is the generated canvas's actual implementation.
@@ -14,6 +15,156 @@ function section(start, end) {
   assert.ok(from >= 0 && to > from, `The production section ${start} could not be found.`);
   return source.slice(from, to);
 }
+
+function deferred() {
+  let resolve, reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+
+function propertyController() {
+  let stored = [{ entityId: M.E.concept, recordId: 'owner', version: 1,
+    values: { 'ar.concept.name': 'Customer', 'ar.concept.category': 'Element' } }];
+  const state = { model: M.buildModel({ records: stored }), selected: 'owner', readOnly: false,
+    draftProperties: { owner: 'owner', rows: [{ key: '', value: '' }] } };
+  const calls = [], statuses = [];
+  const context = vm.createContext({ M, state, editor: null, renderProperties() {},
+    setStatus: (message, problem) => statuses.push({ message, problem }), describe: error => error.message,
+    nendo: { has: () => true, records: { async batch(writes) {
+      const response = deferred(); calls.push({ writes, response });
+      await response.promise;
+      const answers = writes.map(write => {
+        const found = stored.find(record => record.recordId === write.recordId);
+        if (write.op === 'create') {
+          assert.equal(found, undefined, 'A queued property edit tried to recreate the same record.');
+          stored.push({ entityId: write.entityId, recordId: write.recordId, version: 1, values: { ...write.values } });
+          return { recordId: write.recordId, version: 1 };
+        }
+        assert.equal(write.version, found?.version, 'A queued property edit used a stale version.');
+        if (write.op === 'delete') stored = stored.filter(record => record !== found);
+        else { found.values = { ...found.values, ...write.values }; found.version++; }
+        return { recordId: write.recordId, version: write.op === 'delete' ? null : found.version };
+      });
+      return { records: answers };
+    } } },
+    readAll: async () => { state.model = M.buildModel({ records: structuredClone(stored) }); },
+  });
+  vm.runInContext(section('let writing = Promise.resolve();', '// ---------------------------------------------------------------- the tree') +
+    section('function currentPropertyRows(', '// ---------------------------------------------------------------- making and removing') +
+    '\nglobalThis.api = { propertyChanged, saveProperties, currentPropertyRows };', context);
+  const change = (part, value, index = 0) => context.api.propertyChanged({ target: {
+    dataset: { prop: part }, value, closest: () => ({ dataset: { index: String(index) } }),
+  } });
+  const waitForCall = async count => {
+    for (let turn = 0; calls.length < count && turn < 20; turn++) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls.length, count, `Expected ${count} property writes, found ${calls.length}.`);
+  };
+  return { state, calls, statuses, change, waitForCall, stored: () => stored, api: context.api };
+}
+
+test('R02-001 rapid property key/value entry keeps one record and the newest draft until both writes finish', async () => {
+  const host = propertyController();
+  const key = host.change('key', 'Department');
+  await host.waitForCall(1);
+  assert.equal(host.state.draftProperties?.rows[0].key, 'Department', 'A pending property create discarded its draft.');
+  const value = host.change('value', 'Sales');
+  const id = host.state.draftProperties.rows[0].recordId;
+  host.calls[0].response.resolve();
+  await key;
+  await host.waitForCall(2);
+  assert.equal(host.state.draftProperties.rows[0].value, 'Sales', 'The earlier save cleared a newer draft.');
+  assert.equal(host.calls[1].writes[0].recordId, id);
+  assert.equal(host.calls[1].writes[0].op, 'update');
+  host.calls[1].response.resolve();
+  await value;
+  const properties = host.stored().filter(record => record.entityId === M.E.property);
+  assert.equal(properties.length, 1);
+  assert.equal(properties[0].values['ar.property.key'], 'Department');
+  assert.equal(properties[0].values['ar.property.value'], 'Sales');
+  assert.equal(host.state.draftProperties, null);
+});
+
+test('R02-001 a refused property create retains its values and stable identity for retry', async () => {
+  const host = propertyController();
+  const first = host.change('key', 'Department');
+  await host.waitForCall(1);
+  const id = host.calls[0].writes[0].recordId;
+  host.calls[0].response.reject(new Error('fixture refusal'));
+  await first;
+  assert.equal(host.state.draftProperties?.rows[0].key, 'Department', 'A refused property create discarded its draft.');
+  assert.match(host.statuses.at(-1).message, /fixture refusal/);
+  const retry = host.change('value', 'Sales');
+  await host.waitForCall(2);
+  assert.equal(host.calls[1].writes[0].recordId, id, 'Retry allocated a different property identity.');
+  host.calls[1].response.resolve();
+  await retry;
+  assert.equal(host.stored().filter(record => record.entityId === M.E.property).length, 1);
+  assert.equal(host.stored().find(record => record.recordId === id).values['ar.property.value'], 'Sales');
+});
+
+test('R02-001 a property draft that already matches the file is settled, so later changes show', async () => {
+  const host = propertyController();
+  const first = host.change('key', 'Department');
+  await host.waitForCall(1); host.calls[0].response.resolve(); await first;
+  const owner = () => host.state.model.records.get('owner');
+  const rows = host.api.currentPropertyRows(owner()).map(row => ({ ...row }));
+  // Add a property, then remove the blank row again: nothing differs from the file.
+  host.state.draftProperties = { owner: 'owner', rows: [...rows, { key: '', value: '' }] };
+  await host.api.saveProperties(owner(), rows);
+  assert.equal(host.calls.length, 1, 'An unchanged property list was written.');
+  assert.equal(host.state.draftProperties, null, 'A draft identical to the file outlived its save.');
+  const stored = host.stored().find(record => record.entityId === M.E.property);
+  stored.values['ar.property.value'] = 'Changed elsewhere'; stored.version++;
+  host.state.model = M.buildModel({ records: structuredClone(host.stored()) });
+  assert.equal(host.api.currentPropertyRows(owner())[0].value, 'Changed elsewhere', 'A settled draft hid a later change to the properties.');
+});
+
+test('R02-002 reversed read completion installs only the newest model', async () => {
+  const replies = [], rendered = [], state = { loaded: true };
+  const context = vm.createContext({ state, READS: { concepts: M.E.concept }, M,
+    nendo: { records: { queryAll() { const reply = deferred(); replies.push(reply); return reply.promise; } } },
+    render: () => rendered.push(state.model.records.get('owner').version), startEmptyModel() {},
+  });
+  const reading = section('// ---------------------------------------------------------------- reading', '/**\n * A new Archi model');
+  vm.runInContext(reading + '\nglobalThis.load = readAll;', context);
+  const old = context.load(), newer = context.load();
+  const response = version => [{ entityId: M.E.concept, recordId: 'owner', version, values: {} }];
+  replies[1].resolve(response(2)); await newer;
+  replies[0].resolve(response(1)); await old;
+  assert.equal(state.model.records.get('owner').version, 2, 'An older read replaced the newer model.');
+  assert.deepEqual(rendered, [2]);
+});
+
+test('R02-002 a superseded read waits for the newest model before a queued writer can continue', async () => {
+  const replies = [], state = { loaded: true }, observed = [];
+  const context = vm.createContext({ state, READS: { concepts: M.E.concept }, M,
+    nendo: { records: { queryAll() { const reply = deferred(); replies.push(reply); return reply.promise; } } },
+    render() {}, startEmptyModel() {},
+  });
+  vm.runInContext(section('// ---------------------------------------------------------------- reading', '/**\n * A new Archi model') + '\nglobalThis.load = readAll;', context);
+  const old = context.load().then(() => observed.push(state.model.records.get('owner').version));
+  const newer = context.load();
+  replies[0].resolve([{ entityId: M.E.concept, recordId: 'owner', version: 1, values: {} }]);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(observed, [], 'A superseded reread let a queued write plan before the new model was installed.');
+  replies[1].resolve([{ entityId: M.E.concept, recordId: 'owner', version: 2, values: {} }]);
+  await Promise.all([old, newer]);
+  assert.deepEqual(observed, [2]);
+});
+
+test('R02-003 diagram text alternatives carry every nonempty concept name', () => {
+  const model = M.buildModel(fixture), view = model.of(M.E.view).find(candidate =>
+    model.of(M.E.item).some(item => item.values['ar.item.view'] === candidate.recordId && item.values['ar.item.kind'] === 'Element'));
+  const names = model.of(M.E.item).filter(item => item.values['ar.item.view'] === view.recordId && item.values['ar.item.kind'] === 'Element')
+    .map(item => M.label(model, model.records.get(item.values['ar.item.concept']))).filter(Boolean);
+  const rendered = section("items: state.model.of(M.E.item).filter", '  })).catch').slice('items: '.length).replace(/,\s*$/, '');
+  const items = vm.runInNewContext(rendered, { state: { model }, M, view });
+  let list;
+  const doc = { createElement: () => ({ textContent: '', setAttribute() {}, replaceChildren(...children) { this.children = children; } }) };
+  textAlternative({ ownerDocument: doc, querySelector: () => null, append(value) { list = value; } }, { label: 'Diagram', items });
+  assert.ok(names.length > 0);
+  assert.deepEqual(list.children.map(entry => entry.textContent), names, 'Diagram text alternative entries lost their concept names.');
+});
 
 function newElements(count, extraBox = false) {
   const before = buildMirror(fixture), after = structuredClone(before);

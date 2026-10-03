@@ -492,6 +492,52 @@ public sealed class BehaviourProposalTests
         Assert.AreEqual(behaviour, (await coordinator.GetProposalAsync(proposalId)).Behaviour);
     }
 
+    [TestMethod]
+    public async Task AnInitiallyEmptyCollectionStillGuardsAPlanWithNoEffects()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await coordinator.ApplyAsync(new("test", "empty-schema", "test", "Parents and children", [
+            new CreateEntityOperation("notes", "notes", "Notes", "notes"),
+            new AddFieldOperation("label", "notes", "label", "Label", "label", NendoStorageKind.Text, true),
+            new AddFieldOperation("flag", "notes", "flag", "Flag", "flag", NendoStorageKind.Boolean, false),
+            new CreateEntityOperation("children", "children", "Children", "children"),
+            new AddFieldOperation("parent", "children", "parent", "Parent", "parent", NendoStorageKind.Reference, true),
+            new ConfigureReferenceOperation("bind", "children", "parent", "notes", "label", 0)
+        ]));
+        await service.CreateRecordAsync(new("notes", "owner", new Dictionary<string, object?>
+            { ["label"] = "Before", ["flag"] = false }, Context("owner")));
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "empty-condition", "test", "Mark nonempty parents", [
+            new SetBehaviourDefinitionOperation("act", new NendoActionDefinition("mark", "Mark", [
+                NendoActionStep.SetField("mark", NendoActionTarget.EventRecord, new NendoActionAssignment("flag", "true"))]), revision),
+            new SetBehaviourDefinitionOperation("trig", new NendoTriggerDefinition("mark-trigger", "notes", "Mark when nonempty",
+                NendoTriggerEvents.Updated, "mark", ["label"], "children > 0",
+                [NendoBehaviourBinding.RelatedCount("children", "notes", "children", "parent")]), revision)
+        ]));
+        TestBehaviourAuthority.Approving(coordinator);
+        var id = ProposalId();
+        var preview = await coordinator.BeginProposalAsync(id, "Edit empty parent", "test", new NendoChangeSet([
+            new NendoMutation("test", "empty-edit", "test", "Edit", [new SetFieldOperation("edit", "notes", "owner", "label", 1, "Reviewed")])
+        ]));
+        Assert.AreEqual(NendoProposalState.Previewable, preview.State);
+        var persisted = PreparedBehaviourPlan.Deserialize(await File.ReadAllTextAsync(
+            Path.Combine(coordinator.ProposalRoot, id, "behaviour-plan.json")));
+        Assert.IsEmpty(persisted.Generated);
+        Assert.IsEmpty(persisted.ReadSet);
+        Assert.IsFalse(persisted.IsEmpty, "The persisted plan must retain the empty collection dependency.");
+        await service.CreateRecordAsync(new("children", "child", new Dictionary<string, object?> { ["parent"] = "owner" },
+            Context("child"), new Dictionary<string, long> { ["parent"] = 1 }));
+        var outcome = await coordinator.PromoteProposalAsync(id);
+        Assert.IsFalse(outcome.Applied,
+            "An empty collection that gained a member must make the reviewed no-effect plan stale.");
+        Assert.AreEqual(NendoProposalState.Stale, outcome.State);
+        var owner = (await service.QueryRecordsAsync(new("notes") { RecordId = "owner" })).Items.Single();
+        Assert.AreEqual("Before", owner.Values["label"].GetString());
+        Assert.IsFalse(owner.Values["flag"].GetBoolean());
+    }
+
     private static async Task<NendoBehaviourGrant> ReviewedGrantAsync(NendoWriteCoordinator coordinator, string proposalId)
     {
         var plan = PreparedBehaviourPlan.Deserialize(await File.ReadAllTextAsync(

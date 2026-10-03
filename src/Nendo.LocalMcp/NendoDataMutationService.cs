@@ -46,7 +46,7 @@ internal sealed class NendoDataMutationService(
                         ReadValueMap(values.Element),
                         Context(sessionId, idempotencyKey), expectedTargetVersions, keptInNewFiles),
                     cancellationToken),
-                [recordId],
+                entityId, [recordId],
                 CreatedVersion),
             cancellationToken);
 
@@ -76,7 +76,7 @@ internal sealed class NendoDataMutationService(
                     await application.CreateRecordsAsync(
                         new NendoCreateRecordsRequest(entityId, entries, Context(sessionId, idempotencyKey)),
                         cancellationToken),
-                    entries.Select(entry => entry.RecordId).ToArray(),
+                    entityId, entries.Select(entry => entry.RecordId).ToArray(),
                     CreatedVersion);
             },
             cancellationToken);
@@ -104,7 +104,7 @@ internal sealed class NendoDataMutationService(
                         ReadValue(value.Element),
                         Context(sessionId, idempotencyKey), expectedTargetRecordVersion),
                     cancellationToken),
-                [recordId],
+                entityId, [recordId],
                 expectedRecordVersion + 1),
             cancellationToken);
 
@@ -129,7 +129,7 @@ internal sealed class NendoDataMutationService(
                     new NendoMoveRecordRequest(entityId, recordId, expectedRecordVersion, parentRecordId, expectedParentVersion,
                         beforeRecordId, Context(sessionId, idempotencyKey)),
                     cancellationToken);
-                return Touched(moved.Applied, moved.TouchedRecordIds, moved.TouchedRecordIds.Count == 1 ? moved.RecordVersion : null);
+                return Touched(moved.Applied, entityId, moved.TouchedRecordIds, moved.TouchedRecordIds.Count == 1 ? moved.RecordVersion : null);
             },
             cancellationToken);
 
@@ -145,7 +145,7 @@ internal sealed class NendoDataMutationService(
             sessionId,
             // A contract version 3 command may set several fields, and the steps
             // live in the stored definition, so only the host can state the
-            // resulting version. It does: one step advances the record by one.
+            // resulting version, including what its automatic actions wrote.
             async _ =>
             {
                 var result = await application.ExecuteCommandAsync(
@@ -155,7 +155,8 @@ internal sealed class NendoDataMutationService(
                         expectedRecordVersion,
                         Context(sessionId, idempotencyKey)),
                     cancellationToken);
-                return Touched(result, [recordId], result.RecordVersion);
+                // The typed command service resolves the owning type and final version.
+                return Touched(result, null, [recordId], result.RecordVersion);
             },
             cancellationToken);
 
@@ -175,7 +176,7 @@ internal sealed class NendoDataMutationService(
         AdmitAsync(leaseId, sessionId,
             async _ => Touched(
                 await application.SetRecordKeptInNewFilesAsync(entityId, recordId, kept, Context(sessionId, idempotencyKey), cancellationToken),
-                [recordId],
+                entityId, [recordId],
                 null),
             cancellationToken);
 
@@ -185,7 +186,7 @@ internal sealed class NendoDataMutationService(
             async _ => Touched(
                 await application.DeleteRecordAsync(new(entityId, recordId, expectedRecordVersion,
                     Context(sessionId, idempotencyKey)), cancellationToken),
-                [recordId],
+                entityId, [recordId],
                 null),
             cancellationToken);
 
@@ -299,6 +300,7 @@ internal sealed class NendoDataMutationService(
     // as current, so the field is simply absent on that path.
     private static NendoDataApplyResult Touched(
         NendoApplyResult result,
+        string? entityId,
         IReadOnlyList<string> recordIds,
         long? recordVersion)
     {
@@ -312,14 +314,13 @@ internal sealed class NendoDataMutationService(
         // record's own version. Taking the highest across the batch named untouched
         // records at a version they do not hold, and their next optimistic write refused.
         long? reported = result.IsIdempotentReplay ? null : recordVersion;
-        if (reported is not null)
+        if (reported is not null && entityId is not null)
         {
             var committed = result.GeneratedChanges
-                .Where(change => change.RecordVersion is not null)
-                .GroupBy(change => change.RecordId, StringComparer.Ordinal)
-                .ToDictionary(group => group.Key, group => group.Max(change => change.RecordVersion!.Value), StringComparer.Ordinal);
+                .GroupBy(change => (change.EntityId, change.RecordId))
+                .ToDictionary(group => group.Key, group => group.Last().RecordVersion);
             var versions = recordIds
-                .Select(recordId => committed.TryGetValue(recordId, out var version) ? version : reported.Value)
+                .Select(recordId => committed.TryGetValue((entityId, recordId), out var version) ? version : reported.Value)
                 .Distinct()
                 .ToArray();
             reported = versions.Length == 1 ? versions[0] : null;

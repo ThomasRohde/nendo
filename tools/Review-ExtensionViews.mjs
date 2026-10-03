@@ -181,6 +181,7 @@ public static class NendoJourneyDialogs {
 // the formats on it, and a corner and the centre pixel of each image format that decodes.
 function readWindowsClipboard() {
   const script = [
+    "$ErrorActionPreference = 'Stop'",
     'Add-Type -AssemblyName System.Windows.Forms, System.Drawing',
     '$data = [Windows.Forms.Clipboard]::GetDataObject()',
     '$out = [ordered]@{ formats = @($data.GetFormats()) }',
@@ -196,7 +197,16 @@ function readWindowsClipboard() {
     'ConvertTo-Json -Compress -InputObject $out',
   ].join('\n');
   return new Promise((resolve, reject) => execFile('powershell.exe', ['-STA', '-NoProfile', '-NonInteractive', '-Command', script], { timeout: 60000 },
-    (error, stdout, stderr) => error ? reject(new Error(String(stderr || error.message))) : resolve(JSON.parse(String(stdout).trim() || 'null'))));
+    (error, stdout, stderr) => {
+      if (error) { reject(new Error('Windows clipboard probe failed: ' + String(stderr || error.message).trim())); return; }
+      const text = String(stdout).trim();
+      if (!text) { reject(new Error('Windows clipboard probe returned no JSON: ' + String(stderr || 'the child produced no output').trim())); return; }
+      try {
+        const result = JSON.parse(text);
+        if (result === null || !Array.isArray(result.formats)) throw new Error('the response has no clipboard format list');
+        resolve(result);
+      } catch (failure) { reject(new Error('Windows clipboard probe returned invalid JSON: ' + failure.message)); }
+    }));
 }
 
 function closeHostDialog(seconds = 10) {

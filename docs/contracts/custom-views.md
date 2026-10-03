@@ -630,7 +630,8 @@ belong together.
 - There is no move in a batch, because a move reads its siblings from the committed
   file. Set a tree's parent and order fields in an `update`, or call `records.move`.
 - The answer is each record's new version, in the order written, and null for a
-  deleted one; an automatic action that wrote back to a record is counted. Read a record
+  deleted one, including a record deleted by an automatic action in the same
+  revision; an automatic action that wrote back to a record is counted. Read a record
   again for its values and calculations.
 - History compensates a batch of updates and deletes, up to 128 operations, as one.
   A batch that creates a record cannot be compensated in History, as a single create

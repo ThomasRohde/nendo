@@ -186,7 +186,7 @@
     for (const node of nodes) {
       if (node.id === removed) continue;
       if (baseline.has(node.id) && !without.has(node.id)) answer.set(node.id, 'exposed');
-      else if (below.has(node.id)) answer.set(node.id, 'reduced');
+      else if (below.has(node.id) && without.has(node.id)) answer.set(node.id, 'reduced');
     }
     return answer;
   }

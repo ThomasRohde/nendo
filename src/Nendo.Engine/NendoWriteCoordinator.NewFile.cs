@@ -6,6 +6,7 @@ public sealed partial class NendoWriteCoordinator
 {
     private readonly Dictionary<string, (string Destination, NendoNewFileResult Result)> _newFiles = new(StringComparer.Ordinal);
     internal Action<string>? BeforeNewFileValidation { get; set; }
+    internal Action<string>? BeforeNewFileActivation { get; set; }
 
     /// <summary>What a new file of the open application would hold now (ADR-0022), for the person to read first.</summary>
     public async Task<NendoNewFilePreview> PreviewNewFileAsync(CancellationToken cancellationToken = default)
@@ -14,6 +15,12 @@ public sealed partial class NendoWriteCoordinator
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_readOnlySnapshot is not null)
+            {
+                var source = await InspectIdentitySourceAsync(cancellationToken);
+                if (source.ContentDigest != _readOnlyContentDigest) throw CopySourceChanged();
+                return SqliteNendoStore.PreviewNewFile(source.Snapshot!, source.History);
+            }
             return await GetStore().PreviewNewFileAsync(cancellationToken);
         }
         finally { _gate.Release(); }
@@ -68,6 +75,7 @@ public sealed partial class NendoWriteCoordinator
                         var now = DateTimeOffset.UtcNow;
                         var revisionId = $"revision-{Guid.NewGuid():N}";
                         IdentityCopyIntent intent;
+                        string expectedDigest;
                         (long Kept, long LeftOut, long Folded) counts;
                         await using (var store = await SqliteNendoStore.OpenAsync(stage, cancellationToken))
                         {
@@ -78,18 +86,25 @@ public sealed partial class NendoWriteCoordinator
                                 intent.Operation(sourceManifest.ApplicationId, $"instance-{Guid.NewGuid():N}"),
                                 revisionId, now, null, cancellationToken);
                             await store.VacuumAsync(cancellationToken);
+                            expectedDigest = await store.GetContentDigestAsync(cancellationToken);
                         }
+                        stagePin.Flush(flushToDisk: true);
+                        var expectedBytes = VerifiedFileMove.Digest(stagePin);
                         BeforeNewFileValidation?.Invoke(stage);
                         var made = await SqliteNendoStore.InspectAsync(stage, cancellationToken);
-                        if (!made.Inspection.CanAcquireWriteAuthority || SqliteNendoStore.FindIdentityCopyEvidence(made, intent) is null)
+                        if (!made.Inspection.CanAcquireWriteAuthority || made.ContentDigest != expectedDigest ||
+                            SqliteNendoStore.FindIdentityCopyEvidence(made, intent) is null)
                             throw new NendoPreconditionException("new-file-validation-failed",
                                 "The new file did not validate when it was read back. Nothing was made, and the open file is unchanged.");
                         cancellationToken.ThrowIfCancellationRequested();
-                        RequireUnoccupiedBackupDestination(destination);
-                        stagePin.Flush(flushToDisk: true);
                         stagePin.Dispose();
                         stagePin = null;
-                        File.Move(stage, destination, overwrite: false);
+                        // Recheck the expected bytes while taking exclusive lifecycle
+                        // access, then rename that same held identity.
+                        using var move = VerifiedFileMove.Acquire(stage, stageIdentity!, expectedBytes);
+                        BeforeNewFileActivation?.Invoke(stage);
+                        RequireUnoccupiedBackupDestination(destination);
+                        move.MoveTo(destination);
                         activated = true;
                         result = new NendoNewFileResult(Path.GetFileName(destination), made.Inspection.Manifest!,
                             counts.Kept, counts.LeftOut, counts.Folded, revisionId);

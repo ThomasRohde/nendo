@@ -117,7 +117,12 @@ governs ownership, not claimed client names or HTTP connection identity. Keep th
 handle private.
 
 By default, the lease ends on explicit release, user revocation or host stop. An
-owner can enable a bounded expiry in Agent → Connection. In either mode, the
+owner can enable a bounded expiry in Agent → Connection. The
+device settings writer merges only the controls changed in that window with the
+latest saved settings, under the required cross-process lock. A stale window's
+port edit cannot restore an older lease-expiry choice. The
+same window retains unsaved field intent through a failed persistence attempt
+and an identical retry. In either mode, the
 closure of an agent alone does not end the lease. If the file is closed, switched,
 replaced or recovered, the endpoint and the authority become invalid. A healthy
 restart of only the renderer preserves them. Receipt lookup requires no live
@@ -207,6 +212,11 @@ Later operations in a change set may edit records that earlier operations in tha
 change set created. Those records have no active-file version to include in the
 staleness capture of the proposal. Ordered replay on the proposal clone checks
 their expected versions, and promotion checks them again.
+
+Invalid validation remains a dry run even if its caller cancels while private
+preview cleanup waits. Required cleanup finishes before the invalid verdict
+becomes replayable, and the draft remains amendable. A preview handed over for
+review retains its normal frozen state.
 
 Inline node properties fix the throughput problem. The screens of a complete
 application needed 84 nodes and roughly 234 operations. That does not fit in one
@@ -304,6 +314,21 @@ the description and the default left on the node. The Inspector's four rules
 (`boolean-schema`, `type-union`, `untyped-schema`, `remote-ref`) are ported into
 `EveryAdvertisedSchemaPassesTheInspectorLint`, which runs them over every input and
 output schema and was seen to fail with 76 findings when the split was withheld.
+
+Mutation versions are scoped by the pair of record type and record ID. A generated
+write to the same ID in another type cannot change the caller's returned version;
+an automatic deletion leaves no version. Commands resolve their owning type in
+the typed application service. JSON import preserves each record's explicit
+`keptInNewFiles` true/false/null mark, including across batch boundaries and exact
+retries; changing that mark under an already-used key is an idempotency conflict.
+
+The repository's package uploader packs at most sixteen operations in each
+`add_operations` call, counting all mutations together. `--accept` treats only
+`NENDO_UNATTENDED_REQUIRED` as a successful handoff for a person to accept. Other
+refusals and transport failures exit unsuccessfully and name the proposal; after
+a lost response, inspect Pending changes and History before acting again. The
+acceptance key dies with the uploader's lease, so a rerun cannot replay it. A
+transport failure does not establish that acceptance did not commit.
 
 ## What a refusal says
 

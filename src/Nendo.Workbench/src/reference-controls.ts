@@ -85,7 +85,7 @@ export function wireReferenceControls(form: HTMLFormElement, fields: Field[], qu
 }
 
 export function referenceVersions(form: HTMLFormElement, values: Record<string, unknown>): Record<string, number> {
-  const result: Record<string, number> = {};
+  const result: Record<string, number> = Object.create(null);
   for (const root of form.querySelectorAll<HTMLElement>('[data-reference-field]')) {
     const id = root.dataset.referenceField!;
     if (values[id] != null && values[id] !== '' && root.dataset.targetVersion)

@@ -307,7 +307,7 @@ export function deletePlan(model, recordIds) {
 
 /**
  * The writes that make a record's properties the rows given, in their order: a row with a
- * recordId is an existing property, kept or changed; one without is new; a property no row
+ * recordId is an existing or pending property, kept or changed; one without is new; a property no row
  * names is deleted.
  */
 export function propertyWrites(model, ownerId, rows) {
@@ -321,7 +321,7 @@ export function propertyWrites(model, ownerId, rows) {
     const values = { 'ar.property.key': row.key, 'ar.property.value': row.value ?? '', 'ar.property.order': (index + 1) * 1024 };
     const current = row.recordId ? model.records.get(row.recordId) : null;
     if (!current) {
-      writes.push({ op: 'create', entityId: E.property, recordId: `ar-${newArchiId()}`,
+      writes.push({ op: 'create', entityId: E.property, recordId: row.recordId ?? `ar-${newArchiId()}`,
         values: { ...values, [ownerField]: ownerId }, targetVersions: { [ownerField]: owner.version } });
       return;
     }

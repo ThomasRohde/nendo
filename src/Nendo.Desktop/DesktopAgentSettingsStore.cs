@@ -23,6 +23,12 @@ internal sealed class DesktopAgentSettingsStore
 
     private readonly string _root;
     private string StatePath => Path.Combine(_root, "agent-settings.json");
+    private bool _pendingLeaseExpiry;
+    private bool _pendingLeaseExpirySeconds;
+    private bool _pendingFixedPort;
+    private bool _pendingPort;
+    // The document was read but holds nothing usable, so a save replaces it whole.
+    private bool _unusableDocument;
 
     internal bool LeaseExpiry { get; private set; }
     internal int LeaseExpirySeconds { get; private set; } = 60;
@@ -56,6 +62,7 @@ internal sealed class DesktopAgentSettingsStore
         catch (DirectoryNotFoundException) { }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
+            _unusableDocument = exception is JsonException;
             Persisted = false;
             Notice = "The saved agent connection settings could not be read. Using the local defaults for this session.";
         }
@@ -67,6 +74,13 @@ internal sealed class DesktopAgentSettingsStore
     internal void Save(bool leaseExpiry, int leaseExpirySeconds, bool fixedPort, int port)
     {
         Validate(leaseExpirySeconds, port);
+        // The page submits all four controls. Only differences from this window's
+        // last view express an edit; its unchanged controls may already be stale.
+        // An unsaved session choice remains an edit on an identical retry.
+        var changeExpiry = _pendingLeaseExpiry |= leaseExpiry != LeaseExpiry;
+        var changeSeconds = _pendingLeaseExpirySeconds |= leaseExpirySeconds != LeaseExpirySeconds;
+        var changeFixed = _pendingFixedPort |= fixedPort != FixedPort;
+        var changePort = _pendingPort |= port != Port;
         LeaseExpiry = leaseExpiry;
         LeaseExpirySeconds = leaseExpirySeconds;
         FixedPort = fixedPort;
@@ -75,6 +89,16 @@ internal sealed class DesktopAgentSettingsStore
         string? ownedStage = null;
         try
         {
+            using var guard = DesktopDeviceStateLock.EnterRequired(StatePath);
+            var latest = new DesktopAgentSettingsStore(_root);
+            // A corrupt or unsupported document holds no other window's choice, so this
+            // window's values repair it. One that could not be opened may still hold one.
+            if (!latest.Persisted && !latest._unusableDocument) throw new IOException("The shared agent settings could not be read for merging.");
+            var merge = latest.Persisted;
+            LeaseExpiry = changeExpiry || !merge ? leaseExpiry : latest.LeaseExpiry;
+            LeaseExpirySeconds = changeSeconds || !merge ? leaseExpirySeconds : latest.LeaseExpirySeconds;
+            FixedPort = changeFixed || !merge ? fixedPort : latest.FixedPort;
+            Port = changePort || !merge ? port : latest.Port;
             Directory.CreateDirectory(_root);
             var stage = Path.Combine(_root, $"agent-settings-{Guid.NewGuid():N}.tmp");
             using (var stream = new FileStream(stage, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
@@ -82,11 +106,12 @@ internal sealed class DesktopAgentSettingsStore
                 ownedStage = stage;
                 JsonSerializer.Serialize(
                     stream,
-                    new StoredAgentSettings(1, leaseExpiry, leaseExpirySeconds, fixedPort, port));
+                    new StoredAgentSettings(1, LeaseExpiry, LeaseExpirySeconds, FixedPort, Port));
                 stream.Flush(flushToDisk: true);
             }
             File.Move(stage, StatePath, overwrite: true);
             ownedStage = null;
+            _pendingLeaseExpiry = _pendingLeaseExpirySeconds = _pendingFixedPort = _pendingPort = false;
             Persisted = true;
             Notice = null;
         }

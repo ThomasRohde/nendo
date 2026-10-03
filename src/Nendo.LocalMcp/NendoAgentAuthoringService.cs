@@ -26,6 +26,8 @@ internal sealed class NendoAgentAuthoringService(
     private static readonly int PutFilePayloadBytes = Limits.Extensions!.PutFilePayloadBytes;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, Draft> _drafts = new(StringComparer.Ordinal);
+    // Internal fault boundary for deterministic cancellation tests; never a tool or host setting.
+    internal Action? BeforeInvalidPreviewCleanup { get; set; }
     // Bounded: the newest NendoReplayCache.Capacity of each kind, and all of a session's
     // are discarded when its lease ends.
     private readonly NendoReplayCache<(string SessionId, string Key), Replay<NendoChangeSetBeginResult>>
@@ -273,55 +275,65 @@ internal sealed class NendoAgentAuthoringService(
                     }
                     var snapshot = await application.GetSnapshotAsync(cancellationToken);
                     RequireCapturedAuthority(draft, snapshot);
+                    // A previous cleanup IO refusal keeps its private preview owned by
+                    // the draft. Finish that cleanup before creating another clone.
+                    if (draft.Preview is { } abandoned)
+                    {
+                        await application.RejectProposalAsync(abandoned.ProposalId, CancellationToken.None);
+                        draft.Preview = null;
+                    }
                     draft.Frozen = true;
                     var proposalId = $"proposal-{RandomHex(16)}";
                     var origin = NendoTransportIdentity.Pseudonym(sessionId);
-                    NendoProposalPreview preview;
+                    NendoAgentProposalPreview projected;
+                    var transferred = false;
                     try
                     {
-                        preview = await application.PrepareProposalAsync(
+                        var preview = await application.PrepareProposalAsync(
                             new NendoCanonicalProposalRequest(
                                 proposalId,
                                 draft.Title,
                                 origin,
                                 Compile(draft, origin)),
                             cancellationToken);
+                        draft.Preview = preview;
                         if (preview.CapturedDefinitionRevision != draft.CapturedDefinitionRevision ||
                             preview.SourceApplicationId != draft.ApplicationId ||
                             preview.SourceInstanceId != draft.InstanceId)
                         {
-                            await application.RejectProposalAsync(preview.ProposalId, cancellationToken);
                             throw new NendoAgentAuthoringException(
                                 "CHANGE_SET_STALE",
                                 "The application authority changed while the change set was validating.");
                         }
+                        projected = NendoAgentProposalStore.ProjectPreview(preview);
+                        if (preview.State == NendoProposalState.Previewable)
+                        {
+                            proposals.Add(changeSetId, host.HostRunId, sessionId, preview);
+                            _drafts.Remove(changeSetId);
+                            transferred = true;
+                        }
+                        else
+                        {
+                            BeforeInvalidPreviewCleanup?.Invoke();
+                        }
                     }
-                    catch
+                    finally
                     {
-                        // A validate that ends without a verdict — a body the compiler
-                        // refused, authority that moved, a cancelled call — is not a
-                        // verdict on the draft. It reopens, so the documented remedy is
-                        // not itself refused as frozen and ninety operations are not lost
-                        // to one exception.
-                        draft.Frozen = false;
-                        draft.Preview = null;
-                        throw;
+                        if (!transferred)
+                        {
+                            // Cleanup is required even if the caller stopped waiting.
+                            // Unfreeze on every exit and retain ownership if cleanup
+                            // itself has an IO refusal, so retry or lease-end can finish it.
+                            draft.Frozen = false;
+                            if (draft.Preview is { } discarded)
+                            {
+                                await application.RejectProposalAsync(discarded.ProposalId, CancellationToken.None);
+                                draft.Preview = null;
+                            }
+                        }
                     }
-                    var projected = NendoAgentProposalStore.ProjectPreview(preview);
+                    // A replayable verdict means its cleanup or review handoff has settled.
                     _validateReplays.Add(replayKey, new Replay<NendoAgentProposalPreview>(digest, projected));
-                    if (preview.State == NendoProposalState.Previewable)
-                    {
-                        draft.Preview = preview;
-                        proposals.Add(changeSetId, host.HostRunId, sessionId, preview);
-                        _drafts.Remove(changeSetId);
-                        return projected;
-                    }
-                    // A failed validation is a dry run, not the end of the draft.
-                    // Discard the private clone and reopen the draft so one bad
-                    // operation costs one amend rather than a whole rebuild.
-                    await application.RejectProposalAsync(preview.ProposalId, cancellationToken);
-                    draft.Preview = null;
-                    draft.Frozen = false;
                     return projected;
                 }
                 finally

@@ -41,7 +41,7 @@ still reach without it, and answers in three:
 | --- | --- |
 | **no path** | It was reachable before, and without that component nothing reaches it |
 | **still fed** | It is downstream of the removed component and keeps a declared path anyway |
-| *(unmarked)* | Not downstream of it at all |
+| *(unmarked)* | Not downstream, or already unreachable from every declared source before removal |
 
 The difference between the first two is the whole point. A radiator fed by two pumps does
 not go dark when one is taken out, and a view that painted everything downstream would say

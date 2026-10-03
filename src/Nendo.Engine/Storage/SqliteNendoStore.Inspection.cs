@@ -53,18 +53,17 @@ internal sealed partial class SqliteNendoStore
     internal const long MaximumInspectionRows = 100_000;
 
     /// <summary>
-    /// How much room is kept below each open bound for the write about to be made.
+    /// How much room is kept below each open bound by the early admission check.
     /// <para>
-    /// This is headroom, not a measurement, and the distinction matters: what a commit
-    /// costs is not known until it is made, so the ceiling has to sit far enough below the
-    /// bound that no single write can cross the gap. The figures are justified by measuring
-    /// the largest commit the suite produces and asserting it stays well inside them,
-    /// rather than by reasoning about what a large write might be.
+    /// This reserve is not proof that an admitted transaction fits. A 200-record edit can
+    /// expand to 12,800 operations, plus automatic actions. RequireInspectableCommitAsync
+    /// measures the expanded transaction's pages, schema and rows before COMMIT and rolls
+    /// back any result this host would not open.
     /// </para>
     /// <para>
     /// Raised from 4 MiB to 32 MiB on 2026-09-25 (ADR-0013), when custom-view packages moved
     /// into the file: a change set may carry <see cref="NendoExtensionLimits.ContentBytesPerChangeSet"/>
-    /// of new file content in one commit, which is now the largest commit the product accepts.
+    /// of new file content in one commit.
     /// The reserve keeps several times that, so the write ceiling is 224 MiB.
     /// </para>
     /// </summary>
@@ -76,7 +75,8 @@ internal sealed partial class SqliteNendoStore
     /// <summary>
     /// The size a file may reach and still accept a write, derived from the open bound so
     /// the two cannot part company. Past this a mutation is refused before anything is
-    /// staged, which is what stops Nendo writing a file it will not open (F-040, W-039).
+    /// staged. The final transaction measurement also protects against a write crossing
+    /// the remaining gap (F-040, W-039, R02-025).
     /// </summary>
     internal const long WriteCeilingFileBytes = MaximumInspectionFileBytes - WriteHeadroomFileBytes;
 
@@ -122,6 +122,41 @@ internal sealed partial class SqliteNendoStore
                 "The write was refused and nothing was changed, so the file still opens. " +
                 "Export what you need or start a new file.");
         }
+    }
+
+    /// <summary>Measure the actual expanded transaction before commit, including automatic actions.</summary>
+    private async Task RequireInspectableCommitAsync(SqliteTransaction transaction, CancellationToken cancellationToken)
+    {
+        var pages = Convert.ToInt64(await ScalarAsync("PRAGMA page_count;", transaction, cancellationToken), CultureInfo.InvariantCulture);
+        var pageSize = Convert.ToInt64(await ScalarAsync("PRAGMA page_size;", transaction, cancellationToken), CultureInfo.InvariantCulture);
+        if (pages * pageSize > MaximumInspectionFileBytes)
+            throw new NendoPreconditionException("write-ceiling-bytes",
+                $"This write would exceed the {InspectionLimitText} open limit. Nothing was changed, so the file still opens. Fold its history or start a new file.");
+        var tables = new List<string>();
+        await using (var command = Command("SELECT type, name FROM sqlite_schema;", transaction))
+        await using (var rows = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            var objects = 0;
+            while (await rows.ReadAsync(cancellationToken))
+            {
+                if (++objects > 512)
+                    throw new NendoPreconditionException("write-ceiling-schema", "This write would exceed the storage-object open limit. Nothing was changed, so the file still opens.");
+                if (rows.GetString(0) == "table") tables.Add(rows.GetString(1));
+            }
+        }
+        foreach (var table in tables)
+        {
+            var count = Convert.ToInt64(await ScalarAsync($"SELECT COUNT(*) FROM {Quote(table)};", transaction, cancellationToken), CultureInfo.InvariantCulture);
+            if (count > MaximumInspectionRows) throw RowsExceeded();
+        }
+        long records = 0;
+        foreach (var entity in await ReadEntityMappingsAsync(transaction, cancellationToken))
+        {
+            records += Convert.ToInt64(await ScalarAsync($"SELECT COUNT(*) FROM {Quote(entity.PhysicalTableName)};", transaction, cancellationToken), CultureInfo.InvariantCulture);
+            if (records > MaximumInspectionRows) throw RowsExceeded();
+        }
+        static NendoPreconditionException RowsExceeded() => new("write-ceiling-rows",
+            $"This write would exceed the {MaximumInspectionRows} row open limit. Nothing was changed, so the file still opens. Fold its history or start a new file.");
     }
     private static readonly Lazy<Task<IReadOnlyDictionary<string, string>>> KnownLayouts = new(BuildKnownLayoutsAsync);
 

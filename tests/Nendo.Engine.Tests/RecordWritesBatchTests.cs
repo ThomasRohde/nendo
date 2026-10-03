@@ -142,6 +142,31 @@ public sealed class RecordWritesBatchTests
         Assert.AreEqual("shared", (await service.QueryRecordsAsync(new("notes", 1) { RecordId = "shared" })).Items.Single().Values["folder"].GetString());
     }
 
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ABatchReportsNoVersionWhenAnActionDeletesItsRecord(bool update)
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var (coordinator, service) = await SeedAsync(workspace);
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("batch-tests", "delete-action", "test", "Delete the edited note", [
+            new SetBehaviourDefinitionOperation("action", new NendoActionDefinition("delete", "Delete",
+                [NendoActionStep.DeleteRecord("step", NendoActionTarget.EventRecord)]), revision),
+            new SetBehaviourDefinitionOperation("trigger", new NendoTriggerDefinition("trigger", "notes", "Delete",
+                update ? NendoTriggerEvents.Updated : NendoTriggerEvents.Created, "delete"), revision)
+        ]));
+        TestBehaviourAuthority.Approving(coordinator);
+        var id = update ? "n0" : "created";
+        var result = await service.ApplyRecordWritesAsync(new([
+            new(update ? NendoRecordWriteKind.Update : NendoRecordWriteKind.Create, "notes", id,
+                Values("label", "Gone"), update ? 1 : null)
+        ], Context("deleted-by-action")));
+        Assert.IsEmpty((await service.QueryRecordsAsync(new("notes") { RecordId = id })).Items);
+        Assert.IsNull(result.Records.Single().RecordVersion,
+            "A record deleted by an automatic action must have no returned version.");
+    }
+
     private static async Task<(NendoWriteCoordinator, NendoApplicationService)> SeedAsync(EngineTestWorkspace workspace)
     {
         var coordinator = await workspace.CreateAsync();

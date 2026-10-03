@@ -310,6 +310,27 @@ internal sealed partial class SqliteNendoStore
         return new(NendoNewFile.MenuLabel(label), label, plan.Types, plan.Conflicts, plan.ConflictCount, revisions);
     }
 
+    internal static NendoNewFilePreview PreviewNewFile(NendoSessionSnapshot snapshot, IReadOnlyList<NendoRevisionSnapshot> history)
+    {
+        var entities = snapshot.Entities.ToDictionary(entity => entity.EntityId, StringComparer.Ordinal);
+        var recordsByType = snapshot.Records.ToLookup(record => record.EntityId, StringComparer.Ordinal);
+        var kept = snapshot.Records.Where(record => record.KeptInNewFiles ??
+            entities[record.EntityId].KeptInNewFiles)
+            .Select(record => (record.EntityId, record.RecordId)).ToHashSet();
+        var types = snapshot.Entities.Select(entity => new NendoNewFileTypeCount(entity.EntityId, entity.DisplayName,
+            entity.KeptInNewFiles, recordsByType[entity.EntityId].LongCount(record => kept.Contains((record.EntityId, record.RecordId))),
+            recordsByType[entity.EntityId].LongCount(record => !kept.Contains((record.EntityId, record.RecordId))))).ToArray();
+        var conflicts = (from entity in snapshot.Entities
+            from field in entity.Fields.Where(field => field.StorageKind == NendoStorageKind.Reference && field.Reference is not null)
+            from record in recordsByType[entity.EntityId].Where(record => kept.Contains((record.EntityId, record.RecordId))).OrderBy(record => record.RecordId, StringComparer.Ordinal)
+            let targetId = record.Values.GetValueOrDefault(field.FieldId)
+            where targetId.ValueKind == JsonValueKind.String && !kept.Contains((field.Reference!.TargetEntityId, targetId.GetString()!))
+            select new NendoNewFileConflict(entity.EntityId, record.RecordId, field.FieldId, field.Reference!.TargetEntityId, targetId.GetString()!)).ToArray();
+        return new(NendoNewFile.MenuLabel(snapshot.Manifest.NewFileLabel), snapshot.Manifest.NewFileLabel, types,
+            conflicts.Take(NendoNewFilePreview.MaximumConflictsNamed).ToArray(), conflicts.LongLength,
+            history.LongCount(revision => revision.Lane != NendoRevisionLane.Genesis));
+    }
+
     /// <summary>The sentence a refusal gives for the references a new file cannot keep.</summary>
     private static string ConflictMessage(NewFilePlan plan)
     {

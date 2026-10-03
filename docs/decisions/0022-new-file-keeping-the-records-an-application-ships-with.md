@@ -168,6 +168,8 @@ not an agent, a view or an automatic action, as for Duplicate and Fork (ADR-0010
    view state, waiting proposals, and this device's approvals of automatic actions, which the new
    file asks for again. A save dialog chooses the destination. An existing file is never
    overwritten.
+   A normal read-only source receives the same counts, label and reference-conflict preview;
+   creating a new file does not require write authority over its source.
 2. **Stage.** The host copies the source with SQLite's backup API into a stage in the
    destination folder (ADR-0011). The source is read under the write coordinator and is not
    changed.
@@ -184,6 +186,9 @@ not an agent, a view or an automatic action, as for Duplicate and Fork (ADR-0010
    the instance ID is new, as for Duplicate (amends ADR-0010). It is `irreversible-declared`.
 7. **Activate.** The host vacuums the stage, inspects it as if opening it, activates it with no
    overwrite, and opens it in a window of its own.
+   Read-back must match the expected post-transformation, post-vacuum content. Activation
+   rechecks the physical identity and bytes while acquiring a Windows rename handle, then
+   moves that held file with writes and deletion excluded until activation finishes.
 
 **What the new file keeps:** the definition (record types, fields, rules, references, hierarchies,
 screens, behaviour, custom-view packages and the content their current files use), the purpose and look, the marks

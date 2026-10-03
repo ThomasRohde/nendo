@@ -235,6 +235,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
             // the SQLite write lock. No cancellable refresh follows COMMIT.
             beforeAuthorityRead?.Invoke();
             RequireBehaviourStillGranted(chain);
+            await RequireInspectableCommitAsync(transaction, cancellationToken);
             var committedAuthority = await PrepareCommittedAuthorityAsync(transaction, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             transaction.Commit();
@@ -506,6 +507,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                     "behaviour-not-approved",
                     "Approval for this file's automatic actions was withdrawn while saving, so nothing was changed.");
             }
+            await RequireInspectableCommitAsync(transaction, cancellationToken);
             var committedAuthority = await PrepareCommittedAuthorityAsync(transaction, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             transaction.Commit();

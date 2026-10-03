@@ -375,17 +375,15 @@ public sealed class FileInspectionTests
     }
 
     /// <summary>
-    /// The reserve below each ceiling is large enough that no single commit can cross it.
+    /// A representative 128-operation commit fits the early admission reserve.
     /// </summary>
     /// <remarks>
-    /// The ceiling only works if a write cannot jump from under it to over the bound, and
-    /// what a commit costs is not known until it is made. So the worst case is measured
-    /// rather than reasoned about: the largest change this product accepts is a change set
-    /// at the published 128-operation ceiling, and here it carries records of the size the
-    /// 2026-09-16 amendment measured, 1,306 bytes of text each.
+    /// This sample is not the largest accepted write: record batches expand to 12,800
+    /// operations. ReviewStorageRegressionTests measures that boundary and its rollback.
+    /// This case retains the 1,306-byte record measurement from the 2026-09-16 amendment.
     /// </remarks>
     [TestMethod]
-    public async Task NoSingleCommitCanCrossTheReserveBelowTheCeiling()
+    public async Task ARepresentative128OperationCommitFitsTheEarlyAdmissionReserve()
     {
         await using var workspace = new EngineTestWorkspace();
         var created = await workspace.CreateAsync();
@@ -404,14 +402,14 @@ public sealed class FileInspectionTests
             .ToArray();
 
         var before = new FileInfo(workspace.FilePath).Length;
-        await created.ApplyAsync(new NendoMutation("test", "bulk", "test", "The largest commit this product accepts", operations));
+        await created.ApplyAsync(new NendoMutation("test", "bulk", "test", "A representative 128-operation commit", operations));
         var growth = new FileInfo(workspace.FilePath).Length - before;
 
         Assert.IsGreaterThan(0, growth, "The commit did not grow the file, so this measures nothing.");
         Assert.IsLessThan(Nendo.Engine.Storage.SqliteNendoStore.WriteHeadroomFileBytes / 4, growth,
             $"A commit of 128 operations grew the file by {growth} bytes against a reserve of " +
             $"{Nendo.Engine.Storage.SqliteNendoStore.WriteHeadroomFileBytes}. The reserve has to stay comfortably " +
-            "larger than the largest commit, or a write accepted under the ceiling lands over the open bound.");
+            "larger than this representative sample.");
 
         Assert.IsLessThan(Nendo.Engine.Storage.SqliteNendoStore.WriteHeadroomRows, (long)operations.Length + 1,
             "The row reserve has to exceed the operation rows one commit writes, plus its revision row.");

@@ -36,7 +36,12 @@ export function createNendoMcpClient(discovery, name) {
     const messages = response.headers.get('content-type')?.includes('text/event-stream')
       ? text.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => JSON.parse(line.slice(5))) : [JSON.parse(text)];
     const reply = messages.find(message => message.id === body.id);
-    if (!reply || reply.error) throw Error(`MCP ${method} failed: ${reply?.error?.code ?? 'no reply'}`);
+    if (!reply || reply.error) {
+      const message = reply?.error?.message;
+      const error = Error(`MCP ${method} failed: ${reply?.error?.code ?? 'no reply'}${message ? ': ' + message : ''}`);
+      error.code = message?.match(/^\s*(NENDO_[A-Z_]+)\b/)?.[1];
+      throw error;
+    }
     if (reply.result.resultType !== 'complete') throw Error(`Unexpected MCP result type for ${method}`);
     return reply.result;
   }
@@ -44,7 +49,11 @@ export function createNendoMcpClient(discovery, name) {
     const result = await rpc('tools/call', { name, arguments: args });
     if (result.isError) {
       const said = (result.content ?? []).filter(part => part.type === 'text').map(part => part.text).join(' ').slice(0, 2000);
-      throw Error(`MCP tool ${name} rejected${said ? ': ' + said : ''}`);
+      const error = Error(`MCP tool ${name} rejected${said ? ': ' + said : ''}`);
+      // Only a protocol tool refusal carries a Nendo code. HTTP/transport errors
+      // must never be reclassified as an access-level refusal by a caller.
+      error.code = said.match(/^\s*(NENDO_[A-Z_]+)\b/)?.[1];
+      throw error;
     }
     return result.structuredContent;
   }

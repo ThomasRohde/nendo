@@ -437,8 +437,12 @@ public sealed partial class NendoApplicationService
     /// previous version. A replay reports nothing rather than the version the
     /// record held when the original committed, which may be stale by now.
     /// </summary>
-    private static NendoApplyResult Advanced(NendoApplyResult result, long expectedRecordVersion, int steps) =>
-        result.IsIdempotentReplay ? result : result with { RecordVersion = expectedRecordVersion + steps };
+    private static NendoApplyResult Advanced(NendoApplyResult result, string entityId, string recordId, long expectedRecordVersion, int steps)
+    {
+        if (result.IsIdempotentReplay) return result;
+        var generated = result.GeneratedChanges.LastOrDefault(change => change.EntityId == entityId && change.RecordId == recordId);
+        return result with { RecordVersion = generated is not null ? generated.RecordVersion : expectedRecordVersion + steps };
+    }
 
     private static (NendoApplicationPlan Plan, NendoSurfaceNodePlan Command)? FindComposableCommand(
         NendoCompileResult compilation,
@@ -489,7 +493,7 @@ public sealed partial class NendoApplicationService
                 new NendoMutation(request.Context.IdempotencyScope, request.Context.IdempotencyKey,
                     request.Context.Origin, command.Properties["label"].GetString() ?? "Command", operations),
                 cancellationToken),
-            request.ExpectedRecordVersion,
+            plan.Entity.SemanticId, request.RecordId, request.ExpectedRecordVersion,
             operations.Length);
     }
 

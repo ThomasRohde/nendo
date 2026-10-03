@@ -61,3 +61,8 @@ The Engine implements this contract in `RecordQuerySemantics.cs` and
 `NendoQueryCursor.cs`. `TypedRecordQueryTests`, `BoundedQueryTests`,
 `CursorCodecTests` and `WorkbenchDeclaredQueryPagingTests` test it. This file does
 not map each rule to a test case.
+
+Read-only snapshots use the same typed filtered set for pages, counts, numeric
+aggregates, groups, date buckets and cells. Stored, calculated and `descendantOf`
+predicates apply before folding. `ReviewStorageRegressionTests` compares all five
+folds with their writable answers and checks the corresponding page.

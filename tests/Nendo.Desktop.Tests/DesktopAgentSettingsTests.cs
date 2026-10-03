@@ -38,6 +38,48 @@ public sealed class DesktopAgentSettingsTests
         Assert.AreEqual(51000, reopened.Port);
     }
 
+    [TestMethod]
+    public async Task AStaleWindowSavesOnlyItsChangedPreferences()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var first = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
+        var second = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
+        first.Save(true, 120, true, first.Port);
+        second.Save(false, 60, false, 51000);
+        var reopened = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
+        Assert.IsTrue(reopened.LeaseExpiry, "A stale port edit must preserve another window's lease expiry choice.");
+        Assert.AreEqual(120, reopened.LeaseExpirySeconds);
+        Assert.IsFalse(reopened.FixedPort);
+        Assert.AreEqual(51000, reopened.Port);
+        // The first window still holds the old port choices when it edits expiry again.
+        first.Save(false, 240, true, first.Port);
+        reopened = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
+        Assert.IsFalse(reopened.LeaseExpiry);
+        Assert.AreEqual(240, reopened.LeaseExpirySeconds);
+        Assert.IsFalse(reopened.FixedPort, "A stale expiry edit must preserve another window's port choice.");
+        Assert.AreEqual(51000, reopened.Port);
+    }
+
+    [TestMethod]
+    public async Task RetryingAnUnsavedChoiceKeepsTheSameIntent()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var store = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
+        var path = Path.Combine(workspace.FileHistoryRoot, "agent-settings.json");
+        Directory.CreateDirectory(path); // A task-owned obstacle to reading/writing the document.
+        store.Save(true, 120, false, 51000);
+        Assert.IsFalse(store.Persisted);
+        Assert.IsTrue(store.LeaseExpiry);
+        Directory.Delete(path);
+        store.Save(true, 120, false, 51000);
+        Assert.IsTrue(store.Persisted);
+        var reopened = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
+        Assert.IsTrue(reopened.LeaseExpiry, "Retrying an unsaved expiry choice must not restore the old disk default.");
+        Assert.AreEqual(120, reopened.LeaseExpirySeconds);
+        Assert.IsFalse(reopened.FixedPort);
+        Assert.AreEqual(51000, reopened.Port);
+    }
+
     // Settings saved before the credential was removed still load; the stale key is ignored.
     [TestMethod]
     public async Task ASettingsDocumentWithTheRetiredCredentialKeyStillLoads()
@@ -87,6 +129,25 @@ public sealed class DesktopAgentSettingsTests
         Assert.IsTrue(store.FixedPort);
         Assert.IsFalse(store.Persisted);
         Assert.IsNotNull(store.Notice);
+    }
+
+    [TestMethod]
+    public async Task SavingRepairsACorruptSettingsDocument()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        Directory.CreateDirectory(workspace.FileHistoryRoot);
+        var path = Path.Combine(workspace.FileHistoryRoot, "agent-settings.json");
+        await File.WriteAllTextAsync(path, "{ not json");
+        var store = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
+
+        store.Save(leaseExpiry: true, leaseExpirySeconds: 120, fixedPort: true, port: store.Port);
+
+        Assert.IsTrue(store.Persisted, "A corrupt settings document blocked every later save.");
+        Assert.IsNull(store.Notice);
+        var reopened = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
+        Assert.IsTrue(reopened.Persisted);
+        Assert.IsTrue(reopened.LeaseExpiry);
+        Assert.AreEqual(120, reopened.LeaseExpirySeconds);
     }
 
     [TestMethod]

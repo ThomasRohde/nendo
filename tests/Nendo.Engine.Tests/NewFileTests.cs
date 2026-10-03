@@ -260,6 +260,19 @@ public sealed class NewFileTests
     }
 
     [TestMethod]
+    public async Task R006ReadOnlyPreviewNamesTheSameBrokenReferences()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var (coordinator, service) = await SeedAsync(workspace);
+        await service.SetRecordKeptInNewFilesAsync("folders", "sub", true, Context("keep-sub"));
+        var expected = await service.PreviewNewFileAsync();
+        Assert.IsFalse(expected.CanCreate);
+        await coordinator.DisposeAsync();
+        await using var readOnly = await NendoWriteCoordinator.OpenReadOnlyAsync(workspace.FilePath);
+        Assert.AreEqual(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(await readOnly.PreviewNewFileAsync()));
+    }
+
+    [TestMethod]
     public async Task ANewFileDeclaringAnOlderHostIsRefusedAsALayoutMismatch()
     {
         await using var workspace = new EngineTestWorkspace();

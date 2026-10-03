@@ -39,21 +39,29 @@ const canvasReady = import('./canvas.js').then(module => { canvasModule = module
 
 // ---------------------------------------------------------------- reading
 
-async function readAll() {
-  const entries = await Promise.all(Object.entries(READS).map(async ([key, entityId]) =>
-    [key, await nendo.records.queryAll({ entityId }, { max: 50000 })]));
-  const sets = Object.fromEntries(entries);
-  state.sets = sets;
-  state.model = M.buildModel(sets);
-  if (state.openView && !state.model.records.has(state.openView)) state.openView = null;
-  if (!state.loaded) {
-    state.loaded = true;
-    // Back or Forward, or a return to this screen, starts the workbench where it was.
-    applyPlace(startPlace);
-  }
-  if (state.selected && !state.model.records.has(state.selected)) state.selected = modelRecord()?.recordId ?? null;
-  render();
-  startEmptyModel();
+let newestRead = null;
+function readAll() {
+  // A superseded read also waits for its successor: a queued write must plan from
+  // the newly installed model, not merely finish waiting for an obsolete response.
+  const reading = (async () => {
+    const entries = await Promise.all(Object.entries(READS).map(async ([key, entityId]) =>
+      [key, await nendo.records.queryAll({ entityId }, { max: 50000 })]));
+    if (reading !== newestRead) return newestRead;
+    const sets = Object.fromEntries(entries);
+    state.sets = sets;
+    state.model = M.buildModel(sets);
+    if (state.openView && !state.model.records.has(state.openView)) state.openView = null;
+    if (!state.loaded) {
+      state.loaded = true;
+      // Back or Forward, or a return to this screen, starts the workbench where it was.
+      applyPlace(startPlace);
+    }
+    if (state.selected && !state.model.records.has(state.selected)) state.selected = modelRecord()?.recordId ?? null;
+    render();
+    startEmptyModel();
+  })();
+  newestRead = reading;
+  return reading;
 }
 
 /**
@@ -382,7 +390,7 @@ function renderDiagram() {
   import('./kit/nendo-view-kit.js').then(kit => kit.textAlternative(centre.querySelector('.diagram-alternative'), {
     label: `What the view ${M.label(state.model, view)} shows`,
     items: state.model.of(M.E.item).filter(item => item.values['ar.item.view'] === view.recordId && item.values['ar.item.kind'] === 'Element')
-      .map(item => M.label(state.model, state.model.records.get(item.values['ar.item.concept']))).filter(Boolean),
+      .map(item => M.label(state.model, state.model.records.get(item.values['ar.item.concept']))).filter(Boolean).map(name => ({ name })),
   })).catch(() => undefined);
 }
 
@@ -547,10 +555,21 @@ function renderPropertyList(record) {
 }
 
 function saveProperties(record, list) {
-  const kept = list.filter(row => row.key.trim() !== '');
-  // What is saved comes back with the reread; a row still without a key is dropped with the draft.
-  state.draftProperties = null;
-  write(() => M.propertyWrites(state.model, record.recordId, kept.map(row => ({ ...row, key: row.key.trim() }))), `Change the properties of ${M.label(state.model, record)}`);
+  // New rows keep their identity across queued edits and failed creates. Each gesture
+  // owns its snapshot; an earlier completion may never clear a later entered value.
+  const draft = { owner: record.recordId, rows: list.map(row => ({ ...row, recordId: row.recordId ?? `ar-${M.newArchiId()}` })) };
+  state.draftProperties = draft;
+  const kept = draft.rows.filter(row => row.key.trim() !== '').map(row => ({ ...row, key: row.key.trim() }));
+  // A plan with nothing to write means the draft already matches the file: it is settled
+  // too, or it would hide every later change to these properties.
+  let planned = null;
+  return write(() => (planned = M.propertyWrites(state.model, record.recordId, kept)), `Change the properties of ${M.label(state.model, record)}`)
+    .then(saved => {
+      if ((saved || planned?.length === 0) && state.draftProperties === draft && kept.length === draft.rows.length) {
+        state.draftProperties = null;
+        renderProperties();
+      }
+    }).catch(error => setStatus(describe(error), true));
 }
 
 async function propertyChanged(event) {
@@ -561,8 +580,7 @@ async function propertyChanged(event) {
     const row = list[Number(control.closest('tr').dataset.index)];
     row[control.dataset.prop] = control.value;
     if (row.key.trim() === '') { state.draftProperties = { owner: record.recordId, rows: list }; return; }
-    saveProperties(record, list);
-    return;
+    return saveProperties(record, list);
   }
   const fieldId = control.dataset.field;
   if (!fieldId) return;

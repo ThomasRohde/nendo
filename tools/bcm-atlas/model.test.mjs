@@ -8,6 +8,72 @@ import {engineTree} from './engine-tree.mjs';
 import {labOptions} from '../../extensions/bcm-atlas/layout-profile.js';
 import {starterSeed,northstarModel} from './northstar.mjs';
 const r=(id,parent=null)=>({recordId:id,values:{'cap.name':id,'cap.parent':parent}});
+
+// R02-017/023 execute the shipped editor with the actual binding. Only the DOM and
+// typed record service are stand-ins; selects follow the browser's missing-value rule.
+function atlasEditor(binding, records) {
+  class Select {
+    options = []; selected = '';
+    replaceChildren() { this.options = []; this.selected = ''; }
+    append(option) { this.options.push(option); }
+    set value(value) { this.selected = this.options.some(option => option.value === String(value)) ? String(value) : ''; }
+    get value() { return this.selected; }
+    focus() {}
+  }
+  const elements = Object.fromEntries(['name', 'code', 'owner', 'description', 'evidence', 'reviewed'].map(name => [name, { value: '', focus() {} }]));
+  for (const name of ['maturity', 'target', 'importance', 'investment', 'lifecycle', 'parent']) elements[name] = new Select();
+  const form = { elements, reset() {} }, nodes = { 'edit-form': form, 'form-error': {}, 'edit-title': {}, save: {}, editor: { showModal() {}, close() {} } };
+  const writes = [];
+  const context = vm.createContext({ binding, records, model: { parents: new Map(), descendants: () => [] },
+    editing: null, dirty: false, selected: null, $: id => nodes[id], maturityText: level => String(level),
+    Option: class { constructor(label, value) { this.text = label; this.value = value; } }, refresh() {}, say() {},
+    nendo: { records: { get: async (_, id) => records.find(record => record.recordId === id),
+      update: async (record, values) => { writes.push({ ...values }); return record; },
+      create: async (_, values) => { writes.push({ ...values }); return { recordId: 'created' }; } } },
+  });
+  const source = fs.readFileSync(new URL('../../extensions/bcm-atlas/view.js', import.meta.url), 'utf8');
+  vm.runInContext(source.slice(source.indexOf('const maturityChoices = '), source.indexOf("$('edit-form').addEventListener('input'")) +
+    '\nglobalThis.api = { edit, save };', context);
+  return { form, writes, edit: record => context.api.edit(record), save: () => context.api.save({ preventDefault() {}, target: form }) };
+}
+
+for (const stored of [true, false]) test(`R02-017 an unrelated capability edit omits assessed maturity (${stored ? 'with' : 'without'} a stored field)`, async () => {
+  const { context, schema, records } = structuredClone(bcmFixture());
+  if (!stored) delete context.configuration.fields.maturity;
+  const binding = bindAtlas(context, schema), record = { ...records['bcm.capability'][0], values: { ...records['bcm.capability'][0].values, 'cap.maturity': 5 } };
+  binding.useAssessments([{ recordId: 'assessment', values: {
+    'assess.capability': record.recordId, 'assess.dimension': 'Maturity', 'assess.score': 1, 'assess.date': '2026-10-03',
+  } }]);
+  assert.equal(binding.value(record, 'maturity'), 1);
+  assert.equal(binding.has('maturity-stored'), false);
+  const editor = atlasEditor(binding, [record]);
+  editor.edit(record); editor.form.elements.owner.value = 'Changed owner';
+  await editor.save();
+  assert.equal(editor.writes.length, 1);
+  assert.equal(editor.writes[0]['cap.owner'], 'Changed owner');
+  assert.equal(Object.hasOwn(editor.writes[0], 'cap.maturity'), false, 'An unrelated edit overwrote stored maturity with the latest assessment.');
+  assert.equal(Object.hasOwn(editor.writes[0], 'null'), false, 'An assessed-only maturity emitted a null field ID.');
+});
+
+for (const maturity of [-2, 9]) for (const target of [-3, 10]) test(`R02-023 unrelated edits preserve out-of-scale maturity ${maturity} and target ${target}`, async () => {
+  const { context, schema, records } = structuredClone(bcmFixture());
+  delete context.configuration.assessments;
+  const binding = bindAtlas(context, schema), record = { ...records['bcm.capability'][0], values: {
+    ...records['bcm.capability'][0].values, 'cap.maturity': maturity, 'cap.target': target,
+  } };
+  const editor = atlasEditor(binding, [record]);
+  editor.edit(record);
+  assert.equal(editor.form.elements.maturity.value, String(maturity), 'The editor erased the current out-of-scale maturity.');
+  assert.equal(editor.form.elements.target.value, String(target), 'The editor erased the current out-of-scale target.');
+  editor.form.elements.owner.value = 'Changed owner';
+  await editor.save();
+  assert.equal(editor.writes[0]['cap.maturity'], maturity);
+  assert.equal(editor.writes[0]['cap.target'], target);
+  editor.form.elements.maturity.value = '3'; editor.form.elements.target.value = '';
+  await editor.save();
+  assert.equal(editor.writes[1]['cap.maturity'], 3, 'An explicit replacement did not change the rating.');
+  assert.equal(editor.writes[1]['cap.target'], null, 'An explicit clearing did not clear the rating.');
+});
 test('the map takes the tree as the Engine gives it, repairing and sorting nothing',()=>{
   // Deliberately not in Display order: the Engine's order is the answer, and the model keeps it.
   const nodes=[{record:r('b'),parentRecordId:null},{record:r('b2','b'),parentRecordId:'b'},{record:r('b1','b'),parentRecordId:'b'},{record:r('a'),parentRecordId:null}];

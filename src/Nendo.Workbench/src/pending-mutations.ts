@@ -15,13 +15,15 @@ interface RetryStorage {
   removeItem(key: string): void;
 }
 type Send = <T>(method: string, payload?: Record<string, unknown>) => Promise<T>;
-const methods = new Set(['data.createRecord', 'data.deleteRecord', 'data.setKeptInNewFiles', 'data.setField', 'data.setFields', 'data.executeCommand', 'history.compensate', 'proposal.promote']);
+const methods = new Set(['data.createRecord', 'data.deleteRecord', 'data.moveRecord', 'data.setKeptInNewFiles', 'data.setField', 'data.setFields', 'data.executeCommand', 'history.compensate', 'proposal.promote']);
 const rejected = new Set(['validation', 'invalid-request', 'idempotency-conflict', 'record-version-conflict',
   'record-referenced', 'record-id-reserved', 'record-version-exhausted', 'deletion-state-conflict',
   'choice-retired', 'label-conflict', 'definition-version-conflict',
   'entity-retired', 'field-retired', 'entity-referenced', 'retired-binding', 'required-backfill-needed',
   'target-version-required', 'target-version-conflict', 'target-not-found', 'reference-unbound',
   'entity-not-found', 'field-not-found', 'record-not-found', 'command-unavailable', 'compensation-not-supported', 'proposal-not-found',
+  'hierarchy-not-declared', 'hierarchy-order-not-declared', 'hierarchy-sibling-not-found',
+  'hierarchy-too-wide', 'hierarchy-cycle', 'hierarchy-too-deep', 'move-unchanged',
   // A save refused because an automatic action could not run. The whole transaction
   // rolled back, so nothing is in flight.
   'calculation-missing-input', 'calculation-divide-by-zero', 'calculation-overflow', 'calculation-invalid-date',

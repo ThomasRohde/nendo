@@ -152,11 +152,10 @@ public sealed partial class NendoApplicationService
         // An automatic action can write back to a record of the batch inside the same revision;
         // the store states the version it left, which wins over the arithmetic above.
         var committed = applied.GeneratedChanges
-            .Where(change => change.RecordVersion is not null)
             .GroupBy(change => (change.EntityId, change.RecordId))
-            .ToDictionary(group => group.Key, group => group.Max(change => change.RecordVersion!.Value));
+            .ToDictionary(group => group.Key, group => group.Last().RecordVersion);
         return new NendoRecordWritesResult(applied, [.. written.Select(record =>
-            record.RecordVersion is { } computed && committed.TryGetValue((record.EntityId, record.RecordId), out var actual) && actual > computed
+            committed.TryGetValue((record.EntityId, record.RecordId), out var actual)
                 ? record with { RecordVersion = actual }
                 : record)]);
     }

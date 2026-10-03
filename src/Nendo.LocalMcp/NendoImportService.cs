@@ -221,7 +221,8 @@ internal sealed class NendoImportService(NendoApplicationService application)
                 return new NendoCreateRecordEntry(
                     record.RecordId,
                     readValues(record.Values),
-                    record.ExpectedTargetVersions ?? new Dictionary<string, long>(StringComparer.Ordinal));
+                    record.ExpectedTargetVersions ?? new Dictionary<string, long>(StringComparer.Ordinal),
+                    record.KeptInNewFiles);
             })
             .ToArray();
         return await CommitAsync(entityId, entries, idempotencyKey, origin, cancellationToken);

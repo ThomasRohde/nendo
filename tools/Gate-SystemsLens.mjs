@@ -343,6 +343,21 @@ async (page) => {
   assert(circuitColumns.a < circuitColumns.b && circuitColumns.b === circuitColumns.c && circuitColumns.c < circuitColumns.d,
     'A circuit was split across supply layers instead of ordered as one component: ' + JSON.stringify(circuitColumns));
 
+  // R02-016: a circuit with no incoming source was never fed. Taking out one of its
+  // members cannot truthfully label another member as retaining a source path.
+  await replace(fixture({ nodes: ['a', 'b'].map(id => ({ id, label: id.toUpperCase(), status: 'Online' })),
+    edges: [{ id: 'ab', sourceId: 'a', targetId: 'b' }, { id: 'ba', sourceId: 'b', targetId: 'a' }] }),
+    '2 components · 2 feeds · 0 declared sources · 2 in a circuit · 2 no source reaches');
+  await view.locator('.node[data-id="a"]').click();
+  await view.locator('#takeout-toggle').click();
+  const sourceLess = await verdicts();
+  assert(sourceLess.reduced.length === 0 && sourceLess.exposed.length === 0,
+    'R02-016 a source-less circuit was described as retaining or losing a source path: ' + JSON.stringify(sourceLess));
+  assert(await summary() === 'Without A: 0 lose every declared path, 0 keep one', 'A source-less circuit inflated the take-out counts.');
+  const stranded = await view.locator('#records li').allTextContents();
+  assert(stranded.every(row => row.includes('No declared source reaches it.')) && !stranded.some(row => row.includes('keeps a declared feed path')),
+    'A source-less circuit has a misleading text alternative: ' + JSON.stringify(stranded));
+
   // An empty file says so rather than drawing nothing.
   await replace(fixture({ nodes: [], edges: [] }), '0 components · 0 feeds');
   assert(await view.locator('#empty').isVisible(), 'An empty file drew nothing and said nothing.');

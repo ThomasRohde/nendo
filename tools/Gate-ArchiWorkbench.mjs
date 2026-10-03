@@ -249,6 +249,15 @@ async (page) => {
   const viewName = (await records('ar.view')).find(record => record.recordId === viewButton).values['ar.view.name'];
   assert(await view.evaluate(name => document.querySelector('#properties h2')?.textContent === name, viewName), 'The properties do not show the view the tree selected.');
   results.linked = { view: viewName };
+  // R02-003: the actual helper's list must name every concept visible in this view.
+  const expectedAlternative = (await records('ar.item')).filter(item => item.values['ar.item.view'] === viewButton && item.values['ar.item.kind'] === 'Element')
+    .map(item => item.values['ar.item.concept']);
+  const conceptNames = new Map((await records('ar.concept')).map(record => [record.recordId, record.values['ar.concept.name']]));
+  const namedAlternative = expectedAlternative.map(id => conceptNames.get(id)).filter(Boolean);
+  await until(count => document.querySelectorAll('.diagram-alternative li').length >= count, namedAlternative.length, 'The diagram text alternative never loaded.');
+  const alternativeText = await view.locator('.diagram-alternative li').allTextContents();
+  assert(namedAlternative.length > 0 && namedAlternative.every(name => alternativeText.includes(name)) && alternativeText.every(name => name.length > 0),
+    'R02-003 the diagram text alternative lost its concept names: ' + JSON.stringify({ expected: namedAlternative, actual: alternativeText }));
   // The lists in a concept's Analysis read as rows that go to a record, not as bulleted buttons.
   await page.evaluate(() => window.broker.command('find', 'Customer', 'toolbar'));
   await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), customer.recordId, 'Customer is not in the tree under Find.');

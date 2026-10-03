@@ -702,12 +702,14 @@ edit. Thus a file reaches that bound at approximately 100,000 writes, whatever
 their size. The host also enforces both bounds at write. Before it stages a
 mutation or a promotion, it refuses the write when the file has reached a write
 ceiling: 32 MiB below the size bound, at 224 MiB, or 1,000 rows below the row
-bound. The byte reserve covers the largest commit the product accepts, a change set
-with 4 MiB of new custom-view package content
-([ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md)). The
-refusal states that nothing changed and that the file still opens. The host gives
-no warning as a file approaches a ceiling
-([ADR-0012](decisions/0012-safe-mode-compatibility-and-migration.md), 2026-09-17).
+bound. The reserves provide early refusals; a 200-record batch editing 64 fields
+per record can exceed the row reserve in one transaction. Before either write
+path commits, storage measures the expanded transaction's physical pages, schema
+objects, rows in every table and total user records against the actual open
+limits, including automatically generated operations. Crossing a limit rolls the
+whole transaction back. The refusal states that nothing changed and that the
+file still opens. The original early-refusal policy came from
+[ADR-0012](decisions/0012-safe-mode-compatibility-and-migration.md) (2026-09-17).
 
 Since 2026-09-30 a person can fold a file's older history into one checkpoint revision
 ([ADR-0021](decisions/0021-folding-old-history.md)), and History says how much of the row

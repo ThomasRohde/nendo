@@ -30,6 +30,8 @@ Properties. The file you were in does not change.
   type-specific ones included (access, influence strength, directed, junction type), and its
   ordered key/value properties. A changed type stays within its category and takes the
   concept to its new layer's folder, as Set Concept Type does.
+  Rapid key/value edits keep their pending rows until saved; a refusal retains the draft
+  for correction or retry. Overlapping reads keep the newest model and record versions.
 - **New** makes an element of any type (Nendo's Add does the same), a folder or a view. A new
   element goes to the selected folder if it is of its layer, otherwise to its layer's
   top-level folder.

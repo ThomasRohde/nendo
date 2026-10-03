@@ -47,6 +47,7 @@ Invoke-Npm @('run', 'check')
 # (DocsSearch.astro) against a Pagefind whose answers arrive out of order.
 Invoke-Npm @('run', 'test')
 Invoke-Npm @('run', 'build')
+& (Join-Path $PSScriptRoot 'Test-SiteSearch.ps1')
 
 Write-Host ''
 Write-Host 'Website build passed.'

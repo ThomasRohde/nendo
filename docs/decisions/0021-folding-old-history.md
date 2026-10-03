@@ -120,6 +120,9 @@ open file, started by the person, never by an agent, a view or an automatic acti
    history is kept in a file the person can restore or open. The fold is then one write
    transaction under the write coordinator; a failure leaves the file as it was. After it the
    host vacuums the file and inspects it again as if opening it.
+   Before the transaction, the host checks that the activated backup still has its recorded
+   physical identity and content, and holds it against writing and deletion through the fold.
+   A missing, replaced, changed or unavailable backup refuses the fold without removing history.
 7. **The layout.** The fold table is a new last rung of the protected layout ladder, added by the
    first fold. A Nendo that predates it refuses the file as a newer layout rather than calling its
    history broken. A file never folded keeps its layout.

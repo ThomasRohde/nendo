@@ -159,8 +159,32 @@ public sealed class HierarchyMoveReviewTests
         Assert.AreEqual(3L, actual.RecordVersion);
         Assert.AreEqual(actual.RecordVersion, moved.RecordVersion, "The move returned the version before its action wrote back.");
         Assert.AreEqual("Moved", actual.Values["title"].GetString());
-        await service.SetFieldAsync(new(Entity, "moving", "title", moved.RecordVersion, "Follow-up", Context("follow-up")));
+        await service.SetFieldAsync(new(Entity, "moving", "title", moved.RecordVersion!.Value, "Follow-up", Context("follow-up")));
         Assert.AreEqual(4L, (await RecordAsync(service, "moving")).RecordVersion);
+        AssertReplay(moved, await service.MoveRecordAsync(request));
+    }
+
+    [TestMethod]
+    public async Task AMoveWhoseActionDeletesTheRecordReportsNoVersionAndReplaysThat()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await FixtureAsync(coordinator, service);
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "behaviour", "test", "Delete moved records", [
+            new SetBehaviourDefinitionOperation("action", new NendoActionDefinition("drop", "Drop a moved record",
+                [NendoActionStep.DeleteRecord("drop-step", NendoActionTarget.EventRecord)]), revision),
+            new SetBehaviourDefinitionOperation("trigger", new NendoTriggerDefinition("on-order", Entity, "Drop a moved record",
+                NendoTriggerEvents.Updated, "drop", ["ord"]), revision),
+        ]));
+        TestBehaviourAuthority.Approving(coordinator);
+        var request = new NendoMoveRecordRequest(Entity, "moving", 1, null, null, "a", Context("move-deleted-by-action"));
+
+        var moved = await service.MoveRecordAsync(request);
+
+        Assert.IsEmpty((await service.QueryRecordsAsync(new(Entity) { RecordId = "moving" })).Items);
+        Assert.IsNull(moved.RecordVersion, "A move whose action deleted the record returned a live version.");
         AssertReplay(moved, await service.MoveRecordAsync(request));
     }
 

@@ -585,6 +585,41 @@ async (page) => {
   assert(everything.every(entityId => entityId.startsWith('org.')), 'The second file was asked about BCM’s record types: ' + JSON.stringify(everything));
   assert(errors.length === 0, 'The view raised: ' + errors.join(' | '));
 
+  // R02-017/023: the actual dialog sends only writable maturity, and a stored rating
+  // outside the displayed scale survives an unrelated owner change in both themes.
+  for (const theme of ['light', 'dark']) for (const assessed of [true, false]) {
+    const preservation = clone(bcm);
+    if (!assessed) delete preservation.context.configuration.assessments;
+    const record = preservation.records['bcm.capability'].find(candidate => !candidate.values['cap.parent']);
+    record.values['cap.maturity'] = assessed ? 5 : 9;
+    record.values['cap.target'] = -2;
+    if (assessed) preservation.records['bcm.assessment'] = [{ entityId: 'bcm.assessment', recordId: 'review-assessment', version: 1,
+      values: { 'assess.capability': record.recordId, 'assess.dimension': 'Maturity', 'assess.score': 1, 'assess.date': '2026-10-03' } }];
+    await page.evaluate(({ file, theme }) => { window.broker.pushTheme(theme); window.broker.setFixture(file); window.broker.remount(); }, { file: preservation, theme });
+    await attach();
+    await until(id => !!document.querySelector(`.cap[data-id="${id}"]`), record.recordId, 'The rating preservation fixture did not load.');
+    await select(record.recordId);
+    await view.locator('#inspector').getByRole('button', { name: 'Edit', exact: true }).click();
+    await until(() => document.getElementById('editor').open, null, 'The rating preservation editor did not open.');
+    const maturityShown = await view.locator('[name="maturity"]').isVisible();
+    assert(maturityShown === !assessed, 'The maturity editor disagrees with assessment authority.');
+    assert(await view.locator('[name="target"]').inputValue() === '-2', 'R02-023 the actual select erased an out-of-scale target.');
+    if (!assessed) assert(await view.locator('[name="maturity"]').inputValue() === '9', 'R02-023 the actual select erased an out-of-scale maturity.');
+    await view.fill('[name="owner"]', 'Changed owner');
+    const before = await page.evaluate(() => window.broker.requests.length);
+    await view.click('#save');
+    await until(() => !document.getElementById('editor').open, null, 'The rating preservation edit did not save.');
+    const sent = await page.evaluate(start => window.broker.requests.slice(start).find(request => request.m === 'records.update'), before);
+    assert(sent && sent.p.values['cap.owner'] === 'Changed owner', 'The actual editor sent no unrelated owner edit.');
+    assert(assessed ? !Object.hasOwn(sent.p.values, 'cap.maturity') : sent.p.values['cap.maturity'] === 9,
+      'R02-017/023 the actual editor changed maturity: ' + JSON.stringify(sent.p.values));
+    assert(sent.p.values['cap.target'] === -2, 'R02-023 the actual editor changed an out-of-scale target.');
+    const stored = await page.evaluate(id => window.broker.record('bcm.capability', id), record.recordId);
+    assert(stored.values['cap.maturity'] === (assessed ? 5 : 9) && stored.values['cap.target'] === -2,
+      'The fixture persisted a changed rating after the unrelated edit: ' + JSON.stringify(stored.values));
+    await view.evaluate(() => document.getElementById('editor').close());
+  }
+
   // ---- Nendo's own chrome (W-090). Everything above ran on a host that does not draw a view's
   // controls, where the Atlas draws its own. On one that does, the Atlas draws none: it declares
   // them, and Nendo draws them, lists them in Ctrl K and sends a press back as a command. It takes
