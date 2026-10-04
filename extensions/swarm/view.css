@@ -1,0 +1,60 @@
+:root { color-scheme: light dark; font: 14px/1.45 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--nendo-ink); background: var(--nendo-canvas); }
+button, input, select { font: inherit; color: inherit; }
+button { padding: 5px 10px; border: 1px solid var(--nendo-line-strong); border-radius: 4px; background: var(--nendo-surface); cursor: pointer; white-space: nowrap; }
+button:hover { background: var(--nendo-surface-soft); }
+button:disabled { opacity: .45; cursor: default; }
+input, select { min-width: 0; width: 100%; padding: 4px 6px; background: var(--nendo-surface); border: 1px solid var(--nendo-line-strong); border-radius: 4px; }
+button:focus-visible, input:focus-visible, select:focus-visible, canvas:focus-visible, summary:focus-visible { outline: 2px solid var(--nendo-cobalt); outline-offset: 2px; }
+[hidden] { display: none !important; }
+#workspace { display: grid; grid-template-columns: minmax(300px, 1.12fr) minmax(330px, 1fr); min-height: 100vh; }
+.habitat-pane { min-width: 0; padding: 18px; border-right: 1px solid var(--nendo-line); }
+.behaviour-pane { min-width: 0; display: flex; flex-direction: column; padding: 18px 16px 12px; }
+.pane-heading { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; min-height: 49px; }
+.pane-heading strong { font-size: 16px; font-weight: 600; }
+.pane-heading p { font-size: 12px; color: var(--nendo-muted); margin: 4px 0 12px; max-width: 48ch; }
+#run-state { font-size: 12px; padding: 3px 9px; border: 1px solid var(--nendo-line); border-radius: 12px; white-space: nowrap; }
+#habitat-stage { position: relative; overflow: hidden; border: 1px solid var(--nendo-line); border-radius: 8px; background: var(--nendo-surface-soft); aspect-ratio: 1000 / 620; min-height: 260px; }
+#habitat { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: manipulation; }
+#paused-hint { position: absolute; bottom: 34px; left: 0; right: 0; text-align: center; pointer-events: none; color: var(--nendo-muted); font-size: 12px; }
+#time { position: absolute; top: 12px; left: 14px; font-variant-numeric: tabular-nums; color: var(--nendo-muted); pointer-events: none; font-size: 12px; }
+#state-counts { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 13px 0 9px; font-size: 12px; }
+.state { display: inline-flex; gap: 5px; align-items: center; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--state-colour); }
+.measurements { display: flex; gap: 14px; flex-wrap: wrap; border-top: 1px solid var(--nendo-line); padding: 11px 0; color: var(--nendo-muted); font-size: 12px; }
+.measurements strong { color: var(--nendo-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+#population-count { margin-left: auto; }
+details { margin-top: 12px; border-top: 1px solid var(--nendo-line); padding-top: 12px; }
+summary { cursor: pointer; font-weight: 600; }
+#experiment-count { color: var(--nendo-muted); margin-left: 6px; font-weight: 400; }
+.experiment-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--nendo-line); }
+.experiment-row .experiment-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.experiment-row small { display: block; color: var(--nendo-muted); }
+.small-controls { display: flex; flex-wrap: wrap; gap: 5px; }
+.small-controls button { font-size: 12px; padding: 4px 8px; }
+#diagram { height: clamp(260px, 43vh, 440px); position: relative; border: 1px solid var(--nendo-line); border-radius: 8px; background: var(--nendo-surface); overflow: hidden; }
+#inspector { min-height: 85px; margin: 10px 0; padding: 10px 12px; border-radius: 6px; background: var(--nendo-surface-soft); }
+#inspector p { color: var(--nendo-muted); font-size: 12px; margin: 4px 0; }
+.inspector-fields { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, .7fr); gap: 8px; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--nendo-muted); }
+.parameters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px 12px; border-top: 1px solid var(--nendo-line); padding-top: 12px; }
+.draft-line { grid-column: span 2; display: flex; gap: 8px; align-items: flex-end; justify-content: flex-end; font-size: 12px; color: var(--nendo-muted); }
+#status { font-size: 12px; color: var(--nendo-muted); margin: 12px 0 0; white-space: pre-line; }
+#problem { margin: 10px 16px 0; padding: 12px; color: var(--nendo-ink); border: 1px solid var(--nendo-cobalt); border-radius: 6px; background: var(--nendo-cobalt-soft); white-space: pre-line; overflow-wrap: anywhere; }
+dialog { width: min(460px, calc(100vw - 32px)); color: var(--nendo-ink); background: var(--nendo-surface-raised); border: 1px solid var(--nendo-line-strong); border-radius: 8px; padding: 24px; }
+dialog::backdrop { background: var(--nendo-ink); opacity: .35; }
+dialog h2 { font-size: 18px; margin: 0 0 8px; }
+dialog p { color: var(--nendo-muted); font-size: 13px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.djs-palette { display: none !important; }
+.djs-context-pad .entry { width: 26px; height: 26px; background: var(--nendo-surface) !important; color: var(--nendo-ink); border: 1px solid var(--nendo-line); border-radius: 4px; line-height: 24px; font: 16px/24px system-ui; }
+.djs-label { fill: var(--nendo-ink) !important; font-family: "Segoe UI", system-ui !important; font-size: 14px !important; }
+.bjs-powered-by svg, .bjs-powered-by svg path { fill: var(--nendo-muted) !important; }
+.djs-visual > rect, .djs-visual > circle, .djs-visual > polygon { fill: var(--nendo-surface) !important; stroke: var(--nendo-line-strong) !important; }
+.djs-visual > path, .djs-connection .djs-visual > path { stroke: var(--nendo-muted) !important; }
+.djs-element.selected .djs-outline { stroke: var(--nendo-cobalt) !important; }
+.djs-element.swarm-active .djs-visual > rect, .djs-element.swarm-active .djs-visual > polygon { fill: var(--nendo-cobalt-soft) !important; stroke: var(--nendo-cobalt) !important; }
+.djs-container .djs-hit { fill: none !important; }
+@media (max-width: 800px) { #workspace { grid-template-columns: minmax(0, 1fr); } .habitat-pane { border-right: 0; border-bottom: 1px solid var(--nendo-line); } #habitat-stage { min-height: 220px; } #diagram { height: 300px; } }
+@media (max-width: 410px) { .habitat-pane, .behaviour-pane { padding: 12px; } .parameters { grid-template-columns: repeat(2, minmax(0, 1fr)); } .inspector-fields { grid-template-columns: minmax(0, 1fr); } .draft-line { grid-column: auto; flex-wrap: wrap; } .pane-heading { flex-wrap: wrap; } }

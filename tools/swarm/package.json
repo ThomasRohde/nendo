@@ -1,0 +1,12 @@
+{
+  "name": "nendo-swarm-build",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bundle": "node bundle.mjs",
+    "test": "node --test simulation.test.mjs definition.test.mjs"
+  },
+  "devDependencies": {
+    "bpmn-js": "18.19.0"
+  }
+}

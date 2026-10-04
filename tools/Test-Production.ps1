@@ -369,6 +369,7 @@ try {
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-Gantt.ps1')) 'Gantt record-set presentation'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-BcmAtlas.ps1')) 'Capability Atlas presentation'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-ArchiWorkbench.ps1')) 'Archi workbench presentation'
+    Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-Swarm.ps1')) 'Swarm behaviour, simulation and replay'
 
     Write-Host '== Repository =='
     & (Join-Path $PSScriptRoot 'Test-Repository.ps1')

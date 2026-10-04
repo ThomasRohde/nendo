@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Swarm</title>
+  <link rel="stylesheet" href="vendor/diagram-js.css">
+  <link rel="stylesheet" href="view.css">
+</head>
+<body>
+  <div id="problem" role="alert" hidden></div>
+  <main id="workspace" aria-busy="true">
+    <section class="habitat-pane" aria-label="Habitat">
+      <div class="pane-heading"><div><strong id="species-name">Connecting to Nendo…</strong><p id="description"></p></div><span id="run-state">Paused</span></div>
+      <div id="habitat-stage"><canvas id="habitat" tabindex="0" aria-label="Creature habitat. Click to startle creatures; Enter startles the centre."></canvas><div id="paused-hint">Press Play, then click to startle the swarm.</div><span id="time">0:00</span></div>
+      <div id="state-counts" aria-label="Creature states"></div>
+      <div class="measurements"><span>Heading agreement <strong id="alignment">0%</strong></span><span>Neighbours per creature <strong id="neighbours">0</strong></span><span id="population-count">0 creatures</span></div>
+      <details id="experiments"><summary>Saved experiments <span id="experiment-count">0</span></summary><div id="experiment-list"></div></details>
+    </section>
+    <section class="behaviour-pane" aria-label="Behaviour editor">
+      <div class="pane-heading"><strong>Behaviour</strong><div class="small-controls"><button id="add-action" type="button">+ Action</button><button id="add-decision" type="button">+ Decision</button><button id="fit" type="button">Fit</button></div></div>
+      <div id="diagram" aria-label="Editable behaviour diagram"></div>
+      <div id="inspector"><p>Select an action or a decision to change what it does. Use its ↗ control to connect it.</p></div>
+      <form id="parameters" class="parameters">
+        <label>Population <input id="population" type="number" min="1" max="500" step="1"></label>
+        <label>Speed <input id="speed" type="number" min="0.2" max="5" step="0.1"></label>
+        <label>Neighbour radius <input id="perception" type="number" min="20" max="180" step="1"></label>
+        <label>Gather strength <input id="cohesion" type="number" min="0" max="3" step="0.1"></label>
+        <label>Align strength <input id="align-strength" type="number" min="0" max="3" step="0.1"></label>
+        <label>Spacing <input id="separation" type="number" min="0" max="3" step="0.1"></label>
+        <label>Seed <input id="seed" type="number" min="0" max="2147483647" step="1"></label>
+        <span class="draft-line"><span id="draft-state">Saved behaviour</span><button id="discard" type="button">Reload saved</button></span>
+      </form>
+      <p id="status" role="status">Reading the file…</p>
+    </section>
+  </main>
+  <dialog id="save-dialog"><form id="save-form"><h2>Save experiment</h2><p>Keep this run's behaviour, seed and disturbances so it can be replayed.</p><label>Name <input id="experiment-name" required maxlength="120" autocomplete="off"></label><div class="dialog-actions"><button id="cancel-save" type="button">Cancel</button><button type="submit">Save experiment</button></div></form></dialog>
+  <script src="/_nendo/api.js"></script>
+  <script src="vendor/bpmn-modeler.js"></script>
+  <script type="module" src="view.mjs"></script>
+</body>
+</html>
