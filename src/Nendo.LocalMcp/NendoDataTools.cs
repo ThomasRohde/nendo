@@ -250,6 +250,27 @@ internal sealed class NendoDataTools(
             writes is null ? [] : writes.Select(write => write?.EntityId).ToArray());
 
     [McpServerTool(
+        Name = "nendo.data.undo_revision",
+        Title = "Undo a revision this session committed",
+        Destructive = true,
+        Idempotent = true,
+        OpenWorld = false,
+        ReadOnly = false,
+        UseStructuredContent = true)]
+    [Description("Undo one record revision this session committed, as one compensation revision: the undo History and a view make, linked to the revision it reverses, so History keeps both. revisionId is from a write's result or nendo://application/history. Refused as NENDO_REVISION_NOT_YOURS for a revision another agent, a view or the person committed, and by the Engine for a definition revision or one whose operations cannot be reversed; a compensation can itself be undone, which is redo. The result names every record it wrote with the version it holds now.")]
+    public Task<NendoDataWritesResult> UndoRevisionAsync(
+        RequestContext<CallToolRequestParams> context,
+        [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
+        [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
+        [Description("The History revision to reverse: one this session's own writes committed.")] string revisionId,
+        [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
+        [Description("Optional. What History calls the undo, within limits.recordWritesLabelCharacters; omitted, it is Undo and the revision's description.")] string? label = null,
+        CancellationToken cancellationToken = default) => ExecuteAsync(
+            context,
+            "nendo.data.undo_revision",
+            () => mutations.UndoRevisionAsync(applicationHandle, leaseId, revisionId, idempotencyKey, label, cancellationToken));
+
+    [McpServerTool(
         Name = "nendo.data.move_record",
         Title = "Move a record in its hierarchy",
         Destructive = true,

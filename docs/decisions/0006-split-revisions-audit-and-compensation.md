@@ -120,3 +120,10 @@ discards useful concurrency or erases/overstates history.
   as a whole with its creates and restores, each by a version-checked delete, up to 12,800
   operations; a compensation of record changes can itself be compensated, which is redo. The
   declared classes are unchanged: a compensated create leaves its record ID reserved.
+- 2026-10-04 — W-153, with [ADR-0009](0009-local-mcp-transport-authority-and-change-sets.md):
+  an agent at Edit data may compensate a record revision its own session committed, through
+  `nendo.data.undo_revision`, by the same compensation History and a view use. It is a new
+  authority for an agent and the same mechanism: one linked revision, nothing rewound. The
+  Engine refuses a revision another origin committed (`revision-not-yours`), a definition
+  revision and one whose operations are not all compensable, exactly as it refuses a view.
+  Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24).

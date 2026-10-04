@@ -80,7 +80,7 @@ public sealed class SurfaceTextBoundTests
 
         var findings = new List<string>();
         var tools = await client.ListToolsAsync();
-        Assert.HasCount(23, tools, "Unattended serves every tool, so every description is measured.");
+        Assert.HasCount(24, tools, "Unattended serves every tool, so every description is measured.");
         foreach (var tool in tools)
         {
             Measure(findings, tool.Name, tool.Description);

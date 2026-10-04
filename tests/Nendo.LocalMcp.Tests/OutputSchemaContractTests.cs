@@ -318,6 +318,22 @@ public sealed class OutputSchemaContractTests
         var repeated = Result<NendoMcpIntegrityCheck>(await CallAsync("nendo.health.verify_integrity"));
         Assert.IsFalse(repeated.Rescanned, repeated.Message);
 
+        // W-153: a write of this session, undone as one compensation revision.
+        var renamed = Result<NendoDataApplyResult>(await CallAsync("nendo.data.set_field", new(owned)
+        {
+            ["entityId"] = CrmAuthoringFixture.AccountEntityId,
+            ["recordId"] = "account-northwind",
+            ["fieldId"] = CrmAuthoringFixture.AccountNameFieldId,
+            ["expectedRecordVersion"] = 4L,
+            ["value"] = JsonSerializer.SerializeToElement("Northwind Freight"),
+            ["idempotencyKey"] = "contract-rename",
+        }));
+        var undone = Result<NendoDataWritesResult>(await CallAsync("nendo.data.undo_revision", new(owned)
+        {
+            ["revisionId"] = renamed.RevisionId,
+            ["idempotencyKey"] = "contract-undo",
+        }));
+        Assert.AreEqual(("account-northwind", (long?)6), (undone.Records.Single().RecordId, undone.Records.Single().RecordVersion));
         await CallAsync("nendo.lease.release", new(owned));
 
         // Every declared tool must have been exercised, or this suite silently

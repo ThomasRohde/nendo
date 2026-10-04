@@ -271,6 +271,7 @@ try {
         'nendo.data.move_record',
         'nendo.data.set_field',
         'nendo.data.set_kept_in_new_files',
+        'nendo.data.undo_revision',
         'nendo.data.update_record',
         'nendo.health.verify_integrity',
         'nendo.lease.acquire',

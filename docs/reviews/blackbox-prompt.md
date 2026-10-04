@@ -243,7 +243,10 @@ revision and the version moved by three. Then send one `nendo.data.apply_writes`
 a record, creates a second record of another type pointing at the first, updates a third and
 deletes a fourth; confirm it is one revision, that every record in the answer carries the
 version you then read back, and that a batch with one bad write commits nothing. Create a
-record whose reference is named only in `references` by a unique field's value.
+record whose reference is named only in `references` by a unique field's value. Undo one of
+your own writes with `nendo.data.undo_revision` and read History: the write and its undo
+should both be there. Then try to undo a revision the person made, and one that created a
+record type; record what each refusal said.
 
 Then push on the shape itself: rename a field that already holds data; point a reference at
 a record and then try to delete that record; retire a field and see what happens to what it

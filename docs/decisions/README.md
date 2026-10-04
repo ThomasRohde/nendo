@@ -38,6 +38,11 @@ existed. For this reason the numbering is contiguous by intent.
 
 ## Amendments in force
 
+- **ADR-0006 and ADR-0009, 2026-10-04 — an agent undoes its own record revision**:
+  `nendo.data.undo_revision` at Edit data compensates a revision the lease's own
+  pseudonym committed, through the compensation ADR-0023 defines; a foreign
+  revision, a definition revision and an irreversible operation are refused by the
+  Engine (W-153).
 - **ADR-0002, 2026-10-04 — the bridge serves protocol 7 only**: the host answers
   a Workbench request at any version but 7 with `unsupported-protocol`, before any
   binding, read, write or file action. The compatibility layer for versions 2 to 6

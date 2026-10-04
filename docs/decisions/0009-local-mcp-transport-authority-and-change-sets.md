@@ -311,6 +311,14 @@ services, at a static loopback address, with no credential.
   "Local agent" in activity, because a stateless host sees its name only in the
   handshake. A 2026-07-28 client carries its name on every request.
 - The ADR-0005 coordinator linearizes revocation and admitted writes.
+- Since 2026-10-04 (W-153) an agent at Edit data may undo a record revision its own
+  session committed, with `nendo.data.undo_revision`: the compensation ADR-0006 and
+  ADR-0023 define, scoped to the lease's pseudonym as origin, so a resumed handle
+  may undo what it wrote before the release and nobody may undo another client's
+  or the person's work. Definition revisions and irreversible operations are refused
+  by the Engine as they are for a view. What it gives up: a wrong write at Edit
+  data is no longer N inverse writes, which is a convenience an agent can turn on
+  itself; the person still sees every undo as a revision in History.
 
 ### Semantic contract
 
@@ -427,6 +435,8 @@ services, at a static loopback address, with no credential.
   what accepting means for consent to automatic actions before anyone accepts, and
   Accept is withheld where promotion would be refused. Acceptance and consent are
   unchanged.
+- 2026-10-04 — amended (W-153, with ADR-0006): `nendo.data.undo_revision` at Edit data
+  compensates a record revision the session's own pseudonym committed.
 - 2026-10-04 — amended (W-151, W-152): subscriptions/listen pushes the manifest, the
   proposal queue and the close; validate, import and the integrity scan run as
   tasks for a client that declares the Tasks extension. Authority unchanged.

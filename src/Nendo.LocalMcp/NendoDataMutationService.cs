@@ -279,6 +279,44 @@ internal sealed class NendoDataMutationService(
             },
             cancellationToken);
 
+    /// <summary>
+    /// Compensates a record revision this session committed (W-153, ADR-0006 and ADR-0009
+    /// amendments): the same linked revision History and a view make. The context's origin is
+    /// the lease's pseudonym, which is what the Engine compares with the revision's, so a
+    /// revision another origin committed is refused by the Engine as revision-not-yours.
+    /// </summary>
+    internal Task<NendoDataWritesResult> UndoRevisionAsync(
+        string applicationHandle,
+        string leaseId,
+        string revisionId,
+        string idempotencyKey,
+        string? label,
+        CancellationToken cancellationToken) => AdmitAsync(
+            leaseId,
+            applicationHandle,
+            async _ =>
+            {
+                NendoText.RequireText(revisionId, "revision ID", 200);
+                var result = await application.UndoRecordWritesAsync(
+                    new NendoUndoRecordWritesRequest(revisionId, Context(applicationHandle, idempotencyKey), Redo: false,
+                        string.IsNullOrWhiteSpace(label) ? null : label),
+                    cancellationToken);
+                var applied = result.Applied;
+                return new NendoDataWritesResult(
+                    applied.RevisionId,
+                    applied.OperationDigest,
+                    applied.DefinitionRevision,
+                    applied.DataRevision,
+                    applied.ChangeSequence,
+                    applied.IsIdempotentReplay,
+                    result.Records.Select(record => new NendoDataWrittenRecord(record.EntityId, record.RecordId, record.RecordVersion)).ToArray())
+                {
+                    AlsoChanged = applied.GeneratedChanges,
+                    Assigned = applied.AssignedValues,
+                };
+            },
+            cancellationToken);
+
     internal Task<NendoDataApplyResult> SetFieldAsync(
         string applicationHandle,
         string leaseId,

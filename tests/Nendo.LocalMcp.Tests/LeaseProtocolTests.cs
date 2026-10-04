@@ -69,9 +69,9 @@ public sealed class LeaseProtocolTests
 
     [TestMethod]
     [DataRow(AgentAccessMode.ReadOnly, 0)]
-    [DataRow(AgentAccessMode.DataMutation, 16)]
-    [DataRow(AgentAccessMode.ApplicationAuthoring, 22)]
-    [DataRow(AgentAccessMode.Unattended, 23)]
+    [DataRow(AgentAccessMode.DataMutation, 17)]
+    [DataRow(AgentAccessMode.ApplicationAuthoring, 23)]
+    [DataRow(AgentAccessMode.Unattended, 24)]
     public async Task OfficialClientSeesOnlyModeAllowlistedLeaseTools(
         AgentAccessMode mode,
         int expectedCount)
@@ -98,9 +98,9 @@ public sealed class LeaseProtocolTests
         var expectedNames = expectedCount switch
         {
             0 => [],
-            16 => DataToolNames,
-            22 => DataToolNames.Concat(AuthoringToolNames).Order(StringComparer.Ordinal).ToArray(),
-            23 => DataToolNames.Concat(AuthoringToolNames).Concat(UnattendedToolNames).Order(StringComparer.Ordinal).ToArray(),
+            17 => DataToolNames,
+            23 => DataToolNames.Concat(AuthoringToolNames).Order(StringComparer.Ordinal).ToArray(),
+            24 => DataToolNames.Concat(AuthoringToolNames).Concat(UnattendedToolNames).Order(StringComparer.Ordinal).ToArray(),
             _ => throw new AssertFailedException($"Unexpected tool count {expectedCount}."),
         };
         CollectionAssert.AreEqual(
@@ -147,6 +147,7 @@ public sealed class LeaseProtocolTests
         "nendo.data.update_record" =>
             ["leaseId", "entityId", "recordId", "expectedRecordVersion", "values", "idempotencyKey", "expectedTargetVersions", "references"],
         "nendo.data.apply_writes" => ["leaseId", "writes", "idempotencyKey", "label"],
+        "nendo.data.undo_revision" => ["leaseId", "revisionId", "idempotencyKey", "label"],
         "nendo.data.create_records" => ["leaseId", "entityId", "records", "idempotencyKey"],
         "nendo.data.set_field" =>
             ["leaseId", "entityId", "recordId", "fieldId", "expectedRecordVersion", "value", "idempotencyKey", "expectedTargetRecordVersion"],
@@ -180,6 +181,7 @@ public sealed class LeaseProtocolTests
         "nendo.data.move_record",
         "nendo.data.set_field",
         "nendo.data.set_kept_in_new_files",
+        "nendo.data.undo_revision",
         "nendo.data.update_record",
         "nendo.health.verify_integrity",
         "nendo.lease.acquire",

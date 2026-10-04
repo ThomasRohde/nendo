@@ -111,6 +111,8 @@ internal static class NendoToolErrors
             // ADR-0020: a uniqueness refusal names the field, the value and the record holding it.
             "value-not-unique", "field-values-not-unique", "field-unique-invalid", "field-unique-unchanged",
             "field-sequence-invalid", "field-sequence-unchanged", "field-sequence-in-use",
+            // W-153: an undo's refusals name a revision by ID and say whose it is, nothing stored.
+            "revision-not-found", "not-an-undo", "revision-not-yours",
         ], StringComparer.Ordinal);
 
     // These authoring messages are written here and carry only bounded counters and
