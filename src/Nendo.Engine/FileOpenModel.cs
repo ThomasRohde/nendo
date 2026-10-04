@@ -59,3 +59,10 @@ public sealed class NendoFileObservation
     public string? PhysicalFileKey { get; }
     internal string? ContentDigest { get; }
 }
+
+/// <summary>
+/// Which file a path names and which application it says it holds, read without
+/// inspecting it. Advisory, for lists that only ask whether a remembered file is still
+/// the same one: it grants nothing, and opening the file still inspects it in full.
+/// </summary>
+public sealed record NendoFileIdentity(string PhysicalFileKey, string ApplicationId, string InstanceId);

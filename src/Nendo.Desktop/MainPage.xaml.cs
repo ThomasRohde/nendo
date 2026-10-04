@@ -109,14 +109,49 @@ public sealed partial class MainPage : Page
     {
         DesktopStartupTiming.Mark("page.loaded");
         _unloaded = false;
+        // The browser starts while the file opens. Neither needs the other until the first
+        // navigation, and each took about half a second one after the other.
+        var browser = BeginWorkbenchBrowser();
         if (!await InitializeStartupSessionAsync())
         {
             DesktopStartupTiming.Mark("session.failed");
             DesktopStartupTiming.Write();
+            // The recovery panel has already closed the browser, which can fail its start.
+            browser?.Ready.ContinueWith(static start => _ = start.Exception,
+                CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
             return;
         }
         DesktopStartupTiming.Mark("session.ready");
-        await StartWorkbenchAsync();
+        await StartWorkbenchAsync(browser);
+    }
+
+    /// <summary>A Workbench browser that has been asked to start, and its start.</summary>
+    private sealed record WorkbenchBrowser(WebView2 View, Task Ready);
+
+    private static string WorkbenchAssetRoot => Path.Combine(AppContext.BaseDirectory, "Workbench");
+
+    /// <summary>
+    /// Puts a new browser in the page and starts it, replacing any earlier one. Null when
+    /// the Workbench is not installed, which <see cref="StartWorkbenchAsync"/> reports.
+    /// </summary>
+    private WorkbenchBrowser? BeginWorkbenchBrowser()
+    {
+        if (!File.Exists(Path.Combine(WorkbenchAssetRoot, DesktopShellContract.WorkbenchEntryPoint))) return null;
+        RecoveryPanel.Visibility = Visibility.Collapsed;
+        WebHost.Visibility = Visibility.Visible;
+        DetachWorkbench();
+
+        _webView = new WebView2
+        {
+            // Transparent, so the window's Mica shows wherever the page leaves its ground (G).
+            DefaultBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0),
+            IsTabStop = true,
+        };
+        AutomationProperties.SetAutomationId(_webView, "workbench.webview");
+        WebHost.Children.Add(_webView);
+
+        DesktopStartupTiming.Mark("webview.ensure.begin");
+        return new(_webView, _webView.EnsureCoreWebView2Async().AsTask());
     }
 
     private void Page_Unloaded(object sender, RoutedEventArgs e)
@@ -125,37 +160,30 @@ public sealed partial class MainPage : Page
         DetachWorkbench();
     }
 
-    private async Task StartWorkbenchAsync()
+    /// <param name="started">
+    /// A browser started earlier for this view, at startup; null starts a new one.
+    /// </param>
+    private async Task StartWorkbenchAsync(WorkbenchBrowser? started = null)
     {
         DesktopStartupTiming.Mark("workbench.start");
         try
         {
-            var assetRoot = Path.Combine(AppContext.BaseDirectory, "Workbench");
-            var entryPoint = Path.Combine(assetRoot, DesktopShellContract.WorkbenchEntryPoint);
-            if (!File.Exists(entryPoint))
+            var assetRoot = WorkbenchAssetRoot;
+            // Only the browser this page still shows: a recovery or a restart in between
+            // closed the earlier one.
+            var browser = started is not null && ReferenceEquals(started.View, _webView) ? started : BeginWorkbenchBrowser();
+            if (browser is null)
             {
                 throw new FileNotFoundException(
                     "The app view is missing. Reinstall Nendo and try again.",
-                    entryPoint);
+                    Path.Combine(assetRoot, DesktopShellContract.WorkbenchEntryPoint));
             }
 
-            RecoveryPanel.Visibility = Visibility.Collapsed;
-            WebHost.Visibility = Visibility.Visible;
-            DetachWorkbench();
-
-            _webView = new WebView2
-            {
-                // Transparent, so the window's Mica shows wherever the page leaves its ground (G).
-                DefaultBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0),
-                IsTabStop = true,
-            };
-            AutomationProperties.SetAutomationId(_webView, "workbench.webview");
-            WebHost.Children.Add(_webView);
-
-            DesktopStartupTiming.Mark("webview.ensure.begin");
-            await _webView.EnsureCoreWebView2Async();
+            await browser.Ready;
             DesktopStartupTiming.Mark("webview.ensure.end");
-            var core = _webView.CoreWebView2;
+            // A restart while the browser was starting owns the page now.
+            if (!ReferenceEquals(browser.View, _webView)) return;
+            var core = browser.View.CoreWebView2;
             core.Settings.AreHostObjectsAllowed = false;
             core.Settings.IsStatusBarEnabled = false;
             core.Settings.IsWebMessageEnabled = true;

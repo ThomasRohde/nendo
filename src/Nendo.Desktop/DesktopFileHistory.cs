@@ -59,9 +59,11 @@ internal sealed class DesktopFileHistory(string root)
         var result = new List<DesktopRecentFile>();
         foreach (var entry in loaded.Document.Entries)
         {
-            var observed = await NendoWriteCoordinator.ObserveAsync(entry.Path, cancellationToken);
-            var state = Matches(entry, observed) ? "available" : observed.Inspection.Findings.Any(finding => finding.Code == "file-missing")
-                ? "missing" : observed.Inspection.Manifest is not null ? "changed" : "unavailable";
+            // Who the file says it is, not a full inspection: the list asks whether the file is
+            // still there and still the same one, and opening it inspects it in full.
+            var identity = await NendoWriteCoordinator.IdentifyAsync(entry.Path, cancellationToken);
+            var state = Matches(entry, identity) ? "available" : !File.Exists(entry.Path)
+                ? "missing" : identity is not null ? "changed" : "unavailable";
             result.Add(new(entry.Id, Path.GetFileName(entry.Path), state, entry.LastOpened));
         }
         return new(result.AsReadOnly(), loaded.Notice);
@@ -74,21 +76,28 @@ internal sealed class DesktopFileHistory(string root)
     /// and an entry that cannot open is worse than a shorter list.
     /// <para>
     /// Stops at <paramref name="wanted"/> confirmed files rather than checking all of
-    /// them. Each check opens the file, this runs inside the session's request gate,
-    /// and nothing behind the gate moves while it does — so a remembered file on a
-    /// disconnected share is a stall every other request waits out. The menu has room
-    /// for ten; checking the twenty-two nobody will see buys nothing.
+    /// them. Each check opens the file to read who it says it is, and a remembered file
+    /// on a disconnected share is a stall. The menu has room for ten; checking the
+    /// twenty-two nobody will see buys nothing.
+    /// </para>
+    /// <para>
+    /// The file open in this window is confirmed from <paramref name="openObservation"/>,
+    /// the observation it was opened with, when the entry names the same path and the
+    /// same file. It is usually the newest entry. Reading it again would open a file the
+    /// session already holds, where a write in progress makes it look unreadable.
     /// </para>
     /// </summary>
-    internal async Task<IReadOnlyList<DesktopShellRecentFile>> ListForShellAsync(int wanted, CancellationToken cancellationToken)
+    internal async Task<IReadOnlyList<DesktopShellRecentFile>> ListForShellAsync(int wanted, string? openPath,
+        NendoFileObservation? openObservation, CancellationToken cancellationToken)
     {
         var loaded = await LoadAsync(cancellationToken);
         var result = new List<DesktopShellRecentFile>();
         foreach (var entry in loaded.Document.Entries.OrderByDescending(entry => entry.LastOpened))
         {
             if (result.Count >= wanted) break;
-            var observed = await NendoWriteCoordinator.ObserveAsync(entry.Path, cancellationToken);
-            if (!Matches(entry, observed)) continue;
+            var isOpenFile = openObservation is not null && string.Equals(entry.Path, openPath, StringComparison.OrdinalIgnoreCase) &&
+                Matches(entry, openObservation);
+            if (!isOpenFile && !Matches(entry, await NendoWriteCoordinator.IdentifyAsync(entry.Path, cancellationToken))) continue;
             result.Add(new(entry.Path, Path.GetFileName(entry.Path), entry.LastOpened));
         }
         return result.AsReadOnly();
@@ -203,6 +212,10 @@ internal sealed class DesktopFileHistory(string root)
     private static bool Matches(StoredFile entry, NendoFileObservation observed) =>
         observed.PhysicalFileKey == entry.PhysicalFileKey && observed.Inspection.Manifest is { } manifest &&
         manifest.ApplicationId == entry.ApplicationId && manifest.InstanceId == entry.InstanceId;
+
+    private static bool Matches(StoredFile entry, NendoFileIdentity? identity) =>
+        identity is not null && identity.PhysicalFileKey == entry.PhysicalFileKey &&
+        identity.ApplicationId == entry.ApplicationId && identity.InstanceId == entry.InstanceId;
 
     private static bool IsValid(StoredFile entry)
     {

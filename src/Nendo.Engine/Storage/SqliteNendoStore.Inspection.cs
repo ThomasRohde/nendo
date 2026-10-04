@@ -186,6 +186,52 @@ internal sealed partial class SqliteNendoStore
         string.Equals(Convert.ToString(await ScalarAsync("PRAGMA integrity_check;", null, cancellationToken), CultureInfo.InvariantCulture),
             "ok", StringComparison.Ordinal);
 
+    /// <summary>
+    /// The application and instance a file declares: the guards an inspection starts with,
+    /// then the manifest, and nothing else. Null for a file that does not read as a Nendo
+    /// file of this format. Never a substitute for <see cref="InspectAsync"/> where the
+    /// answer admits anything.
+    /// </summary>
+    internal static async Task<(string ApplicationId, string InstanceId)?> ReadDeclaredIdentityAsync(
+        string path,
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(path)) return null;
+        // As in an inspection: a set with sidecars is not opened at all.
+        if (new[] { "-journal", "-wal", "-shm" }.Any(suffix => File.Exists(path + suffix))) return null;
+        try
+        {
+            using (var pin = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                var header = new byte[20];
+                if (pin.Length < header.Length) return null;
+                await pin.ReadExactlyAsync(header, cancellationToken);
+                if (!header.AsSpan(0, 16).SequenceEqual("SQLite format 3\0"u8) || header[18] != 1 || header[19] != 1) return null;
+            }
+            await using var connection = await OpenConnectionAsync(path, SqliteOpenMode.ReadOnly, cancellationToken);
+            var store = new SqliteNendoStore(path, connection);
+            await store.NonQueryAsync("PRAGMA query_only = ON;", null, cancellationToken);
+            await store.NonQueryAsync($"PRAGMA busy_timeout = {BusyTimeoutMilliseconds};", null, cancellationToken);
+            await store.NonQueryAsync("BEGIN DEFERRED;", null, cancellationToken);
+            var marker = Convert.ToInt64(await store.ScalarAsync("PRAGMA application_id;", null, cancellationToken), CultureInfo.InvariantCulture);
+            var version = Convert.ToInt64(await store.ScalarAsync("PRAGMA user_version;", null, cancellationToken), CultureInfo.InvariantCulture);
+            if (marker != NendoFormat.SqliteApplicationId || version != NendoFormat.CurrentVersion) return null;
+            var manifest = await store.ReadManifestAsync(null, cancellationToken);
+            if (manifest.FormatIdentifier != NendoFormat.Identifier ||
+                string.IsNullOrWhiteSpace(manifest.ApplicationId) || string.IsNullOrWhiteSpace(manifest.InstanceId))
+                return null;
+            return (manifest.ApplicationId, manifest.InstanceId);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException || IsProjectionFailure(exception))
+        {
+            return null;
+        }
+    }
+
     internal static async Task<InspectedNendoFile> InspectAsync(
         string path,
         CancellationToken cancellationToken,

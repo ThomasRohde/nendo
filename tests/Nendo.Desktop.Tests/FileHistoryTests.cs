@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Nendo.Engine;
@@ -181,6 +182,55 @@ public sealed class FileHistoryTests
         // The live Engine guard still excludes the other physical file.
         var error = await Assert.ThrowsExactlyAsync<NendoWriteOwnershipException>(() => NendoWriteCoordinator.OpenAsync(workspace.FilePath, "other"));
         Assert.AreEqual("instance-in-use", error.Code);
+    }
+
+    /// <summary>
+    /// The taskbar's list refreshes at startup and on every open. It took the request gate, so
+    /// the startup open and the Workbench's first reads waited behind it, seconds on large files.
+    /// </summary>
+    [TestMethod]
+    public async Task TaskbarRecentFilesNeverWaitForTheRequestGate()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await using var session = Session(workspace);
+        await session.CreateAsync(workspace.FilePath);
+        await session.CloseAsync();
+        // Held as a long request holds it: the startup open and every Workbench read wait here.
+        var gate = (SemaphoreSlim)typeof(DesktopSessionController)
+            .GetField("_gate", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(session)!;
+        await gate.WaitAsync();
+        try
+        {
+            var listing = session.GetShellRecentFilesAsync(DesktopJumpList.Considered);
+            var first = await Task.WhenAny(listing, Task.Delay(TimeSpan.FromSeconds(10)));
+            Assert.AreSame(listing, first, "The taskbar's recent files waited for the request gate.");
+            Assert.AreEqual(Path.GetFileName(workspace.FilePath), (await listing).Single().FileName);
+        }
+        finally { gate.Release(); }
+    }
+
+    /// <summary>
+    /// The open file is usually the newest entry. It is confirmed from the observation it was
+    /// opened with, so a write in progress there does not drop it from the taskbar's list.
+    /// </summary>
+    [TestMethod]
+    public async Task TaskbarRecentFilesConfirmTheOpenFileWithoutReadingItAgain()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await using var session = Session(workspace);
+        await session.CreateAsync(FilePath(workspace, "other.nendo"));
+        await session.CloseAsync();
+        await session.CreateAsync(workspace.FilePath);
+        // What a write in progress leaves beside the file; a set with one is never opened to be read.
+        var journal = workspace.FilePath + "-journal";
+        await File.WriteAllBytesAsync(journal, []);
+        try
+        {
+            var listed = await session.GetShellRecentFilesAsync(DesktopJumpList.Considered);
+            CollectionAssert.AreEqual(new[] { Path.GetFileName(workspace.FilePath), "other.nendo" },
+                listed.Select(file => file.FileName).ToArray(), "The open file dropped out of the taskbar's list.");
+        }
+        finally { File.Delete(journal); }
     }
 
     private static DesktopSessionController Session(DesktopTestWorkspace workspace) => new(fileHistoryRoot: workspace.FileHistoryRoot);

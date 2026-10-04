@@ -160,10 +160,19 @@ refresh and announces that reset. Metadata, definition and page sequences must
 agree before the renderer publishes a refreshed view. Bounded retries handle an
 agent write that occurs between them. A failed derivative read keeps the
 successful receipt and the existing explicit Refresh view action.
-Recent-file inspection runs only for the no-file screen that shows it. For an
-application that is already open, the initial view and the file-action refresh
-do not scan unrelated recent files. Close still refreshes that list, and native
-admission continues to validate every selected file again.
+The recent-file lists do not inspect their files. Since 2026-10-04 the no-file
+screen and the taskbar Jump List read only each file's identity through
+`NendoWriteCoordinator.IdentifyAsync`: its physical file key and the application
+and instance its manifest declares, behind the same sidecar and header guards as
+an inspection, with no integrity check, classification or digest. A file that
+would fail inspection can therefore be listed as available; opening it inspects
+it in full and reports that. The no-file screen is the only renderer view that
+asks for the list. For an application that is already open, the initial view and
+the file-action refresh do not read unrelated recent files. Close still refreshes
+that list, and native admission continues to validate every selected file again.
+The Jump List refreshes at startup and on every open. It reads outside the
+Desktop request gate, so neither the startup open nor a Workbench read waits for
+it, and it confirms the open file from the observation that file was opened with.
 
 The application service caches unchanged definitions by verified application,
 instance and definition revision. Record projection/validation, versions, data

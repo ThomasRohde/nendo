@@ -203,8 +203,10 @@ public sealed partial class MainWindow : Window
         _notifier = new DesktopNotifier(route => DispatcherQueue.TryEnqueue(() => RouteFromNotification(route)));
         RefreshShellState();
         // Once at startup as well as on every change, so a file deleted since the last
-        // session drops out of the menu without anybody having to open one first.
-        RefreshJumpList();
+        // session drops out of the menu without anybody having to open one first. Not
+        // when the launch names a file: its open refreshes the menu once it lands, and
+        // checking every recent file twice while that file is opening slowed the open.
+        if (_placementFile is null) RefreshJumpList();
 
         if (Page is not { } page) return;
         TitleBarChanged += page.TitleBarChanged;

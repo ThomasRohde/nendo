@@ -31,6 +31,29 @@ public sealed partial class NendoWriteCoordinator
     }
 
     /// <summary>
+    /// Which file this is and which application it declares, without inspecting it: no
+    /// integrity check, classification or digest, which on a large file is nearly all of
+    /// an observation's cost. Null when the file is missing or does not read as a Nendo
+    /// file of this format. It grants nothing; see <see cref="NendoFileIdentity"/>.
+    /// </summary>
+    public static async Task<NendoFileIdentity?> IdentifyAsync(string path, CancellationToken cancellationToken = default)
+    {
+        var fullPath = ValidatePath(path);
+        try
+        {
+            using var pin = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            var key = LocalFileIdentity.Read(pin).Key;
+            return await SqliteNendoStore.ReadDeclaredIdentityAsync(fullPath, cancellationToken) is { } declared
+                ? new(key, declared.ApplicationId, declared.InstanceId)
+                : null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Holds a read-only, coherent observation of the file. A later refresh must
     /// explicitly reclassify it; outside changes are never silently adopted.
     /// </summary>

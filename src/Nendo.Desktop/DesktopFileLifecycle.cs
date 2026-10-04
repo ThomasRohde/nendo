@@ -52,16 +52,25 @@ internal sealed partial class DesktopSessionController
     /// The recent files the taskbar menu may offer, paths included. Inside the host
     /// only: see <see cref="DesktopShellRecentFile"/> for why this is not the list the
     /// Workbench gets.
+    /// <para>
+    /// Outside the request gate. The menu refreshes at startup and on every open, and
+    /// each refresh opens up to ten other files: inside the gate, when each check was a
+    /// full inspection, that held the startup open and the Workbench's first reads
+    /// behind it for seconds. Nothing here needs the gate. The history file is replaced
+    /// whole, so a read never sees half of one; the open file is confirmed from the
+    /// observation it was opened with rather than opened again; every other check reads
+    /// a file this session does not hold.
+    /// </para>
     /// </summary>
-    internal async Task<IReadOnlyList<DesktopShellRecentFile>> GetShellRecentFilesAsync(int wanted, CancellationToken cancellationToken = default)
+    internal Task<IReadOnlyList<DesktopShellRecentFile>> GetShellRecentFilesAsync(int wanted, CancellationToken cancellationToken = default)
     {
-        await EnterRequestGateAsync(cancellationToken);
-        try
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            return await _fileHistory.ListForShellAsync(wanted, cancellationToken);
-        }
-        finally { _gate.Release(); }
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        // Read without the gate, so the two can belong to different sessions during an
+        // open or a close. A pair that disagrees confirms nothing, and the entry is
+        // inspected as any other would be.
+        var openPath = _currentPath;
+        var openObservation = _currentObservation;
+        return _fileHistory.ListForShellAsync(wanted, openPath, openObservation, cancellationToken);
     }
 
     internal async Task<DesktopFileOpenAssessment> AssessOpenAsync(string path, CancellationToken cancellationToken = default)
