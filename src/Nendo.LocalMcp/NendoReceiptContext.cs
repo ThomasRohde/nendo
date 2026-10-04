@@ -20,8 +20,15 @@ internal static class NendoReceiptContext
 
     internal static NendoOperationIdentity Read(string context, string key, NendoHostAuthority host)
     {
-        if (string.IsNullOrWhiteSpace(context) || context.Length > 1200 || !context.StartsWith(Prefix, StringComparison.Ordinal) ||
-            string.IsNullOrWhiteSpace(key) || key.Length > 200)
+        if (string.IsNullOrWhiteSpace(key) || key.Length > 200)
+            throw new NendoValidationException("A bounded receipt locator and idempotency key are required.");
+        return new NendoOperationIdentity(ReadScope(context, host), key.Trim());
+    }
+
+    /// <summary>The data-write scope a locator names, once it has proved it belongs to this file.</summary>
+    internal static string ReadScope(string context, NendoHostAuthority host)
+    {
+        if (string.IsNullOrWhiteSpace(context) || context.Length > 1200 || !context.StartsWith(Prefix, StringComparison.Ordinal))
             throw new NendoValidationException("A bounded receipt locator and idempotency key are required.");
         string[] parts;
         try
@@ -48,14 +55,41 @@ internal static class NendoReceiptContext
         }
         if (parts[0] != host.ApplicationId || parts[1] != host.InstanceId)
             throw new NendoPreconditionException("receipt-file-mismatch", "The receipt locator belongs to a different file identity.");
-        return new NendoOperationIdentity($"mcp.data.{parts[2]}.{parts[3]}", key.Trim());
+        return $"mcp.data.{parts[2]}.{parts[3]}";
     }
 }
 
 public sealed record NendoDataOutcome(
     [property: Description("committed when the write reached the file; unresolved when this file state records no receipt for the key.")]
     string State,
-    [property: Description("The original write's outcome when committed, else null.")]
+    [property: Description("The original write's outcome when committed, else null. For an import or an accepted proposal, the last revision committed; revisions lists them all.")]
     NendoApplyResult? Receipt,
     [property: Description("What the state means and what is safe to do next. An unresolved receipt is not permission to resubmit with a new key.")]
-    string Message);
+    string Message)
+{
+    /// <summary>
+    /// Every revision the key or proposal committed, in order: one per import batch, one per
+    /// mutation of an accepted proposal, and the single revision of an ordinary write.
+    /// </summary>
+    [Description("Every revision committed under the key or by the proposal, in order: one per import batch, one per mutation of an accepted proposal, one for an ordinary write. Null when unresolved.")]
+    public IReadOnlyList<NendoReceiptRevision>? Revisions { get; init; }
+}
+
+/// <summary>One committed revision named by a receipt, flat so a list of them stays a closed schema.</summary>
+public sealed record NendoReceiptRevision(
+    [property: Description("The History revision committed.")]
+    string RevisionId,
+    [property: Description("Digest of the canonical operations it committed.")]
+    string OperationDigest,
+    [property: Description("The file's definition revision after it.")]
+    long DefinitionRevision,
+    [property: Description("The file's data revision after it.")]
+    long DataRevision,
+    [property: Description("The file's change sequence after it.")]
+    long ChangeSequence,
+    [property: Description("Who committed it, as History names it, or null when the revision records no origin.")]
+    string? Origin)
+{
+    internal static NendoReceiptRevision From(NendoApplyResult result) => new(
+        result.RevisionId, result.OperationDigest, result.DefinitionRevision, result.DataRevision, result.ChangeSequence, result.Origin);
+}

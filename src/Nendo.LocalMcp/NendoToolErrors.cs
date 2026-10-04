@@ -50,6 +50,10 @@ internal static class NendoToolErrors
         NendoRecoveryRequiredException => Error(
             "NENDO_RECOVERY_REQUIRED",
             "The file requires recovery before it can be changed."),
+        // Reached only as the cause of a partial import: a tool rethrows its own cancellation.
+        OperationCanceledException => Error(
+            "NENDO_CANCELLED",
+            "The request was cancelled before it finished."),
         NendoPreconditionException precondition => Error(
             $"NENDO_{NendoText.ErrorCode(precondition.Code)}",
             DiagnosablePreconditions.Contains(precondition.Code)
@@ -112,8 +116,10 @@ internal static class NendoToolErrors
     // NENDO_CHANGE_SET_NOT_FOUND saying neither "does not exist" nor "not yours".
     private static readonly HashSet<string> DiagnosableAuthoringCodes =
         new([
-            "CHANGE_SET_LIMIT", "CHANGE_SET_ORDINAL", "DRAFT_LIMIT", "CHANGE_SET_EMPTY", "CHANGE_SET_FROZEN",
+            "CHANGE_SET_LIMIT", "CHANGE_SET_ORDINAL", "DRAFT_LIMIT", "PROPOSAL_LIMIT", "CHANGE_SET_EMPTY", "CHANGE_SET_FROZEN",
             "CHANGE_SET_NOT_FOUND", "CHANGE_SET_NOT_VALIDATED", "UNKNOWN_OPERATION",
+            // Constants written in the adapter: they name no path and echo no value.
+            "CHANGE_SET_STALE", "AUTHORITY_CHANGED", "IDEMPOTENCY_CONFLICT",
         ], StringComparer.Ordinal);
 
     private static McpException Error(string code, string message) =>

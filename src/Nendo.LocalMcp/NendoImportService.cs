@@ -58,13 +58,13 @@ internal sealed class NendoImportPartialException(
     int committed,
     int remaining,
     IReadOnlyList<string> revisionIds,
-    NendoException cause) : Exception("A later import batch was refused.", cause)
+    Exception cause) : Exception("A later import batch was refused.", cause)
 {
     internal int Committed { get; } = committed;
     internal int Remaining { get; } = remaining;
     internal int FirstUncommittedRow { get; } = committed + 1;
     internal IReadOnlyList<string> RevisionIds { get; } = revisionIds;
-    internal NendoException Cause { get; } = cause;
+    internal Exception Cause { get; } = cause;
 }
 
 /// <summary>
@@ -100,6 +100,9 @@ internal sealed class NendoImportService(NendoApplicationService application)
 
     /// <summary>Rows per revision, matching what the data tools already commit at once.</summary>
     private const int BatchSize = 50;
+
+    // Internal fault boundary for deterministic partial-failure tests; never a tool or host setting.
+    internal Action<int>? BeforeBatch { get; set; }
 
     private const int MaximumCsvCharacters = 1024 * 1024;
 
@@ -266,6 +269,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
             NendoApplyResult result;
             try
             {
+                BeforeBatch?.Invoke(committed);
                 var receipt = await application.GetMutationReceiptAsync(
                     new NendoOperationIdentity(IdempotencyScope, key), cancellationToken);
                 result = await application.CreateRecordsAsync(
@@ -273,7 +277,9 @@ internal sealed class NendoImportService(NendoApplicationService application)
                         IdempotencyScope, key, receipt?.Origin ?? origin)),
                     cancellationToken);
             }
-            catch (NendoException exception) when (committed > 0)
+            // Any failure after an acknowledged batch, a cancellation and an IO failure
+            // included: what committed is the one thing the caller must be told.
+            catch (Exception exception) when (committed > 0 && exception is not OutOfMemoryException)
             {
                 throw new NendoImportPartialException(
                     committed, entries.Count - committed, revisionIds.ToArray(), exception);
@@ -306,7 +312,10 @@ internal sealed class NendoImportService(NendoApplicationService application)
     private static string Seed(string idempotencyKey) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(idempotencyKey)))[..16].ToLowerInvariant();
 
-    private const string IdempotencyScope = "agent.import";
+    internal const string IdempotencyScope = "agent.import";
+
+    /// <summary>The most batches one call commits, and so the most receipts one key can answer for.</summary>
+    internal const int MaximumBatchesPerCall = (MaximumRowsPerCall + BatchSize - 1) / BatchSize;
 
     /// <summary>The Engine's bound on an idempotency key, which the caller's own key shares.</summary>
     private const int MaximumKeyCharacters = 200;

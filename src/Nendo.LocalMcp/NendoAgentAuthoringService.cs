@@ -16,6 +16,7 @@ internal sealed class NendoAgentAuthoringService(
     // serializes this same record, so an agent plans batches against what refuses.
     private static readonly NendoAuthoringLimits Limits = NendoAuthoringLimits.Current;
     private static readonly int MaximumDraftsPerSession = Limits.DraftsPerSession;
+    private static readonly int MaximumProposalsPerSession = Limits.ProposalsPerSession;
     private static readonly int MaximumMutationsPerAdd = Limits.MutationsPerCall;
     private static readonly int MaximumOperationsPerAdd = Limits.OperationsPerCall;
     private static readonly int MaximumMutationsPerChangeSet = Limits.MutationsPerChangeSet;
@@ -269,6 +270,15 @@ internal sealed class NendoAgentAuthoringService(
                             "CHANGE_SET_EMPTY",
                             "The change set has no operations to validate.");
                     }
+                    // Drafts are capped and each validate moves one into the store, where
+                    // every entry is a physical clone of the file; the store is capped too.
+                    if (proposals.CountOwned(host.HostRunId, applicationHandle) >= MaximumProposalsPerSession)
+                    {
+                        throw new NendoAgentAuthoringException(
+                            "PROPOSAL_LIMIT",
+                            $"This session already owns {MaximumProposalsPerSession} validated proposals, each a clone of the file. " +
+                            "Have them accepted or reject them with nendo.change_set.reject before validating another.");
+                    }
                     var snapshot = await application.GetSnapshotAsync(cancellationToken);
                     RequireCapturedAuthority(draft, snapshot);
                     // A previous cleanup IO refusal keeps its private preview owned by
@@ -498,6 +508,10 @@ internal sealed class NendoAgentAuthoringService(
                     // Cached before the grant below: promotion removed the proposal from the
                     // store, so a retry after a failed grant would otherwise be refused as a
                     // change set this session never owned, with the change already in the file.
+                    // Only a committed outcome is cached: a proposal still waiting, stale or
+                    // failed is still there, and a retry under the same key after the cause is
+                    // fixed should try again rather than replay the old refusal.
+                    if (!outcome.Applied) return result;
                     _acceptReplays.Add(replayKey, new Replay<NendoChangeSetAcceptResult>(digest, result));
 
                     // Consent second, and only when the file now needs it. Asking before the

@@ -133,7 +133,7 @@ public sealed class LeaseProtocolTests
 
     private static string[] ExpectedArguments(string toolName) => toolName switch
     {
-        "nendo.data.get_receipt" => ["receiptContext", "idempotencyKey"],
+        "nendo.data.get_receipt" => ["receiptContext", "idempotencyKey", "proposalId"],
         // Needs no lease and takes no argument: an integrity scan is a question
         // about the file, not an edit to it.
         "nendo.health.verify_integrity" => [],

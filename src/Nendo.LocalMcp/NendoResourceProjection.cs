@@ -7,6 +7,10 @@ internal sealed class NendoResourceProjection(
     NendoApplicationService application,
     NendoCursorCodec cursors)
 {
+    /// <summary>The definition revision the file is at now, without a record or history read.</summary>
+    internal async Task<long> GetDefinitionRevisionAsync(CancellationToken cancellationToken) =>
+        (await application.GetDefinitionSnapshotAsync(cancellationToken)).Manifest.DefinitionRevision;
+
     internal async Task<NendoMcpManifest> GetManifestAsync(CancellationToken cancellationToken)
     {
         var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);

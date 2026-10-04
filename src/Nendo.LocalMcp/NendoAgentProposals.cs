@@ -279,6 +279,15 @@ public sealed class NendoAgentProposalStore
         }
     }
 
+    /// <summary>How many validated proposals a session still owns: each is a clone of the file.</summary>
+    internal int CountOwned(string hostRunId, string applicationHandle)
+    {
+        lock (_gate)
+        {
+            return _entries.Values.Count(value => value.HostRunId == hostRunId && value.ApplicationHandle == applicationHandle);
+        }
+    }
+
     public IReadOnlyList<NendoAgentProposalSummary> Snapshot()
     {
         lock (_gate)
@@ -395,11 +404,19 @@ public sealed class NendoAgentProposalStore
         {
             proposalIds = _entries.Keys.ToArray();
         }
+        // Every clone is tried: a reject that fails must not leave the ones after it in
+        // place, since this is the last chance before the file closes. The first failure
+        // is reported once the rest have been tried.
+        Exception? first = null;
         foreach (var proposalId in proposalIds)
         {
             try
             {
                 await application.RejectProposalAsync(proposalId, cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                first ??= exception;
             }
             finally
             {
@@ -411,6 +428,7 @@ public sealed class NendoAgentProposalStore
             _applicationId = null;
             _instanceId = null;
         }
+        if (first is not null) throw first;
     }
 
     private void RequireBound(NendoProposalPreview preview)

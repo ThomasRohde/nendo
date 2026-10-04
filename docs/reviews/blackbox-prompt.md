@@ -420,7 +420,8 @@ that you could not.
   accepted and approved, propose an edit that sets the action off, then one that changes the
   action and sets it off in the same change set. At Unattended, also accept the edit that
   sets the action off before anyone has approved it: one call should apply it and report
-  `behaviourApproved` true. Report what each preview says, whether
+  `behaviourApproved` true, and `nendo.data.get_receipt` with that `proposalId` should list
+  the revisions it committed. Report what each preview says, whether
   Accept was offered, and whether any of it disagreed with what acceptance then did.
 - Create a record whose action target reference is empty. Record what the write said,
   and whether the catalogue had told you what to expect before you tried.

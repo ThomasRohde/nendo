@@ -9,8 +9,9 @@
 // view needs once it runs the new package. They go in the same proposal, as its last mutation,
 // so the person accepts the package and the view together and never sees one without the other.
 //
-// --endpoint names a Nendo by its MCP address, for one on a fixed port, which publishes no
-// discovery entry.
+// --endpoint names a Nendo by its MCP address, to skip the discovery scan: a Nendo on a
+// fixed port still publishes a discovery entry (the planner mod reads it), but the address
+// is then known in advance.
 //
 // Only what differs from the package the file already carries is proposed, and every put
 // and removal names the content it replaces, so a proposal prepared against an older

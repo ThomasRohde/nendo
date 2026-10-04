@@ -15,14 +15,44 @@ internal sealed class NendoDataMutationService(
     private const int MaximumValueMapBytes = 64 * 1024;
     private const int MaximumValueBytes = 32 * 1024;
 
-    internal async Task<NendoDataOutcome> GetReceiptAsync(string receiptContext, string idempotencyKey,
+    internal async Task<NendoDataOutcome> GetReceiptAsync(string receiptContext, string? idempotencyKey, string? proposalId,
         CancellationToken cancellationToken)
     {
         host.RequireActive();
+        if (proposalId is not null)
+        {
+            // An acceptance is keyed by the proposal, not by the accept call's key: the
+            // Engine records the committed revisions under the proposal ID (W-144).
+            NendoReceiptContext.ReadScope(receiptContext, host);
+            NendoText.RequireText(proposalId, "proposal ID", 200);
+            var accepted = await application.GetProposalReceiptAsync(proposalId, cancellationToken);
+            return accepted is { Revisions.Count: > 0 }
+                ? new("committed", accepted.Revisions[^1],
+                    $"Proposal {proposalId} was accepted and committed {accepted.Revisions.Count} revision(s); the file is at definition revision {accepted.DefinitionRevision}.")
+                { Revisions = accepted.Revisions.Select(NendoReceiptRevision.From).ToArray() }
+                : new("unresolved", null, "No acceptance of this proposal is recorded in this file state. nendo://application/proposals says whether it is still waiting.");
+        }
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+            throw new NendoValidationException("A bounded receipt locator and idempotency key are required, or a proposalId.");
         var identity = NendoReceiptContext.Read(receiptContext, idempotencyKey, host);
         var receipt = await application.GetMutationReceiptAsync(identity, cancellationToken);
-        return receipt is not null
-            ? new("committed", receipt, "This exact operation committed. Do not submit it with a new key.")
+        if (receipt is not null)
+            return new("committed", receipt, "This exact operation committed. Do not submit it with a new key.") { Revisions = [NendoReceiptRevision.From(receipt)] };
+        // An import commits one batch per revision, each under a key derived from the
+        // caller's, in the scope every lease shares (W-144). The batches answer in order.
+        var batches = new List<NendoApplyResult>();
+        for (var ordinal = 0; ordinal < NendoImportService.MaximumBatchesPerCall; ordinal++)
+        {
+            var batch = await application.GetMutationReceiptAsync(
+                new NendoOperationIdentity(NendoImportService.IdempotencyScope, NendoImportService.BatchKey(identity.IdempotencyKey, ordinal)),
+                cancellationToken);
+            if (batch is null) break;
+            batches.Add(batch);
+        }
+        return batches.Count > 0
+            ? new("committed", batches[^1],
+                $"An import under this key committed {batches.Count} batch(es). Retry the identical import with the same key to replay them and finish any remaining rows; do not submit it with a new key.")
+            { Revisions = batches.Select(NendoReceiptRevision.From).ToArray() }
             : new("unresolved", null, "No receipt is recorded in this file state. A delayed request may still arrive. Retry the exact original request only while its original edit lease is valid; do not infer that a new key is safe.");
     }
 

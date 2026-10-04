@@ -172,6 +172,29 @@ try {
     }
     Write-Host "OK       $($contractFiles.Count) contract(s) across $($phases.Count) prompt phase(s)."
 
+    Write-Host '== MCP surface count =='
+    # The contract opens by counting the resources and tools an agent sees, and the
+    # sentence drifted when a tool arrived without it moving (W-144). The count is read
+    # from the same declarations Test-Production.ps1 pins by name.
+    $mcpSource = (Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src/Nendo.LocalMcp') -Recurse -File -Filter '*.cs' |
+        Where-Object { $_.FullName -notmatch '[\/](?:bin|obj)[\/]' } |
+        ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join "`n"
+    $mcpNames = @([regex]::Matches($mcpSource, 'Name\s*=\s*"(nendo\.[^"]+)"') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+    $mcpResourceCount = @($mcpNames | Where-Object { $_.StartsWith('nendo.application.') -or $_.StartsWith('nendo.host.') }).Count
+    $mcpToolCount = $mcpNames.Count - $mcpResourceCount
+    $contractText = Get-Content -LiteralPath (Join-Path $repoRoot 'docs/contracts/mcp-interface.md') -Raw
+    $counted = [regex]::Match($contractText, '(?s)This contract lists the ([a-z-]+) resources and ([a-z-]+) tools')
+    if (-not $counted.Success) { throw 'docs/contracts/mcp-interface.md no longer opens by counting its resources and tools.' }
+    $numberWords = @{ 'ten' = 10; 'eleven' = 11; 'twelve' = 12; 'thirteen' = 13; 'fourteen' = 14; 'fifteen' = 15; 'sixteen' = 16; 'seventeen' = 17; 'eighteen' = 18; 'nineteen' = 19; 'twenty' = 20; 'twenty-one' = 21; 'twenty-two' = 22; 'twenty-three' = 23; 'twenty-four' = 24; 'twenty-five' = 25; 'twenty-six' = 26; 'twenty-seven' = 27; 'twenty-eight' = 28; 'twenty-nine' = 29; 'thirty' = 30 }
+    foreach ($word in @($counted.Groups[1].Value, $counted.Groups[2].Value)) {
+        if (-not $numberWords.ContainsKey($word)) { throw "docs/contracts/mcp-interface.md counts '$word', which this check cannot read; use a number word from ten to thirty." }
+    }
+    if ($numberWords[$counted.Groups[1].Value] -ne $mcpResourceCount -or $numberWords[$counted.Groups[2].Value] -ne $mcpToolCount) {
+        throw ("docs/contracts/mcp-interface.md says {0} resources and {1} tools; src/Nendo.LocalMcp declares {2} and {3}. Move the opening sentence with the surface." -f
+            $counted.Groups[1].Value, $counted.Groups[2].Value, $mcpResourceCount, $mcpToolCount)
+    }
+    Write-Host "OK       the contract counts $mcpResourceCount resources and $mcpToolCount tools, as declared"
+
     Write-Host '== Shell identity =='
     # The application names itself to Windows in C# and setup registers that name in
     # PowerShell. Neither can see the other, and the failure when they drift is silent:

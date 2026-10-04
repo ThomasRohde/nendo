@@ -1,3 +1,4 @@
+using Nendo.Engine;
 using System.Globalization;
 using System.Text.Json;
 using System.ComponentModel;
@@ -153,7 +154,21 @@ internal sealed class NendoMcpResources(
         MimeType = "application/json")]
     [Description("Every validated proposal waiting for a person to accept it in Nendo, with its title, the definition revision it captured, its state, how many operations it carries and the most severe reversibility class in it. Read this after a reconnect or a lost response: a pending proposal is otherwise invisible, and each one captured a revision, so accepting any one of them advances that revision and invalidates the rest. A proposal is accepted or rejected by the person in Nendo. Only at Unattended access does nendo.change_set.accept apply your own validated proposal; below it there is no promotion tool.")]
     public Task<string> GetProposalsAsync(CancellationToken cancellationToken) =>
-        TranslateAsync(() => Task.FromResult(proposals.Snapshot()));
+        TranslateAsync(async () =>
+        {
+            // The store projects each proposal as it was at validate time, and only an
+            // attempted promotion rewrites it. A proposal captured a definition revision,
+            // and acceptance of any other advances it, so the live revision says now what
+            // the next accept would say then: stale (W-144).
+            var summaries = proposals.Snapshot();
+            if (summaries.Count == 0) return summaries;
+            var revision = await projection.GetDefinitionRevisionAsync(cancellationToken);
+            return summaries
+                .Select(summary => summary.State == NendoProposalState.Previewable && summary.CapturedDefinitionRevision != revision
+                    ? summary with { State = NendoProposalState.Stale }
+                    : summary)
+                .ToArray();
+        });
 
     [McpServerResource(
         Name = "nendo.application.surfaces",

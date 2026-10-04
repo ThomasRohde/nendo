@@ -15,16 +15,17 @@ internal sealed class NendoDataTools(
 {
     [McpServerTool(Name = "nendo.data.get_receipt", Title = "Read a write's receipt", Destructive = false, Idempotent = true,
         OpenWorld = false, ReadOnly = true, UseStructuredContent = true)]
-    [Description("Read a prior data-operation receipt using the locator saved from its lease grant. Works after reconnect and grants no edit access. Missing evidence remains unresolved.")]
+    [Description("Read a prior write's receipt using the locator saved from its lease grant: a data operation by its idempotencyKey, an import by the key it was sent under (every committed batch answers, in order), or an accepted proposal by proposalId. Works after reconnect and grants no edit access. Missing evidence remains unresolved.")]
     public async Task<NendoDataOutcome> GetReceiptAsync(
         RequestContext<CallToolRequestParams> context,
         [Description("Unprivileged receiptContext saved from the original lease grant.")] string receiptContext,
-        [Description("The exact original mutation idempotency key.")] string idempotencyKey,
+        [Description("The exact original idempotency key of the write or import. Omit it only with proposalId.")] string? idempotencyKey = null,
+        [Description("The proposal whose acceptance to read, as nendo://application/proposals or the accept result names it. Answers with every revision the acceptance committed.")] string? proposalId = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var result = await mutations.GetReceiptAsync(receiptContext, idempotencyKey, cancellationToken);
+            var result = await mutations.GetReceiptAsync(receiptContext, idempotencyKey, proposalId, cancellationToken);
             activity.Record(context, "receipt", "nendo.data.get_receipt", result.State, result.Receipt?.RevisionId);
             return result;
         }
