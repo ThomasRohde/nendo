@@ -210,6 +210,9 @@ count, a sum over a numeric field, and a count grouped by a choice field. Compar
 against the records you page yourself, and send one filter with an operator and one
 with a field the vocabulary does not list; the refusal should name what is accepted.
 Say whether `describe` and the schema read agree with your own count of a record type.
+If your client speaks the Tasks extension, validate one change set as a task and poll
+it to completion, and cancel another while it runs; say whether a write ever came back
+as a task, and whether a cancelled validate left a proposal you could not reach.
 If your client speaks the 2026-07-28 revision, open `subscriptions/listen` for
 `nendo://application/proposals` before you validate anything, and report whether the
 stream told you when the person accepted and when the file closed, and what it said

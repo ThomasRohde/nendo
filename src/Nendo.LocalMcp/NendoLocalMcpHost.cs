@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using ModelContextProtocol;
 using ModelContextProtocol.AspNetCore;
+using ModelContextProtocol.Extensions.Tasks;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Nendo.Engine;
@@ -166,6 +167,18 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
     public int ListenerCount => _feed.Count;
 
     /// <summary>
+    /// The tools a client may run as a task (W-152): a physical clone plus compilation, up to
+    /// ten batch revisions, and a full scan. Published here so the contract and the gate name
+    /// the same three.
+    /// </summary>
+    public static readonly IReadOnlySet<string> TaskCapableTools = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "nendo.change_set.validate",
+        "nendo.data.import_records",
+        "nendo.health.verify_integrity",
+    };
+
+    /// <summary>
     /// One <c>subscriptions/listen</c> stream (W-151): acknowledges the resource URIs this host
     /// pushes, among those the client asked for, then sends <c>resources/updated</c> for each
     /// as the Engine commits, the proposal queue changes or the file closes, until the client
@@ -287,6 +300,9 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         // What a listen stream is told (W-151): a commit moves the manifest and may stale
         // every proposal; the queue changes when one joins, is promoted or is rejected.
         var feed = new NendoChangeFeed();
+        // Task state is host memory keyed by task ID (W-152): it dies with this listener,
+        // which is what NENDO_HOST_CLOSED already means, and the TTL says so.
+        var tasks = new InMemoryMcpTaskStore { DefaultTimeToLive = TimeSpan.FromMinutes(30), DefaultPollIntervalMs = 1000 };
         Action<long> committed = _ => feed.Signal(NendoChangeFeed.Manifest, NendoChangeFeed.Proposals);
         Action proposalsChanged = () => feed.Signal(NendoChangeFeed.Proposals);
         applicationService.Committed += committed;
@@ -471,7 +487,14 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                     })
                     .WithHttpTransport(transport => transport.SessionMode = HttpServerSessionMode.Stateless)
                     .WithResources<NendoMcpResources>()
-                    .WithSubscriptionsListenHandler((request, token) => ListenAsync(request, feed, token));
+                    .WithSubscriptionsListenHandler((request, token) => ListenAsync(request, feed, token))
+                    // The three long operations run as tasks for a client that declares the Tasks
+                    // extension on its request, and as today for one that does not (W-152). Every
+                    // other tool stays synchronous: a write is answered, not polled for.
+                    .WithTasks(tasks, taskOptions => taskOptions.ExecutionModeSelector = context =>
+                        TaskCapableTools.Contains(context.Params?.Name ?? string.Empty)
+                            ? McpTaskExecutionMode.Optional
+                            : McpTaskExecutionMode.Synchronous);
 
                 // One table says which tool class each level serves; the boundary refuses
                 // from the same table, so a level code names exactly what is not here.

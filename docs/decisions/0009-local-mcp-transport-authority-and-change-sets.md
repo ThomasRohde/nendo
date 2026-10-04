@@ -337,6 +337,12 @@ services, at a static loopback address, with no credential.
   before writing.
 - Stable sanitized errors disclose semantic causes without paths, SQL or
   exception internals.
+- Since 2026-10-04 (W-151, W-152) the 2026-07-28 path pushes three facts over
+  `subscriptions/listen` (the manifest moved, the proposal queue changed, the file
+  is closing) and runs validate, import and the integrity scan as polled tasks for
+  a client that declares the Tasks extension. Neither moves authority: acceptance
+  stays in Nendo, a task never extends a lease, and a client that declares neither
+  is served exactly as before.
 - Nendo implements no client-specific semantic branch. Opt-in installed-client
   lanes exercise both Claude Code and Codex. That is compatibility evidence. It
   is not a general parity promise.
@@ -421,6 +427,9 @@ services, at a static loopback address, with no credential.
   what accepting means for consent to automatic actions before anyone accepts, and
   Accept is withheld where promotion would be refused. Acceptance and consent are
   unchanged.
+- 2026-10-04 — amended (W-151, W-152): subscriptions/listen pushes the manifest, the
+  proposal queue and the close; validate, import and the integrity scan run as
+  tasks for a client that declares the Tasks extension. Authority unchanged.
 - 2026-09-29 — amended at the owner's request (W-126, after F-212): the access
   level is remembered for each file on this device. Device state
   (`agent-modes.json`) keeps, per application ID, the level and the file's

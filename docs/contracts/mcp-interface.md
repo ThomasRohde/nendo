@@ -67,6 +67,24 @@ API's HTTP fetch returns a whole response and cannot hold a stream, which is rec
 the planner item. [The listen tests](../../tests/Nendo.LocalMcp.Tests/SubscriptionsListenTests.cs)
 read the stream as the wire carries it; the SDK's client has no listen helper in 2.2.0.
 
+Since 2026-10-04 (W-152) the host also serves the Tasks extension
+(`io.modelcontextprotocol/tasks`, SEP-2663, `ModelContextProtocol.Extensions.Tasks`
+2.2.0). A client that declares the extension on its request runs three tools as a task
+it polls with `tasks/get` and may stop with `tasks/cancel`: `nendo.change_set.validate`
+(a physical clone plus compilation), `nendo.data.import_records` (up to ten batch
+revisions) and `nendo.health.verify_integrity` (a full scan); `NendoLocalMcpHost.TaskCapableTools`
+names the three. A client that does not declare it is answered as before, and every
+other tool is answered at once whatever the client declares: a write is answered, not
+polled for. The task's result is the tool's result, refusals included. Task state is
+host memory keyed by task ID, with a thirty-minute TTL that says it dies with the
+listener. A task never extends a lease. `tasks/cancel` on a validate cancels its clone
+by the existing path, so no proposal the agent cannot reach is left behind. What the
+review asked for and this does not do: a validate task that stays `working` until the
+person accepts. A task's result is its tool's result, and acceptance is not validate's
+outcome; the wait is `subscriptions/listen` on `nendo://application/proposals` and then
+`nendo://application/proposal/{proposalId}`, which says `active` once accepted. The
+[Tasks tests](../../tests/Nendo.LocalMcp.Tests/TasksExtensionTests.cs) hold the three.
+
 The discovery document names the discover-path headers and the three
 `io.modelcontextprotocol/*` `params._meta` keys. A hand-written client therefore
 does not have to learn them from errors. The document also carries `displayName`,
@@ -629,6 +647,7 @@ Evidence: [protocol resource tests](../../tests/Nendo.LocalMcp.Tests/ProtocolRes
 [data outcomes](../../tests/Nendo.LocalMcp.Tests/DataOutcomeProtocolTests.cs),
 [read path tests](../../tests/Nendo.LocalMcp.Tests/ReadPathTests.cs),
 [listen tests](../../tests/Nendo.LocalMcp.Tests/SubscriptionsListenTests.cs),
+[Tasks tests](../../tests/Nendo.LocalMcp.Tests/TasksExtensionTests.cs),
 [authoring ergonomics tests](../../tests/Nendo.LocalMcp.Tests/AuthoringErgonomicsTests.cs),
 [extension package protocol tests](../../tests/Nendo.LocalMcp.Tests/ExtensionPackageProtocolTests.cs),
 and the [native neutrality probe](../../tools/Review-NeutralityRuntime.mjs).
