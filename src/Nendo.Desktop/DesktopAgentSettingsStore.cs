@@ -4,14 +4,6 @@ using Nendo.LocalMcp;
 
 namespace Nendo.Desktop;
 
-internal sealed record DesktopAgentSettingsView(
-    bool LeaseExpiry,
-    int LeaseExpirySeconds,
-    bool FixedPort,
-    int Port,
-    bool Persisted,
-    string? Notice);
-
 // Device preference only, never application data. The defaults are the single-user local ones: a predictable
 // port so a saved client configuration keeps working, and no lease expiry so an in-flight draft cannot die
 // mid-conversation. Each can be hardened again by choice.
@@ -67,9 +59,6 @@ internal sealed class DesktopAgentSettingsStore
             Notice = "The saved agent connection settings could not be read. Using the local defaults for this session.";
         }
     }
-
-    internal DesktopAgentSettingsView View() => new(
-        LeaseExpiry, LeaseExpirySeconds, FixedPort, Port, Persisted, Notice);
 
     internal void Save(bool leaseExpiry, int leaseExpirySeconds, bool fixedPort, int port)
     {

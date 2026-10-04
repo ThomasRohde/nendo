@@ -375,21 +375,13 @@ public static class NendoAssetStructure
 # source is guarded here too although it never ships.
 #
 # This list fails loudly when an asset is renamed or removed, and drifts silently
-# when one is added. It has already drifted once: two Square44x44 target sizes
-# that Nendo.Desktop.csproj ships were missing from the first version of it.
+# when one is added. It has already drifted once: two tile images that
+# Nendo.Desktop.csproj then carried were missing from the first version of it.
 $shipping = @(
     'src/Nendo.Desktop/Assets/AppIcon.ico',
     'src/Nendo.Desktop/Assets/DocumentIcon.ico',
     'src/Nendo.Desktop/Assets/OverlayAttention.ico',
     'src/Nendo.Desktop/Assets/OverlayReadOnly.ico',
-    'src/Nendo.Desktop/Assets/LockScreenLogo.scale-200.png',
-    'src/Nendo.Desktop/Assets/SplashScreen.scale-200.png',
-    'src/Nendo.Desktop/Assets/Square150x150Logo.scale-200.png',
-    'src/Nendo.Desktop/Assets/Square44x44Logo.scale-200.png',
-    'src/Nendo.Desktop/Assets/Square44x44Logo.targetsize-24_altform-unplated.png',
-    'src/Nendo.Desktop/Assets/Square44x44Logo.targetsize-48_altform-lightunplated.png',
-    'src/Nendo.Desktop/Assets/StoreLogo.png',
-    'src/Nendo.Desktop/Assets/Wide310x150Logo.scale-200.png',
     'src/Nendo.Workbench/public/nendo.png',
     'src/Nendo.Workbench/public/nendo-mark.png',
     'docs/assets/brand/nendo-mark.png'

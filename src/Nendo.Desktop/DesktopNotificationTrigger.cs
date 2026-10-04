@@ -35,7 +35,10 @@ internal sealed class DesktopNotificationTrigger
         _rendererFailed = false;
     }
 
-    /// <summary>Whether consent is currently outstanding, for the tray tooltip.</summary>
+    /// <summary>
+    /// Whether consent is currently outstanding. Nothing in the app reads it; the tests
+    /// use it to observe the trigger's state.
+    /// </summary>
     internal bool ApprovalOutstanding => _approvalOutstanding;
 
     /// <summary>

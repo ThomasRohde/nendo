@@ -542,7 +542,7 @@ internal sealed partial class WorkbenchProtocolHandler
     }
 
     internal static string Serialize(WorkbenchResponse response) =>
-        JsonSerializer.Serialize(response, response.ProtocolVersion >= 6 ? JsonOptions : LegacyJsonOptions);
+        JsonSerializer.Serialize(response, response.ProtocolVersion >= DesktopShellContract.SnapshotBridgeProtocolVersion ? JsonOptions : LegacyJsonOptions);
 
     internal static string SerializeEvent(WorkbenchEvent hostEvent) =>
         JsonSerializer.Serialize(hostEvent, JsonOptions);
@@ -850,10 +850,8 @@ internal sealed partial class WorkbenchProtocolHandler
             DesktopShellContract.LegacyBridgeProtocolVersion => !CurrentOnlyMethods.Contains(method),
             DesktopShellContract.PreviousBridgeProtocolVersion =>
                 !LegacyWorkbenchProtocol.IsMethod(method) && !AgentMethods.Contains(method),
-            DesktopShellContract.AgentBridgeProtocolVersion => !LegacyWorkbenchProtocol.IsMethod(method),
-            DesktopShellContract.OutcomeBridgeProtocolVersion => !LegacyWorkbenchProtocol.IsMethod(method),
-            DesktopShellContract.SnapshotBridgeProtocolVersion => !LegacyWorkbenchProtocol.IsMethod(method),
-            DesktopShellContract.BridgeProtocolVersion => !LegacyWorkbenchProtocol.IsMethod(method),
+            >= DesktopShellContract.AgentBridgeProtocolVersion and <= DesktopShellContract.BridgeProtocolVersion =>
+                !LegacyWorkbenchProtocol.IsMethod(method),
             _ => false,
         };
 

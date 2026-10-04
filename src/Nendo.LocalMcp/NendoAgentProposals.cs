@@ -265,28 +265,6 @@ public sealed class NendoAgentProposalStore
         }
     }
 
-    internal NendoProposalPreview RemoveOwned(
-        string changeSetId,
-        string hostRunId,
-        string sessionId)
-    {
-        lock (_gate)
-        {
-            var pair = _entries.SingleOrDefault(value =>
-                value.Value.ChangeSetId == changeSetId &&
-                value.Value.HostRunId == hostRunId &&
-                value.Value.SessionId == sessionId);
-            if (pair.Value is null)
-            {
-                throw new NendoAgentAuthoringException(
-                    "CHANGE_SET_NOT_FOUND",
-                    "The change set is not owned by this agent session.");
-            }
-            _entries.Remove(pair.Key);
-            return pair.Value.Preview;
-        }
-    }
-
     public IReadOnlyList<NendoAgentProposalSummary> Snapshot()
     {
         lock (_gate)
