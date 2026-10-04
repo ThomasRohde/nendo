@@ -225,6 +225,9 @@ public sealed class NendoAgentProposalStore
     /// </summary>
     public event Action<int>? ProposalAdded;
 
+    /// <summary>The queue changed: a proposal joined it, or left it by promotion or rejection (W-151). Raised outside the lock; a handler must not wait on this store.</summary>
+    public event Action? ProposalsChanged;
+
     internal void Add(
         string changeSetId,
         string hostRunId,
@@ -250,6 +253,21 @@ public sealed class NendoAgentProposalStore
             try
             {
                 added(pending);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+            }
+        }
+        RaiseChanged();
+    }
+
+    private void RaiseChanged()
+    {
+        if (ProposalsChanged is { } changed)
+        {
+            try
+            {
+                changed();
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
@@ -480,10 +498,12 @@ public sealed class NendoAgentProposalStore
 
     private void Remove(string proposalId)
     {
+        bool removed;
         lock (_gate)
         {
-            _entries.Remove(proposalId);
+            removed = _entries.Remove(proposalId);
         }
+        if (removed) RaiseChanged();
     }
 
     private async Task RequireMatchingFileAsync(

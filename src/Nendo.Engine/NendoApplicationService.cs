@@ -35,6 +35,13 @@ public sealed partial class NendoApplicationService
         remove => _coordinator.WriteAuthorityLost -= value;
     }
 
+    /// <summary>A revision committed, with the change sequence it reached; raised after every commit that was not an idempotent replay.</summary>
+    public event Action<long>? Committed
+    {
+        add => _coordinator.Committed += value;
+        remove => _coordinator.Committed -= value;
+    }
+
     // Native host lifecycle entry points. The selected path stays on the host;
     // Workbench and MCP receive neither it nor an arbitrary invocation route.
     public Task<NendoBackupPlan> PrepareBackupAsync(

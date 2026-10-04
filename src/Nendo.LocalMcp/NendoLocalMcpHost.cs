@@ -75,6 +75,9 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
     private readonly NendoAgentWorkSignal _work;
     private readonly NendoRequestGate _requests;
     private readonly NendoFailureRecord _failures;
+    private readonly NendoChangeFeed _feed;
+    private readonly Action<long> _committed;
+    private readonly Action _proposalsChanged;
     private readonly string _discoveryPath;
     private int _disposed;
 
@@ -89,12 +92,18 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         NendoAgentWorkSignal work,
         NendoRequestGate requests,
         NendoFailureRecord failures,
+        NendoChangeFeed feed,
+        Action<long> committed,
+        Action proposalsChanged,
         string discoveryPath,
         int requestedPort,
         bool usedFallbackPort)
     {
         _application = application;
         _applicationService = applicationService;
+        _feed = feed;
+        _committed = committed;
+        _proposalsChanged = proposalsChanged;
         _authority = authority;
         _agentAuthority = agentAuthority;
         _authoring = authoring;
@@ -152,6 +161,56 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
 
     public IReadOnlyList<NendoAgentActivity> GetActivities(int maximum = 200) =>
         _activity.Snapshot(maximum);
+
+    /// <summary>How many subscriptions/listen streams are open now.</summary>
+    public int ListenerCount => _feed.Count;
+
+    /// <summary>
+    /// One <c>subscriptions/listen</c> stream (W-151): acknowledges the resource URIs this host
+    /// pushes, among those the client asked for, then sends <c>resources/updated</c> for each
+    /// as the Engine commits, the proposal queue changes or the file closes, until the client
+    /// goes away. toolsListChanged is not honoured: a level change restarts the listener, and
+    /// the stream ending is that signal. The stream holds one request-gate place for its
+    /// life, so at most <see cref="NendoChangeFeed.MaximumListeners"/> are open at once.
+    /// </summary>
+    private static async ValueTask<EmptyResult> ListenAsync(
+        RequestContext<SubscriptionsListenRequestParams> request,
+        NendoChangeFeed feed,
+        CancellationToken cancellationToken)
+    {
+        var wanted = request.Params?.Notifications?.ResourceSubscriptions ?? [];
+        var honoured = NendoChangeFeed.Served.Where(uri => wanted.Contains(uri, StringComparer.Ordinal)).ToArray();
+        using var listener = feed.TryOpen()
+            ?? throw new McpProtocolException(
+                $"NENDO_BUSY: {NendoChangeFeed.MaximumListeners} subscriptions/listen streams are already open to this file, the most this " +
+                "host holds at once. Close one, or poll nendo://application/proposals instead.",
+                McpErrorCode.InvalidParams);
+        var subscriptionId = System.Text.Json.Nodes.JsonValue.Create(request.JsonRpcRequest?.Id.Id?.ToString() ?? string.Empty);
+        System.Text.Json.Nodes.JsonObject Tagged() => new() { [MetaKeys.SubscriptionId] = subscriptionId.DeepClone() };
+        await request.Server.SendNotificationAsync(
+            NotificationMethods.SubscriptionsAcknowledgedNotification,
+            new SubscriptionsAcknowledgedNotificationParams
+            {
+                Notifications = new SubscriptionsListenNotifications { ResourceSubscriptions = honoured },
+            },
+            cancellationToken: cancellationToken);
+        try
+        {
+            await foreach (var uri in listener.Reader.ReadAllAsync(cancellationToken))
+            {
+                if (!honoured.Contains(uri, StringComparer.Ordinal)) continue;
+                await request.Server.SendNotificationAsync(
+                    NotificationMethods.ResourceUpdatedNotification,
+                    new ResourceUpdatedNotificationParams { Uri = uri, Meta = Tagged() },
+                    cancellationToken: cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The client went away, or the request was stopped: the stream is over.
+        }
+        return new EmptyResult();
+    }
 
     public IReadOnlyList<NendoAgentProposalSummary> GetPendingProposals() =>
         _proposals.Snapshot();
@@ -225,6 +284,13 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         var queries = NendoResourceQuery.ForDeclaredResources();
         var requests = new NendoRequestGate(NendoRequestGate.DefaultMaximum, options.RequestTimeout);
         var failures = new NendoFailureRecord(options.RecordFailure);
+        // What a listen stream is told (W-151): a commit moves the manifest and may stale
+        // every proposal; the queue changes when one joins, is promoted or is rejected.
+        var feed = new NendoChangeFeed();
+        Action<long> committed = _ => feed.Signal(NendoChangeFeed.Manifest, NendoChangeFeed.Proposals);
+        Action proposalsChanged = () => feed.Signal(NendoChangeFeed.Proposals);
+        applicationService.Committed += committed;
+        proposalStore.ProposalsChanged += proposalsChanged;
         WebApplication? webApplication = null;
         var usedFallbackPort = false;
         string? discoveryPath = null;
@@ -404,7 +470,8 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                         });
                     })
                     .WithHttpTransport(transport => transport.SessionMode = HttpServerSessionMode.Stateless)
-                    .WithResources<NendoMcpResources>();
+                    .WithResources<NendoMcpResources>()
+                    .WithSubscriptionsListenHandler((request, token) => ListenAsync(request, feed, token));
 
                 // One table says which tool class each level serves; the boundary refuses
                 // from the same table, so a level code names exactly what is not here.
@@ -502,6 +569,9 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                 work,
                 requests,
                 failures,
+                feed,
+                committed,
+                proposalsChanged,
                 discoveryPath,
                 options.PreferredPort,
                 usedFallbackPort);
@@ -510,6 +580,8 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         {
             authority.CloseAdmission();
             applicationService.WriteAuthorityLost -= authority.CloseAdmission;
+            applicationService.Committed -= committed;
+            proposalStore.ProposalsChanged -= proposalsChanged;
             NendoDiscoveryStore.DeleteIfPresent(discoveryPath);
             if (webApplication is not null)
             {
@@ -538,6 +610,11 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         CloseAdmission();
         _failures.Close();
         _applicationService.WriteAuthorityLost -= _authority.CloseAdmission;
+        _applicationService.Committed -= _committed;
+        _proposals.ProposalsChanged -= _proposalsChanged;
+        // Every listen stream hears that health changed and then ends, before the
+        // listener stops taking requests (W-151).
+        _feed.Close();
         var cleanupFailures = new List<Exception>();
         try
         {

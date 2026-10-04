@@ -49,6 +49,24 @@ eras are served:
   the SDK handles the MCP-Protocol-Version/Mcp-Method/Mcp-Name headers and complete
   result envelopes.
 
+Since 2026-10-04 (W-151) the 2026-07-28 path also serves `subscriptions/listen`. A
+client that opens it with `resourceSubscriptions` is acknowledged for the three URIs
+this host pushes, `nendo://application/manifest`, `nendo://application/proposals` and
+`nendo://application/health`, and every other URI is acknowledged out. The stream then
+carries `resources/updated` for the manifest and the proposals on every commit the
+Engine makes (a commit may stale every proposal), for the proposals when one joins the
+queue or leaves it by promotion or rejection, and for health when the file closes, after
+which the stream ends; each notification carries the listen request's id under
+`_meta/io.modelcontextprotocol/subscriptionId`. `toolsListChanged` is not honoured: a
+change of access level restarts the listener, and the stream ending is that signal. A
+stream holds one of the sixteen request-gate places for its life and is exempt from the
+request timeout; at most four are open at once, and the fifth is `NENDO_BUSY` naming the
+cap. Before, an agent at Shape app validated and had no signal when the person accepted,
+and the planner mod polled every sixty seconds. The planner mod still polls: the hook
+API's HTTP fetch returns a whole response and cannot hold a stream, which is recorded on
+the planner item. [The listen tests](../../tests/Nendo.LocalMcp.Tests/SubscriptionsListenTests.cs)
+read the stream as the wire carries it; the SDK's client has no listen helper in 2.2.0.
+
 The discovery document names the discover-path headers and the three
 `io.modelcontextprotocol/*` `params._meta` keys. A hand-written client therefore
 does not have to learn them from errors. The document also carries `displayName`,
@@ -610,6 +628,7 @@ Evidence: [protocol resource tests](../../tests/Nendo.LocalMcp.Tests/ProtocolRes
 [worked example tests](../../tests/Nendo.LocalMcp.Tests/AuthoringExampleTests.cs),
 [data outcomes](../../tests/Nendo.LocalMcp.Tests/DataOutcomeProtocolTests.cs),
 [read path tests](../../tests/Nendo.LocalMcp.Tests/ReadPathTests.cs),
+[listen tests](../../tests/Nendo.LocalMcp.Tests/SubscriptionsListenTests.cs),
 [authoring ergonomics tests](../../tests/Nendo.LocalMcp.Tests/AuthoringErgonomicsTests.cs),
 [extension package protocol tests](../../tests/Nendo.LocalMcp.Tests/ExtensionPackageProtocolTests.cs),
 and the [native neutrality probe](../../tools/Review-NeutralityRuntime.mjs).

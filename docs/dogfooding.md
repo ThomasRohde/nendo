@@ -380,8 +380,11 @@ If Use still shows an older version after an MCP edit, leave it for Agent or
 Studio. Then return to Use before you repeat a write. During setup closure, this
 refreshed W-001 from Review to its stored Done state and corrected the
 completion ring. F-032/W-034 retain the refresh/draft-handling investigation.
-Live updates are not assumed. Before you retry a write, confirm the stored
-record version.
+Live updates are not assumed in Use. Over MCP, a 2026-07-28 client can open
+`subscriptions/listen` for `nendo://application/proposals`, `manifest` and `health`
+and be told when the person accepts, when anything commits and when the file closes
+(W-151); a client that cannot hold a stream polls. Before you retry a write, confirm
+the stored record version.
 
 The setup work item is `nd.work.r.dogfood`. Its acceptance checks distinguish
 schema/record reads, real UI observations, owner reports, offline use and

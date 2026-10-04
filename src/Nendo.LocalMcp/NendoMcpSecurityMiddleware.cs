@@ -69,7 +69,10 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
         }
         var aborted = context.RequestAborted;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(aborted);
-        timeout.CancelAfter(gate.Timeout);
+        // A subscriptions/listen stream is held open on purpose, for as long as its client
+        // listens; it keeps its gate place and is not a request that failed to finish (W-151).
+        if (!string.Equals(context.Request.Headers["Mcp-Method"].ToString(), "subscriptions/listen", StringComparison.Ordinal))
+            timeout.CancelAfter(gate.Timeout);
         context.RequestAborted = timeout.Token;
         try
         {
