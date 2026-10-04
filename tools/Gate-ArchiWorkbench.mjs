@@ -275,6 +275,141 @@ async (page) => {
   results.lists = lists;
   await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
 
+  // ---- W-118: a concept's Analysis lists what archi-online lists, in its order (analysis.test.mjs
+  // measures every concept of eight models), and a view in it opens on the concept's first object
+  // there, the one archi-online's findInView names, outlined and declared as the place.
+  const allRecords = async () => Object.fromEntries(await Promise.all(['ar.model', 'ar.folder', 'ar.type', 'ar.concept', 'ar.specialization', 'ar.view', 'ar.item', 'ar.property']
+    .map(async entityId => [entityId, await records(entityId)])));
+  const archi = (name, ...args) => view.evaluate(async ([name, args]) => {
+    const module = await import('./canvas.js');
+    const [sets, ...rest] = args;
+    const result = module[name](module.buildMirror(sets), ...rest);
+    return Array.isArray(result) ? result.map(item => item.id) : result?.nodes ? { nodes: result.nodes.map(node => node.id), edges: result.edges.length } : result ?? null;
+  }, [name, args]);
+  const sets = await allRecords();
+  const analysisLists = await view.evaluate(() => ({
+    relations: [...document.querySelectorAll('#properties [data-analysis="relations"] [data-select]')].map(button => button.dataset.select),
+    views: [...document.querySelectorAll('#properties [data-analysis="views"] [data-open-view]')].map(button => button.dataset.openView),
+  }));
+  const wantRelations = await archi('modelRelations', sets, customer.recordId);
+  const wantViews = await archi('viewsUsing', sets, customer.recordId);
+  assert(JSON.stringify(analysisLists) === JSON.stringify({ relations: wantRelations, views: wantViews }),
+    `Customer's Analysis is not archi-online's: ${JSON.stringify(analysisLists)}, not ${JSON.stringify({ relations: wantRelations, views: wantViews })}.`);
+  const openNow = (await page.evaluate(() => window.broker.places.at(-1)?.place))?.view ?? viewButton;
+  const otherView = wantViews.find(id => id !== openNow);
+  assert(otherView, `Customer is on no view other than the open one: ${JSON.stringify(wantViews)}.`);
+  const wantObject = await archi('findInView', sets, otherView, customer.recordId);
+  await view.click(`#properties [data-open-view="${otherView}"]`);
+  await until(id => document.querySelector('#centre svg.stage') && document.querySelectorAll('#centre .selection .selected-box').length === 1
+    && document.querySelector('#tree .row[aria-selected="true"]')?.dataset.id === id, customer.recordId, 'A view in the Analysis did not open with Customer outlined on it.');
+  let occurrence = null;
+  for (let waited = 0; waited <= 3000 && occurrence?.view !== otherView; waited += 50) {
+    occurrence = await page.evaluate(() => window.broker.places.at(-1)?.place);
+    if (occurrence?.view !== otherView) await page.waitForTimeout(50);
+  }
+  assert(occurrence?.view === otherView && occurrence.selected === customer.recordId && occurrence.item === wantObject,
+    `A view in the Analysis opened on ${JSON.stringify(occurrence)}, not view ${otherView} with Customer's object ${wantObject} selected.`);
+  results.analysis = { relations: wantRelations.length, views: wantViews.length, opened: otherView, object: wantObject };
+
+  // ---- W-118: the Visualiser draws archi-online's graph around the selection, follows it, and its
+  // controls change the graph as archi-online's do. Measured as the boxes drawn against the graph
+  // archi-online builds on the same records.
+  await page.evaluate(() => window.broker.command('visualiser', true, 'toolbar'));
+  await until(() => !document.getElementById('visualiser').hidden, null, 'The Visualiser toggle did not open the Visualiser.');
+  const drawnGraph = async (focus, what) => {
+    await until(id => { const panel = document.getElementById('visualiser'); return panel.dataset.focus === id && panel.dataset.laidOut === 'true'; }, focus,
+      `${what}: the Visualiser did not lay out the graph around ${focus}.`);
+    return view.evaluate(() => [...document.querySelectorAll('#visualiser .visualiser-node')].map(node => node.dataset.conceptId));
+  };
+  const graphOptions = (focus, change = {}) => ({ focusIds: [focus], depth: 1, direction: 'both', viewpointId: '', elementTypes: [], relationshipTypes: [], ...change });
+  const sameNodes = async (focus, change, what) => {
+    const want = await archi('analysisGraph', sets, graphOptions(focus, change));
+    let drawn = [];
+    for (let waited = 0; waited <= 4000; waited += 50) {
+      drawn = await drawnGraph(focus, what);
+      if (JSON.stringify(drawn) === JSON.stringify(want.nodes)) return want;
+      await page.waitForTimeout(50);
+    }
+    throw new Error(`${what}: the Visualiser draws ${drawn.length} boxes, not archi-online's ${want.nodes.length}: ${JSON.stringify(drawn.slice(0, 6))} against ${JSON.stringify(want.nodes.slice(0, 6))}.`);
+  };
+  await view.selectOption('#visualiser-depth', '1');
+  await view.selectOption('#visualiser-direction', 'both');
+  const depthOne = await sameNodes(customer.recordId, {}, 'Depth 1');
+  await view.selectOption('#visualiser-depth', '2');
+  const depthTwo = await sameNodes(customer.recordId, { depth: 2 }, 'Depth 2');
+  assert(depthTwo.nodes.length > depthOne.nodes.length, `Depth 2 drew no more than depth 1: ${depthTwo.nodes.length} boxes.`);
+  await view.selectOption('#visualiser-direction', 'outgoing');
+  await sameNodes(customer.recordId, { depth: 2, direction: 'outgoing' }, 'Outgoing at depth 2');
+  await view.selectOption('#visualiser-direction', 'both');
+  await view.click('#visualiser-types');
+  await until(() => document.getElementById('visualiser-types-dialog').open, null, 'Types… did not open its dialog.');
+  await view.check('#visualiser-types-list input[data-element="BusinessActor"]');
+  await view.check('#visualiser-types-list input[data-element="BusinessRole"]');
+  await view.click('#visualiser-types-dialog button[value="done"]');
+  const typed = await sameNodes(customer.recordId, { depth: 2, elementTypes: ['BusinessActor', 'BusinessRole'] }, 'Only business actors and roles');
+  assert(typed.nodes.length < depthTwo.nodes.length, `The type filter left all ${typed.nodes.length} boxes.`);
+  await view.click('#visualiser-types');
+  await until(() => document.getElementById('visualiser-types-dialog').open, null, 'Types… did not open again.');
+  await view.click('#visualiser-types-dialog button[value="clear"]');
+  await sameNodes(customer.recordId, { depth: 2 }, 'Every type again');
+  // A click on a box selects its concept and keeps the graph; a double-click makes it the focus; Back returns.
+  const neighbour = depthOne.nodes.find(id => id !== customer.recordId && sets['ar.concept'].some(record => record.recordId === id));
+  assert(neighbour, 'Customer has no neighbour in the Visualiser.');
+  await view.click(`#visualiser .visualiser-node[data-concept-id="${neighbour}"]`);
+  await until(id => document.querySelector('#tree .row[aria-selected="true"]')?.dataset.id === id, neighbour, 'A click on a box in the Visualiser did not select its concept.');
+  assert(await view.evaluate(() => document.getElementById('visualiser').dataset.focus) === customer.recordId, 'A click on a box moved the Visualiser’s focus.');
+  await view.dblclick(`#visualiser .visualiser-node[data-concept-id="${neighbour}"]`);
+  await sameNodes(neighbour, { depth: 2 }, 'A double-clicked box as the focus');
+  assert(await view.evaluate(() => !document.getElementById('visualiser-back').disabled), 'Back is not offered after a double-click.');
+  await view.click('#visualiser-back');
+  await sameNodes(customer.recordId, { depth: 2 }, 'Back');
+  // Pinned, the graph stays while the selection moves; unpinned, it follows it.
+  const other = sets['ar.concept'].find(record => depthOne.nodes.includes(record.recordId) && ![customer.recordId, neighbour].includes(record.recordId)
+    && record.values['ar.concept.category'] === 'Element' && record.values['ar.concept.name']);
+  assert(other, 'Customer has no second named element beside it in the Visualiser.');
+  await view.click('#visualiser-pin');
+  await page.evaluate(name => window.broker.command('find', name, 'toolbar'), other.values['ar.concept.name']);
+  await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), other.recordId, 'The second element is not in the tree under Find.');
+  await view.click(`#tree .row[data-id="${other.recordId}"]`);
+  await until(id => document.querySelector('#tree .row[aria-selected="true"]')?.dataset.id === id, other.recordId, 'The second element could not be selected in the tree.');
+  await page.waitForTimeout(150);
+  assert(await view.evaluate(() => document.getElementById('visualiser').dataset.focus) === customer.recordId, 'A pinned Visualiser followed the selection.');
+  await view.click('#visualiser-pin');
+  await sameNodes(other.recordId, { depth: 2 }, 'Unpinned, the selection');
+  await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
+  // The paper is white in both themes, as the open view's is; the panel is Nendo's surface.
+  const visualiserThemes = {};
+  for (const mode of ['dark', 'light']) {
+    await page.evaluate(value => window.broker.pushTheme(value), mode);
+    await until(value => document.documentElement.dataset.nendoTheme === value, mode, `The ${mode} theme did not reach the page.`);
+    visualiserThemes[mode] = await view.evaluate(() => {
+      const probe = value => { const span = document.createElement('span'); span.style.color = value; document.body.append(span); const c = getComputedStyle(span).color; span.remove(); return c; };
+      const canvas = document.querySelector('#visualiser .visualiser-canvas'), box = canvas.getBoundingClientRect();
+      return { panel: getComputedStyle(document.getElementById('visualiser')).backgroundColor, surface: probe('var(--nendo-surface)'),
+        paper: getComputedStyle(canvas).backgroundColor, height: Math.round(box.height), width: Math.round(box.width) };
+    });
+    const c = visualiserThemes[mode];
+    assert(c.panel === c.surface && c.paper === 'rgb(255, 255, 255)' && c.height >= 120 && c.width >= 600,
+      `In the ${mode} theme the Visualiser is not Nendo's surface around white paper of a usable size: ${JSON.stringify(c)}.`);
+    await page.screenshot({ path: `archi-visualiser-${mode}.png` });
+  }
+  // SVG is archi-online's own export of what is drawn.
+  await view.evaluate(() => {
+    window.savedBlobs = [];
+    const original = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = blob => { window.savedBlobs.push(blob); return original(blob); };
+  });
+  const visualiserDownload = page.waitForEvent('download', { timeout: 8000 });
+  await view.click('#visualiser-export-svg');
+  const visualiserSvg = { name: (await visualiserDownload).suggestedFilename(), text: await view.evaluate(() => window.savedBlobs.at(-1).text()) };
+  const drawnBoxes = await view.evaluate(() => document.querySelectorAll('#visualiser .visualiser-node').length);
+  assert(/^Visualiser - .+\.svg$/.test(visualiserSvg.name) && (visualiserSvg.text.match(/<g transform="translate\(/g) ?? []).length >= drawnBoxes && drawnBoxes > 0,
+    `The Visualiser's SVG is not the graph drawn: ${visualiserSvg.name}, ${visualiserSvg.text.length} characters, ${drawnBoxes} boxes drawn.`);
+  await page.evaluate(() => window.broker.command('visualiser', false, 'toolbar'));
+  await until(() => document.getElementById('visualiser').hidden, null, 'The Visualiser toggle did not close it.');
+  results.visualiser = { depthOne: depthOne.nodes.length, depthTwo: depthTwo.nodes.length, typed: typed.nodes.length, neighbour, other: other.recordId, svg: visualiserSvg.name, themes: visualiserThemes };
+  await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
+
   const beforeTreeGestures = { model: await modelNow(), batches: await batchCount() };
   // ---- F2 renames in the tree; the properties write a field; the property list writes records.
   await view.click(`#tree .row[data-id="${customer.recordId}"]`).catch(async () => {

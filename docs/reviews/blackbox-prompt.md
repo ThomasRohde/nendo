@@ -1038,6 +1038,13 @@ vocabulary, the examples and the resources — and not from the person.
   element's only box from a view, commit, and record whether the element appears in *Not on
   any view* and in its count. Author a list sorted by a calculated field in a disposable file,
   and record whether every page continues in that order.
+  Select an element in the tree and record what its properties list under **Model relations**
+  and **Used in views**, and in what order; choose a view there and record which view opens and
+  what is outlined on it (W-118). Open **Visualiser** in Nendo's row: record what it draws for
+  the element, what a click and a double-click on another box do, what **Back**, **Home** and
+  **Pin** do as the selection changes, and what **Depth**, **Direction**, **Viewpoint**,
+  **Relationship names** and **Types…** change. Export it as SVG and PNG and record where the
+  files went; record whether the drawing is readable in both themes.
   Choose **Archi file → Save as .archimate** in Nendo's row and record where the file went and
   whether Desktop Archi, if you have it, opens it with the same views. Then make **File → New
   Archi model…**, open **Archi file → Open .archimate…** there, and record what the dialog says

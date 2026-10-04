@@ -49,8 +49,12 @@ Properties. The file you were in does not change.
   (Ctrl -, Ctrl 0, Ctrl +). The navigator in the corner shows the whole view and moves the
   camera. A click selects the object under the pointer and its concept in the tree; selecting
   a concept in the tree outlines every box that shows it; a double-click on a view reference
-  opens that view. A concept's model relations and views are under Analysis in its
-  properties.
+  opens that view.
+- **Analysis** (W-118), in a concept's properties: its **Model relations**, what starts at it
+  and then what ends at it, each by name, and the views it is **Used in**, by name, as
+  archi-online's Analysis tab lists them, from archi-online's own code run on the file's
+  records. A relationship selects it; a view opens with the concept's first object on it
+  outlined.
 - **Edit** (Ctrl E, W-111) opens the view in archi-online's own editor: its palette by layer,
   placing, moving, resizing and nesting boxes, drawing relationships of only the types
   ArchiMate allows between the two ends, reconnecting, bendpoints, the magic connector,
@@ -139,6 +143,15 @@ Properties. The file you were in does not change.
   when the model has changed since. Choosing an issue opens what it names: the object on its
   view, outlined, or the concept, view or folder in the tree. **Rules…** turns checks off,
   on this device.
+- **Visualiser** (W-118), in Nendo's row, opens under the workbench archi-online's graph of the
+  concept selected and those related to it, laid out by ELK from left to right as
+  archi-online's is (Desktop Archi's is radial). It follows the selection unless **Pin**ned. A
+  click on a box selects its concept; a double-click makes it the focus, and **Back** steps
+  back; **Home** returns to the selection. **Depth** (one to six), **Direction**, **Viewpoint**,
+  **Relationship names** and **Types…** change what it shows, and this device keeps them.
+  The drawing pans and zooms as archi-online's does, on white in both themes, and **SVG**,
+  **PNG** and **Copy** export it as archi-online does. While a view is being edited it shows
+  what the editor shows, waiting edits included.
 - **Archi file** (W-120), in Nendo's row. **Open .archimate…** reads an Archi model, plain
   XML or Archi's archive with images, into an empty model: make one with **File → New Archi
   model…** first, and in a file that already holds a model the dialog says so and offers
@@ -184,16 +197,16 @@ tree.
 - `model.js`: every rule, and every change as the record writes it makes. No DOM, so
   `tools/archi/model.test.mjs` tests it over Archisurance.
 - `view.js`, `view.css`, `index.html`: the tree, the middle and the properties.
-- `canvas.js`: the drawing, the editor and the validator. Built by `tools/archi/build-canvas.mjs` from
+- `canvas.js`: the drawing, the editor, the validator, the Analysis and the Visualiser. Built by `tools/archi/build-canvas.mjs` from
   `tools/archi/canvas` (the mirror of the records as archi-online's model and its inverse, the
   camera, and the editor's mount) with archi-online's renderer, geometry, router, ViewEditor,
-  Palette, operations and validator, its `.archimate` parser and serializer, with fflate for
+  Palette, operations, validator, Analysis and VisualiserCanvas, its `.archimate` parser and serializer, with fflate for
   Archi's archives (`tools/archi/canvas/io.ts`), at a pinned commit, and React. Every id archi-online makes in it is
   a record ID, `ar-id-…`. Do not edit it; rebuild it. A
   rebuild from the same sources is byte for byte the same. `THIRD-PARTY.txt` carries the
   licences of what it includes.
-- `editor.css`: archi-online's own rules for its editor, palette and menus, with its colour
-  variables mapped onto Nendo's tokens.
+- `editor.css`: archi-online's own rules for its editor, palette, menus and Visualiser, with its
+  colour variables mapped onto Nendo's tokens.
 - `vendor/elkjs/`: the ELK worker that layouts run in (W-115), elkjs 0.11.1 unchanged, with its
   licence and hashes. `canvas.js` builds archi-online's layouts against
   `tools/archi/canvas/elk.ts`, which starts this worker, rather than loading ELK on the page.

@@ -11,6 +11,7 @@
   <button id="own-new-view" type="button">New view</button>
   <button id="own-delete" type="button">Delete…</button>
   <button id="own-validator" type="button" aria-pressed="false">Validator</button>
+  <button id="own-visualiser" type="button" aria-pressed="false">Visualiser</button>
   <button id="own-open-archimate" type="button">Open .archimate or Exchange XML…</button>
   <button id="own-save-archimate" type="button">Save as .archimate</button>
   <button id="own-save-exchange" type="button">Save as Exchange XML</button>
@@ -35,6 +36,27 @@
     <button id="validator-close" type="button" aria-label="Close the validator">×</button>
   </header>
   <div id="validator-list" class="validator-list"></div>
+</section>
+<section id="visualiser" class="visualiser" aria-label="Visualiser" hidden>
+  <header class="visualiser-bar">
+    <strong>Visualiser</strong>
+    <button id="visualiser-back" type="button" disabled>Back</button>
+    <button id="visualiser-home" type="button" title="The concept selected">Home</button>
+    <button id="visualiser-pin" type="button" aria-pressed="false" title="Keep this graph while the selection changes">Pin</button>
+    <button id="visualiser-relayout" type="button">Relayout</button>
+    <label>Depth <select id="visualiser-depth"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
+    <label>Direction <select id="visualiser-direction"><option value="both">Both</option><option value="outgoing">Outgoing</option><option value="incoming">Incoming</option></select></label>
+    <label>Viewpoint <select id="visualiser-viewpoint"><option value="">All</option></select></label>
+    <label class="check"><input type="checkbox" id="visualiser-names"> Relationship names</label>
+    <button id="visualiser-types" type="button">Types…</button>
+    <span class="visualiser-export" role="group" aria-label="Export the graph">
+      <button id="visualiser-export-svg" type="button">SVG</button><button id="visualiser-export-png" type="button">PNG</button><button id="visualiser-copy" type="button">Copy</button>
+    </span>
+    <span id="visualiser-summary" class="quiet" role="status"></span>
+    <span class="spacer"></span>
+    <button id="visualiser-close" type="button" aria-label="Close the Visualiser">×</button>
+  </header>
+  <div id="visualiser-canvas" class="visualiser-host"></div>
 </section>
 <footer><span id="status" role="status">Reading the model…</span></footer>
 <dialog id="new-element">
@@ -72,6 +94,14 @@
     <p class="quiet">Archi's checks for common modelling problems. The model-integrity checks always run.</p>
     <div id="validator-config-list" class="validator-config-list"></div>
     <div class="actions"><button value="done" type="submit" class="primary">Done</button></div>
+  </form>
+</dialog>
+<dialog id="visualiser-types-dialog" aria-labelledby="visualiser-types-title">
+  <form method="dialog">
+    <h2 id="visualiser-types-title">Types in the Visualiser</h2>
+    <p class="quiet">Show only the types ticked. With none ticked, every type is shown.</p>
+    <div id="visualiser-types-list" class="arm-settings-list"></div>
+    <div class="actions"><button value="clear" type="submit" formnovalidate>Show every type</button><button value="cancel" type="submit" formnovalidate>Cancel</button><button value="done" type="submit" class="primary">Done</button></div>
   </form>
 </dialog>
 <dialog id="generate-view" aria-labelledby="generate-view-title">

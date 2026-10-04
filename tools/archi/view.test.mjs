@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import * as M from '../../extensions/archi/model.js';
-import { buildMirror, writesFor, applyWrites } from '../../extensions/archi/canvas.js';
+import * as canvasModule from '../../extensions/archi/canvas.js';
+const { buildMirror, writesFor, applyWrites } = canvasModule;
 import { textAlternative } from '../../extensions/archi/kit/nendo-view-kit.js';
 
 // Execute the shipped write controller/property renderer. The stand-ins cover only the
@@ -195,7 +196,7 @@ function controller(draft, batch = true) {
     state, editor: { model: () => draft.after, viewId: () => draft.viewId }, editSets: fixture, editBase: draft.before,
     canvasModule: { writesFor }, EDITS_KEY: 'archi-edits',
     localStorage: { setItem: (key, value) => saved.set(key, value), removeItem: key => saved.delete(key) },
-    declareToolbar() {}, markStale() {}, describe: error => error.message, setStatus: (message, problem = false) => statuses.push({ message, problem }),
+    declareToolbar() {}, markStale() {}, refreshVisualiser() {}, describe: error => error.message, setStatus: (message, problem = false) => statuses.push({ message, problem }),
     async readAll() { readCalls++; },
     nendo: { has: () => batch, records: {
       async batch(writes) {
@@ -298,12 +299,13 @@ for (const named of [false, true]) for (const surface of ['tree', 'properties'])
       'ar.concept.name': named ? `<${id}>` : '', 'ar.concept.type': 'type', 'ar.concept.folder': 'relations',
       'ar.concept.category': 'Relationship', 'ar.concept.source': other, 'ar.concept.target': 'element',
     } });
-    const model = M.buildModel({ records: [
+    const sets = { records: [
       { entityId: M.E.type, recordId: 'type', version: 1, values: { 'ar.type.key': 'ServingRelationship', 'ar.type.name': 'Serving', 'ar.type.layer': 'Relationship', 'ar.type.category': 'Relationship' } },
       { entityId: M.E.folder, recordId: 'relations', version: 1, values: { 'ar.folder.name': 'Relations', 'ar.folder.kind': 'Relations' } },
       { entityId: M.E.concept, recordId: 'element', version: 1, values: { 'ar.concept.name': 'Actor', 'ar.concept.category': 'Element' } },
       relation('A', 'B'), relation('B', 'A'), relation('self', 'self'),
-    ] });
+    ] };
+    const model = M.buildModel(sets);
     if (surface === 'tree') {
       const rows = M.treeRows(model, new Set(['relations'])).filter(row => row.entityId === M.E.concept);
       assert.equal(rows.length, 3);
@@ -315,7 +317,7 @@ for (const named of [false, true]) for (const surface of ['tree', 'properties'])
     }
     for (const id of ['A', 'B', 'self']) {
       const pane = { innerHTML: '', dataset: {}, contains: () => false, querySelectorAll: () => [] };
-      const context = vm.createContext({ M, state: { model, selected: id, readOnly: false }, $: () => pane,
+      const context = vm.createContext({ M, state: { model, sets, selected: id, readOnly: false }, $: () => pane, canvasModule, canvasReady: Promise.resolve(),
         document: { activeElement: null }, LAYER_TONE: { Relationship: 'grey' }, tone: () => '',
         escape: value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
       });
@@ -344,7 +346,7 @@ test("on a Nendo without W-115's icons the row is declared again with words wher
   let left = null;
   const context = vm.createContext({
     M, describe: error => error?.message ?? String(error), summary: () => '1 element',
-    state: { nativeChrome: true, filter: { text: '', layer: '' }, openView: 'ar-view', readOnly: false, editing: true, pending: 0, styleShown: false, validator: { open: false }, zoom: 1, transparent: false },
+    state: { nativeChrome: true, filter: { text: '', layer: '' }, openView: 'ar-view', readOnly: false, editing: true, pending: 0, styleShown: false, validator: { open: false }, visualiser: { open: false }, zoom: 1, transparent: false },
     canvasModule: { createEditor() {}, editorSettings: () => ({ grid: false, snap: true, guides: true }) },
     editor: { canUndo: () => false, canRedo: () => false },
     undoName: () => null, redoName: () => null,

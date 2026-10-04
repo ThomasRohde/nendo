@@ -41,6 +41,16 @@ const result = await esbuild.build({
     build.onLoad({ filter: /[\\/]model[\\/]id\.ts$/ }, args => path.resolve(args.path) === idModule
       ? { contents: `export function newId(): string { return 'ar-id-' + crypto.randomUUID().replace(/-/g, ''); }`, loader: 'ts' }
       : undefined);
+  } }, { name: 'visualiser-without-saving', setup(build) {
+    // W-118: the Visualiser's SVG export is archi-online's own (VisualiserPanel.tsx), whose module
+    // also saves files through archi-online's persistence, which brings the Exchange schemas. The
+    // workbench saves through the view's own downloads, so that one import is stood in for there.
+    const panel = path.join(ARCHI_ONLINE, 'src', 'ui', 'VisualiserPanel.tsx');
+    build.onResolve({ filter: /^\.\.\/persistence\/files$/ }, args => path.resolve(args.importer) === panel
+      ? { path: 'visualiser-files', namespace: 'visualiser-without-saving' } : undefined);
+    build.onLoad({ filter: /.*/, namespace: 'visualiser-without-saving' }, () => ({ loader: 'ts', contents:
+      `export function saveBlobToDisk(): Promise<boolean> { throw new Error('The workbench saves through its own downloads.'); }
+       export const sanitizeFileName = (name: string) => name;` }));
   } }, { name: 'elk-in-a-worker', setup(build) {
     // archi-online's layouts load ELK whole on the page; here they run it in a worker (W-115).
     build.onResolve({ filter: /^elkjs\/lib\/elk\.bundled\.js$/ }, () => ({ path: path.join(import.meta.dirname, 'canvas', 'elk.ts') }));

@@ -97,7 +97,7 @@ not built, with the reason.
 | Automatic relationships on nesting, Generate View For, ELK layout | In: archi-online's nesting, its preferences page, Generate View For and app.layout.elk layout, with ELK in a worker from the package; a generated view is saved as one revision, and History cannot reverse it, since it creates records | W-115 |
 | Viewpoints: palette filter, ghosting | In: archi-online's table, checked against Desktop Archi 5.9's `viewpoints.xml`; picked in a view's properties, and ghosted in the drawing as in the editor | W-116 |
 | Validator: the eight Archi 5.9 checks | In | W-117 |
-| Analysis: model relations, used in views, Visualiser | In | W-118 |
+| Analysis: model relations, used in views, Visualiser | In: archi-online's own, on the mirror; the Visualiser's controls under the workbench, as the validator's are. See [Analysis and the Visualiser](#analysis-and-the-visualiser) | W-118 |
 | Specializations, properties manager, find and replace | In | W-119 |
 | `.archimate` open and save | In, without images | W-120 |
 | Open Exchange XML, with XSD validation | In: opened through the Open dialog, told from an .archimate by its content; saved after libxml2 checks it against Archi 5.9's schemas, in `xsd.js`, loaded only then | W-121 |
@@ -214,6 +214,31 @@ at Archisurance's size (296 concepts, 17 views, 448 diagram objects), and 12.4 m
 at 5,000 concepts, 200 views and 7,500 objects; with the counts answered by the store's own count
 (F-223), 7.0 ms and 67.3 ms. That is kept, as the price of a model that says
 which of its concepts are unused without the workbench.
+
+## Analysis and the Visualiser
+
+W-118. A concept's Analysis is archi-online's `modelRelations` and `viewsUsing` run on the mirror,
+in its order: relationships starting at the concept, then those ending at it, each by name, and
+the views by name; a relationship from a concept to itself is listed once. A view in it opens
+with the object archi-online's `findInView` names selected. The Visualiser is archi-online's
+`buildAnalysisGraph`, its layout request, ELK in the package's worker and its `VisualiserCanvas`,
+in `canvas.js`. The panel around it is the workbench's, because archi-online's `VisualiserPanel`
+reads the selection and its preferences from stores of archi-online's own app; its controls are
+the same ones and are kept in the view's `localStorage`. archi-online lays the graph out from left
+to right; Desktop Archi's Visualiser is radial, and the workbench follows archi-online. The SVG
+export is archi-online's `renderAnalysisGraphSvg`, bundled with the one import that would bring
+archi-online's file saving stood in for (`build-canvas.mjs`), since the workbench saves through
+the view's downloads.
+
+`tools/archi/analysis.test.mjs` measures it against `analysis-parity.json`, made by
+`make-analysis-fixture.mjs` from archi-online's own models: every concept of the eight models the
+validator is measured on, and a model with an element related to itself, through the shipped
+`renderAnalysis`, and the Visualiser's graph around every concept of Archisurance and around a
+few with each control. On 2026-10-04 all of them matched. Put back, the Analysis the workbench had
+before, which listed in record order, differs for 74 of Archisurance's 296 concepts.
+`Gate-ArchiWorkbench.mjs` measures the panel in the page: the lists for Customer, the view a row
+opens and the object selected, and the boxes drawn at each depth, direction and type filter, after
+a click, a double-click, Back, and with Pin on and off.
 
 ## The write budget
 

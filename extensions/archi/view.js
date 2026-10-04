@@ -29,6 +29,7 @@ const state = {
   nativeChrome: false, renaming: null, draftProperties: null, readOnly: false, loaded: false,
   sets: null, openView: null, diagramSelection: [], zoom: 1, editing: false, pending: 0, transparent: false, styleShown: appearanceKept(),
   validator: { open: false, issues: null, of: null, current: null },
+  visualiser: { open: false },
 };
 
 // The canvas is archi-online's renderer, bundled; it loads beside the tree, not before it.
@@ -349,8 +350,8 @@ function finishRename(input, keep) {
 
 // ---------------------------------------------------------------- the centre
 
-function listOf(ids) {
-  return `<ul class="links">${ids.map(id => `<li><button type="button" data-select="${escape(id)}">${escape(M.label(state.model, state.model.records.get(id)))}</button></li>`).join('')}</ul>`;
+function listOf(ids, attributes = '') {
+  return `<ul class="links" ${attributes}>${ids.map(id => `<li><button type="button" data-select="${escape(id)}">${escape(M.label(state.model, state.model.records.get(id)))}</button></li>`).join('')}</ul>`;
 }
 
 function renderDiagram() {
@@ -394,16 +395,39 @@ function renderDiagram() {
   })).catch(() => undefined);
 }
 
-/** Archi's Analysis: the model relations of a concept and the views it is on, each selectable. */
+/**
+ * Archi's Analysis (W-118): archi-online's own model relations and views in use of a concept, run
+ * on the mirror of the file's records, in archi-online's order: what starts here, then what ends
+ * here, each by name; the views by name. A relationship selects itself; a view opens with the
+ * concept's first object on it selected, as archi-online's Analysis tab opens it.
+ */
 function renderAnalysis(record) {
-  const model = state.model;
-  const concepts = model.of(M.E.concept);
-  const out = concepts.filter(r => r.values['ar.concept.source'] === record.recordId).map(r => r.recordId);
-  const into = concepts.filter(r => r.values['ar.concept.target'] === record.recordId).map(r => r.recordId);
-  const views = [...new Set(model.of(M.E.item).filter(r => r.values['ar.item.concept'] === record.recordId).map(r => r.values['ar.item.view']))]
-    .filter(id => model.records.has(id));
-  return `<h3>Model relations (${out.length + into.length})</h3>${out.length + into.length ? listOf([...out, ...into]) : '<p class="quiet">None.</p>'}
-    <h3>In views (${views.length})</h3>${views.length ? listOf(views) : '<p class="quiet">Not on any view.</p>'}`;
+  if (!canvasModule) {
+    canvasReady.then(() => { if (canvasModule) renderProperties(); });
+    return '<h3>Analysis</h3><p class="quiet">Reading the model relations…</p>';
+  }
+  const model = state.model, mirror = analysedMirror();
+  const relations = canvasModule.modelRelations(mirror, record.recordId).map(r => r.id).filter(id => model.records.has(id));
+  const views = canvasModule.viewsUsing(mirror, record.recordId).map(v => v.id).filter(id => model.records.has(id));
+  const viewRows = views.map(id => `<li><button type="button" data-open-view="${escape(id)}" data-concept="${escape(record.recordId)}">${escape(M.label(model, model.records.get(id)))}</button></li>`).join('');
+  return `<h3>Model relations (${relations.length})</h3>${relations.length ? listOf(relations, 'data-analysis="relations"') : '<p class="quiet">No relations.</p>'}
+    <h3>Used in views (${views.length})</h3>${views.length ? `<ul class="links" data-analysis="views">${viewRows}</ul>` : '<p class="quiet">Not used in any view.</p>'}`;
+}
+
+/** A view from a concept's Analysis: opened, with the concept's first object on it selected. */
+function openOccurrence(viewId, conceptId) {
+  if (!state.model?.records.has(viewId)) return;
+  const objectId = canvasModule?.findInView(analysedMirror(), viewId, conceptId);
+  state.openView = viewId;
+  if (objectId && state.model.records.has(objectId) && state.model.records.has(conceptId)) select(conceptId, { fromDiagram: objectId });
+  else select(viewId);
+}
+
+/** The mirror archi-online's Analysis reads, made once for each reading of the file. */
+let analysed = { sets: null, mirror: null };
+function analysedMirror() {
+  if (analysed.sets !== state.sets) analysed = { sets: state.sets, mirror: canvasModule.buildMirror(state.sets) };
+  return analysed.mirror;
 }
 
 function renderCentre() {
@@ -737,6 +761,7 @@ function declareToolbar() {
     ] }] : []),
     ...(state.editing ? editingMenus() : []),
     { kind: 'toggle', id: 'validator', label: 'Validator', icon: 'info', iconOnly: true, pressed: state.validator.open },
+    { kind: 'toggle', id: 'visualiser', label: 'Visualiser', icon: 'focus', iconOnly: true, pressed: state.visualiser.open },
     ...(state.openView ? [{ kind: 'menu', id: 'export', label: 'Export', icon: 'export', iconOnly: true, items: [
       { id: 'export-png-1', label: 'PNG', detail: 'At the view’s own size' },
       { id: 'export-png-2', label: 'PNG at 2×', detail: 'Sharp on a slide' },
@@ -849,6 +874,7 @@ function runCommand({ id, value }) {
     case 'commit': commitEdits(); break;
     case 'discard': discardEdits(); break;
     case 'validator': showValidator(value === true); break;
+    case 'visualiser': showVisualiser(value === true); break;
     case 'open-archimate': case 'open-exchange': showOpenArchimate(); break;
     case 'save-archimate': saveArchimate(); break;
     case 'save-exchange': saveExchange(); break;
@@ -913,6 +939,7 @@ function editsChanged() {
   keepEdits(writes);
   declareToolbar();
   markStale();
+  refreshVisualiser();
 }
 
 /** The whole drawing in sight when the editor opens a view (the owner, W-114), once it is laid out. */
@@ -1225,6 +1252,161 @@ $('validator-config').addEventListener('close', () => {
   validate();
 });
 
+// ---------------------------------------------------------------- the Visualiser (W-118)
+
+/*
+ * Archi's Visualiser is archi-online's: the graph around a concept, built by its
+ * buildAnalysisGraph on the mirror, laid out by ELK in the worker and drawn by its VisualiserCanvas
+ * (canvas.js). It follows the selection unless pinned; a double-click on a box makes that concept
+ * the focus, and Back steps back along those. The controls are archi-online's, kept on this device
+ * as archi-online keeps them. While a view is being edited it shows what the editor shows, as the
+ * validator does.
+ */
+const VISUALISER_KEY = 'archi-visualiser';
+const vis = { history: [], seen: undefined, ownSelection: false, key: null, graph: null, layout: null, names: false, run: 0 };
+let visualiser = null;
+
+function visualiserPreferences() {
+  let kept = null;
+  try { kept = JSON.parse(localStorage.getItem(VISUALISER_KEY) ?? 'null'); } catch { /* the defaults */ }
+  return canvasModule.normalizeAnalysisPreferences(kept ?? {});
+}
+
+function setVisualiserPreferences(change) {
+  const next = canvasModule.normalizeAnalysisPreferences({ ...visualiserPreferences(), ...change });
+  try { localStorage.setItem(VISUALISER_KEY, JSON.stringify(next)); } catch { /* this visit only */ }
+  renderVisualiserControls();
+  refreshVisualiser();
+}
+
+/** The concept the workbench has selected: in the tree, or by its object on the view. */
+function selectedConcept() {
+  const record = state.model?.records.get(state.selected);
+  return record?.entityId === M.E.concept ? record.recordId : null;
+}
+
+async function showVisualiser(open) {
+  state.visualiser.open = open;
+  $('visualiser').hidden = !open;
+  $('own-visualiser').setAttribute('aria-pressed', String(open));
+  declareToolbar();
+  if (!open) { visualiser?.destroy(); visualiser = null; vis.key = null; vis.layout = null; vis.seen = undefined; return; }
+  if (!canvasModule) await canvasReady;
+  if (!canvasModule?.createVisualiser || !state.visualiser.open) { if (state.visualiser.open) setStatus('The Visualiser has not loaded yet.', true); return; }
+  visualiser ??= canvasModule.createVisualiser($('visualiser-canvas'), {
+    onSelect: id => {
+      if (!state.model.records.has(id)) return;
+      vis.ownSelection = true;
+      select(id);
+    },
+    onOpen: id => visualiserFocus(id),
+  });
+  if (vis.history.length === 0 && selectedConcept()) vis.history = [selectedConcept()];
+  renderVisualiserControls();
+  refreshVisualiser();
+}
+
+/** Make a concept the focus, as a step Back returns from. */
+function visualiserFocus(id) {
+  if (!id || id === vis.history.at(-1)) return;
+  vis.history = [...vis.history, id];
+  refreshVisualiser();
+}
+
+function renderVisualiserControls() {
+  if (!canvasModule) return;
+  const preferences = visualiserPreferences();
+  $('visualiser-depth').value = String(preferences.depth);
+  $('visualiser-direction').value = preferences.direction;
+  const viewpoints = $('visualiser-viewpoint');
+  if (viewpoints.options.length <= 1) {
+    viewpoints.innerHTML = `<option value="">All</option>${canvasModule.VIEWPOINTS.map(viewpoint => `<option value="${escape(viewpoint.id)}">${escape(viewpoint.name)}</option>`).join('')}`;
+  }
+  viewpoints.value = preferences.viewpointId;
+  $('visualiser-names').checked = preferences.showRelationshipNames;
+  $('visualiser-pin').setAttribute('aria-pressed', String(preferences.pinned));
+  const filtered = preferences.elementTypes.length + preferences.relationshipTypes.length;
+  $('visualiser-types').textContent = filtered ? `Types (${filtered})…` : 'Types…';
+}
+
+/**
+ * The graph around the focus, built again on every change and laid out again only when what it
+ * shows changed: the boxes, their names and types, the lines and whether their names are drawn.
+ */
+function refreshVisualiser({ relayout = false } = {}) {
+  if (!state.visualiser.open || !visualiser || !canvasModule || !state.sets) return;
+  const preferences = visualiserPreferences();
+  // As archi-online's: a new selection becomes the focus, unless the Visualiser made it or is pinned.
+  const concept = selectedConcept();
+  if (concept !== vis.seen) {
+    vis.seen = concept;
+    if (!vis.ownSelection && !preferences.pinned && concept && concept !== vis.history.at(-1)) vis.history = [concept];
+  }
+  vis.ownSelection = false;
+  const model = editor ? editor.model() : analysedMirror();
+  const focus = vis.history.at(-1) ?? null;
+  $('visualiser-back').disabled = vis.history.length < 2;
+  $('visualiser').dataset.focus = focus ?? '';
+  const summary = $('visualiser-summary');
+  if (!focus || !(model.elements[focus] || model.relationships[focus])) {
+    vis.key = null; vis.graph = null; vis.layout = null;
+    summary.textContent = '';
+    visualiser.message(focus ? 'That concept is no longer in the model. Select another.' : 'Select an element or relationship.');
+    return;
+  }
+  const graph = canvasModule.analysisGraph(model, { focusIds: [focus], depth: preferences.depth, direction: preferences.direction,
+    viewpointId: preferences.viewpointId, elementTypes: preferences.elementTypes, relationshipTypes: preferences.relationshipTypes });
+  summary.textContent = `${graph.elementIds.length} elements · ${graph.relationshipIds.length} relationships` +
+    (graph.truncated ? ` · limited to ${graph.maxConcepts} concepts; narrow the filters` : '');
+  const names = preferences.showRelationshipNames;
+  const key = JSON.stringify([focus, names, graph.nodes.map(node => [node.id, node.name, node.type, node.focus]), graph.edges.map(edge => [edge.id, edge.name])]);
+  if (key === vis.key && !relayout) return;
+  vis.key = key;
+  const run = ++vis.run;
+  $('visualiser').dataset.laidOut = 'false';
+  canvasModule.analysisLayout(graph, names).then(layout => {
+    if (run !== vis.run || !visualiser) return;
+    vis.graph = graph; vis.layout = layout; vis.names = names;
+    visualiser.show(graph, layout, names);
+    $('visualiser').dataset.laidOut = 'true';
+  }).catch(error => {
+    if (run !== vis.run || !visualiser) return;
+    vis.key = null; vis.graph = null; vis.layout = null;
+    visualiser.message(`The graph could not be laid out: ${describe(error)}`);
+  });
+}
+
+function showVisualiserTypes() {
+  const preferences = visualiserPreferences();
+  const box = (kind, definition, chosen) => `<label class="check"><input type="checkbox" data-${kind}="${escape(definition.type)}" ${chosen.includes(definition.type) ? 'checked' : ''}>${escape(definition.label)}</label>`;
+  $('visualiser-types-list').innerHTML = `<fieldset><legend>Elements</legend><div class="arm-types">${canvasModule.ELEMENT_TYPES.map(definition => box('element', definition, preferences.elementTypes)).join('')}</div></fieldset>
+    <fieldset><legend>Relationships</legend><div class="arm-types">${canvasModule.RELATIONSHIP_TYPES.map(definition => box('relationship', definition, preferences.relationshipTypes)).join('')}</div></fieldset>`;
+  $('visualiser-types-dialog').showModal();
+}
+
+$('visualiser-types-dialog').addEventListener('close', () => {
+  const dialog = $('visualiser-types-dialog');
+  if (dialog.returnValue === 'cancel') return;
+  const chosen = kind => dialog.returnValue === 'clear' ? []
+    : [...$('visualiser-types-list').querySelectorAll(`input[data-${kind}]`)].filter(input => input.checked).map(input => input.dataset[kind]);
+  setVisualiserPreferences({ elementTypes: chosen('element'), relationshipTypes: chosen('relationship') });
+});
+
+/** The graph as drawn, saved or copied as archi-online exports it. */
+async function exportVisualiser(format) {
+  if (!vis.graph || !vis.layout) { setStatus('The Visualiser has nothing drawn to export.', true); return; }
+  const focus = state.model.records.get(vis.history.at(-1));
+  const name = fileBase(`Visualiser - ${focus ? M.label(state.model, focus) : 'Analysis'}`);
+  try {
+    if (format === 'svg') download(new Blob([canvasModule.analysisSvg(vis.graph, vis.layout, vis.names)], { type: 'image/svg+xml' }), `${name}.svg`);
+    else if (format === 'png') download(await canvasModule.analysisPng(vis.graph, vis.layout, vis.names, 2), `${name}.png`);
+    else { window.focus(); await canvasModule.copyAnalysisPng(vis.graph, vis.layout, vis.names); }
+    setStatus(format === 'copy' ? 'Copied the Visualiser’s graph to the clipboard as a picture.' : `Exported ${name}.${format}.`);
+  } catch (error) {
+    setStatus(`The graph could not be exported: ${describe(error)}`, true);
+  }
+}
+
 // ---------------------------------------------------------------- .archimate files (W-120)
 
 /*
@@ -1446,6 +1628,7 @@ function render() {
   declareToolbar();
   declarePlace();
   markStale();
+  refreshVisualiser();
 }
 
 // ---------------------------------------------------------------- Back and Forward
@@ -1593,9 +1776,10 @@ function wire() {
     setTimeout(() => { if (pane.dataset.stale === 'true' && !pane.contains(document.activeElement)) renderProperties(); }, 0);
   });
   pane.addEventListener('click', event => {
-    const target = event.target.closest('[data-select], [data-action], [data-prop-action]');
+    const target = event.target.closest('[data-select], [data-open-view], [data-action], [data-prop-action]');
     if (!target) return;
     if (target.dataset.select) select(target.dataset.select);
+    else if (target.dataset.openView) openOccurrence(target.dataset.openView, target.dataset.concept);
     else if (target.dataset.action === 'open') openRecord();
     else if (target.dataset.action === 'delete') remove();
     else propertyAction(target);
@@ -1608,6 +1792,7 @@ function wire() {
   $('own-new-view').addEventListener('click', newView);
   $('own-delete').addEventListener('click', remove);
   $('own-validator').addEventListener('click', () => showValidator(!state.validator.open));
+  $('own-visualiser').addEventListener('click', () => showVisualiser(!state.visualiser.open));
   $('own-open-archimate').addEventListener('click', () => showOpenArchimate());
   $('own-save-archimate').addEventListener('click', () => saveArchimate());
   $('own-save-exchange').addEventListener('click', () => saveExchange());
@@ -1650,6 +1835,25 @@ function wire() {
     state.validator.current = Number(row.dataset.issue);
     openIssue(issue);
   });
+  $('visualiser-close').addEventListener('click', () => showVisualiser(false));
+  $('visualiser-back').addEventListener('click', () => { if (vis.history.length > 1) { vis.history = vis.history.slice(0, -1); refreshVisualiser(); } });
+  $('visualiser-home').addEventListener('click', () => { const concept = selectedConcept(); if (concept) { vis.history = [concept]; refreshVisualiser(); } });
+  $('visualiser-pin').addEventListener('click', () => {
+    if (!canvasModule) return;
+    const pinned = !visualiserPreferences().pinned;
+    // Unpinned, the Visualiser takes up the selection again, as archi-online's does.
+    if (!pinned) vis.seen = undefined;
+    setVisualiserPreferences({ pinned });
+  });
+  $('visualiser-relayout').addEventListener('click', () => refreshVisualiser({ relayout: true }));
+  $('visualiser-depth').addEventListener('change', event => setVisualiserPreferences({ depth: Number(event.target.value) }));
+  $('visualiser-direction').addEventListener('change', event => setVisualiserPreferences({ direction: event.target.value }));
+  $('visualiser-viewpoint').addEventListener('change', event => setVisualiserPreferences({ viewpointId: event.target.value }));
+  $('visualiser-names').addEventListener('change', event => setVisualiserPreferences({ showRelationshipNames: event.target.checked }));
+  $('visualiser-types').addEventListener('click', () => { if (canvasModule) showVisualiserTypes(); });
+  $('visualiser-export-svg').addEventListener('click', () => exportVisualiser('svg'));
+  $('visualiser-export-png').addEventListener('click', () => exportVisualiser('png'));
+  $('visualiser-copy').addEventListener('click', () => exportVisualiser('copy'));
 }
 
 function openRecord() {
