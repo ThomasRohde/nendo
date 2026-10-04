@@ -120,6 +120,7 @@ public sealed class ProtocolResourceTests
         CollectionAssert.AreEquivalent(
             new[]
             {
+                "nendo.application.entity.aggregate",
                 "nendo.application.entity.export",
                 "nendo.application.entity.records",
                 "nendo.application.entity.schema",

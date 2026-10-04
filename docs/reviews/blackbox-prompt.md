@@ -202,6 +202,12 @@ Every tool and read should carry a title and every field of every tool result a
 description; say where either is missing, and whether each tool's hints — read-only,
 destructive, idempotent — match what it did when you called it.
 
+Read one record by `recordId`, a filtered and sorted page, and an `aggregate` read: a
+count, a sum over a numeric field, and a count grouped by a choice field. Compare each
+against the records you page yourself, and send one filter with an operator and one
+with a field the vocabulary does not list; the refusal should name what is accepted.
+Say whether `describe` and the schema read agree with your own count of a record type.
+
 Before you build anything, say what the file you opened is for, and where that came from.
 Then say what an empty file says about itself. A file whose author has never said should
 read as having said nothing — if you find a sentence there, say where you think it came

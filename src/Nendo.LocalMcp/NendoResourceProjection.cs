@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Nendo.Engine;
 
@@ -48,7 +49,8 @@ internal sealed class NendoResourceProjection(
         var entity = (await application.GetDefinitionSnapshotAsync(cancellationToken)).Entities
             .SingleOrDefault(candidate => candidate.EntityId == entityId)
             ?? throw NendoMcpErrors.EntityNotFound();
-        return ProjectSchema(entity);
+        var counts = await CountRecordsAsync([entity], cancellationToken);
+        return ProjectSchema(entity) with { RecordCount = counts[entity.EntityId] };
     }
 
     private static NendoMcpEntitySchema ProjectSchema(NendoEntitySnapshot entity)
@@ -106,19 +108,226 @@ internal sealed class NendoResourceProjection(
         KeptInNewFiles = record.KeptInNewFiles,
     };
 
+    internal Task<NendoMcpPage<NendoMcpRecord>> GetRecordsAsync(
+        string entityId,
+        string? cursor,
+        int limit,
+        CancellationToken cancellationToken) =>
+        GetRecordsAsync(entityId, cursor, limit, null, null, null, null, cancellationToken);
+
+    /// <summary>
+    /// A page of one record type, or one record by ID, filtered and sorted through the same
+    /// typed query the screens use (W-145). Before, the adapter passed only the entity, the
+    /// limit and the cursor, so an agent paged a whole type to find one record or one value.
+    /// </summary>
     internal async Task<NendoMcpPage<NendoMcpRecord>> GetRecordsAsync(
         string entityId,
         string? cursor,
         int limit,
+        string? recordId,
+        string? sort,
+        string? desc,
+        string? filter,
         CancellationToken cancellationToken)
     {
         RequireLimit(limit);
         var scope = $"records:{entityId}";
-        var page = await application.QueryRecordsAsync(new(entityId, limit, cursors.Decode(cursor, scope)), cancellationToken);
+        var filters = await ParseFiltersAsync(entityId, filter, cancellationToken);
+        if (sort is not null) await RequireFieldAsync(entityId, sort, "sort", cancellationToken);
+        var descending = desc switch
+        {
+            null or "" or "false" => false,
+            "true" => true,
+            _ => throw new NendoValidationException("desc is true or false."),
+        };
+        var page = await application.QueryRecordsAsync(new(entityId, limit, cursors.Decode(cursor, scope))
+        {
+            RecordId = string.IsNullOrWhiteSpace(recordId) ? null : recordId,
+            SortFieldId = string.IsNullOrWhiteSpace(sort) ? null : sort,
+            Descending = descending,
+            Filters = filters,
+        }, cancellationToken);
         var records = page.Items.Select(Project).ToArray();
         return new NendoMcpPage<NendoMcpRecord>(
             records,
             page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor));
+    }
+
+    /// <summary>The operators the records and aggregate reads accept: the vocabulary's, plus the two the Engine's query takes beyond a screen.</summary>
+    internal static IReadOnlyList<string> FilterOperators { get; } =
+        ["eq", "ne", "lt", "lte", "gt", "gte", "contains", "isNull", "isNotNull", "descendantOf"];
+
+    private const int MaximumFilterCharacters = 8 * 1024;
+
+    /// <summary>
+    /// The filter query parameter: a JSON array of {fieldId, op, value}. Refused by name
+    /// before the Engine sees it, naming the operators accepted and, for an unknown field,
+    /// the fields the record type has: the Engine's own refusals say only that the filter is
+    /// invalid.
+    /// </summary>
+    private async Task<IReadOnlyList<NendoRecordFilter>> ParseFiltersAsync(string entityId, string? filter, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(filter)) return [];
+        if (filter.Length > MaximumFilterCharacters)
+            throw new NendoValidationException($"filter is at most {MaximumFilterCharacters} characters.");
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(filter, new JsonDocumentOptions { MaxDepth = 4 });
+        }
+        catch (JsonException exception)
+        {
+            throw new NendoValidationException($"filter is a JSON array of {{fieldId, op, value}}: {exception.Message}");
+        }
+        using (document)
+        {
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+                throw new NendoValidationException("filter is a JSON array of {fieldId, op, value}.");
+            var filters = new List<NendoRecordFilter>();
+            foreach (var clause in document.RootElement.EnumerateArray())
+            {
+                if (clause.ValueKind != JsonValueKind.Object ||
+                    !clause.TryGetProperty("fieldId", out var fieldId) || fieldId.ValueKind != JsonValueKind.String ||
+                    !clause.TryGetProperty("op", out var op) || op.ValueKind != JsonValueKind.String)
+                    throw new NendoValidationException("Each filter clause is an object with fieldId, op and, unless op is isNull or isNotNull, value.");
+                var contractOperator = op.GetString()!;
+                if (!FilterOperators.Contains(contractOperator, StringComparer.Ordinal))
+                    throw new NendoValidationException(
+                        $"Filter operator '{contractOperator}' is not one of {string.Join(", ", FilterOperators)}.");
+                await RequireFieldAsync(entityId, fieldId.GetString()!, "filter", cancellationToken);
+                var value = clause.TryGetProperty("value", out var given) ? given.Clone() : default;
+                filters.Add(new NendoRecordFilter(fieldId.GetString()!, contractOperator switch
+                {
+                    "lte" => "le",
+                    "gte" => "ge",
+                    _ => contractOperator,
+                }, value));
+            }
+            return filters;
+        }
+    }
+
+    /// <summary>A field the record type has, stored or calculated, named with the ones it has when it is not.</summary>
+    private async Task RequireFieldAsync(string entityId, string fieldId, string use, CancellationToken cancellationToken)
+    {
+        var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
+        var entity = snapshot.Entities.SingleOrDefault(candidate => candidate.EntityId == entityId)
+            ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
+        if (entity.Fields.Any(field => field.FieldId == fieldId) || entity.DerivedFields.Any(field => field.FieldId == fieldId)) return;
+        var known = entity.Fields.Select(field => field.FieldId).Concat(entity.DerivedFields.Select(field => field.FieldId))
+            .OrderBy(value => value, StringComparer.Ordinal).ToArray();
+        throw new NendoValidationException(
+            $"The {use} field '{fieldId}' is not a field of {entityId}; its fields are {string.Join(", ", known)}.");
+    }
+
+    /// <summary>
+    /// One exact aggregate over a filtered record type, through the Engine's own folds
+    /// (W-146): whole, grouped by a closed field, by two of them as a grid, or by civil-date
+    /// bucket. Nothing is paged and every number is an invariant lexeme.
+    /// </summary>
+    internal async Task<NendoMcpAggregate> GetAggregateAsync(
+        string entityId,
+        string? aggregate,
+        string? fieldId,
+        string? groupBy,
+        string? rowBy,
+        string? columnBy,
+        string? dateFieldId,
+        string? bucket,
+        string? range,
+        string? filter,
+        CancellationToken cancellationToken)
+    {
+        aggregate = string.IsNullOrWhiteSpace(aggregate) ? "count" : aggregate;
+        if (aggregate is not ("count" or "sum" or "min" or "max"))
+            throw new NendoValidationException(
+                aggregate == "avg"
+                    ? "avg is refused: the mean of exact decimals is not generally an exact decimal. Read sum and count."
+                    : $"aggregate is one of count, sum, min, max; '{aggregate}' is not.");
+        if (aggregate == "count" && !string.IsNullOrWhiteSpace(fieldId))
+            throw new NendoValidationException("count takes no fieldId; it counts records.");
+        if (aggregate != "count" && string.IsNullOrWhiteSpace(fieldId))
+            throw new NendoValidationException($"{aggregate} names the numeric fieldId it reads.");
+        if (!string.IsNullOrWhiteSpace(fieldId)) await RequireFieldAsync(entityId, fieldId!, "aggregate", cancellationToken);
+        var filters = await ParseFiltersAsync(entityId, filter, cancellationToken);
+        var shapes = new[] { groupBy, rowBy ?? columnBy, dateFieldId }.Count(value => !string.IsNullOrWhiteSpace(value));
+        if (shapes > 1)
+            throw new NendoValidationException("Choose one shape: groupBy, rowBy with columnBy, or dateFieldId with bucket and range.");
+        var field = string.IsNullOrWhiteSpace(fieldId) ? null : fieldId;
+        if (!string.IsNullOrWhiteSpace(groupBy))
+        {
+            await RequireFieldAsync(entityId, groupBy, "groupBy", cancellationToken);
+            var grouped = await application.GroupAggregateRecordsAsync(
+                new NendoRecordGroupedAggregateQuery(entityId, groupBy, aggregate, field) { Filters = filters }, cancellationToken);
+            return new NendoMcpAggregate(entityId, aggregate, field, "grouped", grouped.ChangeSequence)
+            {
+                GroupByFieldId = groupBy,
+                Groups = grouped.Groups.Select(group => new NendoMcpAggregateGroup(group.Key, group.ValueLexeme, group.ContributingRecords)).ToArray(),
+                Unrecognised = grouped.Unrecognised,
+            };
+        }
+        if (!string.IsNullOrWhiteSpace(rowBy) || !string.IsNullOrWhiteSpace(columnBy))
+        {
+            if (string.IsNullOrWhiteSpace(rowBy) || string.IsNullOrWhiteSpace(columnBy))
+                throw new NendoValidationException("A grid names both rowBy and columnBy.");
+            await RequireFieldAsync(entityId, rowBy, "rowBy", cancellationToken);
+            await RequireFieldAsync(entityId, columnBy, "columnBy", cancellationToken);
+            var cells = await application.CellAggregateRecordsAsync(
+                new NendoRecordCellAggregateQuery(entityId, rowBy, columnBy, aggregate, field) { Filters = filters }, cancellationToken);
+            return new NendoMcpAggregate(entityId, aggregate, field, "cells", cells.ChangeSequence)
+            {
+                RowByFieldId = rowBy,
+                ColumnByFieldId = columnBy,
+                RowKeys = cells.RowKeys,
+                ColumnKeys = cells.ColumnKeys,
+                Cells = cells.Cells.Select(cell => new NendoMcpAggregateCell(cell.RowKey, cell.ColumnKey, cell.ValueLexeme, cell.ContributingRecords)).ToArray(),
+                Unrecognised = cells.Unrecognised,
+            };
+        }
+        if (!string.IsNullOrWhiteSpace(dateFieldId))
+        {
+            if (string.IsNullOrWhiteSpace(bucket) || string.IsNullOrWhiteSpace(range))
+                throw new NendoValidationException("Date buckets name dateFieldId, bucket and range, as the vocabulary lists them.");
+            await RequireFieldAsync(entityId, dateFieldId, "dateFieldId", cancellationToken);
+            var buckets = await application.BucketAggregateRecordsAsync(
+                new NendoRecordDateBucketQuery(entityId, dateFieldId, bucket, range, aggregate, field) { Filters = filters }, cancellationToken);
+            return new NendoMcpAggregate(entityId, aggregate, field, "buckets", buckets.ChangeSequence)
+            {
+                DateFieldId = dateFieldId,
+                Bucket = bucket,
+                Range = range,
+                Start = buckets.Start,
+                End = buckets.End,
+                Buckets = buckets.Groups.Select(group => new NendoMcpAggregateGroup(group.Key, group.ValueLexeme, group.ContributingRecords)).ToArray(),
+            };
+        }
+        if (aggregate == "count")
+        {
+            var count = await application.CountRecordsAsync(new NendoRecordCountQuery(entityId) { Filters = filters }, cancellationToken);
+            return new NendoMcpAggregate(entityId, aggregate, null, "whole", count.ChangeSequence)
+            {
+                Value = count.Count.ToString(CultureInfo.InvariantCulture),
+                ContributingRecords = count.Count,
+            };
+        }
+        var whole = await application.AggregateRecordsAsync(
+            new NendoRecordAggregateQuery(entityId, aggregate, field!) { Filters = filters }, cancellationToken);
+        return new NendoMcpAggregate(entityId, aggregate, field, "whole", whole.ChangeSequence)
+        {
+            Value = whole.ValueLexeme,
+            ContributingRecords = whole.ContributingRecords,
+        };
+    }
+
+    /// <summary>How many records each record type holds now, keyed by entity ID (W-146).</summary>
+    private async Task<IReadOnlyDictionary<string, long>> CountRecordsAsync(IEnumerable<NendoEntitySnapshot> entities, CancellationToken cancellationToken)
+    {
+        var counts = new Dictionary<string, long>(StringComparer.Ordinal);
+        foreach (var entity in entities)
+        {
+            counts[entity.EntityId] = (await application.CountRecordsAsync(new NendoRecordCountQuery(entity.EntityId), cancellationToken)).Count;
+        }
+        return counts;
     }
 
     /// <summary>
@@ -154,9 +363,10 @@ internal sealed class NendoResourceProjection(
     internal async Task<NendoMcpDescription> GetDescriptionAsync(CancellationToken cancellationToken)
     {
         var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
+        var counts = await CountRecordsAsync(snapshot.Entities, cancellationToken);
         var entities = snapshot.Entities
             .OrderBy(entity => entity.EntityId, StringComparer.Ordinal)
-            .Select(ProjectSchema)
+            .Select(entity => ProjectSchema(entity) with { RecordCount = counts[entity.EntityId] })
             .ToArray();
         return new NendoMcpDescription(
             snapshot.Manifest.Purpose,

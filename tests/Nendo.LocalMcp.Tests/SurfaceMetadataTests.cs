@@ -42,7 +42,7 @@ public sealed class SurfaceMetadataTests
         var templates = await client.ListResourceTemplatesAsync();
         untitled.AddRange(resources.Where(resource => string.IsNullOrWhiteSpace(resource.ProtocolResource.Title)).Select(resource => resource.Name));
         untitled.AddRange(templates.Where(template => string.IsNullOrWhiteSpace(template.ProtocolResourceTemplate.Title)).Select(template => template.Name));
-        Assert.AreEqual(18, resources.Count + templates.Count);
+        Assert.AreEqual(19, resources.Count + templates.Count);
         Assert.IsEmpty(untitled, "Untitled: " + string.Join(", ", untitled));
 
         var undescribed = new List<string>();
@@ -131,8 +131,8 @@ public sealed class SurfaceMetadataTests
 
         foreach (var (uri, sentence) in new[]
                  {
-                     ($"{records}?limit=2&limt=3", "takes cursor and limit; 'limt' is not one of them."),
-                     ($"{records}?limit=2&limit=3", "takes cursor and limit; 'limit' is given twice."),
+                     ($"{records}?limit=2&limt=3", "takes cursor, limit, recordId, sort, desc and filter; 'limt' is not one of them."),
+                     ($"{records}?limit=2&limit=3", "takes cursor, limit, recordId, sort, desc and filter; 'limit' is given twice."),
                      ("nendo://application/manifest?limit=2", "nendo://application/manifest takes no query parameters; remove 'limit'."),
                  })
         {

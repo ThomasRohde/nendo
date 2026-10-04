@@ -104,15 +104,40 @@ internal sealed class NendoMcpResources(
     [McpServerResource(
         Name = "nendo.application.entity.records",
         Title = "Records",
-        UriTemplate = "nendo://application/entity/{entityId}/records{?cursor,limit}",
+        UriTemplate = "nendo://application/entity/{entityId}/records{?cursor,limit,recordId,sort,desc,filter}",
         MimeType = "application/json")]
-    [Description("A bounded page of records in stable record-ID order. numericLexemes preserves exact numeric strings by field ID; use these with $nendoNumber envelopes when editing, not lossy numeric parsers. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
+    [Description("A bounded page of records in stable record-ID order, or one record by recordId. filter is a percent-encoded JSON array of {fieldId, op, value} joined by AND, op one of eq, ne, lt, lte, gt, gte, contains, isNull, isNotNull, descendantOf (the vocabulary's filterOperators); sort names a field and desc=true reverses it. A calculated field may be filtered or sorted within limits.query. numericLexemes preserves exact numeric strings by field ID; use these with $nendoNumber envelopes when editing, not lossy numeric parsers. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
     public Task<string> GetRecordsAsync(
         string entityId,
         string? cursor = null,
         string? limit = null,
+        string? recordId = null,
+        string? sort = null,
+        string? desc = null,
+        string? filter = null,
         CancellationToken cancellationToken = default) =>
-        TranslateAsync(() => projection.GetRecordsAsync(entityId, cursor, PageLimit(limit), cancellationToken));
+        TranslateAsync(() => projection.GetRecordsAsync(entityId, cursor, PageLimit(limit), recordId, sort, desc, filter, cancellationToken));
+
+    [McpServerResource(
+        Name = "nendo.application.entity.aggregate",
+        Title = "Exact aggregate over records",
+        UriTemplate = "nendo://application/entity/{entityId}/aggregate{?aggregate,fieldId,groupBy,rowBy,columnBy,dateFieldId,bucket,range,filter}",
+        MimeType = "application/json")]
+    [Description("An exact count, sum, min or max over the records a filter leaves, as invariant numeric lexemes, without paging them. aggregate is count, sum, min or max; sum, min and max name a numeric fieldId. groupBy names a singleChoice or Boolean field for one number per option plus the unset group; rowBy and columnBy name two such fields for a grid; dateFieldId with bucket (day, week, month, quarter, year) and range (as the vocabulary lists them) for one number per civil-date bucket. filter is the same JSON array the records read takes. avg is refused: the mean of exact decimals is not an exact decimal.")]
+    public Task<string> GetAggregateAsync(
+        string entityId,
+        string? aggregate = null,
+        string? fieldId = null,
+        string? groupBy = null,
+        string? rowBy = null,
+        string? columnBy = null,
+        string? dateFieldId = null,
+        string? bucket = null,
+        string? range = null,
+        string? filter = null,
+        CancellationToken cancellationToken = default) =>
+        TranslateAsync(() => projection.GetAggregateAsync(
+            entityId, aggregate, fieldId, groupBy, rowBy, columnBy, dateFieldId, bucket, range, filter, cancellationToken));
 
     [McpServerResource(
         Name = "nendo.application.entity.tree",

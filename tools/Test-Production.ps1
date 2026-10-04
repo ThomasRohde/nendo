@@ -233,6 +233,7 @@ try {
     $expectedResources = @(
         'nendo.application.describe',
         'nendo.application.entities',
+        'nendo.application.entity.aggregate',
         'nendo.application.entity.export',
         'nendo.application.entity.records',
         'nendo.application.entity.schema',

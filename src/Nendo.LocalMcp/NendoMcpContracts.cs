@@ -94,6 +94,9 @@ public sealed record NendoMcpEntitySchema(
 {
     public bool Retired { get; init; }
 
+    /// <summary>How many records the type holds now; null where the read did not count (W-146).</summary>
+    public long? RecordCount { get; init; }
+
     /// <summary>
     /// Calculated fields this record type shows. Kept apart from
     /// <see cref="Fields"/> because nothing writes to one: they have no column, and
@@ -190,6 +193,44 @@ public sealed record NendoMcpRecord(
 }
 
 public sealed record NendoMcpPage<T>(IReadOnlyList<T> Items, string? NextCursor);
+
+/// <summary>
+/// One exact aggregate (W-146). <c>Shape</c> says which sections are filled: <c>whole</c> fills
+/// <c>value</c> and <c>contributingRecords</c>; <c>grouped</c> fills <c>groups</c>; <c>cells</c>
+/// fills the keys and <c>cells</c>; <c>buckets</c> fills the resolved bounds and <c>buckets</c>.
+/// Every number is an invariant lexeme, and an empty set is null rather than zero.
+/// </summary>
+public sealed record NendoMcpAggregate(
+    string EntityId,
+    string Aggregate,
+    string? FieldId,
+    string Shape,
+    long ChangeSequence)
+{
+    public string? Value { get; init; }
+    public long? ContributingRecords { get; init; }
+    public string? GroupByFieldId { get; init; }
+    public IReadOnlyList<NendoMcpAggregateGroup>? Groups { get; init; }
+    public string? RowByFieldId { get; init; }
+    public string? ColumnByFieldId { get; init; }
+    public IReadOnlyList<string>? RowKeys { get; init; }
+    public IReadOnlyList<string>? ColumnKeys { get; init; }
+    public IReadOnlyList<NendoMcpAggregateCell>? Cells { get; init; }
+    public string? DateFieldId { get; init; }
+    public string? Bucket { get; init; }
+    public string? Range { get; init; }
+    public string? Start { get; init; }
+    public string? End { get; init; }
+    public IReadOnlyList<NendoMcpAggregateGroup>? Buckets { get; init; }
+    /// <summary>Records whose stored value is none of the configured groups; never folded into one.</summary>
+    public long? Unrecognised { get; init; }
+}
+
+/// <summary>One group or bucket: its key (a choice ID, true, false, a bucket start, or null for unset), its exact value and how many records contributed.</summary>
+public sealed record NendoMcpAggregateGroup(string? Key, string? Value, long ContributingRecords);
+
+/// <summary>One cell of a grid aggregate.</summary>
+public sealed record NendoMcpAggregateCell(string? RowKey, string? ColumnKey, string? Value, long ContributingRecords);
 
 /// <summary>One record of a tree window (ADR-0019): its parent, its depth below the window's root and its child count.</summary>
 public sealed record NendoMcpTreeNode(NendoMcpRecord Record, string? ParentRecordId, int Depth, int ChildCount);

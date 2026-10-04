@@ -236,8 +236,8 @@ tracks this reference improvement. Numbers identify records. They do not
 indicate priority.
 
 The main lists, boards, gallery and detail forms show the field. To locate a
-record exactly, use Studio's Reference filter. Alternatively, read that
-entity's complete MCP record pages and match its `.ref` field. Before you write,
+record exactly, use Studio's Reference filter, or over MCP read the records resource
+with a `filter` on the `.ref` field (one call, one record). Before you write,
 resolve the code to its semantic record ID and current version. Native
 relationship pickers still search the configured title field and show internal
 IDs. A short code typed there is not a promised lookup path. Calendar/timeline
@@ -272,9 +272,18 @@ names one of these five codes may mean either record.
   phase in one call. Read it **once**. The client saves large results to a
   file. After that, query that file; do not read the resource again.
 - For one narrow question, prefer the narrow resource: `manifest` for revisions
-  and minimum host, `entity/{entityId}/schema` for fields and choice options,
-  `vocabulary` for node kinds and limits, `surfaces` for what compiled, and
-  `proposals` for what is waiting.
+  and minimum host, `entity/{entityId}/schema` for fields, choice options and the
+  record count, `vocabulary` for node kinds and limits, `surfaces` for what
+  compiled, and `proposals` for what is waiting.
+- **Do not page a record type to find a record or a value.** Since 2026-10-04
+  (W-145, W-146) the records read takes `recordId` for one record, and `filter`,
+  `sort` and `desc` for a page that holds only what matches: for example
+  `entity/nd.work/records?filter=` followed by the percent-encoded
+  `[{"fieldId":"nd.work.ref","op":"eq","value":"W-140"}]`. A count, a sum or a
+  grouped count is one read of `entity/{entityId}/aggregate`, for example
+  `aggregate?aggregate=count&groupBy=nd.work.status`. The filter operators are the
+  vocabulary's (`eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `isNull`, `isNotNull`) plus
+  `contains` and `descendantOf`.
 - `view-api` is for writing a custom view's code and nothing else. Development
   work in this repository reads `docs/contracts/custom-views.md` instead.
 - **Command IDs** are at `surfaces.applications[].surfaces[]`, on any node whose
