@@ -389,10 +389,11 @@ function record(entityId: string, recordId: string, values: Record<string, unkno
   return { entityId, recordId, recordVersion: 1, values };
 }
 
-function recordPlan(value: RecordSnapshot): RecordPlan {
+/** A record as the preview host plans it, at the automation target plan-selection.ts gives one. */
+export function recordPlan(value: RecordSnapshot): RecordPlan {
   return {
     semanticId: value.recordId,
-    automationTarget: automationTarget(value.recordId),
+    automationTarget: `record-${value.recordId}`,
     version: value.recordVersion,
     values: structuredClone(value.values),
   };

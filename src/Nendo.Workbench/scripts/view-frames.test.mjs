@@ -1,14 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { build } from 'vite';
+import { bundleOf } from './bundle-of.mjs';
 
 // Custom views as the page draws them (ADR-0013): the frame's attributes, the placeholder a
 // record page and a screen draw, and what a placeholder says when its view cannot run. Each
 // is read from the function the Workbench draws it with.
-const bundleOf = async (entry) => {
-  const bundle = await build({ configFile: false, logLevel: 'error', build: { ssr: entry, write: false, rollupOptions: { output: { codeSplitting: false } } } });
-  return import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
-};
 const markup = await bundleOf('src/view-frame-markup.ts');
 const { pageFormBody } = await bundleOf('src/page-markup.ts');
 const { surfaceBodyMarkup } = await bundleOf('src/surface-markup.ts');

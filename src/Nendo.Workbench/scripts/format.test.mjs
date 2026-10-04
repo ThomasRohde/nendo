@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/format.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {proposalAuthorLine,activityLabel,agentModeLabel,canCompensate,capitalise,choiceDisplay,cssToken,escapeAttribute,escapeHtml,fieldName,isAgentAccessMode,isProposalPreviewable,laneLabel,messageFor,mutationKey,operationLabel,presentationLabel,proposalStateLabel,reversibilityLabel,reviewKindLabel,sameValue,shortId,stringValue,storageLabel,valueDisplay} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
+const {proposalAuthorLine,activityLabel,agentModeLabel,canCompensate,capitalise,choiceDisplay,cssToken,escapeAttribute,escapeHtml,fieldName,isAgentAccessMode,isProposalPreviewable,laneLabel,messageFor,mutationKey,operationLabel,presentationLabel,proposalStateLabel,reversibilityLabel,sameValue,shortId,stringValue,storageLabel,valueDisplay} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
 const plan={entity:{fields:[{semanticId:'name',displayName:'Name'}],derivedFields:[{semanticId:'total',displayName:'Total'}]}};
 const revision=(revisionId,canRequestCompensation=true)=>({revisionId,canRequestCompensation,compensationOfRevisionId:null});
@@ -112,10 +112,7 @@ test('every tool call reads as what happened, now that a call is one entry',()=>
   assert.notEqual(activityLabel({category,name}),'Agent activity',`${name} has no label`);
 });
 
-test('a surface kind is reviewed under its screen name, and an unknown kind prints itself',()=>{
- assert.equal(reviewKindLabel('boardSurface'),'Board');
- assert.equal(reviewKindLabel('detailSurface'),'Record page');
- assert.equal(reviewKindLabel('somethingNew'),'somethingNew');
+test('an operation is reviewed under its name, and an unknown one prints itself',()=>{
  assert.equal(operationLabel('data.setField'),'Set field');
  assert.equal(operationLabel('behaviour.somethingNew'),'behaviour.somethingNew');
 });

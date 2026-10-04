@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import vm from 'node:vm';
 import { build } from 'vite';
+import { bundleOf } from './bundle-of.mjs';
 
 // The view API reference an agent reads before it writes a custom view's code (W-094), held to
 // the modules it describes. The api build writes it beside api.js; the local MCP serves that
@@ -12,10 +13,6 @@ const output = Array.isArray(built) ? built.flatMap((result) => result.output) :
 const apiSource = output.find((item) => item.type === 'chunk').code;
 const asset = output.find((item) => item.type === 'asset' && item.fileName === '_nendo/view-api.json');
 
-const bundleOf = async (entry) => {
-  const bundle = await build({ configFile: false, logLevel: 'error', build: { ssr: entry, write: false, rollupOptions: { output: { codeSplitting: false } } } });
-  return import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
-};
 const broker = await bundleOf('src/extension-broker.ts');
 const toolbarModel = await bundleOf('src/view-toolbar-model.ts');
 const model = await bundleOf('src/extension-model.ts');

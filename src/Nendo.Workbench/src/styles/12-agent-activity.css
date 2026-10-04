@@ -380,7 +380,6 @@
 }
 .page-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: .85rem; }
 .page-controls button:disabled { opacity: .45; cursor: default; }
-.record-window-controls { padding: 12px 20px; border-bottom: 1px solid var(--line); }
 .operation-details { margin: 8px 0; padding-left: 18px; font-size: .85rem; line-height: 1.7; }
 /* Bounded reference selection keeps record IDs separate from readable labels. */
 .reference-control { display: grid; gap: 8px; min-width: 0; }
@@ -394,7 +393,7 @@
  .record-delete-dialog::backdrop { background: rgb(10 20 40 / 45%); }
  .record-delete-dialog p { overflow-wrap: anywhere; }
 .field-actions { display: flex; flex-wrap: wrap; gap: 4px; }
-.proposal-live-preview { margin-top: 24px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); min-width: 0; }
+.proposal-live-preview { margin-top: 24px; padding: 20px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
 .preview-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
 .preview-controls label { display: grid; gap: 6px; max-width: 100%; }
 .preview-controls select { max-width: 22rem; }

@@ -2,7 +2,6 @@ import { shortcuts } from './shortcuts';
 import { clientHelp } from './client-help';
 import { conceptHelp } from './help-concepts';
 import { agentHelp } from './help-agents';
-export { setupRequest } from './client-help';
 export { agentSurface } from './help-agents';
 import type { ApplicationPlan, EntitySnapshot } from './host';
 

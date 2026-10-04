@@ -39,6 +39,165 @@ function isContext(value: unknown): value is ViewContext {
     typeof candidate.bindings === 'object' && candidate.bindings !== null;
 }
 
+/** Whether a key pressed at this target is typing: a field keeps its own keys. */
+function typing(target: unknown): boolean {
+  const element = target as { tagName?: unknown; type?: unknown; isContentEditable?: unknown } | null;
+  if (element === null || typeof element !== 'object') return false;
+  if (element.isContentEditable === true) return true;
+  const tag = typeof element.tagName === 'string' ? element.tagName.toUpperCase() : '';
+  if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  return tag === 'INPUT' && !['button', 'submit', 'reset', 'checkbox', 'radio', 'range', 'color', 'file', 'image'].includes(String(element.type ?? 'text'));
+}
+
+type KeyEvent = KeyEventLike & { repeat?: boolean; defaultPrevented?: boolean; target?: unknown; isComposing?: boolean;
+  preventDefault(): void; stopImmediatePropagation(): void };
+
+/** The keys a declaration names on controls a person can press, as the broker will read them. */
+function keysOf(items: unknown): Set<string> {
+  const found = new Set<string>();
+  const visit = (list: unknown): void => {
+    if (!Array.isArray(list)) return;
+    for (const entry of list) {
+      if (typeof entry !== 'object' || entry === null) continue;
+      const item = entry as { kind?: unknown; keys?: unknown; disabled?: unknown; items?: unknown };
+      if (item.disabled === true) continue;
+      const keys = normalizeKeys(item.keys);
+      if (keys !== null && item.kind !== 'radio' && item.kind !== 'label') found.add(keys);
+      if (item.kind === 'group' || item.kind === 'menu') visit(item.items);
+    }
+  };
+  visit(items);
+  return found;
+}
+
+/**
+ * The Workbench's colours, as custom properties on this document's root: `--nendo-ink`,
+ * `--nendo-surface`, `--nendo-tone-blue` and the rest, with `data-nendo-theme` naming the
+ * mode. A view that draws with them follows the person's theme without listening for it.
+ *
+ * The mode also becomes the page's default colour scheme, through a color-scheme meta
+ * element placed after any of the view's own: the first one in the document wins, so a
+ * view that states its own scheme keeps it.
+ */
+function applyTheme(theme: ViewTheme | undefined): void {
+  if (theme === undefined || typeof document === 'undefined') return;
+  const root = document.documentElement;
+  for (const [name, value] of Object.entries(theme.tokens)) root.style.setProperty(`--nendo-${name}`, value);
+  root.dataset.nendoTheme = theme.mode;
+  const head = document.head;
+  if (head === null) return;
+  let scheme = head.querySelector<HTMLMetaElement>('meta[name="color-scheme"][data-nendo]');
+  if (scheme === null) {
+    scheme = document.createElement('meta');
+    scheme.name = 'color-scheme';
+    scheme.dataset.nendo = '';
+    head.append(scheme);
+  }
+  scheme.content = theme.mode;
+}
+
+/**
+ * Every item of a paged read, up to `max`, read again from the top when the file changes
+ * between pages: a stale or unknown cursor ends the continuation, and three tries end the read.
+ */
+async function readAll<T>(
+  call: <R>(method: string, params?: unknown) => Promise<R>, method: string, query: Query, options: { max?: number },
+): Promise<T[]> {
+  const max = Math.max(1, Math.floor(options.max ?? 10_000));
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const items: T[] = [];
+    let cursor: string | null = null;
+    try {
+      do {
+        const page: { items: T[]; nextCursor: string | null } =
+          await call<{ items: T[]; nextCursor: string | null }>(method, { ...query, cursor, limit: extensionLimits.maximumPageLimit });
+        items.push(...page.items);
+        cursor = page.nextCursor;
+      } while (cursor !== null && items.length < max);
+      return items.slice(0, max);
+    } catch (error) {
+      // A file that changes between pages ends the continuation; read again from the top.
+      if (!(error instanceof NendoError) || (error.code !== 'stale-cursor' && error.code !== 'invalid-cursor')) throw error;
+    }
+  }
+  throw new NendoError('stale-cursor', 'The file kept changing while the view read it. Read again when it settles.');
+}
+
+/**
+ * The view's records as nodes and its link records as edges between them, from what the three
+ * reads returned. A link whose source or target is not among the nodes is left out and counted.
+ */
+function graphOf(view: ViewContext, schema: SchemaDescription, nodeRecords: ViewRecord[], edgeRecords: ViewRecord[]): ViewGraph {
+  const bindings = view.bindings;
+  const edgeEntityId = bindings.edgeEntityId;
+  const fieldOf = (entityId: string, fieldId: string): SchemaField | undefined =>
+    schema.entities.find((entity) => entity.entityId === entityId)?.fields.find((field) => field.fieldId === fieldId);
+  const pick = (record: ViewRecord, fieldIds: string[]): { [fieldId: string]: Json } =>
+    Object.fromEntries(fieldIds.map((fieldId) => [fieldId, record.values[fieldId] ?? null]));
+  const text = (record: ViewRecord, fieldId: string): string => {
+    const label = record.labels[fieldId];
+    if (typeof label === 'string') return label;
+    const value = record.values[fieldId];
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return fieldOf(record.entityId, fieldId)?.choices.find((choice) => choice.id === value)?.displayName ?? value;
+    return record.exact[fieldId] ?? (typeof value === 'object' ? JSON.stringify(value) : String(value));
+  };
+  const nodeFields = bindings.fields.filter((field) => field.entityId === view.entityId).map((field) => field.fieldId);
+  const edgeFields = bindings.fields.filter((field) => field.entityId === edgeEntityId).map((field) => field.fieldId);
+  const nodes = nodeRecords.map((record) => ({
+    id: record.recordId,
+    label: bindings.labelFieldId === null ? '' : text(record, bindings.labelFieldId),
+    status: bindings.statusFieldId === null ? null : record.values[bindings.statusFieldId] ?? null,
+    values: pick(record, nodeFields),
+    record,
+  }));
+  const known = new Set(nodes.map((node) => node.id));
+  const edges: ViewGraph['edges'] = [];
+  let hiddenEdges = 0;
+  for (const record of edgeRecords) {
+    const source = bindings.sourceFieldId === null ? null : record.values[bindings.sourceFieldId];
+    const target = bindings.targetFieldId === null ? null : record.values[bindings.targetFieldId];
+    if (typeof source !== 'string' || typeof target !== 'string' || !known.has(source) || !known.has(target)) {
+      hiddenEdges += 1;
+      continue;
+    }
+    edges.push({ id: record.recordId, source, target, values: pick(record, edgeFields), record });
+  }
+  const fields = bindings.fields.map(({ fieldId, entityId }) => {
+    const field = fieldOf(entityId, fieldId);
+    return { fieldId, entityId, displayName: field?.displayName ?? fieldId, storageKind: field?.storageKind ?? 'text' };
+  });
+  return { nodes, edges, fields, hiddenEdges };
+}
+
+/** A record as a write names it: which one, and the version the view last read. */
+type RecordAt = { entityId: string; recordId: string; version: number };
+/** Field values to write: null, text, true or false, a number, or { $nendoNumber: '…' } for exact digits. */
+type WriteValues = Record<string, string | number | boolean | null | { $nendoNumber: string }>;
+/**
+ * For each reference field a write points at a record, that record's version as the view read
+ * it: { owner: person.version }. The host refuses a non-null reference without one, and one
+ * whose target changed since.
+ */
+type TargetVersions = Record<string, number>;
+type CreateOptions = { recordId?: string; targetVersions?: TargetVersions };
+type UpdateOptions = { targetVersions?: TargetVersions };
+/** One record's part of a batch: create, update or delete, as the single-record calls take them. */
+type BatchWrite =
+  | { op: 'create'; entityId: string; recordId?: string; values: WriteValues; targetVersions?: TargetVersions }
+  | { op: 'update'; entityId: string; recordId: string; version: number; values: WriteValues; targetVersions?: TargetVersions }
+  | { op: 'delete'; entityId: string; recordId: string; version: number };
+type BatchOptions = { label?: string };
+type BatchAnswer = { records: { entityId: string; recordId: string; version: number | null }[]; revision: string | null };
+type UndoOptions = { label?: string };
+type MoveTarget = { parentRecordId: string | null; parentVersion?: number; beforeRecordId?: string | null };
+type StateOptions = { scope?: 'view' | 'package' };
+type StateEntry = { key: string; value: unknown; version: number };
+
+type MenuPoint = { x: number; y: number } | { clientX: number; clientY: number };
+
+type ProposalAnswer = { proposalId: string; title: string; state: string; diagnostics: Array<{ code: string; message: string; severity: string }>; opened?: boolean };
+
 function install(host: Window & { nendo?: unknown }): void {
   // Taken twice, the second copy would answer a second connect and strand the first's calls.
   if (host.nendo !== undefined) return;
@@ -69,32 +228,6 @@ function install(host: Window & { nendo?: unknown }): void {
     if (!listeners.has(name)) listeners.set(name, new Set());
     listeners.get(name)!.add(listener);
     return () => { listeners.get(name)?.delete(listener); };
-  }
-
-  /**
-   * The Workbench's colours, as custom properties on this document's root: `--nendo-ink`,
-   * `--nendo-surface`, `--nendo-tone-blue` and the rest, with `data-nendo-theme` naming the
-   * mode. A view that draws with them follows the person's theme without listening for it.
-   *
-   * The mode also becomes the page's default colour scheme, through a color-scheme meta
-   * element placed after any of the view's own: the first one in the document wins, so a
-   * view that states its own scheme keeps it.
-   */
-  function applyTheme(theme: ViewTheme | undefined): void {
-    if (theme === undefined || typeof document === 'undefined') return;
-    const root = document.documentElement;
-    for (const [name, value] of Object.entries(theme.tokens)) root.style.setProperty(`--nendo-${name}`, value);
-    root.dataset.nendoTheme = theme.mode;
-    const head = document.head;
-    if (head === null) return;
-    let scheme = head.querySelector<HTMLMetaElement>('meta[name="color-scheme"][data-nendo]');
-    if (scheme === null) {
-      scheme = document.createElement('meta');
-      scheme.name = 'color-scheme';
-      scheme.dataset.nendo = '';
-      head.append(scheme);
-    }
-    scheme.content = theme.mode;
   }
 
   function pump(): void {
@@ -180,16 +313,6 @@ function install(host: Window & { nendo?: unknown }): void {
    * view's toolbar declares goes the same way once the view has had its chance: a view that
    * handles the key itself calls preventDefault, and a person typing in a field keeps it.
    */
-  const typing = (target: unknown): boolean => {
-    const element = target as { tagName?: unknown; type?: unknown; isContentEditable?: unknown } | null;
-    if (element === null || typeof element !== 'object') return false;
-    if (element.isContentEditable === true) return true;
-    const tag = typeof element.tagName === 'string' ? element.tagName.toUpperCase() : '';
-    if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
-    return tag === 'INPUT' && !['button', 'submit', 'reset', 'checkbox', 'radio', 'range', 'color', 'file', 'image'].includes(String(element.type ?? 'text'));
-  };
-  type KeyEvent = KeyEventLike & { repeat?: boolean; defaultPrevented?: boolean; target?: unknown; isComposing?: boolean;
-    preventDefault(): void; stopImmediatePropagation(): void };
   if (typeof host.addEventListener === 'function') {
     host.addEventListener('keydown', ((event: KeyEvent) => {
       if (port === null || event.repeat === true || event.isComposing === true) return;
@@ -210,44 +333,11 @@ function install(host: Window & { nendo?: unknown }): void {
   }
 
   /** Every node of a tree window, depth-first, read again from the top if the file changes between pages. */
-  async function treeAll(query: Query, options: { max?: number } = {}): Promise<ViewTreeNode[]> {
-    const max = Math.max(1, Math.floor(options.max ?? 10_000));
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const nodes: ViewTreeNode[] = [];
-      let cursor: string | null = null;
-      try {
-        do {
-          const page: ViewTreePage = await call<ViewTreePage>('records.tree', { ...query, cursor, limit: extensionLimits.maximumPageLimit });
-          nodes.push(...page.items);
-          cursor = page.nextCursor;
-        } while (cursor !== null && nodes.length < max);
-        return nodes.slice(0, max);
-      } catch (error) {
-        if (!(error instanceof NendoError) || (error.code !== 'stale-cursor' && error.code !== 'invalid-cursor')) throw error;
-      }
-    }
-    throw new NendoError('stale-cursor', 'The file kept changing while the view read it. Read again when it settles.');
-  }
+  const treeAll = (query: Query, options: { max?: number } = {}): Promise<ViewTreeNode[]> =>
+    readAll<ViewTreeNode>(call, 'records.tree', query, options);
 
-  async function queryAll(query: Query, options: { max?: number } = {}): Promise<ViewRecord[]> {
-    const max = Math.max(1, Math.floor(options.max ?? 10_000));
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const records: ViewRecord[] = [];
-      let cursor: string | null = null;
-      try {
-        do {
-          const page: ViewPage = await call<ViewPage>('records.query', { ...query, cursor, limit: extensionLimits.maximumPageLimit });
-          records.push(...page.items);
-          cursor = page.nextCursor;
-        } while (cursor !== null && records.length < max);
-        return records.slice(0, max);
-      } catch (error) {
-        // A file that changes between pages ends the continuation; read again from the top.
-        if (!(error instanceof NendoError) || (error.code !== 'stale-cursor' && error.code !== 'invalid-cursor')) throw error;
-      }
-    }
-    throw new NendoError('stale-cursor', 'The file kept changing while the view read it. Read again when it settles.');
-  }
+  const queryAll = (query: Query, options: { max?: number } = {}): Promise<ViewRecord[]> =>
+    readAll<ViewRecord>(call, 'records.query', query, options);
 
   /** The view's authored filters for one record type, with `today` and `now` resolved as it reads. */
   function authoredFilters(view: ViewContext, entityId: string | null): Array<{ fieldId: string; operator: string; value?: Json }> {
@@ -287,69 +377,8 @@ function install(host: Window & { nendo?: unknown }): void {
         ? Promise.resolve<ViewRecord[]>([])
         : queryAll({ entityId: edgeEntityId, filters: authoredFilters(view, edgeEntityId) }),
     ]);
-    const fieldOf = (entityId: string, fieldId: string): SchemaField | undefined =>
-      schema.entities.find((entity) => entity.entityId === entityId)?.fields.find((field) => field.fieldId === fieldId);
-    const pick = (record: ViewRecord, fieldIds: string[]): { [fieldId: string]: Json } =>
-      Object.fromEntries(fieldIds.map((fieldId) => [fieldId, record.values[fieldId] ?? null]));
-    const text = (record: ViewRecord, fieldId: string): string => {
-      const label = record.labels[fieldId];
-      if (typeof label === 'string') return label;
-      const value = record.values[fieldId];
-      if (value === null || value === undefined) return '';
-      if (typeof value === 'string') return fieldOf(record.entityId, fieldId)?.choices.find((choice) => choice.id === value)?.displayName ?? value;
-      return record.exact[fieldId] ?? (typeof value === 'object' ? JSON.stringify(value) : String(value));
-    };
-    const nodeFields = bindings.fields.filter((field) => field.entityId === view.entityId).map((field) => field.fieldId);
-    const edgeFields = bindings.fields.filter((field) => field.entityId === edgeEntityId).map((field) => field.fieldId);
-    const nodes = nodeRecords.map((record) => ({
-      id: record.recordId,
-      label: bindings.labelFieldId === null ? '' : text(record, bindings.labelFieldId),
-      status: bindings.statusFieldId === null ? null : record.values[bindings.statusFieldId] ?? null,
-      values: pick(record, nodeFields),
-      record,
-    }));
-    const known = new Set(nodes.map((node) => node.id));
-    const edges: ViewGraph['edges'] = [];
-    let hiddenEdges = 0;
-    for (const record of edgeRecords) {
-      const source = bindings.sourceFieldId === null ? null : record.values[bindings.sourceFieldId];
-      const target = bindings.targetFieldId === null ? null : record.values[bindings.targetFieldId];
-      if (typeof source !== 'string' || typeof target !== 'string' || !known.has(source) || !known.has(target)) {
-        hiddenEdges += 1;
-        continue;
-      }
-      edges.push({ id: record.recordId, source, target, values: pick(record, edgeFields), record });
-    }
-    const fields = bindings.fields.map(({ fieldId, entityId }) => {
-      const field = fieldOf(entityId, fieldId);
-      return { fieldId, entityId, displayName: field?.displayName ?? fieldId, storageKind: field?.storageKind ?? 'text' };
-    });
-    return { nodes, edges, fields, hiddenEdges };
+    return graphOf(view, schema, nodeRecords, edgeRecords);
   }
-
-  /** A record as a write names it: which one, and the version the view last read. */
-  type RecordAt = { entityId: string; recordId: string; version: number };
-  /** Field values to write: null, text, true or false, a number, or { $nendoNumber: '…' } for exact digits. */
-  type WriteValues = Record<string, string | number | boolean | null | { $nendoNumber: string }>;
-  /**
-   * For each reference field a write points at a record, that record's version as the view read
-   * it: { owner: person.version }. The host refuses a non-null reference without one, and one
-   * whose target changed since.
-   */
-  type TargetVersions = Record<string, number>;
-  type CreateOptions = { recordId?: string; targetVersions?: TargetVersions };
-  type UpdateOptions = { targetVersions?: TargetVersions };
-  /** One record's part of a batch: create, update or delete, as the single-record calls take them. */
-  type BatchWrite =
-    | { op: 'create'; entityId: string; recordId?: string; values: WriteValues; targetVersions?: TargetVersions }
-    | { op: 'update'; entityId: string; recordId: string; version: number; values: WriteValues; targetVersions?: TargetVersions }
-    | { op: 'delete'; entityId: string; recordId: string; version: number };
-  type BatchOptions = { label?: string };
-  type BatchAnswer = { records: { entityId: string; recordId: string; version: number | null }[]; revision: string | null };
-  type UndoOptions = { label?: string };
-  type MoveTarget = { parentRecordId: string | null; parentVersion?: number; beforeRecordId?: string | null };
-  type StateOptions = { scope?: 'view' | 'package' };
-  type StateEntry = { key: string; value: unknown; version: number };
 
   // State writes wait their turn, one every stateWriteSpacingMs; a key written again while its
   // write waits replaces the value, and every caller of that key hears the one answer.
@@ -393,24 +422,6 @@ function install(host: Window & { nendo?: unknown }): void {
   /** The keys the toolbar Nendo last accepted declares: pressed here, they go to the Workbench. */
   let declared = new Set<string>();
 
-  /** The keys a declaration names on controls a person can press, as the broker will read them. */
-  function keysOf(items: unknown): Set<string> {
-    const found = new Set<string>();
-    const visit = (list: unknown): void => {
-      if (!Array.isArray(list)) return;
-      for (const entry of list) {
-        if (typeof entry !== 'object' || entry === null) continue;
-        const item = entry as { kind?: unknown; keys?: unknown; disabled?: unknown; items?: unknown };
-        if (item.disabled === true) continue;
-        const keys = normalizeKeys(item.keys);
-        if (keys !== null && item.kind !== 'radio' && item.kind !== 'label') found.add(keys);
-        if (item.kind === 'group' || item.kind === 'menu') visit(item.items);
-      }
-    };
-    visit(items);
-    return found;
-  }
-
   function sendToolbar(): void {
     if (toolbarTimer !== null || toolbarWaiting === null) return;
     toolbarTimer = setTimeout(() => {
@@ -437,8 +448,6 @@ function install(host: Window & { nendo?: unknown }): void {
     });
   }
 
-  type MenuPoint = { x: number; y: number } | { clientX: number; clientY: number };
-
   /**
    * One of Nendo's menus at a point in this view: the person's pick, as `{id, value}`, or null
    * when they dismiss it. `at` is a point in the view's own pixels, or the mouse event itself.
@@ -447,8 +456,6 @@ function install(host: Window & { nendo?: unknown }): void {
     const point = 'clientX' in at ? { x: at.clientX, y: at.clientY } : { x: at.x, y: at.y };
     return call('ui.showMenu', { items, x: point.x, y: point.y });
   }
-
-  type ProposalAnswer = { proposalId: string; title: string; state: string; diagnostics: Array<{ code: string; message: string; severity: string }>; opened?: boolean };
 
   const nendo = Object.freeze({
     apiVersion,

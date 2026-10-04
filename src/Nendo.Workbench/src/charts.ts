@@ -1,4 +1,5 @@
 import type { FieldPlan, RecordPlan, SurfaceNodePlan } from './host';
+import { nodeText as property } from './host-types';
 import { clauseFilters, type QueryFilter } from './record-window';
 import { declaredScope, tileEntityId, tileFilters, tileKey, tileScopeLabel, type TileScope } from './summary-tiles';
 import { choiceStyle } from './tones';
@@ -24,8 +25,6 @@ export function isChartKind(kind: string): boolean {
 
 export interface ScopedChart { node: SurfaceNodePlan; scope: TileScope }
 
-const property = (node: SurfaceNodePlan, key: string): string | null =>
-  typeof node.properties[key] === 'string' ? (node.properties[key] as string) : null;
 
 const directCharts = (node: SurfaceNodePlan): SurfaceNodePlan[] =>
   node.children.filter((child) => isChartKind(child.kind));

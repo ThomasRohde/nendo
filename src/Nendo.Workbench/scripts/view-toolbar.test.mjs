@@ -1,14 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { build } from 'vite';
+import { bundleOf } from './bundle-of.mjs';
 
 // A custom view's controls in Nendo's own chrome (ADR-0013, 2026-09-28; W-090), through the
 // real modules: the declaration as the broker rebuilds it, the markup the page draws from it,
 // what Ctrl K lists, which keys run what, and the key table kept in step with Nendo's own.
-const bundleOf = async (entry) => {
-  const bundle = await build({ configFile: false, logLevel: 'error', build: { ssr: entry, write: false, rollupOptions: { output: { codeSplitting: false } } } });
-  return import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
-};
 const model = await bundleOf('src/view-toolbar-model.ts');
 const markup = await bundleOf('src/view-toolbar-markup.ts');
 const protocol = await bundleOf('src/extension-api/protocol.ts');

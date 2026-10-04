@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { build } from 'vite';
+import { bundleOf } from './bundle-of.mjs';
 
 // A .nendo file dragged onto the window (W-048).
 //
@@ -9,10 +9,6 @@ import { build } from 'vite';
 // landed. The rest of the journey — the overlay appearing, the host being handed the
 // file, Windows resolving its path — is the gate's and the owner's, because none of
 // it is reachable from a bundle.
-const bundleOf = async (entry) => {
-  const bundle = await build({ configFile: false, logLevel: 'error', build: { ssr: entry, write: false, rollupOptions: { output: { codeSplitting: false } } } });
-  return import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
-};
 const { describeDrag, judgeDrop } = await bundleOf('src/file-drop.ts');
 
 test('a drag carrying nothing is not a drag worth answering', () => {

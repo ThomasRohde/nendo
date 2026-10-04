@@ -1,8 +1,8 @@
+import { escapeHtml as escape } from './format';
 import type { EntitySnapshot, ReadPage, RecordSnapshot } from './host';
 
 type Field = EntitySnapshot['fields'][number];
 type Query = (payload: Record<string, unknown>) => Promise<ReadPage<RecordSnapshot>>;
-const escape = (value: string): string => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 export function referenceControl(field: Field, value: string): string {
   return `<div class="reference-control" data-reference-field="${escape(field.fieldId)}">

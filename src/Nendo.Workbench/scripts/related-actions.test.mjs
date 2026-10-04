@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { build } from 'vite';
+import { bundleOf } from './bundle-of.mjs';
 
 // Adding and opening a record from a related list (ADR-0004, 2026-09-18 amendment).
 //
@@ -13,10 +13,6 @@ import { build } from 'vite';
 // hooks the wiring and the gate click — data-related-add, data-related-open and
 // data-related-entity — and the words beside them. The journey itself reads the shared
 // `state`, which this bundle owns a private copy of, so it belongs to the gate.
-const bundleOf = async (entry) => {
-  const bundle = await build({ configFile: false, logLevel: 'error', build: { ssr: entry, write: false, rollupOptions: { output: { codeSplitting: false } } } });
-  return import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
-};
 const { linkEndsOf, relatedHeadMarkup, relatedListEmpty, relatedListMarkup, relatedRowMarkup } = await bundleOf('src/record-markup.ts');
 
 const node = (semanticId, kind, properties = {}, children = []) => ({ semanticId, automationTarget: semanticId, kind, properties, children });

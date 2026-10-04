@@ -1,5 +1,6 @@
 import type { SurfaceNodePlan } from './host';
-import { cacheKey, clauseFilters, declaredQuery, type QueryFilter } from './record-window';
+import { nodeText as property } from './host-types';
+import { cacheKey, clauseFilters, type QueryFilter } from './record-window';
 
 // Pure traversal and read composition for summary tiles. A tile states one exact
 // number over the records its scope covers, which is never the page in view: a
@@ -42,8 +43,6 @@ export interface TileRead {
   filters: QueryFilter[];
 }
 
-const property = (node: SurfaceNodePlan, key: string): string | null =>
-  typeof node.properties[key] === 'string' ? (node.properties[key] as string) : null;
 
 const directTiles = (node: SurfaceNodePlan): SurfaceNodePlan[] =>
   node.children.filter((child) => child.kind === 'summaryTile');
@@ -217,6 +216,3 @@ export function isSettledSummaryFailure(code: string): boolean {
 export function tileIsReadable(tile: SurfaceNodePlan, scope: TileScope, surfaceEntityId: string | null): boolean {
   return tileRead(tile, scope, surfaceEntityId) !== null;
 }
-
-/** The declared surface query, re-exported so a caller composes one query source. */
-export const surfaceQuery = declaredQuery;

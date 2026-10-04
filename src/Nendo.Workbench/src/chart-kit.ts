@@ -1,3 +1,5 @@
+import { escapeHtml as escape } from './format';
+
 /**
  * The chart kit, ADR-0004 2026-09-14 amendment (S1). Pure markup from exact numbers
  * handed in: a proportion bar of toned segments and a progress ring. Nothing here
@@ -45,9 +47,6 @@ export interface RingInput {
   tableOpen: boolean;
   drillable: boolean;
 }
-
-const escape = (value: string): string =>
-  value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
 
 const attribute = (value: string): string => escape(value);
 

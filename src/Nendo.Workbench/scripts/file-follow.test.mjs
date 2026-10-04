@@ -1,13 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { build } from 'vite';
+import { bundleOf } from './bundle-of.mjs';
 
 // Catching the view up with the file, and the one thing that makes the loop terminate:
 // the number being chased belongs to the file it was counted in.
-const bundleOf = async (entry) => {
-  const bundle = await build({ configFile: false, logLevel: 'error', build: { ssr: entry, write: false, rollupOptions: { output: { codeSplitting: false } } } });
-  return import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
-};
 const { followTarget, stillBehind } = await bundleOf('src/file-follow.ts');
 const { clearFileScoped, boardColumns, matrixCells, rankedWindows, recentWindows, surfaceWindows, chartTables } =
   await bundleOf('src/app-state.ts');

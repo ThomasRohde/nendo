@@ -27,12 +27,6 @@ textarea:focus {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--cobalt) 22%, transparent);
 }
 
-.form-pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
 .form-actions {
   display: flex;
   justify-content: flex-end;
@@ -310,7 +304,6 @@ textarea:focus {
   .rail {
     display: grid;
     grid-template-columns: auto 1fr auto;
-    align-items: center;
     min-height: auto;
     padding: 10px 14px;
     border-right: 0;
@@ -355,11 +348,6 @@ textarea:focus {
     padding-inline: 10px;
   }
 
-  .rail-footer {
-    margin: 0;
-    padding: 8px;
-  }
-
   .workspace {
     min-height: 0;
     padding: 0 16px 16px;
@@ -375,14 +363,6 @@ textarea:focus {
 
   .status-pill {
     display: none;
-  }
-
-  .rail-footer {
-    display: none;
-  }
-
-  .surface-grid {
-    grid-template-columns: 1fr;
   }
 
   .proposal-layout {
@@ -552,11 +532,6 @@ textarea:focus {
   .history-control,
   .nav-item.is-selected {
     border: 1px solid CanvasText;
-  }
-
-  .connection-dot,
-  .healthy-dot {
-    background: Highlight;
   }
 }
 .record-form .checkbox-field {

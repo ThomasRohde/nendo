@@ -1,15 +1,6 @@
 /* The status bar, the health pill and the busy bar with its Stop control.
    Slice 06 of styles.css; see that file for why the order matters. */
 
-.connection-dot,
-.healthy-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--healthy);
-}
-
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -71,7 +62,6 @@
   min-height: 26px;
   padding: 0 12px;
   border-top: 1px solid var(--line);
-  color: var(--muted);
   background: var(--surface);
   font-family: var(--mono);
   font-size: 0.8rem;
@@ -155,7 +145,6 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  min-width: 0;
 }
 
 .workspace-identity h1 {

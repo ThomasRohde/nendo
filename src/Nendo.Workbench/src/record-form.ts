@@ -3,6 +3,7 @@ import { leaveRecordContext, selectedTabs, state, tabStateKey } from './app-stat
 import { noteTabsChanged } from './navigation-trail';
 import { chartKey } from './charts';
 import { client } from './client';
+import { confirmDialog } from './confirm-dialog';
 import { refuseWhileDirty } from './draft-guard';
 import { foldSection } from './fold-state';
 import { escapeHtml, messageFor, mutationKey, sameValue, storageLabel, stringValue, valueDisplay } from './format';
@@ -46,17 +47,14 @@ export function wireRecordForm(
     if (record === null) return;
     const titleField = fields.find(field => storageLabel(field.storageKind) === 'Text');
     const title = titleField ? valueDisplay(record.values[titleField.semanticId]) : record.semanticId;
-    const dialog = document.createElement('dialog');
-    dialog.className = 'record-delete-dialog';
-    dialog.setAttribute('aria-labelledby', 'delete-record-heading');
-    dialog.innerHTML = `<h2 id="delete-record-heading">Delete this record?</h2><p>${escapeHtml(title || record.semanticId)}</p>
-      <p>Its values will be retained in History for restoration while its schema and references remain valid. Incoming references must be cleared or reassigned first.</p>
-      <div class="form-actions"><button class="secondary-button" data-cancel type="button" autofocus>Cancel</button><button class="primary-button" data-confirm type="button">Delete record</button></div>`;
-    document.body.append(dialog);
-    dialog.addEventListener('close', () => dialog.remove(), { once: true });
-    dialog.querySelector('[data-cancel]')?.addEventListener('click', () => dialog.close());
-    dialog.querySelector('[data-confirm]')?.addEventListener('click', () => {
-      dialog.close();
+    void confirmDialog({
+      headingId: 'delete-record-heading',
+      title: 'Delete this record?',
+      bodyHtml: `<p>${escapeHtml(title || record.semanticId)}</p>
+      <p>Its values will be retained in History for restoration while its schema and references remain valid. Incoming references must be cleared or reassigned first.</p>`,
+      confirmLabel: 'Delete record',
+    }).then((confirmed) => {
+      if (!confirmed) return;
       void runMutation('data.deleteRecord', { entityId, recordId: record.semanticId, expectedRecordVersion: record.version,
         idempotencyKey: mutationKey() }, 'Record deleted. Open History to review or restore it.', true,
       // The whole record context, not the selection alone: a record deleted after being
@@ -64,7 +62,6 @@ export function wireRecordForm(
       // offering a way back to the page nobody was on.
       () => leaveRecordContext());
     });
-    dialog.showModal();
   });
   wireReferenceControls(recordForm, state.session.entities.flatMap(entity => entity.fields),
     payload => client.request<ReadPage<RecordSnapshot>>('data.queryRecords', payload));

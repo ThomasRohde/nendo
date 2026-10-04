@@ -1,4 +1,5 @@
 import type { CompileResult, OverviewPlan, SurfaceNodePlan } from './host';
+import { nodeText as property } from './host-types';
 import { sectionIsOpen } from './fold-state';
 import { cacheKey, declaredQuery, type WindowQuery } from './record-window';
 import { isChartKind, type ScopedChart } from './charts';
@@ -18,8 +19,6 @@ export function overviewOf(compilation: CompileResult | null): OverviewPlan | nu
   return compilation?.isValid === true ? compilation.overview ?? null : null;
 }
 
-const property = (node: SurfaceNodePlan, key: string): string | null =>
-  typeof node.properties[key] === 'string' ? (node.properties[key] as string) : null;
 
 const numeric = (node: SurfaceNodePlan, key: string): number | null =>
   typeof node.properties[key] === 'number' ? (node.properties[key] as number) : null;

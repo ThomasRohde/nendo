@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { build } from 'vite';
+import { bundleOf } from './bundle-of.mjs';
 
 // W-008 (ADR-0009, 2026-09-29 amendment): the review and the queue say what accepting a
 // proposal means for consent to the file's automatic actions, before Accept is pressed.
@@ -10,10 +10,6 @@ import { build } from 'vite';
 //
 // Measured from the real functions the views draw with, and from the view sources for
 // the one thing a bundle cannot reach: that both reviews disable Accept on the answer.
-const bundleOf = async (entry) => {
-  const bundle = await build({ configFile: false, logLevel: 'error', build: { ssr: entry, write: false, rollupOptions: { output: { codeSplitting: false } } } });
-  return import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
-};
 const { proposalConsent, proposalConsentMarkup } = await bundleOf('src/proposal-consent.ts');
 
 const facts = (overrides) => ({ createsRecords: false, updatesRecords: true, deletesRecords: false, generatedEffectCount: 0, changesWhatIsApproved: false, ...overrides });

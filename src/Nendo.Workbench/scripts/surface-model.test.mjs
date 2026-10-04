@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
+import { readdirSync, readFileSync } from 'node:fs';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/surface-model.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
 const {accumulatesPages,activeTabSection,boardView,boardViewOf,hasListSurface,kindLabel,nodeFieldIds,resolveSurface,surfaceById,surfaceLabel,surfaceRoot,tabSections,treeCommands,useSurfaces} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
@@ -174,4 +175,19 @@ test('the open tab falls back to the first section when the remembered one is go
  // A group the compiler would refuse still must not crash the renderer.
  assert.equal(activeTabSection(node('page.tabs','tabGroup',{}),undefined),null);
  assert.deepEqual(tabSections(node('page.tabs','tabGroup',{},[binding('name')])),[]);
+});
+
+// W-134. The agent review page and the proposal preview each kept a copy of this table, and
+// the review's had fallen four kinds behind: a matrix, a ranking or a custom view showed
+// under its raw kind id. The table that names every kind lives here, and nowhere else.
+test('one table names surface kinds, and it names the kinds the copies had missed',()=>{
+ assert.equal(kindLabel('matrixSurface'),'Matrix');
+ assert.equal(kindLabel('rankedList'),'Ranking');
+ assert.equal(kindLabel('extensionGraphSurface'),'Custom graph');
+ assert.equal(kindLabel('extensionRecordsSurface'),'Custom view');
+ assert.equal(kindLabel('somethingNew'),'somethingNew');
+ const folder=new URL('../src/',import.meta.url);
+ const tables=readdirSync(folder).filter(name=>name.endsWith('.ts'))
+  .filter(name=>/case 'detailSurface': return 'Record page'|case 'recentList': return 'Recent records'/.test(readFileSync(new URL(name,folder),'utf8')));
+ assert.deepEqual(tables,['surface-model.ts'],'A second surface-kind label table drifts from the first');
 });

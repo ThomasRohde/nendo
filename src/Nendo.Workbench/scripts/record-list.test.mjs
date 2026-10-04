@@ -1,14 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { build } from 'vite';
+import { bundleOf } from './bundle-of.mjs';
 
 // F-225: a Use list drew its first field and the next two, and dropped every later binding
 // without a word; Archi's On views count, bound fourth, never appeared. Rendered through the
 // function the app draws a list with.
-const bundleOf = async (entry) => {
-  const bundle = await build({ configFile: false, logLevel: 'error', build: { ssr: entry, write: false, rollupOptions: { output: { codeSplitting: false } } } });
-  return import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
-};
 const { listMarkup } = await bundleOf('src/surface-markup.ts');
 
 const node = (semanticId, kind, properties, children = []) => ({ semanticId, automationTarget: semanticId, kind, properties, children });

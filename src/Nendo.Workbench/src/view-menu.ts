@@ -21,11 +21,6 @@ interface OpenMenu {
 
 let current: OpenMenu | null = null;
 
-/** Whether a view's menu is open: the page is being used while it is. */
-export function viewMenuOpen(): boolean {
-  return current !== null;
-}
-
 /** Dismiss the open menu, if any, as a press elsewhere would. */
 export function closeViewMenu(): void {
   current?.finish(null);

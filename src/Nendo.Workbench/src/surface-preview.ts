@@ -1,11 +1,13 @@
 import type { ApplicationPlan, FieldPlan, OverviewPlan, RecordPlan, SurfaceNodePlan } from './host';
+import { nodeText as property } from './host-types';
+import { escapeHtml as escape } from './format';
 import { exactNumberText } from './scalars';
 
 import { choiceStyle } from './tones';
 import { activityLevel, breakdownSegments, bucketLabel, bucketSegments, busiestBucket, chartTitle, isChartKind, isOverTimeKind, rangeLabel, sampleBucketed, sampleGrouped } from './charts';
 import { proportionBar, columns, activityGrid as activityGridMarkup } from './chart-kit';
 import { civilDate, groupByDate, monthGrid, monthLabel, monthOf, undatedItems, weekdayNames } from './calendar-model';
-import { maximumReferenceBoardColumns } from './surface-model';
+import { kindLabel, maximumReferenceBoardColumns } from './surface-model';
 import { dayMonthLabel, groupByMonth, spanLabel, spanOf, yearNote } from './timeline-model';
 
 /**
@@ -21,7 +23,6 @@ interface PreviewSurface {
   node: SurfaceNodePlan | null;
 }
 
-const escape = (value: string): string => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 // Which tab a reviewer opened, for this preview only. The preview is a read-only
 // view of a validated clone, so nothing it selects reaches a file.
 const previewTabs = new Map<string, string>();
@@ -33,8 +34,6 @@ function valueText(app: ApplicationPlan, record: RecordPlan | undefined, fieldId
   return field?.choices?.find(choice => choice.id === value)?.displayName ?? text(value);
 }
 const name = (field: FieldPlan | undefined, id: string): string => field?.displayName ?? id;
-const property = (node: SurfaceNodePlan, key: string): string | null =>
-  typeof node.properties[key] === 'string' ? node.properties[key] as string : null;
 // Every number crossing the desktop bridge is wrapped in a $nendoNumber envelope, so a
 // plain typeof check never matches and the preview quietly printed its own default
 // instead of the limit the node carries: "up to 10" over a node that says 5.
@@ -49,26 +48,6 @@ const childrenOf = (node: SurfaceNodePlan, kind: string): SurfaceNodePlan[] => n
 const bindings = (node: SurfaceNodePlan): string[] => node.children.flatMap(child =>
   child.kind === 'fieldBinding' ? [property(child, 'fieldId') ?? ''].filter(Boolean)
     : child.kind === 'section' || child.kind === 'tabGroup' ? bindings(child) : []);
-
-function kindLabel(kind: string): string {
-  switch (kind) {
-    case 'detailSurface': return 'Record page';
-    case 'recordForm': return 'Form';
-    case 'recordList': return 'List';
-    case 'boardSurface': return 'Board';
-    case 'calendarSurface': return 'Calendar';
-    case 'timelineSurface': return 'Timeline';
-    case 'gallerySurface': return 'Gallery';
-    case 'outlineSurface': return 'Outline';
-    case 'overviewSurface': return 'Front page';
-    case 'recentList': return 'Recent records';
-    case 'matrixSurface': return 'Matrix';
-    case 'rankedList': return 'Ranking';
-    case 'rangeTile': return 'Range';
-    case 'recordCommand': return 'Action';
-    default: return kind;
-  }
-}
 
 /**
  * A tile as a preview describes it. The number is computed against live data,

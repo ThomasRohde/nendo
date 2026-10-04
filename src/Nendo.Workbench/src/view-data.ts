@@ -4,6 +4,7 @@ import { type CellFocusedEvent, type CellKeyDownEvent, type CellValueChangedEven
 import { type StudioQuery, fileScopedClearable, recordWindows, state, studioQueries, studioWindows } from './app-state';
 import { calculatedDisplay } from './calculated-fields';
 import { client } from './client';
+import { deviceStorage } from './device-storage';
 import { choiceDisplay, escapeAttribute, escapeHtml, messageFor, mutationKey, storageLabel, valueDisplay } from './format';
 import { type CalculationResult, type EntitySnapshot, type ReadPage, type RecordPlan, type RecordSnapshot } from './host';
 import { icon } from './icons';
@@ -92,10 +93,6 @@ const columnWidths = new Map<string, ColumnWidths>();
 fileScopedClearable({ clear() { columnWidths.clear(); headerFocusAfterDraw = null; } });
 // A sort made from the keyboard puts the focus back on its header once the table is redrawn.
 let headerFocusAfterDraw: string | null = null;
-
-function deviceStorage(): Storage | null {
-  try { return typeof window === 'undefined' ? null : window.localStorage; } catch { return null; }
-}
 
 function widthsFor(entityId: string): ColumnWidths {
   let widths = columnWidths.get(entityId);

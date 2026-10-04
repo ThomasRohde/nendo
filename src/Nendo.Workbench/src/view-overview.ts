@@ -7,7 +7,7 @@ import {
   nodeEntityId, overviewDescription, overviewTitle, rangeEndKey, rangeEndText, rangeTitle, rankFieldId,
   rankedLimit, rankedMaxKey, rankedTitle, rankedWindowKey, recentLimit, recentTitle, recentWindowKey,
 } from './overview-model';
-import { drillInto, refreshOverview } from './panels';
+import { drillGroupOf, drillInto, refreshOverview, wireChartTables } from './panels';
 import { createReadChase } from './read-chase';
 import { applicationPlans, chartPending, overviewPlan, overviewReadIsPending, recordPlanOf, tilePending } from './plan-selection';
 import { chartStates, chartTables } from './app-state';
@@ -311,14 +311,7 @@ export function renderOverview(overview: OverviewPlan): void {
       chartStates.delete(key);
       void refreshOverview(overview).then(rerender).catch((error) => showError(messageFor(error)));
     });
-  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-chart-table]'))
-    button.addEventListener('click', () => {
-      const key = button.dataset.chartTable;
-      if (key === undefined) return;
-      if (chartTables.has(key)) chartTables.delete(key); else chartTables.add(key);
-      rerender();
-      content.querySelector<HTMLElement>(`[data-chart-table="${CSS.escape(key)}"]`)?.focus();
-    });
+  wireChartTables(rerender);
   // A chart on the front page drills into the record type it reads, which means
   // leaving the front page: the narrowed list is that type's, and it is shown
   // where that type's records are shown.
@@ -330,9 +323,7 @@ export function renderOverview(overview: OverviewPlan): void {
       if (scoped === undefined || scoped.scope.kind !== 'overview') return;
       const target = applicationPlans().find((plan) => plan.entity.semanticId === (scoped.scope as OverviewTileScope).entityId);
       if (target === undefined) return;
-      const group = button.dataset.chartRing === 'true'
-        ? null
-        : { key: button.dataset.chartUnset === 'true' ? null : (button.dataset.chartGroup ?? '') };
+      const group = drillGroupOf(button);
       state.showOverview = false;
       state.selectedApplicationEntity = target.entity.semanticId;
       void drillInto(target, scoped, group);

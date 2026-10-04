@@ -283,9 +283,6 @@ let lastAgentWorkAt = 0;
  */
 const agentIdleMs = 1_200;
 
-/** Whether an agent is working on the file this instant. */
-export function agentIsWorking(): boolean { return agentPillShown; }
-
 /**
  * Records what the host pushed and draws it after the same delay the busy bar uses.
  *

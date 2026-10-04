@@ -1,8 +1,9 @@
 import type { ViewName } from './app-state';
 import type { ApplicationRecipe } from './application-recipes';
 import { client } from './client';
+import { confirmDialog } from './confirm-dialog';
 import { announce, clearError, content, refreshChrome, requiredElement, rerender, setBusy, showError, showRetainedNotice } from './shell';
-import { messageFor, mutationKey, valueDisplay } from './format';
+import { escapeHtml, messageFor, mutationKey, valueDisplay } from './format';
 import { decideWriteFailure, nameHolder, namingFieldId } from './write-failure';
 import { refuseWhileDirty } from './draft-guard';
 import { decideDraftState, draftRetentionMessage, type DraftReason } from './draft-state';
@@ -405,27 +406,16 @@ export async function foldHistory(): Promise<void> {
 
 function confirmFold(preview: HistoryFoldPreview): Promise<boolean> {
   const day = (value: string | null) => value === null ? '' : new Date(value).toLocaleDateString();
-  return new Promise(resolve => {
-    const dialog = document.createElement('dialog');
-    dialog.className = 'record-delete-dialog';
-    dialog.setAttribute('aria-labelledby', 'fold-heading');
-    dialog.innerHTML = `<h2 id="fold-heading">Fold older history?</h2>
-      <p>${preview.revisions.toLocaleString()} changes from ${escapeText(day(preview.firstAt))} to ${escapeText(day(preview.lastAt))}
+  return confirmDialog({
+    headingId: 'fold-heading',
+    title: 'Fold older history?',
+    bodyHtml: `
+      <p>${preview.revisions.toLocaleString()} changes from ${escapeHtml(day(preview.firstAt))} to ${escapeHtml(day(preview.lastAt))}
       become one checkpoint in History. The most recent ${preview.keep.toLocaleString()} changes stay as they are, and so does every record.</p>
       <p>First Nendo saves a backup beside this file, with the whole history in it. After the fold, a folded change
-      cannot be undone or inspected here; open the backup to see it.</p>
-      <div class="form-actions"><button class="secondary-button" data-cancel type="button" autofocus>Cancel</button><button class="primary-button" data-confirm type="button">Back up and fold</button></div>`;
-    document.body.append(dialog);
-    let confirmed = false;
-    dialog.addEventListener('close', () => { dialog.remove(); resolve(confirmed); }, { once: true });
-    dialog.querySelector('[data-cancel]')?.addEventListener('click', () => dialog.close());
-    dialog.querySelector('[data-confirm]')?.addEventListener('click', () => { confirmed = true; dialog.close(); });
-    dialog.showModal();
+      cannot be undone or inspected here; open the backup to see it.</p>`,
+    confirmLabel: 'Back up and fold',
   });
-}
-
-function escapeText(value: string): string {
-  return value.replace(/[&<>"']/g, character => `&#${character.charCodeAt(0)};`);
 }
 
 export async function compensateRevision(revisionId: string): Promise<void> {

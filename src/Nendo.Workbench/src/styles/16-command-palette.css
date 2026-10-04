@@ -29,7 +29,6 @@ kbd,
   align-items: center;
   gap: 8px;
   width: clamp(180px, 22vw, 300px);
-  height: 32px;
   padding: 0 6px 0 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-control);

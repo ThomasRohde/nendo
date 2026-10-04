@@ -162,20 +162,7 @@ async function travel(direction: 'back' | 'forward'): Promise<void> {
   // saying what went was written into it. Declining through the same path a move takes
   // showed the sentence and then destroyed it in the same tick, with nothing on screen to
   // say why nothing had happened.
-  state.actionInFlight = true;
-  setBusy(true);
-  try {
-    // A record needs the type to read it from. A place that has a record but no record
-    // type is one this build can no longer make, and reading with an empty type would
-    // ask the host a question with no answer.
-    if (target.recordId !== null && target.applicationEntityId !== null)
-      await loadFocusedRecord(target.applicationEntityId, target.recordId);
-  } catch (error) {
-    state.actionInFlight = false;
-    setBusy(false);
-    showError(messageFor(error));
-    return;
-  }
+  if (!(await readPlaceRecord(target))) return;
   if (target.recordId !== null && !focusedRecords.has(target.recordId)) {
     state.actionInFlight = false;
     setBusy(false);
@@ -183,24 +170,9 @@ async function travel(direction: 'back' | 'forward'): Promise<void> {
     return;
   }
 
-  navigationTrail.setRestoring(true);
-  if (direction === 'back') navigationTrail.stepBack(); else navigationTrail.stepForward();
-  // Held rather than shown, and said after the redraw: a refusal about a move belongs
-  // to the screen the move ended on, and the redraw is what draws that screen.
-  let failure: string | null = null;
-  try {
-    await settle(target);
-  } catch (error) {
-    failure = messageFor(error);
-  } finally {
-    state.actionInFlight = false;
-    setBusy(false);
-    rerender();
-    // Released after the redraw, so the restore never records the place it just restored
-    // and never eats what is ahead of it.
-    navigationTrail.setRestoring(false);
-  }
-  if (failure !== null) showError(failure);
+  await settleRestoring(target, () => {
+    if (direction === 'back') navigationTrail.stepBack(); else navigationTrail.stepForward();
+  });
 }
 
 /**
@@ -215,27 +187,52 @@ export async function revisitCurrent(): Promise<void> {
   if (target === null) { rerender(); return; }
   const gone = whyPlaceIsGone(target);
   if (gone !== null) { showError(gone); refreshChrome(); return; }
+  if (!(await readPlaceRecord(target))) return;
+  await settleRestoring(target.recordId !== null && !focusedRecords.has(target.recordId) ? { ...target, recordId: null } : target);
+}
+
+/**
+ * Read a place's record before anything moves, with the page busy. False, with the error
+ * shown and the page no longer busy, when the read fails; true leaves it busy for the move.
+ */
+async function readPlaceRecord(target: Place): Promise<boolean> {
   state.actionInFlight = true;
   setBusy(true);
   try {
+    // A record needs the type to read it from. A place that has a record but no record
+    // type is one this build can no longer make, and reading with an empty type would
+    // ask the host a question with no answer.
     if (target.recordId !== null && target.applicationEntityId !== null)
       await loadFocusedRecord(target.applicationEntityId, target.recordId);
+    return true;
   } catch (error) {
     state.actionInFlight = false;
     setBusy(false);
     showError(messageFor(error));
-    return;
+    return false;
   }
+}
+
+/**
+ * Show a place with the trail held still, after `step` moves it, and end the busy state
+ * the read began.
+ */
+async function settleRestoring(target: Place, step: () => void = () => undefined): Promise<void> {
   navigationTrail.setRestoring(true);
+  step();
+  // Held rather than shown, and said after the redraw: a refusal about a move belongs
+  // to the screen the move ended on, and the redraw is what draws that screen.
   let failure: string | null = null;
   try {
-    await settle(target.recordId !== null && !focusedRecords.has(target.recordId) ? { ...target, recordId: null } : target);
+    await settle(target);
   } catch (error) {
     failure = messageFor(error);
   } finally {
     state.actionInFlight = false;
     setBusy(false);
     rerender();
+    // Released after the redraw, so the restore never records the place it just restored
+    // and never eats what is ahead of it.
     navigationTrail.setRestoring(false);
   }
   if (failure !== null) showError(failure);

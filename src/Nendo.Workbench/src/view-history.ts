@@ -1,10 +1,10 @@
 import { compensateRevision, foldHistory, handlePageFailure } from './actions';
 import { state } from './app-state';
 import { client } from './client';
-import { canCompensate, escapeAttribute, escapeHtml, formatDateTime, laneLabel, operationLabel, reversibilityLabel, shortId } from './format';
+import { canCompensate, escapeAttribute, escapeHtml, formatDateTime, laneLabel, messageFor, operationLabel, reversibilityLabel, shortId } from './format';
 import { type HistoryFoldPreview, type ReadPage, type RevisionSummary, type StoredOperationSnapshot, WorkbenchHostError } from './host';
 import { icon } from './icons';
-import { content, rerender, setBusy } from './shell';
+import { content, rerender, setBusy, showError } from './shell';
 /**
  * Studio history: the revisions of this file, one page at a time, and the
  * operations inside whichever one is opened.
@@ -61,8 +61,10 @@ async function loadFoldPreview(): Promise<void> {
     const preview = await client.request<HistoryFoldPreview>('history.foldPreview', {});
     state.historyFold = { preview, changeSequence: sequence };
     if (state.view === 'history') rerender();
-  } catch {
-    // An older host has no fold; History reads as it did.
+  } catch (error) {
+    // The Workbench ships with the host that answers this, so a failure is a real one. Said
+    // on History, where the fold section it leaves out would have been.
+    if (state.view === 'history') showError(messageFor(error));
   } finally {
     foldLoading = false;
   }

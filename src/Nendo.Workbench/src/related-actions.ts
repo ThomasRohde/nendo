@@ -1,5 +1,6 @@
 import { refreshDerived, runMutation } from './actions';
 import { focusedRecords, leaveRecordContext, state, type CreateRelated } from './app-state';
+import { confirmDialog } from './confirm-dialog';
 import { refuseWhileDirty } from './draft-guard';
 import { escapeHtml, messageFor } from './format';
 import type { ApplicationPlan, RecordPlan, SurfaceNodePlan } from './host';
@@ -123,21 +124,17 @@ export function beginRelatedCreate(plan: ApplicationPlan, record: RecordPlan, no
 export function unlinkRelated(entityId: string, recordId: string, version: number, label: string): void {
   if (state.actionInFlight || entityId === '' || !Number.isFinite(version)) return;
   if (refuseWhileDirty('removing a link')) return;
-  const dialog = document.createElement('dialog');
-  dialog.className = 'record-delete-dialog';
-  dialog.setAttribute('aria-labelledby', 'unlink-heading');
-  dialog.innerHTML = `<h2 id="unlink-heading">Remove this link?</h2><p>${escapeHtml(label)}</p>
-    <p>Only the link is deleted. The records at both ends stay as they are, and the link is kept in History, where it can be restored.</p>
-    <div class="form-actions"><button class="secondary-button" data-cancel type="button" autofocus>Cancel</button><button class="primary-button" data-confirm type="button">Remove link</button></div>`;
-  document.body.append(dialog);
-  dialog.addEventListener('close', () => dialog.remove(), { once: true });
-  dialog.querySelector('[data-cancel]')?.addEventListener('click', () => dialog.close());
-  dialog.querySelector('[data-confirm]')?.addEventListener('click', () => {
-    dialog.close();
+  void confirmDialog({
+    headingId: 'unlink-heading',
+    title: 'Remove this link?',
+    bodyHtml: `<p>${escapeHtml(label)}</p>
+    <p>Only the link is deleted. The records at both ends stay as they are, and the link is kept in History, where it can be restored.</p>`,
+    confirmLabel: 'Remove link',
+  }).then((confirmed) => {
+    if (!confirmed) return;
     void runMutation('data.deleteRecord', { entityId, recordId, expectedRecordVersion: version, idempotencyKey: `unlink-${crypto.randomUUID()}` },
       'Link removed. Open History to review or restore it.', true);
   });
-  dialog.showModal();
 }
 
 /** Abandon the new related record and go back to the page it was started from. */

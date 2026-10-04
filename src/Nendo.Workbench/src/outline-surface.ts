@@ -2,6 +2,7 @@ import { runMutation } from './actions';
 import { outlineErrors, outlineSurfaces, state, type SurfaceOutline } from './app-state';
 import { client } from './client';
 import { holdingThePage, refuseWhileDirty } from './draft-guard';
+import { deviceStorage } from './device-storage';
 import { messageFor, mutationKey } from './format';
 import type { ApplicationPlan, ReadPage, RecordSnapshot, SurfaceNodePlan } from './host';
 import {
@@ -33,10 +34,6 @@ async function readLevel(entityId: string, parentKey: string, cursor: string | n
     entityId, rootRecordId: parentKey === TOP ? null : parentKey, depth: 1, limit: pageSize, cursor,
   });
   return { items: page.items, nextCursor: page.nextCursor, changeSequence: page.changeSequence };
-}
-
-function deviceStorage(): Storage | null {
-  try { return typeof window === 'undefined' ? null : window.localStorage; } catch { return null; }
 }
 
 function remembered(nodeId: string): Record<string, 'open' | 'closed'> {

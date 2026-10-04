@@ -1,12 +1,13 @@
-import { type AgentAccessMode, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type ApplicationPlan, type ApplyResult, type CompileResult, type DesktopMutationView, type DesktopPromotionView, type DesktopSessionView, type EntitySnapshot, type ExtensionFileChange, type ExtensionPackageView, type ProposalBehaviour, type ProposalPreview, type ReadPage, type RecordPlan, type RecordSnapshot, type RevisionSnapshot, type SemanticDiffEntry, type SurfaceNodePlan, type WorkbenchClient, fileCapabilities } from './host-types';
+import { type AgentAccessMode, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type ApplicationPlan, type ApplyResult, type CompileResult, type DesktopMutationView, type DesktopPromotionView, type DesktopSessionView, type EntitySnapshot, type ExtensionFileChange, type ExtensionPackageView, type ProposalBehaviour, type ProposalPreview, type ReadPage, type RecordSnapshot, type RevisionSnapshot, type SemanticDiffEntry, type SurfaceNodePlan, type WorkbenchClient, fileCapabilities } from './host-types';
 import {
   previewFixture,
   previewFixtureForEntity,
   previewFixtureName,
+  recordPlan,
   type PreviewFixture,
   type PreviewFixtureName,
 } from './preview-fixtures';
-import { WorkbenchHostError, isObject } from './host-types';
+import { WorkbenchHostError, emptySession, isObject } from './host-types';
 
 /**
  * The in-memory host behind ?preview=1.
@@ -19,7 +20,7 @@ import { WorkbenchHostError, isObject } from './host-types';
 
 export class PreviewWorkbenchClient implements WorkbenchClient {
   readonly mode = 'preview' as const;
-  private session = emptySession();
+  private session = previewSession();
   private readonly idempotency = new Map<string, { signature: string; result: DesktopMutationView }>();
   private history: RevisionSnapshot[] = [];
   private previewProposal: ProposalPreview | null = null;
@@ -51,7 +52,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         result = { files: [], notice: null };
         break;
       case 'file.close':
-        this.reset(emptySession());
+        this.reset(previewSession());
         result = { session: this.session, notice: null };
         break;
       case 'session.createFile':
@@ -251,13 +252,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         if (field === undefined) {
           throw new WorkbenchHostError('field-missing', 'The field no longer exists.');
         }
-        const record = this.session.records.find((candidate) => candidate.entityId === entityId && candidate.recordId === recordId);
-        if (record === undefined) {
-          throw new WorkbenchHostError('record-missing', 'The record no longer exists.');
-        }
-        if (record.recordVersion !== expectedRecordVersion) {
-          throw new WorkbenchHostError('version-conflict', 'The record changed. Refresh and try again.');
-        }
+        const record = requireRecord(this.session, entityId, recordId, expectedRecordVersion);
         validateFieldValue(field, payload.value ?? null);
         record.values[fieldId] = payload.value ?? null;
         record.recordVersion += 1;
@@ -307,9 +302,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
       const entity = requireEntity(this.session, entityId);
       const hierarchy = entity.hierarchy;
       if (!hierarchy) throw new WorkbenchHostError('hierarchy-not-declared', 'This record type declares no hierarchy.');
-      const record = this.session.records.find(candidate => candidate.entityId === entityId && candidate.recordId === recordId);
-      if (record === undefined) throw new WorkbenchHostError('record-missing', 'The record no longer exists.');
-      if (record.recordVersion !== expectedRecordVersion) throw new WorkbenchHostError('version-conflict', 'The record changed. Refresh and try again.');
+      const record = requireRecord(this.session, entityId, recordId, expectedRecordVersion);
       for (let up: string | null = parent; up !== null;) {
         if (up === recordId) throw new WorkbenchHostError('hierarchy-cycle', `${recordId} cannot sit under its own descendant.`);
         const next = this.session.records.find(candidate => candidate.entityId === entityId && candidate.recordId === up);
@@ -425,13 +418,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
       if (command === undefined || command.properties.entityId !== entityId) {
         throw new WorkbenchHostError('command-missing', 'The command is not available.');
       }
-      const record = this.session.records.find((candidate) => candidate.entityId === entityId && candidate.recordId === recordId);
-      if (record === undefined) {
-        throw new WorkbenchHostError('record-missing', 'The record no longer exists.');
-      }
-      if (record.recordVersion !== expectedRecordVersion) {
-        throw new WorkbenchHostError('version-conflict', 'The record changed. Refresh and try again.');
-      }
+      const record = requireRecord(this.session, entityId, recordId, expectedRecordVersion);
       // A command owns ordered steps and applies them as one mutation.
       for (const step of command.children.filter((child) => child.kind === 'commandStep')) {
         const fieldId = step.properties.fieldId;
@@ -457,17 +444,8 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
       const look = { tone: optionalString(last.tone), letter: optionalString(last.letter) };
       this.pendingLook = look;
       this.previewProposal = {
-        proposalId,
-        title,
-        state: 'previewable',
-        retention: 'retainUntilExplicitCleanup',
-        sourceApplicationId: this.session.manifest!.applicationId,
-        sourceInstanceId: this.session.manifest!.instanceId,
-        capturedDefinitionRevision: this.session.manifest!.definitionRevision,
+        ...this.proposalBase(proposalId, title, operations.length),
         touchedRecords: [],
-        operationDigest: `preview-proposal-digest-${this.session.manifest!.changeSequence}`,
-        operationCount: operations.length,
-        diagnostics: [],
         semanticDiff: [{ kind: 'setApplicationLook', summary: look.tone === null && look.letter === null
           ? 'Give this file back its default icon.'
           : `Give this file its own icon: ${look.tone ?? 'its default colour'}, ${look.letter === null ? 'its default letter' : `the letter ${look.letter}`}.`,
@@ -494,6 +472,17 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
       if (record !== undefined) touchedRecords.set(`${touchedEntityId}:${recordId}`, { entityId: touchedEntityId, recordId, version: record.recordVersion });
     }
     this.previewProposal = {
+      ...this.proposalBase(proposalId, title, operations.length),
+      touchedRecords: [...touchedRecords.values()],
+      semanticDiff: proposalDiff(operations),
+      previewApplications: [plan],
+    };
+    return this.previewProposal;
+  }
+
+  /** What every preview proposal says about itself, whatever it changes. */
+  private proposalBase(proposalId: string, title: string, operationCount: number) {
+    return {
       proposalId,
       title,
       state: 'previewable',
@@ -501,14 +490,10 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
       sourceApplicationId: this.session.manifest!.applicationId,
       sourceInstanceId: this.session.manifest!.instanceId,
       capturedDefinitionRevision: this.session.manifest!.definitionRevision,
-      touchedRecords: [...touchedRecords.values()],
       operationDigest: `preview-proposal-digest-${this.session.manifest!.changeSequence}`,
-      operationCount: operations.length,
+      operationCount,
       diagnostics: [],
-      semanticDiff: proposalDiff(operations),
-      previewApplications: [plan],
-    };
-    return this.previewProposal;
+    } satisfies Partial<ProposalPreview>;
   }
 
   private promoteProposal(payload: Record<string, unknown>): DesktopPromotionView {
@@ -1079,21 +1064,24 @@ function proposalDiff(operations: PreviewOperation[]): SemanticDiffEntry[] {
   return entries;
 }
 
-function recordPlan(record: RecordSnapshot): RecordPlan {
-  return {
-    semanticId: record.recordId,
-    automationTarget: `record-${record.recordId.replaceAll('.', '-').replaceAll('_', '-')}`,
-    version: record.recordVersion,
-    values: structuredClone(record.values),
-  };
-}
-
 function requiredObject(payload: Record<string, unknown>, name: string): Record<string, unknown> {
   const value = payload[name];
   if (!isObject(value)) {
     throw new WorkbenchHostError('validation', `${name} must be an object.`);
   }
   return value;
+}
+
+/** The record at the version the caller read, or the refusal the host gives a stale or missing one. */
+function requireRecord(session: DesktopSessionView, entityId: string, recordId: string, expectedRecordVersion: number): RecordSnapshot {
+  const record = session.records.find((candidate) => candidate.entityId === entityId && candidate.recordId === recordId);
+  if (record === undefined) {
+    throw new WorkbenchHostError('record-missing', 'The record no longer exists.');
+  }
+  if (record.recordVersion !== expectedRecordVersion) {
+    throw new WorkbenchHostError('version-conflict', 'The record changed. Refresh and try again.');
+  }
+  return record;
 }
 
 function requireEntity(session: DesktopSessionView, entityId: string): EntitySnapshot {
@@ -1129,23 +1117,10 @@ function validateFieldValue(field: EntitySnapshot['fields'][number], value: unkn
   }
 }
 
-function emptySession(): DesktopSessionView {
-  return {
-    fileSessionId: null,
-    capabilities: fileCapabilities(false),
-    findings: [],
-    hasFile: false,
-    fileName: null,
-    health: 'noFile',
-    manifest: null,
-    entities: [],
-    records: [],
-    uiNodes: [],
-    storage: null,
-    // The preview host is not a build of the product; say so rather than invent
-    // a version number a reader would take for the real one.
-    hostVersion: 'preview',
-  };
+function previewSession(): DesktopSessionView {
+  // The preview host is not a build of the product; say so rather than invent
+  // a version number a reader would take for the real one.
+  return { ...emptySession(), hostVersion: 'preview' };
 }
 
 function emptyAgentStatus(available: boolean): AgentStatus {

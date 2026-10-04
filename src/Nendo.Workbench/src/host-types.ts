@@ -738,6 +738,28 @@ export class WorkbenchHostError extends Error {
   }
 }
 
+/** A node property that holds text, or null when it holds anything else or is absent. */
+export function nodeText(node: SurfaceNodePlan, key: string): string | null {
+  return typeof node.properties[key] === 'string' ? (node.properties[key] as string) : null;
+}
+
+/** The session of a window with no file open. */
+export function emptySession(): DesktopSessionView {
+  return {
+    fileSessionId: null,
+    capabilities: fileCapabilities(false),
+    findings: [],
+    hasFile: false,
+    fileName: null,
+    health: 'noFile',
+    manifest: null,
+    entities: [],
+    records: [],
+    uiNodes: [],
+    storage: null,
+  };
+}
+
 /** Narrow an unknown payload before reading fields off it. */
 export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

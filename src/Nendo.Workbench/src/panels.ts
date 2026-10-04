@@ -422,6 +422,25 @@ export async function reopenDrilledList(plan: ApplicationPlan, list: SurfaceNode
   }
 }
 
+/** Each chart's Table toggle: shows or hides its table, redraws, and keeps the focus on the toggle. */
+export function wireChartTables(redraw: () => void): void {
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-chart-table]'))
+    button.addEventListener('click', () => {
+      const key = button.dataset.chartTable;
+      if (key === undefined) return;
+      if (chartTables.has(key)) chartTables.delete(key); else chartTables.add(key);
+      redraw();
+      content.querySelector<HTMLElement>(`[data-chart-table="${CSS.escape(key)}"]`)?.focus();
+    });
+}
+
+/** The group a drill button names: none for a ring, the unset lane, or the group's key. */
+export function drillGroupOf(button: HTMLButtonElement): { key: string | null } | null {
+  return button.dataset.chartRing === 'true'
+    ? null
+    : { key: button.dataset.chartUnset === 'true' ? null : (button.dataset.chartGroup ?? '') };
+}
+
 /** Retry, the table toggle, a segment's drill and the pill's dismissal. */
 export function wireCharts(plan: ApplicationPlan): void {
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-chart-retry]'))
@@ -431,22 +450,14 @@ export function wireCharts(plan: ApplicationPlan): void {
       chartStates.delete(key);
       void refreshVisibleTiles(plan).then(rerender).catch(error => showError(messageFor(error)));
     });
-  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-chart-table]'))
-    button.addEventListener('click', () => {
-      const key = button.dataset.chartTable;
-      if (key === undefined) return;
-      if (chartTables.has(key)) chartTables.delete(key); else chartTables.add(key);
-      patchCharts(plan);
-      content.querySelector<HTMLElement>(`[data-chart-table="${CSS.escape(key)}"]`)?.focus();
-    });
+  wireChartTables(() => patchCharts(plan));
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-chart-drill]'))
     button.addEventListener('click', () => {
       const key = button.dataset.chartDrill;
       if (key === undefined || state.actionInFlight) return;
       const scoped = visibleCharts(plan).find((candidate) => chartKey(candidate.node, candidate.scope) === key);
       if (scoped === undefined) return;
-      const group = button.dataset.chartRing === 'true' ? null : { key: button.dataset.chartUnset === 'true' ? null : (button.dataset.chartGroup ?? '') };
-      void drillInto(plan, scoped, group);
+      void drillInto(plan, scoped, drillGroupOf(button));
     });
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-drill-clear]'))
     button.addEventListener('click', () => { void clearDrill(plan); });

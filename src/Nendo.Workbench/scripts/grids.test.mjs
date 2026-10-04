@@ -1,13 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { build } from 'vite';
+import { bundleOf } from './bundle-of.mjs';
 
 // The two grid kinds (ADR-0004, 2026-09-17 amendment, S6): the shape of a matrix, the
 // two-clause drill out of one of its cells, and the arithmetic behind a ranking.
-const bundleOf = async (entry) => {
-  const bundle = await build({ configFile: false, logLevel: 'error', build: { ssr: entry, write: false, rollupOptions: { output: { codeSplitting: false } } } });
-  return import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
-};
 const { cellDrillFilters, cellRead, cellValue, rankNumerals, rankProportion, rankValue } = await bundleOf('src/charts.ts');
 const { addedSurfaceSentence, matrixViewOf } = await bundleOf('src/surface-model.ts');
 const { rankedRead, rankedLimit, rankedWindowKey } = await bundleOf('src/overview-model.ts');

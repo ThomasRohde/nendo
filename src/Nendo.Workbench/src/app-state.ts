@@ -1,4 +1,4 @@
-import { fileCapabilities, type AgentProposalPreview, type AgentStatus, type CompileResult, type DesktopSessionView, type ProposalPreview, type ReadPage, type RecentFiles, type RecordPlan, type RecordSnapshot, type RevisionSummary, type HistoryFoldPreview } from './host';
+import { emptySession, type AgentProposalPreview, type AgentStatus, type CompileResult, type DesktopSessionView, type ProposalPreview, type ReadPage, type RecentFiles, type RecordPlan, type RecordSnapshot, type RevisionSummary, type HistoryFoldPreview } from './host';
 import type { BucketResult, CellResult, GroupedResult } from './charts';
 import type { CalendarMode, CivilMonth } from './calendar-model';
 import { cacheKey, type ReadWindow, type WindowQuery } from './record-window';
@@ -141,21 +141,7 @@ export interface OutcomeNotice {
   action?: { label: string; run: () => Promise<void> };
 }
 
-export function emptySession(): DesktopSessionView {
-  return {
-    fileSessionId: null,
-    capabilities: fileCapabilities(false),
-    findings: [],
-    hasFile: false,
-    fileName: null,
-    health: 'noFile',
-    manifest: null,
-    entities: [],
-    records: [],
-    uiNodes: [],
-    storage: null,
-  };
-}
+export { emptySession };
 
 export interface AppState {
   session: DesktopSessionView;

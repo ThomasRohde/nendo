@@ -2,16 +2,12 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { build } from 'vite';
+import { bundleOf } from './bundle-of.mjs';
 
 // The broker between custom views and the Workbench (ADR-0013), driven through the real
 // module with a stand-in for the window, the frame and the host bridge. What a view can do is
 // exactly the method table, so the table is pinned; the rest measures the handshake's two
 // checks, the bounds, and the shape of what a view reads.
-const bundleOf = async (entry) => {
-  const bundle = await build({ configFile: false, logLevel: 'error', build: { ssr: entry, write: false, rollupOptions: { output: { codeSplitting: false } } } });
-  return import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
-};
 const broker = await bundleOf('src/extension-broker.ts');
 const model = await bundleOf('src/extension-model.ts');
 

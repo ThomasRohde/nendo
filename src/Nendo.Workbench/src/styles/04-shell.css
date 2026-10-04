@@ -75,16 +75,6 @@
   height: 17px;
 }
 
-.rail-footer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 0;
-  padding: 8px;
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
 /* The window while a file is being dragged onto it.
    Over everything including the title bar, because the drop lands there too and a
    hint that stopped short of the edge would be saying the edge does not count.

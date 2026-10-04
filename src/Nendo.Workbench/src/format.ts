@@ -1,4 +1,4 @@
-import { WorkbenchHostError, type AgentAccessMode, type AgentActivity, type ApplicationPlan, type RevisionSummary } from './host';
+import { WorkbenchHostError, type AgentAccessMode, type AgentActivity, type ApplicationPlan, type RevisionSummary } from './host-types';
 import { derivedField } from './calculated-fields';
 import { exactNumberText } from './scalars';
 
@@ -190,24 +190,6 @@ export function activityLabel(activity: AgentActivity): string {
     'mode.shapeApp': 'Agent access: Shape app',
   };
   return labels[activity.name] ?? (activity.category === 'mutation' ? 'Changed workspace data' : 'Agent activity');
-}
-
-export function reviewKindLabel(kind: string): string {
-  switch (kind) {
-    case 'detailSurface': return 'Record page';
-    case 'recordForm': return 'Form';
-    case 'recordList': return 'List';
-    case 'boardSurface': return 'Board';
-    case 'calendarSurface': return 'Calendar';
-    case 'timelineSurface': return 'Timeline';
-    case 'gallerySurface': return 'Gallery';
-    case 'outlineSurface': return 'Outline';
-    case 'overviewSurface': return 'Front page';
-    case 'recentList': return 'Recent records';
-    case 'rangeTile': return 'Range';
-    case 'recordCommand': return 'Action';
-    default: return kind;
-  }
 }
 
 /**

@@ -1,14 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { build } from 'vite';
+import { bundleOf } from './bundle-of.mjs';
 
 // A proposal's changes to custom-view code (ADR-0013), rendered by the function both
 // review screens use. Code is reviewed as its lines: each changed line marked, context
 // kept, and a line of code never becoming markup however it is written.
-const bundleOf = async (entry) => {
-  const bundle = await build({ configFile: false, logLevel: 'error', build: { ssr: entry, write: false, rollupOptions: { output: { codeSplitting: false } } } });
-  return import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
-};
 const { packageChangesMarkup } = await bundleOf('src/package-diff-markup.ts');
 
 const replaced = {

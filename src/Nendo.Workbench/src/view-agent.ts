@@ -1,12 +1,13 @@
 import { openHelp, refreshAfterOutcome, showOutcomeRefreshNotice } from './actions';
 import { state } from './app-state';
 import { client } from './client';
+import { confirmDialog } from './confirm-dialog';
 import { type ConnectionClient, connectionClients, connectionCommand, serverNameFor } from './client-help';
-import { activityLabel, agentModeLabel, escapeAttribute, escapeHtml, formatDateTime, isAgentAccessMode, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel, reviewKindLabel, shortId } from './format';
+import { activityLabel, agentModeLabel, escapeAttribute, escapeHtml, formatDateTime, isAgentAccessMode, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel, shortId } from './format';
 import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type DesktopPromotionView, type ProposalPreview } from './host';
 import { announce, clearError, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
 import { applicationPlans, overviewPlan } from './plan-selection';
-import { addedSurfaceSentence } from './surface-model';
+import { addedSurfaceSentence, kindLabel } from './surface-model';
 import { behaviourApprovalMarkup, refreshHealth, wireBehaviourApproval } from './view-health';
 import { attachScreenPreview } from './view-proposal';
 import { packageChangesMarkup } from './package-diff-markup';
@@ -219,7 +220,7 @@ export function agentPreviewMarkup(summary: AgentPreviewSummary, operationCount:
     // saying whether it is nine cells or forty-five, and a board whose lanes come from
     // an empty record type looks like every other board until it draws nothing.
     const shape = surface.shape ? `<span class="surface-shape">${escapeHtml(surface.shape)}</span>` : '';
-    return `<li><span class="surface-kind">${escapeHtml(reviewKindLabel(surface.kind))}</span>
+    return `<li><span class="surface-kind">${escapeHtml(kindLabel(surface.kind))}</span>
       <strong>${escapeHtml(surface.title ?? surface.nodeId)}</strong>
       <span>${escapeHtml(about)}</span>${shape}</li>`;
   }).join('')}</ul>`;
@@ -236,23 +237,16 @@ export function agentPreviewMarkup(summary: AgentPreviewSummary, operationCount:
  * that reaches for one, which is why this comment does not write its name with brackets.
  */
 function confirmUnattended(): Promise<boolean> {
-  return new Promise(resolve => {
-    const dialog = document.createElement('dialog');
-    dialog.className = 'record-delete-dialog';
-    dialog.setAttribute('aria-labelledby', 'unattended-heading');
-    dialog.innerHTML = `<h2 id="unattended-heading">Turn on Unattended access?</h2>
+  return confirmDialog({
+    headingId: 'unattended-heading',
+    title: 'Turn on Unattended access?',
+    bodyHtml: `
       <p>An agent will accept its own changes to this file’s record types, screens and automatic
       actions, and those actions will run — without showing them to you first.</p>
       <p>Every change is still recorded in History, and you can withdraw the approval of
       automatic actions under Health. This computer remembers it for this file, so it is on
-      again whenever the file opens here, until you choose a lower level or Off.</p>
-      <div class="form-actions"><button class="secondary-button" data-cancel type="button" autofocus>Cancel</button><button class="primary-button" data-confirm type="button">Turn on Unattended</button></div>`;
-    document.body.append(dialog);
-    let confirmed = false;
-    dialog.addEventListener('close', () => { dialog.remove(); resolve(confirmed); }, { once: true });
-    dialog.querySelector('[data-cancel]')?.addEventListener('click', () => dialog.close());
-    dialog.querySelector('[data-confirm]')?.addEventListener('click', () => { confirmed = true; dialog.close(); });
-    dialog.showModal();
+      again whenever the file opens here, until you choose a lower level or Off.</p>`,
+    confirmLabel: 'Turn on Unattended',
   });
 }
 

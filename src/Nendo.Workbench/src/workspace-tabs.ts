@@ -26,7 +26,7 @@ let tabs: Tab[] = [{ id: 1, saved: null }];
 let active = 0;
 let nextId = 2;
 
-export const workspaceTabs = fileScopedClearable({
+fileScopedClearable({
   clear(): void {
     tabs = [{ id: nextId++, saved: null }];
     active = 0;

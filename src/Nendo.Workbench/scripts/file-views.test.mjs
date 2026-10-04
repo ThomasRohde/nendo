@@ -26,7 +26,8 @@ const stubs = {
     export const viewAddCommand = () => globalThis.fileViewHost.add;`,
   './panels': `export const drillInto = async () => {}; export const drillIntoCell = async () => {}; export const refreshOverview = async () => {};
     export const refreshVisibleTiles = async () => {}; export const wireCharts = () => {}; export const wireSummaryRetry = () => {};
-    export const matrixPending = () => false; export const patchCharts = () => {};`,
+    export const matrixPending = () => false; export const patchCharts = () => {};
+    export const wireChartTables = () => {}; export const drillGroupOf = () => null;`,
   './view-packages': 'export const openCustomViews = async () => {};',
 };
 const entry = [

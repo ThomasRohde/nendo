@@ -1,4 +1,5 @@
 import { sectionFolds, state } from './app-state';
+import { deviceStorage } from './device-storage';
 import type { SurfaceNodePlan } from './host';
 
 type Fold = 'open' | 'closed';
@@ -84,12 +85,4 @@ function currentFolds(): Record<string, Fold> {
     cache = { applicationId, folds: storage === null ? {} : rememberedFolds(storage, applicationId) };
   }
   return cache.folds;
-}
-
-function deviceStorage(): Storage | null {
-  try {
-    return typeof window === 'undefined' ? null : window.localStorage;
-  } catch {
-    return null;
-  }
 }

@@ -15,7 +15,6 @@
 .proposal-heading h2 {
   margin: 0;
   font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
-  font-size: 1.65rem;
   letter-spacing: -0.03em;
 }
 
@@ -55,7 +54,6 @@
 }
 
 .definition-card,
-.surface-command,
 .rename-form,
 .context-note,
 .record-form-card {
@@ -134,7 +132,6 @@
 .field-row code,
 .definition-title code,
 .surface-card code,
-.surface-command code,
 .history-entry code {
   width: fit-content;
   padding: 0;
@@ -156,12 +153,6 @@
   margin: 5px 0 0;
   color: var(--muted);
   line-height: 1.5;
-}
-
-.surface-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
 }
 
 .surface-card {
@@ -222,7 +213,6 @@
 .surface-preview.board span:nth-child(2) { height: 100%; }
 .surface-preview.board span:nth-child(3) { height: 48%; }
 
-.surface-command,
 .rename-form {
   display: flex;
   align-items: center;
@@ -232,17 +222,8 @@
   padding: 16px;
 }
 
-.surface-command > div {
-  display: grid;
-  gap: 5px;
-}
-
 .rename-form {
   justify-content: flex-start;
-}
-
-.rename-form label {
-  font-weight: 650;
 }
 
 .rename-form input {
@@ -254,7 +235,6 @@
   max-width: 780px;
   padding: 26px;
   border: 1px solid color-mix(in srgb, var(--warning) 34%, var(--line));
-  border-radius: var(--radius-panel);
   background: color-mix(in srgb, var(--warning) 5%, var(--surface));
 }
 
@@ -423,8 +403,6 @@
 .proposal-summary > p {
   margin: 0;
   padding: 4px 20px 12px;
-  color: var(--muted);
-  font-size: 0.82rem;
 }
 
 /* A frozen preview cannot compute a rollup or fetch related rows, so it says what
@@ -480,9 +458,7 @@
 }
 
 .use-toolbar {
-  min-height: 46px;
   margin: 0;
-  padding: 7px 16px;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
