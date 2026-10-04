@@ -56,13 +56,6 @@ internal sealed record BehaviourAttribution(
     string BehaviourDigest);
 
 /// <summary>
-/// A record whose value was read to decide what a chain did, and the version it was
-/// read at. Includes records nothing wrote to: if a condition counted them, a later
-/// replay of the same plan is only valid while they still say the same thing.
-/// </summary>
-internal readonly record struct BehaviourReadDependency(string EntityId, string RecordId, long RecordVersion);
-
-/// <summary>
 /// Everything one causal chain carries, passed explicitly from the coordinator
 /// through storage to the planner.
 /// <para>

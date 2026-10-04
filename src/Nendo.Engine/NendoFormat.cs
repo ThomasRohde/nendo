@@ -38,7 +38,9 @@ public static class NendoFormat
 
     public const string RetirementMinimumHostVersion = "1.8.0";
 
-    public const string OptionalSurfacesMinimumHostVersion = "1.9.0";
+    // 1.9.0 marked contract version 2's optional roots. Contract versions 1 and 2 were
+    // removed (ADR-0004, 2026-09-12 amendment), so no constant names that rung any more;
+    // the rungs after it keep their numbers.
 
     public const string ReferenceConversionMinimumHostVersion = "1.10.0";
 

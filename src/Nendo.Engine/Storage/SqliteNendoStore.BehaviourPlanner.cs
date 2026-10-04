@@ -110,7 +110,7 @@ internal sealed partial class SqliteNendoStore
             foreach (var step in action.Steps)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                foreach (var target in await TargetsAsync(step, raised, cancellationToken))
+                foreach (var target in Targets(step, raised))
                 {
                     await RunStepAsync(trigger, action, step, target, raised, cancellationToken);
                 }
@@ -159,10 +159,7 @@ internal sealed partial class SqliteNendoStore
         /// only the before-state knows which one it left.
         /// </para>
         /// </summary>
-        private async Task<IReadOnlyList<string>> TargetsAsync(
-            NendoActionStep step,
-            RecordEvent raised,
-            CancellationToken cancellationToken)
+        private IReadOnlyList<string> Targets(NendoActionStep step, RecordEvent raised)
         {
             context.Budget.SpendWork();
             if (step.Kind == NendoActionStepKind.CreateRecord) return [string.Empty];
@@ -181,7 +178,6 @@ internal sealed partial class SqliteNendoStore
                 if (id is not null && !targets.Contains(id, StringComparer.Ordinal)) targets.Add(id);
             }
             targets.Sort(StringComparer.Ordinal);
-            await Task.CompletedTask;
             return targets;
         }
 

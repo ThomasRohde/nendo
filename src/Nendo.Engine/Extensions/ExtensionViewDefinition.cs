@@ -23,12 +23,8 @@ public sealed record NendoExtensionViewDefinition(string ViewId, string Title, s
     public const string ScreenKind = "extensionView";
     /// <summary>Whether a node is a custom view of any shape or placement.</summary>
     public static bool IsViewKind(string? kind) => kind is NodeKind or RecordsKind or PanelKind or ScreenKind;
-    /// <summary>Whether a node is a custom view with a screen of its own, rather than a place on a record page.</summary>
-    public static bool IsRootViewKind(string? kind) => kind is NodeKind or RecordsKind or ScreenKind;
     /// <summary>Which shape this view is; a graph unless it was read as a record set or a record panel.</summary>
     public string Kind { get; init; } = NodeKind;
-    public bool IsRecordSet => Kind == RecordsKind;
-    public bool IsRecordPanel => Kind == PanelKind;
     public bool IsScreen => Kind == ScreenKind;
     /// <summary>Whether the file opens on this view: an <see cref="ScreenKind"/> that says opensFile.</summary>
     public bool OpensFile { get; init; }

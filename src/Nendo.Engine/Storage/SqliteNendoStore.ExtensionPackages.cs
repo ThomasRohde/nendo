@@ -134,15 +134,6 @@ internal sealed partial class SqliteNendoStore
         return new(packageId, path, rows.GetString(0), rows.GetString(1), (byte[])rows.GetValue(2));
     }
 
-    /// <summary>Stored content by its SHA-256, or null when the file holds no such content.</summary>
-    private async Task<byte[]?> ReadExtensionBlobAsync(string sha256, SqliteTransaction? transaction, CancellationToken ct)
-    {
-        if (!await ExtensionLayoutExistsAsync(transaction, ct)) return null;
-        await using var query = Command("SELECT content FROM __nendo_extension_blob WHERE sha256 = @sha;", transaction);
-        query.Parameters.AddWithValue("@sha", sha256);
-        return await query.ExecuteScalarAsync(ct) as byte[];
-    }
-
     private sealed record StoredPackage(string Title, string EntryPoint, string? Version, string? Description);
 
     private sealed record StoredFile(string MediaType, string Sha256, long ByteLength);

@@ -155,7 +155,7 @@ internal sealed class CompiledBehaviour
             .GroupBy(calculation => calculation.Definition.EntityId, StringComparer.Ordinal)
             .ToDictionary(
                 group => group.Key,
-                group => (IReadOnlyList<CompiledCalculation>)Ordered(group, definitions).ToArray(),
+                group => (IReadOnlyList<CompiledCalculation>)Ordered(group).ToArray(),
                 StringComparer.Ordinal);
 
         return new CompiledBehaviour(definitions, functions, calculations, byEntity);
@@ -181,9 +181,7 @@ internal sealed class CompiledBehaviour
     /// The calculations of one record type, each after everything it reads. The graph
     /// check has already refused cycles, so this walk always terminates.
     /// </summary>
-    private static IEnumerable<CompiledCalculation> Ordered(
-        IEnumerable<CompiledCalculation> group,
-        IReadOnlyDictionary<string, NendoBehaviourDefinition> definitions)
+    private static IEnumerable<CompiledCalculation> Ordered(IEnumerable<CompiledCalculation> group)
     {
         var members = group.ToDictionary(calculation => calculation.Definition.DefinitionId, StringComparer.Ordinal);
         var emitted = new HashSet<string>(StringComparer.Ordinal);

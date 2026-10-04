@@ -473,10 +473,6 @@ internal sealed partial class SqliteNendoStore
         string? ProposalDigest,
         string? CompensationOfRevisionId);
 
-    private sealed record SchemaObjectRow(string Type, string Name, string TableName, string Sql);
-
-    private sealed record IdempotencyRow(string Scope, string Key, string PayloadDigest, string RevisionId);
-
     private static IReadOnlyList<string> ParseOptions(string value)
     {
         try

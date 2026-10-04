@@ -39,14 +39,7 @@ public sealed record NendoCalculationResult(
     NendoBehaviourScalar ResultType,
     JsonElement Value,
     string? ErrorCode = null,
-    string? ErrorMessage = null)
-{
-    /// <summary>The record version the inputs were read at, for cache and staleness checks.</summary>
-    public long SourceRecordVersion { get; init; }
-
-    /// <summary>The file's data revision when related records were counted.</summary>
-    public long SourceDataRevision { get; init; }
-}
+    string? ErrorMessage = null);
 
 /// <summary>
 /// Reads the values a binding names. Implemented by storage, which is the only layer

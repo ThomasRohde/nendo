@@ -142,12 +142,6 @@ public sealed record PutExtensionFileOperation : NendoOperation
     /// </summary>
     public string? ExpectedSha256 { get; }
 
-    /// <summary>Whether this operation carries its bytes, rather than naming content the file already holds.</summary>
-    public bool CarriesContent => _content is not null;
-
-    /// <summary>A copy of the bytes this operation carries, or null when it names stored content.</summary>
-    public byte[]? CopyContent() => _content?.ToArray();
-
     /// <summary>The new content bytes this operation brings with it, for the per-change-set bound.</summary>
     internal int CarriedBytes => _content?.Length ?? 0;
 
