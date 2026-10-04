@@ -214,25 +214,11 @@
 .surface-preview.board span:nth-child(3) { height: 48%; }
 
 .rename-form {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: 18px;
-  margin-top: 16px;
-  padding: 16px;
-}
-
-.rename-form {
-  justify-content: flex-start;
-}
-
-.rename-form input {
-  width: min(360px, 50%);
 }
 
 .diagnostics,
 .empty-inline {
-  max-width: 780px;
   padding: 26px;
   border: 1px solid color-mix(in srgb, var(--warning) 34%, var(--line));
   background: color-mix(in srgb, var(--warning) 5%, var(--surface));
@@ -257,7 +243,6 @@
 
 .proposal-heading {
   display: block;
-  max-width: 760px;
 }
 
 .proposal-heading .text-button {
@@ -270,7 +255,6 @@
 }
 
 .proposal-heading h2 {
-  margin-top: 14px;
   font-size: 2rem;
 }
 
@@ -297,7 +281,6 @@
 .proposal-changes article {
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
-  gap: 12px;
   padding: 16px 20px;
   border-bottom: 1px solid var(--line);
 }
@@ -315,8 +298,6 @@
 .change-mark {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
   border-radius: var(--radius-control);
   color: var(--cobalt);
   background: var(--cobalt-soft);
@@ -401,7 +382,6 @@
 }
 
 .proposal-summary > p {
-  margin: 0;
   padding: 4px 20px 12px;
 }
 
@@ -451,7 +431,6 @@
 }
 
 .use-page {
-  display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   height: 100%;
   min-height: 0;
