@@ -123,8 +123,8 @@ public sealed partial class NendoApplicationService
                     versions[(write.EntityId, write.RecordId)] = 1;
                     break;
                 case NendoRecordWriteKind.Update:
-                    if (write.Values is null || write.Values.Count is < 1 or > 64)
-                        throw new NendoValidationException($"Write {index} updates 1-64 fields.");
+                    if (write.Values is null || write.Values.Count is < 1 or > MaximumFieldsPerUpdate)
+                        throw new NendoValidationException($"Write {index} updates 1-{MaximumFieldsPerUpdate} fields.");
                     var expected = RequireWriteVersion(write, index);
                     var targets = TargetVersionsWithin(entity, write, versions);
                     var ordinal = 0;

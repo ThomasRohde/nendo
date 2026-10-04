@@ -71,19 +71,19 @@ internal sealed class NendoDataTools(
 
     [McpServerTool(
         Name = "nendo.data.create_records",
-        Title = "Create up to fifty records",
+        Title = "Create several records",
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Create up to fifty records of one entity as a single revision under one idempotency key. All or nothing: if any record is refused, none are written. Returns every record ID it created. recordVersion is the version they all hold, 1 unless an automatic action wrote back to them; when an action moved only some of them it is null, and alsoChanged names each moved record with its own version.")]
+    [Description("Create several records of one entity as a single revision under one idempotency key, up to limits.recordsPerCreateBatch in nendo://application/vocabulary. All or nothing: if any record is refused, none are written. Returns every record ID it created. recordVersion is the version they all hold, 1 unless an automatic action wrote back to them; when an action moved only some of them it is null, and alsoChanged names each moved record with its own version.")]
     public Task<NendoDataApplyResult> CreateRecordsAsync(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
         [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
         [Description(NendoParameterDescriptions.EntityId)] string entityId,
-        [Description("One to fifty records with distinct stable record IDs. The per-call and per-record bounds are published in nendo://application/vocabulary.")]
+        [Description("The records to create, with distinct stable record IDs. The per-call and per-record bounds are published in nendo://application/vocabulary as limits.recordsPerCreateBatch and limits.valuesPerRecord.")]
         IReadOnlyList<NendoRecordInput> records,
         [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
         CancellationToken cancellationToken = default) => ExecuteAsync(
@@ -108,7 +108,7 @@ internal sealed class NendoDataTools(
         UseStructuredContent = true)]
     [Description("""
         Create many records of one record type from CSV text or typed JSON: the way a new application is given its
-        data, where nendo.data.create_records takes fifty at a time.
+        data, past what one nendo.data.create_records call takes.
         format is "csv" or "json". For csv, send the text itself in csv, never a path, and map its columns with
         columnMappings, each {column, fieldId}, column being the zero-based position in the header row. csvProfile
         "nendo" reads text from nendo://application/entity/{entityId}/export or the person's own Export, where a
@@ -117,8 +117,8 @@ internal sealed class NendoDataTools(
         Record IDs are derived for you and are stable across an exact retry.
         For json, send records as [{recordId, values}], the shape nendo.data.create_records takes, with exact
         numbers as {"$nendoNumber":"lexeme"} and reference targets in expectedTargetVersions.
-        Bounds: 500 rows per call, echoed as maximumRowsPerCall, and the 256 KiB request body, which you will meet
-        first. It commits in batches of fifty, each one revision and all or nothing, each with a key derived from
+        Bounds: limits.import.rowsPerCall rows per call (echoed as maximumRowsPerCall) and the request body, which
+        you will meet first. It commits in batches of limits.import.rowsPerBatch, each one revision and all or nothing, each with a key derived from
         yours, so a refused batch stops the run and leaves the batches before it committed. On success, committed
         and remaining state the counts. If a later batch is refused, NENDO_IMPORT_PARTIAL names the number
         committed, the number remaining, the first uncommitted data row, the committed revision IDs and the cause.
@@ -137,7 +137,7 @@ internal sealed class NendoDataTools(
         [Description("csv only: one {column, fieldId} per column to import, column being its zero-based position in the header row. Unmapped columns are ignored; every required field must be mapped. A reference column may add matchFieldId, a unique field of its target, when its cells hold codes rather than record IDs; a tree whose parent column holds codes is then written parents first.")] IReadOnlyList<NendoCsvColumnMapping>? columnMappings = null,
         [Description("csv only: \"nendo\" for the faithful profile with its backslash-N null marker and backslash escaping, or \"external\" (the default) for literal text.")] string? csvProfile = null,
         [Description("csv only, external profile only: treat an empty cell as null rather than as empty text. Off by default.")] bool emptyIsNull = false,
-        [Description("json only: one to five hundred records with distinct stable record IDs, the same shape nendo.data.create_records takes.")] IReadOnlyList<NendoRecordInput>? records = null,
+        [Description("json only: the records, within limits.import.rowsPerCall, with distinct stable record IDs, the same shape nendo.data.create_records takes.")] IReadOnlyList<NendoRecordInput>? records = null,
         CancellationToken cancellationToken = default) => ExecuteAsync(
             context,
             "nendo.data.import_records",
@@ -199,7 +199,7 @@ internal sealed class NendoDataTools(
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Set several fields of one record as one revision at an exact expected record version: the form save the Workbench makes, 1 to 64 fields, instead of one nendo.data.set_field per field. The record advances one version per field written, in stable field order, and recordVersion reports where it stands. Values follow nendo.data.set_field's rules. A reference may be given as a value with its target's version in expectedTargetVersions, or named in references by record ID or by a unique field's value and resolved by the host.")]
+    [Description("Set several fields of one record as one revision at an exact expected record version: the form save the Workbench makes, up to limits.fieldsPerRecordUpdate fields, instead of one nendo.data.set_field per field. The record advances one version per field written, in stable field order, and recordVersion reports where it stands. Values follow nendo.data.set_field's rules. A reference may be given as a value with its target's version in expectedTargetVersions, or named in references by record ID or by a unique field's value and resolved by the host.")]
     public Task<NendoDataApplyResult> UpdateRecordAsync(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
@@ -235,14 +235,14 @@ internal sealed class NendoDataTools(
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Create, update and delete records across record types as one revision, all or nothing: the batch the Workbench's forms commit. Up to limits.recordWritesPerCall writes, each a create (values), an update (expectedRecordVersion and 1 to 64 values) or a delete (expectedRecordVersion), one write per record. A write may point at a record an earlier write in the batch created; the host supplies that target's version. The result names every record with the version it holds now; label is what History calls the revision.")]
+    [Description("Create, update and delete records across record types as one revision, all or nothing: the batch the Workbench's forms commit. Up to limits.recordWritesPerCall writes, each a create (values), an update (expectedRecordVersion and up to limits.fieldsPerRecordUpdate values) or a delete (expectedRecordVersion), one write per record. A write may point at a record an earlier write in the batch created; the host supplies that target's version. The result names every record with the version it holds now; label is what History calls the revision.")]
     public Task<NendoDataWritesResult> ApplyWritesAsync(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
         [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
         [Description("The writes, in order, each naming its kind, record type and record.")] IReadOnlyList<NendoRecordWriteInput> writes,
         [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
-        [Description("Optional. What History calls this revision, 1 to 80 characters; omitted, it is described by what it does.")] string? label = null,
+        [Description("Optional. What History calls this revision, within limits.recordWritesLabelCharacters; omitted, it is described by what it does.")] string? label = null,
         CancellationToken cancellationToken = default) => ExecuteAsync(
             context,
             "nendo.data.apply_writes",

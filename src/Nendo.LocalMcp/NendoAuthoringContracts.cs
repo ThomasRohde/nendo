@@ -58,7 +58,7 @@ public sealed record NendoRecordWriteInput(
     [property: Description("Stable record ID: new for a create, existing for an update or a delete.")]
     string RecordId)
 {
-    [property: Description("create and update: the field values to write, keyed by stable field ID, with exact numbers as $nendoNumber envelopes; omitted on a delete. An update writes 1 to 64 fields.")]
+    [property: Description("create and update: the field values to write, keyed by stable field ID, with exact numbers as $nendoNumber envelopes; omitted on a delete. An update writes up to limits.fieldsPerRecordUpdate fields.")]
     public NendoObjectInput Values { get; init; }
 
     [property: Description("update and delete: the version the record holds now. A record created earlier in the same batch is at version 1 and needs none.")]

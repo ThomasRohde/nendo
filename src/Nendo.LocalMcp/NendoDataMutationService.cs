@@ -360,7 +360,7 @@ internal sealed class NendoDataMutationService(
 
     private NendoRequestContext Context(string applicationHandle, string idempotencyKey)
     {
-        NendoText.RequireText(idempotencyKey, "idempotency key", 200);
+        NendoText.RequireText(idempotencyKey, "idempotency key", NendoAuthoringLimits.Current.IdempotencyKeyCharacters);
         var owner = NendoTransportIdentity.Pseudonym(applicationHandle);
         return new NendoRequestContext(
             $"mcp.data.{host.HostRunId}.{owner}",
@@ -409,7 +409,7 @@ internal sealed class NendoDataMutationService(
             applicationHandle,
             _ =>
             {
-                NendoText.RequireText(idempotencyKey, "idempotency key", 200);
+                NendoText.RequireText(idempotencyKey, "idempotency key", NendoAuthoringLimits.Current.IdempotencyKeyCharacters);
                 // Named rather than guessed from which argument arrived. A caller that
                 // sends csv text and a records array has made a mistake, and picking one
                 // for them would import half of what they meant.

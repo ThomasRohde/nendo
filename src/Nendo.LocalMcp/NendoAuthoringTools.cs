@@ -62,7 +62,7 @@ internal sealed class NendoAuthoringTools(
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
         [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
         [Description(NendoParameterDescriptions.ChangeSetId)] string changeSetId,
-        [Description("One to eight mutations containing at most sixteen operations in this call. Numeric scalar values in payloads may use {\"$nendoNumber\":\"numeric lexeme\"} for exact integers/decimals; these are decoded before canonical validation.")]
+        [Description("The mutations for this call, within the per-call bounds nendo://application/vocabulary publishes under limits (mutationsPerCall, operationsPerCall); the result echoes the change set's ceilings. Numeric scalar values in payloads may use {\"$nendoNumber\":\"numeric lexeme\"} for exact integers/decimals; these are decoded before canonical validation.")]
         IReadOnlyList<NendoAgentMutationInput> mutations,
         [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
         CancellationToken cancellationToken = default) => ExecuteAsync(
@@ -85,7 +85,7 @@ internal sealed class NendoAuthoringTools(
         ReadOnly = false,
         UseStructuredContent = true)]
     [Description("""
-        Replace the tail of an owned draft that has not been accepted. Drops every mutation from dropFromMutationOrdinal
+        Replace the tail of an owned draft that has not been validated. Drops every mutation from dropFromMutationOrdinal
         onwards and appends the supplied ones, under the same per-call bounds as add_operations. Use it after a failed
         validate: the draft stays open, so correcting one bad operation costs one call rather than a rebuilt change set.
         dropFromMutationOrdinal equal to the current mutationCount appends without dropping anything.

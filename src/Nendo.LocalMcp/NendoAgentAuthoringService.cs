@@ -1182,7 +1182,7 @@ internal sealed class NendoAgentAuthoringService(
         return replay.Result;
     }
 
-    private static void RequireKey(string value) => NendoText.RequireText(value, "idempotency key", 200);
+    private static void RequireKey(string value) => NendoText.RequireText(value, "idempotency key", Limits.IdempotencyKeyCharacters);
 
     private static string Digest<T>(T value) => Convert.ToHexString(
         SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value, NendoMcpJson.Options)))

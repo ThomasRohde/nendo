@@ -96,10 +96,10 @@ internal sealed class NendoImportService(NendoApplicationService application)
     /// so a loop can be written from one reply.
     /// </para>
     /// </summary>
-    internal const int MaximumRowsPerCall = 500;
+    internal static readonly int MaximumRowsPerCall = NendoAuthoringLimits.Current.Import!.RowsPerCall;
 
     /// <summary>Rows per revision, matching what the data tools already commit at once.</summary>
-    private const int BatchSize = 50;
+    private static readonly int BatchSize = NendoAuthoringLimits.Current.Import!.RowsPerBatch;
 
     // Internal fault boundary for deterministic partial-failure tests; never a tool or host setting.
     internal Action<int>? BeforeBatch { get; set; }
@@ -306,10 +306,10 @@ internal sealed class NendoImportService(NendoApplicationService application)
     internal const string IdempotencyScope = "agent.import";
 
     /// <summary>The most batches one call commits, and so the most receipts one key can answer for.</summary>
-    internal const int MaximumBatchesPerCall = (MaximumRowsPerCall + BatchSize - 1) / BatchSize;
+    internal static readonly int MaximumBatchesPerCall = (MaximumRowsPerCall + BatchSize - 1) / BatchSize;
 
     /// <summary>The Engine's bound on an idempotency key, which the caller's own key shares.</summary>
-    private const int MaximumKeyCharacters = 200;
+    private static readonly int MaximumKeyCharacters = NendoAuthoringLimits.Current.IdempotencyKeyCharacters;
 
     /// <summary>
     /// The idempotency key of one batch: the caller's key, <c>#</c> and the batch ordinal.

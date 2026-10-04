@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Security.Cryptography;
+using Nendo.Engine;
 
 namespace Nendo.LocalMcp;
 
@@ -186,7 +187,7 @@ internal sealed class NendoAgentAuthority(
         CancellationToken cancellationToken)
     {
         RequireMutationMode();
-        if (idempotencyKey is not null) NendoText.RequireText(idempotencyKey, "idempotency key", 200);
+        if (idempotencyKey is not null) NendoText.RequireText(idempotencyKey, "idempotency key", NendoAuthoringLimits.Current.IdempotencyKeyCharacters);
         if (resumeApplicationHandle is not null) NendoText.RequireText(resumeApplicationHandle, "resume application handle", 200);
         await _gate.WaitAsync(cancellationToken);
         try

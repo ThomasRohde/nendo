@@ -963,6 +963,10 @@ public sealed record NendoAuthoringLimits(
     int DraftsPerSession,
     int ProposalsPerSession,
     int RecordWritesPerCall,
+    int RecordsPerCreateBatch,
+    int FieldsPerRecordUpdate,
+    int IdempotencyKeyCharacters,
+    int RecordWritesLabelCharacters,
     int RecordsPerReferenceConversion,
     int ValuesPerRecord,
     int MinimumPageLimit,
@@ -983,6 +987,10 @@ public sealed record NendoAuthoringLimits(
         DraftsPerSession: 8,
         ProposalsPerSession: 16,
         RecordWritesPerCall: NendoApplicationService.MaximumRecordWrites,
+        RecordsPerCreateBatch: NendoApplicationService.MaximumBatchRecords,
+        FieldsPerRecordUpdate: NendoApplicationService.MaximumFieldsPerUpdate,
+        IdempotencyKeyCharacters: 200,
+        RecordWritesLabelCharacters: NendoApplicationService.MaximumRecordWritesLabelCharacters,
         RecordsPerReferenceConversion: ConvertLegacyReferenceOperation.MaximumRecords,
         ValuesPerRecord: 128,
         MinimumPageLimit: 1,
@@ -1002,7 +1010,15 @@ public sealed record NendoAuthoringLimits(
             NendoExtensionLimits.PackageIdCharacters,
             PutFilePayloadBytes: 96 * 1024),
         Hierarchy = new(NendoHierarchyLimits.MaximumDepth, NendoHierarchyLimits.MaximumDescendants, NendoHierarchyLimits.OrderGap),
+        Import = new(RowsPerCall: 500, RowsPerBatch: NendoApplicationService.MaximumBatchRecords),
     };
+
+    /// <summary>
+    /// The bounds an agent import keeps (W-149): the rows one call carries, bounded by the
+    /// local transport's request body rather than the CSV profile, and the rows each
+    /// committed batch holds, which is the batch create's bound.
+    /// </summary>
+    public NendoImportAuthoringLimits? Import { get; init; }
 
     /// <summary>The bounds a custom-view package in the file keeps (ADR-0013).</summary>
     public NendoExtensionAuthoringLimits? Extensions { get; init; }
@@ -1010,6 +1026,9 @@ public sealed record NendoAuthoringLimits(
     /// <summary>The bounds a declared hierarchy keeps (ADR-0019).</summary>
     public NendoHierarchyAuthoringLimits? Hierarchy { get; init; }
 }
+
+/// <summary>The bounds an agent import keeps: rows per call and rows per committed batch.</summary>
+public sealed record NendoImportAuthoringLimits(int RowsPerCall, int RowsPerBatch);
 
 /// <summary>
 /// The bounds a declared hierarchy keeps, as <see cref="NendoHierarchyLimits"/> enforces them: the

@@ -333,6 +333,9 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             // once here and once by the tool, so twenty entries held ten calls.
                             var slot = new NendoActivityLog.Slot();
                             context.Items[NendoActivityLog.SlotKey] = slot;
+                            // The refusal a tool translates is recorded into this scope, and put
+                            // beside the text here, where the result is in hand (W-149).
+                            using var refusal = NendoToolRefusal.Begin();
                             try
                             {
                                 authority.RequireActive();
@@ -340,6 +343,22 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                                 var result = await next(context, token);
                                 activity.Record(slot, context.Params.Name, context.Server, rejected: result.IsError is true);
                                 return result;
+                            }
+                            // A tool's refusal leaves it as an exception and the SDK writes the error
+                            // result above this filter, so the result is built here instead, in the
+                            // SDK's own words, with the structured form beside them (W-149).
+                            catch (McpException exception) when (exception is not McpProtocolException && refusal.Refusal is { } structured)
+                            {
+                                activity.Record(slot, context.Params.Name, context.Server, rejected: true);
+                                return new CallToolResult
+                                {
+                                    IsError = true,
+                                    Content = [new TextContentBlock { Text = $"An error occurred invoking '{context.Params.Name}': {exception.Message}" }],
+                                    Meta = new System.Text.Json.Nodes.JsonObject
+                                    {
+                                        [NendoToolRefusal.MetaKey] = System.Text.Json.JsonSerializer.SerializeToNode(structured, NendoMcpJson.Options),
+                                    },
+                                };
                             }
                             catch
                             {

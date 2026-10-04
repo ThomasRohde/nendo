@@ -200,7 +200,10 @@ at which some clients stop reading: measure the longest yourself, and say whethe
 authoring rules the `add_operations` description sends you to were where it said.
 Every tool and read should carry a title and every field of every tool result a
 description; say where either is missing, and whether each tool's hints — read-only,
-destructive, idempotent — match what it did when you called it.
+destructive, idempotent — match what it did when you called it. Every refusal a tool
+makes should carry, in the result's `_meta` under `io.github.thomasrohde.nendo/refusal`,
+the same code and sentence its text does; report any refusal where the two differ or
+the object is missing.
 
 Read one record by `recordId`, a filtered and sorted page, and an `aggregate` read: a
 count, a sum over a numeric field, and a count grouped by a choice field. Compare each

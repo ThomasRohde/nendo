@@ -3,6 +3,9 @@
 // Whether the Nendo that wrote a discovery entry is still running. A process that ends without
 // closing its host leaves its entry behind (F-212); Nendo's own readers skip it, and so must ours,
 // or a tool picks a closed file's port and is refused.
+/** The _meta key a tool refusal's structured form travels under. */
+export const REFUSAL_META_KEY = 'io.github.thomasrohde.nendo/refusal';
+
 export function isRunning(discovery) {
   const processId = discovery?.processId;
   if (!Number.isInteger(processId) || processId <= 0) return false;
@@ -39,7 +42,8 @@ export function createNendoMcpClient(discovery, name) {
     if (!reply || reply.error) {
       const message = reply?.error?.message;
       const error = Error(`MCP ${method} failed: ${reply?.error?.code ?? 'no reply'}${message ? ': ' + message : ''}`);
-      error.code = message?.match(/^\s*(NENDO_[A-Z_]+)\b/)?.[1];
+      // A protocol error keeps its text; the host writes it as the code, a colon and the sentence.
+      error.code = message?.startsWith('NENDO_') ? message.slice(0, message.indexOf(':')) : undefined;
       throw error;
     }
     if (reply.result.resultType !== 'complete') throw Error(`Unexpected MCP result type for ${method}`);
@@ -50,9 +54,14 @@ export function createNendoMcpClient(discovery, name) {
     if (result.isError) {
       const said = (result.content ?? []).filter(part => part.type === 'text').map(part => part.text).join(' ').slice(0, 2000);
       const error = Error(`MCP tool ${name} rejected${said ? ': ' + said : ''}`);
-      // Only a protocol tool refusal carries a Nendo code. HTTP/transport errors
-      // must never be reclassified as an access-level refusal by a caller.
-      error.code = said.match(/^\s*(NENDO_[A-Z_]+)\b/)?.[1];
+      // The refusal travels as an object beside the text (W-149). Only a tool refusal
+      // carries a Nendo code: HTTP and transport errors must never be reclassified as an
+      // access-level refusal by a caller.
+      const refusal = result._meta?.[REFUSAL_META_KEY];
+      // A host from before W-149 carries only the text; its code is the word before the first colon.
+      const spoken = said.indexOf('NENDO_');
+      error.code = refusal?.code ?? (spoken >= 0 ? said.slice(spoken, said.indexOf(':', spoken)) : undefined);
+      error.refusal = refusal;
       throw error;
     }
     return result.structuredContent;

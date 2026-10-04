@@ -335,6 +335,9 @@ public sealed partial class NendoApplicationService
     /// <summary>Bounded so one call cannot become an unbounded import.</summary>
     public const int MaximumBatchRecords = 50;
 
+    /// <summary>The most fields one form save, or one update in a batch, writes.</summary>
+    public const int MaximumFieldsPerUpdate = 64;
+
     public async Task<NendoApplyResult> DeleteRecordAsync(NendoDeleteRecordRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -392,9 +395,9 @@ public sealed partial class NendoApplicationService
         RequireIdentity(request.RecordId, "record ID");
         RequireContext(request.Context);
         ArgumentNullException.ThrowIfNull(request.Values);
-        if (request.Values.Count is < 1 or > 64 || request.ExpectedRecordVersion < 1 ||
+        if (request.Values.Count is < 1 or > MaximumFieldsPerUpdate || request.ExpectedRecordVersion < 1 ||
             request.ExpectedRecordVersion > long.MaxValue - request.Values.Count)
-            throw new NendoValidationException("A form save requires 1-64 fields and a valid record version.");
+            throw new NendoValidationException($"A form save requires 1-{MaximumFieldsPerUpdate} fields and a valid record version.");
         if (request.ExpectedTargetVersions?.Keys.Any(id => !request.Values.ContainsKey(id)) == true)
             throw new NendoValidationException("Target versions must identify submitted reference fields.");
 

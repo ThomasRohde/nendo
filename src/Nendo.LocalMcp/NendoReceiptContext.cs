@@ -20,7 +20,7 @@ internal static class NendoReceiptContext
 
     internal static NendoOperationIdentity Read(string context, string key, NendoHostAuthority host)
     {
-        if (string.IsNullOrWhiteSpace(key) || key.Length > 200)
+        if (string.IsNullOrWhiteSpace(key) || key.Length > NendoAuthoringLimits.Current.IdempotencyKeyCharacters)
             throw new NendoValidationException("A bounded receipt locator and idempotency key are required.");
         return new NendoOperationIdentity(ReadScope(context, host), key.Trim());
     }

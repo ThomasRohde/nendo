@@ -9,12 +9,15 @@ internal static class NendoToolErrors
     /// Translate a refusal, and append a cause the caller can act on when one is
     /// available. The advisory is evaluated only on the failing path.
     /// </summary>
-    internal static McpException Translate(Exception exception, Func<string?>? cause)
+    internal static McpException Translate(Exception exception, Func<NendoPendingCause?>? cause)
     {
         var error = Translate(exception);
         if (cause is null || !ExplainedByPendingProposal(exception)) return error;
         var advisory = cause();
-        return string.IsNullOrWhiteSpace(advisory) ? error : new McpException($"{error.Message} {advisory}");
+        if (advisory is null || string.IsNullOrWhiteSpace(advisory.Text)) return error;
+        var separator = error.Message.IndexOf(": ", StringComparison.Ordinal);
+        NendoToolRefusal.Record(error.Message[..separator], $"{error.Message[(separator + 2)..]} {advisory.Text}", advisory.ProposalId);
+        return new McpException($"{error.Message} {advisory.Text}");
     }
 
     /// <summary>
@@ -122,8 +125,11 @@ internal static class NendoToolErrors
             "CHANGE_SET_STALE", "AUTHORITY_CHANGED", "IDEMPOTENCY_CONFLICT",
         ], StringComparer.Ordinal);
 
-    private static McpException Error(string code, string message) =>
-        new($"{code}: {message}");
+    private static McpException Error(string code, string message)
+    {
+        NendoToolRefusal.Record(code, message);
+        return new McpException($"{code}: {message}");
+    }
 
     // Each says what the agent can do next. NENDO_LEASE_HELD used to stop at "another
     // agent has edit access", which left an agent whose own acquire response was lost

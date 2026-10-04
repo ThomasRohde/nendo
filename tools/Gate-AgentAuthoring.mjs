@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createNendoMcpClient } from './Nendo-McpClient.mjs';
+import { createNendoMcpClient, REFUSAL_META_KEY } from './Nendo-McpClient.mjs';
 
 // P6-F: the Axiom Register gate. An external client builds the whole application
 // from an empty file through the local MCP interface alone, discovering the
@@ -187,8 +187,11 @@ function explainingTool(rpc) {
   return async (name, args = {}) => {
     const result = await rpc('tools/call', { name, arguments: args });
     if (result.isError) {
-      const detail = (result.content ?? []).map(item => item.text).filter(Boolean).join(' | ');
-      throw new Error(`MCP tool ${name} rejected: ${detail || JSON.stringify(result.structuredContent ?? {})}`);
+      const refusal = result._meta?.[REFUSAL_META_KEY];
+      const detail = refusal ? `${refusal.code}: ${refusal.message}` : (result.content ?? []).map(item => item.text).filter(Boolean).join(' | ');
+      const error = new Error(`MCP tool ${name} rejected: ${detail || JSON.stringify(result.structuredContent ?? {})}`);
+      error.code = refusal?.code;
+      throw error;
     }
     return result.structuredContent;
   };
