@@ -262,7 +262,7 @@ internal sealed class NendoDataTools(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
         [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
-        [Description("The History revision to reverse: one this session's own writes committed.")] string revisionId,
+        [Description("The History revision to reverse: one your own writes committed under this lease's pseudonym.")] string revisionId,
         [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
         [Description("Optional. What History calls the undo, within limits.recordWritesLabelCharacters; omitted, it is Undo and the revision's description.")] string? label = null,
         CancellationToken cancellationToken = default) => ExecuteAsync(
