@@ -42,7 +42,6 @@ internal static class NendoServerInstructions
         "the original outcome, and an unresolved receipt is not permission to resubmit with a new key. After a " +
         "reconnect, nendo.lease.status says who holds the lease. " +
         "Entity, field and node IDs are unique file-wide; a record ID within its type. " +
-        "Screens are used in Use, not Studio. " +
         "There is no SQL, file, process or network access, and no generic invocation. " +
         Acceptance(mode);
 
