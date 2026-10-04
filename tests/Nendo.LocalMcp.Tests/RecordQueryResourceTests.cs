@@ -127,7 +127,7 @@ public sealed class RecordQueryResourceTests
         Assert.AreEqual(3, sum.ContributingRecords);
 
         var described = Read<NendoMcpDescription>(await ProtocolResourceTests.ReadTextAsync(client, "nendo://application/describe"));
-        Assert.AreEqual(3, described.Entities.Single(entity => entity.EntityId == "items").RecordCount);
+        Assert.AreEqual(3, described.Entities!.Single(entity => entity.EntityId == "items").RecordCount);
         var one = Read<NendoMcpEntitySchema>(await ProtocolResourceTests.ReadTextAsync(client, "nendo://application/entity/items/schema"));
         Assert.AreEqual(3, one.RecordCount);
     }

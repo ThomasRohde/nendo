@@ -102,7 +102,6 @@ public sealed class ProtocolResourceTests
         CollectionAssert.AreEquivalent(
             new[]
             {
-                "nendo.application.describe",
                 "nendo.application.entities",
                 "nendo.application.examples",
                 "nendo.application.extensions",
@@ -120,6 +119,9 @@ public sealed class ProtocolResourceTests
         CollectionAssert.AreEquivalent(
             new[]
             {
+                // describe takes include, so it is listed as a template (W-150).
+                "nendo.application.describe",
+                "nendo.application.entity",
                 "nendo.application.entity.aggregate",
                 "nendo.application.entity.export",
                 "nendo.application.entity.records",

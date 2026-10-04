@@ -12,6 +12,7 @@ const noAcceptTool = 'Below Unattended, no tool accepts a proposal: acceptance s
 export const agentSurface: { resources: readonly SurfaceEntry[]; editDataTools: readonly SurfaceEntry[]; shapeAppTools: readonly SurfaceEntry[]; unattendedTools: readonly SurfaceEntry[] } = {
   resources: [
     { name: 'nendo://application/describe', meaning: 'The whole open application in one read: identity, authoring limits, every record type with its fields and references, every compiled screen, health, and every read path this server serves. Read it first.' },
+    { name: 'nendo://application/entity/{entityId}', meaning: 'One record type as a bundle: its schema with the record count, the screens that belong to it and the diagnostics that name it. With the manifest, the small first read for one type.' },
     { name: 'nendo://application/manifest', meaning: 'Identity and the revision counters, without reading records or history.' },
     { name: 'nendo://application/vocabulary', meaning: 'Everything this Nendo build accepts from an author: node kinds with their properties and children, filter operators and value kinds, aggregates, the behaviour catalogue, the authoring limits, every operation with the payload fields it takes, and the authoring rules that are easy to break. It describes the host, not the open file.' },
     { name: 'nendo://application/examples', meaning: 'Seventeen complete change sets that can be sent as they stand, each carrying one authoring rule. Every one is replayed by the test suite, so an example that stopped validating fails the build.' },

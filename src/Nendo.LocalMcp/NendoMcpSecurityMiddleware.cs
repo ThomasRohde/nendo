@@ -19,6 +19,8 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
             return;
         }
 
+        // The request's User-Agent names a handshake-era client on every request (W-150).
+        using var client = NendoTransportIdentity.FromUserAgent(context.Request.Headers.UserAgent.ToString());
         if (!IPAddress.Loopback.Equals(context.Connection.RemoteIpAddress))
         {
             await RejectAsync(context, StatusCodes.Status403Forbidden, "NENDO_NON_LOOPBACK", "Only this computer may connect.");

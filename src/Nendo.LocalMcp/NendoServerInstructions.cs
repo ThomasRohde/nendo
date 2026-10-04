@@ -24,11 +24,12 @@ internal static class NendoServerInstructions
         "commands), calculated fields, reusable functions, and automatic actions that run on a trigger. " +
         "Records are written directly; everything else is authored as a change set (begin, add_operations, " +
         "validate), and calculations, functions, actions and triggers are its behaviour.setDefinition operation. " +
-        "Read nendo://application/describe first: the whole open application in one call, and every read path " +
-        "this host serves, including the templated ones resources/list leaves out. " +
+        "Read nendo://application/describe first: the whole open application and every read path this host " +
+        "serves, in one call; for one record type, manifest and nendo://application/entity/{entityId} are smaller. " +
         "nendo://application/vocabulary is the authoring contract: every operation with its payload, the " +
         "authoringRules and the limits. nendo://application/examples holds change sets you can send as they " +
-        "stand; nendo://application/proposals lists what is waiting for the person. " +
+        "stand; nendo://application/proposals lists what waits for the person, a predecessor session's work " +
+        "included: read it before beginning. " +
         "Read nendo://application/view-api only when you write a custom view's code. " +
         "To write, call nendo.lease.acquire, keep its applicationHandle private, and pass it with leaseId on " +
         "every owned call. " +
@@ -39,7 +40,7 @@ internal static class NendoServerInstructions
         "Save receiptContext from the grant before writing: after a lost response, nendo.data.get_receipt reads " +
         "the original outcome, and an unresolved receipt is not permission to resubmit with a new key. After a " +
         "reconnect, nendo.lease.status says who holds the lease. " +
-        "Entity, field and node IDs are unique across the whole file; a record ID is unique within its record type. " +
+        "Entity, field and node IDs are unique across the file; a record ID within its record type. " +
         "Compiled screens are exercised in the Use view, not Studio. " +
         "There is no SQL, file, process or network access, and no generic invocation. " +
         Acceptance(mode);

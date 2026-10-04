@@ -270,7 +270,10 @@ names one of these five codes may mean either record.
 
 - `nendo://application/describe` is ~69 KB (measured 2026-09-22), and it answers the reconnaissance
   phase in one call. Read it **once**. The client saves large results to a
-  file. After that, query that file; do not read the resource again.
+  file. After that, query that file; do not read the resource again. For one record
+  type, read `manifest` and `entity/{entityId}` instead (schema, record count and the
+  type's screens in one small read), or `describe?include=manifest,entities` for the
+  types without the screens (W-150).
 - For one narrow question, prefer the narrow resource: `manifest` for revisions
   and minimum host, `entity/{entityId}/schema` for fields, choice options and the
   record count, `vocabulary` for node kinds and limits, `surfaces` for what

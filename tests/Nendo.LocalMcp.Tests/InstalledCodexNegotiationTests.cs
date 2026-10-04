@@ -86,8 +86,8 @@ public sealed class InstalledCodexNegotiationTests
             item.Outcome == "completed"),
             $"The host did not observe the manifest read. stdout: {Bounded(standardOutput)}");
         // Codex speaks the initialize handshake, and the host is stateless: clientInfo travels only in that
-        // first request, so later activity carries the "Local agent" fallback rather than the client's name.
-        // The manifest-read assertion above is the evidence that it was Codex.
+        // first request. Since W-150 the host names a later request from its User-Agent, so the entry
+        // carries whatever Codex sends there; the manifest-read assertion above is the evidence it was Codex.
     }
 
     private static string Bounded(string value) =>

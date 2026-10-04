@@ -418,11 +418,12 @@ What remains open:
   machine connects at that access level. This is chosen for iteration speed on
   a single-user machine. It is the wrong posture for a shared machine. The route
   back is a peer-process user check, and it is not built.
-- **A handshake client has no name in Recent activity.** The host is stateless.
-  A client on the `initialize` handshake sends its name only in that request, so
-  its later activity is labelled "Local agent". A 2026-07-28 client is named on
-  every request. To carry the handshake name forward, the host would need a
-  session. The transport does not have a session, by design.
+- **A handshake client is named from its User-Agent.** The host is stateless. A
+  client on the `initialize` handshake sends its name only in that request; since
+  2026-10-04 (W-150) a later request is named from the HTTP `User-Agent` header's
+  first product token, sanitised as a client name is, and "Local agent" remains
+  only for a client that sends neither. A 2026-07-28 client is named on every
+  request. The transport still has no session, by design.
 
 ## Left open by the 2026-09-12 vocabulary widening
 

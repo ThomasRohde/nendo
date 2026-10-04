@@ -367,27 +367,72 @@ internal sealed class NendoResourceProjection(
             page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor));
     }
 
-    internal async Task<NendoMcpDescription> GetDescriptionAsync(CancellationToken cancellationToken)
+    /// <summary>The facets of describe, as include names them.</summary>
+    internal static IReadOnlyList<string> DescribeFacets { get; } =
+        ["manifest", "limits", "entities", "surfaces", "health", "reads", "extensions", "newFile"];
+
+    internal Task<NendoMcpDescription> GetDescriptionAsync(CancellationToken cancellationToken) =>
+        GetDescriptionAsync(null, cancellationToken);
+
+    /// <summary>
+    /// The whole application, or the facets include names (W-150): a client that needs the
+    /// manifest and the record types takes those and leaves the compiled screens, which are
+    /// most of a mature file's describe, for a later read. A facet left out is null or empty.
+    /// </summary>
+    internal async Task<NendoMcpDescription> GetDescriptionAsync(string? include, CancellationToken cancellationToken)
     {
+        var facets = string.IsNullOrWhiteSpace(include)
+            ? DescribeFacets
+            : include.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var unknown = facets.Where(facet => !DescribeFacets.Contains(facet, StringComparer.Ordinal)).ToArray();
+        if (unknown.Length > 0)
+            throw new NendoValidationException(
+                $"include names {string.Join(", ", unknown)}; the facets are {string.Join(", ", DescribeFacets)}, comma-separated.");
+        bool Wants(string facet) => facets.Contains(facet, StringComparer.Ordinal);
         var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
-        var counts = await CountRecordsAsync(snapshot.Entities, cancellationToken);
-        var entities = snapshot.Entities
-            .OrderBy(entity => entity.EntityId, StringComparer.Ordinal)
-            .Select(entity => ProjectSchema(entity) with { RecordCount = counts[entity.EntityId] })
-            .ToArray();
+        NendoMcpEntitySchema[]? entities = null;
+        if (Wants("entities"))
+        {
+            var counts = await CountRecordsAsync(snapshot.Entities, cancellationToken);
+            entities = snapshot.Entities
+                .OrderBy(entity => entity.EntityId, StringComparer.Ordinal)
+                .Select(entity => ProjectSchema(entity) with { RecordCount = counts[entity.EntityId] })
+                .ToArray();
+        }
         return new NendoMcpDescription(
             snapshot.Manifest.Purpose,
-            await GetManifestAsync(cancellationToken),
-            NendoAuthoringLimits.Current,
+            Wants("manifest") ? await GetManifestAsync(cancellationToken) : null,
+            Wants("limits") ? NendoAuthoringLimits.Current : null,
             entities,
-            await GetSurfacesAsync(cancellationToken),
-            await GetHealthAsync(cancellationToken))
+            Wants("surfaces") ? await GetSurfacesAsync(cancellationToken) : null,
+            Wants("health") ? await GetHealthAsync(cancellationToken) : null)
         {
-            Reads = NendoMcpReadIndex.All,
-            Extensions = ProjectExtensions(snapshot.ExtensionPackages),
-            NewFile = await GetNewFileAsync(cancellationToken),
+            Included = facets.Distinct(StringComparer.Ordinal).ToArray(),
+            Reads = Wants("reads") ? NendoMcpReadIndex.All : [],
+            Extensions = Wants("extensions") ? ProjectExtensions(snapshot.ExtensionPackages) : [],
+            NewFile = Wants("newFile") ? await GetNewFileAsync(cancellationToken) : null,
         };
     }
+
+    /// <summary>One record type as a bundle (W-150): schema, record count and its compiled surfaces.</summary>
+    internal async Task<NendoMcpEntityBundle> GetEntityBundleAsync(string entityId, CancellationToken cancellationToken)
+    {
+        var schema = await GetSchemaAsync(entityId, cancellationToken);
+        var surfaces = await GetSurfacesAsync(cancellationToken);
+        var own = surfaces.Applications.FirstOrDefault(app => app.EntityId == entityId);
+        var nodeIds = own is null ? new HashSet<string>(StringComparer.Ordinal) : Nodes(own.Surfaces).Select(node => node.NodeId).ToHashSet(StringComparer.Ordinal);
+        var fieldIds = schema.Fields.Select(field => field.FieldId).Concat(schema.DerivedFields.Select(field => field.FieldId)).ToHashSet(StringComparer.Ordinal);
+        return new NendoMcpEntityBundle(schema, own?.Surfaces ?? [])
+        {
+            SurfacesValid = surfaces.IsValid,
+            Diagnostics = surfaces.Diagnostics
+                .Where(diagnostic => diagnostic.SemanticId is { } id && (id == entityId || nodeIds.Contains(id) || fieldIds.Contains(id)))
+                .ToArray(),
+        };
+    }
+
+    private static IEnumerable<NendoMcpSurfaceNode> Nodes(IEnumerable<NendoMcpSurfaceNode> roots) =>
+        roots.SelectMany(root => new[] { root }.Concat(Nodes(root.Children)));
 
     /// <summary>
     /// What a new file of this application would keep now (ADR-0022). Null where the file cannot

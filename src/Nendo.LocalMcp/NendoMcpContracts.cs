@@ -87,6 +87,22 @@ public sealed record NendoMcpLook(string Tone, string Letter, bool ToneChosen, b
 
 public sealed record NendoMcpEntity(string EntityId, string DisplayName) { public bool Retired { get; init; } }
 
+/// <summary>
+/// One record type as a bundle (W-150): its schema with the record count, and the compiled
+/// surfaces that belong to it. The first read for a session that needs one type, instead of
+/// the whole application.
+/// </summary>
+public sealed record NendoMcpEntityBundle(
+    NendoMcpEntitySchema Schema,
+    IReadOnlyList<NendoMcpSurfaceNode> Surfaces)
+{
+    /// <summary>Whether the file's surfaces compile; the surfaces above are the compiled ones.</summary>
+    public bool SurfacesValid { get; init; }
+
+    /// <summary>The compiler diagnostics that name this record type or one of its surfaces.</summary>
+    public IReadOnlyList<NendoMcpDiagnostic> Diagnostics { get; init; } = [];
+}
+
 public sealed record NendoMcpEntitySchema(
     string EntityId,
     string DisplayName,
@@ -319,12 +335,15 @@ public sealed record NendoMcpApplicationSurfaces(string EntityId, string Display
 /// </summary>
 public sealed record NendoMcpDescription(
     string? Purpose,
-    NendoMcpManifest Manifest,
-    NendoAuthoringLimits Limits,
-    IReadOnlyList<NendoMcpEntitySchema> Entities,
-    NendoMcpSurfaces Surfaces,
-    NendoMcpHealth Health)
+    NendoMcpManifest? Manifest,
+    NendoAuthoringLimits? Limits,
+    IReadOnlyList<NendoMcpEntitySchema>? Entities,
+    NendoMcpSurfaces? Surfaces,
+    NendoMcpHealth? Health)
 {
+    /// <summary>The facets this read carried, in the order include named them; every facet when include was omitted (W-150).</summary>
+    public IReadOnlyList<string> Included { get; init; } = [];
+
     /// <summary>
     /// Every resource URI this host serves, including the templated ones.
     /// <c>resources/list</c> returns only the parameterless resources, so reading
