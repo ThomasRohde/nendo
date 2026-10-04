@@ -43,6 +43,8 @@ internal static class NendoToolBoundary
     private static readonly IReadOnlyDictionary<Type, string> Nouns = new Dictionary<Type, string>
     {
         [typeof(NendoRecordInput)] = "A record",
+        [typeof(NendoReferenceInput)] = "A reference target",
+        [typeof(NendoRecordWriteInput)] = "A record write",
         [typeof(NendoCsvColumnMapping)] = "A column mapping",
         [typeof(NendoAgentMutationInput)] = "A mutation",
         [typeof(NendoAgentOperationInput)] = "An operation",

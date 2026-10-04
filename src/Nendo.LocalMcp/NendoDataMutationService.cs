@@ -65,19 +65,29 @@ internal sealed class NendoDataMutationService(
         string idempotencyKey,
         IReadOnlyDictionary<string, long>? expectedTargetVersions,
         bool? keptInNewFiles,
+        IReadOnlyDictionary<string, NendoReferenceInput>? references,
         CancellationToken cancellationToken) => AdmitAsync(
             leaseId,
             applicationHandle,
-            async _ => Touched(
-                await application.CreateRecordAsync(
-                    new NendoCreateRecordRequest(
-                        entityId,
-                        recordId,
-                        ReadValueMap(values.Element),
-                        Context(applicationHandle, idempotencyKey), expectedTargetVersions, keptInNewFiles),
-                    cancellationToken),
-                entityId, [recordId],
-                CreatedVersion),
+            async _ =>
+            {
+                var entry = await ToEntryAsync(entityId, new NendoRecordInput(recordId, values)
+                {
+                    ExpectedTargetVersions = expectedTargetVersions,
+                    KeptInNewFiles = keptInNewFiles,
+                    References = references,
+                }, cancellationToken);
+                return Touched(
+                    await application.CreateRecordAsync(
+                        new NendoCreateRecordRequest(
+                            entityId,
+                            recordId,
+                            entry.Values,
+                            Context(applicationHandle, idempotencyKey), entry.ExpectedTargetVersions, entry.KeptInNewFiles),
+                        cancellationToken),
+                    entityId, [recordId],
+                    CreatedVersion);
+            },
             cancellationToken);
 
     internal Task<NendoDataApplyResult> CreateRecordsAsync(
@@ -92,22 +102,180 @@ internal sealed class NendoDataMutationService(
             async _ =>
             {
                 ArgumentNullException.ThrowIfNull(records);
-                var entries = records.Select(record =>
+                var entries = new List<NendoCreateRecordEntry>(records.Count);
+                foreach (var record in records)
                 {
-                    ArgumentNullException.ThrowIfNull(record);
-                    NendoText.RequireText(record.RecordId, "record ID", 200);
-                    return new NendoCreateRecordEntry(
-                        record.RecordId,
-                        ReadValueMap(record.Values.Element),
-                        record.ExpectedTargetVersions,
-                        record.KeptInNewFiles);
-                }).ToArray();
+                    entries.Add(await ToEntryAsync(entityId, record, cancellationToken));
+                }
                 return Touched(
                     await application.CreateRecordsAsync(
                         new NendoCreateRecordsRequest(entityId, entries, Context(applicationHandle, idempotencyKey)),
                         cancellationToken),
                     entityId, entries.Select(entry => entry.RecordId).ToArray(),
                     CreatedVersion);
+            },
+            cancellationToken);
+
+    /// <summary>
+    /// The one place a record input becomes an Engine entry (W-147, W-159): the same ID
+    /// bound, the same value reading and the same reference resolution for a single
+    /// create, a batch create and a JSON import. The import mapped it a second time with a
+    /// different ID check and a null-versus-empty difference for target versions.
+    /// </summary>
+    internal async Task<NendoCreateRecordEntry> ToEntryAsync(string entityId, NendoRecordInput record, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        NendoText.RequireText(record.RecordId, "record ID", 200);
+        var values = ReadValueMap(record.Values.Element);
+        var targets = await ResolveReferencesAsync(entityId, values, record.ExpectedTargetVersions, record.References, cancellationToken);
+        return new NendoCreateRecordEntry(record.RecordId, values, targets, record.KeptInNewFiles);
+    }
+
+    /// <summary>
+    /// Puts each named reference target into the values with its current version (W-147).
+    /// A target named by record ID is read for its version; one named by a unique field's
+    /// value is found through the same filtered query the screens use. The rule CSV import
+    /// follows for matchFieldId, so both formats carry one rule.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, long>?> ResolveReferencesAsync(
+        string entityId,
+        Dictionary<string, object?> values,
+        IReadOnlyDictionary<string, long>? expectedTargetVersions,
+        IReadOnlyDictionary<string, NendoReferenceInput>? references,
+        CancellationToken cancellationToken)
+    {
+        if (references is null || references.Count == 0) return expectedTargetVersions;
+        var targets = new Dictionary<string, long>(expectedTargetVersions ?? new Dictionary<string, long>(), StringComparer.Ordinal);
+        var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
+        var entity = snapshot.Entities.SingleOrDefault(candidate => candidate.EntityId == entityId)
+            ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
+        foreach (var (fieldId, reference) in references)
+        {
+            ArgumentNullException.ThrowIfNull(reference);
+            var field = entity.Fields.SingleOrDefault(candidate => candidate.FieldId == fieldId && !candidate.Retired)
+                ?? throw new NendoPreconditionException("field-not-found", $"{fieldId} is not a field of {entityId}.");
+            if (field.StorageKind != NendoStorageKind.Reference || field.Reference is null)
+                throw new NendoValidationException($"references names {fieldId}, which is not a reference field of {entityId}.");
+            var target = snapshot.Entities.SingleOrDefault(candidate => candidate.EntityId == field.Reference.TargetEntityId && !candidate.Retired)
+                ?? throw new NendoPreconditionException("entity-not-found", $"The target record type of {fieldId} does not exist.");
+            NendoRecordSnapshot found;
+            if (reference.RecordId is not null)
+            {
+                if (reference.MatchFieldId is not null || reference.Value is not null)
+                    throw new NendoValidationException($"references.{fieldId} names a recordId or a matchFieldId with value, not both.");
+                NendoText.RequireText(reference.RecordId, "record ID", 200);
+                found = (await application.QueryRecordsAsync(new NendoRecordQuery(target.EntityId, 1) { RecordId = reference.RecordId }, cancellationToken))
+                    .Items.SingleOrDefault()
+                    ?? throw new NendoPreconditionException("target-not-found", $"{target.DisplayName} has no record {reference.RecordId}.");
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(reference.MatchFieldId) || reference.Value is null)
+                    throw new NendoValidationException($"references.{fieldId} names a recordId, or a matchFieldId with value.");
+                var match = target.Fields.SingleOrDefault(candidate => candidate.FieldId == reference.MatchFieldId && !candidate.Retired);
+                if (match is null || !match.Unique)
+                    throw new NendoValidationException(
+                        $"{field.DisplayName} can be matched only by a unique field of {target.DisplayName}; {reference.MatchFieldId} is not one.");
+                var page = await application.QueryRecordsAsync(new NendoRecordQuery(target.EntityId, 2)
+                {
+                    Filters = [new NendoRecordFilter(match.FieldId, "eq", JsonSerializer.SerializeToElement(reference.Value))],
+                }, cancellationToken);
+                found = page.Items.Count == 1
+                    ? page.Items[0]
+                    : throw new NendoPreconditionException("target-not-found", $"No {target.DisplayName} record holds {reference.Value} in {match.FieldId}.");
+            }
+            values[fieldId] = JsonSerializer.SerializeToElement(found.RecordId);
+            targets[fieldId] = found.RecordVersion;
+        }
+        return targets;
+    }
+
+    /// <summary>Several fields of one record as one revision (W-147): N set_field calls used to be N revisions and N hand-carried versions.</summary>
+    internal Task<NendoDataApplyResult> UpdateRecordAsync(
+        string applicationHandle,
+        string leaseId,
+        string entityId,
+        string recordId,
+        long expectedRecordVersion,
+        NendoObjectInput values,
+        string idempotencyKey,
+        IReadOnlyDictionary<string, long>? expectedTargetVersions,
+        IReadOnlyDictionary<string, NendoReferenceInput>? references,
+        CancellationToken cancellationToken) => AdmitAsync(
+            leaseId,
+            applicationHandle,
+            async _ =>
+            {
+                var map = ReadValueMap(values.Element);
+                var targets = await ResolveReferencesAsync(entityId, map, expectedTargetVersions, references, cancellationToken);
+                return Touched(
+                    await application.SetFieldsAsync(
+                        new NendoSetFieldsRequest(entityId, recordId, expectedRecordVersion, map,
+                            Context(applicationHandle, idempotencyKey), targets),
+                        cancellationToken),
+                    entityId, [recordId],
+                    expectedRecordVersion + map.Count);
+            },
+            cancellationToken);
+
+    /// <summary>Creates, updates and deletes across record types as one revision, all or nothing (W-147).</summary>
+    internal Task<NendoDataWritesResult> ApplyWritesAsync(
+        string applicationHandle,
+        string leaseId,
+        IReadOnlyList<NendoRecordWriteInput> writes,
+        string idempotencyKey,
+        string? label,
+        CancellationToken cancellationToken) => AdmitAsync(
+            leaseId,
+            applicationHandle,
+            async _ =>
+            {
+                ArgumentNullException.ThrowIfNull(writes);
+                if (writes.Count is < 1 or > NendoApplicationService.MaximumRecordWrites)
+                    throw new NendoValidationException(
+                        $"A batch carries 1-{NendoApplicationService.MaximumRecordWrites} record writes; this one carries {writes.Count}.");
+                var mapped = new List<NendoRecordWrite>(writes.Count);
+                for (var index = 0; index < writes.Count; index++)
+                {
+                    var write = writes[index] ?? throw new NendoValidationException($"Write {index} is missing.");
+                    var kind = write.Kind switch
+                    {
+                        "create" => NendoRecordWriteKind.Create,
+                        "update" => NendoRecordWriteKind.Update,
+                        "delete" => NendoRecordWriteKind.Delete,
+                        _ => throw new NendoValidationException($"Write {index}: kind is create, update or delete; '{write.Kind}' is not."),
+                    };
+                    NendoText.RequireText(write.EntityId, "entity ID", 200);
+                    NendoText.RequireText(write.RecordId, "record ID", 200);
+                    Dictionary<string, object?>? map = null;
+                    IReadOnlyDictionary<string, long>? targets = write.ExpectedTargetVersions;
+                    if (write.Values.Element.ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Null))
+                    {
+                        map = ReadValueMap(write.Values.Element);
+                        targets = await ResolveReferencesAsync(write.EntityId, map, write.ExpectedTargetVersions, write.References, cancellationToken);
+                    }
+                    else if (write.References is { Count: > 0 })
+                    {
+                        throw new NendoValidationException($"Write {index} names references and no values; put the reference fields in values or omit both.");
+                    }
+                    mapped.Add(new NendoRecordWrite(kind, write.EntityId, write.RecordId, map, write.ExpectedRecordVersion, targets));
+                }
+                var result = await application.ApplyRecordWritesAsync(
+                    new NendoRecordWritesRequest(mapped, Context(applicationHandle, idempotencyKey), string.IsNullOrWhiteSpace(label) ? null : label),
+                    cancellationToken);
+                var applied = result.Applied;
+                return new NendoDataWritesResult(
+                    applied.RevisionId,
+                    applied.OperationDigest,
+                    applied.DefinitionRevision,
+                    applied.DataRevision,
+                    applied.ChangeSequence,
+                    applied.IsIdempotentReplay,
+                    result.Records.Select(record => new NendoDataWrittenRecord(record.EntityId, record.RecordId, record.RecordVersion)).ToArray())
+                {
+                    AlsoChanged = applied.GeneratedChanges,
+                    Assigned = applied.AssignedValues,
+                };
             },
             cancellationToken);
 
@@ -264,7 +432,7 @@ internal sealed class NendoDataMutationService(
                     "json" => imports.ImportRecordsAsync(
                         entityId,
                         records ?? throw new NendoValidationException("A json import needs records."),
-                        values => ReadValueMap(values.Element),
+                        record => ToEntryAsync(entityId, record, cancellationToken),
                         idempotencyKey,
                         NendoTransportIdentity.Pseudonym(applicationHandle),
                         cancellationToken),
@@ -370,7 +538,7 @@ internal sealed class NendoDataMutationService(
         };
     }
 
-    private static IReadOnlyDictionary<string, object?> ReadValueMap(JsonElement values)
+    private static Dictionary<string, object?> ReadValueMap(JsonElement values)
     {
         if (values.ValueKind != JsonValueKind.Object ||
             Encoding.UTF8.GetByteCount(values.GetRawText()) > MaximumValueMapBytes)

@@ -65,7 +65,7 @@ public sealed class ToolRefusalTests
                 {
                     new Dictionary<string, object?> { ["recordId"] = "idea-new", ["values"] = new { }, ["expectedTargetVersionz"] = new { } },
                 })),
-                ["records[0] does not take 'expectedTargetVersionz'; a record takes recordId and values, and optionally expectedTargetVersions and keptInNewFiles."]),
+                ["records[0] does not take 'expectedTargetVersionz'; a record takes recordId and values, and optionally expectedTargetVersions, keptInNewFiles and references."]),
             ("nendo.change_set.add_operations", Owned(("changeSetId", "change-set-absent"), ("idempotencyKey", "nested-operation"), ("mutations", new object[]
                 {
                     new Dictionary<string, object?>

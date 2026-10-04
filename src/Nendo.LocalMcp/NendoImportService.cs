@@ -202,7 +202,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
     internal async Task<NendoImportResult> ImportRecordsAsync(
         string entityId,
         IReadOnlyList<NendoRecordInput> records,
-        Func<NendoObjectInput, IReadOnlyDictionary<string, object?>> readValues,
+        Func<NendoRecordInput, Task<NendoCreateRecordEntry>> toEntry,
         string idempotencyKey,
         string origin,
         CancellationToken cancellationToken)
@@ -213,21 +213,12 @@ internal sealed class NendoImportService(NendoApplicationService application)
         {
             throw new NendoValidationException("Send at least one record.");
         }
-        var entries = records
-            .Select(record =>
-            {
-                ArgumentNullException.ThrowIfNull(record);
-                if (string.IsNullOrWhiteSpace(record.RecordId) || record.RecordId.Length > 200)
-                {
-                    throw new NendoValidationException("Each record needs a stable record ID of 1 to 200 characters.");
-                }
-                return new NendoCreateRecordEntry(
-                    record.RecordId,
-                    readValues(record.Values),
-                    record.ExpectedTargetVersions ?? new Dictionary<string, long>(StringComparer.Ordinal),
-                    record.KeptInNewFiles);
-            })
-            .ToArray();
+        // One mapper for a create, a batch create and an import (W-147, W-159).
+        var entries = new List<NendoCreateRecordEntry>(records.Count);
+        foreach (var record in records)
+        {
+            entries.Add(await toEntry(record));
+        }
         return await CommitAsync(entityId, entries, idempotencyKey, origin, cancellationToken);
     }
 

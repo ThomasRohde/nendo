@@ -45,6 +45,7 @@ public sealed class DataMutationProtocolTests
             "cancelled-create",
             null,
             null,
+            null,
             cancellation.Token));
 
         Assert.HasCount(historyBefore.Count, await workspace.Service.GetHistoryAsync());

@@ -257,8 +257,9 @@ public sealed class SmallDefectSweepTests
         return JsonSerializer.Deserialize<IReadOnlyList<NendoAgentProposalSummary>>(text, NendoMcpJson.Options)!;
     }
 
-    private static IReadOnlyDictionary<string, object?> ReadLabel(NendoObjectInput values) =>
-        values.Element.EnumerateObject().ToDictionary(property => property.Name, property => (object?)property.Value.GetString(), StringComparer.Ordinal);
+    private static Task<NendoCreateRecordEntry> ReadLabel(NendoRecordInput record) => Task.FromResult(new NendoCreateRecordEntry(
+        record.RecordId,
+        record.Values.Element.EnumerateObject().ToDictionary(property => property.Name, property => (object?)property.Value.GetString(), StringComparer.Ordinal)));
 
     private static async Task PrepareNotesAsync(LocalMcpTestWorkspace workspace)
     {

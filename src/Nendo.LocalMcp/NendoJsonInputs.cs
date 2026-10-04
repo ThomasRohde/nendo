@@ -97,6 +97,8 @@ internal static class NendoJsonInputs
     internal static readonly IReadOnlySet<Type> ClosedInputs = new HashSet<Type>
     {
         typeof(NendoRecordInput),
+        typeof(NendoReferenceInput),
+        typeof(NendoRecordWriteInput),
         typeof(NendoCsvColumnMapping),
         typeof(NendoAgentMutationInput),
         typeof(NendoAgentOperationInput),

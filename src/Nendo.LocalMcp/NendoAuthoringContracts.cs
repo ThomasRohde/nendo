@@ -27,6 +27,87 @@ public sealed record NendoRecordInput(
 
     [property: Description("Optional. true keeps this record in a new file of the application, false leaves it out; omit to follow its record type's keptInNewFiles. Set in the same revision as the create.")]
     public bool? KeptInNewFiles { get; init; }
+
+    [property: Description("Optional. For a reference field, the target named by its record ID or by a unique field's value, keyed by field ID; the host resolves the ID and current version itself, so values and expectedTargetVersions need not name that field. The rule CSV import's matchFieldId follows.")]
+    public IReadOnlyDictionary<string, NendoReferenceInput>? References { get; init; }
+}
+
+/// <summary>
+/// One reference target, named either way: the target's record ID, or a unique field of
+/// the target type and the value to find (W-147). The host reads the target's current
+/// version, which is what a reference write must carry.
+/// </summary>
+public sealed record NendoReferenceInput
+{
+    [Description("The target's stable record ID. Give this or matchFieldId with value.")]
+    public string? RecordId { get; init; }
+
+    [Description("A unique field of the target record type, as nendo://application/entity/{entityId}/schema marks it.")]
+    public string? MatchFieldId { get; init; }
+
+    [Description("The value to find in matchFieldId, as text; exactly one record of the target type holds it.")]
+    public string? Value { get; init; }
+}
+
+/// <summary>One record write of a batch (W-147): a create, an update or a delete.</summary>
+public sealed record NendoRecordWriteInput(
+    [property: Description("create, update or delete.")]
+    string Kind,
+    [property: Description("Stable entity ID of the record's type.")]
+    string EntityId,
+    [property: Description("Stable record ID: new for a create, existing for an update or a delete.")]
+    string RecordId)
+{
+    [property: Description("create and update: the field values to write, keyed by stable field ID, with exact numbers as $nendoNumber envelopes; omitted on a delete. An update writes 1 to 64 fields.")]
+    public NendoObjectInput Values { get; init; }
+
+    [property: Description("update and delete: the version the record holds now. A record created earlier in the same batch is at version 1 and needs none.")]
+    public long? ExpectedRecordVersion { get; init; }
+
+    [property: Description("For each non-null reference value, the current version of its target, keyed by field ID. A target created or updated earlier in the same batch is resolved by the host.")]
+    public IReadOnlyDictionary<string, long>? ExpectedTargetVersions { get; init; }
+
+    [property: Description("Reference targets named by record ID or by a unique field's value, keyed by field ID, resolved by the host as on nendo.data.create_records.")]
+    public IReadOnlyDictionary<string, NendoReferenceInput>? References { get; init; }
+}
+
+/// <summary>What a tool committed, for the activity entry: every data result names its revision.</summary>
+internal interface INendoRevisionResult
+{
+    string RevisionId { get; }
+}
+
+/// <summary>One record a batch wrote and the version it now holds.</summary>
+public sealed record NendoDataWrittenRecord(
+    [property: Description("The record type written.")]
+    string EntityId,
+    [property: Description("The record written.")]
+    string RecordId,
+    [property: Description("The version the record holds now: 1 after a create, the expected version plus one per field after an update; null after a delete and on an idempotent replay.")]
+    long? RecordVersion);
+
+/// <summary>A committed batch of record writes, atomic across record types (W-147).</summary>
+public sealed record NendoDataWritesResult(
+    [property: Description("The History revision the batch committed; on an idempotent replay, the original one.")]
+    string RevisionId,
+    [property: Description("Digest of the canonical operations committed. An exact replay returns the same digest.")]
+    string OperationDigest,
+    [property: Description("The file's definition revision after this write.")]
+    long DefinitionRevision,
+    [property: Description("The file's data revision after this write.")]
+    long DataRevision,
+    [property: Description("The file's change sequence after this write. A paged read begun before it restarts on NENDO_STALE_CURSOR.")]
+    long ChangeSequence,
+    [property: Description("True when this idempotency key had already committed and this is that original outcome, not a second write.")]
+    bool IsIdempotentReplay,
+    [property: Description("Every record the batch wrote, in the order the request named them, with the version each holds now.")]
+    IReadOnlyList<NendoDataWrittenRecord> Records) : INendoRevisionResult
+{
+    [Description("Each other record this batch's automatic actions created, updated or deleted, with the version it now holds. Empty when no action ran. On an idempotent replay the versions are null.")]
+    public IReadOnlyList<NendoGeneratedChange> AlsoChanged { get; init; } = [];
+
+    [Description("The codes the host wrote into numbered fields that a create left empty, one entry per record and field. Empty when nothing was numbered, and on an idempotent replay.")]
+    public IReadOnlyList<NendoAssignedValue> Assigned { get; init; } = [];
 }
 
 /// <summary>
@@ -47,7 +128,7 @@ public sealed record NendoDataApplyResult(
     [property: Description("True when this idempotency key had already committed and this is that original outcome, not a second write.")]
     bool IsIdempotentReplay,
     [property: Description("Every record this write created, changed or deleted, in the order the request named them.")]
-    IReadOnlyList<string> RecordIds)
+    IReadOnlyList<string> RecordIds) : INendoRevisionResult
 {
     /// <summary>
     /// The version every listed record now holds, when this call can state it

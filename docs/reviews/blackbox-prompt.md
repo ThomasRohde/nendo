@@ -226,6 +226,13 @@ reported, what the read gave back and what the screen showed. Add records, inclu
 whole number larger than 9,007,199,254,740,992 and one decimal whose trailing zeros
 matter. Read them back and check the digits survived the round trip exactly.
 
+Edit three fields of one record with `nendo.data.update_record` and confirm History shows one
+revision and the version moved by three. Then send one `nendo.data.apply_writes` that creates
+a record, creates a second record of another type pointing at the first, updates a third and
+deletes a fourth; confirm it is one revision, that every record in the answer carries the
+version you then read back, and that a batch with one bad write commits nothing. Create a
+record whose reference is named only in `references` by a unique field's value.
+
 Then push on the shape itself: rename a field that already holds data; point a reference at
 a record and then try to delete that record; retire a field and see what happens to what it
 held. Record what each refusal or acceptance told you. Then release the lease and

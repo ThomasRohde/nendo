@@ -208,6 +208,30 @@ public sealed class OutputSchemaContractTests
             ["value"] = JsonSerializer.SerializeToElement("Negotiation"),
             ["idempotencyKey"] = "contract-set",
         });
+        // W-147: a multi-field edit and a cross-type batch, each one revision.
+        var updated = Result<NendoDataApplyResult>(await CallAsync("nendo.data.update_record", new(owned)
+        {
+            ["entityId"] = CrmAuthoringFixture.AccountEntityId,
+            ["recordId"] = "account-northwind",
+            ["expectedRecordVersion"] = 1L,
+            ["values"] = JsonSerializer.SerializeToElement(new Dictionary<string, object?>
+            {
+                [CrmAuthoringFixture.AccountNameFieldId] = "Northwind Traders",
+                [CrmAuthoringFixture.AccountTierFieldId] = "Growth",
+            }),
+            ["idempotencyKey"] = "contract-update",
+        }));
+        Assert.AreEqual(3L, updated.RecordVersion);
+        var batched = Result<NendoDataWritesResult>(await CallAsync("nendo.data.apply_writes", new(owned)
+        {
+            ["writes"] = new object[]
+            {
+                new { kind = "create", entityId = CrmAuthoringFixture.AccountEntityId, recordId = "account-contoso", values = new Dictionary<string, object?> { [CrmAuthoringFixture.AccountNameFieldId] = "Contoso" } },
+                new { kind = "update", entityId = CrmAuthoringFixture.AccountEntityId, recordId = "account-northwind", expectedRecordVersion = 3L, values = new Dictionary<string, object?> { [CrmAuthoringFixture.AccountTierFieldId] = "Strategic" } },
+            },
+            ["idempotencyKey"] = "contract-writes",
+        }));
+        Assert.HasCount(2, batched.Records);
         // Mark won sets two fields, so the record lands on version 3. The host
         // states that: the steps live in the stored definition, so a caller
         // cannot derive it, and without it the next optimistic write has nothing

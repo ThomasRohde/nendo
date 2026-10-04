@@ -52,6 +52,7 @@ internal sealed class NendoDataTools(
         [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
         [Description("For each non-null reference field, the current version of its selected target, keyed by field ID.")] IReadOnlyDictionary<string, long>? expectedTargetVersions = null,
         [Description("Optional. true keeps the record in a new file of this application, false leaves it out; omit to follow its record type's keptInNewFiles. Set in the same revision as the create.")] bool? keptInNewFiles = null,
+        [Description("Reference targets named by record ID or by a unique field's value, keyed by field ID; the host writes the ID and current version.")] IReadOnlyDictionary<string, NendoReferenceInput>? references = null,
         CancellationToken cancellationToken = default) => ExecuteAsync(
             context,
             "nendo.data.create_record",
@@ -64,6 +65,7 @@ internal sealed class NendoDataTools(
                 idempotencyKey,
                 expectedTargetVersions,
                 keptInNewFiles,
+                references,
                 cancellationToken),
             entityId);
 
@@ -190,6 +192,64 @@ internal sealed class NendoDataTools(
             entityId, fieldId);
 
     [McpServerTool(
+        Name = "nendo.data.update_record",
+        Title = "Update several fields of a record",
+        Destructive = true,
+        Idempotent = true,
+        OpenWorld = false,
+        ReadOnly = false,
+        UseStructuredContent = true)]
+    [Description("Set several fields of one record as one revision at an exact expected record version: the form save the Workbench makes, 1 to 64 fields, instead of one nendo.data.set_field per field. The record advances one version per field written, in stable field order, and recordVersion reports where it stands. Values follow nendo.data.set_field's rules. A reference may be given as a value with its target's version in expectedTargetVersions, or named in references by record ID or by a unique field's value and resolved by the host.")]
+    public Task<NendoDataApplyResult> UpdateRecordAsync(
+        RequestContext<CallToolRequestParams> context,
+        [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
+        [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
+        [Description(NendoParameterDescriptions.EntityId)] string entityId,
+        [Description("Stable record ID from nendo://application/entity/{entityId}/records.")] string recordId,
+        [Description("Current record version required for this edit.")] long expectedRecordVersion,
+        [Description("The fields to write, keyed by stable field ID, each a scalar valid for its field; exact numbers as {\"$nendoNumber\":\"numeric lexeme\"}. A calculated field cannot be written.")] NendoObjectInput values,
+        [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
+        [Description("For each non-null reference value, the current version of its target, keyed by field ID.")] IReadOnlyDictionary<string, long>? expectedTargetVersions = null,
+        [Description("Reference targets named by record ID or by a unique field's value, keyed by field ID; the host writes the ID and version.")] IReadOnlyDictionary<string, NendoReferenceInput>? references = null,
+        CancellationToken cancellationToken = default) => ExecuteAsync(
+            context,
+            "nendo.data.update_record",
+            () => mutations.UpdateRecordAsync(
+                applicationHandle,
+                leaseId,
+                entityId,
+                recordId,
+                expectedRecordVersion,
+                values,
+                idempotencyKey,
+                expectedTargetVersions,
+                references,
+                cancellationToken),
+            entityId);
+
+    [McpServerTool(
+        Name = "nendo.data.apply_writes",
+        Title = "Write several records as one revision",
+        Destructive = true,
+        Idempotent = true,
+        OpenWorld = false,
+        ReadOnly = false,
+        UseStructuredContent = true)]
+    [Description("Create, update and delete records across record types as one revision, all or nothing: the batch the Workbench's forms commit. Up to limits.recordWritesPerCall writes, each a create (values), an update (expectedRecordVersion and 1 to 64 values) or a delete (expectedRecordVersion), one write per record. A write may point at a record an earlier write in the batch created; the host supplies that target's version. The result names every record with the version it holds now; label is what History calls the revision.")]
+    public Task<NendoDataWritesResult> ApplyWritesAsync(
+        RequestContext<CallToolRequestParams> context,
+        [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
+        [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
+        [Description("The writes, in order, each naming its kind, record type and record.")] IReadOnlyList<NendoRecordWriteInput> writes,
+        [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
+        [Description("Optional. What History calls this revision, 1 to 80 characters; omitted, it is described by what it does.")] string? label = null,
+        CancellationToken cancellationToken = default) => ExecuteAsync(
+            context,
+            "nendo.data.apply_writes",
+            () => mutations.ApplyWritesAsync(applicationHandle, leaseId, writes, idempotencyKey, label, cancellationToken),
+            writes is null ? [] : writes.Select(write => write?.EntityId).ToArray());
+
+    [McpServerTool(
         Name = "nendo.data.move_record",
         Title = "Move a record in its hierarchy",
         Destructive = true,
@@ -277,7 +337,7 @@ internal sealed class NendoDataTools(
                 "mutation",
                 name,
                 "committed",
-                (result as NendoDataApplyResult)?.RevisionId);
+                (result as INendoRevisionResult)?.RevisionId);
             return result;
         }
         catch (OperationCanceledException)
