@@ -87,7 +87,7 @@ internal sealed class NendoAgentAuthoringService(
                         changeSetId,
                         title.Trim(),
                         snapshot.Manifest.DefinitionRevision,
-                        "draft")
+                        StateName(NendoProposalState.Draft))
                     {
                         OutstandingProposals = outstanding,
                         Advisory = outstanding == 0
@@ -133,13 +133,7 @@ internal sealed class NendoAgentAuthoringService(
                 await _gate.WaitAsync(cancellationToken);
                 try
                 {
-                    var draft = RequireDraft(changeSetId, applicationHandle, leaseId);
-                    if (draft.Frozen)
-                    {
-                        throw new NendoAgentAuthoringException(
-                            "CHANGE_SET_FROZEN",
-                            "The change set is already frozen for validation.");
-                    }
+                    var draft = RequireOpenDraft(changeSetId, applicationHandle, leaseId);
                     if (draft.AddReplays.TryGetValue(idempotencyKey, out var replay))
                     {
                         return ExactReplay(replay, digest);
@@ -196,13 +190,7 @@ internal sealed class NendoAgentAuthoringService(
                 await _gate.WaitAsync(cancellationToken);
                 try
                 {
-                    var draft = RequireDraft(changeSetId, applicationHandle, leaseId);
-                    if (draft.Frozen)
-                    {
-                        throw new NendoAgentAuthoringException(
-                            "CHANGE_SET_FROZEN",
-                            "The change set is already frozen for validation.");
-                    }
+                    var draft = RequireOpenDraft(changeSetId, applicationHandle, leaseId);
                     // An exact retry replays rather than truncating twice.
                     if (draft.AddReplays.TryGetValue(idempotencyKey, out var replay))
                     {
@@ -661,16 +649,16 @@ internal sealed class NendoAgentAuthoringService(
     /// </summary>
     private void ForgetValidateReplays(string changeSetId)
     {
-        foreach (var key in _validateReplays.Keys.Where(value => value.ChangeSetId == changeSetId).ToArray())
-        {
-            _validateReplays.Remove(key);
-        }
+        _validateReplays.RemoveWhere(key => key.ChangeSetId == changeSetId);
     }
 
     /// <summary>Whether the open file holds automatic actions this device has not approved, and this listener may approve them.</summary>
     private bool NeedsConsent() =>
         unattended.IsAvailable && application.BehaviourTrust is { RequiresApproval: true, IsApproved: false };
 
+    // The one place a proposal state becomes the word a result carries. The wire keeps
+    // strings (begin and add say "draft"; accept says "active" or "stale") so the output
+    // schemas are unchanged; the enum is the type behind every one of them (W-159).
     private static string StateName(NendoProposalState state) => state switch
     {
         NendoProposalState.Active => "active",
@@ -696,22 +684,11 @@ internal sealed class NendoAgentAuthoringService(
             {
                 _drafts.Remove(draft.ChangeSetId);
             }
-            foreach (var key in _beginReplays.Keys.Where(value => value.ApplicationHandle == applicationHandle).ToArray())
-            {
-                _beginReplays.Remove(key);
-            }
-            foreach (var key in _acceptReplays.Keys.Where(value => value.ApplicationHandle == applicationHandle).ToArray())
-            {
-                _acceptReplays.Remove(key);
-            }
-            foreach (var key in _validateReplays.Keys.Where(value => value.ApplicationHandle == applicationHandle).ToArray())
-            {
-                _validateReplays.Remove(key);
-            }
-            foreach (var key in _rejectReplays.Keys.Where(value => value.ApplicationHandle == applicationHandle).ToArray())
-            {
-                _rejectReplays.Remove(key);
-            }
+            _beginReplays.RemoveWhere(key => key.ApplicationHandle == applicationHandle);
+            _acceptReplays.RemoveWhere(key => key.ApplicationHandle == applicationHandle);
+            _validateReplays.RemoveWhere(key => key.ApplicationHandle == applicationHandle);
+            _revalidateReplays.RemoveWhere(key => key.ApplicationHandle == applicationHandle);
+            _rejectReplays.RemoveWhere(key => key.ApplicationHandle == applicationHandle);
         }
         finally
         {
@@ -780,6 +757,15 @@ internal sealed class NendoAgentAuthoringService(
                 "CHANGE_SET_STALE",
                 "The application definition changed after the draft began.");
         }
+    }
+
+    /// <summary>A draft that still takes operations: owned, and not frozen for a validate in progress.</summary>
+    private Draft RequireOpenDraft(string changeSetId, string applicationHandle, string leaseId)
+    {
+        var draft = RequireDraft(changeSetId, applicationHandle, leaseId);
+        return draft.Frozen
+            ? throw new NendoAgentAuthoringException("CHANGE_SET_FROZEN", "The change set is already frozen for validation.")
+            : draft;
     }
 
     private Draft RequireDraft(string changeSetId, string applicationHandle, string leaseId)
@@ -950,12 +936,7 @@ internal sealed class NendoAgentAuthoringService(
     private static int CanonicalCount(IReadOnlyList<NendoAgentMutationInput> mutations) =>
         mutations.Sum(mutation => mutation.Operations.Sum(CanonicalCount));
 
-    private static int CanonicalCount(NendoAgentOperationInput operation) =>
-        operation.OperationType == "ui.addNode" &&
-        operation.Payload.Element.TryGetProperty("properties", out var properties) &&
-        properties.ValueKind == JsonValueKind.Object
-            ? 1 + properties.EnumerateObject().Count()
-            : 1;
+    private static int CanonicalCount(NendoAgentOperationInput operation) => Expand(operation).Count();
 
     private static JsonElement Without(JsonElement payload, string name) => Object(writer =>
     {
@@ -986,20 +967,15 @@ internal sealed class NendoAgentAuthoringService(
         {
             return operation.Payload.Element.Clone();
         }
-        using var buffer = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(buffer))
+        return Object(writer =>
         {
-            writer.WriteStartObject();
             foreach (var property in operation.Payload.Element.EnumerateObject()
                          .Where(property => property.Name != "expectedDefinitionRevision"))
             {
                 property.WriteTo(writer);
             }
             writer.WriteNumber("expectedDefinitionRevision", revision);
-            writer.WriteEndObject();
-        }
-        using var document = JsonDocument.Parse(buffer.ToArray());
-        return document.RootElement.Clone();
+        });
     }
 
     private static bool IsDefinitionLane(string operationType) =>
@@ -1119,7 +1095,7 @@ internal sealed class NendoAgentAuthoringService(
         draft.ChangeSetId,
         draft.Mutations.Count,
         draft.OperationCount,
-        "draft")
+        StateName(NendoProposalState.Draft))
     {
         MutationLimit = MaximumMutationsPerChangeSet,
         OperationLimit = MaximumOperationsPerChangeSet,

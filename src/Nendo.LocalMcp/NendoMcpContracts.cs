@@ -318,13 +318,6 @@ public sealed record NendoMcpApplicationSurfaces(string EntityId, string Display
 }
 
 /// <summary>
-/// Everything an authoring client needs to plan, in one read: identity and
-/// revisions, the bounds it must batch against, every record type with its fields
-/// and references, and every compiled screen. The same reconnaissance previously
-/// cost one read per record type plus a surfaces read that could not describe a
-/// contract version 3 application at all.
-/// </summary>
-/// <summary>
 /// The whole open application in one read.
 /// <para>
 /// <c>Purpose</c> is first because member order here is the order the payload serializes in,

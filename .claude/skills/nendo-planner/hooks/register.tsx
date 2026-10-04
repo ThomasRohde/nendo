@@ -12,6 +12,9 @@ const CLOSED = new Set(['Done', 'Dropped'])
 type $ = EngineInterface
 
 // One stateless JSON-RPC call on the 2026-07-28 discover path, as tools/Nendo-McpClient.mjs makes it.
+// Deliberately not an import of that client (W-159): a hook runs on the hook engine's $.http.fetch,
+// which returns a whole response, while the client is built on Node's fetch and AbortSignal; the
+// two cannot share a transport, and a listen stream (W-151) is out of this engine's reach.
 async function rpc($: $, endpoint: string, method: string, params: Record<string, unknown>) {
   const name = (params.name ?? params.uri) as string | undefined
   const response = await $.http.fetch(endpoint, {

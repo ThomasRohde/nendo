@@ -41,38 +41,15 @@ internal sealed class NendoUnattendedTools(
         under Health, exactly as if they had given it.
         Validate first: a change set that is still a draft is NENDO_CHANGE_SET_NOT_VALIDATED.
         """)]
-    public async Task<NendoChangeSetAcceptResult> AcceptAsync(
+    public Task<NendoChangeSetAcceptResult> AcceptAsync(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
         [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
         [Description("Server-minted change-set ID returned by nendo.change_set.begin, already validated.")] string changeSetId,
         [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var result = await authoring.AcceptAsync(
-                applicationHandle,
-                leaseId,
-                changeSetId,
-                idempotencyKey,
-                cancellationToken);
-            activity.Record(
-                context,
-                "authoring",
-                "nendo.change_set.accept",
-                result.Applied ? "completed" : "rejected",
-                proposalId: result.ProposalId);
-            return result;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            activity.Record(context, "authoring", "nendo.change_set.accept", "rejected");
-            throw NendoToolErrors.Translate(exception);
-        }
-    }
+        CancellationToken cancellationToken = default) => NendoToolCall.RunAsync(
+            context, activity, "authoring", "nendo.change_set.accept",
+            () => authoring.AcceptAsync(applicationHandle, leaseId, changeSetId, idempotencyKey, cancellationToken),
+            result => result.Applied ? "completed" : "rejected",
+            proposalId: result => result.ProposalId);
 }

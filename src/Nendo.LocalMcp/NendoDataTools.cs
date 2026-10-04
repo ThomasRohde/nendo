@@ -341,37 +341,18 @@ internal sealed class NendoDataTools(
     /// used only on the failing path, to say whether an outstanding proposal is
     /// what this write is waiting for.
     /// </summary>
-    private async Task<T> ExecuteAsync<T>(
+    // An import commits several revisions, so it has no single revision ID to record.
+    // Saying it committed without naming one is the true statement; the revisions
+    // themselves are in History either way.
+    private Task<T> ExecuteAsync<T>(
         RequestContext<CallToolRequestParams> context,
         string name,
         Func<Task<T>> action,
-        params string?[] names)
-    {
-        try
-        {
-            var result = await action();
-            // An import commits several revisions, so it has no single revision ID to
-            // record. Saying it committed without naming one is the true statement; the
-            // revisions themselves are in History either way.
-            activity.Record(
-                context,
-                "mutation",
-                name,
-                "committed",
-                (result as INendoRevisionResult)?.RevisionId);
-            return result;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            throw NendoToolErrors.Translate(
-                exception,
-                () => proposals.PendingCause(host.Mode >= AgentAccessMode.Unattended, names));
-        }
-    }
+        params string?[] names) => NendoToolCall.RunAsync(
+            context, activity, "mutation", name, action,
+            _ => "committed",
+            revisionId: result => (result as INendoRevisionResult)?.RevisionId,
+            cause: () => proposals.PendingCause(host.Mode >= AgentAccessMode.Unattended, names));
 
     [McpServerTool(Name = "nendo.data.set_kept_in_new_files", Title = "Keep a record in new files, or leave it out", Destructive = true,
         Idempotent = true, OpenWorld = false, ReadOnly = false, UseStructuredContent = true)]

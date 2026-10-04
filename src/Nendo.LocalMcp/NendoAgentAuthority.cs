@@ -347,32 +347,6 @@ internal sealed class NendoAgentAuthority(
         }
     }
 
-    internal async Task RevokeSessionAsync(string applicationHandle)
-    {
-        await _gate.WaitAsync(CancellationToken.None);
-        try
-        {
-            var ended = false;
-            if (Active?.ApplicationHandle == applicationHandle)
-            {
-                Active = null;
-                ended = true;
-            }
-            if (_released?.ApplicationHandle == applicationHandle)
-            {
-                _released = null;
-            }
-            if (ended)
-            {
-                await NotifyLeaseEndedAsync(applicationHandle);
-            }
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
     internal async Task RevokeAllAsync()
     {
         await _gate.WaitAsync(CancellationToken.None);

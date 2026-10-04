@@ -209,30 +209,10 @@ internal sealed class NendoAuthoringTools(
                 cancellationToken),
             result => result.ProposalId);
 
-    private async Task<T> ExecuteAsync<T>(
+    private Task<T> ExecuteAsync<T>(
         RequestContext<CallToolRequestParams> context,
         string name,
         Func<Task<T>> action,
-        Func<T, string?>? proposalId = null)
-    {
-        try
-        {
-            var result = await action();
-            activity.Record(
-                context,
-                "authoring",
-                name,
-                "completed",
-                proposalId: proposalId?.Invoke(result));
-            return result;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            throw NendoToolErrors.Translate(exception);
-        }
-    }
+        Func<T, string?>? proposalId = null) => NendoToolCall.RunAsync(
+            context, activity, "authoring", name, action, _ => "completed", proposalId: proposalId);
 }

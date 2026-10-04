@@ -32,6 +32,12 @@ internal sealed class NendoReplayCache<TKey, TValue>(int capacity = NendoReplayC
 
     internal bool Remove(TKey key) => _entries.Remove(key);
 
+    /// <summary>Forgets every entry whose key matches, as a lease's end and an amend forget theirs.</summary>
+    internal void RemoveWhere(Func<TKey, bool> predicate)
+    {
+        foreach (var key in _entries.Keys.Where(predicate).ToArray()) _entries.Remove(key);
+    }
+
     internal void Clear() => _entries.Clear();
 }
 

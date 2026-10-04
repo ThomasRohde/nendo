@@ -49,7 +49,7 @@ public sealed class AgentAuthorityTests
 
         var editing = CreateAuthority(AgentAccessMode.ApplicationAuthoring, clock, TimeSpan.FromMinutes(1));
         var lease = await editing.AcquireAsync("session-a", "Codex", CancellationToken.None);
-        await editing.RevokeSessionAsync("session-a");
+        await editing.RevokeAllAsync();
         var revoked = await Assert.ThrowsExactlyAsync<NendoAgentAuthorityException>(() =>
             editing.RenewAsync(lease.LeaseId, "session-a", CancellationToken.None));
         Assert.AreEqual("INVALID_LEASE", revoked.Code);
