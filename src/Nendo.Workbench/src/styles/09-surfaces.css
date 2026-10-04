@@ -26,8 +26,6 @@
   align-items: center;
   gap: 8px;
   min-height: 46px;
-  padding: 10px;
-  border-bottom: 1px solid var(--line);
 }
 
 .board-column > header > h3:first-child { grid-column: 1 / span 2; }
@@ -85,12 +83,10 @@
   flex-direction: column;
   gap: 9px;
   min-height: 140px;
-  padding: 9px;
 }
 
 .record-card {
   display: grid;
-  gap: 9px;
   width: 100%;
   padding: 12px;
   border: 1px solid var(--line);
@@ -98,7 +94,6 @@
   color: var(--ink);
   background: var(--surface-raised);
   text-align: left;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--ink) 5%, transparent);
 }
 
 .record-card:hover {
@@ -107,10 +102,8 @@
 
 .record-card.can-drag { cursor: grab; touch-action: none; user-select: none; }
 .record-card.is-dragging { opacity: 0.5; cursor: grabbing; }
-.board-column.drop-target { outline: 3px solid Highlight; outline-offset: -3px; }
 
 .record-card > strong {
-  font-size: 0.85rem;
   line-height: 1.35;
 }
 
@@ -155,11 +148,9 @@
 
 .empty-column {
   color: var(--muted);
-  font-style: italic;
 }
 
 .empty-column {
-  margin: 22px 0;
   text-align: center;
   font-size: 0.75rem;
 }
@@ -175,8 +166,6 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 53px;
-  padding: 10px 15px;
   font-weight: 700;
 }
 
