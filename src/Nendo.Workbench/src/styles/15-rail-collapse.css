@@ -9,8 +9,6 @@
 
 /* Room for the toggle beside the mark, without moving the mark or shrinking it. */
 .brand {
-  justify-content: space-between;
-  gap: 6px;
   padding-right: 4px;
 }
 
@@ -32,29 +30,15 @@
     grid-template-columns: 56px minmax(0, 1fr);
   }
 
-  :root[data-rail="collapsed"] .rail {
-    gap: 6px;
-    padding: 12px 6px 12px;
-  }
-
-  /* The mark stays in the upper-left corner it belongs in; the toggle moves below it,
-     because 56px has no room for the two side by side. */
+  /* The mark centres in the 56px rail. Its row, height and spacing are 21-native.css's. */
   :root[data-rail="collapsed"] .brand {
-    flex-direction: column;
     align-items: center;
     gap: 4px;
-    height: auto;
-    padding: 0;
   }
 
   :root[data-rail="collapsed"] .brand img {
     width: 28px;
     max-height: 24px;
-  }
-
-  :root[data-rail="collapsed"] .brand {
-    margin: 0;
-    padding: 4px 0 8px;
   }
 
   :root[data-rail="collapsed"] .brand-word {
