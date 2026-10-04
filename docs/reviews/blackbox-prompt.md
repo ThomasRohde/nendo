@@ -258,7 +258,10 @@ acquire it again with `resumeApplicationHandle`: a proposal you validated before
 release should still preview under the new lease, and `nendo://application/proposals`
 should name its `changeSetId` and your `owner` pseudonym. Read that proposal in full at
 `nendo://application/proposal/{proposalId}` from a second client that holds no lease, and
-compare its diff with what Pending changes shows the person.
+compare its diff with what Pending changes shows the person. Have the person accept a
+different proposal first, then call `nendo.change_set.revalidate` on yours: it should
+come back previewable at the new revision with the same operations, and the old proposal
+should be gone from the list.
 
 Give one record type a reference to itself and fill it as a tree several levels deep. Then
 find out from the vocabulary, and nowhere else, how to have the host keep it a tree. Before

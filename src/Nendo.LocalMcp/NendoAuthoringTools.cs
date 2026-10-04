@@ -139,6 +139,27 @@ internal sealed class NendoAuthoringTools(
             result => result.ProposalId);
 
     [McpServerTool(
+        Name = "nendo.change_set.revalidate",
+        Title = "Validate a proposal again at the current revision",
+        Destructive = true,
+        Idempotent = true,
+        OpenWorld = false,
+        ReadOnly = false,
+        UseStructuredContent = true)]
+    [Description("Validate this handle's proposal again, at the file's current definition revision, with the same operations: the proposal it replaces is rejected and a new one takes its place under the same changeSetId, previewable for the person or, at Unattended, for nendo.change_set.accept. Use it after an accept answered stale, or when nendo://application/proposals says the file moved under it, instead of rejecting and resending every operation. A draft that no longer validates at the new revision stays open to amend. Still a draft: NENDO_CHANGE_SET_NOT_VALIDATED.")]
+    public Task<NendoAgentProposalPreview> RevalidateAsync(
+        RequestContext<CallToolRequestParams> context,
+        [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
+        [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
+        [Description("Server-minted change-set ID of a validated proposal this handle owns.")] string changeSetId,
+        [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
+        CancellationToken cancellationToken = default) => ExecuteAsync(
+            context,
+            "nendo.change_set.revalidate",
+            () => authoring.RevalidateAsync(applicationHandle, leaseId, changeSetId, idempotencyKey, cancellationToken),
+            result => result.ProposalId);
+
+    [McpServerTool(
         Name = "nendo.change_set.preview",
         Title = "Preview a proposal",
         Destructive = false,

@@ -112,9 +112,15 @@ public sealed class OutputSchemaContractTests
             validated.State,
             JsonSerializer.Serialize(validated.Diagnostics, NendoMcpJson.Options));
         await CallAsync("nendo.change_set.preview", new(scoped));
+        // W-157: the same operations validated again at the current revision, a new proposal.
+        var revalidated = Result<NendoAgentProposalPreview>(
+            await CallAsync("nendo.change_set.revalidate", new(scoped) { ["idempotencyKey"] = "contract-revalidate" }));
+        Assert.AreEqual(NendoProposalState.Previewable, revalidated.State);
+        Assert.AreNotEqual(validated.ProposalId, revalidated.ProposalId);
+        Assert.AreEqual(validated.OperationCount, revalidated.OperationCount);
 
         // Acceptance is the owner's act; the test stands in for the click.
-        var promotion = await proposals.PromoteAsync(workspace.Service, validated.ProposalId);
+        var promotion = await proposals.PromoteAsync(workspace.Service, revalidated.ProposalId);
         Assert.IsTrue(promotion.Applied, promotion.Message);
 
         // A second change set covers the rejection path.

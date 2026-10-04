@@ -77,6 +77,15 @@ Unattended, acceptance stays a host-owned user action.
 [ADR-0009](0009-local-mcp-transport-authority-and-change-sets.md) records the
 change.
 
+**Note, 2026-10-04 (W-157).** `nendo.change_set.revalidate` validates a proposal's
+operations again at the file's current definition revision: the old proposal is
+rejected, the same canonical operations become a draft captured now, and that draft
+goes through the clone validation above. Promotion then replays the newly validated
+digest exactly as before. This is validation of the same operations at a new captured
+revision, within this decision as written; it is not a rebase, which would merge two
+concurrent proposals and change what a conflict means, and which still needs its own
+ADR. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24).
+
 ## Evidence and validation obligations
 
 - EX-0001 proved clone isolation, semantic diff, exact digest replay, preservation

@@ -97,7 +97,7 @@ public sealed class HostHardeningTests
             }
         }
         Assert.IsEmpty(unbounded, "Replays kept without a bound: " + string.Join(", ", unbounded));
-        Assert.AreEqual(5, bounded, "Begin, add and amend, validate, reject and accept each keep bounded replays.");
+        Assert.AreEqual(6, bounded, "Begin, add and amend, validate, revalidate, reject and accept each keep bounded replays.");
     }
 
     private static bool IsReplay(Type type) =>

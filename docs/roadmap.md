@@ -357,7 +357,10 @@ What remains open:
   architecture invariant
   ([ADR-0007](decisions/0007-proposal-clone-validation-and-replay-promotion.md)),
   promotion replays validated operations against the active file, and a rebase
-  changes what a conflict means. It needs its own ADR. Inline node properties
+  changes what a conflict means. It needs its own ADR. Since 2026-10-04 (W-157,
+  ADR-0007 note) an agent whose proposal the file moved under calls
+  `nendo.change_set.revalidate`, which validates the same operations again at the
+  current revision instead of rejecting and resending them. Inline node properties
   removed most of the pressure, because they cut what a build spends: a complete
   application's screens now fit one change set and one approval. A large enough
   application still serializes.

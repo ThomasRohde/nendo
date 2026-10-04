@@ -21,7 +21,7 @@ public sealed class SurfaceMetadataTests
     [
         "nendo.data.set_field", "nendo.data.move_record", "nendo.data.execute_command", "nendo.data.delete_record",
         "nendo.data.set_kept_in_new_files", "nendo.data.update_record", "nendo.data.apply_writes", "nendo.data.undo_revision",
-        "nendo.change_set.amend", "nendo.change_set.reject", "nendo.change_set.accept",
+        "nendo.change_set.amend", "nendo.change_set.reject", "nendo.change_set.accept", "nendo.change_set.revalidate",
     ];
 
     [TestMethod]
@@ -36,7 +36,7 @@ public sealed class SurfaceMetadataTests
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
 
         var tools = await client.ListToolsAsync();
-        Assert.HasCount(24, tools);
+        Assert.HasCount(25, tools);
         var untitled = tools.Where(tool => string.IsNullOrWhiteSpace(tool.ProtocolTool.Title)).Select(tool => tool.Name).ToList();
         var resources = await client.ListResourcesAsync();
         var templates = await client.ListResourceTemplatesAsync();

@@ -70,8 +70,8 @@ public sealed class LeaseProtocolTests
     [TestMethod]
     [DataRow(AgentAccessMode.ReadOnly, 0)]
     [DataRow(AgentAccessMode.DataMutation, 17)]
-    [DataRow(AgentAccessMode.ApplicationAuthoring, 23)]
-    [DataRow(AgentAccessMode.Unattended, 24)]
+    [DataRow(AgentAccessMode.ApplicationAuthoring, 24)]
+    [DataRow(AgentAccessMode.Unattended, 25)]
     public async Task OfficialClientSeesOnlyModeAllowlistedLeaseTools(
         AgentAccessMode mode,
         int expectedCount)
@@ -99,8 +99,8 @@ public sealed class LeaseProtocolTests
         {
             0 => [],
             17 => DataToolNames,
-            23 => DataToolNames.Concat(AuthoringToolNames).Order(StringComparer.Ordinal).ToArray(),
-            24 => DataToolNames.Concat(AuthoringToolNames).Concat(UnattendedToolNames).Order(StringComparer.Ordinal).ToArray(),
+            24 => DataToolNames.Concat(AuthoringToolNames).Order(StringComparer.Ordinal).ToArray(),
+            25 => DataToolNames.Concat(AuthoringToolNames).Concat(UnattendedToolNames).Order(StringComparer.Ordinal).ToArray(),
             _ => throw new AssertFailedException($"Unexpected tool count {expectedCount}."),
         };
         CollectionAssert.AreEqual(
@@ -161,6 +161,7 @@ public sealed class LeaseProtocolTests
         "nendo.change_set.amend" =>
             ["leaseId", "changeSetId", "dropFromMutationOrdinal", "mutations", "idempotencyKey"],
         "nendo.change_set.validate" => ["leaseId", "changeSetId", "idempotencyKey"],
+        "nendo.change_set.revalidate" => ["leaseId", "changeSetId", "idempotencyKey"],
         "nendo.change_set.preview" => ["leaseId", "changeSetId"],
         "nendo.change_set.reject" => ["leaseId", "changeSetId", "idempotencyKey"],
         "nendo.change_set.accept" => ["leaseId", "changeSetId", "idempotencyKey"],
@@ -197,6 +198,7 @@ public sealed class LeaseProtocolTests
         "nendo.change_set.begin",
         "nendo.change_set.preview",
         "nendo.change_set.reject",
+        "nendo.change_set.revalidate",
         "nendo.change_set.validate",
     ];
 

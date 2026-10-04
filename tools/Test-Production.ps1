@@ -262,6 +262,7 @@ try {
         'nendo.change_set.begin',
         'nendo.change_set.preview',
         'nendo.change_set.reject',
+        'nendo.change_set.revalidate',
         'nendo.change_set.validate',
         'nendo.data.apply_writes',
         'nendo.data.create_record',
