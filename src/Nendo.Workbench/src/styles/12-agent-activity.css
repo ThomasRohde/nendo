@@ -382,12 +382,12 @@
 .page-controls button:disabled { opacity: .45; cursor: default; }
 .operation-details { margin: 8px 0; padding-left: 18px; font-size: .85rem; line-height: 1.7; }
 /* Bounded reference selection keeps record IDs separate from readable labels. */
-.reference-control { display: grid; gap: 8px; min-width: 0; }
+.reference-control { display: grid; min-width: 0; }
 .reference-selected { overflow-wrap: anywhere; }
-.reference-picker { border: 1px solid var(--line); border-radius: var(--radius-panel); padding: 12px; }
+.reference-picker { border: 1px solid var(--line); border-radius: var(--radius-panel); }
 .reference-picker[hidden] { display: none; }
-.reference-results { display: grid; max-height: 220px; overflow-y: auto; margin-top: 10px; }
-.reference-result { text-align: left; padding: 10px; border: 0; border-bottom: 1px solid var(--line); color: inherit; background: transparent; overflow-wrap: anywhere; cursor: pointer; }
+.reference-results { display: grid; max-height: 220px; overflow-y: auto; }
+.reference-result { text-align: left; border: 0; border-bottom: 1px solid var(--line); color: inherit; background: transparent; overflow-wrap: anywhere; cursor: pointer; }
 .reference-result:hover, .reference-result:focus-visible { background: var(--surface); outline: 2px solid var(--cobalt); outline-offset: -2px; }
  .record-delete-dialog { max-width: 32rem; padding: 2rem; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); color: var(--ink); }
  .record-delete-dialog::backdrop { background: rgb(10 20 40 / 45%); }
