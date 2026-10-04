@@ -17,7 +17,6 @@
   --space-4: 16px;
   --space-5: 24px;
   --space-6: 32px;
-  --radius-control: 6px;
   /* Ids, counts, versions and key names. Cascadia ships with Windows 11; a bundled
      face would be a binary asset the repository gate does not accept. */
   --mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
