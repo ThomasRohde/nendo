@@ -42,6 +42,7 @@ Each area below is a gap. Do not read a gap as a feature.
 | Human usability and accessibility | Owner-reported. The owner ran the Windows 100%/200% scaling, keyboard/focus and screen-reader checks. No lane instruments them. Accepted limitation 2026-09-20 (W-028 dropped): instrumentation of these checks is not valuable for this prototype |
 | Cloud sync and live-root writes | Unsupported. The host warns about known sync paths. There is no sync-safety claim |
 | Physical power loss | Not qualified |
+| Reference MCP Inspector | Opt-in lane only. `Test-Production.ps1 -Inspector` runs the reference Inspector's `tools/list` against a host and compares it with the host's own list; the package is not on the development machine, so the lane has reported Inconclusive and never a pass. The gate ports four of the Inspector's lint rules instead |
 | Broad MCP client parity | Not promised. Claude Code and Codex both connect with only the address, and opt-in installed-client lanes check this. That is not a general parity claim |
 | Account boundary on a shared machine | Removed with the credential ([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md)). This was chosen for iteration speed on a single-user machine. It is not a gap that work is closing |
 | Cross-platform | Windows only |
@@ -336,6 +337,20 @@ The other four findings were these:
   reported, and ends the search. Leaving out a whole mutation moves every later
   definition revision, so a mistake after such a mutation is found on the next pass
   rather than this one.
+
+A fifth round, on 2026-10-04, read the adapter's code against the specification as
+published that day rather than driving it. Its record is
+[`reviews/2026-10-04-mcp-layer-review.md`](reviews/2026-10-04-mcp-layer-review.md),
+with the state of each of its twenty work items at the top. It found four defects in
+the accept and validate paths, all fixed with falsified guards, and a set of Engine
+reads and writes the adapter never exposed: records by ID, filtered and sorted, counts
+and aggregates, multi-field and cross-type writes, an agent's undo of its own revision,
+one proposal in full, and a stale proposal validated again in one call. It adopted
+`subscriptions/listen`, the Tasks extension and a host-level skill, and wrote
+[ADR-0024](decisions/0024-a-file-carries-its-own-agent-skill.md) (a file carries its
+own skill, build pending) and
+[ADR-0025](decisions/0025-mcp-apps-and-a-proposal-review-card.md) (MCP Apps,
+deferred).
 
 What remains open:
 
