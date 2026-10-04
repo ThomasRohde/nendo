@@ -109,6 +109,9 @@ that `nendo.data.get_receipt` says whether. Nothing bounded either before. The r
 that make an exact retry replay are kept, per lease, for the newest 256 calls of each
 kind (begin, add and amend, validate, reject, accept); a retry older than that is a
 new call. They were kept for the life of the lease, which has no expiry by default.
+A validate's replay lasts only while the draft holds what it validated: `add_operations`
+and `amend` both forget it, so a validate retried under its old key after either
+compiles the draft again (W-142; add used to leave the stale verdict in place).
 
 Lease acquisition mints an
 opaque `applicationHandle` in addition to `leaseId`. Supply both on every owned
@@ -534,11 +537,23 @@ The installation of an automatic action needs no consent. The **write that would
 run one** needs consent, and `NENDO_BEHAVIOUR_NOT_APPROVED` is raised at that
 write. At Unattended, the host records that consent after an acceptance that
 installs actions. It also records it once before a single retry of a write that was
-refused for lack of it. This is the same grant that a person's approval writes,
-scoped to the same behaviour digest and withdrawn in the same place. At every level
-below, the delegate that does this is null, and the refusals are exactly as they
-were. [The acceptance tests](../../tests/Nendo.LocalMcp.Tests/UnattendedAcceptanceTests.cs)
+refused for lack of it, and, since 2026-10-04 (W-141), once before a single further
+promotion of a proposal the Engine answered `previewable` because it replays actions
+the device has not approved: the ADR-0009 row "propose the actions first and the
+records after" is accepted on the first call, and `behaviourApproved` says so. This
+is the same grant that a person's approval writes, scoped to the same behaviour
+digest and withdrawn in the same place. At every level below, the delegate that does
+this is null, and the refusals are exactly as they were.
+[The acceptance tests](../../tests/Nendo.LocalMcp.Tests/UnattendedAcceptanceTests.cs)
 pair each of these with a refusal at the level below.
+
+The accept result is cached for its exact retry before the grant runs, and the grant
+runs to its end whether or not the caller is still waiting (W-140). A grant that fails
+after the commit is reported on the applied result: `applied` true, `behaviourApproved`
+false and a `message` carrying the failure reference and the remedy. Until 2026-10-04 the
+call failed as `NENDO_INTERNAL_ERROR` with nothing cached, and the exact retry the
+instructions ask for was refused as `NENDO_CHANGE_SET_NOT_FOUND` although the change
+was in the file.
 
 Evidence: [protocol resource tests](../../tests/Nendo.LocalMcp.Tests/ProtocolResourceTests.cs),
 [unattended acceptance tests](../../tests/Nendo.LocalMcp.Tests/UnattendedAcceptanceTests.cs),

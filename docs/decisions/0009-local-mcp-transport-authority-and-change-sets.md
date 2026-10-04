@@ -49,6 +49,10 @@ withdrawal, so the review reads that from the session. Four sentences follow:
 | changes the actions, sets nothing off | editing pauses after accepting until you approve | offered |
 | changes the actions and sets them off | nobody can accept this as it stands; propose the actions first, the records after | withheld |
 
+At Unattended, `nendo.change_set.accept` grants on the second row and promotes once
+more, so an agent that split its work as the last row asks is not stopped on the second
+proposal (W-141, 2026-10-04); below Unattended the row reads as written.
+
 Pending changes adds the same step after a proposal's size, so it is visible before
 the review opens. The MCP preview and `nendo://application/proposals` carry the same
 `behaviour`, so an agent can split a proposal before it reaches the person.

@@ -389,18 +389,31 @@ public sealed class UnattendedAcceptanceTests
         var validated = await ValidateStampTriggerAsync(client, session, workspace);
         var before = host.GetActivities().Count;
 
-        var result = await client.CallToolAsync("nendo.change_set.accept", new Dictionary<string, object?>(session)
+        // W-140: the promotion committed before the grant ran, so the accept is applied
+        // and says the consent failed, rather than failing a call whose change is in the
+        // file. An exact retry replays that outcome; it used to be refused as
+        // NENDO_CHANGE_SET_NOT_FOUND because nothing was cached before the grant.
+        var accepted = await CallAsync<NendoChangeSetAcceptResult>(client, "nendo.change_set.accept", new(session)
         {
             ["changeSetId"] = validated.ChangeSetId,
             ["idempotencyKey"] = "accept-fails-inside",
         });
-        var text = string.Join(' ', result.Content.OfType<ModelContextProtocol.Protocol.TextContentBlock>().Select(block => block.Text));
-        Assert.IsTrue(result.IsError, text);
-        StringAssert.Contains(text, "NENDO_INTERNAL_ERROR: The local Nendo request failed (IOException; failure ");
+        Assert.IsTrue(accepted.Applied, accepted.Message);
+        Assert.IsFalse(accepted.BehaviourApproved, "A grant that threw cannot have recorded consent.");
+        var text = accepted.Message ?? string.Empty;
+        StringAssert.Contains(text, "The change was applied. Recording this device's consent", StringComparison.Ordinal);
+        StringAssert.Contains(text, "(IOException; failure ", StringComparison.Ordinal);
+        var replayed = await CallAsync<NendoChangeSetAcceptResult>(client, "nendo.change_set.accept", new(session)
+        {
+            ["changeSetId"] = validated.ChangeSetId,
+            ["idempotencyKey"] = "accept-fails-inside",
+        });
+        Assert.AreEqual(accepted, replayed, "The retry must return the committed outcome, not a refusal.");
+        Assert.AreEqual(accepted.DefinitionRevision, (await workspace.Service.GetSnapshotAsync()).Manifest.DefinitionRevision);
 
         Assert.HasCount(1, failures, "One failure, one line.");
         var failure = failures[0];
-        StringAssert.Contains(text, $"failure {failure.Reference}).");
+        StringAssert.Contains(text, $"failure {failure.Reference})", StringComparison.Ordinal);
         Assert.AreEqual(("tool", "nendo.change_set.accept"), (failure.Source, failure.Request));
         StringAssert.StartsWith(failure.ExceptionType, "System.IO.IOException");
         Assert.IsFalse(string.IsNullOrWhiteSpace(failure.Trace), "The frames are what the type alone cannot say.");
@@ -413,7 +426,169 @@ public sealed class UnattendedAcceptanceTests
         {
             Assert.DoesNotContain(secret, written, StringComparison.Ordinal, $"The failure record carries '{secret}'.");
         }
-        Assert.HasCount(before + 1, host.GetActivities(), "The failed call is one activity entry.");
+        Assert.HasCount(before + 2, host.GetActivities(), "The accept and its replay are one activity entry each.");
+    }
+
+    /// <summary>
+    /// W-140: a promotion whose response was lost after the commit leaves the proposal in
+    /// this adapter's queue and its receipt in the file. The Engine promotes a committed
+    /// proposal idempotently from that receipt, so the retry is applied and the queue
+    /// entry goes. Held here so the receipt path stays on the accept route.
+    /// </summary>
+    [TestMethod]
+    public async Task AnAcceptWhoseCommitAlreadyHappenedIsAnsweredFromTheProposalReceipt()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service,
+            AgentAccessMode.Unattended,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        var validated = await ValidateNotesAsync(client, session);
+
+        // The commit happened; the adapter never heard back, so its queue still lists it.
+        var committed = await workspace.Service.PromoteProposalAsync(
+            validated.ProposalId, CancellationToken.None, validated.OperationDigest);
+        Assert.IsTrue(committed.Applied, committed.Message);
+        Assert.HasCount(1, host.GetPendingProposals());
+
+        var accepted = await CallAsync<NendoChangeSetAcceptResult>(client, "nendo.change_set.accept", new(session)
+        {
+            ["changeSetId"] = validated.ChangeSetId,
+            ["idempotencyKey"] = "accept-after-lost-response",
+        });
+        Assert.IsTrue(accepted.Applied, accepted.Message);
+        Assert.AreEqual("active", accepted.State);
+        Assert.AreEqual(committed.Result!.DefinitionRevision, accepted.DefinitionRevision);
+        Assert.IsEmpty(host.GetPendingProposals(), "A committed proposal is no longer waiting for anyone.");
+    }
+
+    /// <summary>
+    /// W-141: the ADR-0009 (2026-09-29) row "propose the actions first and the records
+    /// after". The second proposal replays an action the file holds and this device has
+    /// not approved. The Engine answers previewable, not an exception, so the grant-and-
+    /// retry the data lane does on that refusal has to happen here too. The pair below is
+    /// the same proposal one level down, where nothing may grant.
+    /// </summary>
+    [TestMethod]
+    public async Task UnattendedGrantsTheConsentAReplayedActionNeedsAndPromotesOnceMore()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareStampFixtureAsync(workspace);
+        var grants = new RecordingGrantStore();
+        workspace.AttachBehaviourAuthority(grants);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service,
+            AgentAccessMode.Unattended,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot),
+            null,
+            _ =>
+            {
+                workspace.GrantCurrentBehaviour(grants);
+                return Task.CompletedTask;
+            });
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        var trigger = await ValidateStampTriggerAsync(client, session, workspace);
+        // The person installs the action themselves and approves nothing.
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(
+            trigger.ProposalId, CancellationToken.None, trigger.OperationDigest)).Applied);
+        Assert.AreEqual(0, grants.Approvals);
+
+        var records = await ValidateLabelWriteAsync(client, session);
+        var accepted = await CallAsync<NendoChangeSetAcceptResult>(client, "nendo.change_set.accept", new(session)
+        {
+            ["changeSetId"] = records.ChangeSetId,
+            ["idempotencyKey"] = "accept-records-after-actions",
+        });
+        Assert.IsTrue(accepted.Applied, $"{accepted.State}: {accepted.Message}");
+        Assert.IsTrue(accepted.BehaviourApproved, "The acceptance replayed an action and said nothing about consent.");
+        Assert.AreEqual(1, grants.Approvals, "Consent is recorded once, for what the file holds.");
+        var record = (await workspace.Service.QueryRecordsAsync(new("notes", 10))).Items
+            .Single(item => item.RecordId == "n1");
+        Assert.AreEqual("Seen Second", record.Values["stamp"].GetString(), "The reviewed effect was not replayed.");
+        Assert.IsFalse(host.GetPendingProposals().Any(pending => pending.ProposalId == records.ProposalId));
+    }
+
+    /// <summary>The pair: at Shape app the same proposal stays previewable, and nothing records consent.</summary>
+    [TestMethod]
+    public async Task ShapeAppLeavesAReplayedActionWaitingForThePerson()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareStampFixtureAsync(workspace);
+        var grants = new RecordingGrantStore();
+        workspace.AttachBehaviourAuthority(grants);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service,
+            AgentAccessMode.ApplicationAuthoring,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot),
+            null,
+            _ =>
+            {
+                workspace.GrantCurrentBehaviour(grants);
+                return Task.CompletedTask;
+            });
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        var trigger = await ValidateStampTriggerAsync(client, session, workspace);
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(
+            trigger.ProposalId, CancellationToken.None, trigger.OperationDigest)).Applied);
+
+        var records = await ValidateLabelWriteAsync(client, session);
+        // The person presses Accept without having approved the actions: still waiting.
+        var promotion = await workspace.Service.PromoteProposalAsync(
+            records.ProposalId, CancellationToken.None, records.OperationDigest);
+        Assert.IsFalse(promotion.Applied);
+        Assert.AreEqual(NendoProposalState.Previewable, promotion.State);
+        Assert.AreEqual(0, grants.Approvals, "Nothing below Unattended may record consent.");
+        var record = (await workspace.Service.QueryRecordsAsync(new("notes", 10))).Items
+            .Single(item => item.RecordId == "n1");
+        Assert.AreEqual(1L, record.RecordVersion);
+    }
+
+    /// <summary>A change set that writes the label of n1, which the installed trigger stamps.</summary>
+    private static async Task<StampFixture> ValidateLabelWriteAsync(
+        McpClient client,
+        Dictionary<string, object?> session)
+    {
+        var begun = await CallAsync<NendoChangeSetBeginResult>(client, "nendo.change_set.begin", new(session)
+        {
+            ["title"] = "Second label",
+            ["idempotencyKey"] = "begin-label",
+        });
+        var scoped = new Dictionary<string, object?>(session) { ["changeSetId"] = begun.ChangeSetId };
+        await CallAsync<NendoChangeSetAddResult>(client, "nendo.change_set.add_operations", new(scoped)
+        {
+            ["mutations"] = new[]
+            {
+                new NendoAgentMutationInput("Write the label",
+                [
+                    new NendoAgentOperationInput("data.setField", JsonSerializer.SerializeToElement(new
+                    {
+                        entityId = "notes",
+                        recordId = "n1",
+                        fieldId = "label",
+                        expectedRecordVersion = 1,
+                        value = "Second",
+                    })),
+                ]),
+            },
+            ["idempotencyKey"] = "add-label",
+        });
+        var validated = await CallAsync<NendoAgentProposalPreview>(client, "nendo.change_set.validate", new(scoped)
+        {
+            ["idempotencyKey"] = "validate-label",
+        });
+        Assert.AreEqual(
+            NendoProposalState.Previewable,
+            validated.State,
+            JsonSerializer.Serialize(validated.Diagnostics, NendoMcpJson.Options));
+        var behaviour = validated.Preview.Behaviour
+            ?? throw new AssertFailedException("A proposal that fires an action said nothing about consent.");
+        Assert.AreEqual(1, behaviour.GeneratedEffectCount, "The write should fire the installed trigger once.");
+        return new StampFixture(begun.ChangeSetId, validated.ProposalId, validated.OperationDigest);
     }
 
     private static async Task PrepareStampFixtureAsync(LocalMcpTestWorkspace workspace)

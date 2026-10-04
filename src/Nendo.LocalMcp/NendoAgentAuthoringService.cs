@@ -152,6 +152,7 @@ internal sealed class NendoAgentAuthoringService(
                     draft.Mutations.AddRange(validated);
                     draft.OperationCount += operationCount;
                     draft.CanonicalOperationCount += canonicalCount;
+                    ForgetValidateReplays(changeSetId);
                     var result = Progress(draft);
                     draft.AddReplays.Add(
                         idempotencyKey,
@@ -226,12 +227,7 @@ internal sealed class NendoAgentAuthoringService(
                     draft.Mutations.AddRange(validated);
                     draft.OperationCount = keptOperations + operationCount;
                     draft.CanonicalOperationCount = keptCanonical + canonicalCount;
-                    // The draft no longer holds what a previous validation saw, so
-                    // an exact retry of that validate must not replay its verdict.
-                    foreach (var key in _validateReplays.Keys.Where(value => value.ChangeSetId == changeSetId).ToArray())
-                    {
-                        _validateReplays.Remove(key);
-                    }
+                    ForgetValidateReplays(changeSetId);
                     var result = Progress(draft);
                     draft.AddReplays.Add(
                         idempotencyKey,
@@ -471,18 +467,24 @@ internal sealed class NendoAgentAuthoringService(
                             "The change set has not been validated. Validate it before accepting it.");
                     }
                     var owned = proposals.GetOwned(changeSetId, host.HostRunId, sessionId);
+                    // A proposal that already committed is answered from its receipt: the
+                    // Engine's promotion of a committed proposal is idempotent, so an accept
+                    // whose response was lost after the commit reads as applied on retry.
                     var outcome = await proposals.PromoteAsync(
                         application, owned.ProposalId, owned.OperationDigest, cancellationToken);
-
-                    // Consent second, and only when the file now needs it. Asking before the
-                    // commit would grant for a behaviour the file does not hold yet, and the
-                    // grant is scoped to a digest, so it would be a grant for nothing.
                     var approved = false;
-                    if (outcome.Applied && unattended.IsAvailable)
+                    // A proposal that replays actions the file already holds is refused by the
+                    // Engine as previewable until this device approves them. The data lane at
+                    // this level grants on that refusal and retries once; acceptance does the
+                    // same, so proposing the actions first and the records after is not stopped
+                    // on the second proposal (ADR-0009, 2026-09-29 table).
+                    if (!outcome.Applied && outcome.State == NendoProposalState.Previewable && NeedsConsent())
                     {
-                        if (application.BehaviourTrust is { RequiresApproval: true, IsApproved: false })
+                        approved = await unattended.GrantAsync(cancellationToken);
+                        if (approved)
                         {
-                            approved = await unattended.GrantAsync(cancellationToken);
+                            outcome = await proposals.PromoteAsync(
+                                application, owned.ProposalId, owned.OperationDigest, cancellationToken);
                         }
                     }
                     var result = new NendoChangeSetAcceptResult(
@@ -493,7 +495,36 @@ internal sealed class NendoAgentAuthoringService(
                         outcome.Message,
                         outcome.Result?.DefinitionRevision,
                         approved);
+                    // Cached before the grant below: promotion removed the proposal from the
+                    // store, so a retry after a failed grant would otherwise be refused as a
+                    // change set this session never owned, with the change already in the file.
                     _acceptReplays.Add(replayKey, new Replay<NendoChangeSetAcceptResult>(digest, result));
+
+                    // Consent second, and only when the file now needs it. Asking before the
+                    // commit would grant for a behaviour the file does not hold yet, and the
+                    // grant is scoped to a digest, so it would be a grant for nothing. The
+                    // commit is done, so the grant runs to its end even if the caller stopped
+                    // waiting, and a grant that fails is reported on the applied result rather
+                    // than as a failed accept: the change is in the file either way.
+                    if (outcome.Applied && !approved && NeedsConsent())
+                    {
+                        try
+                        {
+                            result = result with { BehaviourApproved = await unattended.GrantAsync(CancellationToken.None) };
+                        }
+                        catch (Exception exception) when (exception is not OutOfMemoryException)
+                        {
+                            result = result with
+                            {
+                                Message = "The change was applied. Recording this device's consent to the automatic " +
+                                          $"actions it installs failed ({exception.GetType().Name}; failure " +
+                                          $"{NendoAgentFailures.Report(exception)}). Ask the person to approve them on " +
+                                          "the Agent page in Nendo; a later write at Unattended asks once more.",
+                            };
+                        }
+                        _acceptReplays.Remove(replayKey);
+                        _acceptReplays.Add(replayKey, new Replay<NendoChangeSetAcceptResult>(digest, result));
+                    }
                     return result;
                 }
                 finally
@@ -502,6 +533,25 @@ internal sealed class NendoAgentAuthoringService(
                 }
             },
             cancellationToken);
+
+    /// <summary>
+    /// The draft no longer holds what a previous validation saw, so an exact retry of
+    /// that validate must compile the draft again rather than replay its verdict. Called
+    /// from add as from amend: an add after an invalid validate used to leave the old
+    /// verdict in place, so the retry answered with diagnostics about operations the
+    /// draft had since been given the fix for.
+    /// </summary>
+    private void ForgetValidateReplays(string changeSetId)
+    {
+        foreach (var key in _validateReplays.Keys.Where(value => value.ChangeSetId == changeSetId).ToArray())
+        {
+            _validateReplays.Remove(key);
+        }
+    }
+
+    /// <summary>Whether the open file holds automatic actions this device has not approved, and this listener may approve them.</summary>
+    private bool NeedsConsent() =>
+        unattended.IsAvailable && application.BehaviourTrust is { RequiresApproval: true, IsApproved: false };
 
     private static string StateName(NendoProposalState state) => state switch
     {
