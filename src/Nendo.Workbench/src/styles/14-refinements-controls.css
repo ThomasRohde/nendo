@@ -8,8 +8,6 @@
 .primary-button:active:not(:disabled), .secondary-button:active:not(:disabled) { transform: translateY(1px); }
 .text-button { font-weight: 620; }
 
-.workbench { border-radius: var(--radius-shell); box-shadow: var(--shadow-raised); }
-
 @media (prefers-reduced-motion: reduce) {
   .primary-button:active:not(:disabled), .secondary-button:active:not(:disabled) { transform: none; }
 }
@@ -60,7 +58,6 @@
    is a sibling of the input here, so place all three explicitly. */
 .rename-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   column-gap: var(--space-3);
   row-gap: 5px;
