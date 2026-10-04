@@ -227,6 +227,21 @@ internal sealed class NendoMcpResources(
         TranslateAsync(() => projection.GetRevisionOperationsAsync(revisionId, cursor, PageLimit(limit), cancellationToken));
 
     [McpServerResource(
+        Name = "nendo.application.proposal",
+        Title = "One proposal in full",
+        UriTemplate = "nendo://application/proposal/{proposalId}",
+        MimeType = "application/json")]
+    [Description("One proposal in full, by the ID nendo://application/proposals or a validate result names: its semantic diff, diagnostics, package changes, behaviour and what the file would hold after acceptance, exactly what the person reads under Pending changes. Needs no lease, so a fresh session reads what its predecessor validated; changeSetId and owner say whose it is. state is live: a proposal whose captured definition revision the file has left reads stale.")]
+    public Task<string> GetProposalAsync(string proposalId, CancellationToken cancellationToken) =>
+        TranslateAsync(async () =>
+        {
+            var preview = proposals.TryGet(proposalId) ?? await projection.GetProposalAsync(proposalId, cancellationToken);
+            if (preview.State != NendoProposalState.Previewable) return preview;
+            var revision = await projection.GetDefinitionRevisionAsync(cancellationToken);
+            return preview.CapturedDefinitionRevision == revision ? preview : preview with { State = NendoProposalState.Stale };
+        });
+
+    [McpServerResource(
         Name = "nendo.application.health",
         Title = "File health",
         UriTemplate = "nendo://application/health",

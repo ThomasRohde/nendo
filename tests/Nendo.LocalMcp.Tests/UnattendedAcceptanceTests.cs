@@ -92,7 +92,7 @@ public sealed class UnattendedAcceptanceTests
             ["changeSetId"] = validated.ChangeSetId,
             ["idempotencyKey"] = "accept-notes",
         });
-        Assert.AreEqual(accepted, replayed);
+        Assert.AreEqual(JsonSerializer.Serialize(accepted), JsonSerializer.Serialize(replayed));
         Assert.AreEqual(
             snapshot.Manifest.DefinitionRevision,
             (await workspace.Service.GetSnapshotAsync()).Manifest.DefinitionRevision);
@@ -408,7 +408,7 @@ public sealed class UnattendedAcceptanceTests
             ["changeSetId"] = validated.ChangeSetId,
             ["idempotencyKey"] = "accept-fails-inside",
         });
-        Assert.AreEqual(accepted, replayed, "The retry must return the committed outcome, not a refusal.");
+        Assert.AreEqual(JsonSerializer.Serialize(accepted), JsonSerializer.Serialize(replayed), "The retry must return the committed outcome, not a refusal.");
         Assert.AreEqual(accepted.DefinitionRevision, (await workspace.Service.GetSnapshotAsync()).Manifest.DefinitionRevision);
 
         Assert.HasCount(1, failures, "One failure, one line.");

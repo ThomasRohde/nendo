@@ -150,7 +150,14 @@ public sealed record NendoAgentProposalPreview(
     [property: Description("One line per change, as the person reads it under What changes, with the IDs it touches and how reversible it is.")]
     IReadOnlyList<NendoSemanticDiffEntry> SemanticDiff,
     [property: Description("What the file would hold after acceptance: record types, surfaces, counts, purpose and package changes.")]
-    NendoAgentPreviewSummary Preview);
+    NendoAgentPreviewSummary Preview)
+{
+    [Description("The change set that validated into this proposal, which preview, reject and accept take; null for a proposal another client prepared.")]
+    public string? ChangeSetId { get; init; }
+
+    [Description("The pseudonym of the session that validated it, as a lease grant's owner names one; null for a proposal another client prepared.")]
+    public string? Owner { get; init; }
+}
 
 public sealed record NendoAgentProposalSummary(
     string ProposalId,
@@ -309,6 +316,20 @@ public sealed class NendoAgentProposalStore
         lock (_gate)
         {
             return ProjectPreview(RequireEntry(proposalId).Preview);
+        }
+    }
+
+    /// <summary>The full preview of a proposal this adapter queued, with its change set and owner, or null when it holds none by that ID (W-148).</summary>
+    internal NendoAgentProposalPreview? TryGet(string proposalId)
+    {
+        lock (_gate)
+        {
+            if (string.IsNullOrWhiteSpace(proposalId) || !_entries.TryGetValue(proposalId, out var entry)) return null;
+            return ProjectPreview(entry.Preview) with
+            {
+                ChangeSetId = entry.ChangeSetId,
+                Owner = NendoTransportIdentity.Pseudonym(entry.ApplicationHandle),
+            };
         }
     }
 

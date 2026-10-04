@@ -146,7 +146,7 @@ internal sealed class NendoAuthoringTools(
         OpenWorld = false,
         ReadOnly = true,
         UseStructuredContent = true)]
-    [Description("Read the sanitized validation preview for this handle's frozen change set.")]
+    [Description("Read the sanitized validation preview for this handle's frozen change set. The same preview, for any proposal and without a lease, is nendo://application/proposal/{proposalId}.")]
     public Task<NendoAgentProposalPreview> PreviewAsync(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,

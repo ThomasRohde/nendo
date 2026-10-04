@@ -504,7 +504,10 @@ internal sealed class NendoAgentAuthoringService(
                         StateName(outcome.State),
                         outcome.Message,
                         outcome.Result?.DefinitionRevision,
-                        approved);
+                        approved)
+                    {
+                        Revisions = outcome.Result?.Revisions.Select(NendoReceiptRevision.From).ToArray() ?? [],
+                    };
                     // Cached before the grant below: promotion removed the proposal from the
                     // store, so a retry after a failed grant would otherwise be refused as a
                     // change set this session never owned, with the change already in the file.

@@ -8,6 +8,13 @@ internal sealed class NendoResourceProjection(
     NendoApplicationService application,
     NendoCursorCodec cursors)
 {
+    /// <summary>The Engine's own preview of a proposal, whoever prepared it (W-148): the person already sees all of it in Pending changes.</summary>
+    internal async Task<NendoAgentProposalPreview> GetProposalAsync(string proposalId, CancellationToken cancellationToken)
+    {
+        NendoText.RequireText(proposalId, "proposal ID", 200);
+        return NendoAgentProposalStore.ProjectPreview(await application.GetProposalAsync(proposalId, cancellationToken));
+    }
+
     /// <summary>The definition revision the file is at now, without a record or history read.</summary>
     internal async Task<long> GetDefinitionRevisionAsync(CancellationToken cancellationToken) =>
         (await application.GetDefinitionSnapshotAsync(cancellationToken)).Manifest.DefinitionRevision;

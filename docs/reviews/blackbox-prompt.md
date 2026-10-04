@@ -238,7 +238,9 @@ a record and then try to delete that record; retire a field and see what happens
 held. Record what each refusal or acceptance told you. Then release the lease and
 acquire it again with `resumeApplicationHandle`: a proposal you validated before the
 release should still preview under the new lease, and `nendo://application/proposals`
-should name its `changeSetId` and your `owner` pseudonym.
+should name its `changeSetId` and your `owner` pseudonym. Read that proposal in full at
+`nendo://application/proposal/{proposalId}` from a second client that holds no lease, and
+compare its diff with what Pending changes shows the person.
 
 Give one record type a reference to itself and fill it as a tree several levels deep. Then
 find out from the vocabulary, and nowhere else, how to have the host keep it a tree. Before

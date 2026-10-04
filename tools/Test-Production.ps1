@@ -244,6 +244,7 @@ try {
         'nendo.application.health',
         'nendo.application.history',
         'nendo.application.manifest',
+        'nendo.application.proposal',
         'nendo.application.proposals',
         'nendo.application.revision.operations',
         'nendo.application.surfaces',

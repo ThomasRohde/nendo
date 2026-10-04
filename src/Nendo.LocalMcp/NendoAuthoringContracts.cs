@@ -259,4 +259,8 @@ public sealed record NendoChangeSetAcceptResult(
     [property: Description("The definition revision the file reached, so the next change set can begin against it without a read. Null when nothing was applied.")]
     long? DefinitionRevision,
     [property: Description("True when this acceptance also recorded this device's consent to run the automatic actions the change installs. The person can withdraw it under Agent and under Health.")]
-    bool BehaviourApproved);
+    bool BehaviourApproved)
+{
+    [Description("Every History revision the acceptance committed, in order, one per mutation of the proposal; empty when nothing was applied. What to read back to confirm, without a history page.")]
+    public IReadOnlyList<NendoReceiptRevision> Revisions { get; init; } = [];
+}

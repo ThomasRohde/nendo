@@ -127,6 +127,7 @@ public sealed class ProtocolResourceTests
                 "nendo.application.entity.tree",
                 "nendo.application.extension.file",
                 "nendo.application.history",
+                "nendo.application.proposal",
                 "nendo.application.revision.operations",
             },
             templates.Select(template => template.Name).ToArray());
