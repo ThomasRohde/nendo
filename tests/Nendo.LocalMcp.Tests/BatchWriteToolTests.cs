@@ -194,6 +194,89 @@ public sealed class BatchWriteToolTests
         StringAssert.Contains(Text(notUnique), "can be matched only by a unique field of Projects; name is not one", StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// F-258: a write that names a reference resolves the target's current version before
+    /// the Engine compares replay digests, so an exact retry after the target moved was
+    /// NENDO_IDEMPOTENCY_CONFLICT, the one case the receipt exists for. The retry now
+    /// carries the versions its committed revision recorded, as the import's does.
+    /// </summary>
+    [TestMethod]
+    public async Task AnExactRetryThatNamesAReferenceReplaysAfterItsTargetMoved()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareAsync(workspace);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        var projectVersion = 1L;
+        async Task MoveTargetAsync()
+        {
+            await workspace.Service.SetFieldAsync(new NendoSetFieldRequest("projects", "p1", "name", projectVersion, $"Renamed {projectVersion}",
+                new("test", $"p1-rename-{projectVersion}", "test")));
+            projectVersion++;
+        }
+
+        var create = new Dictionary<string, object?>(session)
+        {
+            ["entityId"] = "tasks",
+            ["records"] = new object[]
+            {
+                new { recordId = "t3", values = new { title = "By code" }, references = new { project = new { matchFieldId = "code", value = "P1" } } },
+            },
+            ["idempotencyKey"] = "retry-create-by-reference",
+        };
+        var created = await CallAsync<NendoDataApplyResult>(client, "nendo.data.create_records", new(create));
+        await MoveTargetAsync();
+        var retried = await client.CallToolAsync("nendo.data.create_records", new Dictionary<string, object?>(create));
+        Assert.AreNotEqual(true, retried.IsError, "An exact create_records retry was refused after its target moved: " + JsonSerializer.Serialize(retried));
+        var replay = retried.StructuredContent!.Value.Deserialize<NendoDataApplyResult>(NendoMcpJson.Options)!;
+        Assert.IsTrue(replay.IsIdempotentReplay);
+        Assert.AreEqual(created.RevisionId, replay.RevisionId);
+
+        var update = new Dictionary<string, object?>(session)
+        {
+            ["entityId"] = "tasks",
+            ["recordId"] = "t1",
+            ["expectedRecordVersion"] = 1L,
+            ["values"] = JsonSerializer.SerializeToElement(new { title = "Moved" }),
+            ["references"] = new { project = new { matchFieldId = "code", value = "P1" } },
+            ["idempotencyKey"] = "retry-update-by-reference",
+        };
+        var updated = await CallAsync<NendoDataApplyResult>(client, "nendo.data.update_record", new(update));
+        await MoveTargetAsync();
+        var updateReplay = await CallAsync<NendoDataApplyResult>(client, "nendo.data.update_record", new(update));
+        Assert.IsTrue(updateReplay.IsIdempotentReplay, "An exact update_record retry was refused after its target moved.");
+        Assert.AreEqual(updated.RevisionId, updateReplay.RevisionId);
+
+        var writes = new Dictionary<string, object?>(session)
+        {
+            ["writes"] = new object[]
+            {
+                new { kind = "create", entityId = "tasks", recordId = "t4", values = new { title = "Batched" }, references = new { project = new { recordId = "p1" } } },
+            },
+            ["idempotencyKey"] = "retry-apply-by-reference",
+        };
+        var applied = await CallAsync<NendoDataWritesResult>(client, "nendo.data.apply_writes", new(writes));
+        await MoveTargetAsync();
+        var appliedReplay = await CallAsync<NendoDataWritesResult>(client, "nendo.data.apply_writes", new(writes));
+        Assert.IsTrue(appliedReplay.IsIdempotentReplay, "An exact apply_writes retry was refused after its target moved.");
+        Assert.AreEqual(applied.RevisionId, appliedReplay.RevisionId);
+        Assert.HasCount(3, (await workspace.Service.QueryRecordsAsync(new("tasks", 50))).Items, "A retry wrote a second copy.");
+
+        // The recorded versions do not loosen what the key stands for: a different payload
+        // under a used key is still a conflict and writes nothing.
+        var changed = await client.CallToolAsync("nendo.data.create_records", new Dictionary<string, object?>(create)
+        {
+            ["records"] = new object[]
+            {
+                new { recordId = "t3", values = new { title = "Changed" }, references = new { project = new { matchFieldId = "code", value = "P1" } } },
+            },
+        });
+        Assert.IsTrue(changed.IsError, "A different payload under a used key was accepted.");
+        StringAssert.Contains(Text(changed), "NENDO_IDEMPOTENCY_CONFLICT", StringComparison.Ordinal);
+    }
+
     /// <summary>Projects with a unique code; tasks with a title, an estimate, a flag and a required project.</summary>
     private static async Task PrepareAsync(LocalMcpTestWorkspace workspace)
     {

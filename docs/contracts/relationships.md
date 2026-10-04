@@ -55,8 +55,11 @@ host 1.35.0.
 - **A move** (`nendo.data.move_record`, `NendoApplicationService.MoveRecordAsync`) sets
   the parent and, with an order field, places the record before a named sibling or last.
   It expands into `data.setField` operations in one revision: the parent, the order, and,
-  when no integer gap or representable first/last placement remains, every sibling renumbered in steps of
-  1,024, each against the version the move read. Each operation keeps its prior value;
+  when no integer gap or representable first/last placement remains, the smallest run of
+  siblings around the insertion point that fits between its ordered neighbours renumbered,
+  a sibling without an order joining that run, each against the version the move read
+  (since 2026-10-04, F-260; before, the whole level was renumbered in steps of 1,024, and
+  one move past an unordered sibling wrote every record at that level). Each operation keeps its prior value;
   the revision is undone by compensating its operations, since the one-click
   compensation covers a revision of record changes, up to 12,800 operations. Placement arithmetic covers the
   full signed Int64 range without wrapping. The fresh result includes action

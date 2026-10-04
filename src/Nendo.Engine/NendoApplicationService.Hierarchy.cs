@@ -95,13 +95,15 @@ public sealed partial class NendoApplicationService
             }
             else
             {
-                // No gap: number the whole sibling list afresh, the moved record in its place.
+                // No gap at the insertion point: number afresh the smallest run of siblings
+                // around it that fits between its ordered neighbours, the moved record in its
+                // place. Until 2026-10-04 the whole level was renumbered, so one move past a
+                // sibling without an order rewrote every record at that level (F-260).
                 var ordered = siblings.Select(sibling => (sibling.RecordId, sibling.Version, sibling.Order)).ToList();
                 ordered.Insert(at, (request.RecordId, version, current));
-                for (var index = 0; index < ordered.Count; index++)
+                foreach (var (index, renumbered) in RenumberedWindow(ordered.Select(entry => entry.Order).ToList(), at))
                 {
                     var (id, expected, order) = ordered[index];
-                    var renumbered = (index + 1) * NendoHierarchyLimits.OrderGap;
                     if (order != renumbered) operations.Add(Set(id, orderField, expected, renumbered));
                 }
             }
@@ -126,6 +128,52 @@ public sealed partial class NendoApplicationService
     }
 
     private static long? RepresentableOrder(Int128 order) => order >= long.MinValue && order <= long.MaxValue ? (long)order : null;
+
+    /// <summary>
+    /// The siblings to renumber around position <paramref name="at"/> of <paramref name="orders"/>,
+    /// each with its new order: the smallest window containing <paramref name="at"/> whose
+    /// members fit strictly between the ordered neighbours outside it. A neighbour without
+    /// an order is taken into the window, since nothing can be placed relative to it; a
+    /// window that reaches either end of the list is open on that side and always fits.
+    /// </summary>
+    internal static IReadOnlyList<(int Index, long Order)> RenumberedWindow(IReadOnlyList<long?> orders, int at)
+    {
+        var last = orders.Count - 1;
+        int from = at, to = at;
+        while (true)
+        {
+            var lowOpen = from == 0;
+            var highOpen = to == last;
+            if (!lowOpen && orders[from - 1] is null) { from--; continue; }
+            if (!highOpen && orders[to + 1] is null) { to++; continue; }
+            var size = to - from + 1;
+            if (lowOpen || highOpen) break;
+            if ((Int128)orders[to + 1]!.Value - orders[from - 1]!.Value - 1 >= size) break;
+            // Grow towards the nearer end, so a run in the middle stays centred on the move.
+            if (to - at <= at - from) to++; else from--;
+        }
+        return Assign(orders, from, to) ?? Assign(orders, 0, last)!;
+    }
+
+    /// <summary>The new orders of the window, or null when a step past a bound does not fit in a long.</summary>
+    private static IReadOnlyList<(int Index, long Order)>? Assign(IReadOnlyList<long?> orders, int from, int to)
+    {
+        var size = to - from + 1;
+        Int128? low = from > 0 ? orders[from - 1] : null;
+        Int128? high = to < orders.Count - 1 ? orders[to + 1] : null;
+        var step = low is { } l && high is { } h ? (h - l) / (size + 1) : NendoHierarchyLimits.OrderGap;
+        var assigned = new List<(int, long)>(size);
+        for (var index = from; index <= to; index++)
+        {
+            var position = index - from + 1;
+            var order = low is { } start ? start + step * position
+                : high is { } end ? end - step * (size - position + 1)
+                : step * position;
+            if (RepresentableOrder(order) is not { } representable) return null;
+            assigned.Add((index, representable));
+        }
+        return assigned;
+    }
 
     private static string MoveOperationId(string identity, int ordinal) =>
         NendoCanonical.DeterministicId("operation", "data.moveRecord", identity, ordinal);

@@ -315,7 +315,9 @@ try {
     $helpAgentsPath = Join-Path $workbenchRoot 'src\help-agents.ts'
     $helpAgentsSource = [IO.File]::ReadAllText($helpAgentsPath)
     $declaredUriTemplates = @(
-        [regex]::Matches($localMcpSource, 'UriTemplate\s*=\s*"(nendo://[^"]+)"') |
+        # Every scheme: the two skill:// resources (W-154) are part of the surface, and a count
+        # that saw only nendo:// failed the gate at 21 of 23 once they existed (F-262).
+        [regex]::Matches($localMcpSource, 'UriTemplate\s*=\s*"([a-z]+://[^"]+)"') |
             ForEach-Object { $_.Groups[1].Value } |
             Sort-Object -Unique
     )

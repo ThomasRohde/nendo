@@ -71,19 +71,21 @@ internal sealed class NendoDataMutationService(
             applicationHandle,
             async _ =>
             {
+                var context = Context(applicationHandle, idempotencyKey);
                 var entry = await ToEntryAsync(entityId, new NendoRecordInput(recordId, values)
                 {
                     ExpectedTargetVersions = expectedTargetVersions,
                     KeptInNewFiles = keptInNewFiles,
                     References = references,
                 }, cancellationToken);
+                var committed = await CommittedTargetVersionsAsync(context, references is { Count: > 0 }, cancellationToken);
                 return Touched(
                     await application.CreateRecordAsync(
                         new NendoCreateRecordRequest(
                             entityId,
                             recordId,
                             entry.Values,
-                            Context(applicationHandle, idempotencyKey), entry.ExpectedTargetVersions, entry.KeptInNewFiles),
+                            context, Recorded(committed, recordId, entry.ExpectedTargetVersions, references), entry.KeptInNewFiles),
                         cancellationToken),
                     entityId, [recordId],
                     CreatedVersion);
@@ -102,14 +104,18 @@ internal sealed class NendoDataMutationService(
             async _ =>
             {
                 ArgumentNullException.ThrowIfNull(records);
+                var context = Context(applicationHandle, idempotencyKey);
+                var committed = await CommittedTargetVersionsAsync(
+                    context, records.Any(record => record?.References is { Count: > 0 }), cancellationToken);
                 var entries = new List<NendoCreateRecordEntry>(records.Count);
                 foreach (var record in records)
                 {
-                    entries.Add(await ToEntryAsync(entityId, record, cancellationToken));
+                    var entry = await ToEntryAsync(entityId, record, cancellationToken);
+                    entries.Add(entry with { ExpectedTargetVersions = Recorded(committed, entry.RecordId, entry.ExpectedTargetVersions, record.References) });
                 }
                 return Touched(
                     await application.CreateRecordsAsync(
-                        new NendoCreateRecordsRequest(entityId, entries, Context(applicationHandle, idempotencyKey)),
+                        new NendoCreateRecordsRequest(entityId, entries, context),
                         cancellationToken),
                     entityId, entries.Select(entry => entry.RecordId).ToArray(),
                     CreatedVersion);
@@ -190,6 +196,47 @@ internal sealed class NendoDataMutationService(
         return targets;
     }
 
+    /// <summary>
+    /// The reference target versions the revision this key already committed recorded, by
+    /// record ID, or null when no write names a reference or the key has no receipt (F-258).
+    /// <para>
+    /// A reference named by record ID or by a unique field's value is resolved to its
+    /// target's current version before the Engine sees the write, and the Engine replays a
+    /// key only for the payload it committed. A retry after a lost response therefore
+    /// carries the versions of the attempt that committed, as the import's retry does;
+    /// resolved afresh, the one case the receipt exists for, a target edited in between,
+    /// answered NENDO_IDEMPOTENCY_CONFLICT for the same request.
+    /// </para>
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, long>>?> CommittedTargetVersionsAsync(
+        NendoRequestContext context, bool namesReferences, CancellationToken cancellationToken)
+    {
+        if (!namesReferences) return null;
+        var receipt = await application.GetMutationReceiptAsync(
+            new NendoOperationIdentity(context.IdempotencyScope, context.IdempotencyKey), cancellationToken);
+        return receipt is null ? null : await application.ReadRecordedTargetVersionsAsync(receipt.RevisionId, cancellationToken);
+    }
+
+    /// <summary>
+    /// For the fields a write named in <paramref name="references"/>, the versions the
+    /// committed revision recorded in place of the ones resolved now. A field the revision
+    /// did not record, or a record it did not write, keeps what was resolved: a different
+    /// payload under a used key is still a conflict.
+    /// </summary>
+    private static IReadOnlyDictionary<string, long>? Recorded(
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, long>>? committed,
+        string recordId,
+        IReadOnlyDictionary<string, long>? resolved,
+        IReadOnlyDictionary<string, NendoReferenceInput>? references)
+    {
+        if (committed is null || resolved is null || references is not { Count: > 0 } ||
+            !committed.TryGetValue(recordId, out var recorded)) return resolved;
+        var versions = new Dictionary<string, long>(resolved, StringComparer.Ordinal);
+        foreach (var fieldId in references.Keys)
+            if (recorded.TryGetValue(fieldId, out var version)) versions[fieldId] = version;
+        return versions;
+    }
+
     /// <summary>Several fields of one record as one revision (W-147): N set_field calls used to be N revisions and N hand-carried versions.</summary>
     internal Task<NendoDataApplyResult> UpdateRecordAsync(
         string applicationHandle,
@@ -206,12 +253,14 @@ internal sealed class NendoDataMutationService(
             applicationHandle,
             async _ =>
             {
+                var context = Context(applicationHandle, idempotencyKey);
                 var map = ReadValueMap(values.Element);
                 var targets = await ResolveReferencesAsync(entityId, map, expectedTargetVersions, references, cancellationToken);
+                var committed = await CommittedTargetVersionsAsync(context, references is { Count: > 0 }, cancellationToken);
                 return Touched(
                     await application.SetFieldsAsync(
                         new NendoSetFieldsRequest(entityId, recordId, expectedRecordVersion, map,
-                            Context(applicationHandle, idempotencyKey), targets),
+                            context, Recorded(committed, recordId, targets, references)),
                         cancellationToken),
                     entityId, [recordId],
                     expectedRecordVersion + map.Count);
@@ -234,6 +283,9 @@ internal sealed class NendoDataMutationService(
                 if (writes.Count is < 1 or > NendoApplicationService.MaximumRecordWrites)
                     throw new NendoValidationException(
                         $"A batch carries 1-{NendoApplicationService.MaximumRecordWrites} record writes; this one carries {writes.Count}.");
+                var context = Context(applicationHandle, idempotencyKey);
+                var committed = await CommittedTargetVersionsAsync(
+                    context, writes.Any(write => write?.References is { Count: > 0 }), cancellationToken);
                 var mapped = new List<NendoRecordWrite>(writes.Count);
                 for (var index = 0; index < writes.Count; index++)
                 {
@@ -253,6 +305,7 @@ internal sealed class NendoDataMutationService(
                     {
                         map = ReadValueMap(write.Values.Element);
                         targets = await ResolveReferencesAsync(write.EntityId, map, write.ExpectedTargetVersions, write.References, cancellationToken);
+                        targets = Recorded(committed, write.RecordId, targets, write.References);
                     }
                     else if (write.References is { Count: > 0 })
                     {
@@ -261,7 +314,7 @@ internal sealed class NendoDataMutationService(
                     mapped.Add(new NendoRecordWrite(kind, write.EntityId, write.RecordId, map, write.ExpectedRecordVersion, targets));
                 }
                 var result = await application.ApplyRecordWritesAsync(
-                    new NendoRecordWritesRequest(mapped, Context(applicationHandle, idempotencyKey), string.IsNullOrWhiteSpace(label) ? null : label),
+                    new NendoRecordWritesRequest(mapped, context, string.IsNullOrWhiteSpace(label) ? null : label),
                     cancellationToken);
                 var applied = result.Applied;
                 return new NendoDataWritesResult(

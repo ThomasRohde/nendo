@@ -15,6 +15,13 @@ internal sealed class NendoResourceProjection(
         return NendoAgentProposalStore.ProjectPreview(await application.GetProposalAsync(proposalId, cancellationToken));
     }
 
+    /// <summary>The revisions an acceptance of this proposal committed, or null when none is recorded (F-261).</summary>
+    internal Task<NendoChangeSetApplyResult?> GetProposalReceiptAsync(string proposalId, CancellationToken cancellationToken)
+    {
+        NendoText.RequireText(proposalId, "proposal ID", 200);
+        return application.GetProposalReceiptAsync(proposalId, cancellationToken);
+    }
+
     /// <summary>The definition revision the file is at now, without a record or history read.</summary>
     internal async Task<long> GetDefinitionRevisionAsync(CancellationToken cancellationToken) =>
         (await application.GetDefinitionSnapshotAsync(cancellationToken)).Manifest.DefinitionRevision;

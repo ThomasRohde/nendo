@@ -254,6 +254,10 @@ is saved. `nendo.data.create_record` returns the code under `assigned`; a form s
 on after the highest code of that shape, and a number is never given out twice, even
 after its record is deleted.
 
+A CSV import (`nendo.data.import_records`, or the person's own Import) may leave the Reference
+column out, or its cells empty, and every row receives the next code (since 2026-10-04,
+F-259; before, the column had to be mapped and only an empty-text cell was accepted).
+
 A code you type is kept if no other record of the type holds it; a duplicate is refused
 with `value-not-unique`, whoever writes it. Nothing stops a code being changed later, so
 when titles, priorities or relationships change, keep codes unchanged. Retain historical

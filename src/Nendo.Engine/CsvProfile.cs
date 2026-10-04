@@ -117,7 +117,9 @@ public static class NendoCsvProfile
         var isNull = options.NendoProfile ? cell == "\\N" : options.EmptyIsNull && cell.Length == 0;
         if (isNull)
         {
-            if (field.Required) throw new NendoValidationException("Required field cannot be null.");
+            // A sequence field is filled by the host when the record is written, so a null
+            // cell is a request for the next code, not a missing required value (F-259).
+            if (field.Required && field.Sequence is null) throw new NendoValidationException("Required field cannot be null.");
             return null;
         }
         if (options.NendoProfile && cell.StartsWith("\\\\", StringComparison.Ordinal)) cell = cell[1..];

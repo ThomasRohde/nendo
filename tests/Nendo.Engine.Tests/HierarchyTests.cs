@@ -242,12 +242,58 @@ public sealed class HierarchyTests
         await DeclareAsync(coordinator, service, order: true);
         var history = (await service.GetHistoryAsync()).Count;
 
+        // Only the run with no gap is renumbered: c and b after a, a step apart from a's order.
         var moved = await service.MoveRecordAsync(new(Entity, "c", 1, "root", 1, "b", Context("squeeze")));
         Assert.HasCount(history + 1, await service.GetHistoryAsync());
-        CollectionAssert.AreEquivalent(new[] { "a", "b", "c" }, moved.TouchedRecordIds.ToArray());
-        var order = new[] { "a", "c", "b" };
-        for (var index = 0; index < order.Length; index++)
-            Assert.AreEqual((index + 1) * NendoHierarchyLimits.OrderGap, (await RecordAsync(service, order[index])).Values["ord"].GetInt64(), order[index]);
+        CollectionAssert.AreEquivalent(new[] { "b", "c" }, moved.TouchedRecordIds.ToArray());
+        Assert.AreEqual(1L, (await RecordAsync(service, "a")).Values["ord"].GetInt64(), "a had room below it and must not be written.");
+        Assert.AreEqual(1L, (await RecordAsync(service, "a")).RecordVersion);
+        Assert.AreEqual(1 + NendoHierarchyLimits.OrderGap, (await RecordAsync(service, "c")).Values["ord"].GetInt64());
+        Assert.AreEqual(1 + 2 * NendoHierarchyLimits.OrderGap, (await RecordAsync(service, "b")).Values["ord"].GetInt64());
+    }
+
+    /// <summary>
+    /// F-260: the planner's first move wrote 140 records, because a sibling without an order
+    /// sorts last and the level was renumbered whole whenever a neighbour had no order. Now
+    /// a move past unordered siblings numbers those and the moved record, and nothing else.
+    /// </summary>
+    [TestMethod]
+    public async Task AMovePastUnorderedSiblingsWritesOnlyThoseAndTheMovedRecord()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator);
+        await CreateAsync(service, "root");
+        await CreateAsync(service, "a", "root", 1);
+        await CreateAsync(service, "b", "root", 2);
+        await CreateAsync(service, "c", "root");
+        await CreateAsync(service, "loose");
+        await DeclareAsync(coordinator, service, order: true);
+
+        var moved = await service.MoveRecordAsync(new(Entity, "loose", 1, "root", 1, null, Context("past-unordered")));
+        CollectionAssert.AreEquivalent(new[] { "c", "loose" }, moved.TouchedRecordIds.ToArray(),
+            "A move to the end past one unordered sibling writes that sibling and the moved record, not the level.");
+        Assert.AreEqual(3L, moved.RecordVersion);
+        foreach (var untouched in new[] { "a", "b" })
+            Assert.AreEqual(1L, (await RecordAsync(service, untouched)).RecordVersion, untouched);
+        Assert.AreEqual(2 + NendoHierarchyLimits.OrderGap, (await RecordAsync(service, "c")).Values["ord"].GetInt64());
+        Assert.AreEqual(2 + 2 * NendoHierarchyLimits.OrderGap, (await RecordAsync(service, "loose")).Values["ord"].GetInt64());
+    }
+
+    [TestMethod]
+    public void TheRenumberedWindowIsTheSmallestRunThatFits()
+    {
+        // Room on both sides: only the moved record, in the middle of the gap it already took.
+        CollectionAssert.AreEqual(new[] { (1, 1512L) }, NendoApplicationService.RenumberedWindow([1000L, null, 2024L], 1).ToArray());
+        // Neighbours one apart: the run grows towards the nearer end until it fits.
+        CollectionAssert.AreEqual(new[] { (1, 1025L), (2, 2049L) }, NendoApplicationService.RenumberedWindow([1L, 3L, 2L], 1).ToArray());
+        // A dense run with no open side: the window grows until a neighbour gap is wide enough, and shares it out.
+        CollectionAssert.AreEqual(new[] { (1, 25L), (2, 40L), (3, 55L), (4, 70L) }, NendoApplicationService.RenumberedWindow([10L, 11L, null, 12L, 13L, 86L, 18L], 2).ToArray());
+        // Unordered siblings before the insertion point join the run; the first ordered one bounds it.
+        CollectionAssert.AreEqual(new[] { (2, 1026L), (3, 2050L) }, NendoApplicationService.RenumberedWindow([1L, 2L, null, null], 3).ToArray());
+        // Nothing ordered at all: the whole list, a step apart from the first gap.
+        CollectionAssert.AreEqual(new[] { (0, 1024L), (1, 2048L) }, NendoApplicationService.RenumberedWindow([null, null], 0).ToArray());
     }
 
     [TestMethod]

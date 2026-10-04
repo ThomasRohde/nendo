@@ -261,9 +261,17 @@ should name its `changeSetId` and your `owner` pseudonym. Read that proposal in 
 compare its diff with what Pending changes shows the person. Have the person accept a
 different proposal first, then call `nendo.change_set.revalidate` on yours: it should
 come back previewable at the new revision with the same operations, and the old proposal
-should be gone from the list.
+should be gone from the list. Accept one yourself at Unattended, or have the person
+accept it, and read `nendo://application/proposal/{proposalId}` again: it should say
+`active`, not that the proposal does not exist. Then retry an exact `create_records`
+whose record named a reference by a unique field's value after editing the target
+record: the retry should replay, not answer an idempotency conflict. Import a CSV into a
+record type whose Reference is numbered by Nendo, with that column left out: every row
+should receive the next code.
 
-Give one record type a reference to itself and fill it as a tree several levels deep. Then
+Give one record type a reference to itself and fill it as a tree several levels deep, leaving
+some siblings without an order, and move one record to the end of that level: the move's
+`recordIds` should name the moved record and the unordered siblings, not the whole level. Then
 find out from the vocabulary, and nowhere else, how to have the host keep it a tree. Before
 you declare it, put one record under its own grandchild, and record what the declaration
 told you and whether the file changed. Repair it, declare it, and try again: through a single

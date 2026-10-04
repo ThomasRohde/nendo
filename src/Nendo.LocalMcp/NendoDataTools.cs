@@ -278,7 +278,7 @@ internal sealed class NendoDataTools(
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Move a record in its record type's declared hierarchy (schema.declareHierarchy): under another parent, or to the top level with parentRecordId null, and, when the hierarchy declares an order field, before a named sibling or last. One revision of data.setField operations: the parent, the order, and only when no gap is left the siblings renumbered. The host refuses a move under the record's own descendants or deeper than the hierarchy allows. recordIds names every record written; recordVersion is stated when only the moved record was written — otherwise read the records back.")]
+    [Description("Move a record in its record type's declared hierarchy (schema.declareHierarchy): under another parent, or to the top level with parentRecordId null, and, when the hierarchy declares an order field, before a named sibling or last. One revision of data.setField operations: the parent, the order, and only when no gap is left at the insertion point the smallest run of siblings around it renumbered. The host refuses a move under the record's own descendants or deeper than the hierarchy allows. recordIds names every record written; recordVersion is stated when only the moved record was written — otherwise read the records back.")]
     public Task<NendoDataApplyResult> MoveRecordAsync(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,

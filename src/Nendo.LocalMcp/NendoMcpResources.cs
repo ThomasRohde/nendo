@@ -263,15 +263,48 @@ internal sealed class NendoMcpResources(
         Title = "One proposal in full",
         UriTemplate = "nendo://application/proposal/{proposalId}",
         MimeType = "application/json")]
-    [Description("One proposal in full, by the ID nendo://application/proposals or a validate result names: its semantic diff, diagnostics, package changes, behaviour and what the file would hold after acceptance, exactly what the person reads under Pending changes. Needs no lease, so a fresh session reads what its predecessor validated; changeSetId and owner say whose it is. state is live: a proposal whose captured definition revision the file has left reads stale.")]
+    [Description("One proposal in full, by the ID nendo://application/proposals or a validate result names: its semantic diff, diagnostics, package changes, behaviour and what the file would hold after acceptance, exactly what the person reads under Pending changes. Needs no lease, so a fresh session reads what its predecessor validated; changeSetId and owner say whose it is. state is live: a proposal whose captured definition revision the file has left reads stale, and one that was accepted reads active, with its title and diff while this host run holds them and from its receipt alone after a restart.")]
     public Task<string> GetProposalAsync(string proposalId, CancellationToken cancellationToken) =>
         TranslateAsync(async () =>
         {
-            var preview = proposals.TryGet(proposalId) ?? await projection.GetProposalAsync(proposalId, cancellationToken);
+            var preview = proposals.TryGet(proposalId) ?? proposals.TryGetAccepted(proposalId);
+            if (preview is null)
+            {
+                try { preview = await projection.GetProposalAsync(proposalId, cancellationToken); }
+                catch (NendoPreconditionException exception) when (exception.Code == "proposal-not-found")
+                {
+                    // Accepted before this host run, or by the person in Nendo: the Engine
+                    // keeps the receipt, not the preview, so the answer is the receipt (F-261).
+                    var accepted = await AcceptedFromReceiptAsync(proposalId, cancellationToken);
+                    if (accepted is null) throw;
+                    return accepted;
+                }
+            }
             if (preview.State != NendoProposalState.Previewable) return preview;
+            // Accepted in Nendo while this adapter still held the preview: the receipt says so.
+            if (await projection.GetProposalReceiptAsync(proposalId, cancellationToken) is { Revisions.Count: > 0 })
+                return preview with { State = NendoProposalState.Active };
             var revision = await projection.GetDefinitionRevisionAsync(cancellationToken);
             return preview.CapturedDefinitionRevision == revision ? preview : preview with { State = NendoProposalState.Stale };
         });
+
+    /// <summary>An accepted proposal of which only the receipt survives: active, with the digest and revision the acceptance committed.</summary>
+    private async Task<NendoAgentProposalPreview?> AcceptedFromReceiptAsync(string proposalId, CancellationToken cancellationToken)
+    {
+        var receipt = await projection.GetProposalReceiptAsync(proposalId, cancellationToken);
+        if (receipt is not { Revisions.Count: > 0 }) return null;
+        return new NendoAgentProposalPreview(
+            proposalId,
+            "Accepted proposal; its title and diff were not kept past the host run that accepted it",
+            NendoProposalState.Active,
+            NendoProposalRetention.RetainUntilExplicitCleanup,
+            receipt.DefinitionRevision,
+            receipt.ChangeSetDigest,
+            0,
+            [],
+            [],
+            new NendoAgentPreviewSummary(null, 0, 0, [], []));
+    }
 
     [McpServerResource(
         Name = "nendo.application.health",

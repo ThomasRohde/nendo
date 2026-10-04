@@ -127,10 +127,13 @@ public sealed class HierarchyMoveReviewTests
         writes.Add(new(NendoRecordWriteKind.Create, Entity, "moving", new Dictionary<string, object?> { ["title"] = "Moving", ["ord"] = 102L }));
         await service.ApplyRecordWritesAsync(new(writes, Context("create-many")));
         await DeclareAsync(coordinator, service);
-        var request = new NendoMoveRecordRequest(Entity, "moving", 1, null, null, "a001", Context("renumber-many"));
+        // Into the middle of a dense level: the run grows both ways until it reaches an end,
+        // so 102 of the 103 records are written and the revision spans two history pages.
+        // (Before 2026-10-04 the whole level was renumbered wherever the record went; F-260.)
+        var request = new NendoMoveRecordRequest(Entity, "moving", 1, null, null, "a051", Context("renumber-many"));
         var original = await service.MoveRecordAsync(request);
 
-        Assert.HasCount(103, original.TouchedRecordIds);
+        Assert.HasCount(102, original.TouchedRecordIds);
         AssertReplay(original, await service.MoveRecordAsync(request));
         Assert.AreEqual(original.Applied.ChangeSequence, (await service.GetSnapshotAsync()).Manifest.ChangeSequence);
     }

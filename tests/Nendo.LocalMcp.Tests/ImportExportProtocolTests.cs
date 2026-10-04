@@ -336,6 +336,70 @@ public sealed class ImportExportProtocolTests
         }
     }
 
+    /// <summary>
+    /// F-259: a required field with a sequence is the host's to fill (ADR-0020), as it is on a
+    /// create that leaves it out. The CSV import refused the column unmapped, and refused
+    /// null under emptyIsNull, so an import into a type with a generated code had to carry
+    /// a Reference column and whether it passed depended on an unrelated switch.
+    /// </summary>
+    [TestMethod]
+    public async Task ACsvImportLeavesASequenceFieldToTheHost()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        var schema = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest(
+            $"proposal-{Guid.NewGuid():N}", "Tickets", "test",
+            new([new("test", "schema", "test", "Tickets with a generated code", [
+                new CreateEntityOperation("tickets", "tickets", "Tickets", "tickets"),
+                new AddFieldOperation("t-label", "tickets", "label", "Label", "label", NendoStorageKind.Text, true),
+                new AddFieldOperation("t-code", "tickets", "code", "Code", "code", NendoStorageKind.Text, true),
+                new SetFieldUniqueOperation("t-code-unique", "tickets", "code", true, 0),
+                new SetFieldSequenceOperation("t-code-sequence", "tickets", "code", "T-", 3, 0),
+            ])])));
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(schema.ProposalId)).Applied, JsonSerializer.Serialize(schema.Diagnostics));
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        async Task<IReadOnlyList<string>> CodesAsync() =>
+            (await workspace.Service.QueryRecordsAsync(new("tickets", 50))).Items.Select(record => record.Values["code"].GetString()!).Order(StringComparer.Ordinal).ToArray();
+
+        // The code column left out: every row gets the next code.
+        var unmapped = await CallAsync<NendoImportResult>(client, "nendo.data.import_records", new(session)
+        {
+            ["entityId"] = "tickets", ["format"] = "csv", ["csv"] = "Label\r\nFirst\r\nSecond\r\n",
+            ["columnMappings"] = Mappings(["label"]), ["idempotencyKey"] = "sequence-unmapped",
+        });
+        Assert.AreEqual(2, unmapped.Committed);
+        CollectionAssert.AreEqual(new[] { "T-001", "T-002" }, (await CodesAsync()).ToArray());
+
+        // The code column mapped and empty, read as null: the same.
+        var empty = await CallAsync<NendoImportResult>(client, "nendo.data.import_records", new(session)
+        {
+            ["entityId"] = "tickets", ["format"] = "csv", ["csv"] = "Label,Code\r\nThird,\r\n",
+            ["columnMappings"] = Mappings(["label", "code"]), ["emptyIsNull"] = true, ["idempotencyKey"] = "sequence-null",
+        });
+        Assert.AreEqual(1, empty.Committed);
+        CollectionAssert.AreEqual(new[] { "T-001", "T-002", "T-003" }, (await CodesAsync()).ToArray());
+
+        // A code the row carries is kept, and a required field without a sequence still needs its column.
+        var carried = await CallAsync<NendoImportResult>(client, "nendo.data.import_records", new(session)
+        {
+            ["entityId"] = "tickets", ["format"] = "csv", ["csv"] = "Label,Code\r\nFourth,T-010\r\n",
+            ["columnMappings"] = Mappings(["label", "code"]), ["idempotencyKey"] = "sequence-carried",
+        });
+        Assert.AreEqual(1, carried.Committed);
+        CollectionAssert.AreEqual(new[] { "T-001", "T-002", "T-003", "T-010" }, (await CodesAsync()).ToArray());
+        var refused = await client.CallToolAsync("nendo.data.import_records", new Dictionary<string, object?>(session)
+        {
+            ["entityId"] = "tickets", ["format"] = "csv", ["csv"] = "Code\r\nT-020\r\n",
+            ["columnMappings"] = Mappings(["code"]), ["idempotencyKey"] = "label-unmapped",
+        });
+        Assert.IsTrue(refused.IsError, "A required field without a sequence was imported unmapped.");
+        StringAssert.Contains(JsonSerializer.Serialize(refused), "Map each required field once", StringComparison.Ordinal);
+    }
+
     [TestMethod]
     public async Task InvalidCsvMappingsAreTypedRefusalsBeforeAnyWrite()
     {

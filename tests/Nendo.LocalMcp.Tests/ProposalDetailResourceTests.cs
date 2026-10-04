@@ -61,6 +61,27 @@ public sealed class ProposalDetailResourceTests
             await ProtocolResourceTests.ReadTextAsync(reader, $"nendo://application/proposal/{second.ProposalId}"));
         Assert.AreEqual(NendoProposalState.Stale, stale.State);
 
+        // The accepted one reads active, with the title and diff it validated with (F-261):
+        // until 2026-10-04 it was NENDO_PROPOSAL_NOT_FOUND, against the contract's promise.
+        var active = ProtocolResourceTests.Deserialize<NendoAgentProposalPreview>(
+            await ProtocolResourceTests.ReadTextAsync(reader, $"nendo://application/proposal/{first.ProposalId}"));
+        Assert.AreEqual(NendoProposalState.Active, active.State);
+        Assert.AreEqual("notes", active.Title);
+        Assert.AreEqual(first.ChangeSetId, active.ChangeSetId);
+        Assert.IsTrue(active.SemanticDiff.Any(entry => entry.SemanticIds.Contains("notes")));
+
+        // One the person accepted in Nendo, which this adapter never queued: the Engine keeps
+        // only its receipt, and the answer is active from that receipt alone.
+        var theirsToo = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest(
+            $"proposal-{Guid.NewGuid():N}", "Someone else's, accepted", "workbench",
+            new([new("test", "schema-2", "test", "Boxes", [new CreateEntityOperation("boxes", "boxes", "Boxes", "boxes")])])));
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(theirsToo.ProposalId)).Applied, JsonSerializer.Serialize(theirsToo.Diagnostics));
+        var fromReceipt = ProtocolResourceTests.Deserialize<NendoAgentProposalPreview>(
+            await ProtocolResourceTests.ReadTextAsync(reader, $"nendo://application/proposal/{theirsToo.ProposalId}"));
+        Assert.AreEqual(NendoProposalState.Active, fromReceipt.State);
+        Assert.AreEqual(theirsToo.ProposalId, fromReceipt.ProposalId);
+        Assert.AreEqual(0, fromReceipt.OperationCount);
+
         var unknown = await Assert.ThrowsExactlyAsync<McpProtocolException>(() =>
             ProtocolResourceTests.ReadTextAsync(reader, $"nendo://application/proposal/proposal-{new string('0', 32)}"));
         StringAssert.Contains(unknown.Message, "NENDO_", StringComparison.Ordinal);

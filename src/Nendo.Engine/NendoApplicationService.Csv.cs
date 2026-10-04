@@ -24,7 +24,7 @@ public sealed partial class NendoApplicationService
         var fields = entity.Fields.Where(field => !field.Retired).ToDictionary(field => field.FieldId, StringComparer.Ordinal);
         if (mappings.Count == 0 || mappings.Select(mapping => mapping.FieldId).Distinct(StringComparer.Ordinal).Count() != mappings.Count ||
             mappings.Any(mapping => mapping.Column < 0 || mapping.Column >= document.Headers.Count || !fields.ContainsKey(mapping.FieldId)) ||
-            fields.Values.Any(field => field.Required && !mappings.Any(mapping => mapping.FieldId == field.FieldId)))
+            fields.Values.Any(field => MustBeMapped(field) && !mappings.Any(mapping => mapping.FieldId == field.FieldId)))
             throw new NendoValidationException("Map each required field once to an existing CSV column.");
         var rows = await DecodeRowsAsync(document, entity, mappings, options, offset, NendoCsvProfile.BatchSize, cancellationToken,
             recordIdOfRow: row => row >= offset && row < offset + NendoCsvProfile.BatchSize
@@ -88,10 +88,17 @@ public sealed partial class NendoApplicationService
             if (!mappedFields.Add(mapping.FieldId))
                 throw new NendoValidationException($"CSV mapping repeats field {mapping.FieldId}.");
         }
-        if (fields.Values.Any(field => field.Required && !mappedFields.Contains(field.FieldId)))
+        if (fields.Values.Any(field => MustBeMapped(field) && !mappedFields.Contains(field.FieldId)))
             throw new NendoValidationException("Map each required field once to an existing CSV column.");
         return await DecodeRowsAsync(document, entity, mappings, options, offset, count, cancellationToken, resolveTargetVersions, recordIdOfRow);
     }
+
+    /// <summary>
+    /// A required field needs a column, except one with a sequence: the host fills it with
+    /// the next code when the row is written, as it does for a create that leaves it out,
+    /// so an import may leave it unmapped or its cells empty (ADR-0020; F-259).
+    /// </summary>
+    private static bool MustBeMapped(NendoFieldSnapshot field) => field.Required && field.Sequence is null;
 
     /// <summary>
     /// The document with a declared hierarchy's rows put parents first, when its parent
@@ -108,42 +115,53 @@ public sealed partial class NendoApplicationService
     }
 
     /// <summary>
-    /// The reference target versions each record created by <paramref name="revisionId"/> was
-    /// checked against, by record ID, read from that revision's own stored operations.
+    /// The reference target versions each record written by <paramref name="revisionId"/> was
+    /// checked against, by record ID and then by field, read from that revision's own stored
+    /// operations: a create's <c>expectedTargetVersions</c> and a set-field's
+    /// <c>expectedTargetRecordVersion</c>.
     /// <para>
-    /// This is the original evidence an import retry needs: a committed batch's receipt
-    /// replays only for the payload it was committed with, and that payload carries the
-    /// target versions of the moment it was written, not of the retry.
+    /// This is the original evidence a retry needs: a committed write's receipt replays only
+    /// for the payload it was committed with, and that payload carries the target versions
+    /// of the moment it was written, not of the retry. The import's batches have used it
+    /// since R-006; since 2026-10-04 the record writes that resolve a reference do too (F-258).
     /// </para>
     /// </summary>
-    public async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, long>>> ReadCreatedRecordTargetVersionsAsync(
+    public async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, long>>> ReadRecordedTargetVersionsAsync(
         string revisionId, CancellationToken cancellationToken = default)
     {
         RequireIdentity(revisionId, "revision ID");
-        var created = new Dictionary<string, IReadOnlyDictionary<string, long>>(StringComparer.Ordinal);
+        var written = new Dictionary<string, Dictionary<string, long>>(StringComparer.Ordinal);
         string? cursor = null;
         do
         {
             var page = await QueryRevisionOperationsAsync(new(revisionId, 200, cursor), cancellationToken);
             foreach (var operation in page.Items)
             {
-                if (operation.OperationType != "data.createRecord") continue;
+                if (operation.OperationType is not ("data.createRecord" or "data.setField")) continue;
                 using var json = System.Text.Json.JsonDocument.Parse(operation.CanonicalJson);
                 if (!json.RootElement.TryGetProperty("payload", out var payload) ||
                     !payload.TryGetProperty("recordId", out var recordId) ||
                     recordId.ValueKind != System.Text.Json.JsonValueKind.String) continue;
-                var versions = new Dictionary<string, long>(StringComparer.Ordinal);
-                if (payload.TryGetProperty("expectedTargetVersions", out var expected) &&
-                    expected.ValueKind == System.Text.Json.JsonValueKind.Object)
+                if (!written.TryGetValue(recordId.GetString()!, out var versions))
+                    written[recordId.GetString()!] = versions = new Dictionary<string, long>(StringComparer.Ordinal);
+                if (operation.OperationType == "data.createRecord")
                 {
-                    foreach (var pair in expected.EnumerateObject())
-                        if (pair.Value.TryGetInt64(out var version)) versions[pair.Name] = version;
+                    if (payload.TryGetProperty("expectedTargetVersions", out var expected) &&
+                        expected.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    {
+                        foreach (var pair in expected.EnumerateObject())
+                            if (pair.Value.TryGetInt64(out var version)) versions[pair.Name] = version;
+                    }
                 }
-                created[recordId.GetString()!] = versions;
+                else if (payload.TryGetProperty("fieldId", out var fieldId) && fieldId.ValueKind == System.Text.Json.JsonValueKind.String &&
+                    payload.TryGetProperty("expectedTargetRecordVersion", out var target) && target.TryGetInt64(out var targetVersion))
+                {
+                    versions[fieldId.GetString()!] = targetVersion;
+                }
             }
             cursor = page.NextCursor;
         } while (cursor is not null);
-        return created;
+        return written.ToDictionary(pair => pair.Key, pair => (IReadOnlyDictionary<string, long>)pair.Value, StringComparer.Ordinal);
     }
 
     private async Task<IReadOnlyList<NendoCsvRow>> DecodeRowsAsync(NendoCsvDocument document, NendoEntitySnapshot entity,

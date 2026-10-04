@@ -191,6 +191,9 @@ public sealed class NendoAgentProposalStore
 {
     private readonly object _gate = new();
     private readonly Dictionary<string, Entry> _entries = new(StringComparer.Ordinal);
+    private const int MaximumAcceptedKept = 64;
+    private readonly Dictionary<string, Entry> _accepted = new(StringComparer.Ordinal);
+    private readonly Queue<string> _acceptedOrder = new();
     private string? _applicationId;
     private string? _instanceId;
 
@@ -410,6 +413,7 @@ public sealed class NendoAgentProposalStore
         var outcome = await application.PromoteProposalAsync(proposalId, cancellationToken, expectedOperationDigest);
         if (outcome.Applied)
         {
+            Keep(proposalId);
             Remove(proposalId);
         }
         else
@@ -504,6 +508,38 @@ public sealed class NendoAgentProposalStore
             removed = _entries.Remove(proposalId);
         }
         if (removed) RaiseChanged();
+    }
+
+    /// <summary>
+    /// Keeps an accepted proposal's preview so nendo://application/proposal/{id} can still
+    /// say what was accepted, with its title and diff, as the contract promises (F-261).
+    /// The Engine keeps only the receipt. Bounded: the oldest is forgotten past the cap.
+    /// </summary>
+    private void Keep(string proposalId)
+    {
+        lock (_gate)
+        {
+            if (!_entries.TryGetValue(proposalId, out var entry)) return;
+            _accepted[proposalId] = entry;
+            _acceptedOrder.Enqueue(proposalId);
+            while (_acceptedOrder.Count > MaximumAcceptedKept)
+                _accepted.Remove(_acceptedOrder.Dequeue());
+        }
+    }
+
+    /// <summary>The preview of a proposal this adapter accepted in this host run, or null.</summary>
+    internal NendoAgentProposalPreview? TryGetAccepted(string proposalId)
+    {
+        lock (_gate)
+        {
+            if (string.IsNullOrWhiteSpace(proposalId) || !_accepted.TryGetValue(proposalId, out var entry)) return null;
+            return ProjectPreview(entry.Preview) with
+            {
+                State = NendoProposalState.Active,
+                ChangeSetId = entry.ChangeSetId,
+                Owner = NendoTransportIdentity.Pseudonym(entry.ApplicationHandle),
+            };
+        }
     }
 
     private async Task RequireMatchingFileAsync(

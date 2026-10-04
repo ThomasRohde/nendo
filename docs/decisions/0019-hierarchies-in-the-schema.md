@@ -135,7 +135,8 @@ contract if measurement ever calls for it.
    parentRecordId?, expectedParentVersion?, beforeRecordId? }` sets the parent
    and, with an order field, places the record before a sibling or last. When the
    neighbours leave no integer gap, the siblings are renumbered in the same
-   revision, each against its version. Class: `Reversible`; compensation restores
+   revision, each against its version (since 2026-10-04 only the smallest run around
+   the insertion point that fits, see the stage 9 note). Class: `Reversible`; compensation restores
    every touched record's previous parent and order. The subtree moves with its
    root because children point at it.
 6. **Reads.** A bounded tree read returns a window: a root (or the top level),
@@ -458,7 +459,7 @@ dragging (W-079). Decided under the owner's standing pre-acceptance of ADR chang
   parentVersion, beforeRecordId}`, answering the moved record. A parent takes the version the
   view read; the top level takes neither.
 - **The rule does not change.** The store refuses a loop and a tree deeper than 32 levels
-  whoever writes, and the Engine renumbers the siblings when no gap is left.
+  whoever writes, and the Engine renumbers the siblings around the insertion point when no gap is left.
 
 Not `records.update` of the parent and order fields: a reorder may have to renumber several
 siblings, which one field write per record cannot do in one revision, and a view numbering
@@ -470,6 +471,22 @@ failed. 'condition' expression: 'moved.Ok'. A custom view may not call data.move
 `scripts/extension-broker.test.mjs` for the method and its parameters; and
 `tools/Review-BcmAtlas.ps1`, where the Atlas moves by pointer and keyboard against a fixture
 broker that moves as the Engine does.
+
+## Stage 9 note — 2026-10-04: renumbering is local
+
+The first move on the planner (W-161) wrote 140 records: the level's siblings were
+imported with orders 101, 102, 103, a few had no order at all, and the Engine renumbered
+the whole level whenever the insertion point's neighbours left no gap or had no order.
+Every other client's expected version for every top-level record went stale from one
+move (F-260).
+
+The rule is now local (W-162). When no gap is left, the Engine renumbers the smallest run
+of siblings around the insertion point that fits strictly between its ordered neighbours,
+growing the run towards the nearer end until it fits; a neighbour without an order joins
+the run, since nothing can be placed relative to it; a run that reaches either end of the
+level is open on that side and always fits. The whole level is renumbered only when no
+smaller run fits, which is the dense level this stage first measured. The move's
+`recordIds` still name every record written, so a client sees the run.
 
 ## Consequences
 

@@ -194,7 +194,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
             var receipt = await application.GetMutationReceiptAsync(
                 new NendoOperationIdentity(IdempotencyScope, BatchKey(idempotencyKey, ordinal)), cancellationToken);
             if (receipt is not null)
-                batches[ordinal] = await application.ReadCreatedRecordTargetVersionsAsync(receipt.RevisionId, cancellationToken);
+                batches[ordinal] = await application.ReadRecordedTargetVersionsAsync(receipt.RevisionId, cancellationToken);
         }
         return batches;
     }
