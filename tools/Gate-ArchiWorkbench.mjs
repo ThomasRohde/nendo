@@ -314,6 +314,22 @@ async (page) => {
   // ---- W-118: the Visualiser draws archi-online's graph around the selection, follows it, and its
   // controls change the graph as archi-online's do. Measured as the boxes drawn against the graph
   // archi-online builds on the same records.
+  // F-245: what the Visualiser shows at the end of every task that changes it, which is what the
+  // browser may paint: the boxes and the camera they are shown at. A graph is only ever shown at its
+  // fitted camera; drawn at archi-online's starting camera and fitted a task later, it jumped (the
+  // owner's flicker). Sampled per animation frame instead, it was caught only when a paint fell
+  // between the two tasks, which WebView2's did and the gate's browser mostly does not.
+  await view.evaluate(() => {
+    window.visualiserFrames = [];
+    const host = document.getElementById('visualiser-canvas');
+    window.visualiserWatch = new MutationObserver(() => {
+      const camera = host.querySelector('.visualiser-viewport');
+      if (camera && getComputedStyle(host).visibility !== 'hidden') {
+        window.visualiserFrames.push([host.querySelectorAll('.visualiser-node').length, camera.getAttribute('transform')]);
+      }
+    });
+    window.visualiserWatch.observe(host, { subtree: true, childList: true, attributes: true });
+  });
   await page.evaluate(() => window.broker.command('visualiser', true, 'toolbar'));
   await until(() => !document.getElementById('visualiser').hidden, null, 'The Visualiser toggle did not open the Visualiser.');
   const drawnGraph = async (focus, what) => {
@@ -338,6 +354,12 @@ async (page) => {
   await view.selectOption('#visualiser-depth', '2');
   const depthTwo = await sameNodes(customer.recordId, { depth: 2 }, 'Depth 2');
   assert(depthTwo.nodes.length > depthOne.nodes.length, `Depth 2 drew no more than depth 1: ${depthTwo.nodes.length} boxes.`);
+  await page.waitForTimeout(400);
+  const painted = await view.evaluate(() => { window.visualiserWatch.disconnect(); return window.visualiserFrames; });
+  const settled = new Map(painted.map(([boxes, camera]) => [boxes, camera]));
+  const jumps = painted.filter(([boxes, camera]) => camera !== settled.get(boxes));
+  assert(painted.length > 0 && settled.size >= 2 && jumps.length === 0,
+    `F-245: the Visualiser showed ${jumps.length} of ${painted.length} states at a camera other than the graph's fitted one, first ${JSON.stringify(jumps.slice(0, 3))}; fitted ${JSON.stringify([...settled])}.`);
   await view.selectOption('#visualiser-direction', 'outgoing');
   await sameNodes(customer.recordId, { depth: 2, direction: 'outgoing' }, 'Outgoing at depth 2');
   await view.selectOption('#visualiser-direction', 'both');

@@ -118,7 +118,8 @@ ul.links li button:hover, .field button.value:hover { background: var(--surface-
 .visualiser-bar .visualiser-export button:last-child { border-radius: 0 6px 6px 0; }
 .visualiser-bar .spacer { flex: 1; }
 .visualiser-bar #visualiser-close { border: 0; background: none; font-size: 1.1rem; line-height: 1; padding: 2px 8px; }
-.visualiser-host { flex: 1; min-height: 0; display: flex; position: relative; }
+/* White under the drawing too, so the moment a new graph waits to be fitted (F-245) is paper, not the panel. */
+.visualiser-host { flex: 1; min-height: 0; display: flex; position: relative; background: #ffffff; }
 
 dialog { border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface-raised); color: var(--ink); min-width: 340px; }
 dialog::backdrop { background: rgba(0, 0, 0, 0.35); }

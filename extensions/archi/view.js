@@ -1364,6 +1364,8 @@ function refreshVisualiser({ relayout = false } = {}) {
   vis.key = key;
   const run = ++vis.run;
   $('visualiser').dataset.laidOut = 'false';
+  // The first layout starts ELK's worker, which takes a moment: say so rather than show nothing.
+  if (!visualiser.drawing()) visualiser.message('Laying out the graph…');
   canvasModule.analysisLayout(graph, names).then(layout => {
     if (run !== vis.run || !visualiser) return;
     vis.graph = graph; vis.layout = layout; vis.names = names;

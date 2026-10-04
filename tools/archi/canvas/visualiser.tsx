@@ -63,6 +63,26 @@ interface VisualiserOptions {
  */
 export function createVisualiser(host: HTMLElement, options: VisualiserOptions = {}) {
   let root: Root | null = createRoot(host);
+  // archi-online's canvas starts at 100% in the corner and fits the graph in an effect after it has
+  // painted, so a new graph was seen there for a frame and then jumped (F-245). Each graph is drawn
+  // on a canvas of its own, hidden until its camera has moved from where it starts; a fit that
+  // leaves it there is shown after a moment anyway.
+  let drawn = 0;
+  let revealing: { stop(): void } | null = null;
+  const hideUntilFitted = () => {
+    revealing?.stop();
+    host.style.visibility = 'hidden';
+    const camera = host.querySelector('.visualiser-viewport');
+    const start = camera?.getAttribute('transform');
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const observer = new MutationObserver(() => { if (camera?.getAttribute('transform') !== start) reveal(); });
+    const stop = () => { observer.disconnect(); clearTimeout(timer); revealing = null; };
+    const reveal = () => { stop(); host.style.visibility = ''; };
+    if (!camera) { reveal(); return; }
+    observer.observe(camera, { attributes: true, attributeFilter: ['transform'] });
+    timer = setTimeout(reveal, 300);
+    revealing = { stop };
+  };
   const empty = (text: string) => createElement('div', { key: 'canvas', className: 'visualiser-canvas visualiser-canvas-empty' },
     createElement('p', { className: 'empty-hint' }, text));
   const draw = (content: unknown) => {
@@ -72,13 +92,16 @@ export function createVisualiser(host: HTMLElement, options: VisualiserOptions =
   return {
     show(graph: AnalysisGraphResult, layout: ElkGraphLayoutResult, showRelationshipNames: boolean) {
       draw(createElement(VisualiserCanvas, {
-        key: 'canvas', graph, layout, showRelationshipNames,
+        key: `canvas-${++drawn}`, graph, layout, showRelationshipNames,
         onSelectConcept: id => options.onSelect?.(id),
         onOpenConcept: id => options.onOpen?.(id),
       }));
+      hideUntilFitted();
     },
+    /** Whether a graph is drawn, as against a sentence or nothing. */
+    drawing: () => host.querySelector('.visualiser-viewport') !== null,
     /** A sentence in place of the drawing: nothing selected, laying out, or why it failed. */
-    message(text: string) { draw(empty(text)); },
-    destroy() { root?.unmount(); root = null; host.replaceChildren(); },
+    message(text: string) { revealing?.stop(); host.style.visibility = ''; draw(empty(text)); },
+    destroy() { revealing?.stop(); root?.unmount(); root = null; host.replaceChildren(); host.style.visibility = ''; },
   };
 }
