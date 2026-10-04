@@ -30,7 +30,7 @@ There is no download, no signed installer and no automatic update. You build the
    pwsh ./tools/Test-Production.ps1
    ```
 
-   The gate restores the Workbench packages with `npm ci`, builds the Workbench, builds the .NET solution and runs the tests. It takes about a minute after the first restore. The Workbench is the web interface that the desktop app bundles, so it is built first.
+   The gate restores the Workbench packages with `npm ci`, builds the Workbench, builds the .NET solution and runs the tests. It takes about a minute after the first restore. The Workbench is the web interface that the desktop app bundles, so it is built first. Some tests open real windows and use the clipboard, so run the gate in an unlocked desktop session: on a locked or headless session they fail without any defect in Nendo.
 
 2. Publish the app and package the installer:
 
@@ -112,7 +112,7 @@ Every record type gets its table and record editor in Studio. Other screens, suc
 
 ## Connect an agent
 
-Nendo has no built-in agent. A coding agent such as Claude Code or Codex connects to the open file over MCP at `http://127.0.0.1:41763/mcp` (each further file keeps a port of its own), after you turn agent access on in the **Agent** area and choose a level: Off, Inspect, Edit data, Shape app or Unattended. There is no key or password, so any program on this computer can connect at the level you chose; set access to Off when no agent is working. A clone of this repository already registers the server for both clients. The agent writes proposals, and you accept them in Nendo. The [agents guide](/nendo/docs/agents) covers the access levels, the connection commands and what an agent can and cannot do.
+Nendo has no built-in agent. A coding agent such as Claude Code or Codex connects to the open file over MCP at `http://127.0.0.1:41763/mcp` (each further file keeps a port of its own), after you turn agent access on in the **Agent** area and choose a level: Off, Inspect, Edit data, Shape app or Unattended. There is no key or password, so any program on this computer can connect at the level you chose; set access to Off when no agent is working. The registrations in a clone of this repository point at port 41766, the port the author's planner file keeps, so on your computer register the address **Agent → Connection** shows. The agent writes proposals, and you accept them in Nendo. The [agents guide](/nendo/docs/agents) covers the access levels, the connection commands and what an agent can and cannot do.
 
 ## Try Nendo Station
 

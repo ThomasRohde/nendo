@@ -78,34 +78,79 @@ Public distribution, signing, ARM64, cloud sync and cross-platform support are
 
 ## Build
 
-Requires the .NET SDK pinned in `global.json`, the Node version
-`src/Nendo.Workbench/package.json` declares under `engines` (22.12 or later), and
-Windows for the Desktop host. The Workbench is built before the host, because it
-is bundled into the Desktop output.
+Windows x64 only. `Nendo.Engine` is `net10.0` and builds anywhere, but the Desktop
+host is WinUI 3 with WebView2.
+
+### Prerequisites
+
+| Tool | Version | Install |
+| --- | --- | --- |
+| .NET SDK | Pinned in [`global.json`](global.json) | `winget install Microsoft.DotNet.SDK.10` |
+| Node.js with npm | The `engines` range in `src/Nendo.Workbench/package.json` | `winget install OpenJS.NodeJS.LTS` |
+| PowerShell 7 | `pwsh`; every script in `tools/` assumes it | `winget install Microsoft.PowerShell` |
+| Git | Any current version | `winget install Git.Git` |
+| WebView2 Evergreen runtime | Already present on Windows 11 | `winget install Microsoft.EdgeWebView2Runtime` |
+| NSIS | Only to build the installer; `makensis` on `PATH` | `winget install NSIS.NSIS` |
+
+Open a new shell after installing so `PATH` picks the tools up. The Windows App
+SDK is bundled into the build output (self-contained), so it needs no separate
+runtime. `global.json` rolls forward to the latest feature band, so a newer
+10.0 SDK that is already installed wins the pin.
+
+### Build and run
+
+```powershell
+cd src/Nendo.Workbench; npm ci; npm run build; cd ../..
+dotnet build Nendo.slnx
+./artifacts/bin/Nendo.Desktop/debug_win-x64/Nendo.Desktop.exe
+```
+
+Do not skip the Workbench step. The Desktop project copies
+`src/Nendo.Workbench/dist` into its output but does not build it, so
+`dotnet build` on a fresh clone succeeds and produces a host with no interface
+to show. All build output goes under `artifacts/`, which is git-ignored.
+
+Started with no argument, the app opens without a file; create one from there.
+Pass the path of a `.nendo` file to open it instead. The files in `workspace/`
+are tracked demos: open a copy, not the original.
+
+### Verify
 
 ```powershell
 pwsh ./tools/Test-Repository.ps1    # fast invariant check
-pwsh ./tools/Test-Production.ps1    # full gate (includes the above)
+pwsh ./tools/Test-Production.ps1    # full gate; includes the above
 ```
 
-Packaging and the agent-authoring gate are documented in
-[architecture.md](docs/architecture.md#building-and-verifying).
+`Test-Production.ps1` does the whole build itself (`npm ci`, Workbench type check,
+tests and build, then .NET restore, build and tests), so on a fresh clone it is
+also the one-command build. It takes about a minute once packages are restored.
+Some Desktop tests open real windows and use the clipboard, so run the gate in
+an unlocked, interactive desktop session. On a locked workstation or a headless
+session those tests fail without any product defect.
+
+Packaging, the installer and the native review lanes outside the gate are
+documented in [architecture.md](docs/architecture.md#building-and-verifying).
 
 ## Connect an agent
 
-While a file is open with Agent access on, Nendo listens at
-`http://127.0.0.1:41763/mcp`. That address is the whole client configuration —
-there is no credential to find or paste:
+While a file is open with Agent access on, Nendo listens on a loopback port
+that the file keeps on this computer. The first file you switch access on for
+keeps 41763, and each further file keeps the next free port. The address is the
+whole client configuration — there is no credential to find or paste:
 
 ```text
 claude mcp add --transport http nendo http://127.0.0.1:41763/mcp
 codex mcp add nendo --url http://127.0.0.1:41763/mcp
 ```
 
-A checkout of this repository already carries both registrations (`.mcp.json`
-and `.codex/config.toml`), so an agent started here is connected the moment a
-file is open. If port 41763 was busy, Agent → Connection shows the address in
-use and copies either command.
+Agent → Connection shows the address a file uses and copies either command.
+
+The registrations checked into this repository (`.mcp.json` and
+`.codex/config.toml`) point at port 41766. That is the port the author's planner
+file keeps on their machine, not a default, so on a fresh machine they connect
+to nothing. To use them, set **Port for this file** to 41766 in Agent →
+Connection for the file you want an agent in this checkout to reach; otherwise
+register the address that panel shows.
 
 Anything running on this computer can connect at the chosen access level, so
 leave access **Off** when no agent is working.
@@ -117,6 +162,11 @@ for Claude Code. Both use [Nendo Development](docs/dogfooding.md) as the primary
 work planner through the repository's existing MCP registrations. Read the live
 work item and its acceptance criteria before implementation, and record outcomes
 and remaining work at handoff. Accepted ADRs retain architecture authority.
+
+The planner file is the author's own data and is not in a clone. Without it there
+is no live work item to read: follow the planner-unavailable rule in AGENTS.md,
+work from the repository instructions and the task in hand, and do not create a
+replacement planner.
 
 A curated, pinned set of first-party .NET agent
 skills is vendored under `.agents/skills/` — use the matching skill rather than
