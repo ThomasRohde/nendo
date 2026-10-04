@@ -196,7 +196,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         // The run ID is per-run: it names the discovery file, backs the stale-entry sweep, and is how
         // replacement invalidates authority from an earlier generation.
         var authority = new NendoHostAuthority(
-            RandomHex(32),
+            NendoText.RandomHex(32),
             mode,
             RandomNumberGenerator.GetBytes(32),
             snapshot.Manifest.ApplicationId,
@@ -598,7 +598,4 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
 
     private const int PortBindAttempts = 4;
     private static readonly TimeSpan PortBindRetryDelay = TimeSpan.FromMilliseconds(150);
-
-    private static string RandomHex(int byteCount) =>
-        Convert.ToHexString(RandomNumberGenerator.GetBytes(byteCount)).ToLowerInvariant();
 }

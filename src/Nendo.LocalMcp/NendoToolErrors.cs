@@ -51,14 +51,14 @@ internal static class NendoToolErrors
             "NENDO_RECOVERY_REQUIRED",
             "The file requires recovery before it can be changed."),
         NendoPreconditionException precondition => Error(
-            $"NENDO_{Normalize(precondition.Code)}",
+            $"NENDO_{NendoText.ErrorCode(precondition.Code)}",
             DiagnosablePreconditions.Contains(precondition.Code)
                 ? precondition.Message
                 : "The semantic precondition was not met."),
         // A calculation message is a constant template naming a definition, a step
         // or a ceiling; it reached the wire as an internal error until now.
         NendoCalculationException calculation => Error(
-            $"NENDO_{Normalize(calculation.Code)}",
+            $"NENDO_{NendoText.ErrorCode(calculation.Code)}",
             calculation.Message),
         // Every engine validation message is a constant template that interpolates
         // stable IDs, operation types, property names, declared choice IDs or counts —
@@ -137,9 +137,4 @@ internal static class NendoToolErrors
             "nendo.lease.acquire; a lease released, revoked or from before the file was reopened no longer counts.",
         _ => "Agent authority rejected the request.",
     };
-
-    private static string Normalize(string value) => new(
-        value.Select(character => char.IsAsciiLetterOrDigit(character)
-            ? char.ToUpperInvariant(character)
-            : '_').ToArray());
 }

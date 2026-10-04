@@ -51,8 +51,8 @@ internal sealed class NendoLeaseTools(NendoAgentAuthority authority)
     [Description("Confirm and extend this application handle's edit lease. When the person has lease expiry turned off the lease has no end time and this call only confirms ownership.")]
     public Task<NendoLeaseGrant> RenewAsync(
         RequestContext<CallToolRequestParams> context,
-        [Description("Private application handle returned by nendo.lease.acquire.")] string applicationHandle,
-        [Description("Opaque lease ID returned by nendo.lease.acquire.")] string leaseId,
+        [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
+        [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
         CancellationToken cancellationToken = default) => TranslateAsync(() =>
         authority.RenewAsync(
             leaseId,
@@ -70,8 +70,8 @@ internal sealed class NendoLeaseTools(NendoAgentAuthority authority)
     [Description("Release the current application handle's edit lease.")]
     public Task<NendoLeaseRelease> ReleaseAsync(
         RequestContext<CallToolRequestParams> context,
-        [Description("Private application handle returned by nendo.lease.acquire.")] string applicationHandle,
-        [Description("Opaque lease ID returned by nendo.lease.acquire.")] string leaseId,
+        [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
+        [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
         CancellationToken cancellationToken = default) => TranslateAsync(() =>
         authority.ReleaseAsync(
             leaseId,

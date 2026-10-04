@@ -34,10 +34,7 @@ internal sealed class DesktopAgentSettingsStore
         _root = Path.GetFullPath(root);
         try
         {
-            using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
-            if (stream.Length > MaximumBytes) throw new JsonException("Agent settings document exceeds its limit.");
-            var bytes = new byte[checked((int)stream.Length)];
-            stream.ReadExactly(bytes);
+            var bytes = DesktopStateFile.ReadBytes(StatePath, MaximumBytes, "Agent settings document exceeds its limit.");
             var document = JsonSerializer.Deserialize<StoredAgentSettings>(bytes, new JsonSerializerOptions { MaxDepth = 4 });
             if (document?.Version != 1
                 || !IsExpirySeconds(document.LeaseExpirySeconds)
@@ -75,7 +72,6 @@ internal sealed class DesktopAgentSettingsStore
         FixedPort = fixedPort;
         Port = port;
 
-        string? ownedStage = null;
         try
         {
             using var guard = DesktopDeviceStateLock.EnterRequired(StatePath);
@@ -88,18 +84,9 @@ internal sealed class DesktopAgentSettingsStore
             LeaseExpirySeconds = changeSeconds || !merge ? leaseExpirySeconds : latest.LeaseExpirySeconds;
             FixedPort = changeFixed || !merge ? fixedPort : latest.FixedPort;
             Port = changePort || !merge ? port : latest.Port;
-            Directory.CreateDirectory(_root);
-            var stage = Path.Combine(_root, $"agent-settings-{Guid.NewGuid():N}.tmp");
-            using (var stream = new FileStream(stage, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
-            {
-                ownedStage = stage;
-                JsonSerializer.Serialize(
-                    stream,
-                    new StoredAgentSettings(1, LeaseExpiry, LeaseExpirySeconds, FixedPort, Port));
-                stream.Flush(flushToDisk: true);
-            }
-            File.Move(stage, StatePath, overwrite: true);
-            ownedStage = null;
+            DesktopStateFile.Replace(_root, StatePath, "agent-settings", stream => JsonSerializer.Serialize(
+                stream,
+                new StoredAgentSettings(1, LeaseExpiry, LeaseExpirySeconds, FixedPort, Port)));
             _pendingLeaseExpiry = _pendingLeaseExpirySeconds = _pendingFixedPort = _pendingPort = false;
             Persisted = true;
             Notice = null;
@@ -108,14 +95,6 @@ internal sealed class DesktopAgentSettingsStore
         {
             Persisted = false;
             Notice = "Connection settings applied for this session, but could not be saved for the next launch.";
-        }
-        finally
-        {
-            if (ownedStage is not null)
-            {
-                try { File.Delete(ownedStage); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
-            }
         }
     }
 

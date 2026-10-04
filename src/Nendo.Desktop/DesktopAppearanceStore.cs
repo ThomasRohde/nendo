@@ -31,10 +31,7 @@ internal sealed class DesktopAppearanceStore
         _root = Path.GetFullPath(root);
         try
         {
-            using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
-            if (stream.Length > MaximumBytes) throw new JsonException("Appearance document exceeds its limit.");
-            var bytes = new byte[checked((int)stream.Length)];
-            stream.ReadExactly(bytes);
+            var bytes = DesktopStateFile.ReadBytes(StatePath, MaximumBytes, "Appearance document exceeds its limit.");
             var document = JsonSerializer.Deserialize<StoredAppearance>(bytes, new JsonSerializerOptions { MaxDepth = 4 });
             if (document?.Version != 1 || !IsPreference(document.Preference)) throw new JsonException("Unsupported appearance document.");
             Preference = document.Preference;
@@ -52,19 +49,10 @@ internal sealed class DesktopAppearanceStore
     {
         if (!IsPreference(preference)) throw new NendoValidationException("Choose System, Light or Dark appearance.");
         Preference = preference;
-        string? ownedStage = null;
         try
         {
-            Directory.CreateDirectory(_root);
-            var stage = Path.Combine(_root, $"appearance-{Guid.NewGuid():N}.tmp");
-            using (var stream = new FileStream(stage, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
-            {
-                ownedStage = stage;
-                JsonSerializer.Serialize(stream, new StoredAppearance(1, preference));
-                stream.Flush(flushToDisk: true);
-            }
-            File.Move(stage, StatePath, overwrite: true);
-            ownedStage = null;
+            DesktopStateFile.Replace(_root, StatePath, "appearance",
+                stream => JsonSerializer.Serialize(stream, new StoredAppearance(1, preference)));
             Persisted = true;
             Notice = null;
         }
@@ -72,14 +60,6 @@ internal sealed class DesktopAppearanceStore
         {
             Persisted = false;
             Notice = "Appearance changed for this window, but could not be saved for the next launch.";
-        }
-        finally
-        {
-            if (ownedStage is not null)
-            {
-                try { File.Delete(ownedStage); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
-            }
         }
     }
 

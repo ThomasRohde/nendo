@@ -66,11 +66,6 @@ internal sealed class DesktopTaskbarStatus : IDisposable
     private const uint CLSCTX_INPROC_SERVER = 1;
     private const int TBPF_NOPROGRESS = 0;
     private const int TBPF_INDETERMINATE = 1;
-    private const int IMAGE_ICON = 1;
-    private const int LR_LOADFROMFILE = 0x00000010;
-    private const int LR_DEFAULTSIZE = 0x00000040;
-    private const int SM_CXSMICON = 49;
-    private const int SM_CYSMICON = 50;
 
     private static readonly Guid CLSID_TaskbarList = new("56fdf344-fd6d-11d0-958a-006097c9a090");
     private static readonly Guid IID_ITaskbarList3 = new("ea1afb91-9e28-4b86-90e9-9e9f8a5eefaf");
@@ -87,7 +82,7 @@ internal sealed class DesktopTaskbarStatus : IDisposable
         _hwnd = hwnd;
         try
         {
-            if (CoCreateInstance(CLSID_TaskbarList, IntPtr.Zero, CLSCTX_INPROC_SERVER, IID_ITaskbarList3, out var instance) != 0)
+            if (DesktopNativeMethods.CoCreateInstance(CLSID_TaskbarList, IntPtr.Zero, CLSCTX_INPROC_SERVER, IID_ITaskbarList3, out var instance) != 0)
                 return;
             if (instance is not ITaskbarList3 taskbar) return;
             taskbar.HrInit();
@@ -162,7 +157,7 @@ internal sealed class DesktopTaskbarStatus : IDisposable
         var name = kind == DesktopShellBadgeKind.Attention ? "OverlayAttention.ico" : "OverlayReadOnly.ico";
         var path = Path.Combine(AppContext.BaseDirectory, "Assets", name);
         var handle = File.Exists(path)
-            ? LoadImageW(IntPtr.Zero, path, IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_LOADFROMFILE | LR_DEFAULTSIZE)
+            ? DesktopNativeMethods.LoadSmallIcon(path, defaultSize: true)
             : IntPtr.Zero;
         // A failure is not cached. Caching zero would make one unreadable moment — a
         // file being replaced by an upgrade, say — a badge that is invisible for the
@@ -184,24 +179,9 @@ internal sealed class DesktopTaskbarStatus : IDisposable
             try { Marshal.ReleaseComObject(taskbar); } catch (ArgumentException) { }
             _taskbar = null;
         }
-        foreach (var icon in _icons.Values.Where(handle => handle != IntPtr.Zero)) DestroyIcon(icon);
+        foreach (var icon in _icons.Values.Where(handle => handle != IntPtr.Zero)) DesktopNativeMethods.DestroyIcon(icon);
         _icons.Clear();
     }
-
-    [DllImport("ole32.dll")]
-    private static extern int CoCreateInstance(
-        in Guid rclsid, IntPtr pUnkOuter, uint dwClsContext, in Guid riid,
-        [MarshalAs(UnmanagedType.Interface)] out object ppv);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern IntPtr LoadImageW(IntPtr hInst, string name, int type, int cx, int cy, int fuLoad);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool DestroyIcon(IntPtr hIcon);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern int GetSystemMetrics(int nIndex);
 
     // Declared in full to the method this uses, because a COM interface is its vtable
     // order: leaving an earlier member out would call a different function.

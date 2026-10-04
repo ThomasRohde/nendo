@@ -65,7 +65,7 @@ internal sealed class NendoDataMutationService(
                 var entries = records.Select(record =>
                 {
                     ArgumentNullException.ThrowIfNull(record);
-                    RequireText(record.RecordId, "record ID", 200);
+                    NendoText.RequireText(record.RecordId, "record ID", 200);
                     return new NendoCreateRecordEntry(
                         record.RecordId,
                         ReadValueMap(record.Values.Element),
@@ -162,7 +162,7 @@ internal sealed class NendoDataMutationService(
 
     private NendoRequestContext Context(string sessionId, string idempotencyKey)
     {
-        RequireText(idempotencyKey, "idempotency key", 200);
+        NendoText.RequireText(idempotencyKey, "idempotency key", 200);
         var owner = NendoTransportIdentity.Pseudonym(sessionId);
         return new NendoRequestContext(
             $"mcp.data.{host.HostRunId}.{owner}",
@@ -211,7 +211,7 @@ internal sealed class NendoDataMutationService(
             sessionId,
             _ =>
             {
-                RequireText(idempotencyKey, "idempotency key", 200);
+                NendoText.RequireText(idempotencyKey, "idempotency key", 200);
                 // Named rather than guessed from which argument arrived. A caller that
                 // sends csv text and a records array has made a mistake, and picking one
                 // for them would import half of what they meant.
@@ -357,7 +357,7 @@ internal sealed class NendoDataMutationService(
                 throw new NendoValidationException(
                     $"A record may contain at most {MaximumValueMapEntries} submitted values.");
             }
-            RequireText(property.Name, "field ID", 200);
+            NendoText.RequireText(property.Name, "field ID", 200);
             result.Add(property.Name, ReadValue(property.Value));
         }
         return result;
@@ -376,14 +376,5 @@ internal sealed class NendoDataMutationService(
                 "Field values must be scalar JSON values.");
         }
         return value.Clone();
-    }
-
-    private static void RequireText(string value, string name, int maximumLength)
-    {
-        if (string.IsNullOrWhiteSpace(value) || value.Length > maximumLength)
-        {
-            throw new NendoValidationException(
-                $"The {name} must contain 1-{maximumLength} characters.");
-        }
     }
 }

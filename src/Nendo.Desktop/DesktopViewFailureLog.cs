@@ -44,60 +44,20 @@ internal sealed class DesktopViewFailureLog(string root)
 {
     internal const int MaximumEntries = 50;
 
-    private readonly string _root = Path.GetFullPath(root);
+    private readonly DesktopCappedJsonlLog<DesktopViewFailure> _log = new(root, "view-failures", MaximumEntries);
 
     internal static string DefaultRoot => DesktopAppearanceStore.DefaultRoot;
 
-    internal string LogPath => Path.Combine(_root, "view-failures.jsonl");
+    internal string LogPath => _log.LogPath;
 
     /// <summary>
     /// Appends one failure, keeping the newest <see cref="MaximumEntries"/>. Returns
     /// whether it was written, so a caller can say so rather than assume it.
     /// </summary>
-    internal bool Record(DesktopViewFailure failure)
-    {
-        ArgumentNullException.ThrowIfNull(failure);
-        try
-        {
-            Directory.CreateDirectory(_root);
-            var kept = Read().TakeLast(MaximumEntries - 1).ToList();
-            kept.Add(failure);
-            var text = new StringBuilder();
-            foreach (var entry in kept) text.Append(JsonSerializer.Serialize(entry)).Append('\n');
-            var stage = Path.Combine(_root, $"view-failures-{Guid.NewGuid():N}.tmp");
-            File.WriteAllText(stage, text.ToString(), new UTF8Encoding(false));
-            File.Move(stage, LogPath, overwrite: true);
-            return true;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
-        {
-            return false;
-        }
-    }
+    internal bool Record(DesktopViewFailure failure) => _log.Record(failure);
 
     /// <summary>What has been recorded, oldest first. An unreadable line is skipped rather than fatal.</summary>
-    internal IReadOnlyList<DesktopViewFailure> Read()
-    {
-        try
-        {
-            if (!File.Exists(LogPath)) return [];
-            var entries = new List<DesktopViewFailure>();
-            foreach (var line in File.ReadAllLines(LogPath))
-            {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-                try
-                {
-                    if (JsonSerializer.Deserialize<DesktopViewFailure>(line) is { } entry) entries.Add(entry);
-                }
-                catch (JsonException) { }
-            }
-            return entries;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            return [];
-        }
-    }
+    internal IReadOnlyList<DesktopViewFailure> Read() => _log.Read();
 
     /// <summary>
     /// How much physical memory Windows has left, and how loaded it says it is.

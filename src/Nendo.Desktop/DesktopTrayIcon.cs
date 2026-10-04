@@ -83,12 +83,6 @@ internal sealed class DesktopTrayIcon : IDisposable
     private const int TPM_RIGHTBUTTON = 0x0002;
     private const int TPM_RETURNCMD = 0x0100;
 
-    private const int IMAGE_ICON = 1;
-    private const int LR_LOADFROMFILE = 0x00000010;
-    private const int LR_DEFAULTSIZE = 0x00000040;
-    private const int SM_CXSMICON = 49;
-    private const int SM_CYSMICON = 50;
-
     private const int WS_OVERLAPPED = 0x00000000;
 
     private static int _instances;
@@ -162,13 +156,12 @@ internal sealed class DesktopTrayIcon : IDisposable
     internal void SetIcon(string path)
     {
         if (_hwnd == IntPtr.Zero || !File.Exists(path)) return;
-        var loaded = LoadImageW(IntPtr.Zero, path, IMAGE_ICON,
-            GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_LOADFROMFILE);
+        var loaded = DesktopNativeMethods.LoadSmallIcon(path, defaultSize: false);
         if (loaded == IntPtr.Zero) return;
         var previous = _icon;
         _icon = loaded;
         if (_added) Notify(NIM_MODIFY, NIF_ICON);
-        if (previous != IntPtr.Zero) DestroyIcon(previous);
+        if (previous != IntPtr.Zero) DesktopNativeMethods.DestroyIcon(previous);
     }
 
     /// <summary>The tooltip, which is how two open files are told apart in the notification area.</summary>
@@ -195,13 +188,7 @@ internal sealed class DesktopTrayIcon : IDisposable
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
         if (!File.Exists(path)) return IntPtr.Zero;
-        return LoadImageW(
-            IntPtr.Zero,
-            path,
-            IMAGE_ICON,
-            GetSystemMetrics(SM_CXSMICON),
-            GetSystemMetrics(SM_CYSMICON),
-            LR_LOADFROMFILE | LR_DEFAULTSIZE);
+        return DesktopNativeMethods.LoadSmallIcon(path, defaultSize: true);
     }
 
     /// <summary>
@@ -317,7 +304,7 @@ internal sealed class DesktopTrayIcon : IDisposable
             // Without this the menu stays on screen after the pointer leaves it, because
             // the owning window is not in the foreground. The WM_NULL afterwards is the
             // other half of the same documented workaround.
-            SetForegroundWindow(_hwnd);
+            DesktopNativeMethods.SetForegroundWindow(_hwnd);
             var chosen = TrackPopupMenuEx(menu, TPM_RIGHTBUTTON | TPM_RETURNCMD, x, y, _hwnd, IntPtr.Zero);
             PostMessageW(_hwnd, WM_NULL, IntPtr.Zero, IntPtr.Zero);
             if (chosen != 0 && Enum.IsDefined(typeof(DesktopTrayCommand), chosen))
@@ -346,7 +333,7 @@ internal sealed class DesktopTrayIcon : IDisposable
         _disposed = true;
         if (_added) Notify(NIM_DELETE, 0);
         _added = false;
-        if (_icon != IntPtr.Zero) DestroyIcon(_icon);
+        if (_icon != IntPtr.Zero) DesktopNativeMethods.DestroyIcon(_icon);
         if (_hwnd != IntPtr.Zero) DestroyWindow(_hwnd);
         if (_classAtom != 0) UnregisterClassW(_className, GetModuleHandleW(null));
     }
@@ -445,20 +432,6 @@ internal sealed class DesktopTrayIcon : IDisposable
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int TrackPopupMenuEx(IntPtr hMenu, int uFlags, int x, int y, IntPtr hwnd, IntPtr lptpm);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetForegroundWindow(IntPtr hWnd);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern int GetSystemMetrics(int nIndex);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern IntPtr LoadImageW(IntPtr hInst, string name, int type, int cx, int cy, int fuLoad);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool DestroyIcon(IntPtr hIcon);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr GetModuleHandleW(string? lpModuleName);

@@ -223,16 +223,8 @@ internal sealed partial class DesktopSessionController
             if (_agentHost is not null)
             {
                 var mode = _agentMode;
-                await StopAgentAccessCoreAsync();
-                if (mode != AgentAccessMode.Disabled && _service is { } service)
-                {
-                    EnsureProposalStore();
-                    _agentHost = await NendoLocalMcpHost.StartAsync(
-                        service, mode, CurrentHostOptions(await FilePortAsync(service, cancellationToken)), _agentProposals,
-                        UnattendedConsent(mode), cancellationToken);
-                    _agentMode = mode;
-                    AttachWorkSignal(_agentHost);
-                }
+                if (mode != AgentAccessMode.Disabled && _service is { } service) await StartAgentHostCoreAsync(service, mode, cancellationToken);
+                else await StopAgentAccessCoreAsync();
             }
             return await ReadAgentStatusCoreAsync(cancellationToken);
         }
@@ -435,42 +427,31 @@ internal sealed partial class DesktopSessionController
         _openCandidates.Clear();
     }
 
+    /// <summary>The status of agent access that is off: no agent, no lease, no activity, and the saved settings.</summary>
+    private DesktopAgentStatus OffStatus(
+        bool available, string state, IReadOnlyList<NendoAgentProposalSummary> pendingProposals, int portPreference) =>
+        new(available, "off", state, null, null, null, [], pendingProposals,
+            Settings().LeaseExpiry, Settings().LeaseExpirySeconds, Settings().FixedPort,
+            portPreference, null, true, Settings().Persisted, Settings().Notice);
+
     private async Task<DesktopAgentStatus> ReadAgentStatusCoreAsync(CancellationToken cancellationToken)
     {
         if (_service is null)
         {
-            return new DesktopAgentStatus(false, "off", "noFile", null, null, null, [], [],
-                Settings().LeaseExpiry, Settings().LeaseExpirySeconds, Settings().FixedPort,
-                Settings().Port, null, true, Settings().Persisted, Settings().Notice);
+            return OffStatus(false, "noFile", [], Settings().Port);
         }
         await StopUnhealthyAgentAccessCoreAsync();
         if (!_service.Capabilities.AgentAccess)
         {
-            return new DesktopAgentStatus(
+            return OffStatus(
                 false,
-                "off",
                 _service.Health == NendoSessionHealth.ReadOnly ? "readOnly" : "recoveryRequired",
-                null,
-                null,
-                null,
-                [],
                 _agentProposals?.Snapshot() ?? [],
-                Settings().LeaseExpiry, Settings().LeaseExpirySeconds, Settings().FixedPort,
-                Settings().Port, null, true, Settings().Persisted, Settings().Notice);
+                Settings().Port);
         }
         if (_agentHost is null)
         {
-            return new DesktopAgentStatus(
-                true,
-                "off",
-                "off",
-                null,
-                null,
-                null,
-                [],
-                _agentProposals?.Snapshot() ?? [],
-                Settings().LeaseExpiry, Settings().LeaseExpirySeconds, Settings().FixedPort,
-                await PortPreferenceAsync(cancellationToken), null, true, Settings().Persisted, Settings().Notice);
+            return OffStatus(true, "off", _agentProposals?.Snapshot() ?? [], await PortPreferenceAsync(cancellationToken));
         }
 
         // Peek, not the gated read: the gated one waits on the same semaphore an agent

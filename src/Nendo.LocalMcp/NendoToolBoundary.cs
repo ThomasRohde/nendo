@@ -68,7 +68,7 @@ internal static class NendoToolBoundary
         if (!Tools.TryGetValue(request.Name, out var tool))
         {
             throw new McpProtocolException(
-                $"NENDO_TOOL_UNAVAILABLE: No tool is named '{Echo(request.Name)}'. tools/list names every tool " +
+                $"NENDO_TOOL_UNAVAILABLE: No tool is named '{NendoText.Bounded(request.Name, 60)}'. tools/list names every tool " +
                 $"this access level serves; this file session is at {NendoAccessLevels.DisplayName(mode)}.",
                 McpErrorCode.InvalidParams);
         }
@@ -199,7 +199,7 @@ internal static class NendoToolBoundary
             var member = members.FirstOrDefault(candidate => string.Equals(candidate.Name, key, StringComparison.Ordinal));
             if (member is null)
             {
-                problems.Add($"{path ?? "It"} does not take '{Echo(key)}'; {Takes(owner, members)}");
+                problems.Add($"{path ?? "It"} does not take '{NendoText.Bounded(key, 60)}'; {Takes(owner, members)}");
                 continue;
             }
             Check(value, member.Shape, path is null ? member.Name : $"{path}.{member.Name}", problems);
@@ -240,7 +240,7 @@ internal static class NendoToolBoundary
                 foreach (var item in value.EnumerateArray()) Check(item, list.Item, $"{path}[{index++}]", problems);
                 return;
             case MapOf map when value.ValueKind == JsonValueKind.Object:
-                foreach (var entry in value.EnumerateObject()) Check(entry.Value, map.Value, $"{path}.{Echo(entry.Name)}", problems);
+                foreach (var entry in value.EnumerateObject()) Check(entry.Value, map.Value, $"{path}.{NendoText.Bounded(entry.Name, 60)}", problems);
                 return;
             case Closed closed when value.ValueKind == JsonValueKind.Object:
                 CheckMembers(closed.Noun, closed.Members, value.EnumerateObject().Select(entry => (entry.Name, entry.Value)), path, problems);
@@ -254,16 +254,10 @@ internal static class NendoToolBoundary
         var required = members.Where(member => member.Required).Select(member => member.Name).ToArray();
         var optional = members.Where(member => !member.Required).Select(member => member.Name).ToArray();
         var subject = owner.StartsWith("nendo.", StringComparison.Ordinal) ? "it" : owner.ToLowerInvariant();
-        var sentence = required.Length == 0 ? $"{subject} takes only" : $"{subject} takes {Join(required)}";
-        if (optional.Length > 0) sentence += required.Length == 0 ? $" {Join(optional)}, each optional" : $", and optionally {Join(optional)}";
+        var sentence = required.Length == 0 ? $"{subject} takes only" : $"{subject} takes {NendoText.JoinNames(required)}";
+        if (optional.Length > 0) sentence += required.Length == 0 ? $" {NendoText.JoinNames(optional)}, each optional" : $", and optionally {NendoText.JoinNames(optional)}";
         return required.Length == 0 && optional.Length == 0 ? $"{subject} takes no arguments" : sentence;
     }
-
-    private static string Join(IReadOnlyList<string> names) => names.Count switch
-    {
-        1 => names[0],
-        _ => $"{string.Join(", ", names.Take(names.Count - 1))} and {names[^1]}",
-    };
 
     private static string Expected(Shape shape) => shape switch
     {
@@ -288,9 +282,4 @@ internal static class NendoToolBoundary
         JsonValueKind.Object => "an object",
         _ => "null",
     };
-
-    // A name that arrived from outside is echoed so the caller can see its typo, bounded
-    // and without control characters.
-    private static string Echo(string value) =>
-        new([.. value.Where(character => !char.IsControl(character)).Take(60)]);
 }

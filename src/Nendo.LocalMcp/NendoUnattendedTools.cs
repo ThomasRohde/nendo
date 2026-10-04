@@ -43,10 +43,10 @@ internal sealed class NendoUnattendedTools(
         """)]
     public async Task<NendoChangeSetAcceptResult> AcceptAsync(
         RequestContext<CallToolRequestParams> context,
-        [Description("Private application handle returned by nendo.lease.acquire.")] string applicationHandle,
-        [Description("Opaque lease ID returned by nendo.lease.acquire.")] string leaseId,
+        [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
+        [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
         [Description("Server-minted change-set ID returned by nendo.change_set.begin, already validated.")] string changeSetId,
-        [Description("Stable key used to make an exact retry safe.")] string idempotencyKey,
+        [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
         CancellationToken cancellationToken = default)
     {
         try

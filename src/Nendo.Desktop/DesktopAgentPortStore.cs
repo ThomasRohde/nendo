@@ -25,10 +25,6 @@ internal sealed class DesktopAgentPortStore(string root)
     /// <summary>How many files keep a port before the one unused for longest gives its up.</summary>
     internal const int MaximumFiles = 256;
 
-    private const int MaximumBytes = 128 * 1024;
-
-    private string StatePath => Path.Combine(root, "agent-ports.json");
-
     /// <summary>
     /// The port this file keeps. The first time a file asks, it is given the first port from
     /// <paramref name="basePort"/> that no other file keeps, and keeps it from then on.
@@ -90,65 +86,16 @@ internal sealed class DesktopAgentPortStore(string root)
         return basePort;
     }
 
-    private Dictionary<string, StoredPort> Read()
-    {
-        try
-        {
-            using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
-            if (stream.Length > MaximumBytes) return [];
-            var saved = JsonSerializer.Deserialize<StoredPorts>(stream, new JsonSerializerOptions { MaxDepth = 6 });
-            if (saved is not { Version: 1, Files: { } files }) return [];
-            return files
-                .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Value is { Port: >= 1024 and <= 65535 })
-                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
-        {
-            return [];
-        }
-    }
+    private readonly DesktopKeyedFileStore<StoredPort> _files = new(root, "agent-ports", MaximumFiles,
+        entry => entry.UsedAt, entry => entry.Port is >= 1024 and <= 65535);
+
+    private Dictionary<string, StoredPort> Read() => _files.Read();
 
     // Best effort, like every device-state write: a port that could not be kept is still the
     // port for this run, and the next run asks again.
-    private void Write(Dictionary<string, StoredPort> ports)
-    {
-        var kept = ports
-            .OrderByDescending(pair => pair.Value.UsedAt)
-            .Take(MaximumFiles)
-            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-        string? stage = null;
-        try
-        {
-            Directory.CreateDirectory(root);
-            stage = Path.Combine(root, $"agent-ports-{Guid.NewGuid():N}.tmp");
-            using (var stream = new FileStream(stage, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            {
-                JsonSerializer.Serialize(stream, new StoredPorts(1, kept));
-                stream.Flush(flushToDisk: true);
-            }
-            File.Move(stage, StatePath, overwrite: true);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-        }
-        finally
-        {
-            if (stage is not null)
-            {
-                try { File.Delete(stage); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
-            }
-        }
-    }
+    private void Write(Dictionary<string, StoredPort> entries) => _files.Write(entries);
 
-    private static string? Label(string? fileName)
-    {
-        if (string.IsNullOrWhiteSpace(fileName)) return null;
-        var name = Path.GetFileName(fileName.Trim());
-        return string.IsNullOrWhiteSpace(name) ? null : name;
-    }
+    private static string? Label(string? fileName) => DesktopStateFile.FileLabel(fileName);
 
     private sealed record StoredPort(int Port, string? Name, DateTimeOffset UsedAt);
-
-    private sealed record StoredPorts(int Version, Dictionary<string, StoredPort> Files);
 }

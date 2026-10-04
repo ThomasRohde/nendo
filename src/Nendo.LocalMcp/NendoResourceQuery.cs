@@ -53,7 +53,7 @@ internal sealed partial class NendoResourceQuery
             var name = equals < 0 ? part : part[..equals];
             if (!template.Parameters.Contains(name, StringComparer.Ordinal))
             {
-                throw Refuse(template, Bounded(name), twice: false);
+                throw Refuse(template, NendoText.Bounded(name, 40), twice: false);
             }
             if (!values.TryAdd(name, equals < 0 ? string.Empty : part[(equals + 1)..]))
             {
@@ -69,19 +69,8 @@ internal sealed partial class NendoResourceQuery
     private static McpProtocolException Refuse(Template template, string name, bool twice) => new(
         $"NENDO_INVALID_REQUEST: {template.Text} " + (template.Parameters.Count == 0
             ? $"takes no query parameters; remove '{name}'."
-            : $"takes {Join(template.Parameters)}; '{name}' " + (twice ? "is given twice." : "is not one of them.")),
+            : $"takes {NendoText.JoinNames(template.Parameters)}; '{name}' " + (twice ? "is given twice." : "is not one of them.")),
         McpErrorCode.InvalidParams);
-
-    private static string Join(IReadOnlyList<string> names) => names.Count switch
-    {
-        1 => names[0],
-        _ => $"{string.Join(", ", names.Take(names.Count - 1))} and {names[^1]}",
-    };
-
-    // A name is echoed back so the caller can see its typo, bounded and without control
-    // characters, because it arrived from outside.
-    private static string Bounded(string value) =>
-        new([.. value.Where(character => !char.IsControl(character)).Take(40)]);
 
     private static Template Parse(string uriTemplate)
     {

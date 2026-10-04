@@ -106,10 +106,7 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
             byte[] bytes;
             try
             {
-                using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
-                if (stream.Length > MaximumBytes) throw new JsonException("Custom view settings exceed their limit.");
-                bytes = new byte[checked((int)stream.Length)];
-                stream.ReadExactly(bytes);
+                bytes = DesktopStateFile.ReadBytes(StatePath, MaximumBytes, "Custom view settings exceed their limit.");
             }
             catch (Exception exception) when (exception is UnauthorizedAccessException ||
                 exception is IOException and not FileNotFoundException and not DirectoryNotFoundException)
@@ -264,7 +261,6 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
 
     private void Save()
     {
-        string? ownedStage = null;
         try
         {
             // Admit the complete document before replacing it. Count limits alone do not
@@ -274,16 +270,7 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
                 _links.Select(link => new StoredDevelopmentLink(link.ApplicationId, link.PackageId, link.Folder)).ToArray(),
                 _runGeneration, _fileRevision, _fileRevisions));
             if (bytes.Length > MaximumBytes) throw new IOException("Custom view settings exceed their limit.");
-            Directory.CreateDirectory(_root);
-            var stage = Path.Combine(_root, $"extension-settings-{Guid.NewGuid():N}.tmp");
-            using (var stream = new FileStream(stage, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
-            {
-                ownedStage = stage;
-                stream.Write(bytes);
-                stream.Flush(flushToDisk: true);
-            }
-            File.Move(stage, StatePath, overwrite: true);
-            ownedStage = null;
+            DesktopStateFile.Replace(_root, StatePath, "extension-settings", stream => stream.Write(bytes));
             _lastReadBytes = bytes;
             Notice = null;
             _pendingChanges.Clear();
@@ -291,14 +278,6 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             Notice = "The custom view setting applies for this session, but could not be saved for the next launch.";
-        }
-        finally
-        {
-            if (ownedStage is not null)
-            {
-                try { File.Delete(ownedStage); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
-            }
         }
     }
 

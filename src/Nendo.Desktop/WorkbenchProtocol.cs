@@ -591,10 +591,7 @@ internal sealed partial class WorkbenchProtocolHandler
         return await _session.CreateRecordAsync(
             request.EntityId,
             request.RecordId,
-            request.Values.ToDictionary(
-                pair => pair.Key,
-                pair => (object?)pair.Value.Clone(),
-                StringComparer.Ordinal),
+            ClonedValues(request.Values),
             request.IdempotencyKey,
             cancellationToken, request.ExpectedTargetVersions, writer);
     }
@@ -636,7 +633,7 @@ internal sealed partial class WorkbenchProtocolHandler
         var request = Deserialize<SetFieldsPayload>(payload);
         if (request.Values is null) throw new NendoValidationException("The form values are required.");
         return await _session.SetFieldsAsync(request.EntityId, request.RecordId, request.ExpectedRecordVersion,
-            request.Values.ToDictionary(pair => pair.Key, pair => (object?)pair.Value.Clone(), StringComparer.Ordinal),
+            ClonedValues(request.Values),
             request.IdempotencyKey, cancellationToken, request.ExpectedTargetVersions, writer);
     }
 
@@ -670,7 +667,7 @@ internal sealed partial class WorkbenchProtocolHandler
                 _ => throw new NendoValidationException($"Write {index} is not a create, an update or a delete."),
             };
             return new NendoRecordWrite(kind, write.EntityId, write.RecordId,
-                write.Values?.ToDictionary(pair => pair.Key, pair => (object?)pair.Value.Clone(), StringComparer.Ordinal),
+                write.Values is null ? null : ClonedValues(write.Values),
                 write.ExpectedRecordVersion, write.ExpectedTargetVersions);
         }).ToArray();
         return await _session.WriteRecordsAsync(writes, request.IdempotencyKey, request.Label, cancellationToken, writer);
@@ -815,6 +812,10 @@ internal sealed partial class WorkbenchProtocolHandler
         var request = Deserialize<ProposalIdPayload>(payload);
         return await _session.GetAgentProposalAsync(request.ProposalId, cancellationToken);
     }
+
+    /// <summary>Field values as the session takes them: each one cloned out of the request document it arrived in.</summary>
+    private static Dictionary<string, object?> ClonedValues(IReadOnlyDictionary<string, JsonElement> values) =>
+        values.ToDictionary(pair => pair.Key, pair => (object?)pair.Value.Clone(), StringComparer.Ordinal);
 
     private static T Deserialize<T>(JsonElement payload) where T : class =>
         payload.Deserialize<T>(JsonOptions)

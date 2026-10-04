@@ -27,10 +27,10 @@ internal static class NendoMcpErrors
             "NENDO_RECOVERY_REQUIRED",
             "The file requires recovery before it can be inspected."),
         NendoPreconditionException precondition => Invalid(
-            $"NENDO_{Normalize(precondition.Code)}",
+            $"NENDO_{NendoText.ErrorCode(precondition.Code)}",
             "The semantic precondition was not met."),
         NendoCalculationException calculation => Invalid(
-            $"NENDO_{Normalize(calculation.Code)}",
+            $"NENDO_{NendoText.ErrorCode(calculation.Code)}",
             calculation.Message),
         // Engine validation messages name IDs, property names and counts, never a
         // path or a stored value; see the same arm in NendoToolErrors.
@@ -45,9 +45,4 @@ internal static class NendoMcpErrors
 
     private static McpProtocolException Invalid(string code, string message) =>
         new($"{code}: {message}", McpErrorCode.InvalidParams);
-
-    private static string Normalize(string value) => new(
-        value.Select(character => char.IsAsciiLetterOrDigit(character)
-            ? char.ToUpperInvariant(character)
-            : '_').ToArray());
 }

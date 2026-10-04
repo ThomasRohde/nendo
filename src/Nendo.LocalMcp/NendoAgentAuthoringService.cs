@@ -53,7 +53,7 @@ internal sealed class NendoAgentAuthoringService(
             AgentAccessMode.ApplicationAuthoring,
             async _ =>
             {
-                RequireText(title, "title", 200);
+                NendoText.RequireText(title, "title", 200);
                 RequireKey(idempotencyKey);
                 var digest = Digest(new { title });
                 await _gate.WaitAsync(cancellationToken);
@@ -72,7 +72,7 @@ internal sealed class NendoAgentAuthoringService(
                     }
                     var snapshot = await application.GetSnapshotAsync(cancellationToken);
                     RequireHostIdentity(snapshot);
-                    var changeSetId = $"change-set-{RandomHex(16)}";
+                    var changeSetId = $"change-set-{NendoText.RandomHex(16)}";
                     // Two proposals can capture the same revision, and accepting
                     // either invalidates the other. Say so here rather than let a
                     // person discover it at the approval dialog, after reviewing.
@@ -283,7 +283,7 @@ internal sealed class NendoAgentAuthoringService(
                         draft.Preview = null;
                     }
                     draft.Frozen = true;
-                    var proposalId = $"proposal-{RandomHex(16)}";
+                    var proposalId = $"proposal-{NendoText.RandomHex(16)}";
                     var origin = NendoTransportIdentity.Pseudonym(sessionId);
                     NendoAgentProposalPreview projected;
                     var transferred = false;
@@ -1010,7 +1010,7 @@ internal sealed class NendoAgentAuthoringService(
         }
         return mutations.Select(mutation =>
         {
-            RequireText(mutation.Description, "description", 500);
+            NendoText.RequireText(mutation.Description, "description", 500);
             return new NendoAgentMutationInput(
                 mutation.Description.Trim(),
                 mutation.Operations.Select(ValidateOperation).ToArray());
@@ -1020,7 +1020,7 @@ internal sealed class NendoAgentAuthoringService(
     private static NendoAgentOperationInput ValidateOperation(NendoAgentOperationInput operation)
     {
         ArgumentNullException.ThrowIfNull(operation);
-        RequireText(operation.OperationType, "operation type", 100);
+        NendoText.RequireText(operation.OperationType, "operation type", 100);
         // Three different mistakes used to share one sentence. An operation type this
         // host does not implement is its own refusal — it is the answer to "is there
         // an escape hatch" — and a payload problem names the operation and the key.
@@ -1095,7 +1095,7 @@ internal sealed class NendoAgentAuthoringService(
                 throw new NendoValidationException(
                     $"One ui.addNode carries at most {MaximumPropertiesPerNodeOperation} inline properties.");
             }
-            RequireText(property.Name, "property name", 100);
+            NendoText.RequireText(property.Name, "property name", 100);
             if (property.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array or JsonValueKind.Undefined)
             {
                 throw new NendoValidationException("An inline node property value must be a scalar JSON value.");
@@ -1114,23 +1114,11 @@ internal sealed class NendoAgentAuthoringService(
         return replay.Result;
     }
 
-    private static void RequireKey(string value) => RequireText(value, "idempotency key", 200);
-
-    private static void RequireText(string value, string name, int maximumLength)
-    {
-        if (string.IsNullOrWhiteSpace(value) || value.Length > maximumLength)
-        {
-            throw new NendoValidationException(
-                $"The {name} must contain 1-{maximumLength} characters.");
-        }
-    }
+    private static void RequireKey(string value) => NendoText.RequireText(value, "idempotency key", 200);
 
     private static string Digest<T>(T value) => Convert.ToHexString(
         SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value, NendoMcpJson.Options)))
         .ToLowerInvariant();
-
-    private static string RandomHex(int byteCount) =>
-        Convert.ToHexString(RandomNumberGenerator.GetBytes(byteCount)).ToLowerInvariant();
 
     /// <summary>
     /// The accepted operation types and payload fields, taken from the table

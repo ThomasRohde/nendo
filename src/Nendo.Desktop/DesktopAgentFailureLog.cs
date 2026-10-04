@@ -1,5 +1,3 @@
-using System.Text;
-using System.Text.Json;
 using Nendo.LocalMcp;
 
 namespace Nendo.Desktop;
@@ -24,56 +22,17 @@ internal sealed class DesktopAgentFailureLog(string root)
     // replace below must not interleave.
     private static readonly object Gate = new();
 
-    private readonly string _root = Path.GetFullPath(root);
+    private readonly DesktopCappedJsonlLog<NendoAgentFailure> _log = new(root, "agent-failures", MaximumEntries);
 
-    internal string LogPath => Path.Combine(_root, "agent-failures.jsonl");
+    internal string LogPath => _log.LogPath;
 
     /// <summary>Appends one failure, keeping the newest <see cref="MaximumEntries"/>. Returns whether it was written.</summary>
     internal bool Record(NendoAgentFailure failure)
     {
         ArgumentNullException.ThrowIfNull(failure);
-        lock (Gate)
-        {
-            try
-            {
-                Directory.CreateDirectory(_root);
-                var kept = Read().TakeLast(MaximumEntries - 1).ToList();
-                kept.Add(failure);
-                var text = new StringBuilder();
-                foreach (var entry in kept) text.Append(JsonSerializer.Serialize(entry)).Append('\n');
-                var stage = Path.Combine(_root, $"agent-failures-{Guid.NewGuid():N}.tmp");
-                File.WriteAllText(stage, text.ToString(), new UTF8Encoding(false));
-                File.Move(stage, LogPath, overwrite: true);
-                return true;
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
-            {
-                return false;
-            }
-        }
+        lock (Gate) return _log.Record(failure);
     }
 
     /// <summary>What has been recorded, oldest first. An unreadable line is skipped rather than fatal.</summary>
-    internal IReadOnlyList<NendoAgentFailure> Read()
-    {
-        try
-        {
-            if (!File.Exists(LogPath)) return [];
-            var entries = new List<NendoAgentFailure>();
-            foreach (var line in File.ReadAllLines(LogPath))
-            {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-                try
-                {
-                    if (JsonSerializer.Deserialize<NendoAgentFailure>(line) is { } entry) entries.Add(entry);
-                }
-                catch (JsonException) { }
-            }
-            return entries;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            return [];
-        }
-    }
+    internal IReadOnlyList<NendoAgentFailure> Read() => _log.Read();
 }

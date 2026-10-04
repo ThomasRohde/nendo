@@ -29,9 +29,9 @@ internal sealed class NendoActivityLog(INendoClock clock)
         var item = new NendoAgentActivity(
             clock.UtcNow,
             client,
-            Bounded(category, 32),
-            Bounded(name, 180),
-            Bounded(outcome, 32),
+            NendoText.Bounded(category, 32),
+            NendoText.Bounded(name, 180),
+            NendoText.Bounded(outcome, 32),
             BoundedOptional(revisionId, 200),
             BoundedOptional(proposalId, 200));
         lock (_gate)
@@ -106,9 +106,6 @@ internal sealed class NendoActivityLog(INendoClock clock)
         return query < 0 ? uri : uri[..query];
     }
 
-    private static string Bounded(string value, int maximum) =>
-        new(value.Where(character => !char.IsControl(character)).Take(maximum).ToArray());
-
     private static string? BoundedOptional(string? value, int maximum) =>
-        string.IsNullOrWhiteSpace(value) ? null : Bounded(value, maximum);
+        string.IsNullOrWhiteSpace(value) ? null : NendoText.Bounded(value, maximum);
 }

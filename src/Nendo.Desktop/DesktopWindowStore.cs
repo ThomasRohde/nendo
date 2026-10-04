@@ -47,9 +47,7 @@ internal sealed class DesktopWindowStore(string root)
     {
         try
         {
-            using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
-            if (stream.Length > 4096) return null;
-            var saved = JsonSerializer.Deserialize<StoredWindow>(stream, new JsonSerializerOptions { MaxDepth = 4 });
+            var saved = DesktopStateFile.Read<StoredWindow>(StatePath, 4096, maximumDepth: 4);
             return saved is { Version: 1, State: { Width: > 0, Height: > 0 } } ? saved.State : null;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
@@ -64,7 +62,7 @@ internal sealed class DesktopWindowStore(string root)
             : null;
 
     private bool SaveDevice(DesktopWindowState state) =>
-        WriteAtomically(StatePath, "window", stream => JsonSerializer.Serialize(stream, new StoredWindow(1, state)));
+        DesktopStateFile.TryReplace(root, StatePath, "window", stream => JsonSerializer.Serialize(stream, new StoredWindow(1, state)));
 
     private bool SaveForFile(string filePath, DesktopWindowState state)
     {
@@ -77,7 +75,7 @@ internal sealed class DesktopWindowStore(string root)
             .OrderByDescending(pair => pair.Value.SavedAt)
             .Take(MaximumFiles)
             .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-        return WriteAtomically(FilesPath, "window-files", stream =>
+        return DesktopStateFile.TryReplace(root, FilesPath, "window-files", stream =>
             JsonSerializer.Serialize(stream, new StoredFileWindows(1, kept)));
     }
 
@@ -85,9 +83,7 @@ internal sealed class DesktopWindowStore(string root)
     {
         try
         {
-            using var stream = new FileStream(FilesPath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
-            if (stream.Length > MaximumFileBytes) return null;
-            var saved = JsonSerializer.Deserialize<StoredFileWindows>(stream, new JsonSerializerOptions { MaxDepth = 6 });
+            var saved = DesktopStateFile.Read<StoredFileWindows>(FilesPath, MaximumFileBytes, maximumDepth: 6);
             return saved is { Version: 1, Files: { } files }
                 ? new Dictionary<string, StoredFileWindow>(files, StringComparer.Ordinal)
                 : null;
@@ -95,35 +91,6 @@ internal sealed class DesktopWindowStore(string root)
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
             return null;
-        }
-    }
-
-    private bool WriteAtomically(string path, string stem, Action<Stream> write)
-    {
-        string? stage = null;
-        try
-        {
-            Directory.CreateDirectory(root);
-            stage = Path.Combine(root, $"{stem}-{Guid.NewGuid():N}.tmp");
-            using (var stream = new FileStream(stage, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            {
-                write(stream);
-                stream.Flush(flushToDisk: true);
-            }
-            File.Move(stage, path, overwrite: true);
-            return true;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            return false;
-        }
-        finally
-        {
-            if (stage is not null)
-            {
-                try { File.Delete(stage); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
-            }
         }
     }
 

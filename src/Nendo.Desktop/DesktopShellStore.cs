@@ -50,10 +50,7 @@ internal sealed class DesktopShellStore
         _root = Path.GetFullPath(root);
         try
         {
-            using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
-            if (stream.Length > MaximumBytes) throw new JsonException("Shell document exceeds its limit.");
-            var bytes = new byte[checked((int)stream.Length)];
-            stream.ReadExactly(bytes);
+            var bytes = DesktopStateFile.ReadBytes(StatePath, MaximumBytes, "Shell document exceeds its limit.");
             var document = JsonSerializer.Deserialize<StoredShell>(bytes, new JsonSerializerOptions { MaxDepth = 4 });
             if (document?.Version != 1 || !IsCloseAction(document.CloseAction)) throw new JsonException("Unsupported shell document.");
             CloseAction = document.CloseAction;
@@ -104,19 +101,10 @@ internal sealed class DesktopShellStore
 
     private void Save(string failureNotice)
     {
-        string? ownedStage = null;
         try
         {
-            Directory.CreateDirectory(_root);
-            var stage = Path.Combine(_root, $"shell-{Guid.NewGuid():N}.tmp");
-            using (var stream = new FileStream(stage, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
-            {
-                ownedStage = stage;
-                JsonSerializer.Serialize(stream, new StoredShell(1, CloseAction, TrayIntroShown, RecordViewFailures));
-                stream.Flush(flushToDisk: true);
-            }
-            File.Move(stage, StatePath, overwrite: true);
-            ownedStage = null;
+            DesktopStateFile.Replace(_root, StatePath, "shell",
+                stream => JsonSerializer.Serialize(stream, new StoredShell(1, CloseAction, TrayIntroShown, RecordViewFailures)));
             Persisted = true;
             Notice = null;
         }
@@ -124,14 +112,6 @@ internal sealed class DesktopShellStore
         {
             Persisted = false;
             Notice = failureNotice;
-        }
-        finally
-        {
-            if (ownedStage is not null)
-            {
-                try { File.Delete(ownedStage); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
-            }
         }
     }
 

@@ -67,8 +67,8 @@ public sealed class NendoAgentWorkSignal
         lock (_gate)
         {
             _running++;
-            _client = Bounded(client, 120);
-            _activity = Bounded(activity, 180);
+            _client = NendoText.Bounded(client, 120);
+            _activity = NendoText.Bounded(activity, 180);
             announced = new NendoAgentWork(true, _client, _activity);
         }
         Announce(announced);
@@ -99,9 +99,6 @@ public sealed class NendoAgentWorkSignal
         try { handler(work); }
         catch (Exception) { }
     }
-
-    private static string Bounded(string value, int maximum) =>
-        new(value.Where(character => !char.IsControl(character)).Take(maximum).ToArray());
 
     private sealed class Scope(NendoAgentWorkSignal owner) : IDisposable
     {

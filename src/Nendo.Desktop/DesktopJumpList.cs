@@ -205,14 +205,9 @@ internal static class DesktopJumpList
 
     private static T? Create<T>(Guid classId, Guid interfaceId) where T : class
     {
-        var hr = CoCreateInstance(classId, IntPtr.Zero, CLSCTX_INPROC_SERVER, interfaceId, out var instance);
+        var hr = DesktopNativeMethods.CoCreateInstance(classId, IntPtr.Zero, CLSCTX_INPROC_SERVER, interfaceId, out var instance);
         return hr == 0 ? instance as T : null;
     }
-
-    [DllImport("ole32.dll")]
-    private static extern int CoCreateInstance(
-        in Guid rclsid, IntPtr pUnkOuter, uint dwClsContext, in Guid riid,
-        [MarshalAs(UnmanagedType.Interface)] out object ppv);
 
     [ComImport, Guid("6332debf-87b5-4670-90c0-5e57b408a49e"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface ICustomDestinationList

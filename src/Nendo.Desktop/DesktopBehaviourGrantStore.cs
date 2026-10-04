@@ -62,10 +62,7 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
         var readable = true;
         try
         {
-            using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
-            if (stream.Length > MaximumBytes) throw new JsonException("The approval document exceeds its limit.");
-            var bytes = new byte[checked((int)stream.Length)];
-            stream.ReadExactly(bytes);
+            var bytes = DesktopStateFile.ReadBytes(StatePath, MaximumBytes, "The approval document exceeds its limit.");
             var document = JsonSerializer.Deserialize<StoredGrantDocument>(bytes, new JsonSerializerOptions { MaxDepth = 8 });
             if (document?.Version != 1 || document.Grants is null || document.Grants.Count > MaximumGrants || document.RevocationGeneration < 0)
                 throw new JsonException("Unsupported approval document.");
@@ -167,19 +164,10 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
 
     private void Save()
     {
-        string? ownedStage = null;
         try
         {
-            Directory.CreateDirectory(_root);
-            var stage = Path.Combine(_root, $"behaviour-grants-{Guid.NewGuid():N}.tmp");
-            using (var stream = new FileStream(stage, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
-            {
-                ownedStage = stage;
-                JsonSerializer.Serialize(stream, new StoredGrantDocument(1, _grants, _revocationGeneration));
-                stream.Flush(flushToDisk: true);
-            }
-            File.Move(stage, StatePath, overwrite: true);
-            ownedStage = null;
+            DesktopStateFile.Replace(_root, StatePath, "behaviour-grants",
+                stream => JsonSerializer.Serialize(stream, new StoredGrantDocument(1, _grants, _revocationGeneration)));
             Persisted = true;
             Notice = null;
             _sessionGrants.Clear();
@@ -192,14 +180,6 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
             // it was stored.
             Persisted = false;
             Notice = "This approval change applies for now, but could not be saved for the next launch.";
-        }
-        finally
-        {
-            if (ownedStage is not null)
-            {
-                try { File.Delete(ownedStage); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
-            }
         }
     }
 

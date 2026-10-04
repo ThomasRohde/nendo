@@ -20,10 +20,10 @@ internal sealed class NendoAuthoringTools(
     [Description("Begin a bounded application change-set draft at the current definition revision.")]
     public Task<NendoChangeSetBeginResult> BeginAsync(
         RequestContext<CallToolRequestParams> context,
-        [Description("Private application handle returned by nendo.lease.acquire.")] string applicationHandle,
-        [Description("Opaque lease ID returned by nendo.lease.acquire.")] string leaseId,
+        [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
+        [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
         [Description("Human-readable title shown to the person reviewing the proposal.")] string title,
-        [Description("Stable key used to make an exact retry safe.")] string idempotencyKey,
+        [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
         CancellationToken cancellationToken = default) => ExecuteAsync(
             context,
             "nendo.change_set.begin",
@@ -59,12 +59,12 @@ internal sealed class NendoAuthoringTools(
         """)]
     public Task<NendoChangeSetAddResult> AddOperationsAsync(
         RequestContext<CallToolRequestParams> context,
-        [Description("Private application handle returned by nendo.lease.acquire.")] string applicationHandle,
-        [Description("Opaque lease ID returned by nendo.lease.acquire.")] string leaseId,
-        [Description("Server-minted change-set ID returned by nendo.change_set.begin.")] string changeSetId,
+        [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
+        [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
+        [Description(NendoParameterDescriptions.ChangeSetId)] string changeSetId,
         [Description("One to eight mutations containing at most sixteen operations in this call. Numeric scalar values in payloads may use {\"$nendoNumber\":\"numeric lexeme\"} for exact integers/decimals; these are decoded before canonical validation.")]
         IReadOnlyList<NendoAgentMutationInput> mutations,
-        [Description("Stable key used to make an exact retry safe.")] string idempotencyKey,
+        [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
         CancellationToken cancellationToken = default) => ExecuteAsync(
             context,
             "nendo.change_set.add_operations",
@@ -93,13 +93,13 @@ internal sealed class NendoAuthoringTools(
         """)]
     public Task<NendoChangeSetAddResult> AmendAsync(
         RequestContext<CallToolRequestParams> context,
-        [Description("Private application handle returned by nendo.lease.acquire.")] string applicationHandle,
-        [Description("Opaque lease ID returned by nendo.lease.acquire.")] string leaseId,
-        [Description("Server-minted change-set ID returned by nendo.change_set.begin.")] string changeSetId,
+        [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
+        [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
+        [Description(NendoParameterDescriptions.ChangeSetId)] string changeSetId,
         [Description("Zero-based ordinal of the first mutation to drop. Use the mutationCount from the last add_operations response to append instead.")] int dropFromMutationOrdinal,
         [Description("Replacement mutations, in the same shape and under the same bounds as nendo.change_set.add_operations.")]
         IReadOnlyList<NendoAgentMutationInput> mutations,
-        [Description("Stable key used to make an exact retry safe.")] string idempotencyKey,
+        [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
         CancellationToken cancellationToken = default) => ExecuteAsync(
             context,
             "nendo.change_set.amend",
@@ -123,10 +123,10 @@ internal sealed class NendoAuthoringTools(
     [Description("Validate an owned draft on a private clone without changing the active file. A valid draft freezes and becomes a proposal for the person to review. An invalid draft is not consumed: its clone is discarded, the draft stays open, and the returned diagnostics say what to correct with nendo.change_set.amend before validating again.")]
     public Task<NendoAgentProposalPreview> ValidateAsync(
         RequestContext<CallToolRequestParams> context,
-        [Description("Private application handle returned by nendo.lease.acquire.")] string applicationHandle,
-        [Description("Opaque lease ID returned by nendo.lease.acquire.")] string leaseId,
-        [Description("Server-minted change-set ID returned by nendo.change_set.begin.")] string changeSetId,
-        [Description("Stable key used to make an exact retry safe.")] string idempotencyKey,
+        [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
+        [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
+        [Description(NendoParameterDescriptions.ChangeSetId)] string changeSetId,
+        [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
         CancellationToken cancellationToken = default) => ExecuteAsync(
             context,
             "nendo.change_set.validate",
@@ -149,9 +149,9 @@ internal sealed class NendoAuthoringTools(
     [Description("Read the sanitized validation preview for this handle's frozen change set.")]
     public Task<NendoAgentProposalPreview> PreviewAsync(
         RequestContext<CallToolRequestParams> context,
-        [Description("Private application handle returned by nendo.lease.acquire.")] string applicationHandle,
-        [Description("Opaque lease ID returned by nendo.lease.acquire.")] string leaseId,
-        [Description("Server-minted change-set ID returned by nendo.change_set.begin.")] string changeSetId,
+        [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
+        [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
+        [Description(NendoParameterDescriptions.ChangeSetId)] string changeSetId,
         CancellationToken cancellationToken = default) => ExecuteAsync(
             context,
             "nendo.change_set.preview",
@@ -173,10 +173,10 @@ internal sealed class NendoAuthoringTools(
     [Description("Reject this handle's draft or preview without changing the active file.")]
     public Task<NendoChangeSetRejectResult> RejectAsync(
         RequestContext<CallToolRequestParams> context,
-        [Description("Private application handle returned by nendo.lease.acquire.")] string applicationHandle,
-        [Description("Opaque lease ID returned by nendo.lease.acquire.")] string leaseId,
-        [Description("Server-minted change-set ID returned by nendo.change_set.begin.")] string changeSetId,
-        [Description("Stable key used to make an exact retry safe.")] string idempotencyKey,
+        [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
+        [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
+        [Description(NendoParameterDescriptions.ChangeSetId)] string changeSetId,
+        [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
         CancellationToken cancellationToken = default) => ExecuteAsync(
             context,
             "nendo.change_set.reject",
