@@ -13,7 +13,7 @@ namespace Nendo.LocalMcp;
 /// <c>SKILL.md</c> that says when to read each of the authoring resources, with the
 /// vocabulary, the examples and the view API as its supporting files. Generated from the
 /// same tables the vocabulary is, build-static, so the manifest's digests are the bytes
-/// served. A file that carries its own skill is a separate decision (ADR-0024).
+/// served. A file that carries its own skill is ADR-0024, not this class.
 /// </summary>
 internal static class NendoHostSkill
 {

@@ -11,7 +11,7 @@ const noAcceptTool = 'Below Unattended, no tool accepts a proposal: acceptance s
  */
 export const agentSurface: { resources: readonly SurfaceEntry[]; editDataTools: readonly SurfaceEntry[]; shapeAppTools: readonly SurfaceEntry[]; unattendedTools: readonly SurfaceEntry[] } = {
   resources: [
-    { name: 'nendo://application/describe', meaning: 'The whole open application in one read: identity, authoring limits, every record type with its fields and references, every compiled screen, health, and every read path this server serves. Read it first.' },
+    { name: 'nendo://application/describe{?include}', meaning: 'The whole open application in one read: identity, authoring limits, every record type with its fields and references, every compiled screen, health, and every read path this server serves. Read it first.' },
     { name: 'nendo://application/entity/{entityId}', meaning: 'One record type as a bundle: its schema with the record count, the screens that belong to it and the diagnostics that name it. With the manifest, the small first read for one type.' },
     { name: 'nendo://application/manifest', meaning: 'Identity and the revision counters, without reading records or history.' },
     { name: 'nendo://application/vocabulary', meaning: 'Everything this Nendo build accepts from an author: node kinds with their properties and children, filter operators and value kinds, aggregates, the behaviour catalogue, the authoring limits, every operation with the payload fields it takes, and the authoring rules that are easy to break. It describes the host, not the open file.' },
@@ -32,6 +32,7 @@ export const agentSurface: { resources: readonly SurfaceEntry[]; editDataTools: 
     { name: 'nendo://application/view-api', meaning: 'What a custom view’s code can call: every window.nendo method with its parameters and answer, the events, the toolbar’s controls and icons, the theme’s colours, the limits and refusals, and a whole view to start from. An agent reads it only when it writes a view’s code. It describes this Nendo build, not the open file.' },
     { name: 'nendo://application/health', meaning: 'Durability state and the last integrity result, with how many changes have happened since it was measured. Reading it does not rescan.' },
     { name: 'skill://nendo-authoring/SKILL.md', meaning: 'The authoring skill, for a client that speaks the Skills extension: which read answers which question, the lease, the change-set loop, every operation, the bounds, the examples and the refusals. Its supporting files are the vocabulary, the examples and the view API.' },
+    { name: 'skill://nendo-authoring/references/{file}', meaning: 'One of the skill’s supporting files by name — vocabulary.json, examples.json or view-api.json — the same content as the matching nendo:// read, so a client that verifies the skill’s manifest reads the bytes it names.' },
     { name: 'nendo://host/instances', meaning: 'Every Nendo running on this device and which file each has open, with isThisOne marking the one answering. The only read here that is not about the open file. It names files, never paths, and it does not make another one reachable: a client works the address it was registered with, so switching is the person’s move.' },
   ],
   editDataTools: [
