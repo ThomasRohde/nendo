@@ -87,8 +87,20 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
   'records.batch': {
     call: 'nendo.records.batch(writes, options?)',
     params: 'writes is a list of 1 to 200 record writes, each {op: \'create\', entityId, recordId?, values, targetVersions?}, {op: \'update\', entityId, recordId, version, values, targetVersions?} or {op: \'delete\', entityId, recordId, version}. options is {label?}: what History calls the revision, 1 to 80 characters.',
-    answer: '{records}: each {entityId, recordId, version} in the order written, version null for a deleted record.',
+    answer: '{records, revision}: each record {entityId, recordId, version} in the order written, version null for a deleted record, and the revision the batch wrote, which records.undo takes.',
     note: 'One revision: every write commits or none does. A record appears at most once. A reference to a record the batch creates or updates earlier needs no target version. A move is not part of a batch; set a tree\'s parent and order fields in an update instead, or use records.move.',
+  },
+  'records.undo': {
+    call: 'nendo.records.undo(revision, options?)',
+    params: 'revision from the answer of a records.batch, or of a records.redo, this view made since it opened. options is {label?}: what History calls the undo, 1 to 80 characters; "Undo" and the batch\'s label without one.',
+    answer: '{records, revision}, as a batch answers: the revision is the undo\'s, which records.redo takes.',
+    note: 'One new revision that reverses the batch whole: updates put back, deletes restored under their own IDs, creates deleted. Refused, writing nothing, when a record changed, was deleted or is newly pointed at since, and with not-this-view for a revision this view did not write in this visit. Keep the steps, their order and their names yourself.',
+  },
+  'records.redo': {
+    call: 'nendo.records.redo(revision, options?)',
+    params: 'revision from the answer of a records.undo this view made since it opened. options is {label?}; "Redo" and the batch\'s label without one.',
+    answer: '{records, revision}, as a batch answers: undo this revision to undo the step again.',
+    note: 'Refused, writing nothing, when a record changed since the undo.',
   },
   'records.move': {
     call: 'nendo.records.move(record, to)',

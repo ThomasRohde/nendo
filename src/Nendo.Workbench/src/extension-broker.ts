@@ -273,6 +273,55 @@ function write(host: string, payload: (params: Params) => Params & { entityId: s
   };
 }
 
+/**
+ * The revisions each frame was answered in this visit: its batches, undos and redos. They are
+ * the only ones it may ask to undo or redo (ADR-0023), so a view never reverses a person's
+ * edit, another view's or one it made before it was mounted again.
+ */
+const ownRevisions = new WeakMap<BrokerMount, Set<string>>();
+
+/** A batch's, an undo's or a redo's answer: each record's version, and the revision it wrote. */
+function writtenRecords(mount: BrokerMount, result: unknown): Params {
+  const view = result as { mutation?: { revisionId?: unknown }; records?: { entityId?: unknown; recordId?: unknown; recordVersion?: unknown }[] } | null;
+  const revision = typeof view?.mutation?.revisionId === 'string' ? view.mutation.revisionId : null;
+  if (revision !== null) {
+    const own = ownRevisions.get(mount) ?? new Set<string>();
+    own.add(revision);
+    ownRevisions.set(mount, own);
+  }
+  return {
+    records: (view?.records ?? []).map((record) => ({
+      entityId: String(record.entityId ?? ''), recordId: String(record.recordId ?? ''),
+      version: typeof record.recordVersion === 'number' ? record.recordVersion : null,
+    })),
+    revision,
+  };
+}
+
+/**
+ * Undo or redo of a revision this frame wrote (ADR-0023): the host compensates it in the
+ * package's name, version-checked, and refuses the whole step when a record changed since.
+ */
+function undoWrites(redo: boolean): MethodEntry {
+  return {
+    host: 'data.undoRecordWrites',
+    writes: true,
+    run: async ({ params, mount, deps }) => {
+      const context = deps.context(mount);
+      if (context.readOnly) throw new WorkbenchHostError('read-only', 'This file is open read-only, so a view cannot change it.');
+      const revision = textParam(params, 'revision', 200);
+      if (!ownRevisions.get(mount)?.has(revision))
+        throw new WorkbenchHostError('not-this-view', `This view can ${redo ? 'redo' : 'undo'} only what it wrote since it opened.`);
+      const label = optionalText(params, 'label', 80);
+      const result = await deps.request('data.undoRecordWrites', {
+        revisionId: revision, redo, ...(label === undefined ? {} : { label }),
+        idempotencyKey: `view-${crypto.randomUUID()}`, actor: `extension:${context.packageId}`,
+      });
+      return writtenRecords(mount, result);
+    },
+  };
+}
+
 /** The states a proposal is in, as the host numbers them, in the words a view reads. */
 const proposalStates = ['draft', 'validating', 'invalid', 'previewable', 'applying', 'active', 'stale', 'failed', 'rejected'];
 
@@ -479,6 +528,7 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
   // Several writes as one revision (W-102): they commit together or not at all, and History
   // shows one entry, named by label when the view gives one. The answer is each record's new
   // version, in the order written, and null for a deleted one; read a record again for its values.
+  // It names the revision too, which records.undo takes (ADR-0023).
   'records.batch': {
     host: 'data.writeRecords',
     writes: true,
@@ -493,15 +543,12 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
       };
       if (JSON.stringify(body).length > batchCharacters)
         throw new WorkbenchHostError('too-large', 'This batch is too large to send at once; split it into smaller batches.');
-      const result = await deps.request('data.writeRecords', body) as { records?: { entityId?: unknown; recordId?: unknown; recordVersion?: unknown }[] } | null;
-      return {
-        records: (result?.records ?? []).map((record) => ({
-          entityId: String(record.entityId ?? ''), recordId: String(record.recordId ?? ''),
-          version: typeof record.recordVersion === 'number' ? record.recordVersion : null,
-        })),
-      };
+      return writtenRecords(mount, await deps.request('data.writeRecords', body));
     },
   },
+  // Undo of a revision this frame wrote, and redo of its undo (ADR-0023, W-103).
+  'records.undo': undoWrites(false),
+  'records.redo': undoWrites(true),
   'commands.run': write('data.executeCommand', (p) => ({
     commandId: textParam(p, 'commandId'), entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p),
   })),

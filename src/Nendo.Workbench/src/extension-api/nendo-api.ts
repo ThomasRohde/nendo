@@ -345,7 +345,8 @@ function install(host: Window & { nendo?: unknown }): void {
     | { op: 'update'; entityId: string; recordId: string; version: number; values: WriteValues; targetVersions?: TargetVersions }
     | { op: 'delete'; entityId: string; recordId: string; version: number };
   type BatchOptions = { label?: string };
-  type BatchAnswer = { records: { entityId: string; recordId: string; version: number | null }[] };
+  type BatchAnswer = { records: { entityId: string; recordId: string; version: number | null }[]; revision: string | null };
+  type UndoOptions = { label?: string };
   type MoveTarget = { parentRecordId: string | null; parentVersion?: number; beforeRecordId?: string | null };
   type StateOptions = { scope?: 'view' | 'package' };
   type StateEntry = { key: string; value: unknown; version: number };
@@ -505,6 +506,18 @@ function install(host: Window & { nendo?: unknown }): void {
        */
       batch: (writes: BatchWrite[], options?: BatchOptions): Promise<BatchAnswer> =>
         call<BatchAnswer>('records.batch', { writes, ...(options?.label === undefined ? {} : { label: options.label }) }),
+      /**
+       * Undoes a revision this view wrote since it opened, named by the batch's answer, as a new
+       * revision (ADR-0023): updates put back, deletes restored, creates deleted. A record changed,
+       * deleted or newly pointed at since refuses the whole undo, and nothing is written. History
+       * names it "Undo" and the batch's label, or options.label. Answers like a batch; keep its
+       * revision for the redo. Ask nendo.has('records.undo') first.
+       */
+      undo: (revision: string, options?: UndoOptions): Promise<BatchAnswer> =>
+        call<BatchAnswer>('records.undo', { revision, ...(options?.label === undefined ? {} : { label: options.label }) }),
+      /** Redoes an undo this view made, by the undo's revision, the same way. Undo the redo's revision to undo again. */
+      redo: (revision: string, options?: UndoOptions): Promise<BatchAnswer> =>
+        call<BatchAnswer>('records.redo', { revision, ...(options?.label === undefined ? {} : { label: options.label }) }),
       /**
        * Moves a record in its record type's declared tree (ADR-0019): under parentRecordId, with the
        * parent's version as the view read it, or to the top level with null; before the sibling

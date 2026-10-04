@@ -116,3 +116,7 @@ discards useful concurrency or erases/overstates history.
   into one checkpoint revision, after a backup. History is still never rewound by a write; exact
   replay and compensation now reach the revisions after the checkpoint, and a folded revision's
   operations are kept in the backup rather than the file.
+- 2026-10-04 — [ADR-0023](0023-a-view-undoes-its-own-revisions.md): a record revision is compensated
+  as a whole with its creates and restores, each by a version-checked delete, up to 12,800
+  operations; a compensation of record changes can itself be compensated, which is redo. The
+  declared classes are unchanged: a compensated create leaves its record ID reserved.

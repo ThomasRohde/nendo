@@ -34,6 +34,7 @@ existed. For this reason the numbering is contiguous by intent.
 | [0020](0020-unique-and-generated-fields.md) | Accepted | A field can be declared unique, refused by the Engine from every client, and given a sequence the host allocates inside the write; path codes (1.2.3) are a calculated `HierarchyPath`; the planner drops its manual reference ledger. Stages 1 (unique fields), 2 (sequences), 3 (`HierarchyPath`) and 4 (Studio and forms) delivered at host 1.37.0; stage 5 (planner adoption) accepted 2026-09-27 |
 | [0021](0021-folding-old-history.md) | Accepted | A person may fold a file's older history into a checkpoint revision, after a backup, keeping the most recent 1,000 revisions; the file keeps accepting writes past the operation-row bound (W-101) |
 | [0022](0022-new-file-keeping-the-records-an-application-ships-with.md) | Accepted | A record is kept in new files or left out, by its type's default or its own mark, shown in Studio and MCP; *New empty copy…* (or the application's own label) starts a new file of the same application with the definition and the kept records, folding the source's history into one checkpoint. Delivered at host 1.41.0 (W-129): Engine, MCP, Desktop and Studio |
+| [0023](0023-a-view-undoes-its-own-revisions.md) | Accepted | A record revision, creates and restores included, is compensated as a whole, and a compensation of record changes can be compensated (redo); a view undoes and redoes the batches it wrote in this visit with `records.undo` and `records.redo` (W-103) |
 
 ## Amendments in force
 

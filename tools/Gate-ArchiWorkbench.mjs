@@ -33,12 +33,13 @@ async (page) => {
   })));
   const selected = async () => (await rows()).find(row => row.selected) ?? null;
   const results = {};
-  // W-112: the model as the fixture holds it, value for value, the batches the view has sent, and
-  // one control of Nendo's row as the view last declared it.
+  // W-112: the model as the fixture holds it, value for value, the revisions the view has written --
+  // its batches, and since W-103 Nendo's undos and redos of them -- and one control of Nendo's row
+  // as the view last declared it.
   const modelNow = async () => JSON.stringify(await Promise.all(['ar.model', 'ar.folder', 'ar.specialization', 'ar.concept', 'ar.view', 'ar.item', 'ar.property'].map(async entityId =>
     (await records(entityId)).map(record => [record.recordId, Object.entries(record.values).filter(([, value]) => value !== null).sort(([a], [b]) => (a < b ? -1 : 1))])
       .sort(([a], [b]) => (a < b ? -1 : 1)))));
-  const batchCount = () => page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').length);
+  const batchCount = () => page.evaluate(() => window.broker.requests.filter(request => ['records.batch', 'records.undo', 'records.redo'].includes(request.m)).length);
   const control = id => page.evaluate(wanted => {
     const find = items => { for (const item of items ?? []) { if (item.id === wanted) return item; const inner = find(item.items); if (inner) return inner; } return null; };
     return find(window.broker.toolbars.at(-1)?.items);
@@ -579,14 +580,17 @@ async (page) => {
     await until(() => document.getElementById('status').textContent === 'Rename Broker portal.', null, 'The rename of Broker portal was not written.');
     await page.evaluate(id => { window.broker.touch('ar.concept', id); window.broker.pushChanges(); }, portal.recordId);
     await page.waitForTimeout(400);
-    const touched = { model: await modelNow(), batches: await batchCount() };
+    // A refused undo is still asked of Nendo, so what it must not have done is change the model or
+    // send a batch of the view's own.
+    const ownBatches = () => page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').length);
+    const touched = { model: await modelNow(), batches: await ownBatches() };
     await labelIs('undo', 'Undo Rename Broker portal', 'Undo does not name the rename');
     await page.evaluate(() => window.broker.command('undo', null, 'toolbar'));
-    await until(() => document.getElementById('status').textContent === 'Undo Rename Broker portal was refused: Partner portal has changed since. Nothing was changed.',
+    await until(() => document.getElementById('status').textContent === 'Undo Rename Broker portal was refused: Something it would put back has changed or been deleted since. Nothing was changed.',
       null, 'An undo of a record changed since did not say why it was refused.');
-    assert(await modelNow() === touched.model && await batchCount() === touched.batches, 'A refused undo wrote something.');
+    assert(await modelNow() === touched.model && await ownBatches() === touched.batches, 'A refused undo wrote something.');
     await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
-    results.undo = { gestures, undone, refused: 'Partner portal has changed since' };
+    results.undo = { gestures, undone, refused: 'Something it would put back has changed or been deleted since' };
   }
   await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
 
@@ -1616,17 +1620,20 @@ async (page) => {
         `Generate View For saved ${generatedBatches.length} batches of ${JSON.stringify(generatedBatches.map(batch => batch.writes.length))} writes, ${generatedBoxes.length} boxes and ${generatedLines.length} lines ` +
         `where archi-online makes ${generatedReference.elements.length} and ${generatedReference.relationships.length}; ${boundsDiffer.length} boxes are placed elsewhere.`);
       await until(count => document.querySelectorAll('.archi-editor [data-node-id]').length === count, generatedBoxes.length, 'The generated view did not open in the editor.');
-      // Undo takes it away as one step of the file's (W-112): one batch of deletes, nothing waiting.
+      // Undo takes it away as one step of the file's (W-112): Nendo's undo of the batch (W-103),
+      // and no batch of the view's own, nothing waiting.
       const batchesBeforeUndo = (await batches()).length;
+      const undosBefore = await page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.undo').length);
       await labelIs('undo', 'Undo Generate view Board View', 'Undo does not name the generated view');
       await step('undo');
       await pendingIs(0, 'The generated view undone');
       const undone = (await batches()).slice(batchesBeforeUndo);
+      const undos = await page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.undo').length) - undosBefore;
       const gone = !(await records('ar.view')).some(record => record.recordId === generatedView.recordId) &&
         !(await records('ar.item')).some(item => item.values['ar.item.view'] === generatedView.recordId);
-      assert(undone.length === 1 && undone[0].writes.every(write => write.op === 'delete') && gone,
-        `Undo did not take the generated view away in one batch of deletes: ${JSON.stringify(undone.map(batch => batch.writes.map(write => write.op)))}, gone: ${gone}.`);
-      automation.generated = { boxes: generatedBoxes.length, lines: generatedLines.length, writes: generatedBatches[0].writes.length, undone: undone[0].writes.length };
+      assert(undos === 1 && undone.length === 0 && gone,
+        `Undo did not take the generated view away as one undo of Nendo's: ${undos} undos, ${undone.length} batches, gone: ${gone}.`);
+      automation.generated = { boxes: generatedBoxes.length, lines: generatedLines.length, writes: generatedBatches[0].writes.length, undos };
 
       // Back to Organisation Tree View for the steps that follow.
       await page.evaluate(value => window.broker.command('find', value, 'toolbar'), treeView.values['ar.view.name']);

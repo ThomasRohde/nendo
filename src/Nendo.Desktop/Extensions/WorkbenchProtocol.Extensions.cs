@@ -35,14 +35,15 @@ internal static partial class WorkbenchMethods
     /// <summary>
     /// The only methods a request may carry a custom view's actor on (ADR-0013 Phase 3): the
     /// record writes a person's own edit uses, since 2026-09-28 a move in a declared tree
-    /// (ADR-0019, W-079), and since 2026-09-29 several record writes as one revision (W-102).
+    /// (ADR-0019, W-079), since 2026-09-29 several record writes as one revision (W-102), and
+    /// since 2026-10-04 the undo and redo of such a batch (ADR-0023, W-103).
     /// A read carries no actor, and every other method -- proposals,
     /// behaviour, agents, files, sessions, appearance, compensation -- refuses one with
     /// <c>actor-not-allowed</c>. tests/Nendo.Desktop.Tests pins the set.
     /// </summary>
     internal static readonly IReadOnlySet<string> ExtensionWriterMethods = new HashSet<string>(StringComparer.Ordinal)
     {
-        DataCreateRecord, DataSetFields, DataDeleteRecord, DataExecuteCommand, DataMoveRecord, DataWriteRecords,
+        DataCreateRecord, DataSetFields, DataDeleteRecord, DataExecuteCommand, DataMoveRecord, DataWriteRecords, DataUndoRecordWrites,
         ProposalPrepareChangeSet, ProposalGet, ExtensionStateRead, ExtensionStateSet,
     };
 }

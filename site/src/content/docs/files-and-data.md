@@ -100,7 +100,7 @@ Every operation declares a reversibility class. Nendo shows it in the review bef
 | Compensatable with retained state | Nendo kept what it needs and can restore it while the current state allows. | A deleted record; a retired field or record type. |
 | Not compensatable | There is no inverse. | A new record type or field; a conversion; a change of identity; a raised minimum version. |
 
-**Compensate** applies the inverse of an entry as a new revision. It does not rewind history. A restored record gets a new version. If the current state no longer allows the inverse (a referenced record is gone, a field is now required), Nendo refuses. If a save triggered an automatic action, Compensate reverses the whole entry, including the action's changes. To bring back a deleted record, find its Delete entry in History and choose **Compensate**.
+**Compensate** applies the inverse of an entry as a new revision. It does not rewind history. A restored record gets a new version. If the current state no longer allows the inverse (a referenced record is gone, a field is now required), Nendo refuses. If a save triggered an automatic action, Compensate reverses the whole entry, including the action's changes. To bring back a deleted record, find its Delete entry in History and choose **Compensate**. Compensating a new record deletes it; its record ID stays taken. A compensation of record changes can itself be compensated, which makes the change again.
 
 There is no universal undo. A backup does not make an irreversible change reversible; it gives you an older file to go back to. Make a backup before a change you cannot compensate.
 

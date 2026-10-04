@@ -103,16 +103,15 @@ const modelRecord = () => state.model?.of(M.E.model)[0] ?? null;
 let writing = Promise.resolve();
 
 /*
- * Undo and Redo of what the file has saved (W-112). Each gesture written as one batch leaves its
- * opposite, planned by model.js: Undo writes it as a new revision, version-checked, so a record
- * changed, deleted or used since refuses the whole undo and nothing is written. An undo leaves a
- * redo the same way. The steps are this visit's; a gesture over 200 writes, or one made by a Nendo
- * without records.batch, is not undoable here, because its writes were not one revision.
+ * Undo and Redo of what the file has saved (W-112). Each gesture written as one batch is one step,
+ * named by the gesture, and Nendo undoes it (ADR-0023, W-103): records.undo writes the batch's
+ * opposite as a new revision, version-checked, so a record changed, deleted or used since refuses
+ * the whole undo and nothing is written. A deleted record comes back under its own record ID,
+ * which only Nendo can do. A redo is the undo's own undo. The steps are this visit's; a gesture
+ * over 200 writes, or one made by a Nendo without records.undo, is not undoable here, because its
+ * writes were not one revision Nendo can take back.
  */
 const saved = { undo: [], redo: [] };
-// The state each record the steps wrote is in now (model.js, undoStep): shared by the steps that
-// expect it, so an undo that moves a record's version on is followed by every step kept.
-const states = new Map();
 const STEPS_KEPT = 50;
 /**
  * One gesture's writes, after every earlier gesture and the reread it caused: `plan` is called
@@ -120,21 +119,17 @@ const STEPS_KEPT = 50;
  * made while the first was still being read back pointed at versions the first had moved on
  * (F-211).
  */
-function write(plan, label, { atomic = false, undoable = true, history = null } = {}) {
-  const run = writing.then(() => writeNow(plan, label, atomic, undoable, history));
+function write(plan, label, { atomic = false, undoable = true } = {}) {
+  const run = writing.then(() => writeNow(plan, label, atomic, undoable));
   writing = run.catch(() => undefined);
   return run;
 }
 
-/**
- * Writes one gesture and reads the model back. `history` is set for an undo or a redo: {kind,
- * entry}, the step being taken. Answers whether the writes were saved.
- */
-async function writeNow(plan, label, atomic, undoable, history) {
+/** Writes one gesture and reads the model back. Answers whether the writes were saved. */
+async function writeNow(plan, label, atomic, undoable) {
   let writes;
-  const before = state.model;
   try { writes = typeof plan === 'function' ? plan() : plan; } catch (error) {
-    setStatus(history ? `${label} was refused: ${describe(error)} Nothing was changed.` : describe(error), true);
+    setStatus(describe(error), true);
     return false;
   }
   if (writes.length === 0) return false;
@@ -145,7 +140,7 @@ async function writeNow(plan, label, atomic, undoable, history) {
     return false;
   }
   let outcome = `${label}.`, problem = false;
-  const answers = [];
+  const revisions = [];
   try {
     if (batched) {
       for (let start = 0; start < writes.length; start += 200) {
@@ -155,7 +150,7 @@ async function writeNow(plan, label, atomic, undoable, history) {
           ...(single.values === undefined ? {} : { values: single.values }),
           ...(single.targetVersions === undefined ? {} : { targetVersions: single.targetVersions }),
         })), { label: label.slice(0, 80) });
-        answers.push(...(answer?.records ?? []));
+        revisions.push(answer?.revision ?? null);
       }
     } else {
       for (const single of writes) {
@@ -166,31 +161,59 @@ async function writeNow(plan, label, atomic, undoable, history) {
       }
     }
   } catch (error) {
-    outcome = `${label} was refused: ${describe(error)}${history ? ' Nothing was changed.' : ''}`;
+    outcome = `${label} was refused: ${describe(error)}`;
     problem = true;
   }
-  if (!problem) remember(before, writes, answers, batched, label, undoable, history);
+  if (!problem) {
+    // A new gesture leaves nothing to redo, and is a step of its own when Nendo can take it back.
+    saved.redo = [];
+    if (undoable && revisions.length === 1 && typeof revisions[0] === 'string' && nendo.has('records.undo')) {
+      saved.undo.push({ label, revision: revisions[0] });
+      if (saved.undo.length > STEPS_KEPT) saved.undo.shift();
+    }
+  }
   // Said once the model is read back, so what the status line reports is what the view shows.
   await readAll().catch(error => { outcome = `The model could not be read. ${describe(error)}`; problem = true; });
   setStatus(outcome, problem);
   return !problem;
 }
 
-/** Keeps the opposite of what was just saved: a gesture's undo, an undo's redo, a redo's undo. */
-function remember(before, writes, answers, batched, label, undoable, history) {
-  const one = batched && writes.length <= 200 && answers.length === writes.length;
-  let step = null;
-  if (one && undoable) {
-    try {
-      step = history ? M.oppositeStep(before, history.entry.step, writes, answers, states) : M.undoStep(before, writes, answers, states);
-    } catch { step = null; }
+/** Why Nendo refused an undo or a redo, in the words of the model rather than of the file. */
+function whyNotTaken(error) {
+  switch (error?.code) {
+    case 'record-version-conflict':
+    case 'deletion-state-conflict':
+    case 'record-not-found':
+      return 'Something it would put back has changed or been deleted since.';
+    case 'record-referenced':
+      return `Something now uses what it would take away. ${describe(error)}`;
+    default:
+      return describe(error);
   }
-  const entry = step ? { label: history?.entry.label ?? label, step } : null;
-  if (history?.kind === 'undo') { if (entry) saved.redo.push(entry); return; }
-  // A new gesture leaves nothing to redo; a redo leaves the rest of what can be redone.
-  if (!history) saved.redo = [];
-  if (entry) saved.undo.push(entry);
-  if (saved.undo.length > STEPS_KEPT) saved.undo.shift();
+}
+
+/** Takes one saved step back or forward, after any gesture still being written. */
+function take(kind, entry) {
+  const run = writing.then(async () => {
+    const label = `${kind === 'undo' ? 'Undo' : 'Redo'} ${entry.label}`;
+    let outcome = `${label}.`, problem = false;
+    if (state.readOnly) { setStatus('This file is open read-only.', true); return false; }
+    try {
+      const answer = kind === 'undo' ? await nendo.records.undo(entry.revision) : await nendo.records.redo(entry.revision);
+      const next = { label: entry.label, revision: answer.revision };
+      if (kind === 'undo') saved.redo.push(next);
+      else { saved.undo.push(next); if (saved.undo.length > STEPS_KEPT) saved.undo.shift(); }
+    } catch (error) {
+      outcome = `${label} was refused: ${whyNotTaken(error)} Nothing was changed.`;
+      problem = true;
+    }
+    declareToolbar();
+    await readAll().catch(error => { outcome = `The model could not be read. ${describe(error)}`; problem = true; });
+    setStatus(outcome, problem);
+    return !problem;
+  });
+  writing = run.catch(() => undefined);
+  return run;
 }
 
 /** What Undo and Redo would do now: the editor's waiting edit first, then what the file saved. */
@@ -208,7 +231,7 @@ function undoAny() {
   const entry = saved.undo.pop();
   if (!entry) { setStatus('There is nothing to undo.', true); return; }
   declareToolbar();
-  write(() => M.planStep(state.model, entry.step), `Undo ${entry.label}`, { atomic: true, history: { kind: 'undo', entry } });
+  take('undo', entry);
 }
 
 function redoAny() {
@@ -216,7 +239,7 @@ function redoAny() {
   const entry = saved.redo.pop();
   if (!entry) { setStatus('There is nothing to redo.', true); return; }
   declareToolbar();
-  write(() => M.planStep(state.model, entry.step), `Redo ${entry.label}`, { atomic: true, history: { kind: 'redo', entry } });
+  take('redo', entry);
 }
 
 // ---------------------------------------------------------------- the tree

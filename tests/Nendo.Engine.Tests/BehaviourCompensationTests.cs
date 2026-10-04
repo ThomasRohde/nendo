@@ -68,7 +68,7 @@ public sealed class BehaviourCompensationTests
     }
 
     [TestMethod]
-    public async Task ACausalRevisionThatCreatedARecordIsRefusedBecauseACreateDeclaresItselfIrreversible()
+    public async Task ACausalRevisionThatCreatedARecordIsReversedWholeTheRecordDeletedAndTheActionsWriteTakenBack()
     {
         await using var workspace = new EngineTestWorkspace();
         var coordinator = await workspace.CreateAsync();
@@ -81,17 +81,14 @@ public sealed class BehaviourCompensationTests
             Context("add"), new Dictionary<string, long> { ["project"] = project.RecordVersion }));
         Assert.AreEqual(1L, await TotalAsync(service));
 
-        // A created record is declared irreversible, and that declaration is not
-        // weakened by the record also appearing inside a causal revision. Reversing
-        // only the action's half would leave a file that contradicts itself, so the
-        // whole revision is refused and the refusal says what it is refusing.
-        var refused = await Assert.ThrowsExactlyAsync<NendoCompensationNotSupportedException>(
-            () => service.CompensateRevisionAsync(applied.RevisionId, "undo-add"));
-        StringAssert.Contains(refused.Message, "data.createRecord");
+        // A created record is compensated by deleting it (ADR-0023), and the action's
+        // write in the same revision is taken back with it. Reversing only one half would
+        // leave a file that contradicts itself, so the revision is reversed whole.
+        await service.CompensateRevisionAsync(applied.RevisionId, "undo-add");
 
         var records = (await service.GetSnapshotAsync()).Records;
-        Assert.IsTrue(records.Any(record => record.RecordId == "t4"), "A refused compensation changed the file.");
-        Assert.AreEqual(1L, await TotalAsync(service));
+        Assert.IsFalse(records.Any(record => record.RecordId == "t4"), "The compensation did not delete the created record.");
+        Assert.AreEqual(0L, await TotalAsync(service), "The action's write was not taken back with the create.");
     }
 
     [TestMethod]

@@ -51,7 +51,8 @@ public sealed class BoundedQueryTests
         var first = await service.QueryHistoryAsync(new(1));
         Assert.HasCount(1, first.Items);
         Assert.AreEqual(250L, first.Items[0].OperationCount);
-        Assert.IsFalse(first.Items[0].CanRequestCompensation);
+        // 250 record creates are compensated as a whole, each by a delete (ADR-0023).
+        Assert.IsTrue(first.Items[0].CanRequestCompensation);
         Assert.IsLessThan(2048, JsonSerializer.SerializeToUtf8Bytes(first).Length);
         var operations = await service.QueryRevisionOperationsAsync(new(first.Items[0].RevisionId, 50));
         Assert.HasCount(50, operations.Items);

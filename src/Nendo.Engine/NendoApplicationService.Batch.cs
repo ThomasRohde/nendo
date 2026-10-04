@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Nendo.Engine.Storage;
 
 namespace Nendo.Engine;
 
@@ -36,6 +37,17 @@ public sealed record NendoWrittenRecord(string EntityId, string RecordId, long? 
 
 /// <summary>What a batch wrote: the revision, and each record in the order it was written.</summary>
 public sealed record NendoRecordWritesResult(NendoApplyResult Applied, IReadOnlyList<NendoWrittenRecord> Records);
+
+/// <summary>
+/// A view undoing a batch it wrote, or with <c>Redo</c> redoing an undo (ADR-0023). The context's
+/// origin must be the revision's; <c>Label</c> names the step in History, and without one it is
+/// "Undo" or "Redo" and the gesture's name.
+/// </summary>
+public sealed record NendoUndoRecordWritesRequest(
+    string RevisionId,
+    NendoRequestContext Context,
+    bool Redo,
+    string? Label = null);
 
 public sealed partial class NendoApplicationService
 {
@@ -158,6 +170,57 @@ public sealed partial class NendoApplicationService
             committed.TryGetValue((record.EntityId, record.RecordId), out var actual)
                 ? record with { RecordVersion = actual }
                 : record)]);
+    }
+
+    /// <summary>
+    /// Reverses a revision of record changes its own origin wrote, as one new revision linked to
+    /// it (ADR-0023): updates put back, deletes restored, creates and restores deleted, in the
+    /// opposite order and against the versions the revision left. A record changed, deleted or
+    /// newly pointed at since refuses the whole step, and nothing is written. Redo is the same
+    /// call on the undo's revision.
+    /// </summary>
+    public async Task<NendoRecordWritesResult> UndoRecordWritesAsync(
+        NendoUndoRecordWritesRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        RequireContext(request.Context);
+        RequireIdentity(request.RevisionId, "revision ID");
+        if (request.Label is { } label &&
+            (string.IsNullOrWhiteSpace(label) || label.Length > MaximumRecordWritesLabelCharacters))
+        {
+            throw new NendoValidationException(
+                $"An undo's label is text of 1 to {MaximumRecordWritesLabelCharacters} characters.");
+        }
+        var (applied, mutation) = await _coordinator.CompensateRevisionAsync(
+            request.RevisionId,
+            request.Context.IdempotencyKey,
+            new NendoCompensationCaller(request.Context.IdempotencyScope, request.Context.Origin, request.Redo, request.Label),
+            cancellationToken);
+
+        // Each record once, where it first appears, at the version its last inverse leaves.
+        var order = new List<(string EntityId, string RecordId)>();
+        var versions = new Dictionary<(string EntityId, string RecordId), long?>();
+        foreach (var operation in mutation.Operations)
+        {
+            ((string EntityId, string RecordId) Key, long? Version) planned = operation switch
+            {
+                SetFieldOperation edit => ((edit.EntityId, edit.RecordId), edit.ExpectedRecordVersion + 1),
+                BackfillRetiredFieldOperation backfill => ((backfill.Edit.EntityId, backfill.Edit.RecordId), backfill.Edit.ExpectedRecordVersion + 1),
+                RestoreDeletedRecordOperation restore => ((restore.EntityId, restore.RecordId), restore.DeletedVersion + 1),
+                DeleteRecordOperation delete => ((delete.EntityId, delete.RecordId), null),
+                _ => throw new InvalidOperationException($"A view's undo planned {operation.OperationType}."),
+            };
+            if (!versions.ContainsKey(planned.Key)) order.Add(planned.Key);
+            versions[planned.Key] = planned.Version;
+        }
+        if (applied.IsIdempotentReplay)
+            return new NendoRecordWritesResult(applied, [.. order.Select(key => new NendoWrittenRecord(key.EntityId, key.RecordId, null))]);
+        var committed = applied.GeneratedChanges
+            .GroupBy(change => (change.EntityId, change.RecordId))
+            .ToDictionary(group => group.Key, group => group.Last().RecordVersion);
+        return new NendoRecordWritesResult(applied, [.. order.Select(key => new NendoWrittenRecord(key.EntityId, key.RecordId,
+            committed.TryGetValue(key, out var actual) ? actual : versions[key]))]);
     }
 
     private static long RequireWriteVersion(NendoRecordWrite write, int index) =>

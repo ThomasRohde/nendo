@@ -836,3 +836,8 @@ falsified once, and has the failure text quoted in its planner Check.
   the first picker of the Use breadcrumb, and `opensFile` on one makes the file open on it,
   unless views do not run there (W-106, rung 1.42.0). `extensionTile` moves to the next rung.
   Written before the code, on the owner's standing pre-acceptance.
+- 2026-10-04 — undo and redo of a view's own batches ([ADR-0023](0023-a-view-undoes-its-own-revisions.md),
+  W-103): `records.batch` answers its revision, and `records.undo` and `records.redo` compensate a
+  revision this frame was answered in this visit, through `data.undoRecordWrites`, which admits the
+  view's actor for its own package's record revisions only. No rung. On the owner's standing
+  pre-acceptance.

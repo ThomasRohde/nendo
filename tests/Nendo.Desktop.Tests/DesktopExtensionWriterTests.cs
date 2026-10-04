@@ -89,6 +89,59 @@ public sealed class DesktopExtensionWriterTests
         Assert.AreEqual("Arrange", revision.Description);
     }
 
+    /// <summary>
+    /// ADR-0023 (W-103): a view undoes and redoes its own batch in its package's name. Another
+    /// package's view, a request with no view behind it and a redo of something that is not an
+    /// undo are refused, and change nothing.
+    /// </summary>
+    [TestMethod]
+    public async Task AViewUndoesAndRedoesItsOwnBatchAndNothingElse()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await DesktopExtensionViewJourneyTests.SeedAsync(workspace.FilePath);
+        var (session, handler, fileSessionId) = await OpenAsync(workspace);
+        await using var _ = session;
+
+        var batch = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.DataWriteRecords, new
+        {
+            writes = new object[] { new { kind = "create", entityId = "tasks", recordId = "undo-1", values = new { title = "Made" } } },
+            label = "Make one", idempotencyKey = "view-make", actor = Actor,
+        }));
+        Assert.IsTrue(batch.Ok, batch.Error?.Message);
+        var made = ((DesktopRecordWritesView)batch.Result!).Mutation.RevisionId;
+        var before = (await session.GetViewAsync()).Manifest!.ChangeSequence;
+
+        foreach (var (body, code) in new (object, string)[]
+        {
+            (new { revisionId = made, idempotencyKey = "no-view" }, "actor-not-allowed"),
+            (new { revisionId = made, idempotencyKey = "other-view", actor = "extension:" + DesktopExtensionViewJourneyTests.ProbePackages[1] }, "revision-not-yours"),
+            (new { revisionId = made, redo = true, idempotencyKey = "redo-first", actor = Actor }, "not-an-undo"),
+        })
+        {
+            var refused = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.DataUndoRecordWrites, body));
+            Assert.IsFalse(refused.Ok, $"{JsonSerializer.Serialize(body)} was accepted.");
+            Assert.AreEqual(code, refused.Error!.Code, refused.Error.Message);
+        }
+        Assert.AreEqual(before, (await session.GetViewAsync()).Manifest!.ChangeSequence, "A refused undo changed the file.");
+
+        var undo = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.DataUndoRecordWrites,
+            new { revisionId = made, idempotencyKey = "view-undo", actor = Actor }));
+        Assert.IsTrue(undo.Ok, undo.Error?.Message);
+        var undone = (DesktopRecordWritesView)undo.Result!;
+        CollectionAssert.AreEqual(new long?[] { null }, undone.Records.Select(record => record.RecordVersion).ToArray(), "The undo did not delete the record it made.");
+
+        var redo = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.DataUndoRecordWrites,
+            new { revisionId = undone.Mutation.RevisionId, redo = true, idempotencyKey = "view-redo", actor = Actor }));
+        Assert.IsTrue(redo.Ok, redo.Error?.Message);
+        CollectionAssert.AreEqual(new long?[] { 2 }, ((DesktopRecordWritesView)redo.Result!).Records.Select(record => record.RecordVersion).ToArray(),
+            "The redo did not restore the record under its own ID.");
+
+        var history = await session.GetHistoryAsync();
+        CollectionAssert.AreEqual(new[] { "Make one", "Undo Make one", "Redo Make one" },
+            history.Where(revision => revision.Origin == Actor).Select(revision => revision.Description).Reverse().Take(3).Reverse().ToArray(),
+            "History does not name the view's batch, its undo and its redo in the package's name.");
+    }
+
     [TestMethod]
     public async Task AnActorIsRefusedOnEveryMethodButTheRecordWritesAndPreparingAProposal()
     {
@@ -99,7 +152,7 @@ public sealed class DesktopExtensionWriterTests
         var before = (await session.GetViewAsync()).Manifest!.ChangeSequence;
 
         var writers = WorkbenchMethods.ExtensionWriterMethods.OrderBy(method => method, StringComparer.Ordinal).ToArray();
-        CollectionAssert.AreEqual(new[] { WorkbenchMethods.DataCreateRecord, WorkbenchMethods.DataDeleteRecord, WorkbenchMethods.DataExecuteCommand, WorkbenchMethods.DataMoveRecord, WorkbenchMethods.DataSetFields, WorkbenchMethods.DataWriteRecords, WorkbenchMethods.ExtensionStateRead, WorkbenchMethods.ExtensionStateSet, WorkbenchMethods.ProposalGet, WorkbenchMethods.ProposalPrepareChangeSet },
+        CollectionAssert.AreEqual(new[] { WorkbenchMethods.DataCreateRecord, WorkbenchMethods.DataDeleteRecord, WorkbenchMethods.DataExecuteCommand, WorkbenchMethods.DataMoveRecord, WorkbenchMethods.DataSetFields, WorkbenchMethods.DataUndoRecordWrites, WorkbenchMethods.DataWriteRecords, WorkbenchMethods.ExtensionStateRead, WorkbenchMethods.ExtensionStateSet, WorkbenchMethods.ProposalGet, WorkbenchMethods.ProposalPrepareChangeSet },
             writers, "The methods a view's actor may reach changed; the ADR, the contract and the broker's table must change with them.");
 
         var methods = typeof(WorkbenchMethods)

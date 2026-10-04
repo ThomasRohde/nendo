@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { buildModel, undoStep, oppositeStep, planStep } from '../../extensions/archi/model.js';
+import { buildModel } from '../../extensions/archi/model.js';
 import {
   buildMirror, writesFor, specializationsOf, manageSpecializations, propertyKeys, renamePropertyKeyIn, deletePropertyKeyIn,
   findReplacePreview, findReplaceApply,
@@ -99,27 +99,17 @@ function seen(model) {
 }
 
 /**
- * One change saved as the workbench saves it, read back, undone and redone. `change` takes the
- * mirror and answers archi-online's model after its operation.
+ * One change saved as the workbench saves it, as one batch, and read back. `change` takes the
+ * mirror and answers archi-online's model after its operation. Undo and Redo of the batch are
+ * Nendo's own (ADR-0023), measured in the Engine and in the workbench's lane.
  */
 function saved(f, change) {
-  const start = f.snapshot();
   const before = buildMirror(f.sets());
   const after = change(before);
   const writes = writesFor(f.sets(), before, after);
-  const planned = f.model();
-  const answers = f.batch(writes);
+  f.batch(writes);
   assert.deepEqual(seen(buildMirror(f.sets())), seen(after), 'The model read back is not the model archi-online made.');
   assert.deepEqual(writesFor(f.sets(), buildMirror(f.sets()), buildMirror(f.sets())), [], 'Reading the file back would write again.');
-  const done = f.snapshot();
-  const states = new Map();
-  const undo = undoStep(planned, writes, answers, states);
-  const beforeUndo = f.model();
-  const undoWrites = planStep(beforeUndo, undo);
-  const undone = f.batch(undoWrites);
-  assert.equal(f.snapshot(), start, 'Undo did not put the file back as it was.');
-  f.batch(planStep(f.model(), oppositeStep(beforeUndo, undo, undoWrites, undone, states)));
-  assert.equal(f.snapshot(), done, 'Redo did not make the change again.');
   return writes;
 }
 

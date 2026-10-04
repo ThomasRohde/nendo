@@ -310,7 +310,19 @@ public sealed partial class NendoWriteCoordinator
     internal async Task<NendoApplyResult> CompensateRevisionAsync(
         string revisionId,
         string idempotencyKey,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        (await CompensateRevisionAsync(revisionId, idempotencyKey, null, cancellationToken)).Result;
+
+    /// <summary>
+    /// Compensates a revision, for History or, with a caller, for a view undoing its own batch
+    /// (ADR-0023). Answers the compensation it applied with what it planned, so the caller can
+    /// say which version each record now holds.
+    /// </summary>
+    internal async Task<(NendoApplyResult Result, NendoMutation Mutation)> CompensateRevisionAsync(
+        string revisionId,
+        string idempotencyKey,
+        NendoCompensationCaller? caller,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(revisionId);
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
@@ -326,7 +338,8 @@ public sealed partial class NendoWriteCoordinator
             var mutation = await store.CreateCompensationMutationAsync(
                 revisionId,
                 idempotencyKey,
-                cancellationToken);
+                cancellationToken,
+                caller);
             try
             {
                 var (result, trusted) = await store.ApplyAsync(
@@ -348,7 +361,7 @@ public sealed partial class NendoWriteCoordinator
                 if (mutation.Operations[0].Lane == NendoRevisionLane.Definition)
                     await RefreshBehaviourRequirementAsync(cancellationToken);
                 if (!result.IsIdempotentReplay) { AfterCommit?.Invoke(); Committed?.Invoke(result.ChangeSequence); }
-                return result;
+                return (result, mutation);
             }
             catch (NendoRecoveryRequiredException)
             {

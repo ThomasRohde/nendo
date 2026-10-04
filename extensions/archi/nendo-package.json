@@ -1,7 +1,7 @@
 {
   "packageId": "org.nendo.archi",
   "title": "Archi",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "entryPoint": "index.html",
   "description": "An ArchiMate 3.2 modeller in the manner of Archi: the model tree, the open view drawn with Archi's figures and edited with archi-online's editor, the properties of what is selected with their Analysis, the Visualiser, and Archi's Specializations Manager, Properties Manager and Find and Replace, over Archi.nendo's record types."
 }

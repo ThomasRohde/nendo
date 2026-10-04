@@ -651,8 +651,10 @@ a stored field from a state that the reversal had not finished producing. They
 would then write that value on top of the operation that is being undone.
 
 If an operation declares itself irreversible, the whole revision is refused, and
-the refusal names the operation. This includes `data.createRecord`: its retained
-state is intentionally not treated as permission to un-create the record.
+the refusal names the operation. `data.createRecord` and `data.restoreDeletedRecord`
+are the exception ([ADR-0023](../decisions/0023-a-view-undoes-its-own-revisions.md)): each
+is compensated by deleting the record at the version the revision left. They stay declared
+irreversible because the record ID stays reserved in deletion history.
 Reversing a definition is supported, and it asks the device about the rules
 that it restores. Consent given for the definition that is being undone does not
 carry over to the definition that comes back.

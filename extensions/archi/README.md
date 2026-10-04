@@ -124,14 +124,13 @@ Properties. The file you were in does not change.
   what the file has saved, one gesture at a time and newest first: a rename, a change in the
   properties, a property list, a new element, folder or view, a move, a delete with everything it
   took, a commit of the editor's edits, a generated view. The button names the gesture, so Ctrl K
-  and More list *Undo Rename Customer*. Each undo and each redo is one revision, version-checked:
-  if something it would put back has changed since, been deleted, come back, or is now used by
-  something new, it is refused, says which and why, and writes nothing. The steps are this
+  and More list *Undo Rename Customer*. Nendo undoes each gesture (W-103, ADR-0023): one
+  revision, linked to the gesture's in History, version-checked, and a deleted element comes back
+  under its own record ID. If something it would put back has changed or been deleted since, or
+  is now used by something new, it is refused, says so, and writes nothing. The steps are this
   visit's: they go when the workbench is left, and a change made elsewhere refuses the steps it
-  touches. A gesture of more
-  than 200 writes, or one made on a Nendo without `records.batch`, is not undoable here. An undo
-  is the workbench writing the change's opposite; it is not History's Compensate, and Nendo
-  claims no universal undo.
+  touches. A gesture of more than 200 writes, or one made on a Nendo without `records.undo`, is
+  not undoable here. Nendo claims no universal undo.
 - **Generate view for…** (W-115), in the tree's menu on an element and in New: a new view of
   the element, or of the boxes selected on the view while editing, and the elements related to
   them, to a depth of one to six, incoming, outgoing or both, optionally with every
@@ -302,9 +301,13 @@ nine gestures in the tree -- a rename, three documentation changes, two property
 element, a move and a delete with its relationships, lines and boxes -- undone one revision each
 until every record holds exactly what it held before them, then redone until every record holds
 what it held after them; a commit of the editor's edits undone and redone; and an undo of a
-record somebody else changed meanwhile refused with *‹name› has changed since. Nothing was
-changed.* and no write. `tools/archi/model.test.mjs` checks each gesture's undo and redo over
-Archisurance, the refusals, and a chain walked back across a delete and forward again.
+record somebody else changed meanwhile refused with *Something it would put back has changed or
+been deleted since. Nothing was changed.* and no write. The lane's broker keeps deletion history
+as Nendo does, so a create of a deleted record ID is refused there as in a file; the W-112
+workbench, which made a deleted record again itself, is refused by it with *This record ID is
+retained in deletion history and cannot be reused.* The Engine's own tests
+(`RecordWritesUndoTests`) walk a batch back and forward, a chain of gestures on one record, and
+the refusals.
 
 The model tools (W-119) are measured twice. `tools/archi/manage.test.mjs` runs each on
 Archisurance with two specializations and properties on an element, a view, a folder, a top-level

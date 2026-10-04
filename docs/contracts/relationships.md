@@ -58,7 +58,7 @@ host 1.35.0.
   when no integer gap or representable first/last placement remains, every sibling renumbered in steps of
   1,024, each against the version the move read. Each operation keeps its prior value;
   the revision is undone by compensating its operations, since the one-click
-  compensation covers supported retained operations, up to 128. Placement arithmetic covers the
+  compensation covers a revision of record changes, up to 12,800 operations. Placement arithmetic covers the
   full signed Int64 range without wrapping. The fresh result includes action
   writeback to the moved record; exact retries bind the original request terms
   and replay its historical revision, version and touched IDs before reading

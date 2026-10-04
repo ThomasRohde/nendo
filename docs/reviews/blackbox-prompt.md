@@ -1087,7 +1087,11 @@ vocabulary, the examples and the resources — and not from the person.
   documentation, add a property, move it to another folder and delete it, then press Ctrl Z five
   times and Ctrl Y five times: record what Undo and Redo were called before each press, whether
   each press put the model back exactly, what History shows for each, and what happened when you
-  pressed Ctrl Z after changing the same element somewhere else, in Studio, first (W-112). With a view in Edit, make the window
+  pressed Ctrl Z after changing the same element somewhere else, in Studio, first (W-112). Delete
+  an element that has relationships and boxes, press Ctrl Z and then Ctrl Y: record whether the
+  element came back with its relationships and boxes, under the same name and in the same views,
+  what History shows for the delete, the undo and the redo, and whether History offers to
+  compensate each (W-103). With a view in Edit, make the window
   narrower step by step, and record at each width whether Nendo's row stays one line, whether
   Add stays whole on screen, what the More menu at the row's end holds, and whether a choice
   made there does what the same control does in the row.
@@ -1203,3 +1207,15 @@ record ID in two different types, update one and reference the other in a batch;
 target-version checks must use the target type as well as its record ID. Compare
 the public view guide's History promise against create, mixed-create and
 more-than-128-operation batches: only supported compensation is promised.
+
+If Swarm is available, ask the owner to open a disposable copy of `Swarm.nendo`.
+Record whether it opens paused on its own view, then play each of the three
+species and disturb the habitat. Change an action in the bpmn-js inspector and
+measure whether the creatures follow it. Add and connect a node; leave a decision
+without its Yes/No paths and read the diagnostic. Save a valid behaviour, inspect
+the node and transition records in Studio, then reopen. Capture an experiment,
+change the live rules and replay it: its seed, disturbances and captured rules
+must still produce the same state. Refuse a save with stale versions on the
+disposable copy and check that the draft remains. Inspect Light/Dark state
+colours and the narrow stacked layout. Keep native proposal acceptance separate
+from the browser fixture lane in `tools/Review-Swarm.ps1`.

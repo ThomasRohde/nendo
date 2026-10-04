@@ -135,8 +135,10 @@ public sealed class CompensationAndIdeaServiceTests
 
         await Assert.ThrowsExactlyAsync<NendoCompensationNotSupportedException>(() =>
             service.CompensateRevisionAsync(firstRevision.RevisionId, "stale-title"));
+        // A record type's creation declares itself irreversible. (A record's creation is
+        // compensated by deleting the record since ADR-0023.)
         var created = (await service.GetHistoryAsync())
-            .Single(revision => revision.Description == "Create Idea");
+            .First(revision => revision.Operations.Any(operation => operation.OperationType == "schema.createEntity"));
         await Assert.ThrowsExactlyAsync<NendoCompensationNotSupportedException>(() =>
             service.CompensateRevisionAsync(created.RevisionId, "undo-create"));
         Assert.AreEqual("Second title", (await service.CompileSemanticUiAsync()).Root("boardSurface").Title());

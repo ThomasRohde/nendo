@@ -620,7 +620,7 @@ selection or deleting an element with its connections, goes in one `records.batc
 Every write commits or none does, and History shows one entry under your label:
 
 ```js
-const { records } = await nendo.records.batch([
+const { records, revision } = await nendo.records.batch([
   { op: 'create', entityId: 'boxes', recordId: 'b9', values: { name: 'New', x: 40, y: 40 } },
   { op: 'update', entityId: 'boxes', recordId: 'b1', version: 3, values: { x: 120, y: 80 } },
   { op: 'update', entityId: 'links', recordId: 'l4', version: 1, values: { target: 'b9' } },
@@ -635,6 +635,24 @@ const { records } = await nendo.records.batch([
   leaves. A reference to anything else takes `targetVersions` as usual.
 - A batch has no move. Set a tree's parent and order fields in an `update`, or use
   `records.move`.
+
+**Undo and redo.** Keep each batch's `revision` as a step. `records.undo(revision)` takes
+the batch back as one new revision: fields put back, deleted records restored under their
+own IDs, created records deleted. `records.redo` takes the undo's revision and makes the
+batch again. Each answers like a batch, with the revision of the next step:
+
+```js
+const undone = await nendo.records.undo(revision);         // History: "Undo Arrange"
+const redone = await nendo.records.redo(undone.revision);   // History: "Redo Arrange"
+```
+
+- Only what this view wrote since it opened: anything else is `not-this-view`.
+- If a record has been changed or deleted by somebody else since, or something now points
+  at a record the undo would delete, the whole step is refused and nothing is written. A
+  record your own later steps changed and you have undone is fine.
+- Nendo keeps no stack for you. Keep your steps, their order and their names, and declare
+  Ctrl+Z and Ctrl+Y in Nendo's row with the `undo` and `redo` icons. Ask
+  `nendo.has('records.undo')` first.
 
 ### Proposing a change
 

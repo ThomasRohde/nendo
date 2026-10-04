@@ -90,7 +90,7 @@ const readMethods = ['data.queryRecords', 'data.treeRecords', 'data.countRecords
 // The record writes a person's own edit uses, and preparing a proposal (ADR-0013 Phase 3,
 // W-065 and W-069). The host admits a view's actor on exactly these and on proposal.get
 // (WorkbenchMethods.ExtensionWriterMethods). Never promote or reject.
-const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.moveRecord', 'data.writeRecords', 'data.executeCommand', 'proposal.prepareChangeSet', 'extension.state.set'];
+const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.moveRecord', 'data.writeRecords', 'data.undoRecordWrites', 'data.executeCommand', 'proposal.prepareChangeSet', 'extension.state.set'];
 
 test('R30-016: a batch admits the same record ID in different record types', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
@@ -184,6 +184,9 @@ test('the method table is closed: reads, the record writes, preparing a proposal
     ['records.move', 'data.moveRecord'],
     // Several record writes as one revision (W-102).
     ['records.batch', 'data.writeRecords'],
+    // Undo and redo of a batch this frame wrote (ADR-0023, W-103).
+    ['records.undo', 'data.undoRecordWrites'],
+    ['records.redo', 'data.undoRecordWrites'],
     ['commands.run', 'data.executeCommand'],
     ['proposals.prepare', 'proposal.prepareChangeSet'],
     ['proposals.get', 'proposal.get'],
@@ -290,7 +293,7 @@ test('a batch goes to the host as one write in the mount\u2019s package, rebuilt
     { kind: 'update', entityId: 'items', recordId: 'n2', expectedRecordVersion: 3, values: { x: { $nendoNumber: '20' }, owner: 'n1' }, expectedTargetVersions: { owner: 1 } },
     { kind: 'delete', entityId: 'items', recordId: 'n3', expectedRecordVersion: 2 },
   ]);
-  h.pending[0].resolve({ mutation: { changeSequence: 11 }, session: null, records: [
+  h.pending[0].resolve({ mutation: { changeSequence: 11, revisionId: 'revision-batch' }, session: null, records: [
     { entityId: 'items', recordId: 'n1', recordVersion: 1 },
     { entityId: 'items', recordId: 'n2', recordVersion: 5 },
     { entityId: 'items', recordId: 'n3', recordVersion: null },
@@ -301,7 +304,7 @@ test('a batch goes to the host as one write in the mount\u2019s package, rebuilt
     { entityId: 'items', recordId: 'n1', version: 1 },
     { entityId: 'items', recordId: 'n2', version: 5 },
     { entityId: 'items', recordId: 'n3', version: null },
-  ] });
+  ], revision: 'revision-batch' });
   await settle();
   assert.equal(h.calls.length, 1, 'A batch read its records back one by one.');
 
@@ -1055,4 +1058,39 @@ test('G32: Back or Forward hands a view its place as the event place, never the 
   await settle();
   assert.deepEqual(view.inbox.filter((message) => message.t === 'evt').map((message) => message.n), ['place'],
     'The view heard its own place back, or a context event for a place it was already told.');
+});
+
+// ADR-0023 (W-103): a view undoes and redoes only the revisions this frame was answered, in the
+// mount's package, and the host is not asked about any other.
+test('a view undoes and redoes only what this frame wrote, as the mount’s package', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  view.send({ t: 'req', id: 1, m: 'records.undo', p: { revision: 'revision-someone-else' } });
+  const foreign = await view.next((message) => message.id === 1);
+  assert.equal(foreign.ok, false);
+  assert.equal(foreign.e.code, 'not-this-view');
+  assert.equal(h.calls.length, 0, 'The host was asked to undo a revision this frame did not write.');
+
+  view.send({ t: 'req', id: 2, m: 'records.batch', p: { label: 'Make', writes: [{ op: 'create', entityId: 'items', recordId: 'n1', values: { name: 'A' } }] } });
+  await until(() => h.calls.length === 1, 'the batch');
+  h.pending[0].resolve({ mutation: { revisionId: 'revision-made' }, records: [{ entityId: 'items', recordId: 'n1', recordVersion: 1 }] });
+  assert.equal((await view.next((message) => message.id === 2)).r.revision, 'revision-made');
+
+  view.send({ t: 'req', id: 3, m: 'records.undo', p: { revision: 'revision-made', actor: 'extension:someone-else', idempotencyKey: 'mine' } });
+  await until(() => h.calls.length === 2, 'the undo');
+  assert.equal(h.calls[1].method, 'data.undoRecordWrites');
+  assert.equal(h.calls[1].payload.actor, 'extension:org.example.glance', 'The undo was not made in the name of the mount’s package.');
+  assert.match(h.calls[1].payload.idempotencyKey, /^view-[0-9a-f-]{36}$/, 'The view chose its own idempotency key.');
+  assert.equal(h.calls[1].payload.revisionId, 'revision-made');
+  assert.equal(h.calls[1].payload.redo, false);
+  h.pending[1].resolve({ mutation: { revisionId: 'revision-undone' }, records: [{ entityId: 'items', recordId: 'n1', recordVersion: null }] });
+  assert.deepEqual((await view.next((message) => message.id === 3)).r, {
+    records: [{ entityId: 'items', recordId: 'n1', version: null }], revision: 'revision-undone',
+  });
+
+  view.send({ t: 'req', id: 4, m: 'records.redo', p: { revision: 'revision-undone', label: 'Make it again' } });
+  await until(() => h.calls.length === 3, 'the redo');
+  assert.equal(h.calls[2].payload.redo, true);
+  assert.equal(h.calls[2].payload.label, 'Make it again');
 });

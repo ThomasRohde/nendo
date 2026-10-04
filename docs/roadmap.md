@@ -54,7 +54,7 @@ Each area below is a gap. Do not read a gap as a feature.
 I-007 builds an offline ArchiMate modeller as a Nendo application, following
 archi-online, to find how far Nendo can be pushed. [The design](design/archi-in-nendo.md)
 names the record types, the scope and the host features it needs: batch writes from a
-view (W-102, delivered), a file a view can open (W-104), undo (W-103), and a way past the
+view (W-102, delivered), a file a view can open (W-104), undo (W-103, delivered), and a way past the
 operation-row bound (W-101). The last was the binding one: measured on Archisurance, a file
 reached the bound after about 100 hours of active diagram editing. Since 2026-09-30 a person
 folds older history into a checkpoint from History (ADR-0021, host 1.39.0), so a modelling

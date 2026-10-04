@@ -311,6 +311,26 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
         return new DesktopRecordWritesView(view.Mutation, view.Session, view.RefreshNotice, records);
     }
 
+    /// <summary>A view undoing or redoing a batch it wrote, in its package's name (ADR-0023).</summary>
+    internal async Task<DesktopRecordWritesView> UndoRecordWritesAsync(
+        string revisionId,
+        bool redo,
+        string idempotencyKey,
+        string? label,
+        string origin,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<NendoWrittenRecord> records = [];
+        var view = await MutateAsync(async service =>
+        {
+            var result = await service.UndoRecordWritesAsync(new NendoUndoRecordWritesRequest(
+                revisionId, new NendoRequestContext("desktop.p2.5", idempotencyKey, origin), redo, label), cancellationToken);
+            records = result.Records;
+            return result.Applied;
+        }, cancellationToken, origin);
+        return new DesktopRecordWritesView(view.Mutation, view.Session, view.RefreshNotice, records);
+    }
+
     internal Task<DesktopMutationView> MoveRecordAsync(
         string entityId,
         string recordId,

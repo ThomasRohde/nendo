@@ -544,7 +544,9 @@ Workbench suite, pins the table name by name.
 | `records.update` | `entityId`, `recordId`, `version`, `values`, `targetVersions` (optional) | `data.setFields`, with `targetVersions` as `expectedTargetVersions` | The record as it now stands |
 | `records.delete` | `entityId`, `recordId`, `version` | `data.deleteRecord` | null |
 | `records.move` | `entityId`, `recordId`, `version`, `parentRecordId` (null for the top level), `parentVersion` (with a parent), `beforeRecordId` (optional) | `data.moveRecord`, with `parentVersion` as `expectedParentVersion` ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)) | The record as it now stands |
-| `records.batch` | `writes` (1–200, each `{op: 'create', entityId, recordId?, values, targetVersions?}`, `{op: 'update', entityId, recordId, version, values, targetVersions?}` or `{op: 'delete', entityId, recordId, version}`), `label` (1–80 characters, optional) | `data.writeRecords`, one revision ([below](#writes)) | `{records: [{entityId, recordId, version}]}`, version null for a deleted record |
+| `records.batch` | `writes` (1–200, each `{op: 'create', entityId, recordId?, values, targetVersions?}`, `{op: 'update', entityId, recordId, version, values, targetVersions?}` or `{op: 'delete', entityId, recordId, version}`), `label` (1–80 characters, optional) | `data.writeRecords`, one revision ([below](#writes)) | `{records: [{entityId, recordId, version}], revision}`, version null for a deleted record |
+| `records.undo` | `revision` (a batch's or a redo's, this frame's), `label` (1–80 characters, optional) | `data.undoRecordWrites` ([below](#writes)) | `{records, revision}`, as a batch |
+| `records.redo` | `revision` (an undo's, this frame's), `label` (optional) | `data.undoRecordWrites` with `redo` | `{records, revision}`, as a batch |
 | `commands.run` | `commandId`, `entityId`, `recordId`, `version` | `data.executeCommand` | The record as it now stands |
 | `proposals.prepare` | `title` (1–200 characters), `operations` (1–128 canonical operations) | `proposal.prepareChangeSet`, then the Workbench's review | `{proposalId, title, state, diagnostics, opened}` |
 | `proposals.get` | `proposalId` | `proposal.get`, for the package's own proposals | `{proposalId, title, state, diagnostics}` |
@@ -585,7 +587,8 @@ commands, through the same typed operations and version checks as a person's edi
   actor on `data.createRecord`, `data.setFields`, `data.deleteRecord`,
   `data.executeCommand` and, since 2026-09-28, `data.moveRecord` alone
   (`WorkbenchMethods.ExtensionWriterMethods`), and
-  refuses it on every other method with `actor-not-allowed`. It refuses an actor
+  refuses it on every other method with `actor-not-allowed`. Since 2026-10-04 it also
+  admits one on `data.undoRecordWrites` ([below](#writes)). It refuses an actor
   whose package the open file does not carry the same way, and any write while
   views are off with `views-off`.
 - **History names the package.** Each write is a revision whose origin is
@@ -633,9 +636,37 @@ belong together.
   deleted one, including a record deleted by an automatic action in the same
   revision; an automatic action that wrote back to a record is counted. Read a record
   again for its values and calculations.
-- History compensates a batch of updates and deletes, up to 128 operations, as one.
-  A batch that creates a record cannot be compensated in History, as a single create
-  cannot: delete what it made instead.
+- History compensates a batch as one, creates included: a created record is deleted
+  ([ADR-0023](../decisions/0023-a-view-undoes-its-own-revisions.md)).
+- The answer names the revision the batch wrote, which `records.undo` takes.
+
+**Undo and redo** (`records.undo`, `records.redo`, [ADR-0023](../decisions/0023-a-view-undoes-its-own-revisions.md),
+W-103). A view undoes a batch it wrote by the revision the batch answered, and redoes the
+undo by the undo's revision.
+
+- **One new revision.** The host compensates the batch whole, in reverse order: a field
+  put back, a deleted record restored under its own record ID, a created record deleted.
+  History links it to the batch and names it "Undo" and the batch's label, or "Redo" and
+  the label, or `label`. Its origin is the view's package.
+- **Version-checked.** Each record is expected as the batch left it. A record changed by
+  anybody else since, deleted since or newly pointed at refuses the whole step, and nothing
+  is written. A record whose later changes the view has itself undone is as the batch left
+  it, so a view walks back any number of steps on one record.
+- **Only its own.** The broker answers `not-this-view`, without asking the host, for a
+  revision this frame was not answered in this visit; a frame mounted again starts with
+  none. The host admits the view's actor on `data.undoRecordWrites` and answers
+  `revision-not-yours` for a revision another origin wrote, `not-an-undo` for a redo of a
+  revision that is not a compensation, and `compensation-not-supported` for one already
+  undone or redone, or for a revision that changes more than records.
+- **The steps are the view's.** The host keeps no undo stack: the view keeps its steps,
+  their order and their names, and may mix them with its own (an editor's waiting edits).
+  Ctrl+Z and Ctrl+Y reach a view, which may declare them in Nendo's row with the `undo`
+  and `redo` icons; while the person types in a field, the field's own undo has them.
+- **Reversibility.** A step of `data.setField` (reversible with retained state),
+  `data.deleteRecord` (reversible with retained state), `data.createRecord` and
+  `data.restoreDeletedRecord` (declared irreversible, and compensated by a delete: the
+  record ID stays reserved) is undone. Nothing else a view writes is: a move or a command
+  is a revision of its own and has no `revision` in its answer.
 
 ### Proposals
 

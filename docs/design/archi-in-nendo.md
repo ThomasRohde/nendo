@@ -123,7 +123,7 @@ not built, with the reason.
 | No list or JSON field kind | Bendpoints and legend options as JSON text | None; noted, not requested |
 | No rule refuses an invalid relationship on every path | The view offers only valid types; the validator reports the rest | W-105, Later (D-003) |
 | A view writes one record per call, each its own revision | A gesture is several writes, not atomic, and several History rows | W-102 |
-| No undo | The workbench undoes and redoes what it saved, by writing each gesture's opposite, version-checked; edits waiting in the editor use archi-online's own. See below | W-112, built 2026-10-03; W-103 not needed here |
+| No undo | The workbench undoes and redoes what it saved, one gesture a step, by Nendo's `records.undo` and `records.redo`; edits waiting in the editor use archi-online's own. See below | W-112, built 2026-10-03; W-103, 2026-10-04 |
 | A view cannot read a file the person picks | `.archimate`, XML and CSV import wait for it | W-104 |
 | A view was only a record-type screen or a record-page panel | The workbench is a view of the file, which the file opens on | W-106, built 2026-10-02 (host 1.42.0) |
 | The operation-row and revision-row bounds, about 100,000 each | See [the write budget](#the-write-budget) | W-101 (D-002) |
@@ -162,23 +162,22 @@ is every gesture that is undone, discarded or made again before it is committed.
 Editing a view holds file changes back while the pointer is pressed, because archi-online
 cancels a drag whose model is replaced under it.
 
-**Undo did not need the host (W-112, 2026-10-03).** Every gesture the workbench writes is one
-`records.batch`, so the workbench keeps its opposite: a create is undone by a delete, an update
-by putting its fields back, a delete by making each record again under its own record ID with
-every value it had, in the reverse order (`undoStep` and `planStep` in `model.js`). Undo writes
-that as one revision and Redo writes the opposite of the undo. Each step names, for every record,
-the state it expects the record in and the state it leaves it in, and these states are shared
-objects whose versions are brought up to date as steps run: an undone delete makes the record
-again at version 1, so a version number alone cannot say which state a step means, and the first
-attempt, which matched steps by number, refused a redo across a delete in the lane. A record
-changed, deleted, made again or newly pointed at by somebody else is refused before anything is
-sent, with the reason, and nothing is written. While edits wait in the editor, Undo and Redo are
-archi-online's own over them; once committed, the commit is one step of the file's.
+**Undo needed the host after all (W-112, 2026-10-03; W-103, 2026-10-04).** Every gesture the
+workbench writes is one `records.batch`. W-112 kept each gesture's opposite in the view and wrote
+it as another batch: a delete was undone by making each record again under its own record ID.
+A real file refuses that, because deletion history keeps a deleted record ID reserved
+(`record-id-reserved`), and so does the redo of a create. The lane's in-memory broker kept no
+deletion history and never met the refusal (F-248).
 
-That is compensation done by the view, and it declares no universal undo: the steps are the
-visit's, a gesture over 200 writes or made without `records.batch` is not undoable, and History
-still cannot reverse a batch that creates records. W-103, undo through History's own
-compensation, is not needed for the workbench.
+So the workbench now keeps only each gesture's revision, and Nendo undoes it
+([ADR-0023](../decisions/0023-a-view-undoes-its-own-revisions.md)): `records.undo` compensates
+the batch whole, a deleted record restored from its retained values, a created one deleted,
+version-checked, and `records.redo` compensates the undo. A record whose later gestures have
+been undone is as the earlier gesture left it, so a chain of gestures on one element walks back
+and forward. A record changed, deleted or newly pointed at by somebody else refuses the step, and
+nothing is written. While edits wait in the editor, Undo and Redo are archi-online's own over
+them; once committed, the commit is one step of the file's. The steps are the visit's, a gesture
+over 200 writes is not undoable, and History compensates the same revisions, creates included.
 
 ## The validator
 
@@ -246,8 +245,8 @@ W-119. The Specializations Manager, the Properties Manager and Find and Replace 
 archi-online's own operations (`replaceProfiles`, `renamePropertyKey` and `deletePropertyKey`,
 `applyFindReplace`), run on a store of their own around the mirror, as Generate View For is
 (`tools/archi/canvas/manage.ts`). What reaches the file is `writesFor`'s difference between the
-mirror before and after, sent as one `records.batch`: one revision, which the workbench's own
-Undo takes back (W-112). A change over 200 record writes is refused before anything is written.
+mirror before and after, sent as one `records.batch`: one revision, which the workbench's
+Undo takes back (W-112, W-103). A change over 200 record writes is refused before anything is written.
 
 That needed `writesFor` to own more than the editor writes. It now plans specializations (name
 and type), the model's name and documentation, and the top-level folders' name, documentation

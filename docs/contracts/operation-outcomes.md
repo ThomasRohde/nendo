@@ -64,8 +64,9 @@ save uses one transaction, one key and one revision. The record version advances
 for each typed field operation. If any field fails, the entire revision rolls
 back. Compensation reverses the retained field operations together, and it uses
 the final record version from that revision. A later edit conflicts without a
-partial inverse. This does not extend compensation to arbitrary
-multi-operation, multi-record or irreversible revisions.
+partial inverse. Any revision of record changes is reversed whole the same way, creates
+included ([ADR-0023](../decisions/0023-a-view-undoes-its-own-revisions.md)); a revision that
+also changes the definition or a package is not.
 
 A draft retained after a lost write or authority change is explicit immutable
 state, so losing focus and an automatic file-change/read-chase refresh cannot

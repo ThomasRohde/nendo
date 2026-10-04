@@ -275,6 +275,16 @@ never labelled reversible only because a backup exists. There is no universal
 undo. Compensation applies a proven inverse as a *new* revision and never rewinds
 history.
 
+A revision of record changes is compensated as a whole, in reverse order, up to 12,800
+operations ([ADR-0023](decisions/0023-a-view-undoes-its-own-revisions.md)): a field is put
+back, a deleted record restored, and a created or restored record deleted, each against the
+version the revision left. A record whose later changes have all been taken back since --
+each change paired with its compensation -- is expected at the version that taking back left.
+A compensation of record changes can itself be compensated, which is how a custom view redoes
+an undo; `data.undoRecordWrites` lets a view do both for a batch its own package wrote. A
+compensated create stays declared irreversible: its record ID stays reserved in deletion
+history.
+
 ## Proposal lifecycle
 
 ```text

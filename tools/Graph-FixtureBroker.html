@@ -30,9 +30,10 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
 //   pushChanges(), pushTheme(mode | theme), pushContext()   the three events a view hears
 //   fail(method, { code, message }, times)     refuse the next requests of one method
 //   remount()                                   a fresh frame, as a new placeholder would start one
-//   offerWrites(on)                             offer records.create, records.delete and records.batch
-//                                               from the next connect on (W-109); each answers as the
-//                                               host writes, versions, references and all
+//   offerWrites(on)                             offer records.create, records.delete, records.batch,
+//                                               records.undo and records.redo from the next connect on
+//                                               (W-109, W-103); each answers as the host writes,
+//                                               versions, references and deletion history all
 //   offerChrome(on)                             offer ui.setToolbar and ui.showMenu from the next
 //                                               connect on (W-090); toolbars and menus record them,
 //                                               and chromeRefusals what Nendo's rules refused (W-091)
@@ -56,8 +57,12 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
   let chrome = false, menuPick = null;
   // Record writes beyond an update, offered only when a probe asks (W-109), so the lanes that pin
   // the methods a view is offered keep measuring what they always measured.
-  const WRITES = ['records.create', 'records.delete', 'records.batch'];
+  const WRITES = ['records.create', 'records.delete', 'records.batch', 'records.undo', 'records.redo'];
   let writes = false;
+  // What the Engine keeps of a deleted record (ADR-0023): its ID stays reserved, a create of it is
+  // refused, and only an undo puts it back. The batches this frame wrote, and their undos and redos,
+  // each with what it did, so an undo reverses it as the Engine compensates a revision.
+  let deletedIds = new Map(), revisions = new Map(), nextRevision = 1;
   // A view's place in Back and Forward (W-127), offered only when a probe asks.
   const PLACES = ['ui.setPlace'];
   let placesOffered = false, startPlace = null;
@@ -318,18 +323,47 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
         if (!writes) throw refusal('unknown-method', `${method} is not a method this fixture answers.`);
         // As the host writes them: each at the version the view read, a reference at its target's
         // version, a record other records point at never deleted, and a batch whole or not at all.
-        const before = clone(fixture.records);
+        const before = clone(fixture.records), deletedBefore = clone([...deletedIds]);
         try {
           const entries = method === 'records.batch' ? batchEntries(params)
             : [{ op: method === 'records.create' ? 'create' : 'delete', ...clone(params) }];
-          const touched = new Map();
-          const answered = entries.map(entry => writeOne(entry, touched));
+          const touched = new Map(), log = [];
+          const answered = entries.map(entry => writeOne(entry, touched, log));
           fixture.changeSequence += 1;
           queueMicrotask(() => emit('changes', fixture.changeSequence));
-          if (method === 'records.batch') return { records: answered.map(record => ({ entityId: record.entityId, recordId: record.recordId, version: record.deleted ? null : record.version })) };
+          if (method === 'records.batch') {
+            return { records: answered.map(record => ({ entityId: record.entityId, recordId: record.recordId, version: record.deleted ? null : record.version })), revision: remember(log, false) };
+          }
           return method === 'records.delete' ? null : clone(answered[0]);
         } catch (error) {
           fixture.records = before;
+          deletedIds = new Map(deletedBefore);
+          throw error;
+        }
+      }
+      case 'records.undo':
+      case 'records.redo': {
+        if (!writes) throw refusal('unknown-method', `${method} is not a method this fixture answers.`);
+        // As the Engine compensates a revision: the opposite of each write, last first, against the
+        // version the revision left; anything changed since refuses the whole step.
+        const id = text(params, 'revision');
+        const revision = revisions.get(id);
+        if (revision === undefined) throw refusal('not-this-view', 'This view can undo only what it wrote since it opened.');
+        if (method === 'records.redo' && !revision.undo) throw refusal('not-an-undo', 'Only an undo can be redone.');
+        if (revision.reversed) throw refusal('compensation-not-supported', 'This revision already has a compensation revision.');
+        const before = clone(fixture.records), deletedBefore = clone([...deletedIds]);
+        try {
+          const log = [];
+          for (const write of [...revision.log].reverse()) reverseOne(write, log, carriedVersion(revision, write.recordId));
+          revision.reversed = true;
+          fixture.changeSequence += 1;
+          queueMicrotask(() => emit('changes', fixture.changeSequence));
+          const answered = new Map();
+          for (const write of log) answered.set(write.recordId, { entityId: write.entityId, recordId: write.recordId, version: write.op === 'delete' ? null : write.version });
+          return { records: [...answered.values()], revision: remember(log, true, id) };
+        } catch (error) {
+          fixture.records = before;
+          deletedIds = new Map(deletedBefore);
           throw error;
         }
       }
@@ -350,6 +384,98 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     });
   }
 
+  function remember(log, undo, of = null) {
+    const id = `revision-${nextRevision++}`;
+    revisions.set(id, { id, log, undo, of, reversed: false });
+    return id;
+  }
+
+  /**
+   * As the Engine reads it (ADR-0023): when every revision since `revision` that wrote the record
+   * has been taken back -- each chain of a change and its undos and redos of even length -- the
+   * record is as `revision` left it, at the version the last of them left. Otherwise undefined,
+   * and the version the revision left is expected, so a change by anybody else refuses.
+   */
+  function carriedVersion(revision, recordId) {
+    const later = [];
+    let seen = false;
+    for (const candidate of revisions.values()) {
+      if (candidate === revision) { seen = true; continue; }
+      if (seen && candidate.log.some(write => write.recordId === recordId)) later.push(candidate);
+    }
+    if (later.length === 0) return undefined;
+    const last = [...later.at(-1).log].reverse().find(write => write.recordId === recordId);
+    if (last.op === 'delete') return undefined;
+    const members = new Set(later.map(candidate => candidate.id));
+    for (const head of later.filter(candidate => !members.has(candidate.of))) {
+      let length = 1;
+      for (let link = head; ; length += 1) {
+        const next = later.find(candidate => candidate.of === link.id);
+        if (next === undefined) break;
+        link = next;
+      }
+      if (length % 2 !== 0) return undefined;
+    }
+    return last.version;
+  }
+
+  /** Refused while another record points at this one, as the Engine refuses a delete. */
+  function requireUnused(record) {
+    for (const [otherType, others] of Object.entries(fixture.records)) {
+      for (const other of others) {
+        if (other === record) continue;
+        if (referenceFields(otherType).some(fieldId => other.values[fieldId] === record.recordId))
+          throw refusal('record-referenced', `${other.recordId} still points at ${record.recordId}.`);
+      }
+    }
+  }
+
+  /** Deletes a record and keeps it in deletion history, its ID reserved. */
+  function deleteKept(entityId, record) {
+    requireUnused(record);
+    const list = fixture.records[entityId];
+    list.splice(list.indexOf(record), 1);
+    deletedIds.set(record.recordId, { entityId, version: record.version, values: clone(record.values), restored: false });
+  }
+
+  /** The opposite of one write of a revision being undone, logged as the undo's own write. */
+  function reverseOne(write, log, carried) {
+    const list = fixture.records[write.entityId] ??= [];
+    const record = list.find(candidate => candidate.recordId === write.recordId);
+    if (write.op === 'delete') {
+      const kept = deletedIds.get(write.recordId);
+      if (record !== undefined || kept === undefined || kept.restored || kept.version !== write.version)
+        throw refusal('deletion-state-conflict', 'This record is no longer in the selected deleted state.');
+      for (const fieldId of referenceFields(write.entityId)) {
+        const target = kept.values[fieldId];
+        if (target !== undefined && target !== null && findRecord(target) === undefined)
+          throw refusal('target-not-found', 'That record does not exist in the reference\u2019s target type.');
+      }
+      list.push({ entityId: write.entityId, recordId: write.recordId, version: write.version + 1, values: clone(kept.values) });
+      kept.restored = true;
+      log.push({ op: 'restore', entityId: write.entityId, recordId: write.recordId, version: write.version + 1 });
+      return;
+    }
+    if (record === undefined) throw refusal('record-not-found', 'The record no longer exists.');
+    if (record.version !== (carried ?? write.version)) throw refusal('record-version-conflict', 'The record changed. Review its current values.');
+    if (write.op === 'update') {
+      const before = Object.fromEntries(Object.keys(write.before).map(fieldId => [fieldId, record.values[fieldId] ?? null]));
+      for (const fieldId of referenceFields(write.entityId)) {
+        const target = write.before[fieldId];
+        if (target !== undefined && target !== null && findRecord(target) === undefined)
+          throw refusal('target-not-found', 'That record does not exist in the reference’s target type.');
+      }
+      record.values = { ...record.values, ...clone(write.before) };
+      record.version += Object.keys(write.before).length;
+      log.push({ op: 'update', entityId: write.entityId, recordId: write.recordId, before, version: record.version });
+      return;
+    }
+    // A create or a restore is answered by deleting the record again.
+    const version = record.version, values = clone(record.values);
+    deleteKept(write.entityId, record);
+    log.push({ op: 'delete', entityId: write.entityId, recordId: write.recordId, version, values });
+  }
+
   /** The reference fields of a record type, from the fixture's schema. */
   function referenceFields(entityId) {
     const entity = (fixture.schema?.entities ?? []).find(candidate => candidate.entityId === entityId);
@@ -364,7 +490,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     return undefined;
   }
 
-  function writeOne(entry, touched) {
+  function writeOne(entry, touched, log = []) {
     const entityId = text(entry, 'entityId');
     const list = fixture.records[entityId] ??= [];
     const checkTargets = (values, targetVersions) => {
@@ -381,10 +507,12 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     if (entry.op === 'create') {
       const recordId = entry.recordId ?? `record-${crypto.randomUUID().replaceAll('-', '')}`;
       if (findRecord(recordId) !== undefined) throw refusal('record-exists', 'That record ID is already used.');
+      if (deletedIds.has(recordId)) throw refusal('record-id-reserved', 'This record ID is retained in deletion history and cannot be reused.');
       checkTargets(entry.values, entry.targetVersions);
       const record = { entityId, recordId, version: 1, values: clone(entry.values ?? {}) };
       list.push(record);
       touched.set(recordId, 1);
+      log.push({ op: 'create', entityId, recordId, version: 1 });
       return record;
     }
     const record = list.find(candidate => candidate.recordId === entry.recordId);
@@ -392,20 +520,17 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     if (record.version !== entry.version) throw refusal('record-version-conflict', 'The record changed. Review its current values.');
     if (entry.op === 'update') {
       checkTargets(entry.values, entry.targetVersions);
+      const before = Object.fromEntries(Object.keys(entry.values ?? {}).map(fieldId => [fieldId, record.values[fieldId] ?? null]));
       record.values = { ...record.values, ...clone(entry.values ?? {}) };
       record.version += Object.keys(entry.values ?? {}).length;
       touched.set(record.recordId, record.version);
+      log.push({ op: 'update', entityId, recordId: record.recordId, before, version: record.version });
       return record;
     }
-    for (const [otherType, others] of Object.entries(fixture.records)) {
-      for (const other of others) {
-        if (other === record) continue;
-        if (referenceFields(otherType).some(fieldId => other.values[fieldId] === record.recordId))
-          throw refusal('record-referenced', `${other.recordId} still points at ${record.recordId}.`);
-      }
-    }
-    list.splice(list.indexOf(record), 1);
+    const values = clone(record.values), version = record.version;
+    deleteKept(entityId, record);
     touched.delete(record.recordId);
+    log.push({ op: 'delete', entityId, recordId: record.recordId, version, values });
     return { ...record, deleted: true };
   }
 
@@ -425,6 +550,8 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
   }
 
   function mount() {
+    // A frame mounted again starts with nothing it may undo, as the Workbench's broker keeps it.
+    revisions = new Map();
     if (port !== null) { port.close(); port = null; }
     if (frame !== null) frame.remove();
     frame = document.createElement('iframe');
@@ -460,6 +587,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     /** Replace what the view reads. Each fixture is a new change of the file. The first one mounts the frame. */
     setFixture(next) {
       fixture = { ...clone(next), changeSequence: (fixture?.changeSequence ?? 0) + 1 };
+      deletedIds = new Map();
       if (frame === null) mount();
       return fixture.changeSequence;
     },

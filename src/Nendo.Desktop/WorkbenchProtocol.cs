@@ -35,6 +35,7 @@ internal static partial class WorkbenchMethods
     internal const string DataTreeRecords = "data.treeRecords";
     internal const string DataMoveRecord = "data.moveRecord";
     internal const string DataWriteRecords = "data.writeRecords";
+    internal const string DataUndoRecordWrites = "data.undoRecordWrites";
     internal const string HealthVerify = "health.verify";
     internal const string HistoryCompensate = "history.compensate";
     internal const string HistoryFoldPreview = "history.foldPreview";
@@ -195,6 +196,13 @@ internal sealed record RecordWritePayload(
 internal sealed record WriteRecordsPayload(
     IReadOnlyList<RecordWritePayload> Writes,
     string IdempotencyKey,
+    string? Label = null);
+
+/// <summary>A view undoing a batch it wrote, or with <c>redo</c> redoing an undo (ADR-0023).</summary>
+internal sealed record UndoRecordWritesPayload(
+    string RevisionId,
+    string IdempotencyKey,
+    bool Redo = false,
     string? Label = null);
 
 internal sealed record CanonicalMutationPayload(
@@ -421,6 +429,7 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.DataSetFields => await SetGenericFieldsAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataMoveRecord => await MoveGenericRecordAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataWriteRecords => await WriteGenericRecordsAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.DataUndoRecordWrites => await UndoGenericRecordWritesAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataExecuteCommand => await ExecuteGenericCommandAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataGetReceipt => await _session.GetMutationReceiptAsync(RequiredString(payload, "idempotencyKey", 200), false, cancellationToken),
                     WorkbenchMethods.CompensationGetReceipt => await _session.GetMutationReceiptAsync(RequiredString(payload, "idempotencyKey", 200), true, cancellationToken),
@@ -667,6 +676,22 @@ internal sealed partial class WorkbenchProtocolHandler
         return await _session.WriteRecordsAsync(writes, request.IdempotencyKey, request.Label, cancellationToken, writer);
     }
 
+    /// <summary>
+    /// A custom view undoing or redoing a batch its package wrote (ADR-0023). Only a view asks:
+    /// a person reverses a revision in History, and the Engine refuses a revision another origin
+    /// wrote.
+    /// </summary>
+    private async Task<DesktopRecordWritesView> UndoGenericRecordWritesAsync(
+        JsonElement payload,
+        string? writer,
+        CancellationToken cancellationToken)
+    {
+        if (writer is null)
+            throw new NendoPreconditionException("actor-not-allowed", "Only a custom view undoes its own writes; History compensates the rest.");
+        var request = Deserialize<UndoRecordWritesPayload>(payload);
+        return await _session.UndoRecordWritesAsync(request.RevisionId, request.Redo, request.IdempotencyKey, request.Label, writer, cancellationToken);
+    }
+
     private async Task<DesktopMutationView> ExecuteGenericCommandAsync(
         JsonElement payload,
         string? writer,
@@ -814,7 +839,7 @@ internal sealed partial class WorkbenchProtocolHandler
         (protocolVersion >= DesktopShellContract.SnapshotBridgeProtocolVersion || method != WorkbenchMethods.DataDeleteRecord) &&
         (protocolVersion >= DesktopShellContract.OutcomeBridgeProtocolVersion || method is not
             (WorkbenchMethods.DataGetReceipt or WorkbenchMethods.CompensationGetReceipt or WorkbenchMethods.ProposalGetReceipt or WorkbenchMethods.DataSetFields or
-             WorkbenchMethods.DataWriteRecords or
+             WorkbenchMethods.DataWriteRecords or WorkbenchMethods.DataUndoRecordWrites or
              WorkbenchMethods.DataQueryRecords or WorkbenchMethods.DataCountRecords or
              WorkbenchMethods.DataAggregateRecords or
              WorkbenchMethods.HistoryQuery or WorkbenchMethods.HistoryOperations or WorkbenchMethods.HealthVerify)) &&

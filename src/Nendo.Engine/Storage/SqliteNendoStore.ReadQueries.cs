@@ -482,7 +482,7 @@ internal sealed partial class SqliteNendoStore
                 -- A ui.setProperty is reversed only when it retained a prior value: the
                 -- first value a property ever took has nothing to go back to, and the
                 -- inverse refuses it, so the flag reads the same evidence the inverse does.
-                CASE WHEN r.compensation_of_revision_id IS NULL AND (
+                CASE WHEN (r.compensation_of_revision_id IS NULL AND (
                     (COUNT(o.operation_id) = 1
                         AND MIN(CASE WHEN o.operation_type IN (
                             'data.setField', 'data.deleteRecord', 'data.backfillRetiredField',
@@ -506,16 +506,20 @@ internal sealed partial class SqliteNendoStore
                             AND json_extract(o.inverse_evidence_json, '$.previousValuePresent') IS NOT 1
                             THEN 0 ELSE 1 END) = 1)
                     OR
-                    (COUNT(o.operation_id) BETWEEN 2 AND 128
-                        AND MIN(CASE WHEN o.operation_type IN (
-                            'data.setField', 'data.backfillRetiredField', 'data.deleteRecord') THEN 1 ELSE 0 END) = 1)
-                    OR
                     -- A package and its files arrive together and are reversed together.
                     (COUNT(o.operation_id) BETWEEN 2 AND 128
                         AND MIN(CASE WHEN o.operation_type IN (
                             'extension.setPackage', 'extension.putFile', 'extension.removeFile', 'extension.removePackage')
                             THEN 1 ELSE 0 END) = 1)
-                ) THEN 1 ELSE 0 END
+                ))
+                OR
+                -- Record changes are reversed as a whole, creates and restores by a delete, and a
+                -- compensation of record changes can be compensated again: redo (ADR-0023).
+                (COUNT(o.operation_id) BETWEEN 1 AND 12800
+                    AND MIN(CASE WHEN o.operation_type IN (
+                        'data.setField', 'data.backfillRetiredField', 'data.deleteRecord',
+                        'data.createRecord', 'data.restoreDeletedRecord') THEN 1 ELSE 0 END) = 1)
+                THEN 1 ELSE 0 END
             FROM page r LEFT JOIN __nendo_operation o ON o.revision_id = r.revision_id
             GROUP BY r.revision_id ORDER BY r.change_sequence {order};
             """;
