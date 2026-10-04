@@ -138,6 +138,41 @@ dialog label.check { flex-direction: row; align-items: center; gap: 8px; color: 
 .arm-types { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 12px; }
 .arm-types label { flex-direction: row; align-items: center; gap: 6px; color: var(--ink); font-size: 0.86rem; }
 #open-archimate { max-width: 460px; }
+/* Archi's model tools (W-119): wide dialogs whose lists scroll inside them. */
+dialog.tool { width: min(880px, calc(100vw - 48px)); }
+dialog.tool p { margin: 0; }
+dialog.tool .dialog-row.checks { flex-wrap: wrap; gap: 6px 16px; }
+dialog.tool .dialog-row.checks > label { flex: none; }
+dialog.tool .dialog-row > input[type="search"] { flex: 1; }
+dialog.tool .pane-actions { display: flex; align-items: center; gap: 10px; }
+.tool-error { color: var(--danger); }
+.tool-error[hidden] { display: none; }
+table.manage { width: 100%; border-collapse: collapse; }
+table.manage th { text-align: left; font-weight: 600; font-size: 0.8rem; color: var(--muted); padding: 2px 6px; border-bottom: 1px solid var(--line); }
+table.manage td { padding: 3px 6px; vertical-align: top; border-bottom: 1px solid var(--line); }
+table.manage td input:not([type="checkbox"]), table.manage td select { width: 100%; }
+table.manage .count { width: 1%; text-align: right; white-space: nowrap; }
+table.manage .row-actions { width: 1%; white-space: nowrap; }
+table.manage .row-actions button { padding: 0 6px; }
+table.manage .where { display: block; color: var(--muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+table.manage .before, table.manage .after { overflow-wrap: anywhere; }
+table.manage .after { color: var(--cobalt); }
+table.manage button.value { border: 0; background: none; padding: 0; color: var(--cobalt); text-align: left; }
+.tool-rows { max-height: min(48vh, 420px); overflow: auto; }
+.tool-split { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 1.4fr); gap: 12px; min-height: 260px; max-height: min(52vh, 460px); }
+.tool-list, .tool-detail ul { list-style: none; margin: 0; padding: 0; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.tool-detail { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.tool-detail h3 { margin: 0; font-size: 0.86rem; font-weight: 600; }
+.tool-detail ul { flex: 1; min-height: 80px; }
+.tool-list li button, .tool-detail li button { display: flex; align-items: baseline; gap: 8px; width: 100%; border: 0; border-radius: 0; background: none; padding: 4px 10px; text-align: left; }
+.tool-list li button:hover, .tool-detail li button:hover { background: var(--surface-soft); }
+.tool-list li button[aria-current="true"] { background: var(--cobalt-soft); }
+.tool-list .message, .tool-detail .message { overflow-wrap: anywhere; }
+.tool-list .where, .tool-detail .where { color: var(--muted); font-size: 0.8rem; margin-left: auto; padding-left: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50%; }
+.tool-list li.quiet { padding: 6px 10px; }
+.tool-detail .field { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 0.86rem; }
+.tool-detail .field.check { flex-direction: row; align-items: center; color: var(--ink); }
+.tool-detail .field.check[hidden] { display: none; }
 #open-archimate p { margin: 0; }
 .drop-zone { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; padding: 18px 12px;
   border: 2px dashed var(--line-strong); border-radius: 8px; color: var(--muted); text-align: center; }

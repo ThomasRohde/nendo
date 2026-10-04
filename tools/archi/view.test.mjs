@@ -350,6 +350,8 @@ test("on a Nendo without W-115's icons the row is declared again with words wher
     canvasModule: { createEditor() {}, editorSettings: () => ({ grid: false, snap: true, guides: true }) },
     editor: { canUndo: () => false, canRedo: () => false },
     undoName: () => null, redoName: () => null,
+    // W-119's New and filter entries, which a model with no specializations does not have.
+    specializedItems: () => [], specializationFilter: () => [],
     leaveNativeChrome: reason => { left = reason; },
     nendo: { ui: { setToolbar(toolbar) {
       declared.push(toolbar);

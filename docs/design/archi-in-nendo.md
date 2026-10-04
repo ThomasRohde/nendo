@@ -98,7 +98,7 @@ not built, with the reason.
 | Viewpoints: palette filter, ghosting | In: archi-online's table, checked against Desktop Archi 5.9's `viewpoints.xml`; picked in a view's properties, and ghosted in the drawing as in the editor | W-116 |
 | Validator: the eight Archi 5.9 checks | In | W-117 |
 | Analysis: model relations, used in views, Visualiser | In: archi-online's own, on the mirror; the Visualiser's controls under the workbench, as the validator's are. See [Analysis and the Visualiser](#analysis-and-the-visualiser) | W-118 |
-| Specializations, properties manager, find and replace | In | W-119 |
+| Specializations, properties manager, find and replace | In: archi-online's Specializations Manager, Properties Manager and Find and Replace, on the mirror, in Nendo's row under Tools; each saved as one revision. See [The model tools](#the-model-tools) | W-119 |
 | `.archimate` open and save | In, without images | W-120 |
 | Open Exchange XML, with XSD validation | In: opened through the Open dialog, told from an .archimate by its content; saved after libxml2 checks it against Archi 5.9's schemas, in `xsd.js`, loaded only then | W-121 |
 | Archi's three-file CSV | In | W-122 |
@@ -239,6 +239,23 @@ before, which listed in record order, differs for 74 of Archisurance's 296 conce
 `Gate-ArchiWorkbench.mjs` measures the panel in the page: the lists for Customer, the view a row
 opens and the object selected, and the boxes drawn at each depth, direction and type filter, after
 a click, a double-click, Back, and with Pin on and off.
+
+## The model tools
+
+W-119. The Specializations Manager, the Properties Manager and Find and Replace are
+archi-online's own operations (`replaceProfiles`, `renamePropertyKey` and `deletePropertyKey`,
+`applyFindReplace`), run on a store of their own around the mirror, as Generate View For is
+(`tools/archi/canvas/manage.ts`). What reaches the file is `writesFor`'s difference between the
+mirror before and after, sent as one `records.batch`: one revision, which the workbench's own
+Undo takes back (W-112). A change over 200 record writes is refused before anything is written.
+
+That needed `writesFor` to own more than the editor writes. It now plans specializations (name
+and type), the model's name and documentation, and the top-level folders' name, documentation
+and label expression, which it still never makes or removes. Properties, which the workbench's
+panel used to write alone, are planned too: the mirror keeps each property's record ID beside
+archi-online's key and value, so a renamed key or a replaced value is an update of that record
+and a deleted key a delete of it. A property with no record of its owner's, new or copied with
+its object, is a new record after the owner's others; reordering stays the panel's.
 
 ## The write budget
 

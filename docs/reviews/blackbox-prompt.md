@@ -1045,6 +1045,14 @@ vocabulary, the examples and the resources — and not from the person.
   **Pin** do as the selection changes, and what **Depth**, **Direction**, **Viewpoint**,
   **Relationship names** and **Types…** change. Export it as SVG and PNG and record where the
   files went; record whether the drawing is readable in both themes.
+  Open **Tools → Specializations…** in Nendo's row, add one for an element type and save; try a
+  second of the same name and type and record what the dialog says. Record what New, in the row
+  and in the tree's menu, then offers, what the palette shows while editing a view, and what the
+  Specialization filter leaves in the tree. Give a few objects a property with the same key, open
+  **Tools → Properties…**, rename the key, then rename another key to one in use, and record what
+  each asked and what History shows. Open **Tools → Find and replace…**, preview a word that occurs
+  in names and documentation, untick one row, replace, and record what changed and what Undo puts
+  back; try a regular expression that matches every name and record what it said (W-119).
   Choose **Archi file → Save as .archimate** in Nendo's row and record where the file went and
   whether Desktop Archi, if you have it, opens it with the same views. Then make **File → New
   Archi model…**, open **Archi file → Open .archimate…** there, and record what the dialog says

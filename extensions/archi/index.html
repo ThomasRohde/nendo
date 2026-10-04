@@ -10,6 +10,9 @@
   <button id="own-new-folder" type="button">New folder</button>
   <button id="own-new-view" type="button">New view</button>
   <button id="own-delete" type="button">Delete…</button>
+  <button id="own-find-replace" type="button">Find and replace…</button>
+  <button id="own-properties" type="button">Properties…</button>
+  <button id="own-specializations" type="button">Specializations…</button>
   <button id="own-validator" type="button" aria-pressed="false">Validator</button>
   <button id="own-visualiser" type="button" aria-pressed="false">Visualiser</button>
   <button id="own-open-archimate" type="button">Open .archimate or Exchange XML…</button>
@@ -63,6 +66,7 @@
   <form method="dialog" id="new-element-form">
     <h2>New element</h2>
     <label>Type <select id="new-element-type" required></select></label>
+    <label>Specialization <select id="new-element-specialization"></select></label>
     <label>Name <input id="new-element-name" maxlength="400" placeholder="The type's name"></label>
     <p class="quiet" id="new-element-folder"></p>
     <div class="actions"><button value="cancel" type="submit" formnovalidate>Cancel</button><button value="create" type="submit" class="primary">Create</button></div>
@@ -124,6 +128,51 @@
     <p class="quiet" id="arm-settings-text"></p>
     <div id="arm-settings-list" class="arm-settings-list"></div>
     <div class="actions"><button value="defaults" type="submit" formnovalidate>Restore defaults</button><button value="cancel" type="submit" formnovalidate>Cancel</button><button value="save" type="submit" class="primary">Save</button></div>
+  </form>
+</dialog>
+<dialog id="specializations" class="tool" aria-labelledby="specializations-title">
+  <form method="dialog" id="specializations-form">
+    <h2 id="specializations-title">Specializations</h2>
+    <p class="quiet">A specialization is a named kind of one element or relationship type, as Archi's are. One given to concepts keeps its type; one removed is taken from every concept that has it. Images are not kept here.</p>
+    <div class="tool-rows"><table class="manage"><thead><tr><th>Name</th><th>Concept type</th><th class="count">Used</th><th></th></tr></thead><tbody id="specializations-list"></tbody></table></div>
+    <p id="specializations-empty" class="quiet">The model has no specializations.</p>
+    <div class="pane-actions"><button type="button" id="specializations-add">Add a specialization</button><span id="specializations-note" class="quiet" role="status"></span></div>
+    <p id="specializations-error" class="tool-error" role="alert" hidden></p>
+    <div class="actions"><button value="cancel" type="submit" formnovalidate>Cancel</button><button value="save" type="submit" class="primary">Save</button></div>
+  </form>
+</dialog>
+<dialog id="properties-manager" class="tool" aria-labelledby="properties-manager-title">
+  <form method="dialog">
+    <h2 id="properties-manager-title">Properties</h2>
+    <p class="quiet">Every property key in the model. Renaming or deleting one changes it everywhere it is used, as one change Undo takes back.</p>
+    <div class="dialog-row"><input id="properties-search" type="search" placeholder="Filter the keys…" aria-label="Filter the keys"><span id="properties-summary" class="quiet" role="status"></span></div>
+    <div class="tool-split">
+      <ul id="properties-keys" class="tool-list" aria-label="Property keys"></ul>
+      <div id="properties-detail" class="tool-detail"></div>
+    </div>
+    <p id="properties-error" class="tool-error" role="alert" hidden></p>
+    <div class="actions"><button value="close" type="submit" class="primary">Close</button></div>
+  </form>
+</dialog>
+<dialog id="find-replace" class="tool" aria-labelledby="find-replace-title">
+  <form method="dialog" id="find-replace-form">
+    <h2 id="find-replace-title">Find and replace</h2>
+    <div class="dialog-row">
+      <label>Find <input id="find-text" maxlength="400"></label>
+      <label>Replace with <input id="replace-text" maxlength="400"></label>
+      <label>In <select id="find-scope"><option value="model">The whole model</option><option value="active-view">The open view</option></select></label>
+    </div>
+    <div class="dialog-row checks">
+      <label class="check"><input type="checkbox" id="find-names" checked> Names and text</label>
+      <label class="check"><input type="checkbox" id="find-documentation" checked> Documentation</label>
+      <label class="check"><input type="checkbox" id="find-values" checked> Property values</label>
+      <label class="check"><input type="checkbox" id="find-case"> Match case</label>
+      <label class="check"><input type="checkbox" id="find-regex"> Regular expression</label>
+    </div>
+    <div class="pane-actions"><button type="button" id="find-preview">Preview</button><span id="find-summary" class="quiet" role="status"></span></div>
+    <div id="find-rows" class="tool-rows"></div>
+    <p id="find-error" class="tool-error" role="alert" hidden></p>
+    <div class="actions"><button value="cancel" type="submit" formnovalidate>Close</button><button value="replace" type="submit" class="primary" id="find-apply" disabled>Replace</button></div>
   </form>
 </dialog>
 <script src="/_nendo/api.js"></script>

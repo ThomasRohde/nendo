@@ -211,16 +211,30 @@ function folderFor(model, kind, selectedFolderId) {
   return rootFolderOfKind(model, kind);
 }
 
-export function createElement(model, typeKey, selectedFolderId, name) {
+export function createElement(model, typeKey, selectedFolderId, name, specializationId = null) {
   const type = [...model.types.values()].find(candidate => candidate.values['ar.type.key'] === typeKey);
   if (!type || type.values['ar.type.category'] !== 'Element') throw new Error(`${typeKey} is not an element type.`);
   const folder = folderFor(model, HOME_OF_LAYER[type.values['ar.type.layer']], selectedFolderId);
+  // A specialized element (W-119), as archi-online's tree makes one: of the specialization's type, named after it.
+  const specialization = specializationId ? model.records.get(specializationId) : null;
+  if (specializationId && (specialization?.entityId !== E.specialization || specialization.values['ar.specialization.type'] !== type.recordId)) {
+    throw new Error(`That specialization is not one of ${type.values['ar.type.name']}.`);
+  }
   const archiId = newArchiId();
   return { op: 'create', entityId: E.concept, recordId: `ar-${archiId}`, values: {
-    'ar.concept.name': name ?? type.values['ar.type.name'], 'ar.concept.type': type.recordId, 'ar.concept.category': 'Element',
-    'ar.concept.folder': folder.recordId, 'ar.concept.archiId': archiId,
+    'ar.concept.name': name ?? specialization?.values['ar.specialization.name'] ?? type.values['ar.type.name'], 'ar.concept.type': type.recordId,
+    'ar.concept.category': 'Element', 'ar.concept.folder': folder.recordId, 'ar.concept.archiId': archiId,
     ...(typeKey === 'Junction' ? { 'ar.concept.junction': 'And' } : {}),
-  }, targetVersions: { 'ar.concept.type': type.version, 'ar.concept.folder': folder.version } };
+    ...(specialization ? { 'ar.concept.specialization': specialization.recordId } : {}),
+  }, targetVersions: { 'ar.concept.type': type.version, 'ar.concept.folder': folder.version,
+    ...(specialization ? { 'ar.concept.specialization': specialization.version } : {}) } };
+}
+
+/** The specializations of element types, by name, each with its type: what the tree can make (W-119). */
+export function elementSpecializations(model) {
+  return model.of(E.specialization).map(specialization => ({ specialization, type: model.records.get(specialization.values['ar.specialization.type']) }))
+    .filter(({ type }) => type?.values['ar.type.category'] === 'Element')
+    .sort((a, b) => String(a.specialization.values['ar.specialization.name']).localeCompare(String(b.specialization.values['ar.specialization.name'])));
 }
 
 export function createView(model, selectedFolderId, name = 'New view') {
@@ -332,11 +346,15 @@ export function propertyWrites(model, ownerId, rows) {
 }
 
 /** Whether a record passes the tree's filter: its label contains the text, and a concept is of the layer. */
+export const filtering = filter => Boolean(filter.text || filter.layer || filter.specialization);
+
+/** Whether a record passes the tree's filter; a specialization keeps only the concepts given it (W-119). */
 export function matches(model, record, filter) {
-  if (!filter.text && !filter.layer) return true;
-  if (filter.layer) {
+  if (!filtering(filter)) return true;
+  if (filter.layer || filter.specialization) {
     if (record.entityId !== E.concept) return false;
-    if (typeOf(model, record)?.values['ar.type.layer'] !== filter.layer) return false;
+    if (filter.layer && typeOf(model, record)?.values['ar.type.layer'] !== filter.layer) return false;
+    if (filter.specialization && record.values['ar.concept.specialization'] !== filter.specialization) return false;
   }
   return !filter.text || label(model, record).toLocaleLowerCase().includes(filter.text.toLocaleLowerCase());
 }
@@ -347,7 +365,7 @@ export function matches(model, record, filter) {
  * matches, and then only what matches and the folders on the way to it.
  */
 export function treeRows(model, expanded, filter = {}) {
-  const filtering = Boolean(filter.text || filter.layer);
+  const narrowed = filtering(filter);
   const rows = [];
   const visible = new Map();
   const shows = id => {
@@ -357,21 +375,22 @@ export function treeRows(model, expanded, filter = {}) {
     if (record.entityId === E.folder) {
       const content = model.children.get(id);
       const any = content && [...content.folders, ...content.concepts, ...content.views].some(shows);
-      result = filtering ? any || (!filter.layer && result) : true;
+      result = narrowed ? any || (!filter.layer && !filter.specialization && result) : true;
     }
     visible.set(id, result);
     return result;
   };
   const walk = (id, depth) => {
     const record = model.records.get(id);
-    if (filtering && !shows(id)) return;
+    if (narrowed && !shows(id)) return;
     const content = model.children.get(id) ?? { folders: [], concepts: [], views: [] };
     const count = content.folders.length + content.concepts.length + content.views.length;
     const isFolder = record.entityId === E.folder;
-    const open = isFolder && (filtering ? count > 0 : expanded.has(id));
+    const open = isFolder && (narrowed ? count > 0 : expanded.has(id));
     rows.push({ id, entityId: record.entityId, depth, label: label(model, record), children: count, expanded: open,
       layer: record.entityId === E.concept ? typeOf(model, record)?.values['ar.type.layer'] ?? null : null,
       typeName: record.entityId === E.concept ? typeOf(model, record)?.values['ar.type.name'] ?? null : null,
+      specialization: record.entityId === E.concept ? model.records.get(record.values['ar.concept.specialization'])?.values['ar.specialization.name'] ?? null : null,
       kind: isFolder ? record.values['ar.folder.kind'] ?? rootOf(model, id)?.values['ar.folder.kind'] ?? null : null });
     if (!open) return;
     const folders = content.folders.map(folderId => model.records.get(folderId))

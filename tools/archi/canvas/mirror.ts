@@ -33,13 +33,15 @@ export function buildMirror(sets: RecordSets): ModelState {
   const all = Object.values(sets).flatMap(list => list ?? []);
   const of = (entityId: string) => all.filter(record => record.entityId === entityId);
   const typeKey = new Map(of('ar.type').map(record => [record.recordId, text(record.values['ar.type.key'])]));
-  const propertiesOf = new Map<string, { key: string; value: string }[]>();
+  // A property keeps the ID of its record beside archi-online's key and value, so a change the
+  // properties manager or find and replace makes names the record it changes (records.ts, W-119).
+  const propertiesOf = new Map<string, { key: string; value: string; recordId: string }[]>();
   for (const property of of('ar.property').sort(byOrder('ar.property.order'))) {
     for (const field of ['concept', 'view', 'folder', 'item', 'model']) {
       const owner = property.values[`ar.property.${field}`];
       if (typeof owner !== 'string') continue;
       if (!propertiesOf.has(owner)) propertiesOf.set(owner, []);
-      propertiesOf.get(owner)!.push({ key: text(property.values['ar.property.key']), value: text(property.values['ar.property.value']) });
+      propertiesOf.get(owner)!.push({ key: text(property.values['ar.property.key']), value: text(property.values['ar.property.value']), recordId: property.recordId });
     }
   }
   const props = (id: string) => propertiesOf.get(id) ?? [];

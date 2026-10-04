@@ -2,9 +2,11 @@
 // writes that turn the records as stored into a model an archi-online operation has changed.
 // Every id in the mirror is its record's ID (mirror.ts), so a changed object names its record.
 //
-// A field the editor does not own is never written: properties are the workbench's own panel,
-// fonts are W-114's. What the mirror leaves out (an image object) is never deleted, because a
-// record is deleted only when the model before the change held it and the model after does not.
+// A field the editor does not own is never written. Properties are written as archi-online's
+// properties manager and find and replace change them (W-119): a key or value changed, a property
+// gone or new; their order is the workbench's own panel's. What the mirror leaves out (an image
+// object) is never deleted, because a record is deleted only when the model before the change held
+// it and the model after does not.
 
 import type { DiagramConnection, DiagramNode, FontStyle, ModelState } from '@archi/model/types';
 import { serializeFontStyle } from '@archi/model/font-style';
@@ -25,9 +27,14 @@ const FOLDER_KIND = ['ar.folder.name', 'ar.folder.documentation', 'ar.folder.lab
 const STYLE = ['fillColor', 'lineColor', 'fontColor', 'alpha', 'lineAlpha', 'fontAlpha', 'gradient', 'lineStyle', 'lineWidth',
   'iconVisible', 'iconColor', 'derivedLineColor', 'font', 'textAlignment', 'textPosition', 'labelExpression'];
 
+const PROPERTY_OWNERS = ['concept', 'view', 'folder', 'item', 'model'].map(name => `ar.property.${name}`);
+
 /** The fields each record type's editor writes. Anything else on a record is left as it is. */
 export const OWNED: Record<string, string[]> = {
+  'ar.model': ['ar.model.name', 'ar.model.documentation'],
   'ar.folder': FOLDER_KIND,
+  'ar.specialization': ['ar.specialization.name', 'ar.specialization.type'],
+  'ar.property': ['ar.property.key', 'ar.property.value', 'ar.property.order', ...PROPERTY_OWNERS],
   'ar.concept': ['name', 'type', 'category', 'documentation', 'folder', 'source', 'target', 'access', 'strength', 'directed',
     'junction', 'specialization'].map(name => `ar.concept.${name}`),
   'ar.view': ['name', 'documentation', 'folder', 'viewpoint', 'router'].map(name => `ar.view.${name}`),
@@ -37,9 +44,11 @@ export const OWNED: Record<string, string[]> = {
 };
 
 /** The fields that point at another record: a write names the target's version as it read it. */
-const REFERENCES = new Set(['ar.folder.parent', 'ar.concept.type', 'ar.concept.folder', 'ar.concept.source', 'ar.concept.target',
+const REFERENCES = new Set(['ar.folder.parent', 'ar.specialization.type', 'ar.concept.type', 'ar.concept.folder', 'ar.concept.source', 'ar.concept.target',
   'ar.concept.specialization', 'ar.view.folder', 'ar.item.view', 'ar.item.concept', 'ar.item.refView', 'ar.item.parent',
-  'ar.item.source', 'ar.item.target']);
+  'ar.item.source', 'ar.item.target', ...PROPERTY_OWNERS]);
+/** Record types that carry an Archi ID, which a record made here is given from its record ID. */
+const ARCHI_ID = new Set(['ar.folder', 'ar.specialization', 'ar.concept', 'ar.view', 'ar.item']);
 
 const ACCESS = ['Write', 'Read', 'Access', 'Read and write'];
 const NODE_KIND: Record<string, string> = { element: 'Element', group: 'Group', note: 'Note', ref: 'View reference' };
@@ -75,14 +84,27 @@ function orders(ids: string[], stored: Map<string, NendoRecord>, field: string):
 export function toRecords(model: ModelState, stored: Map<string, NendoRecord> = new Map()): Map<string, Planned> {
   const out = new Map<string, Planned>();
   const typeId = (type: string) => `ar.type.r.${type}`;
-  const put = (entityId: string, id: string, values: Values) => {
+  const put = (entityId: string, id: string, values: Values, fields = OWNED[entityId]) => {
     const full: Values = {};
-    for (const field of OWNED[entityId]) full[field] = plain(values[field]);
+    for (const field of fields) full[field] = plain(values[field]);
     out.set(id, { entityId, values: full });
   };
 
+  // The model and the nine top-level folders are the file's frame: never made or removed here, and
+  // only what find and replace changes is theirs to write (W-119).
+  put('ar.model', model.info.id, { 'ar.model.name': model.info.name, 'ar.model.documentation': model.info.documentation });
   for (const folder of Object.values(model.folders)) {
-    if (folder.parentId === null) continue; // the nine top-level folders are the file's frame
+    if (folder.parentId !== null) continue;
+    put('ar.folder', folder.id, { 'ar.folder.name': folder.name, 'ar.folder.documentation': folder.documentation,
+      'ar.folder.labelExpression': folder.labelExpression }, ['ar.folder.name', 'ar.folder.documentation', 'ar.folder.labelExpression']);
+  }
+
+  for (const profile of Object.values(model.profiles)) {
+    put('ar.specialization', profile.id, { 'ar.specialization.name': profile.name, 'ar.specialization.type': typeId(profile.conceptType) });
+  }
+
+  for (const folder of Object.values(model.folders)) {
+    if (folder.parentId === null) continue;
     const siblings = model.folders[folder.parentId]?.folderIds ?? [];
     put('ar.folder', folder.id, { 'ar.folder.name': folder.name, 'ar.folder.documentation': folder.documentation,
       'ar.folder.labelExpression': folder.labelExpression, 'ar.folder.parent': folder.parentId,
@@ -144,8 +166,40 @@ export function toRecords(model: ModelState, stored: Map<string, NendoRecord> = 
       // The order Archi drew it in (W-120), kept as stored: a connection drawn here has none and comes last.
       'ar.item.order': stored.get(connection.id)?.values['ar.item.order'] ?? null });
   }
+
+  // Each owner's properties, by the record each was read from (mirror.ts). One that has no record of
+  // this owner's, because it is new or was copied with its object, is a new record after the owner's
+  // others. An order is kept as stored: reordering is the properties panel's.
+  const used = new Set<string>();
+  const ownerOf = (record: NendoRecord) => PROPERTY_OWNERS.map(field => record.values[field]).find(value => typeof value === 'string');
+  const properties = (field: string, ownerId: string, list: unknown) => {
+    if (!Array.isArray(list)) return;
+    let last = 0;
+    for (const property of list as KeyedProperty[]) {
+      const record = property.recordId ? stored.get(property.recordId) : undefined;
+      const ours = property.recordId !== undefined && !used.has(property.recordId)
+        && (!record || (record.entityId === 'ar.property' && ownerOf(record) === ownerId));
+      const id = ours ? property.recordId! : `ar-id-${crypto.randomUUID().replace(/-/g, '')}`;
+      used.add(id);
+      const kept = ours ? record?.values['ar.property.order'] : undefined;
+      const order = ours ? (typeof kept === 'number' ? kept : null) : last + 1024;
+      if (typeof order === 'number') last = Math.max(last, order);
+      put('ar.property', id, { 'ar.property.key': property.key, 'ar.property.value': property.value, 'ar.property.order': order,
+        [`ar.property.${field}`]: ownerId });
+    }
+  };
+  properties('model', model.info.id, model.info.properties);
+  for (const folder of Object.values(model.folders)) properties('folder', folder.id, folder.properties);
+  for (const concept of [...Object.values(model.elements), ...Object.values(model.relationships)]) properties('concept', concept.id, concept.properties);
+  for (const view of Object.values(model.views)) properties('view', view.id, view.properties);
+  for (const item of [...Object.values(model.nodes), ...Object.values(model.connections)] as unknown as Record<string, unknown>[]) {
+    if (out.has(item.id as string)) properties('item', item.id as string, item.properties);
+  }
   return out;
 }
+
+/** A property as the mirror reads it: archi-online's key and value, and the record it came from. */
+type KeyedProperty = { key: string; value: string; recordId?: string };
 
 /** Two stored values the same, a JSON text compared as what it holds. */
 function same(field: string, stored: unknown, planned: unknown): boolean {
@@ -188,7 +242,7 @@ export function writesFor(sets: RecordSets, before: ModelState, after: ModelStat
     const planned = now.get(id)!;
     for (const [field, value] of Object.entries(planned.values)) if (REFERENCES.has(field) && typeof value === 'string') visit(value);
     const values = Object.fromEntries(Object.entries(planned.values).filter(([, value]) => value !== null));
-    values[`${planned.entityId}.archiId`] = archiIdOf(id);
+    if (ARCHI_ID.has(planned.entityId)) values[`${planned.entityId}.archiId`] = archiIdOf(id);
     const versions = targetVersions(values, created);
     creates.push({ op: 'create', entityId: planned.entityId, recordId: id, values, ...(versions ? { targetVersions: versions } : {}) });
   };

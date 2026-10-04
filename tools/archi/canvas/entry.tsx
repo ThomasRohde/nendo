@@ -49,6 +49,9 @@ export { VALIDATION_RULES, DEFAULT_VALIDATION_CONFIG, validateModel } from '@arc
 // archi-online's Analysis and Visualiser, run on the mirror (W-118).
 export { modelRelations, viewsUsing, findInView, analysisGraph, analysisLayout, analysisSvg, analysisPng, copyAnalysisPng, createVisualiser,
   DEFAULT_ANALYSIS_PREFERENCES, normalizeAnalysisPreferences, ELEMENT_TYPES, elementLabel, relationshipLabel } from './visualiser';
+// archi-online's Specializations Manager, Properties Manager and Find and Replace, on the mirror (W-119).
+export { specializationsOf, manageSpecializations, propertyKeys, displayPropertyKey, renamePropertyKeyIn, deletePropertyKeyIn,
+  findReplacePreview, findReplaceApply } from './manage';
 declare const __ARCHI_ONLINE_COMMIT__: string;
 export const archiOnlineCommit = __ARCHI_ONLINE_COMMIT__;
 

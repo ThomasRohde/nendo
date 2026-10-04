@@ -35,7 +35,7 @@ async (page) => {
   const results = {};
   // W-112: the model as the fixture holds it, value for value, the batches the view has sent, and
   // one control of Nendo's row as the view last declared it.
-  const modelNow = async () => JSON.stringify(await Promise.all(['ar.model', 'ar.folder', 'ar.concept', 'ar.view', 'ar.item', 'ar.property'].map(async entityId =>
+  const modelNow = async () => JSON.stringify(await Promise.all(['ar.model', 'ar.folder', 'ar.specialization', 'ar.concept', 'ar.view', 'ar.item', 'ar.property'].map(async entityId =>
     (await records(entityId)).map(record => [record.recordId, Object.entries(record.values).filter(([, value]) => value !== null).sort(([a], [b]) => (a < b ? -1 : 1))])
       .sort(([a], [b]) => (a < b ? -1 : 1)))));
   const batchCount = () => page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').length);
@@ -1662,6 +1662,213 @@ async (page) => {
       const applied = (await batches()).filter((_, index) => index >= batchesBefore && index !== refusedBatch);
       return { revisions: applied.length, rows: applied.flatMap(batch => batch.writes).reduce((rows, write) => rows + (write.op === 'update' ? Object.keys(write.values).length : 1), 0) };
     })()) };
+  }
+
+  // ---- W-119: Archi's model tools from Nendo's Tools menu, each archi-online's own operation on the
+  // mirror, saved as one batch, so one revision that Undo takes back (manage.test.mjs measures the
+  // writes; this measures what the person does). A specialization made in the manager is offered by
+  // New in the tree and in the editor's palette, and filters the tree; a property key is renamed
+  // everywhere; Find and Replace replaces the rows chosen; a replace over 200 writes is refused whole.
+  {
+    const batchesNow = () => page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').map(request => request.p));
+    const said = async (wanted, what) => {
+      for (let waited = 0; waited <= 8000; waited += 50) {
+        const now = await status();
+        if (typeof wanted === 'string' ? now === wanted : wanted.test(now)) return now;
+        await page.waitForTimeout(50);
+      }
+      throw new Error(`${what}: the view says ${JSON.stringify(await status())}.`);
+    };
+    const tools = {};
+    const toolsMenu = await control('tools');
+    assert(toolsMenu?.items?.map(item => item.id).join() === 'find-replace,properties-manager,specializations',
+      `Nendo's row has no Tools menu with the three model tools: ${JSON.stringify(toolsMenu)}.`);
+
+    // The Specializations Manager: a new one saved is one batch of one create.
+    let before = (await batchesNow()).length;
+    await page.evaluate(() => window.broker.command('specializations', null, 'toolbar'));
+    await until(() => document.getElementById('specializations').open, null, 'Tools > Specializations did not open the manager.');
+    await view.click('#specializations-add');
+    await view.fill('#specializations-list tr:last-child input[data-spec="name"]', 'Gold Customer');
+    await view.selectOption('#specializations-list tr:last-child select[data-spec="conceptType"]', 'BusinessActor');
+    await view.click('#specializations button[value="save"]');
+    await said('Manage specializations.', 'The new specialization was not saved');
+    let sent = (await batchesNow()).slice(before);
+    const gold = (await records('ar.specialization')).find(record => record.values['ar.specialization.name'] === 'Gold Customer');
+    assert(gold && gold.values['ar.specialization.type'] === 'ar.type.r.BusinessActor' && sent.length === 1 && sent[0].writes.length === 1 && sent[0].writes[0].op === 'create',
+      `Saving one new specialization was not one batch making Gold Customer of Business Actor: ${JSON.stringify(sent).slice(0, 400)}.`);
+    // archi-online's own refusal, said in the dialog, which stays open and writes nothing.
+    before = (await batchesNow()).length;
+    await page.evaluate(() => window.broker.command('specializations', null, 'toolbar'));
+    await until(() => document.getElementById('specializations').open && document.querySelectorAll('#specializations-list tr').length === 1, null, 'The manager did not open on the one specialization.');
+    await view.click('#specializations-add');
+    await view.fill('#specializations-list tr:last-child input[data-spec="name"]', 'gold customer');
+    await view.selectOption('#specializations-list tr:last-child select[data-spec="conceptType"]', 'BusinessActor');
+    await view.click('#specializations button[value="save"]');
+    await until(() => document.getElementById('specializations').open && /Two specializations of Business Actor are named gold customer/.test(document.getElementById('specializations-error').textContent),
+      null, 'A second Gold Customer of Business Actor was not refused in the manager.');
+    await view.click('#specializations button[value="cancel"]');
+    assert((await batchesNow()).length === before, 'A refused specialization wrote something.');
+    tools.specialization = gold.recordId;
+
+    // New in the tree's row makes an element of it, named after it, and the tree says so and filters by it.
+    await page.waitForTimeout(200);
+    const offered = await control(`new-specialized:${gold.recordId}`);
+    assert(offered?.label === 'Gold Customer (Business Actor)', `New does not offer Gold Customer: ${JSON.stringify(offered)}.`);
+    await page.evaluate(id => window.broker.command(id, null, 'toolbar'), `new-specialized:${gold.recordId}`);
+    await said('Create Gold Customer.', 'New > Gold Customer did not make an element');
+    const goldElement = (await records('ar.concept')).find(record => record.values['ar.concept.specialization'] === gold.recordId);
+    assert(goldElement?.values['ar.concept.name'] === 'Gold Customer' && goldElement.values['ar.concept.type'] === 'ar.type.r.BusinessActor',
+      `New > Gold Customer did not make a Business Actor of that specialization: ${JSON.stringify(goldElement?.values)}.`);
+    const title = await view.evaluate(id => document.querySelector(`#tree .row[data-id="${id}"]`)?.title, goldElement.recordId);
+    assert(title === 'Business Actor, Gold Customer: Gold Customer', `The tree does not say the element's specialization: ${JSON.stringify(title)}.`);
+    const filter = await control('specialization');
+    assert(filter?.options?.some(option => option.value === gold.recordId), `Nendo's row has no filter by specialization: ${JSON.stringify(filter)}.`);
+    await page.evaluate(id => window.broker.command('specialization', id, 'toolbar'), gold.recordId);
+    await until(id => [...document.querySelectorAll('#tree .row')].filter(row => !row.hasAttribute('aria-expanded') && row.getAttribute('aria-level') !== '1').map(row => row.dataset.id).join() === id,
+      goldElement.recordId, 'The filter by Gold Customer does not leave only its element.');
+    await page.evaluate(() => window.broker.command('specialization', 'all', 'toolbar'));
+    tools.created = goldElement.recordId;
+
+    // The editor's palette is archi-online's: it offers the specialization, and an element placed
+    // from it is committed with it.
+    const pendingNow = () => control('commit');
+    const pendingIs = async (count, what) => {
+      for (let waited = 0; waited <= 8000; waited += 50) {
+        const commit = await pendingNow();
+        if (commit && (count === 0 ? commit.disabled === true : commit.label === `Commit ${count}`)) return;
+        await page.waitForTimeout(50);
+      }
+      throw new Error(`${what}: Commit says ${JSON.stringify(await pendingNow())}, not ${count} waiting.`);
+    };
+    await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
+    await page.evaluate(() => window.broker.command('edit', true, 'toolbar'));
+    await until(() => document.querySelectorAll('.archi-palette .pal-specialized-el').length > 0, null, 'The editor\u2019s palette does not offer the specialization.');
+    const paletteTitle = await view.evaluate(() => document.querySelector('.archi-palette .pal-specialized-el').closest('button')?.title);
+    assert(paletteTitle === 'Gold Customer (Business Actor specialization)', `The palette's specialized tool is not Gold Customer: ${JSON.stringify(paletteTitle)}.`);
+    const frame = await (await view.frameElement()).boundingBox();
+    const conceptsBefore = new Set((await records('ar.concept')).map(record => record.recordId));
+    await view.click('.archi-palette .pal-specialized-el');
+    const spot = await view.evaluate(() => { const r = document.querySelector('.archi-editor .view-svg').getBoundingClientRect(); return { x: r.right - 120, y: r.bottom - 80 }; });
+    await page.mouse.click(frame.x + spot.x, frame.y + spot.y);
+    await page.waitForTimeout(150);
+    await page.keyboard.press('Enter');
+    await pendingIs(2, 'A Gold Customer placed from the palette: the element and its box');
+    await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
+    await pendingIs(0, 'The Gold Customer committed');
+    const placed = (await records('ar.concept')).find(record => !conceptsBefore.has(record.recordId));
+    assert(placed?.values['ar.concept.specialization'] === gold.recordId && placed.values['ar.concept.type'] === 'ar.type.r.BusinessActor',
+      `The element placed from the specialized tool was not committed with Gold Customer: ${JSON.stringify(placed?.values)}.`);
+    await page.evaluate(() => window.broker.command('edit', false, 'toolbar'));
+    await until(() => !document.querySelector('.archi-editor'), null, 'Leaving Edit did not return to the drawn view.');
+    tools.palette = placed.recordId;
+
+    // The Properties Manager: the key `owner`, given to two elements in their properties, renamed
+    // everywhere is one batch of one update a property, which Undo and Redo take back and forth.
+    for (const name of ['Gold Customer', 'Client']) {
+      const concept = await byName('ar.concept', name);
+      await page.evaluate(text => window.broker.command('find', text, 'toolbar'), name);
+      await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), concept.recordId, `${name} is not in the tree under Find.`);
+      await view.click(`#tree .row[data-id="${concept.recordId}"]`);
+      await until(id => document.getElementById('properties').dataset.record === id, concept.recordId, `${name}'s properties did not open.`);
+      const at = await view.evaluate(() => document.querySelectorAll('#properties tr[data-index]').length);
+      await view.click('#properties [data-prop-action="add"]');
+      await view.fill(`#properties tr[data-index="${at}"] input[data-prop="value"]`, `${name} desk`);
+      await view.fill(`#properties tr[data-index="${at}"] input[data-prop="key"]`, 'owner');
+      await view.dispatchEvent(`#properties tr[data-index="${at}"] input[data-prop="key"]`, 'change');
+      await said(`Change the properties of ${name}.`, `The property on ${name} was not written`);
+    }
+    await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
+    await page.waitForTimeout(300);
+    const ownerProperties = (await records('ar.property')).filter(record => record.values['ar.property.key'] === 'owner');
+    assert(ownerProperties.length >= 2, `The file holds ${ownerProperties.length} properties keyed owner, not the two just given.`);
+    const beforeRename = { model: await modelNow(), batches: (await batchesNow()).length };
+    await page.evaluate(() => window.broker.command('properties-manager', null, 'toolbar'));
+    await until(() => document.getElementById('properties-manager').open && !!document.querySelector('#properties-keys [data-key="owner"]'), null, 'The Properties Manager does not list the key owner.');
+    await view.click('#properties-keys [data-key="owner"]');
+    await view.fill('#property-new-key', 'Owner');
+    await view.click('#property-rename');
+    await said('Rename the property key owner to Owner.', 'The key was not renamed');
+    sent = (await batchesNow()).slice(beforeRename.batches);
+    assert(sent.length === 1 && sent[0].writes.length === ownerProperties.length && sent[0].writes.every(write => write.op === 'update' && Object.keys(write.values).join() === 'ar.property.key'),
+      `Renaming the key was not one batch of one key update a property: ${JSON.stringify(sent).slice(0, 400)}.`);
+    assert((await records('ar.property')).filter(record => record.values['ar.property.key'] === 'Owner').length === ownerProperties.length, 'Not every owner property was renamed.');
+    await until(() => !!document.querySelector('#properties-keys [data-key="Owner"][aria-current="true"]'), null, 'The manager does not show the key renamed.');
+    await view.click('#properties-manager button[value="close"]');
+    const afterRename = await modelNow();
+    await step('undo');
+    assert(await modelNow() === beforeRename.model, 'Undo did not put the key back.');
+    await step('redo');
+    assert(await modelNow() === afterRename, 'Redo did not rename the key again.');
+    tools.renamed = ownerProperties.length;
+
+    // Find and Replace: archi-online's preview, the rows chosen replaced as one batch, one field each.
+    const findIn = async (find, replace, extra = {}) => {
+      await page.evaluate(() => window.broker.command('find-replace', null, 'toolbar'));
+      await until(() => document.getElementById('find-replace').open, null, 'Tools > Find and replace did not open.');
+      await view.fill('#find-text', find);
+      await view.fill('#replace-text', replace);
+      for (const [id, on] of Object.entries({ 'find-names': true, 'find-documentation': true, 'find-values': true, 'find-case': false, 'find-regex': false, ...extra })) await view.setChecked(`#${id}`, on);
+      await view.click('#find-preview');
+      await until(() => /places?;|Nothing matches/.test(document.getElementById('find-summary').textContent), null, `The preview of ${find} said nothing.`);
+      return view.evaluate(() => [...document.querySelectorAll('#find-rows tbody tr')].map(row => ({ before: row.querySelector('.before').textContent, after: row.querySelector('.after').textContent })));
+    };
+    const previewed = await findIn('Claim', 'Case', { 'find-case': true });
+    assert(previewed.length >= 10 && previewed.every(row => row.after === row.before.replaceAll('Claim', 'Case')), `The preview of Claim is not archi-online's: ${JSON.stringify(previewed).slice(0, 300)}.`);
+    // One row left out is left as it was.
+    await view.setChecked('#find-rows tbody tr:first-child input[type="checkbox"]', false);
+    const beforeReplace = { model: await modelNow(), batches: (await batchesNow()).length };
+    await view.click('#find-apply');
+    await said(`Replace Claim with Case in ${previewed.length - 1} places.`, 'The replace was not written');
+    sent = (await batchesNow()).slice(beforeReplace.batches);
+    const fieldsSet = sent[0]?.writes.reduce((n, write) => n + Object.keys(write.values ?? {}).length, 0);
+    assert(sent.length === 1 && fieldsSet === previewed.length - 1 && sent[0].writes.every(write => write.op === 'update'),
+      `Replacing ${previewed.length - 1} rows was not one batch setting one field a row: ${JSON.stringify(sent).slice(0, 400)}.`);
+    const left = await findIn('Claim', 'Case', { 'find-case': true });
+    assert(left.length === 1 && left[0].before === previewed[0].before, `The row left out was replaced, or others were left: ${JSON.stringify(left)}.`);
+    await view.click('#find-replace button[value="cancel"]');
+    const afterReplace = await modelNow();
+    await step('undo');
+    assert(await modelNow() === beforeReplace.model, 'Undo did not put back what was replaced.');
+    await step('redo');
+    assert(await modelNow() === afterReplace, 'Redo did not replace again.');
+    tools.replaced = previewed.length - 1;
+
+    // A replace over 200 record writes is refused before anything is written.
+    const everything = await findIn('^', 'x ', { 'find-regex': true, 'find-documentation': false, 'find-values': false });
+    assert(everything.length > 200, `Prefixing every name gave only ${everything.length} rows.`);
+    const beforeRefusal = { model: await modelNow(), batches: (await batchesNow()).length };
+    await view.click('#find-apply');
+    await said(/was refused: This change needs \d+ record writes; at most 200 can be saved together\. Nothing was saved\./, 'A replace over 200 writes was not refused');
+    assert(await modelNow() === beforeRefusal.model && (await batchesNow()).length === beforeRefusal.batches, 'A refused replace wrote something.');
+    tools.refused = everything.length;
+
+    // The dialogs take Nendo's colours in both themes.
+    tools.themes = {};
+    for (const mode of ['dark', 'light']) {
+      await page.evaluate(value => window.broker.pushTheme(value), mode);
+      await until(expected => document.documentElement.dataset.nendoTheme === expected, mode, `The ${mode} theme did not reach the page.`);
+      await page.evaluate(() => window.broker.command('properties-manager', null, 'toolbar'));
+      await until(() => document.getElementById('properties-manager').open, null, 'The Properties Manager did not open.');
+      tools.themes[mode] = await view.evaluate(() => {
+        const token = name => { const probe = document.createElement('div'); probe.style.color = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); document.body.append(probe); const value = getComputedStyle(probe).color; probe.remove(); return value; };
+        const dialog = getComputedStyle(document.getElementById('properties-manager'));
+        return { background: dialog.backgroundColor, ink: dialog.color, surface: token('--nendo-surface-raised'), inkToken: token('--nendo-ink') };
+      });
+      await view.click('#properties-keys [data-key="Owner"]');
+      await page.screenshot({ path: `archi-properties-${mode}.png` });
+      await view.click('#properties-manager button[value="close"]');
+      assert(tools.themes[mode].background === tools.themes[mode].surface && tools.themes[mode].ink === tools.themes[mode].inkToken,
+        `In the ${mode} theme the Properties Manager is not on Nendo's surface in Nendo's ink: ${JSON.stringify(tools.themes[mode])}.`);
+      await findIn('Case', 'Claim', { 'find-case': true });
+      await page.screenshot({ path: `archi-find-replace-${mode}.png` });
+      await view.click('#find-replace button[value="cancel"]');
+      await page.evaluate(() => window.broker.command('specializations', null, 'toolbar'));
+      await until(() => document.getElementById('specializations').open, null, 'The Specializations Manager did not open.');
+      await page.screenshot({ path: `archi-specializations-${mode}.png` });
+      await view.click('#specializations button[value="cancel"]');
+    }
+    results.tools = tools;
   }
 
   // ---- Both themes, measured: the page, the tree's selection and every native list take the theme's colours.

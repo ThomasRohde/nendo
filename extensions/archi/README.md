@@ -22,7 +22,9 @@ Properties. The file you were in does not change.
   relationship reads as its type and its two ends. A cyclic endpoint reference ends with
   `[cycle]`, so relationships can still be selected and their properties opened.
 - **Find** (Ctrl F) and **Layer**, in Nendo's row above the view, narrow the tree to what
-  matches and open the folders on the way to it.
+  matches and open the folders on the way to it. Where the model has specializations,
+  **Specialization** narrows it to the concepts given one (W-119), and a specialized concept's
+  row says so in its tooltip.
 - **The middle** shows what the selection is part of: a concept's relationships and the views
   it is on, a view's objects and connections and the elements on it. Each entry selects its
   record everywhere.
@@ -34,7 +36,9 @@ Properties. The file you were in does not change.
   for correction or retry. Overlapping reads keep the newest model and record versions.
 - **New** makes an element of any type (Nendo's Add does the same), a folder or a view. A new
   element goes to the selected folder if it is of its layer, otherwise to its layer's
-  top-level folder.
+  top-level folder. The dialog offers the specializations of the type chosen, and New, in the
+  row and in the tree's menu, offers each specialization of an element type as archi-online's
+  tree does: an element of its type, named after it and given it (W-119).
 - **Drag** a concept, a view or a folder onto a folder of the same layer's tree; a drop
   anywhere else is not offered. **F2** renames. **Delete** removes the selection with
   everything Archi removes with it (relationships, the diagram objects and connections that
@@ -152,6 +156,27 @@ Properties. The file you were in does not change.
   The drawing pans and zooms as archi-online's does, on white in both themes, and **SVG**,
   **PNG** and **Copy** export it as archi-online does. While a view is being edited it shows
   what the editor shows, waiting edits included.
+- **Tools** (W-119), in Nendo's row, holds Archi's three model tools, each archi-online's own
+  operation run on the file's records and saved as one revision, which Undo takes back:
+  - **Specializations…** is the Specializations Manager: a table of named kinds of an element
+    or relationship type. Add, rename, retype or remove them and **Save** them together. A name
+    is unique for its type; one given to concepts keeps its type; one removed is taken from
+    every concept that has it, and the dialog says how many. Images are not kept (F-208). A
+    concept is given one in its properties, from New, or from the editor's palette, which shows
+    each one under its type's layer.
+  - **Properties…** is the Properties Manager: every property key in the model, with how many
+    times and on how many objects it is used, and where. **Rename everywhere** gives a key a new
+    name on every property that has it; to a key already in use it asks first, and the
+    properties stay separate rows. **Delete the key…** takes every property with it away.
+    Choosing a place opens its object in the tree or on its view.
+  - **Find and replace…** searches names and text, documentation and property values, in the
+    whole model or in the open view, by case and as a regular expression if asked. **Preview**
+    lists every place a replace would change, before and after; untick what to leave, and
+    **Replace** changes the rest. A place changed since the preview refuses the whole replace.
+
+  A change over 200 record writes is refused whole before anything is written, as Generate View
+  For is, and while edits wait in the editor the tools ask for them to be committed or discarded
+  first, since they change the file itself.
 - **Archi file** (W-120), in Nendo's row. **Open .archimate…** reads an Archi model, plain
   XML or Archi's archive with images, into an empty model: make one with **File → New Archi
   model…** first, and in a file that already holds a model the dialog says so and offers
@@ -280,3 +305,23 @@ what it held after them; a commit of the editor's edits undone and redone; and a
 record somebody else changed meanwhile refused with *‹name› has changed since. Nothing was
 changed.* and no write. `tools/archi/model.test.mjs` checks each gesture's undo and redo over
 Archisurance, the refusals, and a chain walked back across a delete and forward again.
+
+The model tools (W-119) are measured twice. `tools/archi/manage.test.mjs` runs each on
+Archisurance with two specializations and properties on an element, a view, a folder, a top-level
+folder, a group and the model, as the workbench runs it: the mirror, archi-online's operation, `writesFor`, a file that answers `records.batch` as
+Nendo does, and the records read back, which must be the model archi-online made, then undone and
+redone to the byte. A new specialization is one create naming its type's version; a rename one
+update; one in use removed is the concept's update before the delete. A key renamed is one update
+of each property that has it and nothing else; one deleted in the middle of a list takes only
+those; a replace sets one field a row it changes, on the model, a top-level folder and a group
+too, and refuses a row changed since its preview; a property copied with its element is a new
+record of the copy. The lane, in Edge, saves a specialization from Tools, has the manager refuse
+a second of the same name, makes an element of it from New, finds the tooltip and the filter,
+places one from the editor's palette and commits it with it; renames the key `owner` on two
+elements as one batch, undone and redone; replaces *Claim* with *Case* in 10 of 11 places as one
+batch of one field a place, undone and redone; has a replace of 345 places refused with
+nothing written; and measures the Properties Manager on Nendo's surface in Nendo's ink in both
+themes. Falsified by leaving properties and then specializations out of `writesFor`
+(*The model read back is not the model archi-online made.*), and by saving the tools' changes
+without the 200-write bound (*A replace over 200 writes was not refused: the view says "Replace ^
+with x  in 345 places."*).

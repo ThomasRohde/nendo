@@ -41,10 +41,11 @@ test('every Archisurance view has the bounds and routes archi-online gives it, o
 // exact, or opening a view and committing nothing would write.
 const storedById = new Map(Object.values(records).flat().map(record => [record.recordId, record]));
 
-test('the mirror turned back into records is the records: every owned field of all 778, and no writes', () => {
+// With W-119 the model and the nine top-level folders are planned too: 778 and those ten.
+test('the mirror turned back into records is the records: every owned field of all 788, and no writes', () => {
   const mirror = buildMirror(records);
   const planned = toRecords(mirror, storedById);
-  assert.equal(planned.size, 778);
+  assert.equal(planned.size, 788);
   const differ = [];
   for (const [id, { values }] of planned) {
     for (const [field, value] of Object.entries(values)) {

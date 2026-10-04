@@ -25,7 +25,7 @@ const APPEARANCE_KEY = 'archi-appearance';
 function appearanceKept() { try { return localStorage.getItem(APPEARANCE_KEY) === 'shown'; } catch { return false; } }
 
 const state = {
-  model: null, selected: null, expanded: new Set(), modelOpen: true, filter: { text: '', layer: '' },
+  model: null, selected: null, expanded: new Set(), modelOpen: true, filter: { text: '', layer: '', specialization: '' },
   nativeChrome: false, renaming: null, draftProperties: null, readOnly: false, loaded: false,
   sets: null, openView: null, diagramSelection: [], zoom: 1, editing: false, pending: 0, transparent: false, styleShown: appearanceKept(),
   validator: { open: false, issues: null, of: null, current: null },
@@ -261,9 +261,9 @@ function renderTree() {
     return `<li class="row" role="treeitem" data-id="${escape(row.id)}" aria-level="${row.depth + 1}" style="--depth:${row.depth}"
       aria-selected="${row.id === inTree}" tabindex="${row.id === active ? 0 : -1}"
       ${openable && row.children > 0 ? `aria-expanded="${row.expanded}"` : ''} ${draggable ? 'draggable="true"' : ''}
-      title="${escape(row.typeName ? `${row.typeName}: ${row.label}` : row.label)}"><span class="twisty" aria-hidden="true">${twisty}</span>${glyph(row)}${name}</li>`;
+      title="${escape(row.typeName ? `${row.typeName}${row.specialization ? `, ${row.specialization}` : ''}: ${row.label}` : row.label)}"><span class="twisty" aria-hidden="true">${twisty}</span>${glyph(row)}${name}</li>`;
   }).join('');
-  $('tree-empty').hidden = list.length > 1 || !state.filter.text && !state.filter.layer;
+  $('tree-empty').hidden = list.length > 1 || !M.filtering(state.filter);
   $('tree-empty').textContent = 'Nothing in the model matches.';
   const renaming = tree.querySelector('input.rename');
   if (renaming) { renaming.focus(); renaming.select(); return; }
@@ -287,8 +287,8 @@ function select(id, { reveal = true, focus = false, fromDiagram = null } = {}) {
     state.modelOpen = true;
     const record = state.model.records.get(id);
     // A record the filter hides is shown by clearing the filter, as the new element Add made is.
-    if ((state.filter.text || state.filter.layer) && record.entityId !== M.E.model && !M.matches(state.model, record, state.filter)) {
-      state.filter = { text: '', layer: '' };
+    if (M.filtering(state.filter) && record.entityId !== M.E.model && !M.matches(state.model, record, state.filter)) {
+      state.filter = { text: '', layer: '', specialization: '' };
       $('own-find').value = '';
       $('own-layer').value = '';
     }
@@ -653,6 +653,11 @@ function newElement() {
   const hint = () => {
     const probe = M.createElement(state.model, $('new-element-type').value, selectedFolder());
     $('new-element-folder').textContent = `It goes in ${M.folderPath(state.model, probe.values['ar.concept.folder'])}.`;
+    // The specializations of the type chosen (W-119), or none to choose from.
+    const own = M.elementSpecializations(state.model).filter(({ type }) => type.values['ar.type.key'] === $('new-element-type').value);
+    $('new-element-specialization').innerHTML = `<option value="">None</option>${own.map(({ specialization }) =>
+      `<option value="${escape(specialization.recordId)}">${escape(specialization.values['ar.specialization.name'])}</option>`).join('')}`;
+    $('new-element-specialization').closest('label').hidden = own.length === 0;
   };
   $('new-element-type').onchange = hint;
   hint();
@@ -665,9 +670,11 @@ $('new-element').addEventListener('close', () => {
   if ($('new-element').returnValue !== 'create') return;
   lastType = $('new-element-type').value;
   const type = lastType, name = $('new-element-name').value.trim() || undefined, folder = selectedFolder();
+  const specialization = $('new-element-specialization').value || null;
   let created = null;
-  const typeName = [...state.model.types.values()].find(candidate => candidate.values['ar.type.key'] === type)?.values['ar.type.name'] ?? type;
-  write(() => [created = M.createElement(state.model, type, folder, name)], `Create ${name ?? typeName}`)
+  const typeName = state.model.records.get(specialization)?.values['ar.specialization.name']
+    ?? [...state.model.types.values()].find(candidate => candidate.values['ar.type.key'] === type)?.values['ar.type.name'] ?? type;
+  write(() => [created = M.createElement(state.model, type, folder, name, specialization)], `Create ${name ?? typeName}`)
     .then(() => { if (created) select(created.recordId, { focus: true }); });
 });
 
@@ -730,6 +737,7 @@ function declareToolbar() {
     { kind: 'search', id: 'find', label: 'Find in the model', placeholder: 'Find…', value: state.filter.text.slice(0, 256), keys: 'Ctrl+F' },
     { kind: 'select', id: 'layer', label: 'Layer', value: state.filter.layer || 'all',
       options: [{ value: 'all', label: 'All layers' }, ...M.LAYERS.map(layer => ({ value: layer, label: layer }))] },
+    ...specializationFilter(),
     { kind: 'separator' },
     { kind: 'text', text: summary() },
     { kind: 'menu', id: 'new', label: 'New', icon: 'plus', items: [
@@ -737,6 +745,7 @@ function declareToolbar() {
       { id: 'new-folder', label: 'Folder', detail: 'Inside the selected folder' },
       { id: 'new-view', label: 'View', detail: 'In the Views folder' },
       { id: 'generate-view', label: 'View for the selected elements…', detail: 'Generate View For: the elements and those related to them' },
+      ...specializedItems(40),
     ] },
     { kind: 'button', id: 'rename', label: 'Rename', icon: 'edit', iconOnly: true, keys: 'F2' },
     { kind: 'button', id: 'delete', label: 'Delete…', icon: 'trash', iconOnly: true },
@@ -746,6 +755,12 @@ function declareToolbar() {
       { kind: 'separator' },
       { id: 'save-archimate', label: 'Save as .archimate', detail: 'Download the model for Archi' },
       { id: 'save-exchange', label: 'Save as Exchange XML', detail: 'Download it in The Open Group’s format, checked against Archi 5.9’s schemas' },
+    ] },
+    // Archi's model tools (W-119): each change is one revision, which Undo takes back.
+    { kind: 'menu', id: 'tools', label: 'Tools', items: [
+      { id: 'find-replace', label: 'Find and replace…', detail: 'In names, text, documentation and property values', disabled: state.readOnly },
+      { id: 'properties-manager', label: 'Properties…', detail: 'Rename or delete a property key everywhere it is used', disabled: state.readOnly },
+      { id: 'specializations', label: 'Specializations…', detail: 'Named kinds of an element or relationship type', disabled: state.readOnly },
     ] },
     ...(state.openView && !state.readOnly && canvasModule?.createEditor
       ? [{ kind: 'toggle', id: 'edit', label: 'Edit the view', icon: 'edit', pressed: state.editing, keys: 'Ctrl+E' }] : []),
@@ -856,6 +871,10 @@ function runCommand({ id, value }) {
   switch (id) {
     case 'find': setFilter({ text: String(value ?? '') }); break;
     case 'layer': setFilter({ layer: value === 'all' ? '' : String(value ?? '') }); break;
+    case 'specialization': setFilter({ specialization: value === 'all' ? '' : String(value ?? '') }); break;
+    case 'specializations': showSpecializations(); break;
+    case 'properties-manager': showPropertiesManager(); break;
+    case 'find-replace': showFindReplace(); break;
     case 'new-element': newElement(); break;
     case 'new-folder': newFolder(); break;
     case 'new-view': newView(); break;
@@ -891,7 +910,9 @@ function runCommand({ id, value }) {
       editor?.showStyle?.(state.styleShown);
       declareToolbar();
       break;
-    default: if (canvasModule?.ARRANGE_COMMANDS?.includes(id)) arrange(id);
+    default:
+      if (id.startsWith(SPECIALIZED)) newSpecialized(id.slice(SPECIALIZED.length));
+      else if (canvasModule?.ARRANGE_COMMANDS?.includes(id)) arrange(id);
   }
 }
 
@@ -1631,6 +1652,8 @@ function render() {
   declarePlace();
   markStale();
   refreshVisualiser();
+  // The Properties Manager open over the workbench follows the file, as the tree does (W-119).
+  if (canvasModule && $('properties-manager').open) renderPropertiesManager();
 }
 
 // ---------------------------------------------------------------- Back and Forward
@@ -1733,9 +1756,12 @@ function wire() {
       { id: 'rename', label: 'Rename', keys: 'F2', disabled: state.readOnly || record.entityId === M.E.type },
       { kind: 'separator' },
       { id: 'new-element', label: 'New element…', disabled: state.readOnly },
+      ...specializedItems(20).map(item => ({ ...item, disabled: state.readOnly })),
       { id: 'new-folder', label: 'New folder', disabled: state.readOnly },
       { id: 'new-view', label: 'New view', disabled: state.readOnly },
       { id: 'generate-view', label: 'Generate view for…', disabled: state.readOnly || record.values['ar.concept.category'] !== 'Element' },
+      { kind: 'separator' },
+      { id: 'specializations', label: 'Specializations…', disabled: state.readOnly },
       { kind: 'separator' },
       { id: 'open', label: 'Open record page', icon: 'external' },
       { id: 'delete', label: 'Delete…', icon: 'trash', danger: true, disabled: state.readOnly || !deletable },
@@ -1793,6 +1819,10 @@ function wire() {
   $('own-new-folder').addEventListener('click', newFolder);
   $('own-new-view').addEventListener('click', newView);
   $('own-delete').addEventListener('click', remove);
+  $('own-find-replace').addEventListener('click', () => showFindReplace());
+  $('own-properties').addEventListener('click', () => showPropertiesManager());
+  $('own-specializations').addEventListener('click', () => showSpecializations());
+  wireTools();
   $('own-validator').addEventListener('click', () => showValidator(!state.validator.open));
   $('own-visualiser').addEventListener('click', () => showVisualiser(!state.visualiser.open));
   $('own-open-archimate').addEventListener('click', () => showOpenArchimate());
@@ -1856,6 +1886,353 @@ function wire() {
   $('visualiser-export-svg').addEventListener('click', () => exportVisualiser('svg'));
   $('visualiser-export-png').addEventListener('click', () => exportVisualiser('png'));
   $('visualiser-copy').addEventListener('click', () => exportVisualiser('copy'));
+}
+
+// ---------------------------------------------------------------- Archi's model tools (W-119)
+
+/*
+ * The Specializations Manager, the Properties Manager and Find and Replace are archi-online's own
+ * operations, run on the mirror of the file (canvas.js, manage.ts). What one changes is written as
+ * one batch, so it is one revision, which Undo takes back; a change over 200 record writes is
+ * refused whole before anything is written, as Generate View For is. They change the file itself,
+ * so a view's edits waiting to be committed must be committed or discarded first.
+ */
+const SPECIALIZED = 'new-specialized:';
+
+/** New of each specialization of an element type, as archi-online's tree offers them, up to `most`. */
+function specializedItems(most) {
+  const all = state.model ? M.elementSpecializations(state.model) : [];
+  if (all.length === 0) return [];
+  return [{ kind: 'separator' }, ...all.slice(0, most).map(({ specialization, type }) => ({ id: `${SPECIALIZED}${specialization.recordId}`,
+    label: `${specialization.values['ar.specialization.name'] || '(unnamed)'} (${type.values['ar.type.name']})`.slice(0, 80),
+    detail: `A new ${type.values['ar.type.name']} with this specialization` }))];
+}
+
+/** The tree's filter by specialization, where the model has any. */
+function specializationFilter() {
+  const all = state.model?.of(M.E.specialization) ?? [];
+  if (all.length === 0) return [];
+  const options = all.map(s => ({ value: s.recordId, label: `${s.values['ar.specialization.name'] || '(unnamed)'} (${state.model.records.get(s.values['ar.specialization.type'])?.values['ar.type.name'] ?? '?'})`.slice(0, 80) }))
+    .sort((a, b) => a.label.localeCompare(b.label)).slice(0, 63);
+  const value = options.some(option => option.value === state.filter.specialization) ? state.filter.specialization : 'all';
+  return [{ kind: 'select', id: 'specialization', label: 'Specialization', value, options: [{ value: 'all', label: 'All specializations' }, ...options] }];
+}
+
+function newSpecialized(specializationId) {
+  const specialization = state.model?.records.get(specializationId);
+  const type = specialization && state.model.records.get(specialization.values['ar.specialization.type']);
+  if (!type || state.readOnly) return;
+  let created = null;
+  write(() => [created = M.createElement(state.model, type.values['ar.type.key'], selectedFolder(), undefined, specializationId)],
+    `Create ${specialization.values['ar.specialization.name']}`).then(() => { if (created) select(created.recordId, { focus: true }); });
+}
+
+/** Why a tool cannot change the file now, or null. */
+function toolRefusal() {
+  if (state.readOnly) return 'This file is open read-only.';
+  if (!canvasModule?.findReplacePreview) return 'The model tools have not loaded yet.';
+  if (editor && state.pending > 0) return 'Commit or discard the edits waiting on the view first: this changes the file itself.';
+  return null;
+}
+
+/**
+ * Writes what a tool made of the mirror, planned when its turn to write comes: `change` takes the
+ * mirror of the records as they then stand and answers the model after. Answers whether it saved.
+ */
+function writeTool(change, label) {
+  return write(() => {
+    const base = canvasModule.buildMirror(state.sets);
+    return canvasModule.writesFor(state.sets, base, change(base));
+  }, label, { atomic: true });
+}
+
+/** archi-online's sentences say "profile"; the workbench says what Archi says. */
+function specializationSentence(error) {
+  const text = describe(error);
+  const typeName = key => [...state.model.types.values()].find(type => type.values['ar.type.key'] === key)?.values['ar.type.name'] ?? key;
+  let match;
+  if (/Profile name must not be empty/.test(text)) return 'Every specialization needs a name.';
+  if ((match = /must be unique: (.*) \((.*)\)$/.exec(text))) return `Two specializations of ${typeName(match[2])} are named ${match[1]}. Give one another name.`;
+  if ((match = /concept type of used profile: (.*)$/.exec(text))) return `${match[1]} is given to concepts, so its type cannot change. Take it from them first.`;
+  return text;
+}
+
+/** What opening a tool's row shows: the object in the tree, or on its view. */
+function openNavigation(navigation) {
+  const records = state.model.records;
+  if (navigation.kind === 'view') {
+    if (!records.has(navigation.viewId)) return;
+    state.openView = navigation.viewId;
+    const concept = records.get(navigation.objectId)?.values['ar.item.concept'];
+    if (concept && records.has(concept)) select(concept, { fromDiagram: navigation.objectId });
+    else if (records.has(navigation.objectId)) select(navigation.objectId, { fromDiagram: navigation.objectId });
+    else select(navigation.viewId);
+    return;
+  }
+  if (records.has(navigation.objectId)) select(navigation.objectId, { focus: true });
+}
+
+function toolError(id, message) {
+  $(id).textContent = message ?? '';
+  $(id).hidden = !message;
+}
+
+// The Specializations Manager: archi-online's table, saved as one change.
+const specs = { rows: [], known: new Set() };
+
+async function showSpecializations() {
+  if (!canvasModule) await canvasReady;
+  const refusal = toolRefusal();
+  if (refusal) { setStatus(refusal, true); return; }
+  const mirror = canvasModule.buildMirror(state.sets);
+  specs.rows = canvasModule.specializationsOf(mirror).map(row => ({ ...row }));
+  specs.known = new Set(specs.rows.map(row => row.id));
+  toolError('specializations-error', null);
+  renderSpecializations();
+  $('specializations').returnValue = '';
+  $('specializations').showModal();
+}
+
+function typeOptions(selected) {
+  const types = [...state.model.types.values()];
+  return M.LAYERS.map(layer => {
+    const members = types.filter(t => (layer === 'Relationship' ? t.values['ar.type.category'] === 'Relationship' : t.values['ar.type.layer'] === layer && t.values['ar.type.category'] === 'Element'))
+      .sort((a, b) => a.values['ar.type.name'].localeCompare(b.values['ar.type.name']));
+    return members.length ? `<optgroup label="${escape(layer === 'Relationship' ? 'Relationships' : layer)}">${members.map(t =>
+      `<option value="${escape(t.values['ar.type.key'])}" ${t.values['ar.type.key'] === selected ? 'selected' : ''}>${escape(t.values['ar.type.name'])}</option>`).join('')}</optgroup>` : '';
+  }).join('');
+}
+
+function renderSpecializations() {
+  const body = $('specializations-list');
+  body.innerHTML = specs.rows.map((row, index) => `<tr data-index="${index}">
+    <td><input data-spec="name" value="${escape(row.name)}" aria-label="Name ${index + 1}" maxlength="400"></td>
+    <td><select data-spec="conceptType" aria-label="Concept type ${index + 1}" ${row.used > 0 ? 'disabled title="Given to concepts, so its type stays"' : ''}>${typeOptions(row.conceptType)}</select></td>
+    <td class="count">${row.used}</td>
+    <td class="row-actions"><button type="button" data-spec-action="remove" aria-label="Remove ${escape(row.name)}">×</button></td></tr>`).join('');
+  $('specializations-empty').hidden = specs.rows.length > 0;
+  const taken = specs.rows.length < specs.known.size ? [...specs.known].filter(id => !specs.rows.some(row => row.id === id)) : [];
+  const mirror = canvasModule.buildMirror(state.sets);
+  const losing = taken.reduce((n, id) => n + (canvasModule.specializationsOf(mirror).find(s => s.id === id)?.used ?? 0), 0);
+  $('specializations-note').textContent = losing > 0 ? `Saving takes ${losing === 1 ? 'a specialization from 1 concept' : `specializations from ${losing} concepts`}.` : '';
+}
+
+function saveSpecializations() {
+  const list = specs.rows.map(row => ({ id: row.id, name: row.name, conceptType: row.conceptType }));
+  const known = new Set(specs.known);
+  const change = base => {
+    // Made elsewhere since the manager opened: kept rather than taken away unseen.
+    if (Object.keys(base.profiles).some(id => !known.has(id))) throw new Error('The specializations changed since the manager opened. Open it again.');
+    return canvasModule.manageSpecializations(base, list);
+  };
+  try { change(canvasModule.buildMirror(state.sets)); } catch (error) { toolError('specializations-error', specializationSentence(error)); return false; }
+  writeTool(change, 'Manage specializations');
+  return true;
+}
+
+// The Properties Manager: every key in the model, renamed or deleted everywhere.
+const props = { key: null, search: '', confirmDelete: false };
+
+async function showPropertiesManager() {
+  if (!canvasModule) await canvasReady;
+  const refusal = toolRefusal();
+  if (refusal) { setStatus(refusal, true); return; }
+  props.key = null; props.confirmDelete = false;
+  $('properties-search').value = props.search;
+  toolError('properties-error', null);
+  renderPropertiesManager();
+  $('properties-manager').showModal();
+}
+
+function renderPropertiesManager() {
+  const keys = canvasModule.propertyKeys(canvasModule.buildMirror(state.sets));
+  const search = props.search.toLocaleLowerCase();
+  const shown = keys.filter(usage => !search || usage.displayKey.toLocaleLowerCase().includes(search));
+  if (props.key !== null && !keys.some(usage => usage.key === props.key)) props.key = null;
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  $('properties-summary').textContent = `${plural(keys.length, 'key', 'keys')} in the model`;
+  $('properties-keys').innerHTML = shown.map(usage => `<li><button type="button" data-key="${escape(usage.key)}" ${usage.key === props.key ? 'aria-current="true"' : ''}>
+    <span class="message">${escape(usage.displayKey)}</span><span class="where">${plural(usage.occurrenceCount, 'use', 'uses')} on ${plural(usage.ownerCount, 'object', 'objects')}</span></button></li>`).join('')
+    || `<li class="quiet">${keys.length ? 'No key matches.' : 'The model has no properties.'}</li>`;
+  const usage = keys.find(entry => entry.key === props.key);
+  const detail = $('properties-detail');
+  if (!usage) { detail.innerHTML = '<p class="quiet">Choose a key to rename or delete it everywhere it is used.</p>'; return; }
+  const editing = detail.querySelector('#property-new-key');
+  const typed = editing && editing.dataset.key === usage.key ? editing.value : usage.key;
+  detail.innerHTML = `<h3>${escape(usage.displayKey)}</h3>
+    <label class="field">Rename to<input id="property-new-key" data-key="${escape(usage.key)}" value="${escape(typed)}" maxlength="400"></label>
+    <label class="field check" id="property-collision" hidden><input type="checkbox" id="property-collision-ok"> <span></span></label>
+    <div class="pane-actions"><button type="button" id="property-rename" class="primary">Rename everywhere</button>
+      ${props.confirmDelete
+        ? `<button type="button" id="property-delete-confirm" class="danger">Delete ${plural(usage.occurrenceCount, 'property', 'properties')}</button><button type="button" id="property-delete-cancel">Keep them</button>`
+        : '<button type="button" id="property-delete">Delete the key…</button>'}</div>
+    <h3>Where it is used (${usage.occurrenceCount})</h3>
+    <ul class="links manage-list">${usage.occurrences.map((occurrence, index) => `<li><button type="button" data-occurrence="${index}">
+      <span class="message">${escape(occurrence.location)}</span><span class="where">${escape(occurrence.ownerType)} · ${escape(occurrence.value || '(no value)')}</span></button></li>`).join('')}</ul>`;
+}
+
+function renamePropertyKey() {
+  const key = props.key, newKey = $('property-new-key').value;
+  const acknowledged = $('property-collision-ok').checked;
+  let answer;
+  try { answer = canvasModule.renamePropertyKeyIn(canvasModule.buildMirror(state.sets), key, newKey, acknowledged); } catch (error) { toolError('properties-error', describe(error)); return; }
+  if (answer.collision && !acknowledged) {
+    $('property-collision').hidden = false;
+    $('property-collision').querySelector('span').textContent = `${newKey} is a key already. Rename anyway: the properties stay separate rows.`;
+    toolError('properties-error', null);
+    return;
+  }
+  toolError('properties-error', null);
+  writeTool(base => {
+    const result = canvasModule.renamePropertyKeyIn(base, key, newKey, acknowledged);
+    if (result.collision && !acknowledged) throw new Error(`${newKey} has become a key in use since. Rename again to acknowledge it.`);
+    return result.model;
+  }, `Rename the property key ${key} to ${newKey}`).then(saved => {
+    if (saved) props.key = newKey; else toolError('properties-error', $('status').textContent);
+    if ($('properties-manager').open) renderPropertiesManager();
+  });
+}
+
+function deletePropertyKey() {
+  const key = props.key;
+  props.confirmDelete = false;
+  writeTool(base => canvasModule.deletePropertyKeyIn(base, key).model, `Delete the property key ${key}`).then(saved => {
+    if (!saved) toolError('properties-error', $('status').textContent);
+    if ($('properties-manager').open) renderPropertiesManager();
+  });
+}
+
+// Find and Replace: archi-online's preview, then the rows chosen replaced as one change.
+const finding = { options: null, viewId: null, rows: [] };
+
+async function showFindReplace() {
+  if (!canvasModule) await canvasReady;
+  const refusal = toolRefusal();
+  if (refusal) { setStatus(refusal, true); return; }
+  $('find-scope').querySelector('[value="active-view"]').disabled = !state.openView;
+  if (!state.openView) $('find-scope').value = 'model';
+  finding.rows = []; finding.options = null;
+  renderFindRows();
+  toolError('find-error', null);
+  $('find-replace').returnValue = '';
+  $('find-replace').showModal();
+  $('find-text').focus();
+}
+
+function findOptions() {
+  return { find: $('find-text').value, replace: $('replace-text').value, scope: $('find-scope').value,
+    searchName: $('find-names').checked, searchDocumentation: $('find-documentation').checked, searchPropertyValues: $('find-values').checked,
+    matchCase: $('find-case').checked, useRegex: $('find-regex').checked };
+}
+
+function previewFind() {
+  const options = findOptions();
+  const viewId = options.scope === 'active-view' ? state.openView : null;
+  const preview = canvasModule.findReplacePreview(canvasModule.buildMirror(state.sets), options, viewId);
+  finding.options = options; finding.viewId = viewId;
+  finding.rows = preview.rows.map(row => ({ ...row, chosen: true }));
+  toolError('find-error', preview.error);
+  renderFindRows();
+}
+
+function renderFindRows() {
+  const rows = finding.rows;
+  const chosen = rows.filter(row => row.chosen).length;
+  const total = rows.reduce((n, row) => n + row.count, 0);
+  $('find-summary').textContent = finding.options === null ? '' : rows.length === 0 ? 'Nothing matches.'
+    : `${total} ${total === 1 ? 'match' : 'matches'} in ${rows.length} ${rows.length === 1 ? 'place' : 'places'}; ${chosen} chosen`;
+  $('find-apply').disabled = chosen === 0;
+  $('find-rows').innerHTML = rows.length === 0 ? '' : `<table class="manage"><thead><tr><th><input type="checkbox" id="find-all" aria-label="Choose every row" ${chosen === rows.length ? 'checked' : ''}></th>
+    <th>Object</th><th>Field</th><th>Now</th><th>After</th></tr></thead><tbody>${rows.map((row, index) => `<tr data-index="${index}">
+    <td><input type="checkbox" data-find-row="${index}" aria-label="Replace in ${escape(row.location)}" ${row.chosen ? 'checked' : ''}></td>
+    <td><button type="button" class="value" data-find-open="${index}">${escape(row.ownerType)}</button><span class="where">${escape(row.location)}</span></td>
+    <td>${escape(row.field)}</td><td class="before">${escape(row.before)}</td><td class="after">${escape(row.after)}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function applyFind() {
+  const options = finding.options, viewId = finding.viewId;
+  const chosen = finding.rows.filter(row => row.chosen).map(row => ({ id: row.id, before: row.before, after: row.after }));
+  if (!options || chosen.length === 0) return false;
+  try { canvasModule.findReplaceApply(canvasModule.buildMirror(state.sets), options, chosen, viewId); } catch (error) { toolError('find-error', describe(error)); return false; }
+  const places = chosen.length === 1 ? '1 place' : `${chosen.length} places`;
+  writeTool(base => canvasModule.findReplaceApply(base, options, chosen, viewId).model, `Replace ${options.find} with ${options.replace} in ${places}`.slice(0, 200));
+  return true;
+}
+
+function wireTools() {
+  $('specializations-add').addEventListener('click', () => {
+    specs.rows.push({ id: `ar-${M.newArchiId()}`, name: '', conceptType: lastType, used: 0 });
+    renderSpecializations();
+    $('specializations-list').querySelector(`tr[data-index="${specs.rows.length - 1}"] input`)?.focus();
+  });
+  $('specializations-list').addEventListener('input', event => {
+    const index = Number(event.target.closest('tr')?.dataset.index);
+    if (event.target.dataset.spec && specs.rows[index]) specs.rows[index][event.target.dataset.spec] = event.target.value;
+  });
+  $('specializations-list').addEventListener('change', event => {
+    const index = Number(event.target.closest('tr')?.dataset.index);
+    if (event.target.dataset.spec && specs.rows[index]) specs.rows[index][event.target.dataset.spec] = event.target.value;
+  });
+  $('specializations-list').addEventListener('click', event => {
+    const button = event.target.closest('[data-spec-action="remove"]');
+    if (!button) return;
+    specs.rows.splice(Number(button.closest('tr').dataset.index), 1);
+    renderSpecializations();
+  });
+  $('specializations-form').addEventListener('submit', event => {
+    if (event.submitter?.value !== 'save') return;
+    if (!saveSpecializations()) event.preventDefault();
+  });
+
+  $('properties-search').addEventListener('input', event => { props.search = event.target.value; renderPropertiesManager(); });
+  $('properties-keys').addEventListener('click', event => {
+    const button = event.target.closest('[data-key]');
+    if (!button) return;
+    props.key = button.dataset.key; props.confirmDelete = false;
+    toolError('properties-error', null);
+    renderPropertiesManager();
+  });
+  $('properties-detail').addEventListener('click', event => {
+    const target = event.target.closest('button');
+    if (!target) return;
+    if (target.id === 'property-rename') renamePropertyKey();
+    else if (target.id === 'property-delete') { props.confirmDelete = true; renderPropertiesManager(); }
+    else if (target.id === 'property-delete-cancel') { props.confirmDelete = false; renderPropertiesManager(); }
+    else if (target.id === 'property-delete-confirm') deletePropertyKey();
+    else if (target.dataset.occurrence !== undefined) {
+      const usage = canvasModule.propertyKeys(canvasModule.buildMirror(state.sets)).find(entry => entry.key === props.key);
+      const occurrence = usage?.occurrences[Number(target.dataset.occurrence)];
+      if (!occurrence) return;
+      $('properties-manager').close();
+      openNavigation(occurrence.navigation);
+    }
+  });
+  $('properties-detail').addEventListener('keydown', event => {
+    if (event.key === 'Enter' && event.target.id === 'property-new-key') { event.preventDefault(); renamePropertyKey(); }
+  });
+
+  $('find-preview').addEventListener('click', () => previewFind());
+  $('find-text').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); previewFind(); } });
+  $('find-rows').addEventListener('change', event => {
+    if (event.target.id === 'find-all') for (const row of finding.rows) row.chosen = event.target.checked;
+    else if (event.target.dataset.findRow !== undefined) finding.rows[Number(event.target.dataset.findRow)].chosen = event.target.checked;
+    renderFindRows();
+  });
+  $('find-rows').addEventListener('click', event => {
+    const button = event.target.closest('[data-find-open]');
+    if (!button) return;
+    const row = finding.rows[Number(button.dataset.findOpen)];
+    $('find-replace').close();
+    openNavigation(row.navigation);
+  });
+  // A change to what is searched leaves the preview behind: Replace waits for a new one.
+  for (const id of ['find-text', 'replace-text', 'find-scope', 'find-names', 'find-documentation', 'find-values', 'find-case', 'find-regex']) {
+    $(id).addEventListener(id.endsWith('text') ? 'input' : 'change', () => { if (finding.options) { finding.options = null; finding.rows = []; renderFindRows(); } });
+  }
+  $('find-replace-form').addEventListener('submit', event => {
+    if (event.submitter?.value !== 'replace') return;
+    if (!applyFind()) event.preventDefault();
+  });
 }
 
 function openRecord() {
