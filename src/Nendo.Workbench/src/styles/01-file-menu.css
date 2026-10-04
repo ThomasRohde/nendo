@@ -65,7 +65,7 @@
 .recent-file span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recent-file span:last-child { color: var(--muted); font-size: 12px; }
 .recent-notice { font-size: 12px; }
-.recovery-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .8fr); gap: 24px; margin-top: 24px; }
+.recovery-layout { display: grid; gap: 24px; margin-top: 24px; }
 .recovery-findings, .recovery-action-list { border: 1px solid var(--line); border-radius: var(--radius-panel); padding: 22px; }
 .recovery-layout h2 { margin: 0 0 16px; }
 .recovery-findings p { max-width: 68ch; overflow-wrap: anywhere; line-height: 1.55; }
