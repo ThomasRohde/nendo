@@ -239,16 +239,9 @@ textarea:focus {
 .health-symbol {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-control);
   color: var(--healthy);
   background: color-mix(in srgb, var(--healthy) 9%, var(--surface));
   font-weight: 800;
-}
-
-.health-grid h2 {
-  margin: 16px 0 6px;
 }
 
 .health-grid p {
@@ -260,7 +253,6 @@ textarea:focus {
   display: grid;
   place-items: start center;
   min-height: 100%;
-  padding: 28px;
   background: var(--surface-soft);
 }
 
@@ -268,14 +260,6 @@ textarea:focus {
   width: min(640px, 100%);
   background: var(--surface-raised);
   box-shadow: var(--shadow);
-}
-
-.record-form-card > header {
-  padding: 20px 20px 4px;
-}
-
-.record-form-card h2 {
-  margin: 12px 0 4px;
 }
 
 .record-form-card p {
@@ -302,10 +286,8 @@ textarea:focus {
   }
 
   .rail {
-    display: grid;
     grid-template-columns: auto 1fr auto;
     min-height: auto;
-    padding: 10px 14px;
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
@@ -350,7 +332,6 @@ textarea:focus {
 
   .workspace {
     min-height: 0;
-    padding: 0 16px 16px;
   }
 
   .data-workspace {
