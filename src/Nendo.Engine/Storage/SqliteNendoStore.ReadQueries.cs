@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Microsoft.Data.Sqlite;
 
 namespace Nendo.Engine.Storage;
 
@@ -126,15 +127,7 @@ internal sealed partial class SqliteNendoStore
         NendoRecordCountQuery query, CancellationToken cancellationToken)
     {
         using var transaction = _connection.BeginTransaction(deferred: true);
-        _ = await ReadAuthoritySnapshotAsync(transaction, cancellationToken);
-        var manifest = await ReadManifestAsync(transaction, cancellationToken);
-        var mappings = await ReadEntityMappingsAsync(transaction, cancellationToken);
-        var entity = mappings.SingleOrDefault(value => value.EntityId == query.EntityId)
-            ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
-        var fields = entity.Fields.Select(f => new NendoFieldSnapshot(
-            f.FieldId, f.DisplayName, f.StorageKind, f.Required, f.Presentation, f.Options)).ToArray();
-        var derived = await DerivedFieldsOfAsync(entity.EntityId, transaction, cancellationToken);
-        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields, derived);
+        var (manifest, mappings, entity, derived) = await OpenRecordQueryAsync(query.EntityId, query.Filters, transaction, cancellationToken);
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
@@ -161,15 +154,7 @@ internal sealed partial class SqliteNendoStore
         NendoRecordAggregateQuery query, CancellationToken cancellationToken)
     {
         using var transaction = _connection.BeginTransaction(deferred: true);
-        _ = await ReadAuthoritySnapshotAsync(transaction, cancellationToken);
-        var manifest = await ReadManifestAsync(transaction, cancellationToken);
-        var mappings = await ReadEntityMappingsAsync(transaction, cancellationToken);
-        var entity = mappings.SingleOrDefault(value => value.EntityId == query.EntityId)
-            ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
-        var fields = entity.Fields.Select(f => new NendoFieldSnapshot(
-            f.FieldId, f.DisplayName, f.StorageKind, f.Required, f.Presentation, f.Options)).ToArray();
-        var derived = await DerivedFieldsOfAsync(entity.EntityId, transaction, cancellationToken);
-        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields, derived);
+        var (manifest, mappings, entity, derived) = await OpenRecordQueryAsync(query.EntityId, query.Filters, transaction, cancellationToken);
 
         var target = entity.Fields.SingleOrDefault(f => f.FieldId == query.FieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The aggregated field does not exist on this record type.");
@@ -220,27 +205,12 @@ internal sealed partial class SqliteNendoStore
         NendoRecordGroupedAggregateQuery query, CancellationToken cancellationToken)
     {
         using var transaction = _connection.BeginTransaction(deferred: true);
-        _ = await ReadAuthoritySnapshotAsync(transaction, cancellationToken);
-        var manifest = await ReadManifestAsync(transaction, cancellationToken);
-        var mappings = await ReadEntityMappingsAsync(transaction, cancellationToken);
-        var entity = mappings.SingleOrDefault(value => value.EntityId == query.EntityId)
-            ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
-        var fields = entity.Fields.Select(f => new NendoFieldSnapshot(
-            f.FieldId, f.DisplayName, f.StorageKind, f.Required, f.Presentation, f.Options)).ToArray();
-        var derived = await DerivedFieldsOfAsync(entity.EntityId, transaction, cancellationToken);
-        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields, derived);
+        var (manifest, mappings, entity, derived) = await OpenRecordQueryAsync(query.EntityId, query.Filters, transaction, cancellationToken);
 
         var grouping = entity.Fields.SingleOrDefault(f => f.FieldId == query.GroupByFieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The grouping field does not exist on this record type.");
         var keys = GroupedAggregateFold.KeysOf(grouping.StorageKind, grouping.Presentation, grouping.Options);
-        FieldMapping? target = null;
-        if (query.FieldId is not null)
-        {
-            target = entity.Fields.SingleOrDefault(f => f.FieldId == query.FieldId)
-                ?? throw new NendoPreconditionException("field-not-found", "The aggregated field does not exist on this record type.");
-            if (target.StorageKind is not (NendoStorageKind.Integer or NendoStorageKind.Decimal))
-                throw new NendoValidationException("Only an integer or decimal field can be aggregated.");
-        }
+        var target = AggregatedTarget(entity, query.FieldId);
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
@@ -278,28 +248,13 @@ internal sealed partial class SqliteNendoStore
         NendoRecordDateBucketQuery query, DateBuckets buckets, CancellationToken cancellationToken)
     {
         using var transaction = _connection.BeginTransaction(deferred: true);
-        _ = await ReadAuthoritySnapshotAsync(transaction, cancellationToken);
-        var manifest = await ReadManifestAsync(transaction, cancellationToken);
-        var mappings = await ReadEntityMappingsAsync(transaction, cancellationToken);
-        var entity = mappings.SingleOrDefault(value => value.EntityId == query.EntityId)
-            ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
-        var fields = entity.Fields.Select(f => new NendoFieldSnapshot(
-            f.FieldId, f.DisplayName, f.StorageKind, f.Required, f.Presentation, f.Options)).ToArray();
-        var derived = await DerivedFieldsOfAsync(entity.EntityId, transaction, cancellationToken);
-        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields, derived);
+        var (manifest, mappings, entity, derived) = await OpenRecordQueryAsync(query.EntityId, query.Filters, transaction, cancellationToken);
 
         var dateField = entity.Fields.SingleOrDefault(f => f.FieldId == query.DateFieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The date field does not exist on this record type.");
         if (dateField.StorageKind != NendoStorageKind.Date)
             throw new NendoValidationException("Only a Date field buckets a grouped read by civil date.");
-        FieldMapping? target = null;
-        if (query.FieldId is not null)
-        {
-            target = entity.Fields.SingleOrDefault(f => f.FieldId == query.FieldId)
-                ?? throw new NendoPreconditionException("field-not-found", "The aggregated field does not exist on this record type.");
-            if (target.StorageKind is not (NendoStorageKind.Integer or NendoStorageKind.Decimal))
-                throw new NendoValidationException("Only an integer or decimal field can be aggregated.");
-        }
+        var target = AggregatedTarget(entity, query.FieldId);
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
@@ -342,15 +297,7 @@ internal sealed partial class SqliteNendoStore
         NendoRecordCellAggregateQuery query, CancellationToken cancellationToken)
     {
         using var transaction = _connection.BeginTransaction(deferred: true);
-        _ = await ReadAuthoritySnapshotAsync(transaction, cancellationToken);
-        var manifest = await ReadManifestAsync(transaction, cancellationToken);
-        var mappings = await ReadEntityMappingsAsync(transaction, cancellationToken);
-        var entity = mappings.SingleOrDefault(value => value.EntityId == query.EntityId)
-            ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
-        var fields = entity.Fields.Select(f => new NendoFieldSnapshot(
-            f.FieldId, f.DisplayName, f.StorageKind, f.Required, f.Presentation, f.Options)).ToArray();
-        var derived = await DerivedFieldsOfAsync(entity.EntityId, transaction, cancellationToken);
-        ValidateRecordQuery(new NendoRecordQuery(query.EntityId) { Filters = query.Filters }, fields, derived);
+        var (manifest, mappings, entity, derived) = await OpenRecordQueryAsync(query.EntityId, query.Filters, transaction, cancellationToken);
 
         var rowField = entity.Fields.SingleOrDefault(f => f.FieldId == query.RowByFieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The row field does not exist on this record type.");
@@ -358,14 +305,7 @@ internal sealed partial class SqliteNendoStore
             ?? throw new NendoPreconditionException("field-not-found", "The column field does not exist on this record type.");
         var rowKeys = GroupedAggregateFold.KeysOf(rowField.StorageKind, rowField.Presentation, rowField.Options);
         var columnKeys = GroupedAggregateFold.KeysOf(columnField.StorageKind, columnField.Presentation, columnField.Options);
-        FieldMapping? target = null;
-        if (query.FieldId is not null)
-        {
-            target = entity.Fields.SingleOrDefault(f => f.FieldId == query.FieldId)
-                ?? throw new NendoPreconditionException("field-not-found", "The aggregated field does not exist on this record type.");
-            if (target.StorageKind is not (NendoStorageKind.Integer or NendoStorageKind.Decimal))
-                throw new NendoValidationException("Only an integer or decimal field can be aggregated.");
-        }
+        var target = AggregatedTarget(entity, query.FieldId);
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
@@ -421,6 +361,46 @@ internal sealed partial class SqliteNendoStore
         var labels = references.Select((field, index) => (field.FieldId, Value: reader.IsDBNull(2 + entity.Fields.Count + index) ? null : reader.GetString(2 + entity.Fields.Count + index)))
             .ToDictionary(pair => pair.FieldId, pair => pair.Value, StringComparer.Ordinal);
         return new(entity.EntityId, reader.GetString(0), reader.GetInt64(1), values) { ReferenceLabels = labels };
+    }
+
+    /// <summary>
+    /// What an exact count or aggregate over one record type reads first, inside the
+    /// caller's deferred transaction: the authority, the manifest, the mappings, the
+    /// record type and its calculated fields, with the filters validated against them.
+    /// </summary>
+    private async Task<RecordQueryScope> OpenRecordQueryAsync(
+        string entityId,
+        IReadOnlyList<NendoRecordFilter> filters,
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        _ = await ReadAuthoritySnapshotAsync(transaction, cancellationToken);
+        var manifest = await ReadManifestAsync(transaction, cancellationToken);
+        var mappings = await ReadEntityMappingsAsync(transaction, cancellationToken);
+        var entity = mappings.SingleOrDefault(value => value.EntityId == entityId)
+            ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
+        var fields = entity.Fields.Select(f => new NendoFieldSnapshot(
+            f.FieldId, f.DisplayName, f.StorageKind, f.Required, f.Presentation, f.Options)).ToArray();
+        var derived = await DerivedFieldsOfAsync(entity.EntityId, transaction, cancellationToken);
+        ValidateRecordQuery(new NendoRecordQuery(entityId) { Filters = filters }, fields, derived);
+        return new(manifest, mappings, entity, derived);
+    }
+
+    private sealed record RecordQueryScope(
+        NendoManifestSnapshot Manifest,
+        IReadOnlyList<EntityMapping> Mappings,
+        EntityMapping Entity,
+        IReadOnlyDictionary<string, NendoDerivedFieldSnapshot> Derived);
+
+    /// <summary>The integer or decimal field a grouped read aggregates, or null when it counts.</summary>
+    private static FieldMapping? AggregatedTarget(EntityMapping entity, string? fieldId)
+    {
+        if (fieldId is null) return null;
+        var target = entity.Fields.SingleOrDefault(f => f.FieldId == fieldId)
+            ?? throw new NendoPreconditionException("field-not-found", "The aggregated field does not exist on this record type.");
+        if (target.StorageKind is not (NendoStorageKind.Integer or NendoStorageKind.Decimal))
+            throw new NendoValidationException("Only an integer or decimal field can be aggregated.");
+        return target;
     }
 
     internal static void ValidateRecordQuery(NendoRecordQuery query, IReadOnlyList<NendoFieldSnapshot> fields,

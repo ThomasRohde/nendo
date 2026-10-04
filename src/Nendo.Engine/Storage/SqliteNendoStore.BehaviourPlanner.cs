@@ -397,25 +397,11 @@ internal sealed partial class SqliteNendoStore
             CancellationToken cancellationToken)
         {
             var entity = mappings.SingleOrDefault(candidate => string.Equals(candidate.EntityId, key.EntityId, StringComparison.Ordinal));
-            // A record type with no stored fields would build `SELECT  FROM …` and raise a
-            // raw SqliteException. The sibling reader guards the same case; this one must
-            // too, treating a fieldless record as "no readable state" like an absent one.
+            // A record type with no stored fields has no readable state, like an absent
+            // record, and costs no scan: the store's reader returns null for it unread.
             if (entity is null || entity.Fields.Count == 0) return null;
             context.Budget.SpendScan();
-            var columns = entity.Fields.Select(field => Quote(field.PhysicalColumnName));
-            await using var command = store.Command(
-                $"SELECT {string.Join(", ", columns)} FROM {Quote(entity.PhysicalTableName)} WHERE {Quote("__nendo_record_id")} = @recordId;",
-                transaction);
-            command.Parameters.AddWithValue("@recordId", key.RecordId);
-            await using var rows = await command.ExecuteReaderAsync(cancellationToken);
-            if (!await rows.ReadAsync(cancellationToken)) return null;
-            var values = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-            for (var index = 0; index < entity.Fields.Count; index++)
-            {
-                values[entity.Fields[index].FieldId] = ToJsonElement(
-                    rows.IsDBNull(index) ? null : rows.GetValue(index), entity.Fields[index].StorageKind);
-            }
-            return values;
+            return await store.ReadRecordValuesAsync(key, mappings, transaction, cancellationToken);
         }
 
         private async Task<long?> ReadVersionAsync(RecordKey key, CancellationToken cancellationToken)

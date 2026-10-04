@@ -348,28 +348,12 @@ public sealed record NendoBehaviourBinding
             case NendoBindingKind.RelatedAggregate:
                 if (RelatedEntityId is null || RelatedReferenceFieldId is null || Aggregate is null)
                     throw new NendoValidationException("A related binding needs a record type, the reference field pointing back and an aggregate.");
-                if (Aggregate == NendoAggregateFunction.FilteredCount && PredicateFieldId is null)
-                    throw new NendoValidationException("A filtered count needs the Boolean field it tests.");
-                if (Aggregate == NendoAggregateFunction.Sum && ValueFieldId is null)
-                    throw new NendoValidationException("A sum needs the numeric field it accumulates.");
-                if (Aggregate == NendoAggregateFunction.Sum &&
-                    ResultType is not (NendoBehaviourScalar.Integer or NendoBehaviourScalar.Decimal))
-                    throw new NendoValidationException("A sum produces a whole number or a decimal.");
-                if (Nullable)
-                    throw new NendoValidationException("An aggregate is never null; an empty collection totals zero.");
+                RequireAggregateArguments("collection");
                 break;
             case NendoBindingKind.SubtreeAggregate:
                 if (Aggregate is null)
                     throw new NendoValidationException("A subtree binding needs an aggregate.");
-                if (Aggregate == NendoAggregateFunction.FilteredCount && PredicateFieldId is null)
-                    throw new NendoValidationException("A filtered count needs the Boolean field it tests.");
-                if (Aggregate == NendoAggregateFunction.Sum && ValueFieldId is null)
-                    throw new NendoValidationException("A sum needs the numeric field it accumulates.");
-                if (Aggregate == NendoAggregateFunction.Sum &&
-                    ResultType is not (NendoBehaviourScalar.Integer or NendoBehaviourScalar.Decimal))
-                    throw new NendoValidationException("A sum produces a whole number or a decimal.");
-                if (Nullable)
-                    throw new NendoValidationException("An aggregate is never null; an empty subtree totals zero.");
+                RequireAggregateArguments("subtree");
                 break;
             case NendoBindingKind.HierarchyPath:
                 if (ResultType != NendoBehaviourScalar.Text || Nullable)
@@ -380,6 +364,20 @@ public sealed record NendoBehaviourBinding
             default:
                 throw new NendoValidationException("The binding kind is not supported by this contract.");
         }
+    }
+
+    /// <summary>What an aggregate needs besides its function: the field it tests or sums, a numeric result, never null.</summary>
+    private void RequireAggregateArguments(string emptyWhole)
+    {
+        if (Aggregate == NendoAggregateFunction.FilteredCount && PredicateFieldId is null)
+            throw new NendoValidationException("A filtered count needs the Boolean field it tests.");
+        if (Aggregate == NendoAggregateFunction.Sum && ValueFieldId is null)
+            throw new NendoValidationException("A sum needs the numeric field it accumulates.");
+        if (Aggregate == NendoAggregateFunction.Sum &&
+            ResultType is not (NendoBehaviourScalar.Integer or NendoBehaviourScalar.Decimal))
+            throw new NendoValidationException("A sum produces a whole number or a decimal.");
+        if (Nullable)
+            throw new NendoValidationException($"An aggregate is never null; an empty {emptyWhole} totals zero.");
     }
 
     internal void WriteCanonical(Utf8JsonWriter writer)

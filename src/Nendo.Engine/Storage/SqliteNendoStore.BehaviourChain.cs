@@ -329,26 +329,7 @@ internal sealed partial class SqliteNendoStore
         if (context is null || context.Generated.Count == 0) return;
         for (var index = 0; index < context.Generated.Count; index++)
         {
-            var attribution = context.Generated[index].Attribution;
-            await using var command = Command("""
-                INSERT INTO __nendo_attribution (
-                    revision_id, ordinal, root_scope, root_key, trigger_id, action_id, step_id,
-                    event_kind, event_entity_id, event_record_id, behaviour_digest)
-                VALUES (@revisionId, @ordinal, @rootScope, @rootKey, @triggerId, @actionId, @stepId,
-                    @eventKind, @eventEntityId, @eventRecordId, @behaviourDigest);
-                """, transaction);
-            command.Parameters.AddWithValue("@revisionId", revisionId);
-            command.Parameters.AddWithValue("@ordinal", initiatingCount + index);
-            command.Parameters.AddWithValue("@rootScope", attribution.RootScope);
-            command.Parameters.AddWithValue("@rootKey", attribution.RootKey);
-            command.Parameters.AddWithValue("@triggerId", attribution.TriggerId);
-            command.Parameters.AddWithValue("@actionId", attribution.ActionId);
-            command.Parameters.AddWithValue("@stepId", attribution.StepId);
-            command.Parameters.AddWithValue("@eventKind", attribution.EventKind.ToString());
-            command.Parameters.AddWithValue("@eventEntityId", attribution.EventEntityId);
-            command.Parameters.AddWithValue("@eventRecordId", attribution.EventRecordId);
-            command.Parameters.AddWithValue("@behaviourDigest", attribution.BehaviourDigest);
-            await command.ExecuteNonQueryAsync(cancellationToken);
+            await InsertAttributionAsync(revisionId, initiatingCount + index, context.Generated[index].Attribution, transaction, cancellationToken);
         }
     }
 
@@ -370,27 +351,36 @@ internal sealed partial class SqliteNendoStore
     {
         for (var index = 0; index < generated.Count; index++)
         {
-            var attribution = generated[index].Attribution;
-            await using var command = Command("""
-                INSERT INTO __nendo_attribution (
-                    revision_id, ordinal, root_scope, root_key, trigger_id, action_id, step_id,
-                    event_kind, event_entity_id, event_record_id, behaviour_digest)
-                VALUES (@revisionId, @ordinal, @rootScope, @rootKey, @triggerId, @actionId, @stepId,
-                    @eventKind, @eventEntityId, @eventRecordId, @behaviourDigest);
-                """, transaction);
-            command.Parameters.AddWithValue("@revisionId", revisionId);
-            command.Parameters.AddWithValue("@ordinal", baseOrdinal + index);
-            command.Parameters.AddWithValue("@rootScope", attribution.RootScope);
-            command.Parameters.AddWithValue("@rootKey", attribution.RootKey);
-            command.Parameters.AddWithValue("@triggerId", attribution.TriggerId);
-            command.Parameters.AddWithValue("@actionId", attribution.ActionId);
-            command.Parameters.AddWithValue("@stepId", attribution.StepId);
-            command.Parameters.AddWithValue("@eventKind", attribution.EventKind.ToString());
-            command.Parameters.AddWithValue("@eventEntityId", attribution.EventEntityId);
-            command.Parameters.AddWithValue("@eventRecordId", attribution.EventRecordId);
-            command.Parameters.AddWithValue("@behaviourDigest", attribution.BehaviourDigest);
-            await command.ExecuteNonQueryAsync(cancellationToken);
+            await InsertAttributionAsync(revisionId, baseOrdinal + index, generated[index].Attribution, transaction, cancellationToken);
         }
+    }
+
+    private async Task InsertAttributionAsync(
+        string revisionId,
+        int ordinal,
+        BehaviourAttribution attribution,
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        await using var command = Command("""
+            INSERT INTO __nendo_attribution (
+                revision_id, ordinal, root_scope, root_key, trigger_id, action_id, step_id,
+                event_kind, event_entity_id, event_record_id, behaviour_digest)
+            VALUES (@revisionId, @ordinal, @rootScope, @rootKey, @triggerId, @actionId, @stepId,
+                @eventKind, @eventEntityId, @eventRecordId, @behaviourDigest);
+            """, transaction);
+        command.Parameters.AddWithValue("@revisionId", revisionId);
+        command.Parameters.AddWithValue("@ordinal", ordinal);
+        command.Parameters.AddWithValue("@rootScope", attribution.RootScope);
+        command.Parameters.AddWithValue("@rootKey", attribution.RootKey);
+        command.Parameters.AddWithValue("@triggerId", attribution.TriggerId);
+        command.Parameters.AddWithValue("@actionId", attribution.ActionId);
+        command.Parameters.AddWithValue("@stepId", attribution.StepId);
+        command.Parameters.AddWithValue("@eventKind", attribution.EventKind.ToString());
+        command.Parameters.AddWithValue("@eventEntityId", attribution.EventEntityId);
+        command.Parameters.AddWithValue("@eventRecordId", attribution.EventRecordId);
+        command.Parameters.AddWithValue("@behaviourDigest", attribution.BehaviourDigest);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     /// <summary>

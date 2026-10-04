@@ -106,15 +106,7 @@ public sealed partial class NendoWriteCoordinator
         ArgumentNullException.ThrowIfNull(query);
         ArgumentException.ThrowIfNullOrWhiteSpace(query.EntityId);
         ArgumentException.ThrowIfNullOrWhiteSpace(query.GroupByFieldId);
-        if (NendoSemanticVocabulary.RefusedAggregates.TryGetValue(query.Aggregate, out var reason))
-            throw new NendoValidationException($"Aggregate '{query.Aggregate}' is refused by this host. {reason}");
-        if (!NendoSemanticVocabulary.Aggregates.Contains(query.Aggregate))
-            throw new NendoValidationException($"Aggregate '{query.Aggregate}' is not supported by this host.");
-        var numeric = NendoSemanticVocabulary.NumericAggregates.Contains(query.Aggregate);
-        if (numeric && string.IsNullOrWhiteSpace(query.FieldId))
-            throw new NendoValidationException($"'{query.Aggregate}' needs the field it aggregates.");
-        if (!numeric && query.FieldId is not null)
-            throw new NendoValidationException("'count' counts records and does not read a field.");
+        ValidateAggregateQuery(query.Aggregate, query.FieldId);
         RecordQuerySemantics.Validate(new NendoRecordQuery(query.EntityId) { Filters = query.Filters });
         await _gate.WaitAsync(cancellationToken);
         try
@@ -163,15 +155,7 @@ public sealed partial class NendoWriteCoordinator
         ArgumentNullException.ThrowIfNull(query);
         ArgumentException.ThrowIfNullOrWhiteSpace(query.EntityId);
         ArgumentException.ThrowIfNullOrWhiteSpace(query.DateFieldId);
-        if (NendoSemanticVocabulary.RefusedAggregates.TryGetValue(query.Aggregate, out var reason))
-            throw new NendoValidationException($"Aggregate '{query.Aggregate}' is refused by this host. {reason}");
-        if (!NendoSemanticVocabulary.Aggregates.Contains(query.Aggregate))
-            throw new NendoValidationException($"Aggregate '{query.Aggregate}' is not supported by this host.");
-        var numeric = NendoSemanticVocabulary.NumericAggregates.Contains(query.Aggregate);
-        if (numeric && string.IsNullOrWhiteSpace(query.FieldId))
-            throw new NendoValidationException($"'{query.Aggregate}' needs the field it aggregates.");
-        if (!numeric && query.FieldId is not null)
-            throw new NendoValidationException("'count' counts records and does not read a field.");
+        ValidateAggregateQuery(query.Aggregate, query.FieldId);
         RecordQuerySemantics.Validate(new NendoRecordQuery(query.EntityId) { Filters = query.Filters });
         var buckets = DateBuckets.Resolve(query.Range, query.Bucket, DateOnly.FromDateTime(DateTime.Now));
         await _gate.WaitAsync(cancellationToken);
@@ -231,15 +215,7 @@ public sealed partial class NendoWriteCoordinator
         if (string.Equals(query.RowByFieldId, query.ColumnByFieldId, StringComparison.Ordinal))
             throw new NendoValidationException(
                 "A grid crosses two different fields; a field against itself is a diagonal with empty corners.");
-        if (NendoSemanticVocabulary.RefusedAggregates.TryGetValue(query.Aggregate, out var reason))
-            throw new NendoValidationException($"Aggregate '{query.Aggregate}' is refused by this host. {reason}");
-        if (!NendoSemanticVocabulary.Aggregates.Contains(query.Aggregate))
-            throw new NendoValidationException($"Aggregate '{query.Aggregate}' is not supported by this host.");
-        var numeric = NendoSemanticVocabulary.NumericAggregates.Contains(query.Aggregate);
-        if (numeric && string.IsNullOrWhiteSpace(query.FieldId))
-            throw new NendoValidationException($"'{query.Aggregate}' needs the field it aggregates.");
-        if (!numeric && query.FieldId is not null)
-            throw new NendoValidationException("'count' counts records and does not read a field.");
+        ValidateAggregateQuery(query.Aggregate, query.FieldId);
         RecordQuerySemantics.Validate(new NendoRecordQuery(query.EntityId) { Filters = query.Filters });
         await _gate.WaitAsync(cancellationToken);
         try
@@ -418,6 +394,23 @@ public sealed partial class NendoWriteCoordinator
         }
         catch (NendoRecoveryRequiredException) { EnterRecovery(); throw; }
         finally { _gate.Release(); }
+    }
+
+    /// <summary>
+    /// The aggregate a grouped, bucketed or crossed read asks for: one this host knows and
+    /// does not refuse, with a field when it is numeric and none when it counts.
+    /// </summary>
+    private static void ValidateAggregateQuery(string aggregate, string? fieldId)
+    {
+        if (NendoSemanticVocabulary.RefusedAggregates.TryGetValue(aggregate, out var reason))
+            throw new NendoValidationException($"Aggregate '{aggregate}' is refused by this host. {reason}");
+        if (!NendoSemanticVocabulary.Aggregates.Contains(aggregate))
+            throw new NendoValidationException($"Aggregate '{aggregate}' is not supported by this host.");
+        var numeric = NendoSemanticVocabulary.NumericAggregates.Contains(aggregate);
+        if (numeric && string.IsNullOrWhiteSpace(fieldId))
+            throw new NendoValidationException($"'{aggregate}' needs the field it aggregates.");
+        if (!numeric && fieldId is not null)
+            throw new NendoValidationException("'count' counts records and does not read a field.");
     }
 
     internal static string OperationScope(NendoRevisionOperationsQuery query) => $"operations/ordinal/{query.RevisionId}";
