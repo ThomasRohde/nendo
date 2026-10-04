@@ -30,6 +30,7 @@ internal static class NendoServerInstructions
         "authoringRules and the limits. nendo://application/examples holds change sets you can send as they " +
         "stand; nendo://application/proposals lists what waits for the person, a predecessor session's work " +
         "included: read it before beginning. " +
+        "skill://nendo-authoring/SKILL.md (skills/list) says when to read each. " +
         "Read nendo://application/view-api only when you write a custom view's code. " +
         "To write, call nendo.lease.acquire, keep its applicationHandle private, and pass it with leaseId on " +
         "every owned call. " +
@@ -40,8 +41,8 @@ internal static class NendoServerInstructions
         "Save receiptContext from the grant before writing: after a lost response, nendo.data.get_receipt reads " +
         "the original outcome, and an unresolved receipt is not permission to resubmit with a new key. After a " +
         "reconnect, nendo.lease.status says who holds the lease. " +
-        "Entity, field and node IDs are unique across the file; a record ID within its record type. " +
-        "Compiled screens are exercised in the Use view, not Studio. " +
+        "Entity, field and node IDs are unique file-wide; a record ID within its type. " +
+        "Screens are used in Use, not Studio. " +
         "There is no SQL, file, process or network access, and no generic invocation. " +
         Acceptance(mode);
 

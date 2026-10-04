@@ -1,6 +1,6 @@
 # MCP interface contract
 
-This contract lists the twenty-one resources and twenty-four tools that an external
+This contract lists the twenty-three resources and twenty-four tools that an external
 agent sees, and the authority rules behind them. `Test-Production.ps1` asserts
 both surfaces by name, and this sentence is held to the same count by
 `Test-Repository.ps1`.
@@ -66,6 +66,22 @@ and the planner mod polled every sixty seconds. The planner mod still polls: the
 API's HTTP fetch returns a whole response and cannot hold a stream, which is recorded on
 the planner item. [The listen tests](../../tests/Nendo.LocalMcp.Tests/SubscriptionsListenTests.cs)
 read the stream as the wire carries it; the SDK's client has no listen helper in 2.2.0.
+
+Since 2026-10-04 (W-154) the host also serves the Skills extension
+(`io.modelcontextprotocol/skills`, SEP-2640), declared on `server/discover` and
+`initialize`, with one host-level skill: `skill://nendo-authoring/SKILL.md`, whose
+frontmatter names it `nendo-authoring` and whose body says which read answers which
+question, the lease and the receipt, how a change set becomes a proposal, every
+operation with its payload keys, the bounds, the examples and the refusals to expect,
+generated from the same tables the vocabulary is. Its supporting files are
+`skill://nendo-authoring/references/vocabulary.json`, `examples.json` and
+`view-api.json`, the same bytes as the three build-static reads. `skills/list` returns
+the one entry with its complete manifest, each file's `sha256:` digest and byte size
+computed from the bytes `resources/read` serves; `skills/get` returns it by URI and any
+other URI is `-32602` `NENDO_SKILL_NOT_FOUND`. Every read of the four carries the
+one-hour TTL. `directoryRead` is not declared. `HostSkillTests` holds each digest and
+size equal to a read of the file, and the frontmatter equal to the entry's. A file that
+carries its own skill is [ADR-0024](../decisions/0024-a-file-carries-its-own-agent-skill.md).
 
 Since 2026-10-04 (W-152) the host also serves the Tasks extension
 (`io.modelcontextprotocol/tasks`, SEP-2663, `ModelContextProtocol.Extensions.Tasks`
@@ -649,6 +665,7 @@ Evidence: [protocol resource tests](../../tests/Nendo.LocalMcp.Tests/ProtocolRes
 [read path tests](../../tests/Nendo.LocalMcp.Tests/ReadPathTests.cs),
 [listen tests](../../tests/Nendo.LocalMcp.Tests/SubscriptionsListenTests.cs),
 [Tasks tests](../../tests/Nendo.LocalMcp.Tests/TasksExtensionTests.cs),
+[host skill tests](../../tests/Nendo.LocalMcp.Tests/HostSkillTests.cs),
 [authoring ergonomics tests](../../tests/Nendo.LocalMcp.Tests/AuthoringErgonomicsTests.cs),
 [extension package protocol tests](../../tests/Nendo.LocalMcp.Tests/ExtensionPackageProtocolTests.cs),
 and the [native neutrality probe](../../tools/Review-NeutralityRuntime.mjs).

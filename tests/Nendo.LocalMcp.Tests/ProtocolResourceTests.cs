@@ -114,6 +114,8 @@ public sealed class ProtocolResourceTests
                 "nendo.application.vocabulary",
                 // Not about the open file: which Nendos are running and what each has open.
                 "nendo.host.instances",
+                // The authoring skill's SKILL.md (W-154); its supporting files are a template below.
+                "nendo.host.skill",
             },
             resources.Select(resource => resource.Name).ToArray());
         CollectionAssert.AreEquivalent(
@@ -131,6 +133,7 @@ public sealed class ProtocolResourceTests
                 "nendo.application.history",
                 "nendo.application.proposal",
                 "nendo.application.revision.operations",
+                "nendo.host.skill.file",
             },
             templates.Select(template => template.Name).ToArray());
 

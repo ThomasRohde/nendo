@@ -251,7 +251,9 @@ try {
         'nendo.application.surfaces',
         'nendo.application.view.api',
         'nendo.application.vocabulary',
-        'nendo.host.instances'
+        'nendo.host.instances',
+        'nendo.host.skill',
+        'nendo.host.skill.file'
     )
     $expectedTools = @(
         'nendo.change_set.accept',

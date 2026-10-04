@@ -19,10 +19,33 @@ internal sealed class NendoMcpResources(
         "nendo://application/vocabulary",
         "nendo://application/examples",
         NendoViewApi.Uri,
+        NendoHostSkill.SkillUri,
+        NendoHostSkill.ReferencesRoot + "/vocabulary.json",
+        NendoHostSkill.ReferencesRoot + "/examples.json",
+        NendoHostSkill.ReferencesRoot + "/view-api.json",
     };
 
     /// <summary>How long a client may keep a read in <see cref="StaticForBuild"/>.</summary>
     internal static readonly TimeSpan StaticTimeToLive = TimeSpan.FromHours(1);
+
+    [McpServerResource(
+        Name = "nendo.host.skill",
+        Title = "The authoring skill",
+        UriTemplate = "skill://nendo-authoring/SKILL.md",
+        MimeType = "text/markdown")]
+    [Description("The one skill this host serves over the Skills extension (io.modelcontextprotocol/skills): which read answers which question, the lease and the receipt, how a change set becomes a proposal, every operation with its payload keys, the bounds, the examples and the refusals to expect. skills/list and skills/get carry its manifest with each file's SHA-256 digest and size, computed from the bytes served here. Static for a host build.")]
+    public Task<string> GetSkillAsync(CancellationToken cancellationToken) =>
+        TranslateTextAsync(() => Task.FromResult(NendoHostSkill.Find(NendoHostSkill.SkillUri)!.Text));
+
+    [McpServerResource(
+        Name = "nendo.host.skill.file",
+        Title = "A supporting file of the authoring skill",
+        UriTemplate = "skill://nendo-authoring/references/{file}",
+        MimeType = "application/json")]
+    [Description("One supporting file of the authoring skill, as its manifest lists it: vocabulary.json (the same as nendo://application/vocabulary), examples.json (nendo://application/examples) or view-api.json (nendo://application/view-api, read only when writing a custom view's code). Any other name is refused. Static for a host build.")]
+    public Task<string> GetSkillFileAsync(string file, CancellationToken cancellationToken) =>
+        TranslateTextAsync(() => Task.FromResult((NendoHostSkill.Reference(file)
+            ?? throw new NendoValidationException($"The skill has no file {file}; its files are vocabulary.json, examples.json and view-api.json.")).Text));
 
     [McpServerResource(
         Name = "nendo.host.instances",
@@ -317,6 +340,19 @@ internal sealed class NendoMcpResources(
         _ when int.TryParse(limit, NumberStyles.None, CultureInfo.InvariantCulture, out var value) => value,
         _ => throw NendoMcpErrors.InvalidLimit(),
     };
+
+    /// <summary>A read that is already text: served as it is, with the same refusal translation.</summary>
+    private static async Task<string> TranslateTextAsync(Func<Task<string>> action)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (Exception exception)
+        {
+            throw NendoMcpErrors.Translate(exception);
+        }
+    }
 
     private static async Task<string> TranslateAsync<T>(Func<Task<T>> action)
     {

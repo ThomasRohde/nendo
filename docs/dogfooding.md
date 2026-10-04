@@ -287,6 +287,10 @@ names one of these five codes may mean either record.
   `aggregate?aggregate=count&groupBy=nd.work.status`. The filter operators are the
   vocabulary's (`eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `isNull`, `isNotNull`) plus
   `contains` and `descendantOf`.
+- A client that speaks the Skills extension can load `skill://nendo-authoring/SKILL.md`
+  (W-154): the host's own index of which read answers which question, with the
+  vocabulary, the examples and the view API as its files. It says what this section
+  says, from the build that serves it.
 - `view-api` is for writing a custom view's code and nothing else. Development
   work in this repository reads `docs/contracts/custom-views.md` instead.
 - **Command IDs** are at `surfaces.applications[].surfaces[]`, on any node whose

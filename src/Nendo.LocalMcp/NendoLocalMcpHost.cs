@@ -400,6 +400,23 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             return result;
                         });
                         server.ServerInstructions = NendoServerInstructions.For(mode, options.LeaseTtl, snapshot.FileName);
+                        // The Skills extension (W-154, SEP-2640): one host-level skill, listed and fetched
+                        // by two methods the SDK does not know, its files served as resources above.
+                        server.Capabilities ??= new ServerCapabilities();
+                        server.Capabilities.Extensions ??= new Dictionary<string, object>(StringComparer.Ordinal);
+                        server.Capabilities.Extensions[NendoHostSkill.ExtensionId] = System.Text.Json.JsonSerializer.SerializeToElement(new { });
+                        server.RequestHandlers ??= [];
+                        server.RequestHandlers.Add(new McpServerRequestHandler
+                        {
+                            Method = "skills/list",
+                            Handler = (_, _) => ValueTask.FromResult<System.Text.Json.Nodes.JsonNode?>(NendoHostSkill.ListResult()),
+                        });
+                        server.RequestHandlers.Add(new McpServerRequestHandler
+                        {
+                            Method = "skills/get",
+                            RoutingNameParameter = "uri",
+                            Handler = (request, _) => ValueTask.FromResult<System.Text.Json.Nodes.JsonNode?>(NendoHostSkill.GetResult(request.Params)),
+                        });
                         // The signal brackets the call; the log records it afterwards. Both
                         // are here because this is the one place that sees every request,
                         // its name and its client, and neither holds a gate.
