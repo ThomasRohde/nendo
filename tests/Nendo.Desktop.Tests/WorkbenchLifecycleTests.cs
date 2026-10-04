@@ -8,7 +8,7 @@ namespace Nendo.Desktop.Tests;
 public sealed class WorkbenchLifecycleTests
 {
     [TestMethod]
-    public async Task V5RequiresTheRenderedSessionAndRejectsItAfterCloseReopen()
+    public async Task TheBridgeRequiresTheRenderedSessionAndRejectsItAfterCloseReopen()
     {
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
@@ -86,29 +86,32 @@ public sealed class WorkbenchLifecycleTests
     }
 
     [TestMethod]
-    public async Task EarlierProtocolsKeepTheirMethodsButNeverGainFileLifecycleOrFollowNativeSwitches()
+    public async Task AnOlderRendererReachesNoFileLifecycleAtAll()
     {
+        // Before W-135 a renderer at 2 to 4 was pinned to the first file it saw and kept its
+        // reads, and only the lifecycle methods were fenced off. Now it reaches nothing.
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
-        await session.CreateAsync(workspace.FilePath);
-        foreach (var version in new[] { 2, 3, 4 })
+        var opened = await session.CreateAsync(workspace.FilePath);
+        var actions = 0;
+        var handler = Handler(session, _ =>
         {
-            var handler = Handler(session);
-            Assert.IsTrue((await handler.HandleAsync(Request(WorkbenchMethods.HistoryGet, version: version))).Ok);
-            foreach (var method in new[] { WorkbenchMethods.FileBackup, WorkbenchMethods.FileRestore,
-                WorkbenchMethods.FileDuplicate, WorkbenchMethods.FileFork, WorkbenchMethods.FileUpgrade,
-                WorkbenchMethods.FileClose, WorkbenchMethods.FileOpenRecent, WorkbenchMethods.FileExport, WorkbenchMethods.FileResolveRecovery, WorkbenchMethods.SessionGetRecentFiles })
+            actions++;
+            return Task.FromResult(new DesktopFileActionView(null, null));
+        });
+        foreach (var version in new[] { 2, 3, 4, 5, 6 })
+        {
+            foreach (var method in new[] { WorkbenchMethods.SessionGetSnapshot, WorkbenchMethods.HistoryGet,
+                WorkbenchMethods.FileBackup, WorkbenchMethods.FileRestore, WorkbenchMethods.FileDuplicate, WorkbenchMethods.FileFork,
+                WorkbenchMethods.FileUpgrade, WorkbenchMethods.FileClose, WorkbenchMethods.FileOpenRecent, WorkbenchMethods.FileExport,
+                WorkbenchMethods.FileResolveRecovery, WorkbenchMethods.SessionGetRecentFiles })
             {
-                var denied = await handler.HandleAsync(Request(method, version: version));
-                Assert.AreEqual("unknown-method", denied.Error!.Code);
+                var denied = await handler.HandleAsync(Request(method, opened.FileSessionId, version: version));
+                Assert.AreEqual("unsupported-protocol", denied.Error?.Code, $"{method} answered a version {version} renderer.");
             }
-            await session.CloseAsync();
-            await session.OpenAsync(workspace.FilePath);
-            // Even reading a new snapshot cannot rebind an old renderer's writes.
-            Assert.IsTrue((await handler.HandleAsync(Request(WorkbenchMethods.SessionGetSnapshot, version: version))).Ok);
-            Assert.AreEqual("stale-file-session", (await handler.HandleAsync(
-                Request(WorkbenchMethods.HistoryGet, version: version))).Error!.Code);
         }
+        Assert.AreEqual(0, actions, "An older renderer started a file action.");
+        Assert.AreEqual(opened.FileSessionId, (await session.GetViewAsync()).FileSessionId);
     }
 
     [TestMethod]
@@ -164,7 +167,7 @@ public sealed class WorkbenchLifecycleTests
 
     private static WorkbenchProtocolHandler Handler(DesktopSessionController session,
         Func<WorkbenchFileActionRequest, Task<DesktopFileActionView>>? actions = null) =>
-        new(session, () => Task.FromResult<string?>(null), () => Task.FromResult<string?>(null), _ => { }, actions);
+        new(session, _ => { }, actions);
 
     private static async Task<byte[]> HashAsync(string path)
     {
@@ -172,6 +175,7 @@ public sealed class WorkbenchLifecycleTests
         return await SHA256.HashDataAsync(input);
     }
 
-    private static string Request(string method, string? fileSessionId = null, object? payload = null, int version = 5) =>
+    private static string Request(string method, string? fileSessionId = null, object? payload = null,
+        int version = DesktopShellContract.BridgeProtocolVersion) =>
         JsonSerializer.Serialize(new { protocolVersion = version, requestId = Guid.NewGuid().ToString("N"), method, fileSessionId, payload = payload ?? new { } });
 }

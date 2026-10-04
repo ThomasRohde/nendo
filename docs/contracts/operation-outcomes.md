@@ -35,9 +35,10 @@ and digest. It does not replace the active file with a clone.
 
 ## Workbench
 
-Protocol 5 provides `data.getReceipt`, `history.getCompensationReceipt` and
-`proposal.getReceipt`. The native adapter supplies scopes and enforces the
-opaque file-session generation. Older bridge protocols cannot use these methods.
+The bridge (protocol 7, the only version the host serves) provides
+`data.getReceipt`, `history.getCompensationReceipt` and `proposal.getReceipt`.
+The native adapter supplies scopes and enforces the opaque file-session
+generation.
 
 Before the Desktop Workbench dispatches a data create, deletion, hierarchy move,
 field or keep-in-new-files edit, command, compensation or proposal acceptance, it keeps the exact method, key and payload
@@ -151,7 +152,7 @@ share data-mutation idempotency scopes:
 | File-action presentation | The native completed notice survives a view refresh that is bounded separately and nullable. Workbench keeps the notice across a derived-refresh failure. It also keeps the notice across the reads that a screen makes for itself afterwards. Workbench offers Refresh view, which performs reads only and removes the notice when it succeeds. Generic I/O errors state that a result can exist, and they tell the user to inspect before a retry. They do not suggest another destination for an unresolved action. | [DesktopFileActionOutcomeTests](../../tests/Nendo.Desktop.Tests/DesktopFileActionOutcomeTests.cs), [WorkbenchErrorPrivacyTests](../../tests/Nendo.Desktop.Tests/WorkbenchErrorPrivacyTests.cs), [real Desktop probe](../../tools/Review-OutcomeRuntime.mjs) |
 | Write ceiling | When the file reaches a ceiling, Nendo refuses a mutation before staging. That reserve is an early admission check; a supported record batch can exceed it. Both direct writes and promoted change sets also measure the expanded transaction, including automatic actions, against the existing page-byte, schema-object, per-table-row and total-live-record open bounds before commit. Overflow rolls back the complete transaction, including versions and history. The refusal states that nothing changed and the file still opens. History warns from 80% of the operation-row bound and offers folding after a backup. A file already beyond an open bound still has no normal data route. | [FileInspectionTests](../../tests/Nendo.Engine.Tests/FileInspectionTests.cs): early refusal on both write paths and a representative 128-operation sample. [ReviewStorageRegressionTests](../../tests/Nendo.Engine.Tests/ReviewStorageRegressionTests.cs): a 200-record/64-field batch and generated effects cross the final row bound, roll back and leave the file reopenable. [ExtensionPackageTests](../../tests/Nendo.Engine.Tests/ExtensionPackageTests.cs): a 4 MiB custom-view package sample measured against the byte reserve |
 
-Protocol 5 keeps the usual create/open success snapshot. When only the
+The bridge keeps the usual create/open success snapshot. When only the
 post-action snapshot is unavailable, it returns the typed file-action envelope
 with `session: null`, the known notice and a sanitized refresh notice. The
 current Workbench handles both. Native recovery presentation stays available.

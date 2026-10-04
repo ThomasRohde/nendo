@@ -135,7 +135,7 @@ async function screenshot(name) {
 
 let fileSessionId = null;
 async function host(method, payload = {}) {
-  const request = { protocolVersion: 6, requestId: crypto.randomUUID(), method, payload, fileSessionId };
+  const request = { protocolVersion: 7, requestId: crypto.randomUUID(), method, payload, fileSessionId };
   const reply = await evaluate(`new Promise((resolve,reject)=>{
     const b=chrome.webview,request=${JSON.stringify(request)};
     const timer=setTimeout(()=>{b.removeEventListener('message',receive);reject(new Error('Owned host timeout'));},12000);

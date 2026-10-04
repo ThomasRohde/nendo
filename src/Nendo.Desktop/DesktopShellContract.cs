@@ -20,16 +20,6 @@ public static class DesktopShellContract
     /// </summary>
     public const int EventBridgeProtocolVersion = 7;
 
-    public const int SnapshotBridgeProtocolVersion = 6;
-
-    public const int OutcomeBridgeProtocolVersion = 5;
-
-    public const int AgentBridgeProtocolVersion = 4;
-
-    public const int PreviousBridgeProtocolVersion = 3;
-
-    public const int LegacyBridgeProtocolVersion = 2;
-
     public const string PermanentStudioRoute = "studio";
 
     public const string WorkbenchHostName = "app.nendo.local";
@@ -42,9 +32,11 @@ public static class DesktopShellContract
     public static DesktopShellDescription Describe() =>
         new(BridgeProtocolVersion, PermanentStudioRoute, WorkbenchUri);
 
-    public static bool IsSupportedBridgeProtocol(int version) =>
-        version is LegacyBridgeProtocolVersion or PreviousBridgeProtocolVersion or AgentBridgeProtocolVersion
-            or OutcomeBridgeProtocolVersion or SnapshotBridgeProtocolVersion or BridgeProtocolVersion;
+    /// <summary>
+    /// The host serves the version the bundled Workbench speaks and no other. Versions 2 to 6
+    /// were retired on 2026-10-04 (W-135): nothing that ships with Nendo sends them.
+    /// </summary>
+    public static bool IsSupportedBridgeProtocol(int version) => version == BridgeProtocolVersion;
 
     public static bool IsAllowedWorkbenchUri(string? value) =>
         Uri.TryCreate(value, UriKind.Absolute, out var uri) &&

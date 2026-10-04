@@ -6,21 +6,16 @@ namespace Nendo.Desktop.Tests;
 public sealed class WorkbenchErrorPrivacyTests
 {
     [TestMethod]
-    [DataRow("existing", 4)]
-    [DataRow("locked", 4)]
-    [DataRow("corrupt", 4)]
-    [DataRow("existing", 5)]
-    [DataRow("locked", 5)]
-    [DataRow("corrupt", 5)]
-    public async Task NativeFileFailuresPreserveBytesAndReturnUsefulPathFreeErrors(string failure, int version)
+    [DataRow("existing")]
+    [DataRow("locked")]
+    [DataRow("corrupt")]
+    public async Task NativeFileFailuresPreserveBytesAndReturnUsefulPathFreeErrors(string failure)
     {
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
         var original = "Private existing content"u8.ToArray();
         await File.WriteAllBytesAsync(workspace.FilePath, original);
-        var handler = new WorkbenchProtocolHandler(session,
-            () => Task.FromResult<string?>(workspace.FilePath),
-            () => Task.FromResult<string?>(workspace.FilePath), _ => { },
+        var handler = new WorkbenchProtocolHandler(session, _ => { },
             async action => new DesktopFileActionView(action.Action == WorkbenchFileAction.Create
                 ? await session.CreateFromSavePickerAsync(workspace.FilePath)
                 : await session.OpenAsync(workspace.FilePath), "Completed"));
@@ -29,12 +24,12 @@ public sealed class WorkbenchErrorPrivacyTests
         if (failure == "locked")
         {
             using var locked = new FileStream(workspace.FilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-            response = await handler.HandleAsync(Request(WorkbenchMethods.SessionCreateFile, fileSessionId, version));
+            response = await handler.HandleAsync(Request(WorkbenchMethods.SessionCreateFile, fileSessionId));
         }
         else
         {
             response = await handler.HandleAsync(Request(failure == "corrupt"
-                ? WorkbenchMethods.SessionOpenFile : WorkbenchMethods.SessionCreateFile, fileSessionId, version));
+                ? WorkbenchMethods.SessionOpenFile : WorkbenchMethods.SessionCreateFile, fileSessionId));
         }
         Assert.IsFalse(response.Ok);
         Assert.IsNotNull(response.Error);
@@ -47,11 +42,9 @@ public sealed class WorkbenchErrorPrivacyTests
     }
 
     [TestMethod]
-    [DataRow(false, "file-io", 4)]
-    [DataRow(true, "file-access", 4)]
-    [DataRow(false, "file-io", 5)]
-    [DataRow(true, "file-access", 5)]
-    public async Task NativeExceptionDetailsAreExcludedFromBridgeErrors(bool accessDenied, string expectedCode, int version)
+    [DataRow(false, "file-io")]
+    [DataRow(true, "file-access")]
+    public async Task NativeExceptionDetailsAreExcludedFromBridgeErrors(bool accessDenied, string expectedCode)
     {
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
@@ -59,13 +52,11 @@ public sealed class WorkbenchErrorPrivacyTests
         Exception failure = accessDenied
             ? new UnauthorizedAccessException(sensitiveDetail)
             : new IOException(sensitiveDetail);
-        var handler = new WorkbenchProtocolHandler(session,
-            () => Task.FromException<string?>(failure),
-            () => Task.FromResult<string?>(null), _ => { },
+        var handler = new WorkbenchProtocolHandler(session, _ => { },
             _ => Task.FromException<DesktopFileActionView>(failure));
 
         var response = await handler.HandleAsync(Request(WorkbenchMethods.SessionCreateFile,
-            (await session.GetViewAsync()).FileSessionId, version));
+            (await session.GetViewAsync()).FileSessionId));
 
         Assert.IsFalse(response.Ok);
         Assert.AreEqual(expectedCode, response.Error!.Code, response.Error.Message);
@@ -90,9 +81,9 @@ public sealed class WorkbenchErrorPrivacyTests
         Assert.DoesNotContain("connectionString", serialized, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string Request(string method, string? fileSessionId, int version) => JsonSerializer.Serialize(new
+    private static string Request(string method, string? fileSessionId) => JsonSerializer.Serialize(new
     {
-        protocolVersion = version,
+        protocolVersion = DesktopShellContract.BridgeProtocolVersion,
         requestId = "privacy-check", method, fileSessionId, payload = new { },
     });
 }

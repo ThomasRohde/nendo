@@ -233,44 +233,19 @@ internal sealed record AgentSettingsPayload(
 internal sealed partial class WorkbenchProtocolHandler
 {
     internal const int MaximumMessageCharacters = 262_144;
-    private static readonly JsonSerializerOptions LegacyJsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         Converters = { new WorkbenchScalarJsonConverter() },
     };
-    private static readonly IReadOnlySet<string> CurrentOnlyMethods = new HashSet<string>(
-        [
-            WorkbenchMethods.DataCreateRecord,
-            WorkbenchMethods.DataSetField,
-            WorkbenchMethods.DataExecuteCommand,
-            WorkbenchMethods.ProposalPrepareChangeSet,
-            WorkbenchMethods.HistoryFoldPreview,
-            WorkbenchMethods.HistoryFold,
-        ],
-        StringComparer.Ordinal);
-    private static readonly IReadOnlySet<string> AgentMethods = new HashSet<string>(
-        [
-            WorkbenchMethods.AgentGetStatus,
-            WorkbenchMethods.AgentSetMode,
-            WorkbenchMethods.AgentRevokeEditing,
-            WorkbenchMethods.AgentGetProposal,
-            WorkbenchMethods.AgentSetSettings,
-        ],
-        StringComparer.Ordinal);
     private readonly DesktopSessionController _session;
-    private readonly Func<Task<string?>> _pickCreatePath;
-    private readonly Func<Task<string?>> _pickOpenPath;
     private readonly Action<AppearancePayload> _applyAppearance;
     private readonly Func<DesktopAppearanceView>? _getAppearance;
     private readonly Func<WorkbenchFileActionRequest, Task<DesktopFileActionView>>? _fileActions;
     private readonly IWorkbenchExtensionHost? _extensionHost;
     private readonly IWorkbenchWindowHost? _windowHost;
-    private string? _legacyFileSessionId;
 
     internal WorkbenchProtocolHandler(
         DesktopSessionController session,
-        Func<Task<string?>> pickCreatePath,
-        Func<Task<string?>> pickOpenPath,
         Action<AppearancePayload> applyAppearance,
         Func<WorkbenchFileActionRequest, Task<DesktopFileActionView>>? fileActions = null,
         Func<DesktopAppearanceView>? getAppearance = null,
@@ -280,8 +255,6 @@ internal sealed partial class WorkbenchProtocolHandler
         _extensionHost = extensionHost;
         _windowHost = windowHost;
         _session = session;
-        _pickCreatePath = pickCreatePath;
-        _pickOpenPath = pickOpenPath;
         _applyAppearance = applyAppearance;
         _getAppearance = getAppearance;
         _fileActions = fileActions;
@@ -323,7 +296,11 @@ internal sealed partial class WorkbenchProtocolHandler
                 : JsonSerializer.SerializeToElement(new { });
             if (!DesktopShellContract.IsSupportedBridgeProtocol(protocolVersion))
             {
-                return Failure(requestId, "unsupported-protocol", "The Workbench protocol version is not supported.");
+                // One answer for every other version, older or newer. Nothing below has run:
+                // no file binding, no file action, no read.
+                return Failure(requestId, "unsupported-protocol",
+                    $"This Workbench speaks bridge protocol {protocolVersion}; this host serves protocol " +
+                    $"{DesktopShellContract.BridgeProtocolVersion} only.");
             }
             responseProtocolVersion = protocolVersion;
 
@@ -343,36 +320,18 @@ internal sealed partial class WorkbenchProtocolHandler
             using var inFlight = TrackRequest(requestId, cancellation);
             cancellationToken = cancellation.Token;
 
-            if (!IsMethodAvailable(protocolVersion, method))
-            {
-                throw new NendoPreconditionException(
-                    "unknown-method",
-                    $"Workbench method {method} is not part of protocol version {protocolVersion}.");
-            }
-
             // A custom view's write arrives through the Workbench's broker, named for the
             // view's package (ADR-0013 Phase 3). It is admitted on the record writes alone,
             // and becomes the origin History attributes the write to.
             var writer = ExtensionWriter(payload, method);
 
-            // V5 sends the opaque file generation it actually rendered. Older
-            // renderers are pinned once and cannot silently follow a native file
-            // switch. The controller checks this under its gate, including after
-            // every interactive picker/confirmation wait.
+            // The renderer sends the opaque file generation it actually rendered, so it
+            // cannot silently follow a native file switch. The controller checks this under
+            // its gate, including after every interactive picker/confirmation wait.
             var independent = method is WorkbenchMethods.SessionGetSnapshot or WorkbenchMethods.AppearanceSet or WorkbenchMethods.AppearanceGet or WorkbenchMethods.SessionGetRecentFiles
                 or WorkbenchMethods.WindowSetTitleBarControls or WorkbenchMethods.DiagnosticsTitleBar or WorkbenchMethods.DiagnosticsResizeWindow
                 or WorkbenchMethods.DownloadsShow;
-            string? expectedSession = null;
-            if (protocolVersion < DesktopShellContract.OutcomeBridgeProtocolVersion)
-            {
-                var snapshot = await _session.GetViewAsync(cancellationToken);
-                Interlocked.CompareExchange(ref _legacyFileSessionId, snapshot.FileSessionId, null);
-                expectedSession = _legacyFileSessionId;
-            }
-            else if (!independent)
-            {
-                expectedSession = RequiredString(root, "fileSessionId", 120);
-            }
+            var expectedSession = independent ? null : RequiredString(root, "fileSessionId", 120);
             using var projection = _session.BindReadProjection(root.TryGetProperty("boundedRead", out var boundedRead) &&
                 boundedRead.ValueKind == JsonValueKind.True);
             using var binding = independent ? null : _session.BindFileRequest(expectedSession!);
@@ -388,15 +347,6 @@ internal sealed partial class WorkbenchProtocolHandler
                 result = await RunFileActionAsync(fileAction,
                     fileAction == WorkbenchFileAction.OpenRecent ? RequiredString(payload, "recentId", 120) : null,
                     fileAction == WorkbenchFileAction.OpenDropped ? droppedPath : null);
-            }
-            else if (protocolVersion == DesktopShellContract.LegacyBridgeProtocolVersion &&
-                LegacyWorkbenchProtocol.IsMethod(method))
-            {
-                result = await LegacyWorkbenchProtocol.HandleAsync(
-                    _session,
-                    method,
-                    payload,
-                    cancellationToken);
             }
             else
             {
@@ -416,12 +366,8 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.DiagnosticsFrameProcesses when DesktopRuntimeConfiguration.NativeDiagnostics =>
                         await ExtensionHost().ReadFrameProcessesAsync(),
                     WorkbenchMethods.SessionGetRecentFiles => await _session.GetRecentFilesAsync(cancellationToken),
-                    WorkbenchMethods.SessionCreateFile => protocolVersion == DesktopShellContract.BridgeProtocolVersion
-                        ? await RunSessionFileActionAsync(WorkbenchFileAction.Create)
-                        : await CreateFileAsync(cancellationToken),
-                    WorkbenchMethods.SessionOpenFile => protocolVersion == DesktopShellContract.BridgeProtocolVersion
-                        ? await RunSessionFileActionAsync(WorkbenchFileAction.Open)
-                        : await OpenFileAsync(cancellationToken),
+                    WorkbenchMethods.SessionCreateFile => await RunSessionFileActionAsync(WorkbenchFileAction.Create),
+                    WorkbenchMethods.SessionOpenFile => await RunSessionFileActionAsync(WorkbenchFileAction.Open),
                     WorkbenchMethods.DataCreateRecord => await CreateGenericRecordAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataDeleteRecord => await DeleteGenericRecordAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataSetKeptInNewFiles => await SetKeptInNewFilesAsync(payload, writer, cancellationToken),
@@ -471,8 +417,6 @@ internal sealed partial class WorkbenchProtocolHandler
                         $"Workbench method {method} is not part of protocol version {protocolVersion}."),
                 };
             }
-            if (protocolVersion < DesktopShellContract.BridgeProtocolVersion && binding is not null)
-                _legacyFileSessionId = binding.FileSessionId;
             return new WorkbenchResponse(
                 responseProtocolVersion,
                 requestId,
@@ -542,26 +486,10 @@ internal sealed partial class WorkbenchProtocolHandler
     }
 
     internal static string Serialize(WorkbenchResponse response) =>
-        JsonSerializer.Serialize(response, response.ProtocolVersion >= DesktopShellContract.SnapshotBridgeProtocolVersion ? JsonOptions : LegacyJsonOptions);
+        JsonSerializer.Serialize(response, JsonOptions);
 
     internal static string SerializeEvent(WorkbenchEvent hostEvent) =>
         JsonSerializer.Serialize(hostEvent, JsonOptions);
-
-    private async Task<DesktopSessionView> CreateFileAsync(CancellationToken cancellationToken)
-    {
-        var path = await _pickCreatePath();
-        return path is null
-            ? await _session.GetViewAsync(cancellationToken)
-            : await _session.CreateFromSavePickerAsync(path, cancellationToken);
-    }
-
-    private async Task<DesktopSessionView> OpenFileAsync(CancellationToken cancellationToken)
-    {
-        var path = await _pickOpenPath();
-        return path is null
-            ? await _session.GetViewAsync(cancellationToken)
-            : await _session.OpenAsync(path, cancellationToken);
-    }
 
     /// <summary>
     /// The origin a view's write is attributed to, <c>extension:&lt;package&gt;</c>, or null for
@@ -832,29 +760,6 @@ internal sealed partial class WorkbenchProtocolHandler
         false,
         null,
         new WorkbenchError(code, message, recordId));
-
-    private static bool IsMethodAvailable(int protocolVersion, string method) =>
-        (protocolVersion >= DesktopShellContract.EventBridgeProtocolVersion || method is not
-            (WorkbenchMethods.WindowSetTitleBarControls or WorkbenchMethods.DiagnosticsTitleBar or WorkbenchMethods.DiagnosticsResizeWindow or
-             WorkbenchMethods.DownloadsShow)) &&
-        (protocolVersion >= DesktopShellContract.SnapshotBridgeProtocolVersion || method != WorkbenchMethods.DataDeleteRecord) &&
-        (protocolVersion >= DesktopShellContract.OutcomeBridgeProtocolVersion || method is not
-            (WorkbenchMethods.DataGetReceipt or WorkbenchMethods.CompensationGetReceipt or WorkbenchMethods.ProposalGetReceipt or WorkbenchMethods.DataSetFields or
-             WorkbenchMethods.DataWriteRecords or WorkbenchMethods.DataUndoRecordWrites or
-             WorkbenchMethods.DataQueryRecords or WorkbenchMethods.DataCountRecords or
-             WorkbenchMethods.DataAggregateRecords or
-             WorkbenchMethods.HistoryQuery or WorkbenchMethods.HistoryOperations or WorkbenchMethods.HealthVerify)) &&
-        (protocolVersion >= DesktopShellContract.OutcomeBridgeProtocolVersion ||
-            (!FileMethods.ContainsKey(method) && method is not (WorkbenchMethods.SessionGetRecentFiles or WorkbenchMethods.AppearanceGet))) &&
-        protocolVersion switch
-        {
-            DesktopShellContract.LegacyBridgeProtocolVersion => !CurrentOnlyMethods.Contains(method),
-            DesktopShellContract.PreviousBridgeProtocolVersion =>
-                !LegacyWorkbenchProtocol.IsMethod(method) && !AgentMethods.Contains(method),
-            >= DesktopShellContract.AgentBridgeProtocolVersion and <= DesktopShellContract.BridgeProtocolVersion =>
-                !LegacyWorkbenchProtocol.IsMethod(method),
-            _ => false,
-        };
 
     private static string RequiredString(JsonElement root, string name, int maximumLength)
     {

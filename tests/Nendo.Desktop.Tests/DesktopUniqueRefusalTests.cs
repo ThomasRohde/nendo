@@ -31,7 +31,7 @@ public sealed class DesktopUniqueRefusalTests
         }
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot);
         await session.OpenAsync(workspace.FilePath);
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null), () => Task.FromResult<string?>(null), _ => { });
+        var handler = new WorkbenchProtocolHandler(session, _ => { });
         var fileSessionId = (await session.GetViewAsync()).FileSessionId!;
 
         var duplicate = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.DataCreateRecord, new

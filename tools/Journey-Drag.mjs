@@ -69,14 +69,24 @@ async function screenshot(name) {
 
 let fileSessionId = null;
 async function envelope(method, payload = {}, generation = fileSessionId) {
-  const request = { protocolVersion: 5, requestId: crypto.randomUUID(), method, payload, fileSessionId: generation };
-  return evaluate(`new Promise((resolve,reject)=>{
+  const request = { protocolVersion: 7, requestId: crypto.randomUUID(), method, payload, fileSessionId: generation };
+  return plainNumbers(await evaluate(`new Promise((resolve,reject)=>{
     const b=chrome.webview,request=${JSON.stringify(request)};
     const timer=setTimeout(()=>{b.removeEventListener('message',receive);reject(new Error('Owned host timeout'));},12000);
     function receive(e){let r=e.data;if(typeof r==='string')r=JSON.parse(r);if(r.requestId!==request.requestId)return;
       clearTimeout(timer);b.removeEventListener('message',receive);resolve(r);}
     b.addEventListener('message',receive);b.postMessage(request);
-  })`);
+  })`));
+}
+// Protocol 7, the only one the host serves since W-135, carries each number in a record's values
+// as {"$nendoNumber":"<lexeme>"}. This lane was written against protocol 5's plain JSON numbers
+// and compares values with ===, so it reads them back as numbers, as protocol 5 delivered them.
+function plainNumbers(value) {
+  if (Array.isArray(value)) return value.map(plainNumbers);
+  if (value === null || typeof value !== 'object') return value;
+  const keys = Object.keys(value);
+  if (keys.length === 1 && keys[0] === '$nendoNumber' && typeof value.$nendoNumber === 'string') return JSON.parse(value.$nendoNumber);
+  return Object.fromEntries(keys.map(key => [key, plainNumbers(value[key])]));
 }
 async function host(method, payload = {}) {
   const r = await envelope(method, payload);

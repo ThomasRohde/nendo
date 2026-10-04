@@ -28,8 +28,6 @@ public sealed partial class MainPage : Page
             SizeChanged += (_, _) => { _ = CaptureNativeRecoveryForTestAsync(); };
         _protocol = new WorkbenchProtocolHandler(
             _session,
-            PickCreatePathAsync,
-            PickOpenPathAsync,
             ApplyAppearance,
             RunWorkbenchFileActionAsync,
             () => App.CurrentWindow?.GetAppearance() ?? new("system", "light", false, "The native window is unavailable."),
@@ -478,25 +476,6 @@ public sealed partial class MainPage : Page
             ShowRecovery("The requested file could not be opened. Use Open file or backup to inspect it and choose recovery actions.");
             return false;
         }
-    }
-
-    private async Task<string?> PickCreatePathAsync()
-    {
-        var window = App.CurrentWindow
-            ?? throw new InvalidOperationException("The Nendo window is unavailable.");
-        var picker = new FileSavePicker(window.AppWindow.Id)
-        {
-            SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
-            SuggestedFileName = "Untitled",
-            CommitButtonText = "Create Nendo file",
-            DefaultFileExtension = NendoFormat.FileExtension,
-            FileTypeChoices =
-            {
-                { "Nendo application", new List<string> { NendoFormat.FileExtension } },
-            },
-        };
-        var result = await picker.PickSaveFileAsync();
-        return result?.Path;
     }
 
     private async Task<string?> PickOpenPathAsync()

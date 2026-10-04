@@ -65,7 +65,7 @@ public sealed class DesktopTitleBarTests
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
         var window = new RecordingWindow();
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null), () => Task.FromResult<string?>(null), _ => { },
+        var handler = new WorkbenchProtocolHandler(session, _ => { },
             windowHost: window);
 
         var answer = await handler.HandleAsync(Request(7, WorkbenchMethods.WindowSetTitleBarControls,
@@ -78,9 +78,9 @@ public sealed class DesktopTitleBarTests
         var refused = await handler.HandleAsync(Request(7, WorkbenchMethods.WindowSetTitleBarControls, new { controls = "all" }));
         Assert.AreEqual("validation", refused.Error?.Code);
         foreach (var version in new[] { 2, 3, 4, 5, 6 })
-            Assert.AreEqual("unknown-method", (await handler.HandleAsync(Request(version, WorkbenchMethods.WindowSetTitleBarControls, new { controls = Array.Empty<object>() }))).Error?.Code);
+            Assert.AreEqual("unsupported-protocol", (await handler.HandleAsync(Request(version, WorkbenchMethods.WindowSetTitleBarControls, new { controls = Array.Empty<object>() }))).Error?.Code);
 
-        var noWindow = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null), () => Task.FromResult<string?>(null), _ => { });
+        var noWindow = new WorkbenchProtocolHandler(session, _ => { });
         Assert.AreEqual("window-unavailable", (await noWindow.HandleAsync(Request(7, WorkbenchMethods.WindowSetTitleBarControls, new { controls = Array.Empty<object>() }))).Error?.Code);
     }
 
@@ -89,7 +89,7 @@ public sealed class DesktopTitleBarTests
     {
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null), () => Task.FromResult<string?>(null), _ => { },
+        var handler = new WorkbenchProtocolHandler(session, _ => { },
             windowHost: new RecordingWindow());
         // A process started with native diagnostics on answers them, and only such a process.
         var expected = DesktopRuntimeConfiguration.NativeDiagnostics ? null : "unknown-method";

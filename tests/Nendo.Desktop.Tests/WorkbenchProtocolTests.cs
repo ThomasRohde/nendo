@@ -10,29 +10,25 @@ namespace Nendo.Desktop.Tests;
 public sealed class WorkbenchProtocolTests
 {
     [TestMethod]
-    public async Task RevisionFourExposesOnlySanitizedAgentLifecycleMethods()
+    public async Task TheAgentLifecycleMethodsAreSanitized()
     {
         await using var workspace = new DesktopTestWorkspace();
         var discoveryRoot = Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, "protocol-discovery");
         await using var session = new DesktopSessionController(
             new NendoLocalMcpHostOptions(discoveryRoot), workspace.FileHistoryRoot);
-        var handler = new WorkbenchProtocolHandler(
-            session,
-            () => Task.FromResult<string?>(workspace.FilePath),
-            () => Task.FromResult<string?>(workspace.FilePath),
-            _ => { });
+        var handler = Handler(session, workspace.FilePath);
 
-        var noFile = await handler.HandleAsync(Request("agent-no-file", WorkbenchMethods.AgentGetStatus));
-        Assert.IsTrue(noFile.Ok);
+        var noFile = await handler.HandleAsync(await RequestAsync(session, "agent-no-file", WorkbenchMethods.AgentGetStatus));
+        Assert.IsTrue(noFile.Ok, noFile.Error?.Message);
         Assert.IsFalse(((DesktopAgentStatus)noFile.Result!).Available);
-        Assert.IsTrue((await handler.HandleAsync(
-            Request("agent-create", WorkbenchMethods.SessionCreateFile))).Ok);
+        var createdFile = await handler.HandleAsync(await RequestAsync(session, "agent-create", WorkbenchMethods.SessionCreateFile));
+        Assert.IsTrue(createdFile.Ok, createdFile.Error?.Message);
 
-        var inspect = await handler.HandleAsync(Request(
+        var inspect = await handler.HandleAsync(await RequestAsync(session,
             "agent-inspect",
             WorkbenchMethods.AgentSetMode,
             new { mode = "inspect" }));
-        Assert.IsTrue(inspect.Ok);
+        Assert.IsTrue(inspect.Ok, inspect.Error?.Message);
         var status = (DesktopAgentStatus)inspect.Result!;
         Assert.AreEqual("inspect", status.Mode);
         Assert.AreEqual("ready", status.State);
@@ -45,98 +41,84 @@ public sealed class WorkbenchProtocolTests
         Assert.DoesNotContain("discovery", serialized, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(workspace.FilePath, serialized, StringComparison.OrdinalIgnoreCase);
 
-        var invalid = await handler.HandleAsync(Request(
+        var invalid = await handler.HandleAsync(await RequestAsync(session,
             "agent-invalid",
             WorkbenchMethods.AgentSetMode,
             new { mode = "unbounded" }));
         Assert.IsFalse(invalid.Ok);
         Assert.AreEqual("validation", invalid.Error!.Code);
 
-        var missingProposal = await handler.HandleAsync(Request(
+        var missingProposal = await handler.HandleAsync(await RequestAsync(session,
             "agent-missing-proposal",
             WorkbenchMethods.AgentGetProposal,
             new { proposalId = "proposal-00000000000000000000000000000000" }));
         Assert.IsFalse(missingProposal.Ok);
         Assert.AreEqual("proposal-not-found", missingProposal.Error!.Code);
 
-        var off = await handler.HandleAsync(Request(
+        var off = await handler.HandleAsync(await RequestAsync(session,
             "agent-off",
             WorkbenchMethods.AgentSetMode,
             new { mode = "off" }));
-        Assert.IsTrue(off.Ok);
+        Assert.IsTrue(off.Ok, off.Error?.Message);
         Assert.IsEmpty(Directory.GetFiles(discoveryRoot, "*.json"));
 
-        var previousVersion = await handler.HandleAsync(RequestForVersion(
-            DesktopShellContract.PreviousBridgeProtocolVersion,
+        // A renderer from before the agent methods existed is refused as a whole, not method by method.
+        var olderRenderer = await handler.HandleAsync(RequestForVersion(
+            3,
             "agent-v3",
-            WorkbenchMethods.AgentGetStatus));
-        Assert.IsFalse(previousVersion.Ok);
-        Assert.AreEqual("unknown-method", previousVersion.Error!.Code);
+            WorkbenchMethods.AgentGetStatus,
+            fileSessionId: (await session.GetViewAsync()).FileSessionId));
+        Assert.IsFalse(olderRenderer.Ok);
+        Assert.AreEqual("unsupported-protocol", olderRenderer.Error!.Code);
     }
 
-    private static readonly IReadOnlySet<string> LegacyMethods = new HashSet<string>(
-        [
-            WorkbenchMethods.SchemaCreateIdea,
-            WorkbenchMethods.DataCreateIdea,
-            WorkbenchMethods.DataSetIdeaTitle,
-            WorkbenchMethods.DataCreateFullIdea,
-            WorkbenchMethods.DataSetIdeaField,
-            WorkbenchMethods.DataExecuteIdeaCommand,
-            WorkbenchMethods.ProposalPrepareIdeaGarden,
-            WorkbenchMethods.ProposalPrepareBoardTitle,
-        ],
-        StringComparer.Ordinal);
-
     [TestMethod]
-    public async Task ClosedProtocolRunsTheP1JourneyWithoutReturningTheDatabasePath()
+    public async Task TheBridgeRunsTheP1JourneyWithoutReturningTheDatabasePath()
     {
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
-        var handler = new WorkbenchProtocolHandler(
-            session,
-            () => Task.FromResult<string?>(workspace.FilePath),
-            () => Task.FromResult<string?>(workspace.FilePath),
-            _ => { });
+        var handler = Handler(session, workspace.FilePath);
 
         // Windows save providers may reserve a newly selected destination by
         // creating an empty placeholder before returning its path to the host.
         await File.WriteAllBytesAsync(workspace.FilePath, []);
-        var createdFile = await handler.HandleAsync(Request("request-create-file", WorkbenchMethods.SessionCreateFile));
-        var schema = await handler.HandleAsync(Request(
-            "request-schema",
-            WorkbenchMethods.SchemaCreateIdea,
-            new { idempotencyKey = "protocol-schema" }));
-        var record = await handler.HandleAsync(Request(
+        var createdFile = await handler.HandleAsync(await RequestAsync(session, "request-create-file", WorkbenchMethods.SessionCreateFile));
+        Assert.IsTrue(createdFile.Ok, createdFile.Error?.Message);
+        // The bridge has no schema method of its own: a person shapes a schema through a
+        // proposal, which the journey below covers. The fixture gives this one a title field.
+        await session.CreateIdeaSchemaAsync("protocol-schema");
+        var record = await handler.HandleAsync(await RequestAsync(session,
             "request-record",
-            WorkbenchMethods.DataCreateIdea,
+            WorkbenchMethods.DataCreateRecord,
             new
             {
+                entityId = NendoApplicationService.IdeaEntityId,
                 recordId = "idea-protocol",
-                title = "Protocol idea",
+                values = new Dictionary<string, object?> { [NendoApplicationService.IdeaTitleFieldId] = "Protocol idea" },
                 idempotencyKey = "protocol-record",
             }));
-        var edit = await handler.HandleAsync(Request(
+        var edit = await handler.HandleAsync(await RequestAsync(session,
             "request-edit",
-            WorkbenchMethods.DataSetIdeaTitle,
+            WorkbenchMethods.DataSetField,
             new
             {
+                entityId = NendoApplicationService.IdeaEntityId,
                 recordId = "idea-protocol",
+                fieldId = NendoApplicationService.IdeaTitleFieldId,
                 expectedRecordVersion = 1,
-                title = "Edited through protocol",
+                value = "Edited through protocol",
                 idempotencyKey = "protocol-edit",
             }));
 
-        Assert.IsTrue(createdFile.Ok);
-        Assert.IsTrue(schema.Ok);
-        Assert.IsTrue(record.Ok);
-        Assert.IsTrue(edit.Ok);
+        Assert.IsTrue(record.Ok, record.Error?.Message);
+        Assert.IsTrue(edit.Ok, edit.Error?.Message);
         var mutation = (DesktopMutationView)edit.Result!;
         Assert.IsNotNull(mutation.Session);
         Assert.AreEqual(3L, mutation.Session.Manifest!.ChangeSequence);
         Assert.AreEqual(2L, mutation.Session.Records[0].RecordVersion);
         Assert.AreEqual(
             "Edited through protocol",
-            mutation.Session.Records[0].Values[Nendo.Engine.NendoApplicationService.IdeaTitleFieldId].GetString());
+            mutation.Session.Records[0].Values[NendoApplicationService.IdeaTitleFieldId].GetString());
         var json = WorkbenchProtocolHandler.Serialize(edit);
         Assert.DoesNotContain(workspace.FilePath, json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("desktop-session.nendo", json, StringComparison.Ordinal);
@@ -147,13 +129,9 @@ public sealed class WorkbenchProtocolTests
     {
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
-        var handler = new WorkbenchProtocolHandler(
-            session,
-            () => Task.FromResult<string?>(null),
-            () => Task.FromResult<string?>(null),
-            _ => { });
+        var handler = Handler(session);
 
-        var unknown = await handler.HandleAsync(Request("unknown", "host.invoke"));
+        var unknown = await handler.HandleAsync(await RequestAsync(session, "unknown", "host.invoke"));
         var version = await handler.HandleAsync(JsonSerializer.Serialize(new
         {
             protocolVersion = 99,
@@ -168,16 +146,66 @@ public sealed class WorkbenchProtocolTests
         Assert.AreEqual("unsupported-protocol", version.Error!.Code);
     }
 
+    /// <summary>
+    /// W-135 (2026-10-04): the host serves bridge protocol 7 only. A Workbench at 2 to 6 gets one
+    /// named refusal, answered at the current version, before any binding, read, write or file
+    /// action runs.
+    /// </summary>
+    [TestMethod]
+    public async Task AWorkbenchOlderThanTheBridgeIsRefusedByNameBeforeAnythingRuns()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
+        var created = await session.CreateAsync(workspace.FilePath);
+        await session.CreateIdeaSchemaAsync("refusal-schema");
+        var before = (await session.GetViewAsync()).Manifest!.ChangeSequence;
+        var fileActions = 0;
+        var handler = new WorkbenchProtocolHandler(session, _ => { }, _ =>
+        {
+            fileActions++;
+            return Task.FromResult(new DesktopFileActionView(null, null));
+        });
+        var record = new
+        {
+            entityId = NendoApplicationService.IdeaEntityId,
+            recordId = "refused",
+            values = new Dictionary<string, object?> { [NendoApplicationService.IdeaTitleFieldId] = "Never written" },
+            idempotencyKey = "refused",
+        };
+
+        foreach (var version in new[] { 2, 3, 4, 5, 6 })
+        {
+            foreach (var (method, payload) in new (string, object?)[]
+                     {
+                         (WorkbenchMethods.SessionGetSnapshot, null),
+                         (WorkbenchMethods.DataCreateRecord, record),
+                         (WorkbenchMethods.SessionCreateFile, null),
+                         (WorkbenchMethods.FileClose, null),
+                     })
+            {
+                var response = await handler.HandleAsync(RequestForVersion(version, $"v{version}-{method}", method, payload, created.FileSessionId));
+                Assert.IsFalse(response.Ok, $"{method} answered a version {version} renderer.");
+                Assert.AreEqual("unsupported-protocol", response.Error!.Code, $"{method} at {version}");
+                Assert.AreEqual(DesktopShellContract.BridgeProtocolVersion, response.ProtocolVersion,
+                    "A refusal is answered at the version the host speaks, not echoed back at the old one.");
+                StringAssert.Contains(response.Error.Message, $"protocol {version}");
+                StringAssert.Contains(response.Error.Message, $"protocol {DesktopShellContract.BridgeProtocolVersion} only");
+            }
+        }
+
+        Assert.AreEqual(0, fileActions, "A refused renderer started a file action.");
+        Assert.IsTrue(session.HasFile, "A refused renderer closed the file.");
+        var after = await session.GetViewAsync();
+        Assert.AreEqual(created.FileSessionId, after.FileSessionId);
+        Assert.AreEqual(before, after.Manifest!.ChangeSequence, "A refused renderer wrote to the file.");
+    }
+
     [TestMethod]
     public async Task OversizedAndOverdeepRequestsFailBeforeDispatch()
     {
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
-        var handler = new WorkbenchProtocolHandler(
-            session,
-            () => Task.FromResult<string?>(null),
-            () => Task.FromResult<string?>(null),
-            _ => { });
+        var handler = Handler(session);
 
         var oversized = await handler.HandleAsync(new string('x', WorkbenchProtocolHandler.MaximumMessageCharacters + 1));
         var nested = Enumerable.Range(0, 18)
@@ -199,14 +227,10 @@ public sealed class WorkbenchProtocolTests
         var original = new byte[] { 0x4E, 0x45, 0x4E, 0x44, 0x4F };
         await File.WriteAllBytesAsync(workspace.FilePath, original);
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
-        var handler = new WorkbenchProtocolHandler(
-            session,
-            () => Task.FromResult<string?>(workspace.FilePath),
-            () => Task.FromResult<string?>(null),
-            _ => { });
+        var handler = Handler(session, workspace.FilePath);
 
         var response = await handler.HandleAsync(
-            Request("save-existing-file", WorkbenchMethods.SessionCreateFile));
+            await RequestAsync(session, "save-existing-file", WorkbenchMethods.SessionCreateFile));
 
         Assert.IsFalse(response.Ok);
         Assert.AreEqual("file-io", response.Error!.Code);
@@ -222,15 +246,15 @@ public sealed class WorkbenchProtocolTests
         AppearancePayload? applied = null;
         var handler = new WorkbenchProtocolHandler(
             session,
-            () => Task.FromResult<string?>(null),
-            () => Task.FromResult<string?>(null),
             appearance => applied = appearance);
 
-        var accepted = await handler.HandleAsync(Request(
+        var accepted = await handler.HandleAsync(RequestForVersion(
+            DesktopShellContract.BridgeProtocolVersion,
             "appearance-dark",
             WorkbenchMethods.AppearanceSet,
             new { preference = "dark", effective = "dark" }));
-        var rejected = await handler.HandleAsync(Request(
+        var rejected = await handler.HandleAsync(RequestForVersion(
+            DesktopShellContract.BridgeProtocolVersion,
             "appearance-invalid",
             WorkbenchMethods.AppearanceSet,
             new { preference = "sepia", effective = "dark" }));
@@ -242,57 +266,53 @@ public sealed class WorkbenchProtocolTests
     }
 
     [TestMethod]
-    public async Task ClosedProtocolRunsProposalUseHistoryAndCompensationJourney()
+    public async Task TheBridgeRunsProposalUseHistoryAndCompensationJourney()
     {
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
-        var handler = new WorkbenchProtocolHandler(
-            session,
-            () => Task.FromResult<string?>(workspace.FilePath),
-            () => Task.FromResult<string?>(workspace.FilePath),
-            _ => { });
+        var handler = Handler(session, workspace.FilePath);
 
-        Assert.IsTrue((await handler.HandleAsync(Request(
-            "p2-create-file",
-            WorkbenchMethods.SessionCreateFile))).Ok);
-        Assert.IsTrue((await handler.HandleAsync(Request(
-            "p2-create-schema",
-            WorkbenchMethods.SchemaCreateIdea,
-            new { idempotencyKey = "p2-protocol-schema" }))).Ok);
-
-        var prepared = await handler.HandleAsync(Request(
-            "p2-prepare",
-            WorkbenchMethods.ProposalPrepareIdeaGarden));
-        var preview = (Nendo.Engine.NendoProposalPreview)prepared.Result!;
-        Assert.AreEqual(Nendo.Engine.NendoProposalState.Previewable, preview.State);
+        var createdFile = await handler.HandleAsync(await RequestAsync(session, "p2-create-file", WorkbenchMethods.SessionCreateFile));
+        Assert.IsTrue(createdFile.Ok, createdFile.Error?.Message);
+        // The reference application arrives as a proposal the fixture prepares; promoting it is
+        // the bridge's, as it is the person's.
+        await session.CreateIdeaSchemaAsync("p2-protocol-schema");
+        var preview = await session.PrepareIdeaGardenProposalAsync();
+        Assert.AreEqual(NendoProposalState.Previewable, preview.State);
         Assert.IsNotEmpty(preview.PreviewApplications);
 
-        var promoted = await handler.HandleAsync(Request(
+        var promoted = await handler.HandleAsync(await RequestAsync(session,
             "p2-promote",
             WorkbenchMethods.ProposalPromote,
             new { proposalId = preview.ProposalId }));
+        Assert.IsTrue(promoted.Ok, promoted.Error?.Message);
         Assert.IsTrue(((DesktopPromotionView)promoted.Result!).Promotion.Applied);
 
-        var created = await handler.HandleAsync(Request(
+        var created = await handler.HandleAsync(await RequestAsync(session,
             "p2-create-record",
-            WorkbenchMethods.DataCreateFullIdea,
+            WorkbenchMethods.DataCreateRecord,
             new
             {
+                entityId = NendoApplicationService.IdeaEntityId,
                 recordId = "idea-p2-protocol",
-                title = "Protocol garden",
-                notes = "Complete record",
-                status = "Idea",
-                energy = "Medium",
-                createdDate = "2026-09-03",
-                nextAction = "Exercise the command",
+                values = new Dictionary<string, object?>
+                {
+                    [NendoApplicationService.IdeaTitleFieldId] = "Protocol garden",
+                    [NendoApplicationService.IdeaNotesFieldId] = "Complete record",
+                    [NendoApplicationService.IdeaStatusFieldId] = "Idea",
+                    [NendoApplicationService.IdeaEnergyFieldId] = "Medium",
+                    [NendoApplicationService.IdeaCreatedDateFieldId] = "2026-09-03",
+                    [NendoApplicationService.IdeaNextActionFieldId] = "Exercise the command",
+                },
                 idempotencyKey = "p2-protocol-record",
             }));
+        Assert.IsTrue(created.Ok, created.Error?.Message);
         var createdView = (DesktopMutationView)created.Result!;
         Assert.IsNotNull(createdView.Session);
 
-        var command = await handler.HandleAsync(Request(
+        var command = await handler.HandleAsync(await RequestAsync(session,
             "p2-command",
-            WorkbenchMethods.DataExecuteIdeaCommand,
+            WorkbenchMethods.DataExecuteCommand,
             new
             {
                 commandId = "command.idea.moveToTrying",
@@ -300,23 +320,23 @@ public sealed class WorkbenchProtocolTests
                 expectedRecordVersion = createdView.Session.Records.Single().RecordVersion,
                 idempotencyKey = "p2-protocol-command",
             }));
+        Assert.IsTrue(command.Ok, command.Error?.Message);
         var commandView = (DesktopMutationView)command.Result!;
         Assert.IsNotNull(commandView.Session);
         Assert.AreEqual(
             "Trying",
-            commandView.Session.Records.Single().Values[
-                Nendo.Engine.NendoApplicationService.IdeaStatusFieldId].GetString());
+            commandView.Session.Records.Single().Values[NendoApplicationService.IdeaStatusFieldId].GetString());
 
-        var compilation = await handler.HandleAsync(Request(
+        var compilation = await handler.HandleAsync(await RequestAsync(session,
             "p2-compile",
             WorkbenchMethods.SemanticCompile));
-        var history = await handler.HandleAsync(Request(
+        var history = await handler.HandleAsync(await RequestAsync(session,
             "p2-history",
             WorkbenchMethods.HistoryGet));
-        Assert.IsTrue(((Nendo.Engine.NendoCompileResult)compilation.Result!).IsValid);
-        Assert.IsNotEmpty((IReadOnlyList<Nendo.Engine.NendoRevisionSnapshot>)history.Result!);
+        Assert.IsTrue(((NendoCompileResult)compilation.Result!).IsValid);
+        Assert.IsNotEmpty((IReadOnlyList<NendoRevisionSnapshot>)history.Result!);
 
-        var compensated = await handler.HandleAsync(Request(
+        var compensated = await handler.HandleAsync(await RequestAsync(session,
             "p2-compensate",
             WorkbenchMethods.HistoryCompensate,
             new
@@ -324,34 +344,30 @@ public sealed class WorkbenchProtocolTests
                 revisionId = commandView.Mutation.RevisionId,
                 idempotencyKey = "p2-protocol-compensate",
             }));
+        Assert.IsTrue(compensated.Ok, compensated.Error?.Message);
         var compensatedView = (DesktopMutationView)compensated.Result!;
         Assert.IsNotNull(compensatedView.Session);
         Assert.AreEqual(
             "Idea",
-            compensatedView.Session.Records.Single().Values[
-                Nendo.Engine.NendoApplicationService.IdeaStatusFieldId].GetString());
+            compensatedView.Session.Records.Single().Values[NendoApplicationService.IdeaStatusFieldId].GetString());
         Assert.DoesNotContain(workspace.FilePath, WorkbenchProtocolHandler.Serialize(compensated));
     }
 
     [TestMethod]
-    public async Task RevisionFourCompatibilityRunsDecisionLogThroughGenericTypedRequests()
+    public async Task TheBridgeRunsADecisionLogThroughGenericTypedRequests()
     {
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
-        var handler = new WorkbenchProtocolHandler(
-            session,
-            () => Task.FromResult<string?>(workspace.FilePath),
-            () => Task.FromResult<string?>(workspace.FilePath),
-            _ => { });
+        var handler = Handler(session, workspace.FilePath);
 
-        var createdFile = await handler.HandleAsync(Request(
+        var createdFile = await handler.HandleAsync(await RequestAsync(session,
             "decision-create-file",
             WorkbenchMethods.SessionCreateFile));
-        Assert.IsTrue(createdFile.Ok);
-        Assert.AreEqual(DesktopShellContract.AgentBridgeProtocolVersion, createdFile.ProtocolVersion);
+        Assert.IsTrue(createdFile.Ok, createdFile.Error?.Message);
+        Assert.AreEqual(DesktopShellContract.BridgeProtocolVersion, createdFile.ProtocolVersion);
 
         var proposalId = $"proposal-{Guid.NewGuid():N}";
-        var prepared = await handler.HandleAsync(Request(
+        var prepared = await handler.HandleAsync(await RequestAsync(session,
             "decision-prepare",
             WorkbenchMethods.ProposalPrepareChangeSet,
             new PrepareChangeSetPayload(
@@ -363,13 +379,13 @@ public sealed class WorkbenchProtocolTests
         Assert.AreEqual(NendoProposalState.Previewable, preview.State);
         Assert.AreEqual("entity.decision", preview.PreviewApplications.Single().Entity.SemanticId);
 
-        var promoted = await handler.HandleAsync(Request(
+        var promoted = await handler.HandleAsync(await RequestAsync(session,
             "decision-promote",
             WorkbenchMethods.ProposalPromote,
             new { proposalId }));
         Assert.IsTrue(((DesktopPromotionView)promoted.Result!).Promotion.Applied);
 
-        var created = await handler.HandleAsync(Request(
+        var created = await handler.HandleAsync(await RequestAsync(session,
             "decision-create-record",
             WorkbenchMethods.DataCreateRecord,
             new
@@ -388,7 +404,7 @@ public sealed class WorkbenchProtocolTests
             }));
         Assert.IsTrue(created.Ok, created.Error?.Message);
 
-        var edited = await handler.HandleAsync(Request(
+        var edited = await handler.HandleAsync(await RequestAsync(session,
             "decision-edit-owner",
             WorkbenchMethods.DataSetField,
             new
@@ -402,7 +418,7 @@ public sealed class WorkbenchProtocolTests
             }));
         Assert.IsTrue(edited.Ok, edited.Error?.Message);
 
-        var command = await handler.HandleAsync(Request(
+        var command = await handler.HandleAsync(await RequestAsync(session,
             "decision-command",
             WorkbenchMethods.DataExecuteCommand,
             new
@@ -420,7 +436,7 @@ public sealed class WorkbenchProtocolTests
         Assert.AreEqual("Accepted", record.Values["field.decision.state"].GetString());
         Assert.AreEqual("Thomas Klok Rohde", record.Values["field.decision.owner"].GetString());
 
-        var stale = await handler.HandleAsync(Request(
+        var stale = await handler.HandleAsync(await RequestAsync(session,
             "decision-stale",
             WorkbenchMethods.DataSetField,
             new
@@ -437,34 +453,29 @@ public sealed class WorkbenchProtocolTests
         Assert.DoesNotContain(workspace.FilePath, WorkbenchProtocolHandler.Serialize(command));
     }
 
+    /// <summary>
+    /// The eight methods that served the Idea Garden by name at protocol 2 are gone with it
+    /// (W-135). An open file and its current generation, so each request reaches the dispatch
+    /// itself rather than stopping at the binding.
+    /// </summary>
     [TestMethod]
-    public async Task ProtocolVersionsKeepGenericAndIdeaMethodsSeparated()
+    public async Task TheRetiredApplicationMethodsAreUnknown()
     {
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
-        var handler = new WorkbenchProtocolHandler(
-            session,
-            () => Task.FromResult<string?>(null),
-            () => Task.FromResult<string?>(null),
-            _ => { });
+        await session.CreateAsync(workspace.FilePath);
+        var handler = Handler(session);
 
-        var legacyGeneric = await handler.HandleAsync(RequestForVersion(
-            DesktopShellContract.LegacyBridgeProtocolVersion,
-            "legacy-generic",
-            WorkbenchMethods.DataCreateRecord,
-            new { }));
-        var currentIdea = await handler.HandleAsync(RequestForVersion(
-            DesktopShellContract.BridgeProtocolVersion,
-            "current-idea",
-            WorkbenchMethods.SchemaCreateIdea,
-            new { }));
-
-        Assert.IsFalse(legacyGeneric.Ok);
-        Assert.AreEqual(DesktopShellContract.LegacyBridgeProtocolVersion, legacyGeneric.ProtocolVersion);
-        Assert.AreEqual("unknown-method", legacyGeneric.Error!.Code);
-        Assert.IsFalse(currentIdea.Ok);
-        Assert.AreEqual(DesktopShellContract.BridgeProtocolVersion, currentIdea.ProtocolVersion);
-        Assert.AreEqual("unknown-method", currentIdea.Error!.Code);
+        foreach (var method in new[]
+                 {
+                     "schema.createIdea", "data.createIdea", "data.setIdeaTitle", "data.createFullIdea",
+                     "data.setIdeaField", "data.executeIdeaCommand", "proposal.prepareIdeaGarden", "proposal.prepareBoardTitle",
+                 })
+        {
+            var response = await handler.HandleAsync(await RequestAsync(session, "retired-" + method, method));
+            Assert.IsFalse(response.Ok, method);
+            Assert.AreEqual("unknown-method", response.Error!.Code, method);
+        }
     }
 
     private static IReadOnlyList<CanonicalMutationPayload> DecisionDefinitionMutations(string proposalId)
@@ -526,15 +537,6 @@ public sealed class WorkbenchProtocolTests
             operations.AsReadOnly())];
     }
 
-    private static string Request(string requestId, string method, object? payload = null) =>
-        RequestForVersion(
-            LegacyMethods.Contains(method)
-                ? DesktopShellContract.LegacyBridgeProtocolVersion
-                : DesktopShellContract.AgentBridgeProtocolVersion,
-            requestId,
-            method,
-            payload);
-
     [TestMethod]
     public async Task EveryMethodTheWorkbenchSendsIsAdmittedAtTheCurrentProtocol()
     {
@@ -544,8 +546,9 @@ public sealed class WorkbenchProtocolTests
         // board rename went on sending one for sixteen days, answered by a red
         // sentence in Studio and a timeout in the review lane (F-084). This reads the
         // literals off the Workbench source and asks the real handler about each one
-        // at the version the Workbench speaks. It sees a method the host once had and
-        // has since fenced off; a method the host never had is the review lanes' to find.
+        // at the version the Workbench speaks, carrying the session's current generation
+        // so each request reaches the dispatch. It sees a method the host once had and
+        // has since dropped; a method the host never had is the review lanes' to find.
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "Nendo.slnx"))) root = root.Parent;
         Assert.IsNotNull(root, "The repository root was not found above the test output directory.");
@@ -566,32 +569,54 @@ public sealed class WorkbenchProtocolTests
 
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
-        var handler = new WorkbenchProtocolHandler(
-            session,
-            () => Task.FromResult<string?>(null),
-            () => Task.FromResult<string?>(null),
-            _ => { });
+        var handler = Handler(session);
         var refused = new List<string>();
         foreach (var (method, file) in sent)
         {
-            var response = await handler.HandleAsync(RequestForVersion(
-                DesktopShellContract.BridgeProtocolVersion, "sent-" + method, method));
+            var response = await handler.HandleAsync(await RequestAsync(session, "sent-" + method, method));
             if (!response.Ok && response.Error!.Code == "unknown-method") refused.Add($"{method} (sent by {file})");
         }
         Assert.IsEmpty(refused,
             $"The Workbench sends methods the host does not admit at protocol version {DesktopShellContract.BridgeProtocolVersion}: {string.Join(", ", refused)}");
     }
 
+    /// <summary>
+    /// A handler whose Create and Open file actions answer with <paramref name="pickedPath"/>, as the
+    /// window's own pickers would, through the same session calls the window makes.
+    /// </summary>
+    private static WorkbenchProtocolHandler Handler(DesktopSessionController session, string? pickedPath = null) =>
+        new(session, _ => { }, pickedPath is null ? null : async request => new DesktopFileActionView(request.Action switch
+        {
+            WorkbenchFileAction.Create => await session.CreateFromSavePickerAsync(pickedPath),
+            WorkbenchFileAction.Open => await session.OpenAsync(pickedPath),
+            _ => throw new InvalidOperationException($"This test has no {request.Action} action."),
+        }, null));
+
+    /// <summary>A request at the current version, for the file generation the session has now.</summary>
+    private static async Task<string> RequestAsync(
+        DesktopSessionController session,
+        string requestId,
+        string method,
+        object? payload = null) =>
+        RequestForVersion(
+            DesktopShellContract.BridgeProtocolVersion,
+            requestId,
+            method,
+            payload,
+            (await session.GetViewAsync()).FileSessionId);
+
     private static string RequestForVersion(
         int protocolVersion,
         string requestId,
         string method,
-        object? payload = null) =>
+        object? payload = null,
+        string? fileSessionId = null) =>
         JsonSerializer.Serialize(new
         {
             protocolVersion,
             requestId,
             method,
+            fileSessionId,
             payload = payload ?? new { },
         });
 }

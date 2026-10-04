@@ -503,7 +503,11 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
         }
     }
 
-    private async Task<DesktopMutationView> MutateAsync(
+    /// <summary>
+    /// One write under the request gate, answered with the refreshed view. Internal rather than
+    /// private so the test project's fixtures drive a session through this same gate.
+    /// </summary>
+    internal async Task<DesktopMutationView> MutateAsync(
         Func<NendoApplicationService, Task<NendoApplyResult>> action,
         CancellationToken cancellationToken,
         string? origin = null)
@@ -550,7 +554,8 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
             _behaviourGrants?.Notice);
     }
 
-    private async Task<T> QueryAsync<T>(
+    /// <summary>One read under the request gate; internal for the same test fixtures.</summary>
+    internal async Task<T> QueryAsync<T>(
         Func<NendoApplicationService, Task<T>> action,
         CancellationToken cancellationToken,
         string? origin = null)

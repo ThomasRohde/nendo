@@ -133,7 +133,7 @@ async function installReview() {
           if (!response.ok) reject(new Error(response.error?.message)); else resolve(response.result);
         };
         add('message', listener);
-        send({ protocolVersion: 5, requestId, method, fileSessionId: window.review.fileSessionId, payload });
+        send({ protocolVersion: 7, requestId, method, fileSessionId: window.review.fileSessionId, payload });
       });
     })();
   `);

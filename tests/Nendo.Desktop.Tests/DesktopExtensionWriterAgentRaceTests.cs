@@ -26,7 +26,7 @@ public sealed class DesktopExtensionWriterAgentRaceTests
         await using var session = new DesktopSessionController(
             new NendoLocalMcpHostOptions(discovery), workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot);
         await session.OpenAsync(workspace.FilePath);
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null), () => Task.FromResult<string?>(null), _ => { });
+        var handler = new WorkbenchProtocolHandler(session, _ => { });
         var fileSessionId = (await session.GetViewAsync()).FileSessionId!;
         var package = DesktopExtensionViewJourneyTests.ProbePackages[2];
         var actor = "extension:" + package;

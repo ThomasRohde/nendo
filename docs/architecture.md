@@ -487,8 +487,14 @@ physically dropped.
 
 To route a click, the host must send the first message. Bridge protocol version 7
 adds this: an unsolicited `{protocolVersion, event, payload}` message that carries
-a route name. The message has no `requestId`. Thus a renderer at versions 2–6
-drops it, as it drops any other message that it did not request.
+a route name. The message has no `requestId`, so it cannot be mistaken for a reply.
+
+Version 7 is the only bridge protocol the host serves. Versions 2 to 6, with the
+Idea Garden methods of version 2 and the file pickers the host ran for versions
+before 7, were retired on 2026-10-04 (W-135): the bundled Workbench speaks 7, and
+the review and gate lanes under `tools/` that still sent 5 or 6 were moved to 7 in
+the same change. A request at any other version gets `unsupported-protocol`,
+answered at version 7, before any file binding, read, write or file action runs.
 
 ### The title band is the title bar
 

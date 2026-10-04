@@ -85,7 +85,7 @@ async function record(name, value) {
 
 let fileSessionId = null;
 async function host(method, payload = {}) {
-  const request = { protocolVersion: 6, requestId: crypto.randomUUID(), method, payload, fileSessionId };
+  const request = { protocolVersion: 7, requestId: crypto.randomUUID(), method, payload, fileSessionId };
   const reply = await evaluate(`new Promise((resolve,reject)=>{
     const b=chrome.webview,request=${JSON.stringify(request)};
     const timer=setTimeout(()=>{b.removeEventListener('message',receive);reject(new Error('Owned host timeout'));},12000);
@@ -101,7 +101,7 @@ async function snapshot() { return host('session.getSnapshot'); }
 
 /** The raw reply, so a diagnostic can report a refusal instead of throwing on it. */
 async function hostOutcome(method, payload = {}) {
-  const request = { protocolVersion: 6, requestId: crypto.randomUUID(), method, payload, fileSessionId };
+  const request = { protocolVersion: 7, requestId: crypto.randomUUID(), method, payload, fileSessionId };
   return evaluate(`new Promise((resolve)=>{
     const b=chrome.webview,request=${JSON.stringify(request)};
     const timer=setTimeout(()=>{b.removeEventListener('message',receive);resolve({timedOut:true});},12000);

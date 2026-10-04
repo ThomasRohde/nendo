@@ -34,8 +34,7 @@ public sealed class WorkbenchDeclaredQueryPagingTests
         for (var index = 0; index < 20; index++)
             await session.CreateIdeaRecordAsync($"other-{index:D3}", $"Other {index:D3}", $"other-{index:D3}");
 
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null),
-            () => Task.FromResult<string?>(null), _ => { });
+        var handler = new WorkbenchProtocolHandler(session, _ => { });
 
         var first = await PageAsync(null);
         Assert.HasCount(50, first.Items);
@@ -78,7 +77,7 @@ public sealed class WorkbenchDeclaredQueryPagingTests
 
         string Request(object payload) => JsonSerializer.Serialize(new
         {
-            protocolVersion = 5,
+            protocolVersion = DesktopShellContract.BridgeProtocolVersion,
             requestId = Guid.NewGuid().ToString("N"),
             method = WorkbenchMethods.DataQueryRecords,
             fileSessionId = initial.FileSessionId,
@@ -102,8 +101,7 @@ public sealed class WorkbenchDeclaredQueryPagingTests
         for (var index = 0; index < 60; index++)
             await session.CreateIdeaRecordAsync($"match-{index:D3}", $"Matching {index:D3}", $"match-{index:D3}");
 
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null),
-            () => Task.FromResult<string?>(null), _ => { });
+        var handler = new WorkbenchProtocolHandler(session, _ => { });
         var filtered = await handler.HandleAsync(Request(new
         {
             entityId = NendoApplicationService.IdeaEntityId,
@@ -145,7 +143,7 @@ public sealed class WorkbenchDeclaredQueryPagingTests
 
         string Request(object payload) => JsonSerializer.Serialize(new
         {
-            protocolVersion = 5,
+            protocolVersion = DesktopShellContract.BridgeProtocolVersion,
             requestId = Guid.NewGuid().ToString("N"),
             method = WorkbenchMethods.DataQueryRecords,
             fileSessionId = initial.FileSessionId,

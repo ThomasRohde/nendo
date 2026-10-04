@@ -100,24 +100,23 @@ public sealed class DesktopAppearanceTests
     }
 
     [TestMethod]
-    public async Task V5ReadsNativePreferenceWithoutFileAuthorityAndOlderVersionsDoNotGainTheMethod()
+    public async Task TheNativePreferenceIsReadWithoutFileAuthorityAndOlderVersionsAreRefused()
     {
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
         var store = new DesktopAppearanceStore(Path.Combine(workspace.FileHistoryRoot, "appearance"));
         store.Save("dark");
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null),
-            () => Task.FromResult<string?>(null), value => store.Save(value.Preference),
+        var handler = new WorkbenchProtocolHandler(session, value => store.Save(value.Preference),
             getAppearance: () => new(store.Preference, store.Preference == "dark" ? "dark" : "light", store.Persisted, store.Notice));
-        var result = await handler.HandleAsync(Request(5, WorkbenchMethods.AppearanceGet));
+        var result = await handler.HandleAsync(Request(DesktopShellContract.BridgeProtocolVersion, WorkbenchMethods.AppearanceGet));
         Assert.IsTrue(result.Ok, result.Error?.Message);
         Assert.AreEqual("dark", ((DesktopAppearanceView)result.Result!).Preference);
         Assert.IsFalse(session.HasFile);
-        var set = await handler.HandleAsync(Request(5, WorkbenchMethods.AppearanceSet, new { preference = "light", effective = "dark" }));
+        var set = await handler.HandleAsync(Request(DesktopShellContract.BridgeProtocolVersion, WorkbenchMethods.AppearanceSet, new { preference = "light", effective = "dark" }));
         Assert.IsTrue(set.Ok, set.Error?.Message);
         Assert.AreEqual("light", ((DesktopAppearanceView)set.Result!).Effective, "Effective appearance comes from the host, not the renderer claim.");
-        foreach (var version in new[] { 2, 3, 4 })
-            Assert.AreEqual("unknown-method", (await handler.HandleAsync(Request(version, WorkbenchMethods.AppearanceGet))).Error!.Code);
+        foreach (var version in new[] { 2, 3, 4, 5, 6 })
+            Assert.AreEqual("unsupported-protocol", (await handler.HandleAsync(Request(version, WorkbenchMethods.AppearanceGet))).Error!.Code);
         Assert.IsFalse(JsonSerializer.Serialize(result.Result).Contains(workspace.FileHistoryRoot, StringComparison.Ordinal));
     }
 

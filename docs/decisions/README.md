@@ -38,6 +38,10 @@ existed. For this reason the numbering is contiguous by intent.
 
 ## Amendments in force
 
+- **ADR-0002, 2026-10-04 — the bridge serves protocol 7 only**: the host answers
+  a Workbench request at any version but 7 with `unsupported-protocol`, before any
+  binding, read, write or file action. The compatibility layer for versions 2 to 6
+  is deleted (W-135). ADR-0002 carries this as its 2026-10-04 note.
 - **ADR-0002, 2026-09-25 — custom views run as frames of the one WebView2**: a
   custom view is a cross-origin frame in the Workbench's own browser, served from
   the open file, with a renderer process of its own for each package
@@ -276,8 +280,8 @@ existed. For this reason the numbering is contiguous by intent.
   a file that stopped being writable and a failed workspace. They route and never
   grant: the production gate keeps them out of the MCP adapter, and a test
   asserts that no payload carries an approve, accept, promote or grant argument.
-  Bridge protocol 7 adds the first unsolicited host message, and 2–6 stay
-  supported. The
+  Bridge protocol 7 adds the first unsolicited host message; since 2026-10-04 it
+  is the only version the host serves. The
   amendment records the cost: closing the window no longer turns off the ADR-0009
   posture.
 - **ADR-0002, 2026-09-16 — a screen may not chase its reads without a bound**: a

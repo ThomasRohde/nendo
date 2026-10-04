@@ -95,8 +95,6 @@ public sealed class WorkbenchDroppedFileTests
         var opened = 0;
         var handler = new WorkbenchProtocolHandler(
             session,
-            () => Task.FromResult<string?>(workspace.FilePath),
-            () => Task.FromResult<string?>(workspace.FilePath),
             _ => { },
             request =>
             {

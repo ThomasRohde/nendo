@@ -54,15 +54,20 @@ public sealed class DesktopLocationTests
     }
 
     [TestMethod]
-    public async Task LegacyPickerPlaceholderIsNotInitializedBeforeUnsupportedLocationIsAcknowledged()
+    public async Task APickedPlaceholderIsNotInitializedBeforeUnsupportedLocationIsAcknowledged()
     {
         await using var workspace = new DesktopTestWorkspace();
         await File.WriteAllBytesAsync(workspace.FilePath, []);
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot,
             locationPolicy: new([Path.GetDirectoryName(workspace.FilePath)!]));
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(workspace.FilePath),
-            () => Task.FromResult<string?>(workspace.FilePath), _ => { });
-        var response = await handler.HandleAsync(JsonSerializer.Serialize(new { protocolVersion = 4, requestId = "create", method = "session.createFile" }));
+        // The window's Create action: the save picker answers with the placeholder it reserved.
+        var handler = new WorkbenchProtocolHandler(session, _ => { },
+            async _ => new DesktopFileActionView(await session.CreateFromSavePickerAsync(workspace.FilePath), null));
+        var response = await handler.HandleAsync(JsonSerializer.Serialize(new
+        {
+            protocolVersion = DesktopShellContract.BridgeProtocolVersion, requestId = "create", method = "session.createFile",
+            fileSessionId = (await session.GetViewAsync()).FileSessionId,
+        }));
         Assert.AreEqual("unsupported-sync-location", response.Error!.Code);
         Assert.AreEqual(0, new FileInfo(workspace.FilePath).Length);
         Assert.IsFalse(File.Exists(workspace.FilePath + ".write-owner"));
@@ -134,12 +139,12 @@ public sealed class DesktopLocationTests
         var view = await session.OpenAsync(workspace.FilePath);
         var destination = Path.Combine(warnedRoot, "export.csv");
         using (session.BindFileRequest(view.FileSessionId!)) await session.AcknowledgeDestinationLocationAsync(destination);
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null), () => Task.FromResult<string?>(null), _ => { }, async _ =>
+        var handler = new WorkbenchProtocolHandler(session, _ => { }, async _ =>
         {
             await session.PrepareRecoveryExportAsync(NendoApplicationService.IdeaEntityId, destination, "export");
             return new(await session.GetViewAsync(), null);
         });
-        var response = await handler.HandleAsync(JsonSerializer.Serialize(new { protocolVersion = 5, requestId = "export", method = "file.export", fileSessionId = view.FileSessionId,
+        var response = await handler.HandleAsync(JsonSerializer.Serialize(new { protocolVersion = DesktopShellContract.BridgeProtocolVersion, requestId = "export", method = "file.export", fileSessionId = view.FileSessionId,
             payload = new { acknowledgeUnsupportedLocation = true, path = destination } }));
         Assert.AreEqual("unsupported-sync-location", response.Error!.Code);
         Assert.IsFalse(File.Exists(destination));

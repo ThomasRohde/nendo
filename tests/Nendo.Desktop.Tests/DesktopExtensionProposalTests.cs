@@ -128,7 +128,7 @@ public sealed class DesktopExtensionProposalTests
     {
         var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot);
         await session.OpenAsync(workspace.FilePath);
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null), () => Task.FromResult<string?>(null), _ => { });
+        var handler = new WorkbenchProtocolHandler(session, _ => { });
         var view = await session.GetViewAsync();
         Assert.IsTrue(view.Extensions!.Run, "Views are not running in the seeded file.");
         return (session, handler, view.FileSessionId!);

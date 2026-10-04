@@ -120,11 +120,10 @@ public sealed class FormSaveOutcomeTests
         Dictionary<string, object?> values, string key, long version = 1)
     {
         var snapshot = await session.GetViewAsync();
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null),
-            () => Task.FromResult<string?>(null), _ => { });
+        var handler = new WorkbenchProtocolHandler(session, _ => { });
         return await handler.HandleAsync(JsonSerializer.Serialize(new
         {
-            protocolVersion = 5, requestId = Guid.NewGuid().ToString("N"), method = "data.setFields", snapshot.FileSessionId,
+            protocolVersion = DesktopShellContract.BridgeProtocolVersion, requestId = Guid.NewGuid().ToString("N"), method = "data.setFields", snapshot.FileSessionId,
             payload = new { entityId = NendoApplicationService.IdeaEntityId, recordId = "record", values,
                 expectedRecordVersion = version, idempotencyKey = key },
         }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));

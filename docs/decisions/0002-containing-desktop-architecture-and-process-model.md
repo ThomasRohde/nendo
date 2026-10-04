@@ -358,6 +358,20 @@ can restart without custom views. The contained helper of 2026-09-20 to
 Job Object, is deleted. The [custom-view contract](../contracts/custom-views.md)
 describes the current behaviour.
 
+## 2026-10-04 note — the bridge serves protocol 7 only
+
+The owner chose on 2026-10-04 (W-135) that the host no longer serves a Workbench
+older than bridge protocol 7. The bundled Workbench sends 7; the review and gate
+lanes under `tools/` that sent 5 or 6 moved to 7 in the same change, and no
+extension or prototype sends a version at all. The host's compatibility layer for
+versions 2 to 6 is deleted: the Idea Garden methods of version 2, the session
+pinning of versions 2 to 4, the file pickers the host ran itself before 7, and the
+serializer that left numbers bare before 6. A request at any other version gets
+one refusal, `unsupported-protocol`, at version 7 and before anything runs.
+
+The 2026-09-15 amendment's remark that a renderer at 2–6 drops an unsolicited
+message is history: no such renderer is served any more.
+
 ## Consequences
 
 ### Positive

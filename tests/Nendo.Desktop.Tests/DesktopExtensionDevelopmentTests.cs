@@ -159,7 +159,7 @@ public sealed class DesktopExtensionDevelopmentTests
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot);
         await session.OpenAsync(workspace.FilePath);
         var fileSessionId = (await session.GetViewAsync()).FileSessionId!;
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null), () => Task.FromResult<string?>(null), _ => { },
+        var handler = new WorkbenchProtocolHandler(session, _ => { },
             extensionHost: new FolderHost(folder));
 
         var linked = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.ExtensionDevelopLink, new { packageId = PackageId }));
@@ -171,7 +171,7 @@ public sealed class DesktopExtensionDevelopmentTests
 
         var stopped = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.ExtensionDevelopStop, new { packageId = PackageId }));
         Assert.IsTrue(stopped.Ok, stopped.Error?.Message);
-        var cancelled = await new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null), () => Task.FromResult<string?>(null), _ => { },
+        var cancelled = await new WorkbenchProtocolHandler(session, _ => { },
             extensionHost: new FolderHost(null)).HandleAsync(Request(fileSessionId, WorkbenchMethods.ExtensionDevelopLink, new { packageId = PackageId }));
         Assert.IsTrue(cancelled.Ok, cancelled.Error?.Message);
         StringAssert.Contains(JsonSerializer.Serialize(cancelled.Result, JsonSerializerOptions.Web), "cancelled");

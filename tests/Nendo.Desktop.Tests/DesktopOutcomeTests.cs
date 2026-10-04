@@ -19,11 +19,10 @@ public sealed class DesktopOutcomeTests
         var preview = await session.PrepareIdeaGardenProposalAsync();
         if (alreadyApplied) await session.PromoteProposalAsync(preview.ProposalId);
         var snapshot = await session.GetViewAsync();
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null),
-            () => Task.FromResult<string?>(null), _ => { });
+        var handler = new WorkbenchProtocolHandler(session, _ => { });
         var response = await handler.HandleAsync(JsonSerializer.Serialize(new
         {
-            protocolVersion = 5, requestId = "wrong-preview", fileSessionId = snapshot.FileSessionId,
+            protocolVersion = DesktopShellContract.BridgeProtocolVersion, requestId = "wrong-preview", fileSessionId = snapshot.FileSessionId,
             method = "proposal.promote", payload = new { preview.ProposalId, expectedOperationDigest = new string('0', 64) },
         }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
         Assert.AreEqual("idempotency-conflict", response.Error?.Code);
@@ -67,14 +66,13 @@ public sealed class DesktopOutcomeTests
         }
         await session.CloseAsync();
         var reopened = await session.OpenAsync(workspace.FilePath);
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null),
-            () => Task.FromResult<string?>(null), _ => { });
-        string Message(string? fileSessionId, int protocolVersion = 5) => JsonSerializer.Serialize(new
+        var handler = new WorkbenchProtocolHandler(session, _ => { });
+        string Message(string? fileSessionId, int protocolVersion = DesktopShellContract.BridgeProtocolVersion) => JsonSerializer.Serialize(new
         { protocolVersion, requestId = Guid.NewGuid().ToString("N"), method, fileSessionId, payload });
         var stale = await handler.HandleAsync(Message(opened.FileSessionId));
         Assert.AreEqual("stale-file-session", stale.Error!.Code);
-        var legacy = await handler.HandleAsync(Message(reopened.FileSessionId, 4));
-        Assert.AreEqual("unknown-method", legacy.Error!.Code);
+        var older = await handler.HandleAsync(Message(reopened.FileSessionId, 4));
+        Assert.AreEqual("unsupported-protocol", older.Error!.Code);
         var resolved = await handler.HandleAsync(Message(reopened.FileSessionId));
         Assert.IsTrue(resolved.Ok, resolved.Error?.Message);
         var receipt = kind == "proposal" ? ((NendoChangeSetApplyResult)resolved.Result!).Revisions.Single()

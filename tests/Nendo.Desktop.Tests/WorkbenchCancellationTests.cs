@@ -57,7 +57,7 @@ public sealed class WorkbenchCancellationTests
     {
         await using var workspace = new DesktopTestWorkspace();
         await using var session = Session(workspace);
-        var handler = Handler(session, workspace, () => Task.FromResult<string?>(workspace.FilePath));
+        var handler = Handler(session, new HeldPackagePicker());
 
         var answer = await handler.HandleAsync(Request("stop", WorkbenchMethods.RequestCancel,
             new { requestId = "a-request-that-already-returned" }));
@@ -73,23 +73,26 @@ public sealed class WorkbenchCancellationTests
     {
         await using var workspace = new DesktopTestWorkspace();
         await using var session = Session(workspace);
+        var opened = await session.CreateAsync(workspace.FilePath);
         // A native picker is the one wait this host can hold open on demand, so it
         // stands in for a long calculation: the request is genuinely in flight, and
-        // the test decides when it finishes.
-        var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var chosen = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var handler = Handler(session, workspace, () => { waiting.TrySetResult(); return chosen.Task; });
+        // the test decides when it finishes. Import's picker is the one that reads its
+        // package under the request's own token once the person has chosen.
+        var picker = new HeldPackagePicker();
+        var handler = Handler(session, picker);
 
-        var work = Task.Run(() => handler.HandleAsync(Request("slow-create", WorkbenchMethods.SessionCreateFile)));
-        await waiting.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        var work = Task.Run(() => handler.HandleAsync(Request("slow-import", WorkbenchMethods.ExtensionImport,
+            fileSessionId: opened.FileSessionId)));
+        await picker.Waiting.Task.WaitAsync(TimeSpan.FromSeconds(20));
 
         var stop = Task.Run(() => handler.HandleAsync(Request("stop", WorkbenchMethods.RequestCancel,
-            new { requestId = "slow-create" })));
+            new { requestId = "slow-import" })));
         await Task.Delay(200);
         Assert.IsFalse(stop.IsCompleted,
             "The stop answered while the work was still running, which reports an idle file that is still being written.");
 
-        chosen.TrySetResult(workspace.FilePath);
+        // A package that does not exist: read, it would fail as a missing file, not as a stop.
+        picker.Chosen.TrySetResult(Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, "never-read.nendoview"));
         var answer = await stop.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.IsTrue(answer.Ok);
         var view = (WorkbenchProtocolHandler.CancelledRequestView)answer.Result!;
@@ -97,11 +100,10 @@ public sealed class WorkbenchCancellationTests
         Assert.IsTrue(view.Stopped, "The worker did not stop within the join window.");
 
         // The cancellation reached the work itself, not only the message loop that
-        // started it: the file was never created.
+        // started it: the chosen package was never read.
         var outcome = await work.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.IsFalse(outcome.Ok);
-        Assert.AreEqual("cancelled", outcome.Error!.Code);
-        Assert.IsFalse(File.Exists(workspace.FilePath), "A cancelled create left a file behind.");
+        Assert.AreEqual("cancelled", outcome.Error!.Code, outcome.Error.Message);
     }
 
     [TestMethod]
@@ -109,12 +111,13 @@ public sealed class WorkbenchCancellationTests
     {
         await using var workspace = new DesktopTestWorkspace();
         await using var session = Session(workspace);
-        var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var chosen = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var handler = Handler(session, workspace, () => { waiting.TrySetResult(); return chosen.Task; });
+        var opened = await session.CreateAsync(workspace.FilePath);
+        var picker = new HeldPackagePicker();
+        var handler = Handler(session, picker);
 
-        var work = Task.Run(() => handler.HandleAsync(Request("slow-create", WorkbenchMethods.SessionCreateFile)));
-        await waiting.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        var work = Task.Run(() => handler.HandleAsync(Request("slow-import", WorkbenchMethods.ExtensionImport,
+            fileSessionId: opened.FileSessionId)));
+        await picker.Waiting.Task.WaitAsync(TimeSpan.FromSeconds(20));
 
         // Naming another request must not touch this one.
         var other = await handler.HandleAsync(Request("stop-other", WorkbenchMethods.RequestCancel,
@@ -122,7 +125,7 @@ public sealed class WorkbenchCancellationTests
         Assert.IsFalse(((WorkbenchProtocolHandler.CancelledRequestView)other.Result!).Found);
         Assert.IsFalse(work.IsCompleted, "Stopping one request stopped a different one.");
 
-        chosen.TrySetResult(null);
+        picker.Chosen.TrySetResult(null);
         var outcome = await work.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.IsTrue(outcome.Ok, "A request nobody stopped must finish normally.");
     }
@@ -131,21 +134,36 @@ public sealed class WorkbenchCancellationTests
         new(new NendoLocalMcpHostOptions(Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, "cancel-discovery")),
             workspace.FileHistoryRoot);
 
-    private static WorkbenchProtocolHandler Handler(
-        DesktopSessionController session,
-        DesktopTestWorkspace workspace,
-        Func<Task<string?>> pickCreatePath) =>
-        new(session, pickCreatePath, () => Task.FromResult<string?>(workspace.FilePath), _ => { });
+    private static WorkbenchProtocolHandler Handler(DesktopSessionController session, IWorkbenchExtensionHost extensionHost) =>
+        new(session, _ => { }, extensionHost: extensionHost);
 
     private static string Message(string method) =>
-        JsonSerializer.Serialize(new { protocolVersion = DesktopShellContract.AgentBridgeProtocolVersion, requestId = "peek", method });
+        JsonSerializer.Serialize(new { protocolVersion = DesktopShellContract.BridgeProtocolVersion, requestId = "peek", method });
 
-    private static string Request(string requestId, string method, object? payload = null) =>
+    private static string Request(string requestId, string method, object? payload = null, string? fileSessionId = null) =>
         JsonSerializer.Serialize(new
         {
-            protocolVersion = DesktopShellContract.AgentBridgeProtocolVersion,
+            protocolVersion = DesktopShellContract.BridgeProtocolVersion,
             requestId,
             method,
+            fileSessionId,
             payload = payload ?? new { },
         });
+
+    /// <summary>A package picker that waits until the test says what the person chose.</summary>
+    private sealed class HeldPackagePicker : IWorkbenchExtensionHost
+    {
+        internal TaskCompletionSource Waiting { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource<string?> Chosen { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<string?> PickPackageSourceAsync()
+        {
+            Waiting.TrySetResult();
+            return Chosen.Task;
+        }
+
+        public Task<string?> PickExportFolderAsync() => Task.FromResult<string?>(null);
+        public Task<string?> PickDevelopmentFolderAsync() => Task.FromResult<string?>(null);
+        public Task<IReadOnlyList<ExtensionFrameProcess>> ReadFrameProcessesAsync() => Task.FromResult<IReadOnlyList<ExtensionFrameProcess>>([]);
+    }
 }

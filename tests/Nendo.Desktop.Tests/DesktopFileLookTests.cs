@@ -28,7 +28,7 @@ public sealed class DesktopFileLookTests
         Assert.AreEqual(view.Look, session.CurrentLook, "The window reads the look the view last read.");
 
         // What the About page sends, through the bridge the page uses.
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null), () => Task.FromResult<string?>(null), _ => { });
+        var handler = new WorkbenchProtocolHandler(session, _ => { });
         var id = Guid.NewGuid().ToString("N");
         var prepared = await handler.HandleAsync(JsonSerializer.Serialize(new
         {

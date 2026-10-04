@@ -15,8 +15,7 @@ public sealed class WorkbenchPagedReadTests
         await session.CreateIdeaSchemaAsync("schema");
         for (var index = 0; index < 120; index++)
             await session.CreateIdeaRecordAsync($"record-{index:D3}", $"Title {index}", $"create-{index}");
-        var handler = new WorkbenchProtocolHandler(session, () => Task.FromResult<string?>(null),
-            () => Task.FromResult<string?>(null), _ => { });
+        var handler = new WorkbenchProtocolHandler(session, _ => { });
         var metadata = await SendAsync(WorkbenchMethods.SessionGetSnapshot);
         Assert.IsEmpty(((DesktopSessionView)metadata.Result!).Records);
         Assert.HasCount(120, (await session.GetViewAsync()).Records, "Native and compatibility full inspection stays explicit.");
@@ -47,7 +46,7 @@ public sealed class WorkbenchPagedReadTests
         Assert.AreEqual("Saved in a bounded view", refreshed.Items[0].Values[NendoApplicationService.IdeaTitleFieldId].GetString());
 
         string Request(string method, object? payload = null) => JsonSerializer.Serialize(new
-        { protocolVersion = 5, requestId = Guid.NewGuid().ToString("N"), method, fileSessionId = initial.FileSessionId,
+        { protocolVersion = DesktopShellContract.BridgeProtocolVersion, requestId = Guid.NewGuid().ToString("N"), method, fileSessionId = initial.FileSessionId,
             boundedRead = true, payload = payload ?? new { } });
         async Task<WorkbenchResponse> SendAsync(string method, object? payload = null)
         {

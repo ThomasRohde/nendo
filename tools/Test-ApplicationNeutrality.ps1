@@ -10,8 +10,6 @@ $allowed = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalI
 @(
     'src/Nendo.Engine/IdeaGardenCompatibility.cs',
     'src/Nendo.Engine/IdeaGardenDefinition.cs',
-    'src/Nendo.Desktop/IdeaGardenDesktopCompatibility.cs',
-    'src/Nendo.Desktop/IdeaGardenProtocolCompatibility.cs',
     'src/Nendo.Workbench/src/application-recipes.ts',
     'src/Nendo.Workbench/src/idea-garden-recipe.ts',
     'src/Nendo.Workbench/src/preview-fixtures.ts'
