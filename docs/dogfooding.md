@@ -163,6 +163,13 @@ resources directly. Neither client needs to launch the other. Claude Code may
 ask the person to trust a project's MCP registration. That client permission is
 separate from Nendo's proposal acceptance and device behavior consent.
 
+Claude Code also loads `.claude/skills/nendo-planner`, a read-only mod. Its
+status line names the workspace files Nendo holds open and the lease holder. A
+band above the prompt shows the open Now items, or the first Next item when Now
+is empty, and `/planner` prints both lanes. It reads the planner over the
+endpoint in `%LOCALAPPDATA%\Nendo\Mcp\active`, so it keeps working after the
+session's `nendo` tools drop. It never writes and takes no lease.
+
 To check registration, run `codex mcp get nendo` or `claude mcp get nendo` from
 the repository root. If Claude reports **Pending approval**, start `claude` here
 and approve the project server through its normal prompt. A registration check

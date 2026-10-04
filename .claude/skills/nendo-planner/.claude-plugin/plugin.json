@@ -1,0 +1,6 @@
+{
+  "name": "nendo-planner",
+  "version": "0.1.0",
+  "description": "Status line for which .nendo files are open, and a band showing the planner's Now lane",
+  "types": "./types/index.d.ts"
+}
