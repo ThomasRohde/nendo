@@ -667,6 +667,15 @@ Evidence: [protocol resource tests](../../tests/Nendo.LocalMcp.Tests/ProtocolRes
 [listen tests](../../tests/Nendo.LocalMcp.Tests/SubscriptionsListenTests.cs),
 [Tasks tests](../../tests/Nendo.LocalMcp.Tests/TasksExtensionTests.cs),
 [host skill tests](../../tests/Nendo.LocalMcp.Tests/HostSkillTests.cs),
+[evidence lanes](../../tests/Nendo.LocalMcp.Tests/EvidenceLaneTests.cs) (W-158: a two-client race
+through alternating leases in the default set; the soak lane behind `NENDO_RUN_SOAK=1`, which
+`Test-Production.ps1 -Soak` sets; a protocol matrix over every version the SDK lists, the
+handshake ones by `initialize` and the per-request ones by `server/discover`),
+[the Inspector lane](../../tests/Nendo.LocalMcp.Tests/InspectorLaneTests.cs) (behind
+`NENDO_RUN_INSPECTOR=1`, `Test-Production.ps1 -Inspector`, with the reference Inspector where
+`npx` finds it), the installed Claude Code and Codex lanes behind their own variables. Since
+2026-10-04 every opt-in lane that did not run reports Inconclusive, so a gate run says which
+lanes it did not exercise rather than counting them as passed.
 [authoring ergonomics tests](../../tests/Nendo.LocalMcp.Tests/AuthoringErgonomicsTests.cs),
 [extension package protocol tests](../../tests/Nendo.LocalMcp.Tests/ExtensionPackageProtocolTests.cs),
 and the [native neutrality probe](../../tools/Review-NeutralityRuntime.mjs).

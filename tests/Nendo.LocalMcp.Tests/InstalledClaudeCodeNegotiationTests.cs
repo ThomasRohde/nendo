@@ -73,7 +73,8 @@ public sealed class InstalledClaudeCodeNegotiationTests
     {
         if (Environment.GetEnvironmentVariable("NENDO_RUN_INSTALLED_CLAUDE_TEST") != "1")
         {
-            return;
+            // W-158: a lane that did not run says so, rather than reporting a pass it did not earn.
+            Assert.Inconclusive("The installed-client lane runs with NENDO_RUN_INSTALLED_CLAUDE_TEST=1; this run did not exercise it.");
         }
 
         await using var workspace = new LocalMcpTestWorkspace();

@@ -1,6 +1,12 @@
 [CmdletBinding()]
 param(
-    [switch] $SkipRestore
+    [switch] $SkipRestore,
+    # W-158: the opt-in lanes. -Inspector runs the reference Inspector's tools/list against a
+    # host (needs @modelcontextprotocol/inspector where npx finds it); -Soak renews a lease
+    # under expiry and fills the proposal cap twice. Without them those tests report
+    # Inconclusive, never a pass.
+    [switch] $Inspector,
+    [switch] $Soak
 )
 
 Set-StrictMode -Version Latest
@@ -77,6 +83,8 @@ try {
         Invoke-Checked 'dotnet' @('restore', 'Nendo.slnx', '--nologo') '.NET restore'
     }
     Invoke-Checked 'dotnet' @('build', 'Nendo.slnx', '--no-restore', '--nologo') '.NET build'
+    if ($Inspector) { $env:NENDO_RUN_INSPECTOR = '1' }
+    if ($Soak) { $env:NENDO_RUN_SOAK = '1' }
     Invoke-Checked 'dotnet' @('test', 'Nendo.slnx', '--no-build', '--no-restore', '--nologo', '--logger', 'trx') '.NET tests'
 
     Write-Host '== Tool boundaries =='
