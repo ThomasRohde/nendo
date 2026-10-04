@@ -125,9 +125,6 @@ public sealed class RecordPageHeaderTests
         Assert.HasCount(NendoSemanticVocabulary.ChoiceTones.Count, NendoSemanticVocabulary.ChoiceToneOrder);
     }
 
-    private static string Messages(NendoCompileResult compiled) =>
-        string.Join("; ", compiled.Diagnostics.Select(d => $"{d.Code}: {d.Message}"));
-
     private static NendoUiNodeSnapshot Page(string nodeId, params (string Name, object Value)[] properties) =>
         Node(nodeId, null, "detailSurface", 0,
             [

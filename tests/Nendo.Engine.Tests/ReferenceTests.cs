@@ -131,7 +131,6 @@ public sealed class ReferenceTests
         await coordinator.ApplyAsync(Mutation("target-record", new CreateRecordOperation("t", "target", "t", new Dictionary<string, object?> { ["label"] = "Target label" })));
     }
     private static NendoMutation Mutation(string key, NendoOperation operation) => new("test", key, "test", key, [operation]);
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
     private static async Task Code(string code, Func<Task> action) => Assert.AreEqual(code,
         (await Assert.ThrowsExactlyAsync<NendoPreconditionException>(action)).Code);
 }

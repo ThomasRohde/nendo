@@ -250,9 +250,6 @@ public sealed class TimelineSurfaceTests
             "at most six declared clauses");
     }
 
-    private static string Messages(NendoCompileResult compiled) =>
-        string.Join("; ", compiled.Diagnostics.Select(d => $"{d.Code}: {d.Message}"));
-
     private static NendoUiNodeSnapshot Timeline(
         string nodeId,
         string dateFieldId,

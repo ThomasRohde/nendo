@@ -19,12 +19,7 @@ public sealed class DesktopExtensionViewJourneyTests
 {
     internal static readonly string[] ProbePackages = ["org.nendo.test.probe-a", "org.nendo.test.probe-b", "org.nendo.test.probe-c"];
 
-    private static string RepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Nendo.slnx"))) directory = directory.Parent;
-        return directory?.FullName ?? throw new InvalidOperationException("Run from repository output.");
-    }
+    private static string RepositoryRoot() => TestRepository.Root();
 
     private const string ProbeHtml = """
         <!doctype html>

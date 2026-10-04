@@ -149,9 +149,6 @@ public sealed class FoldedSectionTests
         StringAssert.Contains(description.PropertyNotes!["opens"], "NUI313");
     }
 
-    private static string Messages(NendoCompileResult compiled) =>
-        string.Join("; ", compiled.Diagnostics.Select(d => $"{d.Code}: {d.Message}"));
-
     private static NendoUiNodeSnapshot Page(string nodeId, string kind) =>
         Node(nodeId, null, kind, 0,
             ("definitionVersion", NendoSemanticVocabulary.ContractVersion), ("entityId", "e"), ("title", "Example"));

@@ -549,6 +549,4 @@ public sealed class HierarchyTests
         (await service.QueryRecordsAsync(new(Entity, 1) { RecordId = id })).Items.Single();
 
     private static Task<NendoPreconditionException> Refused(Func<Task> action) => Assert.ThrowsExactlyAsync<NendoPreconditionException>(action);
-
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
 }

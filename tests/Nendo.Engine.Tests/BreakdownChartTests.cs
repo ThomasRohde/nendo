@@ -136,9 +136,6 @@ public sealed class BreakdownChartTests
         Assert.IsTrue(description.PropertyNotes!.ContainsKey("groupByFieldId"));
     }
 
-    private static string Messages(NendoCompileResult compiled) =>
-        string.Join("; ", compiled.Diagnostics.Select(d => $"{d.Code}: {d.Message}"));
-
     private static NendoUiNodeSnapshot List(string nodeId) =>
         Node(nodeId, null, "recordList", 0,
             ("definitionVersion", NendoSemanticVocabulary.ContractVersion), ("entityId", "e"), ("title", "Items"));

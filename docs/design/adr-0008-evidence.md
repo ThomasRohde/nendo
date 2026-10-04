@@ -7,6 +7,8 @@ design evidence. **The prototype code, runners, copied hosts and scratch outputs
 have been retired. The old commands below no longer run.** Implement the
 [regression specifications](adr-0008-regressions.md) in normal tests before
 claiming production results. No current executable-acceptance claim is made here.
+The `prototypes/adr-0008/` scripts and project the table names were removed with that
+code; the commands are kept as the record of what was run.
 
 ## Scope and literal outcomes
 

@@ -167,6 +167,4 @@ public sealed class BehaviourEventTests
         ]));
         TestBehaviourAuthority.Approving(coordinator);
     }
-
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
 }

@@ -449,6 +449,4 @@ public sealed class BehaviourCalculationTests
     }
 
     private static NendoMutation Mutation(string key, NendoOperation operation) => new("test", key, "test", key, [operation]);
-
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
 }

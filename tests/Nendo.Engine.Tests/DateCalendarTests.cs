@@ -179,9 +179,6 @@ public sealed class DateCalendarTests
             "at most six declared clauses");
     }
 
-    private static string Messages(NendoCompileResult compiled) =>
-        string.Join("; ", compiled.Diagnostics.Select(d => $"{d.Code}: {d.Message}"));
-
     private static NendoUiNodeSnapshot Calendar(
         string nodeId,
         string dateFieldId,

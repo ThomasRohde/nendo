@@ -144,12 +144,5 @@ public sealed class DesktopFileIconTests
         return (pixels[index], pixels[index + 1], pixels[index + 2], pixels[index + 3]);
     }
 
-    private static string RepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Nendo.slnx"))) return directory.FullName;
-        }
-        throw new InvalidOperationException("The repository root was not found above the test output.");
-    }
+    private static string RepositoryRoot() => TestRepository.Root();
 }

@@ -247,9 +247,6 @@ public sealed class GallerySurfaceTests
             "the surface's own filterClause children");
     }
 
-    private static string Messages(NendoCompileResult compiled) =>
-        string.Join("; ", compiled.Diagnostics.Select(d => $"{d.Code}: {d.Message}"));
-
     private static NendoUiNodeSnapshot Gallery(
         string nodeId,
         params (string Name, object Value)[] properties) =>

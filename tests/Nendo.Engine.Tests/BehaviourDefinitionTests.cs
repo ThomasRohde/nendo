@@ -5,8 +5,9 @@ namespace Nendo.Engine.Tests;
 
 /// <summary>
 /// Stage S1 of ADR-0008: the protected definition store and its canonical shape.
-/// These cover what a definition means and how it survives storage — not yet how it
-/// evaluates, which arrives with the adapter in S2.
+/// These cover what a definition means and how it survives storage. How it evaluates,
+/// which arrived with the adapter in S2, is covered by the calculation, scalar and action
+/// tests beside this file.
 /// </summary>
 /// <remarks>
 /// Not parallelized. Each case here creates a real <c>.nendo</c> file and drives it

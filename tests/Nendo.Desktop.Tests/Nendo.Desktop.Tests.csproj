@@ -15,6 +15,13 @@
 
   <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+    <Using Include="Nendo.Engine.Tests" />
+  </ItemGroup>
+
+  <!-- Shared with the Engine tests rather than copied: one file, linked. -->
+  <ItemGroup>
+    <Compile Include="..\Nendo.Engine.Tests\CompiledPlanTestExtensions.cs" Link="CompiledPlanTestExtensions.cs" />
+    <Compile Include="..\Nendo.Engine.Tests\TestRepository.cs" Link="TestRepository.cs" />
   </ItemGroup>
 
   <ItemGroup>

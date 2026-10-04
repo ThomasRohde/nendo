@@ -253,9 +253,6 @@ public sealed class SurfaceSummaryTileTests
 
     private static void RecordQueryValidation(NendoRecordQuery query) => RecordQuerySemantics.Validate(query);
 
-    private static string Messages(NendoCompileResult compiled) =>
-        string.Join("; ", compiled.Diagnostics.Select(d => $"{d.Code}: {d.Message}"));
-
     private static NendoUiNodeSnapshot[] Nodes(params IEnumerable<NendoUiNodeSnapshot>[] groups) =>
         groups.SelectMany(group => group).ToArray();
 

@@ -55,6 +55,4 @@ public sealed class CalculatedFieldWriteTests
             service.SetFieldAsync(new("notes", "n1", "nowhere", note.RecordVersion, "Typed", Context("missing"))));
         Assert.AreEqual("field-not-found", missing.Code);
     }
-
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
 }

@@ -206,7 +206,6 @@ public sealed class RetirementTests
         new AddFieldOperation("note", "e", "note", "Note", "note", NendoStorageKind.Text, false),
     ]));
     private static NendoMutation Mutation(string key, NendoOperation operation) => new("test", key, "test", key, [operation]);
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
     private static async Task Code(string code, Func<Task> action) => Assert.AreEqual(code,
         (await Assert.ThrowsExactlyAsync<NendoPreconditionException>(action)).Code);
 }

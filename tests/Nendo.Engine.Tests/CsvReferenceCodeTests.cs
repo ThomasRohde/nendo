@@ -188,10 +188,5 @@ public sealed class CsvReferenceCodeTests
     private static string Csv(params (string Code, string Name, string Parent)[] rows) =>
         "Code,Name,Parent\n" + string.Join("\n", rows.Select(row => $"{row.Code},{row.Name},{row.Parent}")) + "\n";
 
-    private static string RepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-            if (File.Exists(Path.Combine(directory.FullName, "Nendo.slnx"))) return directory.FullName;
-        throw new AssertFailedException("The repository root (Nendo.slnx) was not found above the test binaries.");
-    }
+    private static string RepositoryRoot() => TestRepository.Root();
 }

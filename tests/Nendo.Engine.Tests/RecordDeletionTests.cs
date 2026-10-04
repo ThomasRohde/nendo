@@ -121,7 +121,6 @@ public sealed class RecordDeletionTests
         ]));
         await coordinator.ApplyAsync(new("test", "target-record", "test", "Target", [new CreateRecordOperation("t", "target", "t", new Dictionary<string, object?> { ["label"] = "  Target 🌱\nlabel  " })]));
     }
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
     private static async Task Code(string code, Func<Task> action) => Assert.AreEqual(code,
         (await Assert.ThrowsExactlyAsync<NendoPreconditionException>(action)).Code);
 }

@@ -163,6 +163,4 @@ public sealed class HierarchyPathTests
         }
         return paths;
     }
-
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
 }

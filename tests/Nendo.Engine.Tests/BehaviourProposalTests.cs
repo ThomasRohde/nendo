@@ -556,8 +556,6 @@ public sealed class BehaviourProposalTests
     private static async Task<NendoRecordSnapshot> Project(NendoApplicationService service) =>
         (await service.GetSnapshotAsync()).Records.Single(record => record.RecordId == "p1");
 
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
-
     /// <summary>Two tasks under one project, and a trigger that keeps the project's total.</summary>
     private static async Task Fixture(NendoWriteCoordinator coordinator, NendoApplicationService service)
     {

@@ -487,6 +487,4 @@ public sealed class BehaviourSurfaceTests
         }
         return service;
     }
-
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
 }

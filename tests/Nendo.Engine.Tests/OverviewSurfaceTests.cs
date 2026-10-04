@@ -434,9 +434,6 @@ public sealed class OverviewSurfaceTests
             "Overview tile, chart or recent list: its own clauses");
     }
 
-    private static string Messages(NendoCompileResult compiled) =>
-        string.Join("; ", compiled.Diagnostics.Select(d => $"{d.Code}: {d.Message}"));
-
     private static NendoUiNodeSnapshot Overview(string nodeId, params (string Name, object Value)[] properties) =>
         Node(nodeId, null, "overviewSurface", 0,
             [("definitionVersion", NendoSemanticVocabulary.ContractVersion), .. properties]);

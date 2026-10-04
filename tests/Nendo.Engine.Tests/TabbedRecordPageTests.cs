@@ -224,9 +224,6 @@ public sealed class TabbedRecordPageTests
             "Removing a feature never lowers what the file records needing.");
     }
 
-    private static string Messages(NendoCompileResult compiled) =>
-        string.Join("; ", compiled.Diagnostics.Select(d => $"{d.Code}: {d.Message}"));
-
     private static NendoUiNodeSnapshot Page(string nodeId, string kind) =>
         Node(nodeId, null, kind, 0,
             ("definitionVersion", NendoSemanticVocabulary.ContractVersion), ("entityId", "e"), ("title", "Example"));

@@ -142,5 +142,4 @@ public sealed class FieldRequirementTests
     }
 
     private static NendoMutation Mutation(string key, params NendoOperation[] operations) => new("test", key, "test", key, operations);
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
 }

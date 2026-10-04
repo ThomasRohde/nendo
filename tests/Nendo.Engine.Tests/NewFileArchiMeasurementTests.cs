@@ -69,10 +69,5 @@ public sealed class NewFileArchiMeasurementTests
         Assert.HasCount(3, await new NendoApplicationService(opened).GetHistoryAsync());
     }
 
-    private static string RepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-            if (File.Exists(Path.Combine(directory.FullName, "Nendo.slnx"))) return directory.FullName;
-        throw new InvalidOperationException("The repository root was not found.");
-    }
+    private static string RepositoryRoot() => TestRepository.Root();
 }

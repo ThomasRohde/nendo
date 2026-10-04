@@ -242,6 +242,4 @@ public sealed class ActionTargetTests
         Assert.AreEqual(after.Manifest.DefinitionRevision + 1,
             (await service.GetSnapshotAsync()).Manifest.DefinitionRevision);
     }
-
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
 }

@@ -281,6 +281,4 @@ public sealed class BehaviourCompensationTests
         ]));
         TestBehaviourAuthority.Approving(coordinator);
     }
-
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
 }

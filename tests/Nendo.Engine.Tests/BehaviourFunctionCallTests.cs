@@ -181,6 +181,4 @@ public sealed class BehaviourFunctionCallTests
     private static BehaviourBudget Budget() => new(NendoBehaviourLimits.Default);
 
     private static NendoMutation Mutation(string key, params NendoOperation[] operations) => new("test", key, "test", key, operations);
-
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
 }

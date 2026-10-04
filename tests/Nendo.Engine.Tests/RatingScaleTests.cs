@@ -203,6 +203,4 @@ public sealed class RatingScaleTests
         ["name"] = "Entry",
         ["confidence"] = confidence,
     };
-
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
 }

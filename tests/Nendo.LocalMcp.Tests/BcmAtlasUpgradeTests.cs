@@ -118,10 +118,5 @@ public sealed class BcmAtlasUpgradeTests
             ?? throw new AssertFailedException($"{name} did not return a {typeof(T).Name}.");
     }
 
-    private static string RepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-            if (File.Exists(Path.Combine(directory.FullName, "Nendo.slnx"))) return directory.FullName;
-        throw new AssertFailedException("The repository root (Nendo.slnx) was not found above the test binaries.");
-    }
+    private static string RepositoryRoot() => TestRepository.Root();
 }

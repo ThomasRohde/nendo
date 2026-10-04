@@ -228,6 +228,4 @@ public sealed class HierarchyMoveReviewTests
 
     private static async Task<NendoRecordSnapshot> RecordAsync(NendoApplicationService service, string id) =>
         (await service.QueryRecordsAsync(new(Entity, 1) { RecordId = id })).Items.Single();
-
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
 }

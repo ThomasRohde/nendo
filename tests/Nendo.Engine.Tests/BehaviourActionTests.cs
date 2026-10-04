@@ -596,8 +596,6 @@ public sealed class BehaviourActionTests
     private static async Task<NendoRecordSnapshot> Task2(NendoApplicationService service) =>
         (await service.GetSnapshotAsync()).Records.Single(record => record.RecordId == "t2");
 
-    private static NendoRequestContext Context(string key) => new("test", key, "test");
-
     private static async Task<IReadOnlyList<(string TriggerId, string ActionId, string StepId, string RootKey, string EventEntityId, string EventRecordId)>>
         AttributionAsync(string path)
     {

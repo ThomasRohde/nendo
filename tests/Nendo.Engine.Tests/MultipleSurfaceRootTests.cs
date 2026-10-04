@@ -136,9 +136,6 @@ public sealed class MultipleSurfaceRootTests
         new SetUiPropertyOperation($"{nodeId}-name-field", "s", $"{nodeId}-name", "fieldId", "e-name"),
     ];
 
-    private static string Messages(NendoCompileResult compiled) =>
-        string.Join("; ", compiled.Diagnostics.Select(d => $"{d.Code}: {d.Message}"));
-
     private static NendoUiNodeSnapshot List(
         string nodeId,
         string title,
