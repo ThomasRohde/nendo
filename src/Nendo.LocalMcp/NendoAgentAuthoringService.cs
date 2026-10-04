@@ -30,26 +30,26 @@ internal sealed class NendoAgentAuthoringService(
     internal Action? BeforeInvalidPreviewCleanup { get; set; }
     // Bounded: the newest NendoReplayCache.Capacity of each kind, and all of a session's
     // are discarded when its lease ends.
-    private readonly NendoReplayCache<(string SessionId, string Key), Replay<NendoChangeSetBeginResult>>
+    private readonly NendoReplayCache<(string ApplicationHandle, string Key), Replay<NendoChangeSetBeginResult>>
         _beginReplays = new();
-    private readonly NendoReplayCache<(string SessionId, string ChangeSetId, string Key), Replay<NendoAgentProposalPreview>>
+    private readonly NendoReplayCache<(string ApplicationHandle, string ChangeSetId, string Key), Replay<NendoAgentProposalPreview>>
         _validateReplays = new();
-    private readonly NendoReplayCache<(string SessionId, string ChangeSetId, string Key), Replay<NendoChangeSetRejectResult>>
+    private readonly NendoReplayCache<(string ApplicationHandle, string ChangeSetId, string Key), Replay<NendoChangeSetRejectResult>>
         _rejectReplays = new();
-    private readonly NendoReplayCache<(string SessionId, string ChangeSetId, string Key), Replay<NendoChangeSetAcceptResult>>
+    private readonly NendoReplayCache<(string ApplicationHandle, string ChangeSetId, string Key), Replay<NendoChangeSetAcceptResult>>
         _acceptReplays = new();
 
     /// <summary>Called by the host once it has stopped taking requests.</summary>
     public void Dispose() => _gate.Dispose();
 
     internal Task<NendoChangeSetBeginResult> BeginAsync(
-        string sessionId,
+        string applicationHandle,
         string leaseId,
         string title,
         string idempotencyKey,
         CancellationToken cancellationToken) => authority.AdmitMutationAsync(
             leaseId,
-            sessionId,
+            applicationHandle,
             AgentAccessMode.ApplicationAuthoring,
             async _ =>
             {
@@ -59,12 +59,12 @@ internal sealed class NendoAgentAuthoringService(
                 await _gate.WaitAsync(cancellationToken);
                 try
                 {
-                    var replayKey = (sessionId, idempotencyKey);
+                    var replayKey = (applicationHandle, idempotencyKey);
                     if (_beginReplays.TryGetValue(replayKey, out var replay))
                     {
                         return ExactReplay(replay, digest);
                     }
-                    if (_drafts.Values.Count(value => value.SessionId == sessionId) >= MaximumDraftsPerSession)
+                    if (_drafts.Values.Count(value => value.ApplicationHandle == applicationHandle) >= MaximumDraftsPerSession)
                     {
                         throw new NendoAgentAuthoringException(
                             "DRAFT_LIMIT",
@@ -93,7 +93,7 @@ internal sealed class NendoAgentAuthoringService(
                     _drafts.Add(changeSetId, new Draft(
                         changeSetId,
                         result.Title,
-                        sessionId,
+                        applicationHandle,
                         leaseId,
                         host.HostRunId,
                         snapshot.Manifest.ApplicationId,
@@ -110,14 +110,14 @@ internal sealed class NendoAgentAuthoringService(
             cancellationToken);
 
     internal Task<NendoChangeSetAddResult> AddOperationsAsync(
-        string sessionId,
+        string applicationHandle,
         string leaseId,
         string changeSetId,
         IReadOnlyList<NendoAgentMutationInput> mutations,
         string idempotencyKey,
         CancellationToken cancellationToken) => authority.AdmitMutationAsync(
             leaseId,
-            sessionId,
+            applicationHandle,
             AgentAccessMode.ApplicationAuthoring,
             async _ =>
             {
@@ -127,7 +127,7 @@ internal sealed class NendoAgentAuthoringService(
                 await _gate.WaitAsync(cancellationToken);
                 try
                 {
-                    var draft = RequireDraft(changeSetId, sessionId, leaseId);
+                    var draft = RequireDraft(changeSetId, applicationHandle, leaseId);
                     if (draft.Frozen)
                     {
                         throw new NendoAgentAuthoringException(
@@ -172,7 +172,7 @@ internal sealed class NendoAgentAuthoringService(
     /// it is to rebuild the whole change set in a new draft.
     /// </summary>
     internal Task<NendoChangeSetAddResult> AmendAsync(
-        string sessionId,
+        string applicationHandle,
         string leaseId,
         string changeSetId,
         int dropFromMutationOrdinal,
@@ -180,7 +180,7 @@ internal sealed class NendoAgentAuthoringService(
         string idempotencyKey,
         CancellationToken cancellationToken) => authority.AdmitMutationAsync(
             leaseId,
-            sessionId,
+            applicationHandle,
             AgentAccessMode.ApplicationAuthoring,
             async _ =>
             {
@@ -190,7 +190,7 @@ internal sealed class NendoAgentAuthoringService(
                 await _gate.WaitAsync(cancellationToken);
                 try
                 {
-                    var draft = RequireDraft(changeSetId, sessionId, leaseId);
+                    var draft = RequireDraft(changeSetId, applicationHandle, leaseId);
                     if (draft.Frozen)
                     {
                         throw new NendoAgentAuthoringException(
@@ -242,18 +242,18 @@ internal sealed class NendoAgentAuthoringService(
             cancellationToken);
 
     internal Task<NendoAgentProposalPreview> ValidateAsync(
-        string sessionId,
+        string applicationHandle,
         string leaseId,
         string changeSetId,
         string idempotencyKey,
         CancellationToken cancellationToken) => authority.AdmitMutationAsync(
             leaseId,
-            sessionId,
+            applicationHandle,
             AgentAccessMode.ApplicationAuthoring,
             async _ =>
             {
                 RequireKey(idempotencyKey);
-                var replayKey = (sessionId, changeSetId, idempotencyKey);
+                var replayKey = (applicationHandle, changeSetId, idempotencyKey);
                 var digest = Digest(new { changeSetId });
                 await _gate.WaitAsync(cancellationToken);
                 try
@@ -262,7 +262,7 @@ internal sealed class NendoAgentAuthoringService(
                     {
                         return ExactReplay(replay, digest);
                     }
-                    var draft = RequireDraft(changeSetId, sessionId, leaseId);
+                    var draft = RequireDraft(changeSetId, applicationHandle, leaseId);
                     if (draft.Mutations.Count == 0)
                     {
                         throw new NendoAgentAuthoringException(
@@ -280,7 +280,7 @@ internal sealed class NendoAgentAuthoringService(
                     }
                     draft.Frozen = true;
                     var proposalId = $"proposal-{NendoText.RandomHex(16)}";
-                    var origin = NendoTransportIdentity.Pseudonym(sessionId);
+                    var origin = NendoTransportIdentity.Pseudonym(applicationHandle);
                     NendoAgentProposalPreview projected;
                     var transferred = false;
                     try
@@ -304,7 +304,7 @@ internal sealed class NendoAgentAuthoringService(
                         projected = NendoAgentProposalStore.ProjectPreview(preview);
                         if (preview.State == NendoProposalState.Previewable)
                         {
-                            proposals.Add(changeSetId, host.HostRunId, sessionId, preview);
+                            proposals.Add(changeSetId, host.HostRunId, applicationHandle, preview);
                             _drafts.Remove(changeSetId);
                             transferred = true;
                         }
@@ -340,12 +340,12 @@ internal sealed class NendoAgentAuthoringService(
             cancellationToken);
 
     internal Task<NendoAgentProposalPreview> PreviewAsync(
-        string sessionId,
+        string applicationHandle,
         string leaseId,
         string changeSetId,
         CancellationToken cancellationToken) => authority.AdmitMutationAsync(
             leaseId,
-            sessionId,
+            applicationHandle,
             AgentAccessMode.ApplicationAuthoring,
             async _ =>
             {
@@ -354,14 +354,14 @@ internal sealed class NendoAgentAuthoringService(
                 {
                     if (_drafts.TryGetValue(changeSetId, out var draft))
                     {
-                        RequireDraftOwnership(draft, sessionId, leaseId);
+                        RequireDraftOwnership(draft, applicationHandle, leaseId);
                         return draft.Preview is null
                             ? throw new NendoAgentAuthoringException(
                                 "CHANGE_SET_NOT_VALIDATED",
                                 "The change set has not been validated.")
                             : NendoAgentProposalStore.ProjectPreview(draft.Preview);
                     }
-                    return proposals.GetOwned(changeSetId, host.HostRunId, sessionId);
+                    return proposals.GetOwned(changeSetId, host.HostRunId, applicationHandle);
                 }
                 finally
                 {
@@ -371,18 +371,18 @@ internal sealed class NendoAgentAuthoringService(
             cancellationToken);
 
     internal Task<NendoChangeSetRejectResult> RejectAsync(
-        string sessionId,
+        string applicationHandle,
         string leaseId,
         string changeSetId,
         string idempotencyKey,
         CancellationToken cancellationToken) => authority.AdmitMutationAsync(
             leaseId,
-            sessionId,
+            applicationHandle,
             AgentAccessMode.ApplicationAuthoring,
             async _ =>
             {
                 RequireKey(idempotencyKey);
-                var replayKey = (sessionId, changeSetId, idempotencyKey);
+                var replayKey = (applicationHandle, changeSetId, idempotencyKey);
                 var digest = Digest(new { changeSetId });
                 await _gate.WaitAsync(cancellationToken);
                 try
@@ -394,7 +394,7 @@ internal sealed class NendoAgentAuthoringService(
                     string? proposalId;
                     if (_drafts.TryGetValue(changeSetId, out var draft))
                     {
-                        RequireDraftOwnership(draft, sessionId, leaseId);
+                        RequireDraftOwnership(draft, applicationHandle, leaseId);
                         proposalId = draft.Preview?.ProposalId;
                         if (proposalId is not null)
                         {
@@ -404,7 +404,7 @@ internal sealed class NendoAgentAuthoringService(
                     }
                     else
                     {
-                        proposalId = proposals.GetOwned(changeSetId, host.HostRunId, sessionId).ProposalId;
+                        proposalId = proposals.GetOwned(changeSetId, host.HostRunId, applicationHandle).ProposalId;
                         // Keep ownership and the review queue until the Engine has
                         // released the clone. Cancellation while queued remains retryable.
                         await proposals.RejectAsync(application, proposalId, cancellationToken);
@@ -439,18 +439,18 @@ internal sealed class NendoAgentAuthoringService(
     /// </para>
     /// </summary>
     internal Task<NendoChangeSetAcceptResult> AcceptAsync(
-        string sessionId,
+        string applicationHandle,
         string leaseId,
         string changeSetId,
         string idempotencyKey,
         CancellationToken cancellationToken) => authority.AdmitMutationAsync(
             leaseId,
-            sessionId,
+            applicationHandle,
             AgentAccessMode.Unattended,
             async _ =>
             {
                 RequireKey(idempotencyKey);
-                var replayKey = (sessionId, changeSetId, idempotencyKey);
+                var replayKey = (applicationHandle, changeSetId, idempotencyKey);
                 var digest = Digest(new { changeSetId });
                 await _gate.WaitAsync(cancellationToken);
                 try
@@ -461,12 +461,12 @@ internal sealed class NendoAgentAuthoringService(
                     }
                     if (_drafts.TryGetValue(changeSetId, out var draft))
                     {
-                        RequireDraftOwnership(draft, sessionId, leaseId);
+                        RequireDraftOwnership(draft, applicationHandle, leaseId);
                         throw new NendoAgentAuthoringException(
                             "CHANGE_SET_NOT_VALIDATED",
                             "The change set has not been validated. Validate it before accepting it.");
                     }
-                    var owned = proposals.GetOwned(changeSetId, host.HostRunId, sessionId);
+                    var owned = proposals.GetOwned(changeSetId, host.HostRunId, applicationHandle);
                     // A proposal that already committed is answered from its receipt: the
                     // Engine's promotion of a committed proposal is idempotent, so an accept
                     // whose response was lost after the commit reads as applied on retry.
@@ -566,31 +566,31 @@ internal sealed class NendoAgentAuthoringService(
         _ => "draft",
     };
 
-    internal async Task DiscardSessionAsync(string sessionId)
+    internal async Task DiscardSessionAsync(string applicationHandle)
     {
         NendoProposalPreview[] privatePreviews;
         await _gate.WaitAsync(CancellationToken.None);
         try
         {
-            var drafts = _drafts.Values.Where(value => value.SessionId == sessionId).ToArray();
+            var drafts = _drafts.Values.Where(value => value.ApplicationHandle == applicationHandle).ToArray();
             privatePreviews = drafts.Select(value => value.Preview).OfType<NendoProposalPreview>().ToArray();
             foreach (var draft in drafts)
             {
                 _drafts.Remove(draft.ChangeSetId);
             }
-            foreach (var key in _beginReplays.Keys.Where(value => value.SessionId == sessionId).ToArray())
+            foreach (var key in _beginReplays.Keys.Where(value => value.ApplicationHandle == applicationHandle).ToArray())
             {
                 _beginReplays.Remove(key);
             }
-            foreach (var key in _acceptReplays.Keys.Where(value => value.SessionId == sessionId).ToArray())
+            foreach (var key in _acceptReplays.Keys.Where(value => value.ApplicationHandle == applicationHandle).ToArray())
             {
                 _acceptReplays.Remove(key);
             }
-            foreach (var key in _validateReplays.Keys.Where(value => value.SessionId == sessionId).ToArray())
+            foreach (var key in _validateReplays.Keys.Where(value => value.ApplicationHandle == applicationHandle).ToArray())
             {
                 _validateReplays.Remove(key);
             }
-            foreach (var key in _rejectReplays.Keys.Where(value => value.SessionId == sessionId).ToArray())
+            foreach (var key in _rejectReplays.Keys.Where(value => value.ApplicationHandle == applicationHandle).ToArray())
             {
                 _rejectReplays.Remove(key);
             }
@@ -613,6 +613,7 @@ internal sealed class NendoAgentAuthoringService(
             _beginReplays.Clear();
             _validateReplays.Clear();
             _rejectReplays.Clear();
+            _acceptReplays.Clear();
         }
         finally
         {
@@ -661,7 +662,7 @@ internal sealed class NendoAgentAuthoringService(
         }
     }
 
-    private Draft RequireDraft(string changeSetId, string sessionId, string leaseId)
+    private Draft RequireDraft(string changeSetId, string applicationHandle, string leaseId)
     {
         if (string.IsNullOrWhiteSpace(changeSetId) || !_drafts.TryGetValue(changeSetId, out var draft))
         {
@@ -669,7 +670,7 @@ internal sealed class NendoAgentAuthoringService(
             // waiting for a person. Saying it did not exist sent a reviewer looking for
             // a typo in an ID they had just used successfully.
             if (!string.IsNullOrWhiteSpace(changeSetId) &&
-                proposals.TryGetOwned(changeSetId, host.HostRunId, sessionId) is { } validated)
+                proposals.TryGetOwned(changeSetId, host.HostRunId, applicationHandle) is { } validated)
             {
                 throw new NendoAgentAuthoringException(
                     "CHANGE_SET_FROZEN",
@@ -682,13 +683,13 @@ internal sealed class NendoAgentAuthoringService(
                 "CHANGE_SET_NOT_FOUND",
                 "The change set does not exist.");
         }
-        RequireDraftOwnership(draft, sessionId, leaseId);
+        RequireDraftOwnership(draft, applicationHandle, leaseId);
         return draft;
     }
 
-    private void RequireDraftOwnership(Draft draft, string sessionId, string leaseId)
+    private void RequireDraftOwnership(Draft draft, string applicationHandle, string leaseId)
     {
-        if (draft.SessionId != sessionId ||
+        if (draft.ApplicationHandle != applicationHandle ||
             draft.LeaseId != leaseId ||
             draft.HostRunId != host.HostRunId ||
             draft.ApplicationId != host.ApplicationId ||
@@ -1181,7 +1182,7 @@ internal sealed class NendoAgentAuthoringService(
     private sealed class Draft(
         string changeSetId,
         string title,
-        string sessionId,
+        string applicationHandle,
         string leaseId,
         string hostRunId,
         string applicationId,
@@ -1190,7 +1191,7 @@ internal sealed class NendoAgentAuthoringService(
     {
         internal string ChangeSetId { get; } = changeSetId;
         internal string Title { get; } = title;
-        internal string SessionId { get; } = sessionId;
+        internal string ApplicationHandle { get; } = applicationHandle;
         internal string LeaseId { get; } = leaseId;
         internal string HostRunId { get; } = hostRunId;
         internal string ApplicationId { get; } = applicationId;

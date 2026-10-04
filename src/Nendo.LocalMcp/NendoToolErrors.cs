@@ -128,9 +128,13 @@ internal static class NendoToolErrors
         "SHAPE_APP_REQUIRED" => NendoAccessLevels.RequiredMessage(AgentAccessMode.ApplicationAuthoring),
         "UNATTENDED_REQUIRED" => NendoAccessLevels.RequiredMessage(AgentAccessMode.Unattended),
         "LEASE_HELD" =>
-            "Another local agent currently has edit access. nendo.lease.status names its client and, given your " +
-            "applicationHandle, says whether the holder is you, as it is after a lost acquire response. Otherwise " +
-            "wait for it to release the lease, or ask the person to revoke it on the Agent page in Nendo.",
+            "Another local agent currently has edit access. nendo.lease.status names its client. If your own acquire " +
+            "response was lost, call nendo.lease.acquire again with the same idempotencyKey to receive the same " +
+            "grant. Otherwise wait for the holder to release the lease, or ask the person to revoke it on the " +
+            "Agent page in Nendo.",
+        "HANDLE_UNKNOWN" =>
+            "The resumeApplicationHandle was not minted by this host run, so there is nothing of yours to resume. " +
+            "Acquire without it; a handle from before the file was reopened no longer counts.",
         "LEASE_EXPIRED" => "The edit lease expired because it was not renewed in time. Acquire a new one.",
         "INVALID_LEASE" =>
             "A valid application handle and edit lease are required. Pass the applicationHandle and leaseId from " +

@@ -16,13 +16,17 @@ internal sealed class NendoLeaseTools(NendoAgentAuthority authority)
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Acquire the single edit lease and a private application handle for this open file. They are two things: the handle addresses this open file for the rest of your session and stays private; the lease is the edit authority, held by one agent at a time and revocable by the person. Owned calls take both. The lease lasts until you release it, the person revokes it, access is lowered or the file is closed or switched; closing your client does not end it. When the person has turned expiry on it also lapses unless renewed before expiresAt, and endsOn says which applies. Save receiptContext from the grant before writing.")]
+    [Description("Acquire the single edit lease and a private application handle for this open file. They are two things: the handle addresses this open file for the rest of your session and stays private; the lease is the edit authority, held by one agent at a time and revocable by the person. Owned calls take both. The lease lasts until you release it, the person revokes it, access is lowered or the file is closed or switched; closing your client does not end it. When the person has turned expiry on it also lapses unless renewed before expiresAt, and endsOn says which applies. Save receiptContext from the grant before writing. Pass idempotencyKey so a retry after a lost response returns the same grant instead of NENDO_LEASE_HELD against yourself. Pass resumeApplicationHandle, your handle from an earlier lease on this host run, to take the lease again under it: the proposals you validated, your pseudonym and your receipt scope are yours once more.")]
     public Task<NendoLeaseGrant> AcquireAsync(
         RequestContext<CallToolRequestParams> context,
+        [Description("Optional stable key for this acquire. An exact retry under it returns the grant it made while that lease is held.")] string? idempotencyKey = null,
+        [Description("Optional applicationHandle from an earlier grant on this host run. Grants a new lease under that handle, with the proposals, pseudonym and receipt scope it owned; a handle this run never minted is NENDO_HANDLE_UNKNOWN.")] string? resumeApplicationHandle = null,
         CancellationToken cancellationToken = default) => TranslateAsync(() =>
         authority.AcquireAsync(
             Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)).ToLowerInvariant(),
             NendoTransportIdentity.DisplayName(context.Server.ClientInfo),
+            idempotencyKey,
+            resumeApplicationHandle,
             cancellationToken));
 
     [McpServerTool(

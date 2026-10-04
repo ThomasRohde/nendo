@@ -162,12 +162,32 @@ internal sealed class NendoAgentAuthority(
         }
     }
 
-    internal async Task<NendoLeaseGrant> AcquireAsync(
-        string sessionId,
+    internal Task<NendoLeaseGrant> AcquireAsync(
+        string applicationHandle,
         string clientDisplayName,
+        CancellationToken cancellationToken) =>
+        AcquireAsync(applicationHandle, clientDisplayName, null, null, cancellationToken);
+
+    /// <summary>
+    /// Grants the single lease. <paramref name="freshHandle"/> is the handle a new session
+    /// gets. With <paramref name="idempotencyKey"/>, an exact retry of an acquire whose
+    /// response was lost returns the grant it made rather than LEASE_HELD against itself
+    /// (W-143). With <paramref name="resumeApplicationHandle"/>, a handle this run minted
+    /// earlier is granted the lease again under the same handle, so the proposals, the
+    /// pseudonym and the receipt scope it owned are its once more: possession of the
+    /// handle is the proof of prior ownership, and the handle is not retired because every
+    /// one of those is keyed on it.
+    /// </summary>
+    internal async Task<NendoLeaseGrant> AcquireAsync(
+        string freshHandle,
+        string clientDisplayName,
+        string? idempotencyKey,
+        string? resumeApplicationHandle,
         CancellationToken cancellationToken)
     {
         RequireMutationMode();
+        if (idempotencyKey is not null) NendoText.RequireText(idempotencyKey, "idempotency key", 200);
+        if (resumeApplicationHandle is not null) NendoText.RequireText(resumeApplicationHandle, "resume application handle", 200);
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -175,28 +195,51 @@ internal sealed class NendoAgentAuthority(
             await ExpireIfNeededAsync();
             if (Active is not null)
             {
+                if (idempotencyKey is not null && Active.AcquireKey == idempotencyKey)
+                {
+                    return Active.Grant;
+                }
+                // The holder asking for its own lease by its own handle is answered with the
+                // lease it holds: it may have kept the handle and lost the lease ID.
+                if (resumeApplicationHandle is not null && Active.ApplicationHandle == resumeApplicationHandle)
+                {
+                    return Active.Grant;
+                }
                 throw new NendoAgentAuthorityException(
                     "LEASE_HELD",
                     "Another local agent currently has edit access.");
+            }
+            var applicationHandle = freshHandle;
+            if (resumeApplicationHandle is not null)
+            {
+                if (!_minted.Contains(resumeApplicationHandle))
+                {
+                    throw new NendoAgentAuthorityException(
+                        "HANDLE_UNKNOWN",
+                        "The application handle to resume was not minted by this host run.");
+                }
+                applicationHandle = resumeApplicationHandle;
             }
             var grant = new NendoLeaseGrant(
                 RandomLeaseId(),
                 NextExpiry(),
                 host.Mode,
-                NendoTransportIdentity.Pseudonym(sessionId))
+                NendoTransportIdentity.Pseudonym(applicationHandle))
             {
-                ReceiptContext = NendoReceiptContext.Create(host, sessionId),
-                ApplicationHandle = sessionId,
+                ReceiptContext = NendoReceiptContext.Create(host, applicationHandle),
+                ApplicationHandle = applicationHandle,
                 EndsOn = leaseTtl is null ? "explicitRelease" : "expiry",
                 FileName = host.FileName,
             };
             Active = new ActiveLease(
                 grant,
-                sessionId,
+                applicationHandle,
                 host.HostRunId,
                 host.ApplicationId,
                 host.InstanceId,
-                clientDisplayName);
+                clientDisplayName,
+                idempotencyKey);
+            Remember(applicationHandle);
             _released = null;
             return grant;
         }
@@ -206,9 +249,22 @@ internal sealed class NendoAgentAuthority(
         }
     }
 
+    // The handles this run has granted, newest MintedHandles of them, so a resume can
+    // only name one the run itself minted. Read and written under the gate.
+    private const int MintedHandles = 256;
+    private readonly HashSet<string> _minted = new(StringComparer.Ordinal);
+    private readonly Queue<string> _mintedOrder = new();
+
+    private void Remember(string applicationHandle)
+    {
+        if (!_minted.Add(applicationHandle)) return;
+        _mintedOrder.Enqueue(applicationHandle);
+        while (_mintedOrder.Count > MintedHandles) _minted.Remove(_mintedOrder.Dequeue());
+    }
+
     internal async Task<NendoLeaseGrant> RenewAsync(
         string leaseId,
-        string sessionId,
+        string applicationHandle,
         CancellationToken cancellationToken)
     {
         RequireMutationMode();
@@ -220,7 +276,7 @@ internal sealed class NendoAgentAuthority(
             {
                 throw new NendoAgentAuthorityException("LEASE_EXPIRED", "The edit lease expired.");
             }
-            var active = RequireActive(leaseId, sessionId);
+            var active = RequireActive(leaseId, applicationHandle);
             var renewed = active.Grant with { ExpiresAt = NextExpiry() };
             Active = active with { Grant = renewed };
             return renewed;
@@ -233,7 +289,7 @@ internal sealed class NendoAgentAuthority(
 
     internal async Task<NendoLeaseRelease> ReleaseAsync(
         string leaseId,
-        string sessionId,
+        string applicationHandle,
         CancellationToken cancellationToken)
     {
         RequireMutationMode();
@@ -244,7 +300,7 @@ internal sealed class NendoAgentAuthority(
             if (Active is null &&
                 _released is not null &&
                 _released.LeaseId == leaseId &&
-                _released.SessionId == sessionId)
+                _released.ApplicationHandle == applicationHandle)
             {
                 return new NendoLeaseRelease(leaseId, "released");
             }
@@ -252,10 +308,10 @@ internal sealed class NendoAgentAuthority(
             {
                 throw new NendoAgentAuthorityException("LEASE_EXPIRED", "The edit lease expired.");
             }
-            _ = RequireActive(leaseId, sessionId);
+            _ = RequireActive(leaseId, applicationHandle);
             Active = null;
-            _released = new ReleasedLease(leaseId, sessionId);
-            await NotifyLeaseEndedAsync(sessionId);
+            _released = new ReleasedLease(leaseId, applicationHandle);
+            await NotifyLeaseEndedAsync(applicationHandle);
             return new NendoLeaseRelease(leaseId, "released");
         }
         finally
@@ -266,7 +322,7 @@ internal sealed class NendoAgentAuthority(
 
     internal async Task<T> AdmitMutationAsync<T>(
         string leaseId,
-        string sessionId,
+        string applicationHandle,
         AgentAccessMode requiredMode,
         Func<NendoLeaseGrant, Task<T>> action,
         CancellationToken cancellationToken)
@@ -281,7 +337,7 @@ internal sealed class NendoAgentAuthority(
             {
                 throw new NendoAgentAuthorityException("LEASE_EXPIRED", "The edit lease expired.");
             }
-            var active = RequireActive(leaseId, sessionId);
+            var active = RequireActive(leaseId, applicationHandle);
             return await action(active.Grant);
         }
         finally
@@ -290,24 +346,24 @@ internal sealed class NendoAgentAuthority(
         }
     }
 
-    internal async Task RevokeSessionAsync(string sessionId)
+    internal async Task RevokeSessionAsync(string applicationHandle)
     {
         await _gate.WaitAsync(CancellationToken.None);
         try
         {
             var ended = false;
-            if (Active?.SessionId == sessionId)
+            if (Active?.ApplicationHandle == applicationHandle)
             {
                 Active = null;
                 ended = true;
             }
-            if (_released?.SessionId == sessionId)
+            if (_released?.ApplicationHandle == applicationHandle)
             {
                 _released = null;
             }
             if (ended)
             {
-                await NotifyLeaseEndedAsync(sessionId);
+                await NotifyLeaseEndedAsync(applicationHandle);
             }
         }
         finally
@@ -321,12 +377,12 @@ internal sealed class NendoAgentAuthority(
         await _gate.WaitAsync(CancellationToken.None);
         try
         {
-            var sessionId = Active?.SessionId;
+            var applicationHandle = Active?.ApplicationHandle;
             Active = null;
             _released = null;
-            if (sessionId is not null)
+            if (applicationHandle is not null)
             {
-                await NotifyLeaseEndedAsync(sessionId);
+                await NotifyLeaseEndedAsync(applicationHandle);
             }
         }
         finally
@@ -337,7 +393,7 @@ internal sealed class NendoAgentAuthority(
 
     internal async Task<NendoLeaseStatus> GetStatusAsync(
         CancellationToken cancellationToken,
-        string? sessionId = null)
+        string? applicationHandle = null)
     {
         await _gate.WaitAsync(cancellationToken);
         try
@@ -352,7 +408,7 @@ internal sealed class NendoAgentAuthority(
                     Active.Grant.ExpiresAt)
                 {
                     EndsOn = Active.Grant.EndsOn,
-                    IsYou = string.IsNullOrWhiteSpace(sessionId) ? null : Active.SessionId == sessionId,
+                    IsYou = string.IsNullOrWhiteSpace(applicationHandle) ? null : Active.ApplicationHandle == applicationHandle,
                     FileName = host.FileName,
                 };
         }
@@ -362,11 +418,11 @@ internal sealed class NendoAgentAuthority(
         }
     }
 
-    private ActiveLease RequireActive(string leaseId, string sessionId)
+    private ActiveLease RequireActive(string leaseId, string applicationHandle)
     {
         if (Active is null ||
             Active.Grant.LeaseId != leaseId ||
-            Active.SessionId != sessionId ||
+            Active.ApplicationHandle != applicationHandle ||
             Active.HostRunId != host.HostRunId ||
             Active.ApplicationId != host.ApplicationId ||
             Active.InstanceId != host.InstanceId)
@@ -386,20 +442,20 @@ internal sealed class NendoAgentAuthority(
     {
         if (leaseTtl is not null && Active?.Grant.ExpiresAt is { } expiresAt && expiresAt <= clock.UtcNow)
         {
-            var sessionId = Active.SessionId;
+            var applicationHandle = Active.ApplicationHandle;
             Active = null;
             _released = null;
-            await NotifyLeaseEndedAsync(sessionId);
+            await NotifyLeaseEndedAsync(applicationHandle);
             return true;
         }
         return false;
     }
 
-    private async Task NotifyLeaseEndedAsync(string sessionId)
+    private async Task NotifyLeaseEndedAsync(string applicationHandle)
     {
         if (_leaseEnded is not null)
         {
-            await _leaseEnded(sessionId);
+            await _leaseEnded(applicationHandle);
         }
     }
 
@@ -426,11 +482,12 @@ internal sealed class NendoAgentAuthority(
 
     private sealed record ActiveLease(
         NendoLeaseGrant Grant,
-        string SessionId,
+        string ApplicationHandle,
         string HostRunId,
         string ApplicationId,
         string InstanceId,
-        string ClientDisplayName);
+        string ClientDisplayName,
+        string? AcquireKey = null);
 
-    private sealed record ReleasedLease(string LeaseId, string SessionId);
+    private sealed record ReleasedLease(string LeaseId, string ApplicationHandle);
 }

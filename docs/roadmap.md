@@ -361,13 +361,13 @@ What remains open:
   removed most of the pressure, because they cut what a build spends: a complete
   application's screens now fit one change set and one approval. A large enough
   application still serializes.
-- **A reconnecting agent can see a pending proposal but not act on it.**
-  `nendo://application/proposals` lists what is waiting. Preview and reject
-  still require the session that created the change set. A reconnect creates a
-  new application handle. If an agent loses its session, it can read that a
-  proposal exists, but it can then only ask the person to accept or reject it.
-  To bind a proposal to something more durable than a session is an authority
-  change, not a projection change.
+- **A reconnecting agent that lost its application handle can see a pending
+  proposal but not act on it.** Since 2026-10-04 (W-143) an agent that kept its
+  handle resumes under it with `nendo.lease.acquire`, and preview, reject and accept
+  work on what it validated; `nendo://application/proposals` names each proposal's
+  `changeSetId` and `owner`. An agent that kept nothing can still only ask the
+  person to accept or reject. To bind a proposal to something more durable than a
+  handle is an authority change, not a projection change.
 - **A proposal's minimum-host-version raise is shown, not chosen.** The diff now
   carries `raiseMinimumHostVersion` as its own irreversible line, so nobody
   approves a compatibility change that they did not see. There is still no way

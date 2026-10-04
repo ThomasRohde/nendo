@@ -138,7 +138,7 @@ public sealed class LeaseProtocolTests
         // about the file, not an edit to it.
         "nendo.health.verify_integrity" => [],
         "nendo.data.delete_record" => ["leaseId", "entityId", "recordId", "expectedRecordVersion", "idempotencyKey"],
-        "nendo.lease.acquire" => [],
+        "nendo.lease.acquire" => ["idempotencyKey", "resumeApplicationHandle"],
         "nendo.lease.status" => ["applicationHandle"],
         "nendo.lease.renew" or "nendo.lease.release" => ["leaseId"],
         "nendo.data.create_record" =>
@@ -224,7 +224,7 @@ public sealed class LeaseProtocolTests
         // F-175: the refusal says how to find out whether the holder is you, and what else to do.
         var held = string.Join(' ', contention.Content.OfType<ModelContextProtocol.Protocol.TextContentBlock>().Select(block => block.Text));
         StringAssert.Contains(held, "nendo.lease.status names its client");
-        StringAssert.Contains(held, "says whether the holder is you");
+        StringAssert.Contains(held, "with the same idempotencyKey");
         StringAssert.Contains(held, "ask the person to revoke it on the Agent page in Nendo");
         var copied = await second.CallToolAsync(
             "nendo.lease.renew",

@@ -164,6 +164,20 @@ public sealed record NendoAgentProposalSummary(
 {
     /// <summary>What accepting means for consent to automatic actions, as the queue says it.</summary>
     public NendoProposalBehaviour? Behaviour { get; init; }
+
+    /// <summary>
+    /// The change set that validated into this proposal: what preview, reject and accept take.
+    /// Without it an agent reconnecting to its predecessor's work could see the proposal and
+    /// not name it (W-143).
+    /// </summary>
+    public string? ChangeSetId { get; init; }
+
+    /// <summary>
+    /// The pseudonym of the session that validated it, as the lease grant's owner names a
+    /// session. A session whose grant carries the same owner, including one resumed by its
+    /// application handle, owns the proposal.
+    /// </summary>
+    public string? Owner { get; init; }
 }
 
 public sealed class NendoAgentProposalStore
@@ -207,7 +221,7 @@ public sealed class NendoAgentProposalStore
     internal void Add(
         string changeSetId,
         string hostRunId,
-        string sessionId,
+        string applicationHandle,
         NendoProposalPreview preview)
     {
         ArgumentNullException.ThrowIfNull(preview);
@@ -217,7 +231,7 @@ public sealed class NendoAgentProposalStore
             RequireBound(preview);
             _entries.Add(
                 preview.ProposalId,
-                new Entry(changeSetId, hostRunId, sessionId, preview));
+                new Entry(changeSetId, hostRunId, applicationHandle, preview));
             pending = _entries.Count;
         }
         // Raised outside the lock: a handler that blocked here would hold every other
@@ -239,8 +253,8 @@ public sealed class NendoAgentProposalStore
     internal NendoAgentProposalPreview GetOwned(
         string changeSetId,
         string hostRunId,
-        string sessionId) =>
-        TryGetOwned(changeSetId, hostRunId, sessionId)
+        string applicationHandle) =>
+        TryGetOwned(changeSetId, hostRunId, applicationHandle)
             ?? throw new NendoAgentAuthoringException(
                 "CHANGE_SET_NOT_FOUND",
                 "The change set is not owned by this agent session.");
@@ -253,14 +267,14 @@ public sealed class NendoAgentProposalStore
     internal NendoAgentProposalPreview? TryGetOwned(
         string changeSetId,
         string hostRunId,
-        string sessionId)
+        string applicationHandle)
     {
         lock (_gate)
         {
             var entry = _entries.Values.SingleOrDefault(value =>
                 value.ChangeSetId == changeSetId &&
                 value.HostRunId == hostRunId &&
-                value.SessionId == sessionId);
+                value.ApplicationHandle == applicationHandle);
             return entry is null ? null : ProjectPreview(entry.Preview);
         }
     }
@@ -270,7 +284,11 @@ public sealed class NendoAgentProposalStore
         lock (_gate)
         {
             return _entries.Values
-                .Select(value => ProjectSummary(value.Preview))
+                .Select(value => ProjectSummary(value.Preview) with
+                {
+                    ChangeSetId = value.ChangeSetId,
+                    Owner = NendoTransportIdentity.Pseudonym(value.ApplicationHandle),
+                })
                 .OrderBy(value => value.Title, StringComparer.Ordinal)
                 .ThenBy(value => value.ProposalId, StringComparer.Ordinal)
                 .ToArray();
@@ -319,8 +337,9 @@ public sealed class NendoAgentProposalStore
               $"\"{named.Preview.Title}\" ({named.Preview.ProposalId}). Definition changes reach the file only on " +
               "acceptance, so a write that depends on one fails until then. " +
               (acceptServed
-                  ? "If this session validated it, nendo.change_set.accept applies it; otherwise ask the person to accept " +
-                    "it in Nendo, or reject it with nendo.change_set.reject."
+                  ? "If you validated it (nendo://application/proposals names its owner and changeSetId; a lease " +
+                    "resumed with your applicationHandle still owns it), nendo.change_set.accept applies it; " +
+                    "otherwise ask the person to accept it in Nendo, or reject it with nendo.change_set.reject."
                   : "There is no promotion tool at this access level; ask the person to accept it, or reject it with " +
                     "nendo.change_set.reject.")
             : $"{pending.Length} validated {(pending.Length == 1 ? "proposal is" : "proposals are")} waiting for " +
@@ -605,7 +624,7 @@ public sealed class NendoAgentProposalStore
     private sealed record Entry(
         string ChangeSetId,
         string HostRunId,
-        string SessionId,
+        string ApplicationHandle,
         NendoProposalPreview Preview);
 }
 

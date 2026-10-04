@@ -7,10 +7,10 @@ namespace Nendo.LocalMcp;
 
 internal static class NendoTransportIdentity
 {
-    internal static string Pseudonym(string sessionId)
+    internal static string Pseudonym(string applicationHandle)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
-        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(sessionId));
+        ArgumentException.ThrowIfNullOrWhiteSpace(applicationHandle);
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(applicationHandle));
         return $"agent-{Convert.ToHexString(digest.AsSpan(0, 6)).ToLowerInvariant()}";
     }
 

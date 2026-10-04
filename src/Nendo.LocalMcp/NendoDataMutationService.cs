@@ -27,7 +27,7 @@ internal sealed class NendoDataMutationService(
     }
 
     internal Task<NendoDataApplyResult> CreateRecordAsync(
-        string sessionId,
+        string applicationHandle,
         string leaseId,
         string entityId,
         string recordId,
@@ -37,28 +37,28 @@ internal sealed class NendoDataMutationService(
         bool? keptInNewFiles,
         CancellationToken cancellationToken) => AdmitAsync(
             leaseId,
-            sessionId,
+            applicationHandle,
             async _ => Touched(
                 await application.CreateRecordAsync(
                     new NendoCreateRecordRequest(
                         entityId,
                         recordId,
                         ReadValueMap(values.Element),
-                        Context(sessionId, idempotencyKey), expectedTargetVersions, keptInNewFiles),
+                        Context(applicationHandle, idempotencyKey), expectedTargetVersions, keptInNewFiles),
                     cancellationToken),
                 entityId, [recordId],
                 CreatedVersion),
             cancellationToken);
 
     internal Task<NendoDataApplyResult> CreateRecordsAsync(
-        string sessionId,
+        string applicationHandle,
         string leaseId,
         string entityId,
         IReadOnlyList<NendoRecordInput> records,
         string idempotencyKey,
         CancellationToken cancellationToken) => AdmitAsync(
             leaseId,
-            sessionId,
+            applicationHandle,
             async _ =>
             {
                 ArgumentNullException.ThrowIfNull(records);
@@ -74,7 +74,7 @@ internal sealed class NendoDataMutationService(
                 }).ToArray();
                 return Touched(
                     await application.CreateRecordsAsync(
-                        new NendoCreateRecordsRequest(entityId, entries, Context(sessionId, idempotencyKey)),
+                        new NendoCreateRecordsRequest(entityId, entries, Context(applicationHandle, idempotencyKey)),
                         cancellationToken),
                     entityId, entries.Select(entry => entry.RecordId).ToArray(),
                     CreatedVersion);
@@ -82,7 +82,7 @@ internal sealed class NendoDataMutationService(
             cancellationToken);
 
     internal Task<NendoDataApplyResult> SetFieldAsync(
-        string sessionId,
+        string applicationHandle,
         string leaseId,
         string entityId,
         string recordId,
@@ -93,7 +93,7 @@ internal sealed class NendoDataMutationService(
         long? expectedTargetRecordVersion,
         CancellationToken cancellationToken) => AdmitAsync(
             leaseId,
-            sessionId,
+            applicationHandle,
             async _ => Touched(
                 await application.SetFieldAsync(
                     new NendoSetFieldRequest(
@@ -102,14 +102,14 @@ internal sealed class NendoDataMutationService(
                         fieldId,
                         expectedRecordVersion,
                         ReadValue(value.Element),
-                        Context(sessionId, idempotencyKey), expectedTargetRecordVersion),
+                        Context(applicationHandle, idempotencyKey), expectedTargetRecordVersion),
                     cancellationToken),
                 entityId, [recordId],
                 expectedRecordVersion + 1),
             cancellationToken);
 
     internal Task<NendoDataApplyResult> MoveRecordAsync(
-        string sessionId,
+        string applicationHandle,
         string leaseId,
         string entityId,
         string recordId,
@@ -120,21 +120,21 @@ internal sealed class NendoDataMutationService(
         string idempotencyKey,
         CancellationToken cancellationToken) => AdmitAsync(
             leaseId,
-            sessionId,
+            applicationHandle,
             // A move may renumber siblings, so the host states which records it wrote and the
             // moved record's version rather than this adapter guessing from the request.
             async _ =>
             {
                 var moved = await application.MoveRecordAsync(
                     new NendoMoveRecordRequest(entityId, recordId, expectedRecordVersion, parentRecordId, expectedParentVersion,
-                        beforeRecordId, Context(sessionId, idempotencyKey)),
+                        beforeRecordId, Context(applicationHandle, idempotencyKey)),
                     cancellationToken);
                 return Touched(moved.Applied, entityId, moved.TouchedRecordIds, moved.TouchedRecordIds.Count == 1 ? moved.RecordVersion : null);
             },
             cancellationToken);
 
     internal Task<NendoDataApplyResult> ExecuteCommandAsync(
-        string sessionId,
+        string applicationHandle,
         string leaseId,
         string commandId,
         string recordId,
@@ -142,7 +142,7 @@ internal sealed class NendoDataMutationService(
         string idempotencyKey,
         CancellationToken cancellationToken) => AdmitAsync(
             leaseId,
-            sessionId,
+            applicationHandle,
             // A contract version 3 command may set several fields, and the steps
             // live in the stored definition, so only the host can state the
             // resulting version, including what its automatic actions wrote.
@@ -153,17 +153,17 @@ internal sealed class NendoDataMutationService(
                         commandId,
                         recordId,
                         expectedRecordVersion,
-                        Context(sessionId, idempotencyKey)),
+                        Context(applicationHandle, idempotencyKey)),
                     cancellationToken);
                 // The typed command service resolves the owning type and final version.
                 return Touched(result, null, [recordId], result.RecordVersion);
             },
             cancellationToken);
 
-    private NendoRequestContext Context(string sessionId, string idempotencyKey)
+    private NendoRequestContext Context(string applicationHandle, string idempotencyKey)
     {
         NendoText.RequireText(idempotencyKey, "idempotency key", 200);
-        var owner = NendoTransportIdentity.Pseudonym(sessionId);
+        var owner = NendoTransportIdentity.Pseudonym(applicationHandle);
         return new NendoRequestContext(
             $"mcp.data.{host.HostRunId}.{owner}",
             idempotencyKey.Trim(),
@@ -171,21 +171,21 @@ internal sealed class NendoDataMutationService(
     }
 
     /// <summary>A record's own mark for a new file of the application (ADR-0022); its version does not move.</summary>
-    internal Task<NendoDataApplyResult> SetKeptInNewFilesAsync(string sessionId, string leaseId, string entityId, string recordId,
+    internal Task<NendoDataApplyResult> SetKeptInNewFilesAsync(string applicationHandle, string leaseId, string entityId, string recordId,
         bool? kept, string idempotencyKey, CancellationToken cancellationToken) =>
-        AdmitAsync(leaseId, sessionId,
+        AdmitAsync(leaseId, applicationHandle,
             async _ => Touched(
-                await application.SetRecordKeptInNewFilesAsync(entityId, recordId, kept, Context(sessionId, idempotencyKey), cancellationToken),
+                await application.SetRecordKeptInNewFilesAsync(entityId, recordId, kept, Context(applicationHandle, idempotencyKey), cancellationToken),
                 entityId, [recordId],
                 null),
             cancellationToken);
 
-    internal Task<NendoDataApplyResult> DeleteRecordAsync(string sessionId, string leaseId, string entityId, string recordId,
+    internal Task<NendoDataApplyResult> DeleteRecordAsync(string applicationHandle, string leaseId, string entityId, string recordId,
         long expectedRecordVersion, string idempotencyKey, CancellationToken cancellationToken) =>
-        AdmitAsync(leaseId, sessionId,
+        AdmitAsync(leaseId, applicationHandle,
             async _ => Touched(
                 await application.DeleteRecordAsync(new(entityId, recordId, expectedRecordVersion,
-                    Context(sessionId, idempotencyKey)), cancellationToken),
+                    Context(applicationHandle, idempotencyKey)), cancellationToken),
                 entityId, [recordId],
                 null),
             cancellationToken);
@@ -196,7 +196,7 @@ internal sealed class NendoDataMutationService(
     /// call at a time (ADR-0009, 2026-09-22 amendment).
     /// </summary>
     internal Task<NendoImportResult> ImportAsync(
-        string sessionId,
+        string applicationHandle,
         string leaseId,
         string entityId,
         string format,
@@ -208,7 +208,7 @@ internal sealed class NendoDataMutationService(
         string idempotencyKey,
         CancellationToken cancellationToken) => AdmitAsync(
             leaseId,
-            sessionId,
+            applicationHandle,
             _ =>
             {
                 NendoText.RequireText(idempotencyKey, "idempotency key", 200);
@@ -229,14 +229,14 @@ internal sealed class NendoDataMutationService(
                         ReadCsvProfile(csvProfile),
                         emptyIsNull,
                         idempotencyKey,
-                        NendoTransportIdentity.Pseudonym(sessionId),
+                        NendoTransportIdentity.Pseudonym(applicationHandle),
                         cancellationToken),
                     "json" => imports.ImportRecordsAsync(
                         entityId,
                         records ?? throw new NendoValidationException("A json import needs records."),
                         values => ReadValueMap(values.Element),
                         idempotencyKey,
-                        NendoTransportIdentity.Pseudonym(sessionId),
+                        NendoTransportIdentity.Pseudonym(applicationHandle),
                         cancellationToken),
                     _ => throw new NendoValidationException("format must be \"csv\" or \"json\"."),
                 };
@@ -257,11 +257,11 @@ internal sealed class NendoDataMutationService(
     /// </summary>
     private Task<T> AdmitAsync<T>(
         string leaseId,
-        string sessionId,
+        string applicationHandle,
         Func<NendoLeaseGrant, Task<T>> action,
         CancellationToken cancellationToken) => authority.AdmitMutationAsync(
             leaseId,
-            sessionId,
+            applicationHandle,
             AgentAccessMode.DataMutation,
             grant => WithConsentAsync(() => action(grant), cancellationToken),
             cancellationToken);

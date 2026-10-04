@@ -13,9 +13,9 @@ internal static class NendoReceiptContext
 {
     private const string Prefix = "receipt-v1.";
 
-    internal static string Create(NendoHostAuthority host, string sessionId) => Prefix +
+    internal static string Create(NendoHostAuthority host, string applicationHandle) => Prefix +
         Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new[]
-        { host.ApplicationId, host.InstanceId, host.HostRunId, NendoTransportIdentity.Pseudonym(sessionId) }))
+        { host.ApplicationId, host.InstanceId, host.HostRunId, NendoTransportIdentity.Pseudonym(applicationHandle) }))
             .TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
     internal static NendoOperationIdentity Read(string context, string key, NendoHostAuthority host)

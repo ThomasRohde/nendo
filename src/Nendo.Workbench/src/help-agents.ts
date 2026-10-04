@@ -31,7 +31,7 @@ export const agentSurface: { resources: readonly SurfaceEntry[]; editDataTools: 
     { name: 'nendo://host/instances', meaning: 'Every Nendo running on this device and which file each has open, with isThisOne marking the one answering. The only read here that is not about the open file. It names files, never paths, and it does not make another one reachable: a client works the address it was registered with, so switching is the person’s move.' },
   ],
   editDataTools: [
-    { name: 'nendo.lease.acquire', meaning: 'Take the single editing lease and a private application handle. The handle addresses this open file for the rest of the session and stays private; the lease is the edit authority, held by one agent at a time and revocable by the person. Owned calls take both.' },
+    { name: 'nendo.lease.acquire', meaning: 'Take the single editing lease and a private application handle. The handle addresses this open file for the rest of the session and stays private; the lease is the edit authority, held by one agent at a time and revocable by the person. Owned calls take both. An agent that released or lost its lease can take it again under its earlier handle, and the proposals it validated are its own again.' },
     { name: 'nendo.lease.status', meaning: 'Who holds the lease. Needs no lease and grants none. Use it after a lost acquire response or a reconnect rather than assuming the lease is free.' },
     { name: 'nendo.lease.renew', meaning: 'Confirm ownership, and extend the lease when the person has turned expiry on.' },
     { name: 'nendo.lease.release', meaning: 'Give the lease back. Closing the client does not.' },
@@ -68,7 +68,7 @@ const refusalCodes: HelpTerm[] = [
   { term: 'NENDO_TOOL_UNAVAILABLE', meaning: 'No tool by that name exists at any level. The agent’s tool list names every tool the current level serves.' },
   { term: 'NENDO_CHANGE_SET_NOT_VALIDATED', meaning: 'An accept arrived for a change set that is still a draft. It must validate first, so there is something to accept.' },
   { term: 'NENDO_HOST_CLOSED', meaning: 'The file was closed, switched or entered recovery; the address and every handle from before are gone.' },
-  { term: 'NENDO_LEASE_HELD', meaning: 'Another agent holds the editing lease. nendo.lease.status tells an agent whether the holder is itself after a lost answer; otherwise it waits, or you revoke the lease on the Agent page.' },
+  { term: 'NENDO_LEASE_HELD', meaning: 'Another agent holds the editing lease. An agent whose own answer was lost repeats nendo.lease.acquire with the same idempotencyKey and gets the same grant; otherwise it waits, or you revoke the lease on the Agent page.' },
   { term: 'NENDO_LEASE_EXPIRED', meaning: 'The lease lapsed because expiry is on and it was not renewed. Acquire again.' },
   { term: 'NENDO_INVALID_LEASE', meaning: 'The handle or lease does not belong to this run of this file.' },
   { term: 'NENDO_RECORD_VERSION_CONFLICT', meaning: 'The record moved since it was read. Read it again and retry with the current version.' },

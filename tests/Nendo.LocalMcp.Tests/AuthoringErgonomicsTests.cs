@@ -290,7 +290,7 @@ public sealed class AuthoringErgonomicsTests
         // proposal, and below it only the person can (W-083).
         if (mode >= AgentAccessMode.Unattended)
         {
-            StringAssert.Contains(refused, "If this session validated it, nendo.change_set.accept applies it");
+            StringAssert.Contains(refused, "nendo.change_set.accept applies it");
             Assert.DoesNotContain("There is no promotion tool", refused, StringComparison.Ordinal);
         }
         else

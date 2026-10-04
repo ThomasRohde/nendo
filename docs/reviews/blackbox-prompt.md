@@ -222,7 +222,10 @@ matter. Read them back and check the digits survived the round trip exactly.
 
 Then push on the shape itself: rename a field that already holds data; point a reference at
 a record and then try to delete that record; retire a field and see what happens to what it
-held. Record what each refusal or acceptance told you.
+held. Record what each refusal or acceptance told you. Then release the lease and
+acquire it again with `resumeApplicationHandle`: a proposal you validated before the
+release should still preview under the new lease, and `nendo://application/proposals`
+should name its `changeSetId` and your `owner` pseudonym.
 
 Give one record type a reference to itself and fill it as a tree several levels deep. Then
 find out from the vocabulary, and nowhere else, how to have the host keep it a tree. Before

@@ -119,6 +119,22 @@ operation, including renew/release and proposal preview. Possession of the handl
 governs ownership, not claimed client names or HTTP connection identity. Keep the
 handle private.
 
+Since 2026-10-04 (W-143) `nendo.lease.acquire` takes two optional arguments. An
+`idempotencyKey` makes an exact retry return the grant it already made while that
+lease is held, which is the recovery for a lost acquire response; before, the retry was
+`NENDO_LEASE_HELD` against the agent itself, and the refusal sent it to `lease.status`
+with a handle it never received. A `resumeApplicationHandle`, a handle this host run
+minted earlier, grants a new lease under that same handle, so the proposals the
+session validated, its pseudonym and its receipt scope are its own again. The handle
+is kept rather than retired because all three are keyed on it, and because a write's
+origin is part of what an exact replay must match. A handle this run never minted is
+`NENDO_HANDLE_UNKNOWN`; the holder of a live lease asking by its own handle gets that
+lease back. Drafts still end with the lease: only validated proposals carry over.
+`nendo://application/proposals` names each proposal's `changeSetId` and `owner`, the
+pseudonym the grant reports, so a session can tell its own before it acts. The
+adapter's parameter for the handle is now called `applicationHandle` throughout; it was
+`sessionId`, which hid that a reconnect minted a new one.
+
 By default, the lease ends on explicit release, user revocation or host stop. An
 owner can enable a bounded expiry in Agent → Connection. The
 device settings writer merges only the controls changed in that window with the
@@ -147,7 +163,7 @@ physical mappings or arbitrary host invocation.
 | `nendo://application/history{?cursor,limit}` | `GetHistoryAsync` → `QueryHistoryAsync` | Bounded revision summaries in ascending sequence order. `operationCount` and `operationsUri` replace the unbounded nested `operations` array. |
 | `nendo://application/revision/{revisionId}/operations{?cursor,limit}` | `GetRevisionOperationsAsync` → `QueryRevisionOperationsAsync` | Bounded sanitized operation descriptors in ordinal order. No canonical payload, raw inverse or physical mapping escapes. |
 | `nendo://application/entity/{entityId}/export{?cursor,limit}` | `GetCsvExportAsync` → `ExportCsvPageAsync` → `QueryRecordsAsync` | One page of the record type as faithful Nendo CSV. This is the profile that the person's own Export writes, so the output can go directly back to `nendo.data.import_records`. The header row carries display names and appears on the first page only, so the pages concatenate into one document. `fieldIds` gives the stable ID behind each column, and an import maps by that ID. The same 1–100 limit and the same revision-bound cursor apply as on every other page here. It is a resource and not a tool, because reading is a resource in this product and because Inspect keeps an empty tool list. |
-| `nendo://application/proposals` | `NendoAgentProposalStore.Snapshot` | Every validated proposal that waits for a person, with its title, captured revision, state, operation count, diagnostic count and the most severe reversibility class that it carries. This is the recovery path after a reconnect or a lost response. Before, a pending proposal was invisible, and each proposal captured a revision that the acceptance of any other proposal invalidates. |
+| `nendo://application/proposals` | `NendoAgentProposalStore.Snapshot` | Every validated proposal that waits for a person, with its title, `changeSetId`, `owner` pseudonym, captured revision, state, operation count, diagnostic count and the most severe reversibility class that it carries. This is the recovery path after a reconnect or a lost response. Before, a pending proposal was invisible, and each proposal captured a revision that the acceptance of any other proposal invalidates. |
 | `nendo://application/health` | `GetHealthAsync` → `GetDefinitionSnapshotAsync` | Lightweight status with the time of the last integrity check and the change sequence. A status read does not run integrity again. `changesSinceIntegrityCheck` and `integrityStale` state how far the file has moved since that result was measured. An `ok` taken thirty-two changes ago therefore cannot be read as `ok` now. `nendo.health.verify_integrity` requests a measurement. |
 | `nendo://application/extensions` | `GetExtensionsAsync` → `GetDefinitionSnapshotAsync` | Every custom-view package that the file carries: its ID, title, version, entry point, description and total size, and each file's path, media type, SHA-256 and size. No content. A view that names a package runs its code in the Workbench when the view is shown ([custom-view contract](custom-views.md#packages-in-the-file)). |
 | `nendo://application/extension/{packageId}/file{?path,offset,length}` | `GetExtensionFileAsync` → `ReadExtensionFileAsync` | One package file, a page of bytes at a time. `path` is percent-encoded, so `tiles/world.bin` is sent as `tiles%2Fworld.bin`. `offset` and `length` are byte positions. `length` is at most 131,072, and by default the page runs to the end of the file up to that. A text file's page arrives as `text`. Any other page arrives as `base64`, and so does a text page that would split a UTF-8 sequence. `sha256` and `byteLength` describe the whole file, and `nextOffset` is null on the last page. |
@@ -184,7 +200,7 @@ upward.
 
 | Tool | Authority / current implementation | Shared semantic boundary |
 | --- | --- | --- |
-| `nendo.lease.acquire` | `NendoAgentAuthority.AcquireAsync` | One handle-bound modifying lease. Returns applicationHandle, leaseId, an unprivileged receipt locator and the open file's name before writes. No file mutation. |
+| `nendo.lease.acquire` | `NendoAgentAuthority.AcquireAsync` | One handle-bound modifying lease. Returns applicationHandle, leaseId, an unprivileged receipt locator and the open file's name before writes. Optional `idempotencyKey` (an exact retry returns the same grant) and `resumeApplicationHandle` (a new lease under an earlier handle of this run). No file mutation. |
 | `nendo.lease.renew` | `NendoAgentAuthority.RenewAsync` | Same live handle. Extends an enabled TTL, or confirms ownership when expiry is off. No file mutation. |
 | `nendo.lease.release` | `NendoAgentAuthority.ReleaseAsync` | Serialized lease release. No file mutation. |
 | `nendo.lease.status` | Current endpoint, no lease needed | `GetStatusAsync`. Reports whether a lease is held, the client display name and pseudonym of the holder, the open file's name, and, if a handle is supplied, whether the lease is yours. This is the recovery path when an acquire response is lost: the grant exists, and no other call can report it. |
@@ -398,8 +414,8 @@ What each now says:
   `NENDO_INVALID_ORIGIN` names the one origin accepted; `NENDO_INVALID_JSON` names the
   depth a body reached and the cap, or the line and byte where it stopped being JSON;
   `NENDO_HOST_CLOSED` says why an endpoint closes and where the current one is shown.
-  `NENDO_LEASE_HELD` points at `nendo.lease.status`, which says whether the holder is
-  the caller after a lost acquire response, and at the person's revoke.
+  `NENDO_LEASE_HELD` points at `nendo.lease.status`, at the exact retry under the same
+  `idempotencyKey` that recovers a lost acquire response, and at the person's revoke.
 - An unknown operation type is `NENDO_UNKNOWN_OPERATION`. The refusal names the
   type and the number of operations that the vocabulary lists. It answers the
   question "is there an escape hatch": there is not, and the refusal is the same
