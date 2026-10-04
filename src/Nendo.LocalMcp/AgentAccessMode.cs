@@ -30,11 +30,12 @@ public enum AgentAccessMode
 /// <summary>
 /// The names a person sees for each level, and the refusal an agent gets below one. One
 /// table, so the instructions, the tool boundary and the lease service cannot name a level
-/// differently from the Agent page that sets it.
+/// differently from the Agent page that sets it. The Desktop reads it for the tray menu,
+/// the tray tooltip and notifications.
 /// </summary>
-internal static class NendoAccessLevels
+public static class NendoAccessLevels
 {
-    internal static string DisplayName(AgentAccessMode mode) => mode switch
+    public static string DisplayName(AgentAccessMode mode) => mode switch
     {
         AgentAccessMode.Disabled => "Off",
         AgentAccessMode.ReadOnly => "Inspect",

@@ -7,7 +7,7 @@ public sealed class DesktopNotificationTriggerTests
         string health = "normal",
         bool requiresApproval = false,
         bool isApproved = true) =>
-        new("Ideas.nendo", health, requiresApproval, isApproved, true, true, false, "Application authoring", true);
+        new("Ideas.nendo", health, requiresApproval, isApproved, true, true, false, "Shape app", true);
 
     [TestMethod]
     public void AFileThatOpensReadOnlyIsNotAnnouncedAsHavingBecomeReadOnly()

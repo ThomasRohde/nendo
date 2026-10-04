@@ -27,7 +27,7 @@ Pass when the evaluator can explain that the file is valid while empty and can p
 
 ## Journey B — agent creates the initial shape
 
-Attach an MCP-capable agent in Application authoring mode and give it this prompt:
+Attach an MCP-capable agent at Shape app access and give it this prompt:
 
 > Inspect this empty Nendo database. Create an Idea entity for title, notes, status, energy, created date and next action. Title must not be blank. Status values are Idea, Exploring, Trying, Paused and Done. Energy values are Low, Medium and High. Do not use raw SQL or executable scripts. Validate the proposed structure and show me the semantic change before it becomes active.
 

@@ -22,7 +22,7 @@ description through the lists; with the old text restored it failed at 2,752,
 2,179 and 2,056 characters.
 
 Two of those tools came with the [ADR-0009](../decisions/0009-local-mcp-transport-authority-and-change-sets.md)
-amendment of 2026-09-22. *Data mutation* serves `nendo.data.import_records`.
+amendment of 2026-09-22. *Edit data* serves `nendo.data.import_records`.
 `nendo.change_set.accept` is served only at **Unattended**, the fifth access
 level. At every level below Unattended, the tool is not registered at all. If a
 client sends it by name, the boundary refuses it as `NENDO_UNATTENDED_REQUIRED`, a

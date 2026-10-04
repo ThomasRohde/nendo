@@ -754,9 +754,10 @@ name. Thus a new resource or tool fails the gate until somebody updates the
 contract. Full map: [contracts/mcp-interface.md](contracts/mcp-interface.md).
 
 Visible access modes, as the Agent page names them: *Off*, *Inspect*, *Edit data*,
-*Shape app* and *Unattended*. The tray menu names the same levels *Off*,
-*Read-only inspection*, *Data mutation*, *Application authoring* and *Unattended
-authoring*.
+*Shape app* and *Unattended*. `NendoAccessLevels` in LocalMcp holds these names
+for the MCP instructions, the access refusals and the Desktop's tray menu, tray
+tooltip and notifications. The Workbench's Agent page carries the same five in
+TypeScript (`agentModeLabel` in `format.ts`).
 
 **In the fifth mode, an agent decides for itself.** At Unattended, and at no lower
 level, `nendo.change_set.accept` promotes a proposal that the same session

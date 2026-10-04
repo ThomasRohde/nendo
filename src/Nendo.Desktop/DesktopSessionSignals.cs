@@ -26,7 +26,8 @@ internal sealed record DesktopShellState(
     string? AgentEditingOwner = null)
 {
     internal static DesktopShellState None { get; } =
-        new(null, "noFile", false, true, false, false, false, "Off", false);
+        new(null, "noFile", false, true, false, false, false,
+            NendoAccessLevels.DisplayName(AgentAccessMode.Disabled), false);
 }
 
 internal sealed partial class DesktopSessionController
@@ -113,7 +114,7 @@ internal sealed partial class DesktopSessionController
             capabilities.HasFlag(NendoBehaviourCapabilities.CreateRecords),
             capabilities.HasFlag(NendoBehaviourCapabilities.UpdateRecords),
             capabilities.HasFlag(NendoBehaviourCapabilities.DeleteRecords),
-            AgentAccessLabel(_agentMode),
+            NendoAccessLevels.DisplayName(_agentMode),
             _agentMode != AgentAccessMode.Disabled,
             _agentHost?.Work.Peek().Busy is true,
             _agentHost?.PeekLeaseStatus() is { HasLease: true } lease
@@ -156,13 +157,4 @@ internal sealed partial class DesktopSessionController
     /// <summary>Says the agent is no longer working, for a listener that has stopped.</summary>
     private void AnnounceAgentIdle() =>
         AgentWorkChanged?.Invoke(new NendoAgentWork(false, string.Empty, string.Empty));
-
-    private static string AgentAccessLabel(AgentAccessMode mode) => mode switch
-    {
-        AgentAccessMode.ReadOnly => "Read-only inspection",
-        AgentAccessMode.DataMutation => "Data mutation",
-        AgentAccessMode.ApplicationAuthoring => "Application authoring",
-        AgentAccessMode.Unattended => "Unattended authoring",
-        _ => "Off",
-    };
 }

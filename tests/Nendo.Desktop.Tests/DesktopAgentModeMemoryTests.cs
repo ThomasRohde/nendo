@@ -67,6 +67,30 @@ public sealed class DesktopAgentModeMemoryTests
         Assert.AreEqual("inspect", modes.Recall(applicationId, (await ReadInstanceAsync(deviceRoot, path))!));
     }
 
+    /// <summary>
+    /// W-136: the tray menu, tooltip and notifications name the level as the Agent page
+    /// does, from the one table in LocalMcp.
+    /// </summary>
+    [TestMethod]
+    public async Task TheShellStateNamesTheLevelAsTheAgentPageDoes()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var deviceRoot = workspace.FileHistoryRoot;
+        var path = Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, "named.nendo");
+
+        await using var controller = Controller(deviceRoot, "named");
+        await controller.CreateAsync(path);
+        Assert.AreEqual("Off", controller.DescribeShellState().AgentAccess);
+        foreach (var (mode, label) in new[] { ("inspect", "Inspect"), ("editData", "Edit data"), ("shapeApp", "Shape app") })
+        {
+            await controller.SetAgentModeAsync(mode);
+            Assert.AreEqual(label, controller.DescribeShellState().AgentAccess, $"The shell names {mode} differently from the Agent page.");
+        }
+        await controller.SetAgentModeAsync("off");
+        Assert.AreEqual("Off", controller.DescribeShellState().AgentAccess);
+        Assert.AreEqual("Off", DesktopShellState.None.AgentAccess);
+    }
+
     private static async Task<string?> ReadInstanceAsync(string deviceRoot, string path)
     {
         await using var controller = Controller(deviceRoot, "read");
