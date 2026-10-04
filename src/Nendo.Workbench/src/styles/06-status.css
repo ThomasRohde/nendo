@@ -4,7 +4,6 @@
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
   padding: 0;
@@ -59,12 +58,6 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  min-height: 26px;
-  padding: 0 12px;
-  border-top: 1px solid var(--line);
-  background: var(--surface);
-  font-family: var(--mono);
-  font-size: 0.8rem;
 }
 
 .status-bar[hidden] {
@@ -143,8 +136,6 @@
 
 .workspace-identity {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
 }
 
 .workspace-identity h1 {
