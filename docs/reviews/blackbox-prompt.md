@@ -57,6 +57,11 @@ gets a pass; spend your extra time on these, which changed most recently:
   view misbehaved. Ask the person whether the Code section's folded files, each with
   its line counts, let them choose what to read, and whether any file they needed to read
   was hard to find or open.
+- What the last outside app builder asked for (Phase 4c, 2026-10-05): published byte
+  limits, a refusal instead of a transport error, references inside one batch, node
+  positions you can read and place by, record-level notifications, a Markdown field and a
+  filter a person picks while looking. Each answers a complaint, so check each against the
+  complaint rather than against its description.
 - The board whose columns are records (Phase 3), the newest shape. Its columns are not in
   the definition at all: they are rows of another record type, read when the board opens,
   and there is a point past which the board stops drawing. Find that point rather than
@@ -626,6 +631,43 @@ anybody first.
   an agent is writing without opening the Agent page; ask them to tell you, in their own
   words, what it says and where. Then ask them to click something in Use while you run a
   long validate, and record what they saw and how long it lasted.
+
+## Phase 4c — What the last app builder asked for
+
+An outside team built an app through MCP alone and wrote down what cost them. These are
+the answers, landed 2026-10-05. Find each from the wire before you use it.
+
+- **Limits you can plan by.** Find the byte limits on one field value, on one write's
+  values and on one request body in what the host publishes. Write a value of non-ASCII
+  text exactly at the per-value limit and one character over it, and record whether the
+  size the refusal names matches what you counted. Send one request over the body limit
+  and record whether your client saw a tool refusal with a code or a transport error.
+- **References inside one batch.** In one batch of writes, create a record and then a
+  second record that points at it by record ID under `references`, and a third that
+  points at it by a unique field's value. Record what committed.
+- **Valid or not.** Validate one change set that should pass and one that should not.
+  Record whether the result told you which without reading its diagnostics.
+- **Where a screen is.** Read where every screen and node is kept. Replace one screen in
+  the middle of several with a new one, placed beside a neighbour rather than at a number,
+  and record whether it took the old one's place. Then place one between two neighbours
+  with no room between them, and record what else the change set had to move and whether
+  the person's review showed it.
+- **Finding a running file.** Without being given an address, find which address has a
+  given file open, using only what the skill and the public guide tell you.
+- **A package and its view together.** Put a custom-view package and the view that names
+  it in one change set, in either order, and record whether validation warned you.
+- **Being told instead of polling.** Open a listen stream for one record type's records.
+  Have the person press a screen button that writes to that type, and record how long the
+  notification took and whether it named the record. Write to another type and record
+  whether the stream stayed quiet about it.
+- **Formatted text.** Add a Markdown field. Store text with headings, a list, a table and
+  code, then text with a script tag, an image, and a link whose address is
+  `javascript:` something. Ask the person what the record page showed for each, and
+  whether anything ran or opened.
+- **A filter the person picks.** Ask the person to narrow a board of yours by one value of
+  a reference field, then drag a card between columns while it is narrowed, then close
+  and reopen the file. Record what the board showed at each step and whether the file
+  changed because of the filter.
 
 ## Phase 5 — What must not work
 

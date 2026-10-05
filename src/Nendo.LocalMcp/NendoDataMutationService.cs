@@ -672,8 +672,9 @@ internal sealed class NendoDataMutationService(
                 "Record values must be a JSON object keyed by field ID.");
         }
 
-        // Counted as stored, not as sent: a client whose serializer escapes ø as ø was
-        // refused at a third of the size a client sending it raw could write (W-165).
+        // Counted as stored, not as received: a tool's arguments arrive with every non-ASCII
+        // character escaped (six bytes for one ø), so counting the raw text refused non-ASCII
+        // text at a third of the size (W-165).
         var result = new Dictionary<string, object?>(StringComparer.Ordinal);
         var total = 0L;
         foreach (var property in values.EnumerateObject())

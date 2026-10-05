@@ -352,6 +352,16 @@ own skill, built 2026-10-05 as W-160; the planner's own skill is the step after)
 [ADR-0025](decisions/0025-mcp-apps-and-a-proposal-review-card.md) (MCP Apps,
 deferred).
 
+A sixth, on 2026-10-05, came from outside: a team that built an app over MCP alone,
+without this repository. Its record is
+[`reviews/2026-10-05-outside-app-builder-review.md`](reviews/2026-10-05-outside-app-builder-review.md),
+with the answer to each point at the top (W-164 to W-173). It brought published byte
+limits and a refusal in place of a transport error for an oversized request, references
+to records earlier in a batch, `isValid` on validation, node positions and
+before/after placement, record-level listen notifications, a Markdown field, and a
+filter a person picks on a list, board or matrix. Transient History writes and a shared
+data lease were declined against ADR-0021 and ADR-0009.
+
 What remains open:
 
 - **An assignment bound to the wrong record installs cleanly.** The published

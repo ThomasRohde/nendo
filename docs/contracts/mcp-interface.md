@@ -192,8 +192,9 @@ as a transport failure (W-165): a `tools/call` as a refused tool result carrying
 `NENDO_REQUEST_TOO_LARGE` in text and `_meta`, anything else as a JSON-RPC `-32600` error
 with the code. Inside a record write, one value holds at most `limits.recordValueBytes`
 (32 KiB) and one write's values together `limits.recordValuesBytes` (64 KiB), counted as
-UTF-8 bytes of the value as stored: a string's own text, not its JSON escapes, which the
-.NET client SDK writes for every non-ASCII character. Over them is `NENDO_VALUE_TOO_LARGE`
+UTF-8 bytes of the value as stored: a string's own text, not its JSON escapes. A tool's
+arguments reach the adapter with every non-ASCII character escaped (`ø` as `\u00f8`, six
+bytes), so counting the raw text refused non-ASCII text at a third of the size. Over them is `NENDO_VALUE_TOO_LARGE`
 or `NENDO_VALUES_TOO_LARGE`, naming the field, the cap and the size. A body
 nests at most 32 levels; a deeper one is `NENDO_INVALID_JSON` naming its depth and
 the cap. The cap was 16 until 2026-09-27, two levels over the deepest published
