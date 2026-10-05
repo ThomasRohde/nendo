@@ -222,6 +222,17 @@ internal static class SemanticDiff
                         ? "Give this file back its default icon."
                         : $"Give this file its own icon: {value.Tone ?? "its default colour"}, {(value.Letter is { } letter ? $"the letter {letter}" : "its default letter")}.",
                     value.Reversibility),
+                SetFieldPresentationOperation value => Entry(
+                    "setFieldPresentation",
+                    $"Show {FieldName(names, value.FieldId)} in {EntityName(names, value.EntityId)} as {value.Presentation switch
+                    {
+                        "markdown" => "formatted text, written in Markdown",
+                        "longText" => "a paragraph of text",
+                        _ => "a single line",
+                    }}. Every value stays as it is.",
+                    value.Reversibility,
+                    value.EntityId,
+                    value.FieldId),
                 SetKeptInNewFilesDefaultOperation value => Entry(
                     "setKeptInNewFiles",
                     value.Kept

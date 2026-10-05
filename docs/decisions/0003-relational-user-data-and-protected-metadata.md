@@ -128,7 +128,10 @@ reserved protected metadata namespace for Nendo state.
   presentations are not implemented. Note, 2026-10-05: `markdown` is implemented
   on Text fields, host 1.44.0 (W-173). A record page shows the text formatted
   from a fixed subset, escaped before any tag is added, with links not followed,
-  and edits the source as plain text. Email, URL and color are still not
+  and edits the source as plain text. `schema.setFieldPresentation` moves a Text
+  field between `singleLine`, `longText` and `markdown`, the presentations that keep
+  every value valid, so a long text field written earlier can be shown formatted;
+  it is reversible and changes no value. Email, URL and color are still not
   implemented.)
 - Scalar multi-choice, JSON-as-a-user-type and binary/asset fields are deferred.
   A package file's content is stored as a BLOB, but it is protected metadata, not

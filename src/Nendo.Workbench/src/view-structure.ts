@@ -1,3 +1,4 @@
+import { presentationToggleMarkup } from './field-presentation';
 import { prepareApplication } from './actions';
 import { state } from './app-state';
 import { client } from './client';
@@ -36,7 +37,7 @@ export function renderStructure(): void {
         ${entity.fields.map((field) => `<article class="field-row${field.retired ? ' is-retired' : ''}">
         <div class="field-identity"><strong>${escapeHtml(field.displayName)}${field.retired ? ' <span class="field-tag">Retired</span>' : ''}</strong><code>${escapeHtml(field.fieldId)}</code><div class="field-actions"><button class="text-button" data-rename-field="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''} aria-label="Rename ${escapeAttribute(field.displayName)}">Rename</button><button class="text-button" data-retire-field="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired ? 'disabled' : ''}>${field.retired ? 'Reactivate' : 'Retire'}</button>${field.presentation === 'singleChoice' ? `<button class="text-button" data-choice-field="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''}>Edit choices</button>` : ''}</div></div>
         <span class="field-kind">${escapeHtml(storageLabel(field.storageKind, field.unsupportedStorageKind))}${storageLabel(field.storageKind) === 'Reference' && !field.reference ? `<button class="text-button" data-convert-reference="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''}>Convert reference</button>` : ''}</span>
-        <span class="field-presentation">${escapeHtml(presentationLabel(field.presentation))}${field.scale ? ` ${escapeHtml(`${field.scale.min}–${field.scale.max}`)}` : ''}</span>
+        <span class="field-presentation">${escapeHtml(presentationLabel(field.presentation))}${field.scale ? ` ${escapeHtml(`${field.scale.min}–${field.scale.max}`)}` : ''}${presentationToggleMarkup(entity, field)}</span>
         <span class="field-requirement"><span class="requirement-value">${field.required ? 'Required' : 'Optional'}</span><button class="text-button" data-require-field="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''}>${field.required ? 'Make optional' : 'Make required'}</button>${fieldRulesMarkup(entity, field)}</span>
       </article>`).join('')}</div>
     </section>
@@ -58,6 +59,8 @@ export function renderStructure(): void {
     button.addEventListener('click', () => void renderFieldRequirement(entity, button.dataset.requireField!));
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-unique-field]'))
     button.addEventListener('click', () => prepareFieldRule(entity, button.dataset.uniqueField!, 'unique'));
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-presentation-field]'))
+    button.addEventListener('click', () => preparePresentation(entity, button.dataset.presentationField!, button.dataset.presentation!));
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-sequence-field]'))
     button.addEventListener('click', () => {
       const field = entity.fields.find(candidate => candidate.fieldId === button.dataset.sequenceField)!;
@@ -94,6 +97,20 @@ function fieldRulesMarkup(entity: EntitySnapshot, field: EntitySnapshot['fields'
   const numbering = field.unique && storageLabel(field.storageKind) === 'Text'
     ? `<button class="text-button" data-sequence-field="${id}" data-action type="button" ${off ? 'disabled' : ''}>${field.sequence ? 'Stop numbering' : 'Number automatically'}</button>` : '';
   return `<span class="field-rules">${tags}${unique}${numbering}</span>`;
+}
+
+function preparePresentation(entity: EntitySnapshot, fieldId: string, presentation: string): void {
+  const field = entity.fields.find(candidate => candidate.fieldId === fieldId);
+  if (field === undefined) return;
+  const id = crypto.randomUUID().replaceAll('-', '');
+  const title = presentation === 'markdown' ? `Show ${field.displayName} as Markdown` : `Show ${field.displayName} as long text`;
+  void prepareApplication({ actionLabel: title, applicationName: entity.displayName, proposalPayload: {
+    proposalId: `proposal-${id}`, title,
+    mutations: [{ idempotencyKey: `presentation-${id}`, description: title, operations: [{
+      operationId: `presentation-${id}`, operationType: 'schema.setFieldPresentation',
+      payload: { entityId: entity.entityId, fieldId, presentation, expectedDefinitionRevision: state.session.manifest?.definitionRevision ?? 0 },
+    }] }],
+  } }, 'structure');
 }
 
 /** One reviewed change to a field's rules: unique on or off, or numbering off. */

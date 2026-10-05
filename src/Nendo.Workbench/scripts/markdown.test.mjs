@@ -64,3 +64,13 @@ test('a record sheet treats a markdown field as long text', () => {
   assert.match(sheet, /<div class="record-sheet-long">[\s\S]*markdown-source/);
   assert.match(sheet, /<div class="record-sheet-title">[\s\S]*name="title"/);
 });
+
+test('Structure offers long text as Markdown and back, and nothing else', async () => {
+  const { presentationToggleMarkup } = await bundleOf('src/field-presentation.ts');
+  const text = (presentation, extra = {}) => ({ fieldId: 'notes', displayName: 'Notes', storageKind: 'text', presentation, retired: false, ...extra });
+  assert.match(presentationToggleMarkup({ retired: false }, text('longText')), /data-presentation="markdown"[^>]*>Show as Markdown</);
+  assert.match(presentationToggleMarkup({ retired: false }, text('markdown')), /data-presentation="longText"[^>]*>Show as long text</);
+  assert.equal(presentationToggleMarkup({ retired: false }, text('singleLine')), '');
+  assert.equal(presentationToggleMarkup({ retired: false }, text('singleChoice')), '');
+  assert.match(presentationToggleMarkup({ retired: true }, text('longText')), /disabled/);
+});

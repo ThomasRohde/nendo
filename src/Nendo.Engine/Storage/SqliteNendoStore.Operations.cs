@@ -62,6 +62,7 @@ internal sealed partial class SqliteNendoStore
             SetFieldSequenceOperation setSequence => await ExecuteSetFieldSequenceAsync(setSequence, transaction, cancellationToken),
             RemoveHierarchyOperation remove => await ExecuteRemoveHierarchyAsync(remove, transaction, cancellationToken),
             SetApplicationLookOperation setLook => await ExecuteSetApplicationLookAsync(setLook, transaction, cancellationToken),
+            SetFieldPresentationOperation presentation => await ExecuteSetFieldPresentationAsync(presentation, transaction, cancellationToken),
             SetKeptInNewFilesDefaultOperation keptDefault => await ExecuteSetKeptInNewFilesDefaultAsync(keptDefault, transaction, cancellationToken),
             SetRecordKeptInNewFilesOperation keptRecord => await ExecuteSetRecordKeptInNewFilesAsync(keptRecord, transaction, cancellationToken),
             SetNewFileLabelOperation newFileLabel => await ExecuteSetNewFileLabelAsync(newFileLabel, transaction, cancellationToken),

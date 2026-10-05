@@ -38,6 +38,48 @@ public sealed class MarkdownPresentationTests
         Assert.IsTrue(inspection.CanAcquireWriteAuthority);
     }
 
+    /// <summary>
+    /// A long text field written before Markdown existed is shown formatted by changing its
+    /// presentation: no value moves, the change compensates back, and only the text
+    /// presentations take part, since any other would make a valid value invalid.
+    /// </summary>
+    [TestMethod]
+    public async Task AnExistingTextFieldBecomesMarkdownWithoutAValueMoving()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await coordinator.ApplyAsync(new("test", "schema", "test", "Answers", [
+            new CreateEntityOperation("e", "answer", "Answer", "answers"),
+            new AddFieldOperation("f", "answer", "title", "Title", "title", NendoStorageKind.Text, true),
+            new AddFieldOperation("l", "answer", "notes", "Notes", "notes", NendoStorageKind.Text, false, "longText"),
+            new AddFieldOperation("n", "answer", "score", "Score", "score", NendoStorageKind.Integer, false),
+            new AddFieldOperation("c", "answer", "state", "State", "state", NendoStorageKind.Text, false, "singleChoice", ["open", "done"]),
+        ]));
+        await service.CreateRecordAsync(new("answer", "a1",
+            new Dictionary<string, object?> { ["title"] = "First", ["notes"] = "# Kept\n\n- as written" }, new("test", "create-a1", "test")));
+        async Task<NendoApplyResult> SetAsync(string fieldId, string presentation) =>
+            await coordinator.ApplyAsync(new("test", $"present-{fieldId}-{presentation}-{Guid.NewGuid():N}", "test", "Presentation", [
+                new SetFieldPresentationOperation("p", "answer", fieldId, presentation, (await service.GetSnapshotAsync()).Manifest.DefinitionRevision),
+            ]));
+        string Presentation(NendoSessionSnapshot snapshot, string fieldId) => snapshot.Entities.Single().Fields.Single(field => field.FieldId == fieldId).Presentation!;
+
+        var changed = await SetAsync("notes", "markdown");
+        var after = await service.GetSnapshotAsync();
+        Assert.AreEqual("markdown", Presentation(after, "notes"));
+        Assert.AreEqual("# Kept\n\n- as written", after.Records.Single().Values["notes"].GetString(), "No value moves.");
+        Assert.AreEqual(NendoFormat.MarkdownPresentationMinimumHostVersion, after.Manifest.MinimumHostVersion);
+
+        await service.CompensateRevisionAsync(changed.RevisionId, "undo-markdown");
+        Assert.AreEqual("longText", Presentation(await service.GetSnapshotAsync(), "notes"));
+
+        Assert.AreEqual("field-presentation-unchanged", (await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => SetAsync("notes", "longText"))).Code);
+        Assert.AreEqual("field-presentation-invalid", (await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => SetAsync("score", "markdown"))).Code);
+        Assert.AreEqual("field-presentation-invalid", (await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => SetAsync("state", "markdown"))).Code);
+        StringAssert.Contains(Assert.ThrowsExactly<NendoValidationException>(() =>
+            new SetFieldPresentationOperation("p", "answer", "notes", "date", 1)).Message, "only between singleLine, longText and markdown", StringComparison.Ordinal);
+    }
+
     [TestMethod]
     public void MarkdownIsTextOnly()
     {

@@ -639,6 +639,11 @@ a unique value is refused as `NENDO_VALUE_NOT_UNIQUE`, naming the record that al
 — never the value. A create may leave a numbered field out; the write result's `assigned`
 lists each record, field and code the host wrote.
 
+`schema.setFieldPresentation` (W-173) moves a Text field between `singleLine`, `longText`
+and `markdown`, the presentations that keep every value valid; no value changes, it is
+reversible, a unique field stays `singleLine`, and the operation states host 1.44.0. It is
+how a long text field written before `markdown` existed is shown formatted.
+
 A change set past the content bound, or a file past 4 MiB once its parts are
 joined, is refused at validation as `NENDO_INVALID_REQUEST`, and nothing reaches
 the clone. A package precondition met on the clone, one of the `extension-*` codes,
