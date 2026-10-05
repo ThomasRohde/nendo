@@ -262,10 +262,19 @@ internal static class SemanticDiff
         }
         // Code carried into the file runs when a view that names its package is shown, with the
         // file's typed API. Said once, as a line of its own, so accepting code is accepting that.
-        if (changeSet.Mutations.SelectMany(mutation => mutation.Operations).OfType<PutExtensionFileOperation>().Any())
+        // A skill package's files are never run (ADR-0024); what accepting them means is said
+        // in a line of its own too.
+        var puts = changeSet.Mutations.SelectMany(mutation => mutation.Operations).OfType<PutExtensionFileOperation>().ToArray();
+        if (puts.Any(put => !packages.IsSkill(put.PackageId)))
         {
             result.Add(Entry("extensionCode",
                 "This code runs when a view that uses its package is shown. It can read and change this file's records through Nendo, reach the network and use the clipboard.",
+                NendoReversibilityClass.ReversibleWithRetainedState));
+        }
+        if (puts.Any(put => packages.IsSkill(put.PackageId)))
+        {
+            result.Add(Entry("extensionSkill",
+                "These are instructions for an agent working on this file. Nendo never runs them; an agent's client offers them to its model when the agent connects, after asking you if it asks at all. Read them as you would read instructions given to someone editing your file.",
                 NendoReversibilityClass.ReversibleWithRetainedState));
         }
         return result.AsReadOnly();
@@ -279,6 +288,7 @@ internal static class SemanticDiff
     private sealed class PackageState
     {
         private readonly Dictionary<string, string> _titles = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _skills = new(StringComparer.Ordinal);
         private readonly Dictionary<(string Package, string Path), (string Sha256, long Bytes)> _files = new();
 
         internal PackageState(NendoSessionSnapshot active)
@@ -286,9 +296,12 @@ internal static class SemanticDiff
             foreach (var package in active.ExtensionPackages)
             {
                 _titles[package.PackageId] = package.Title;
+                if (package.IsSkill) _skills.Add(package.PackageId);
                 foreach (var file in package.Files) _files[(package.PackageId, file.Path)] = (file.Sha256, file.ByteLength);
             }
         }
+
+        internal bool IsSkill(string packageId) => _skills.Contains(packageId);
 
         private string Title(string packageId) =>
             _titles.TryGetValue(packageId, out var title) ? $"the package {title}" : $"the package {packageId}";
@@ -297,6 +310,13 @@ internal static class SemanticDiff
         {
             var existed = _titles.ContainsKey(operation.PackageId);
             _titles[operation.PackageId] = operation.Title;
+            if (operation.Kind == NendoExtensionPackageKind.Skill)
+            {
+                _skills.Add(operation.PackageId);
+                return existed
+                    ? $"Update the skill package {operation.Title} ({operation.PackageId})" + (operation.Version is null ? "." : $": it is version {operation.Version}.")
+                    : $"Add the skill package {operation.Title} ({operation.PackageId}): instructions for an agent, read from {NendoAgentSkill.FileName}, offered as the skill {NendoAgentSkill.NameFor(operation.PackageId)}. Nothing in it runs.";
+            }
             return existed
                 ? $"Update the custom-view package {operation.Title} ({operation.PackageId}): it starts at {operation.EntryPoint}" +
                     (operation.Version is null ? "." : $" and is version {operation.Version}.")

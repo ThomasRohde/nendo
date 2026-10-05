@@ -36,9 +36,17 @@ export function frameName(mountId: string): string {
 export const frameNamePattern = /^nendo-view-[0-9a-f]{12}$/;
 
 /** An origin the host serves views from: https, one label, under the reserved .example. */
-export function isViewOrigin(origin: string): boolean {
-  return /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.example$/.test(origin);
+export function isViewOrigin(origin: string | null): origin is string {
+  return origin !== null && /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.example$/.test(origin);
 }
+
+/** A skill package (ADR-0024): instructions for an agent, never run. */
+export function isSkillPackage(pkg: ExtensionPackageView): boolean {
+  return pkg.kind === 'skill';
+}
+
+/** A package a frame can start: an origin to serve it from and an entry point to start at. */
+export type RunnablePackage = ExtensionPackageView & { origin: string; entryPoint: string };
 
 /** Where the frame starts: the package's entry point on its origin, each path segment encoded. */
 export function frameSource(origin: string, entryPoint: string): string {
@@ -130,12 +138,13 @@ export function unsavedViewMarkup(spec: ViewSpec): string {
 
 /** Whether a view can run here, and when it cannot, which of the reasons it is. */
 export type ViewNotice =
-  | { kind: 'run'; pkg: ExtensionPackageView }
+  | { kind: 'run'; pkg: RunnablePackage }
   | { kind: 'off'; reason: ExtensionOffReason | null }
   | { kind: 'missing' }
   | { kind: 'preview' }
   | { kind: 'unavailable' }
-  | { kind: 'unservable' };
+  | { kind: 'unservable' }
+  | { kind: 'skill' };
 
 /**
  * The switches are checked before the package: with views off, a missing package is not
@@ -147,9 +156,10 @@ export function viewNotice(extensions: ExtensionRuntimeView | null | undefined, 
   if (!extensions.run) return { kind: 'off', reason: extensions.offReason };
   const pkg = extensions.packages.find((candidate) => candidate.packageId === packageId);
   if (pkg === undefined) return { kind: 'missing' };
+  if (isSkillPackage(pkg)) return { kind: 'skill' };
   if (mode !== 'desktop') return { kind: 'preview' };
-  if (!isViewOrigin(pkg.origin)) return { kind: 'unservable' };
-  return { kind: 'run', pkg };
+  if (!isViewOrigin(pkg.origin) || pkg.entryPoint === null) return { kind: 'unservable' };
+  return { kind: 'run', pkg: { ...pkg, origin: pkg.origin, entryPoint: pkg.entryPoint } };
 }
 
 /** Why custom views are off, in the words every placeholder and Studio use. */
@@ -190,6 +200,9 @@ export function viewNoticeMarkup(notice: Exclude<ViewNotice, { kind: 'run' }>, s
     case 'unservable':
       body = `<p>${title} cannot be shown: its package has no address Nendo serves views from.</p>`;
       break;
+    case 'skill':
+      body = `<p>${title} cannot be shown: <strong>${packageId}</strong> is a skill package, instructions for an agent that never run. A view needs a package of code.</p>`;
+      break;
     default:
       body = '<p>Custom views are not available in this session.</p>';
       break;
@@ -217,7 +230,7 @@ export function viewOverlayMarkup(trouble: ViewTrouble): string {
  * else is another view, and starts afresh. The package's size and file count stand in for
  * its content, so an accepted change to its code starts the view on the new code.
  */
-export function mountKey(spec: ViewSpec, fileSessionId: string | null, pkg: ExtensionPackageView): string {
+export function mountKey(spec: ViewSpec, fileSessionId: string | null, pkg: RunnablePackage): string {
   return JSON.stringify([fileSessionId, spec.placement, spec.viewId, spec.recordId, pkg.packageId, pkg.origin,
     pkg.entryPoint, pkg.version, pkg.fileCount, pkg.totalBytes, pkg.contentDigest ?? null]);
 }
@@ -252,10 +265,16 @@ export function customViewsPanelMarkup(extensions: ExtensionRuntimeView | null |
   const packages = extensions.packages.length === 0
     ? '<p class="package-empty">No custom-view packages in this file yet.</p>'
     : `<div class="package-list" role="list" aria-label="Packages in this file">${extensions.packages.map((pkg) => {
-      const facts = [pkg.packageId, pkg.version === null ? null : `version ${pkg.version}`,
+      const skill = isSkillPackage(pkg);
+      const facts = [skill ? 'Agent skill' : null, pkg.packageId, pkg.version === null ? null : `version ${pkg.version}`,
         `${pkg.fileCount} ${pkg.fileCount === 1 ? 'file' : 'files'}`, byteSize(pkg.totalBytes)].filter((fact): fact is string => fact !== null);
-      const extra = packageExtras(pkg);
-      return `<article class="package-card" role="listitem" data-package="${escapeAttribute(pkg.packageId)}"><span class="surface-icon" aria-hidden="true">${icon('surfaces')}</span><div class="surface-detail"><h3>${escapeHtml(pkg.title)}</h3><p>${escapeHtml(facts.join(' · '))}</p>${pkg.description === null || pkg.description === '' ? '' : `<p class="package-description">${escapeHtml(pkg.description)}</p>`}</div><div class="package-actions">${extra.actions}<button type="button" class="secondary-button" data-package-export="${escapeAttribute(pkg.packageId)}">Export…</button><button type="button" class="secondary-button" data-action data-package-remove="${escapeAttribute(pkg.packageId)}">Remove…</button></div>${extra.body}</article>`;
+      // A skill package (ADR-0024) is text an agent reads: it has no views to add and nothing to
+      // develop live, and the card says what it is rather than offering either.
+      const extra = skill ? { actions: '', body: '' } : packageExtras(pkg);
+      const skillNote = skill
+        ? `<p class="package-skill-note">Instructions for an agent connected to this file, offered to it as the skill ${escapeHtml(pkg.packageId.slice(pkg.packageId.lastIndexOf('.') + 1))}. Nothing in it runs in Nendo.</p>`
+        : '';
+      return `<article class="package-card" role="listitem" data-package="${escapeAttribute(pkg.packageId)}" data-package-kind="${skill ? 'skill' : 'view'}"><span class="surface-icon" aria-hidden="true">${icon(skill ? 'file' : 'surfaces')}</span><div class="surface-detail"><h3>${escapeHtml(pkg.title)}</h3><p>${escapeHtml(facts.join(' · '))}</p>${pkg.description === null || pkg.description === '' ? '' : `<p class="package-description">${escapeHtml(pkg.description)}</p>`}${skillNote}</div><div class="package-actions">${extra.actions}<button type="button" class="secondary-button" data-package-export="${escapeAttribute(pkg.packageId)}">Export…</button><button type="button" class="secondary-button" data-action data-package-remove="${escapeAttribute(pkg.packageId)}">Remove…</button></div>${extra.body}</article>`;
     }).join('')}</div>`;
   return `${open}<header class="custom-views-heading"><div><h2 id="custom-views-title">Custom views</h2>${intro}</div>${chip}</header><p class="custom-views-status" role="status">${escapeHtml(status)}</p>${resume}${typeof extensions.notice === 'string' && extensions.notice.length > 0 ? `<p class="custom-views-notice">${escapeHtml(extensions.notice)}</p>` : ''}${toggles}<h3 class="package-heading">Packages in this file</h3>${packages}<div class="package-footer"><button type="button" class="secondary-button" data-action data-package-import>Import package…</button><small>A folder, a .zip or a .nendoview file. Importing prepares a proposal; nothing runs until you accept it.</small></div></section>`;
 }

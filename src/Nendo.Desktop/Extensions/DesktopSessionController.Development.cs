@@ -84,6 +84,9 @@ internal sealed partial class DesktopSessionController
             if (!carried.Contains(packageId))
                 throw new NendoPreconditionException("extension-package-not-found",
                     $"The file carries no package {packageId}. Import it once, then develop it from its folder.");
+            if (archive.Kind == NendoExtensionPackageKind.Skill || await IsSkillPackageAsync(packageId, cancellationToken))
+                throw new NendoPreconditionException("extension-package-skill",
+                    $"{packageId} is a skill package, which never runs, so there is nothing to develop live. Edit its folder and import it again.");
             ExtensionSettings.SetLink(applicationId, packageId, folder);
             var view = await ReadViewAsync(cancellationToken);
             ExtensionDevelopmentChanged?.Invoke(packageId);
@@ -133,6 +136,11 @@ internal sealed partial class DesktopSessionController
     private async Task<HashSet<string>> CarriedPackagesAsync(CancellationToken cancellationToken) =>
         (await RequireService().GetDefinitionSnapshotAsync(cancellationToken)).ExtensionPackages
             .Select(package => package.PackageId).ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>Whether the open file's package of this ID is a skill. The caller holds the request gate.</summary>
+    private async Task<bool> IsSkillPackageAsync(string packageId, CancellationToken cancellationToken) =>
+        (await RequireService().GetDefinitionSnapshotAsync(cancellationToken)).ExtensionPackages
+            .Any(package => package.PackageId == packageId && package.IsSkill);
 
     /// <summary>
     /// One linked package: its folder, read on demand and again after any change, and a watcher
@@ -209,6 +217,8 @@ internal sealed partial class DesktopSessionController
                     return new(503, "text/plain", System.Text.Encoding.UTF8.GetBytes("The development folder could not be read: " + _failure));
                 archive = _archive;
             }
+            // A folder that now reads as a skill package has nothing to run (ADR-0024).
+            if (archive.EntryPoint is null) return DesktopExtensionAsset.NotFound;
             if (path.Length == 0) path = archive.EntryPoint;
             else if (path.EndsWith('/')) path += "index.html";
             var file = archive.Files.FirstOrDefault(candidate => candidate.Path == path);

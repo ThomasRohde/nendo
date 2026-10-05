@@ -400,8 +400,9 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             return result;
                         });
                         server.ServerInstructions = NendoServerInstructions.For(mode, options.LeaseTtl, snapshot.FileName);
-                        // The Skills extension (W-154, SEP-2640): one host-level skill, listed and fetched
-                        // by two methods the SDK does not know, its files served as resources above.
+                        // The Skills extension (W-154, SEP-2640): the host's skill and the open file's own
+                        // (ADR-0024), listed and fetched by two methods the SDK does not know, their files
+                        // served as resources.
                         server.Capabilities ??= new ServerCapabilities();
                         server.Capabilities.Extensions ??= new Dictionary<string, object>(StringComparer.Ordinal);
                         server.Capabilities.Extensions[NendoHostSkill.ExtensionId] = System.Text.Json.JsonSerializer.SerializeToElement(new { });
@@ -409,13 +410,21 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                         server.RequestHandlers.Add(new McpServerRequestHandler
                         {
                             Method = "skills/list",
-                            Handler = (_, _) => ValueTask.FromResult<System.Text.Json.Nodes.JsonNode?>(NendoHostSkill.ListResult()),
+                            Handler = async (_, token) =>
+                            {
+                                authority.RequireActive();
+                                return NendoHostSkill.ListResult(await NendoFileSkills.ReadAsync(applicationService, token));
+                            },
                         });
                         server.RequestHandlers.Add(new McpServerRequestHandler
                         {
                             Method = "skills/get",
                             RoutingNameParameter = "uri",
-                            Handler = (request, _) => ValueTask.FromResult<System.Text.Json.Nodes.JsonNode?>(NendoHostSkill.GetResult(request.Params)),
+                            Handler = async (request, token) =>
+                            {
+                                authority.RequireActive();
+                                return NendoHostSkill.GetResult(request.Params, await NendoFileSkills.ReadAsync(applicationService, token));
+                            },
                         });
                         // The signal brackets the call; the log records it afterwards. Both
                         // are here because this is the one place that sees every request,

@@ -1192,6 +1192,16 @@ vocabulary, the examples and the resources — and not from the person.
   because the package changed since, what the refusal says, and whether the newer title
   and entry point are still there. Compensate the second, then the first, and record
   what each restores.
+- Write the file's own agent skill: a package of kind `skill` with a `SKILL.md` that
+  says how this file is meant to be worked. Before you send it, record what the wire told
+  you about the frontmatter it needs and the name the skill would take. Send one that
+  names an entry point, one whose `SKILL.md` has no frontmatter and one whose name is not
+  the package ID's last segment, and record what each refusal names and when it came.
+  Ask the person what the review said the package was, and whether it told them nothing
+  in it runs. Once they accept it, list the skills again: record the order, the name,
+  and each file's digest and size against what `resources/read` gives you, a supporting
+  file under a folder and a binary one included. Then try to make it run: name it from
+  a view, write in its name, and ask the person what Studio shows on its card.
 
 ## What to produce
 

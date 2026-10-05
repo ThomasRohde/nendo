@@ -51,7 +51,7 @@ public sealed class DesktopExtensionServingTests
         var package = runtime.Packages.Single();
         Assert.AreEqual(PackageId, package.PackageId);
         Assert.AreEqual("https://" + ExtensionOrigins.Host(view.Manifest!.ApplicationId, PackageId), package.Origin);
-        var host = new Uri(package.Origin).Host;
+        var host = new Uri(package.Origin!).Host;
 
         var entry = await session.ReadExtensionAssetAsync(host, "");
         Assert.AreEqual(200, entry.Status);
@@ -95,7 +95,7 @@ public sealed class DesktopExtensionServingTests
         await using var second = new DesktopSessionController(fileHistoryRoot: secondWorkspace.FileHistoryRoot, deviceStateRoot: firstWorkspace.FileHistoryRoot);
         await first.OpenAsync(firstWorkspace.FilePath);
         await second.OpenAsync(secondWorkspace.FilePath);
-        var host = new Uri((await second.GetViewAsync()).Extensions!.Packages.Single().Origin).Host;
+        var host = new Uri((await second.GetViewAsync()).Extensions!.Packages.Single().Origin!).Host;
         var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         second.ExtensionSettingsChanged += () => changed.TrySetResult();
 
@@ -120,7 +120,7 @@ public sealed class DesktopExtensionServingTests
         await SeedAsync(workspace.FilePath);
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot);
         await session.OpenAsync(workspace.FilePath);
-        var host = new Uri((await session.GetViewAsync()).Extensions!.Packages.Single().Origin).Host;
+        var host = new Uri((await session.GetViewAsync()).Extensions!.Packages.Single().Origin!).Host;
         Assert.AreEqual(200, (await session.ReadExtensionAssetAsync(host, "")).Status);
 
         await session.CloseAsync();
@@ -190,6 +190,38 @@ public sealed class DesktopExtensionServingTests
     [DataRow("bytes=-0")]
     public void ARangeTheContentCannotAnswerIsRefused(string header) =>
         Assert.IsFalse(ExtensionAssetServer.TryRange(header, 100, out _, out _));
+
+    [TestMethod]
+    public async Task ASkillPackageIsListedButHasNoOriginAndNothingServesOrWritesAsIt()
+    {
+        const string skillId = "org.example.tasks";
+        await using var workspace = new DesktopTestWorkspace();
+        await using (var coordinator = await NendoWriteCoordinator.CreateAsync(workspace.FilePath, "serving-test"))
+        {
+            await coordinator.ApplyAsync(new NendoMutation("test", "package", "test", "Map", [
+                new SetExtensionPackageOperation("serving-package", PackageId, "Map", "index.html", "1.0.0"),
+                PutExtensionFileOperation.FromContent("serving-index", PackageId, "index.html", null, Encoding.UTF8.GetBytes(Html)),
+            ]));
+            await coordinator.ApplyAsync(new NendoMutation("test", "skill", "test", "Tasks", [
+                new SetExtensionPackageOperation("serving-skill", skillId, "Tasks", null, kind: NendoExtensionPackageKind.Skill),
+                PutExtensionFileOperation.FromContent("serving-skill-md", skillId, "SKILL.md", null,
+                    Encoding.UTF8.GetBytes("---\nname: tasks\ndescription: Tasks.\n---\n")),
+            ]));
+        }
+        await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot);
+        await session.OpenAsync(workspace.FilePath);
+
+        var view = await session.GetViewAsync();
+        var skill = view.Extensions!.Packages.Single(package => package.PackageId == skillId);
+        Assert.AreEqual((NendoExtensionPackageKind.Skill, (string?)null, (string?)null), (skill.Kind, skill.Origin, skill.EntryPoint),
+            "A skill package was given somewhere to run.");
+        Assert.AreEqual(NendoExtensionPackageKind.View, view.Extensions.Packages.Single(package => package.PackageId == PackageId).Kind);
+        var host = ExtensionOrigins.Host(view.Manifest!.ApplicationId, skillId);
+        Assert.AreEqual(404, session.ExtensionOriginStatus(host));
+        Assert.AreEqual(404, (await session.ReadExtensionAssetAsync(host, "SKILL.md")).Status);
+        var refusal = Assert.ThrowsExactly<NendoPreconditionException>(() => session.RequireExtensionWriter(skillId));
+        Assert.AreEqual("actor-not-allowed", refusal.Code);
+    }
 
     private static async Task SeedAsync(string path)
     {

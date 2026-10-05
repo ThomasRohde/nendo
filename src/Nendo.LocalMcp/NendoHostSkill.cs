@@ -9,11 +9,12 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp;
 
 /// <summary>
-/// The one skill this host serves over the Skills extension (W-154, SEP-2640): a
+/// The skill this host serves over the Skills extension (W-154, SEP-2640): a
 /// <c>SKILL.md</c> that says when to read each of the authoring resources, with the
 /// vocabulary, the examples and the view API as its supporting files. Generated from the
 /// same tables the vocabulary is, build-static, so the manifest's digests are the bytes
-/// served. A file that carries its own skill is ADR-0024, not this class.
+/// served. A skill the open file carries (ADR-0024) is <see cref="NendoFileSkills"/>,
+/// listed after this one.
 /// </summary>
 internal static class NendoHostSkill
 {
@@ -63,29 +64,41 @@ internal static class NendoHostSkill
         }).ToArray()),
     };
 
-    internal static JsonObject ListResult() => new()
+    /// <summary>
+    /// This skill first, then the open file's own skills (ADR-0024). The list depends on the
+    /// file, which a proposal can change at any moment, so it is never cached; this skill read
+    /// alone describes the build and keeps its hour.
+    /// </summary>
+    internal static JsonObject ListResult(IReadOnlyList<NendoFileSkills.FileSkill> fileSkills) => new()
     {
         ["resultType"] = "complete",
-        ["skills"] = new JsonArray(Entry()),
-        ["ttlMs"] = TimeToLiveMs,
-        ["cacheScope"] = "public",
+        ["skills"] = new JsonArray([Entry(), .. fileSkills.Select(skill => (JsonNode)skill.Entry())]),
+        ["ttlMs"] = 0,
+        ["cacheScope"] = "private",
     };
 
-    internal static JsonObject GetResult(JsonNode? parameters)
+    internal static JsonObject GetResult(JsonNode? parameters, IReadOnlyList<NendoFileSkills.FileSkill> fileSkills)
     {
         var uri = parameters?["uri"]?.GetValue<string>();
-        if (uri != SkillUri)
+        if (uri == SkillUri)
         {
-            throw new McpProtocolException(
-                $"NENDO_SKILL_NOT_FOUND: This host serves one skill, {SkillUri}; '{uri}' is not it.",
-                McpErrorCode.InvalidParams);
+            return new JsonObject
+            {
+                ["resultType"] = "complete",
+                ["skill"] = Entry(),
+                ["ttlMs"] = TimeToLiveMs,
+                ["cacheScope"] = "public",
+            };
         }
+        var fileSkill = fileSkills.FirstOrDefault(skill => skill.Uri == uri) ?? throw new McpProtocolException(
+            $"NENDO_SKILL_NOT_FOUND: '{uri}' is not a skill this host serves. skills/list names them: {string.Join(", ", [SkillUri, .. fileSkills.Select(skill => skill.Uri)])}.",
+            McpErrorCode.InvalidParams);
         return new JsonObject
         {
             ["resultType"] = "complete",
-            ["skill"] = Entry(),
-            ["ttlMs"] = TimeToLiveMs,
-            ["cacheScope"] = "public",
+            ["skill"] = fileSkill.Entry(),
+            ["ttlMs"] = 0,
+            ["cacheScope"] = "private",
         };
     }
 

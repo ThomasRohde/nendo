@@ -212,6 +212,25 @@ public sealed class ExtensionViewDefinitionTests
     }
 
     [TestMethod]
+    public async Task AViewThatNamesASkillPackageDoesNotCompile()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var (coordinator, service) = await Seed(workspace);
+        await Accept(service, Page(OpenPanel(), [Show("starts")]));
+        // ADR-0024: a skill package is text for an agent, and nothing runs it, a view included.
+        await coordinator.ApplyAsync(new("test", "skill", "test", "Put a skill under the view's package ID", [
+            new SetExtensionPackageOperation("p", "org.nendo.gantt", "Gantt", null, kind: NendoExtensionPackageKind.Skill),
+            PutExtensionFileOperation.FromContent("f", "org.nendo.gantt", "SKILL.md", null,
+                "---\nname: gantt\ndescription: Reading the plan.\n---\n"u8.ToArray()),
+        ]));
+        var compiled = new NendoSemanticCompiler().Compile(await service.GetSnapshotAsync());
+        var error = compiled.Diagnostics.Single(d => d.Code == "NUI454");
+        Assert.AreEqual(NendoDiagnosticSeverity.Error, error.Severity);
+        Assert.AreEqual("packageId", error.PropertyPath);
+        Assert.IsFalse(compiled.IsValid);
+    }
+
+    [TestMethod]
     public async Task APanelsFieldsAreTheViewsNotTheForms()
     {
         await using var workspace = new EngineTestWorkspace();

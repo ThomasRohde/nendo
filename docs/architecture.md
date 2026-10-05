@@ -155,8 +155,8 @@ A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
 what a file can contain. `1.11.0` is for composable surfaces. After it, each
 version adds one capability, usually a widened semantic shape. The highest version
-is `1.42.0`, for a custom view as a screen of the file (`extensionView`, ADR-0013 Phase
-5, W-106). `1.34.0` is for a custom view defined by rules that earlier hosts refused
+is `1.43.0`, for a package of kind skill (ADR-0024, W-160). `1.42.0` is for a custom view
+as a screen of the file (`extensionView`, ADR-0013 Phase 5, W-106). `1.34.0` is for a custom view defined by rules that earlier hosts refused
 (ADR-0013, 2026-09-25). `1.33.0` is for custom-view packages carried in the file, `1.32.0` a
 custom view on a record page (`extensionRecordPanel`), `1.31.0` a custom view of one
 record type as typed columns (`extensionRecordsSurface`), `1.30.0` a view at
@@ -187,6 +187,16 @@ with its hash. A view that is shown runs its package's code, which the host serv
 from these tables through a content cache keyed by SHA-256. The
 [custom-view contract](contracts/custom-views.md#packages-in-the-file) has the
 operations, the bounds and the review.
+
+A package of kind skill ([ADR-0024](decisions/0024-a-file-carries-its-own-agent-skill.md))
+holds a `SKILL.md` and supporting files for an agent instead of code. Its kind is a row in
+`__nendo_extension_kind`, the ladder's last rung, which the first skill package creates; a
+package without a row is a view. The package table's text is fixed by released layouts, so
+a skill package's required entry point column holds `SKILL.md` and every read ignores it.
+Validation refuses a skill package whose `SKILL.md` lacks the frontmatter that names it
+(`NPROP012`). The local MCP host lists each skill package in `skills/list` after its own
+skill and serves its files under `skill://{packageId}/`; the Desktop host gives it no
+origin, so nothing serves it to a frame or writes in its name.
 
 **Cloud sync is unsupported.** Where practical, the host detects known
 sync-managed paths (OneDrive, Dropbox, Google Drive) and shows a warning. The

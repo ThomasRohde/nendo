@@ -168,3 +168,29 @@ test('Studio’s Custom views panel shows the two switches and each package, and
   assert.match(markup.customViewsPanelMarkup({ ...running, packages: [] }, null), /No custom-view packages in this file yet\./);
   assert.match(markup.customViewsPanelMarkup(null, null), /not available in this session/);
 });
+
+// ADR-0024, W-160: a skill package is listed among the file's packages as text an agent reads,
+// with nothing to add a view to, nothing to develop and nothing that runs.
+const skill = { packageId: 'org.example.team-way', title: 'How this team works', version: null, entryPoint: null, description: null,
+  origin: null, kind: 'skill', fileCount: 2, totalBytes: 2140 };
+
+test('Studio lists a skill package as an agent skill, with no view to add and nothing to develop', () => {
+  const panel = markup.customViewsPanelMarkup({ ...running, packages: [pkg, skill] }, 'Planner.nendo',
+    () => ({ actions: '<button data-view-add>Add view…</button>', body: '<p data-uses>Shown on</p>' }));
+  const card = panel.slice(panel.indexOf('data-package="org.example.team-way"'));
+  assert.match(card, /data-package-kind="skill"/);
+  assert.match(card, /<p>Agent skill · org\.example\.team-way · 2 files · 2\.1 KB<\/p>/);
+  assert.match(card, /offered to it as the skill team-way\. Nothing in it runs in Nendo\./);
+  assert.doesNotMatch(card.slice(0, card.indexOf('</article>')), /data-view-add|data-uses/, 'A skill card offers to add a view.');
+  assert.match(card, /data-package-export="org\.example\.team-way"/);
+  assert.match(panel.slice(0, panel.indexOf('data-package="org.example.team-way"')), /data-view-add/, 'A view package lost its own actions.');
+});
+
+test('a view that names a skill package is never framed and says why', () => {
+  assert.deepEqual(markup.viewNotice({ ...running, packages: [skill] }, 'org.example.team-way', 'desktop'), { kind: 'skill' });
+  assert.deepEqual(markup.viewNotice({ ...running, packages: [{ ...skill, kind: 'skill', origin }] }, 'org.example.team-way', 'desktop'), { kind: 'skill' },
+    'An origin sent for a skill package would frame it.');
+  assert.match(markup.viewNoticeMarkup({ kind: 'skill' }, { ...spec, packageId: 'org.example.team-way' }),
+    /<strong>org\.example\.team-way<\/strong> is a skill package, instructions for an agent that never run/);
+  assert.equal(markup.isViewOrigin(null), false);
+});

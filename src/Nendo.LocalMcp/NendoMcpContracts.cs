@@ -364,13 +364,17 @@ public sealed record NendoMcpNewFile(
     long ConflictCount,
     IReadOnlyList<NendoNewFileConflict> Conflicts);
 
-/// <summary>A custom-view package in the file, as nendo://application/extensions lists it.</summary>
+/// <summary>
+/// A package in the file, as nendo://application/extensions lists it: a custom view's code, or
+/// with <paramref name="Kind"/> <c>skill</c> an agent skill (ADR-0024), which has no entry point.
+/// </summary>
 public sealed record NendoMcpExtensionPackage(
     string PackageId,
     string Title,
     string? Version,
-    string EntryPoint,
+    string? EntryPoint,
     string? Description,
+    string Kind,
     long TotalBytes,
     IReadOnlyList<NendoMcpExtensionFile> Files);
 

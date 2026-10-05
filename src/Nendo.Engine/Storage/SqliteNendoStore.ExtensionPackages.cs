@@ -99,6 +99,7 @@ internal sealed partial class SqliteNendoStore
                 list.Add(new(rows.GetString(1), rows.GetString(2), rows.GetString(3), rows.GetInt64(4)));
             }
         }
+        var skills = await ReadSkillPackageIdsAsync(transaction, ct);
         var packages = new List<NendoExtensionPackageSnapshot>();
         await using (var query = Command("""
             SELECT package_id, title, version, entry_point, description
@@ -109,9 +110,13 @@ internal sealed partial class SqliteNendoStore
             while (await rows.ReadAsync(ct))
             {
                 var packageId = rows.GetString(0);
-                packages.Add(new(packageId, rows.GetString(1), rows.IsDBNull(2) ? null : rows.GetString(2), rows.GetString(3),
+                var skill = skills.Contains(packageId);
+                packages.Add(new(packageId, rows.GetString(1), rows.IsDBNull(2) ? null : rows.GetString(2), skill ? null : rows.GetString(3),
                     rows.IsDBNull(4) ? null : rows.GetString(4),
-                    files.TryGetValue(packageId, out var list) ? list.ToArray() : []));
+                    files.TryGetValue(packageId, out var list) ? list.ToArray() : [])
+                {
+                    Kind = skill ? NendoExtensionPackageKind.Skill : NendoExtensionPackageKind.View,
+                });
             }
         }
         return packages;
@@ -134,20 +139,31 @@ internal sealed partial class SqliteNendoStore
         return new(packageId, path, rows.GetString(0), rows.GetString(1), (byte[])rows.GetValue(2));
     }
 
-    private sealed record StoredPackage(string Title, string EntryPoint, string? Version, string? Description);
+    /// <param name="EntryPoint">Null for a skill package, whatever the row's required column holds.</param>
+    private sealed record StoredPackage(string Title, string? EntryPoint, string? Version, string? Description, string Kind);
 
     private sealed record StoredFile(string MediaType, string Sha256, long ByteLength);
 
     private async Task<StoredPackage?> ReadStoredPackageAsync(string packageId, SqliteTransaction transaction, CancellationToken ct)
     {
         if (!await ExtensionLayoutExistsAsync(transaction, ct)) return null;
+        var skill = await IsSkillPackageAsync(packageId, transaction, ct);
         await using var query = Command(
             "SELECT title, entry_point, version, description FROM __nendo_extension_package WHERE package_id = @package;", transaction);
         query.Parameters.AddWithValue("@package", packageId);
         await using var rows = await query.ExecuteReaderAsync(ct);
         return await rows.ReadAsync(ct)
-            ? new(rows.GetString(0), rows.GetString(1), rows.IsDBNull(2) ? null : rows.GetString(2), rows.IsDBNull(3) ? null : rows.GetString(3))
+            ? new(rows.GetString(0), skill ? null : rows.GetString(1), rows.IsDBNull(2) ? null : rows.GetString(2), rows.IsDBNull(3) ? null : rows.GetString(3),
+                skill ? NendoExtensionPackageKind.Skill : NendoExtensionPackageKind.View)
             : null;
+    }
+
+    private async Task<bool> IsSkillPackageAsync(string packageId, SqliteTransaction? transaction, CancellationToken ct)
+    {
+        if (!await ExtensionKindLayoutExistsAsync(transaction, ct)) return false;
+        await using var query = Command("SELECT 1 FROM __nendo_extension_kind WHERE package_id = @package AND kind = 'skill';", transaction);
+        query.Parameters.AddWithValue("@package", packageId);
+        return await query.ExecuteScalarAsync(ct) is not null;
     }
 
     private async Task<StoredFile?> ReadStoredFileAsync(string packageId, string path, SqliteTransaction transaction, CancellationToken ct)
@@ -164,9 +180,15 @@ internal sealed partial class SqliteNendoStore
         return await rows.ReadAsync(ct) ? new(rows.GetString(0), rows.GetString(1), rows.GetInt64(2)) : null;
     }
 
-    private static object? PackageEvidence(StoredPackage? package) => package is null ? null : new
+    /// <summary>A view package's evidence keeps the shape it had before packages had a kind.</summary>
+    private static object? PackageEvidence(StoredPackage? package) => package switch
     {
-        title = package.Title, entryPoint = package.EntryPoint, version = package.Version, description = package.Description,
+        null => null,
+        { Kind: NendoExtensionPackageKind.Skill } => new
+        {
+            title = package.Title, kind = package.Kind, version = package.Version, description = package.Description,
+        },
+        _ => new { title = package.Title, entryPoint = package.EntryPoint, version = package.Version, description = package.Description },
     };
 
     private static object? FileEvidence(StoredFile? file) => file is null ? null : new
@@ -177,9 +199,15 @@ internal sealed partial class SqliteNendoStore
     private async Task<OperationEvidence> ExecuteSetExtensionPackageAsync(
         SetExtensionPackageOperation operation, SqliteTransaction transaction, CancellationToken ct)
     {
-        await EnsureExtensionLayoutAsync(transaction, ct);
+        var skill = operation.Kind == NendoExtensionPackageKind.Skill;
+        // Only a skill package creates the kind rung, so a file of view packages keeps its layout.
+        if (skill) await EnsureExtensionKindLayoutAsync(transaction, ct);
+        else await EnsureExtensionLayoutAsync(transaction, ct);
         var previous = await ReadStoredPackageAsync(operation.PackageId, transaction, ct);
         RequireExpectedPackage(operation.PackageId, operation.Expected, previous);
+        if (previous is not null && previous.Kind != operation.Kind)
+            throw new NendoPreconditionException("extension-package-kind",
+                $"Package {operation.PackageId} is a {previous.Kind} package, and a package keeps its kind. Use another package ID for the {operation.Kind}, or remove this package first.");
         if (previous is null)
         {
             var count = Convert.ToInt64(await ScalarAsync("SELECT COUNT(*) FROM __nendo_extension_package;", transaction, ct), CultureInfo.InvariantCulture);
@@ -197,13 +225,20 @@ internal sealed partial class SqliteNendoStore
             save.Parameters.AddWithValue("@package", operation.PackageId);
             save.Parameters.AddWithValue("@title", operation.Title);
             save.Parameters.AddWithValue("@version", (object?)operation.Version ?? DBNull.Value);
-            save.Parameters.AddWithValue("@entry", operation.EntryPoint);
+            save.Parameters.AddWithValue("@entry", operation.EntryPoint ?? NendoAgentSkill.FileName);
             save.Parameters.AddWithValue("@description", (object?)operation.Description ?? DBNull.Value);
             await save.ExecuteNonQueryAsync(ct);
         }
+        if (skill)
+        {
+            await using var kind = Command(
+                "INSERT INTO __nendo_extension_kind(package_id, kind) VALUES (@package, 'skill') ON CONFLICT(package_id) DO NOTHING;", transaction);
+            kind.Parameters.AddWithValue("@package", operation.PackageId);
+            await kind.ExecuteNonQueryAsync(ct);
+        }
         return new(operation, Evidence(new { previous = PackageEvidence(previous) }))
         {
-            RequiredHostVersion = NendoFormat.ExtensionPackagesMinimumHostVersion,
+            RequiredHostVersion = skill ? NendoFormat.SkillPackageMinimumHostVersion : NendoFormat.ExtensionPackagesMinimumHostVersion,
         };
     }
 
@@ -221,6 +256,12 @@ internal sealed partial class SqliteNendoStore
             if (files != 0)
                 throw new NendoPreconditionException("extension-package-not-empty",
                     $"Package {operation.PackageId} still holds {files} files. Remove them with extension.removeFile first, in the same change set if you like.");
+        }
+        if (previous.Kind == NendoExtensionPackageKind.Skill)
+        {
+            await using var kind = Command("DELETE FROM __nendo_extension_kind WHERE package_id = @package;", transaction);
+            kind.Parameters.AddWithValue("@package", operation.PackageId);
+            await kind.ExecuteNonQueryAsync(ct);
         }
         await using (var delete = Command("DELETE FROM __nendo_extension_package WHERE package_id = @package;", transaction))
         {
@@ -316,7 +357,7 @@ internal sealed partial class SqliteNendoStore
     {
         if (expected is null) return;
         if (expected.Matches(current?.Title, current?.EntryPoint, current?.Version, current?.Description, current is not null)) return;
-        var found = current is null ? "no package" : $"{current.Title} ({current.EntryPoint})";
+        var found = current is null ? "no package" : $"{current.Title} ({current.EntryPoint ?? "a skill"})";
         throw new NendoPreconditionException("extension-package-changed",
             $"Package {packageId} was expected to be {expected}, and it is {found}. Something changed it since.");
     }
@@ -381,7 +422,9 @@ internal sealed partial class SqliteNendoStore
         long total = 0;
         foreach (var package in packages)
         {
-            if (!NendoExtensionContent.ValidPackageId(package.PackageId) || !NendoExtensionContent.ValidPath(package.EntryPoint) ||
+            if (!NendoExtensionContent.ValidPackageId(package.PackageId) ||
+                !package.IsSkill && !NendoExtensionContent.ValidPath(package.EntryPoint) ||
+                package.IsSkill && !NendoAgentSkill.ValidName(NendoAgentSkill.NameFor(package.PackageId)) ||
                 package.Version is { } version && !NendoExtensionContent.ValidVersion(version))
                 return false;
             if (package.Files.Count > NendoExtensionLimits.PackageFiles || package.TotalBytes > NendoExtensionLimits.PackageBytes)
@@ -433,6 +476,9 @@ internal sealed partial class SqliteNendoStore
         if (!await ExtensionLayoutExistsAsync(transaction, ct) || !await ExtensionPackageExistsAsync(operation.PackageId, transaction, ct))
             throw new NendoPreconditionException("extension-package-not-found",
                 $"This file carries no package {operation.PackageId}, so nothing can be kept for it.");
+        if (await IsSkillPackageAsync(operation.PackageId, transaction, ct))
+            throw new NendoPreconditionException("extension-package-not-found",
+                $"{operation.PackageId} is a skill package. It has no views, so nothing can be kept for it.");
         var previous = await ReadStateRowAsync(operation.PackageId, operation.ViewId, operation.Key, transaction, ct);
         if (operation.ExpectedVersion is { } expected && (previous?.Version ?? SetExtensionStateOperation.ExpectAbsent) != expected)
             throw new NendoPreconditionException("state-version-conflict",
@@ -562,14 +608,15 @@ internal sealed partial class SqliteNendoStore
                 // of it refuses the reversal rather than being overwritten.
                 var expected = type == "extension.setPackage"
                     ? ExtensionPackageExpectation.Holding(payload.GetProperty("title").GetString()!,
-                        payload.GetProperty("entryPoint").GetString()!, Optional(payload, "version"), Optional(payload, "description"))
+                        Optional(payload, "entryPoint"), Optional(payload, "version"), Optional(payload, "description"))
                     : ExtensionPackageExpectation.Missing;
                 if (previous is not { } package)
                     return type == "extension.setPackage"
                         ? new RemoveExtensionPackageOperation(operationId, packageId) { Expected = expected }
                         : throw new NendoCompensationNotSupportedException("The removed package retained no metadata to restore.");
+                // A package keeps its kind, so what was there before is the kind its evidence says.
                 return new SetExtensionPackageOperation(operationId, packageId, package.GetProperty("title").GetString()!,
-                    package.GetProperty("entryPoint").GetString()!, Optional(package, "version"), Optional(package, "description"))
+                    Optional(package, "entryPoint"), Optional(package, "version"), Optional(package, "description"), Optional(package, "kind"))
                 { Expected = expected };
             }
             case "extension.putFile":

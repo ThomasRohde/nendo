@@ -111,9 +111,12 @@ async function main() {
   const parsed = JSON.parse(read.contents[0].text);
   const current = (Array.isArray(parsed) ? parsed : parsed.packages ?? []).find(candidate => candidate.packageId === manifest.packageId) ?? null;
 
+  // A skill package (ADR-0024) names no entry point: its SKILL.md is what an agent reads first.
+  const skill = manifest.kind === 'skill';
   const operations = [op('extension.setPackage', {
     packageId: manifest.packageId, title: manifest.title ?? manifest.packageId,
-    entryPoint: manifest.entryPoint ?? 'index.html', version: manifest.version, description: manifest.description,
+    ...(skill ? { kind: 'skill' } : { entryPoint: manifest.entryPoint ?? 'index.html' }),
+    version: manifest.version, description: manifest.description,
   })];
   for (const held of current?.files ?? []) {
     if (!files.some(candidate => candidate.path === held.path))
@@ -131,11 +134,11 @@ async function main() {
     }
   }
   const unchanged = current && operations.length === 1 && current.title === (manifest.title ?? manifest.packageId) &&
-    (current.version ?? null) === (manifest.version ?? null) && current.entryPoint === (manifest.entryPoint ?? 'index.html') &&
+    (current.version ?? null) === (manifest.version ?? null) && (current.entryPoint ?? null) === (skill ? null : manifest.entryPoint ?? 'index.html') &&
     (current.description ?? null) === (manifest.description ?? null);
   if (unchanged && extra.length === 0) fail(`The file already carries ${manifest.packageId} exactly as ${folder} has it.`);
 
-  const title = option('--title') ?? `${current ? 'Update' : 'Add'} the custom view package ${manifest.title ?? manifest.packageId}`;
+  const title = option('--title') ?? `${current ? 'Update' : 'Add'} the ${skill ? 'skill package' : 'custom view package'} ${manifest.title ?? manifest.packageId}`;
   console.log(`File            ${file.applicationId}`);
   console.log(`Package         ${manifest.packageId}${current ? ' (update)' : ' (new)'}`);
   console.log(`Operations      ${operations.length}${extra.length ? ` and ${extra.length} for the views that show it` : ''}`);

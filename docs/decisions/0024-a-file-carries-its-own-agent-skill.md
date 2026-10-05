@@ -104,6 +104,13 @@ frontmatter names it, and supporting files, with no executable entry point.
 
 ## Evidence and validation obligations
 
+Built 2026-10-05 as W-160, at host 1.43.0: the kind, the refusals (`NPROP012` at validate,
+an entry point refused where it is sent, `NUI454` for a view that names a skill), the
+listing and `skill://{packageId}/{+path}`, and Studio's card. `skills/list` became
+`private` with TTL 0, since it follows the open file; the host skill's own read keeps its
+hour. The planner's own skill is still to be proposed into `workspace/Planner.nendo`, which
+needs an installed host of this build.
+
 - The build (a work item under this ADR, Later) delivers: `kind` on `extension.setPackage`
   and the vocabulary; refusal at validate of an entry point or missing frontmatter on a
   `skill` package; `skills/list` with both entries and digests equal to the bytes served;

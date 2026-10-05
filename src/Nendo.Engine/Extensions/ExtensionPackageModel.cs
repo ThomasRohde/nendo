@@ -3,19 +3,164 @@ using System.Security.Cryptography;
 namespace Nendo.Engine;
 
 /// <summary>
-/// A custom-view package carried in the file (ADR-0013): its metadata and the files it holds,
-/// without their contents. What a client lists; the bytes are read one file at a time.
+/// A package carried in the file (ADR-0013): its metadata and the files it holds, without
+/// their contents. What a client lists; the bytes are read one file at a time.
 /// </summary>
+/// <param name="EntryPoint">The file a view's frame loads first; null for a skill package, which has none (ADR-0024).</param>
 public sealed record NendoExtensionPackageSnapshot(
     string PackageId,
     string Title,
     string? Version,
-    string EntryPoint,
+    string? EntryPoint,
     string? Description,
     IReadOnlyList<NendoExtensionFileSnapshot> Files)
 {
+    /// <summary><see cref="NendoExtensionPackageKind.View"/> or <see cref="NendoExtensionPackageKind.Skill"/>.</summary>
+    public string Kind { get; init; } = NendoExtensionPackageKind.View;
+
+    /// <summary>A skill package: text an agent reads, never code a view runs.</summary>
+    public bool IsSkill => Kind == NendoExtensionPackageKind.Skill;
+
     /// <summary>The bytes the package's current files hold together.</summary>
     public long TotalBytes => Files.Sum(file => file.ByteLength);
+}
+
+/// <summary>
+/// What a package is (ADR-0024). A view package holds code a custom view runs from its entry
+/// point; a skill package holds a <c>SKILL.md</c> and its supporting files for an agent to
+/// read, has no entry point, and is never run.
+/// </summary>
+public static class NendoExtensionPackageKind
+{
+    public const string View = "view";
+    public const string Skill = "skill";
+
+    public static bool IsKnown(string? kind) => kind is View or Skill;
+}
+
+/// <summary>The frontmatter a skill package's <c>SKILL.md</c> opens with: what skills/list reports.</summary>
+public sealed record NendoSkillFrontmatter(string Name, string Description);
+
+/// <summary>
+/// The rules a skill package's <c>SKILL.md</c> follows (ADR-0024, the Agent Skills format):
+/// it sits at the package's root and opens with frontmatter naming the skill and saying what
+/// it is for. The name is the package ID's last segment, so a client that keys skills by
+/// name and URI finds the same one by both.
+/// </summary>
+public static class NendoAgentSkill
+{
+    public const string FileName = "SKILL.md";
+
+    /// <summary>The longest skill name the Agent Skills format allows.</summary>
+    public const int NameCharacters = 64;
+
+    /// <summary>The longest description the Agent Skills format allows.</summary>
+    public const int DescriptionCharacters = 1024;
+
+    private static readonly System.Text.UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+    /// <summary>The name a skill package's skill carries: the last segment of its package ID.</summary>
+    public static string NameFor(string packageId) => packageId[(packageId.LastIndexOf('.') + 1)..];
+
+    /// <summary>Lowercase letters and digits in hyphen-separated runs, at most 64 characters.</summary>
+    public static bool ValidName(string? name) =>
+        name is { Length: >= 1 and <= NameCharacters } &&
+        System.Text.RegularExpressions.Regex.IsMatch(name, "^[a-z0-9]+(-[a-z0-9]+)*\\z", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Reads the frontmatter of a skill package's <c>SKILL.md</c>, or says in one sentence that
+    /// names the file what is wrong with it. <paramref name="content"/> is null when the
+    /// package holds no <c>SKILL.md</c>.
+    /// </summary>
+    public static bool TryRead(string packageId, byte[]? content, out NendoSkillFrontmatter? frontmatter, out string? problem)
+    {
+        frontmatter = null;
+        var file = $"{packageId}/{FileName}";
+        var expected = NameFor(packageId);
+        if (content is null)
+        {
+            problem = $"The skill package {packageId} has no {FileName} at its root. Put one there: it is what an agent reads first.";
+            return false;
+        }
+        string text;
+        try { text = StrictUtf8.GetString(content); }
+        catch (System.Text.DecoderFallbackException)
+        {
+            problem = $"{file} is not UTF-8 text.";
+            return false;
+        }
+        text = text.TrimStart('﻿').Replace("\r\n", "\n", StringComparison.Ordinal);
+        var lines = text.Split('\n');
+        var close = Array.FindIndex(lines, 1, line => line.TrimEnd() == "---");
+        if (lines.Length == 0 || lines[0].TrimEnd() != "---" || close < 0)
+        {
+            problem = $"{file} does not open with frontmatter: a line ---, then name: {expected} and description: on lines of their own, then a closing ---.";
+            return false;
+        }
+        var values = Frontmatter(lines[1..close]);
+        if (!values.TryGetValue("name", out var name) || name.Length == 0)
+        {
+            problem = $"{file} has no name in its frontmatter. Add name: {expected}.";
+            return false;
+        }
+        if (name != expected)
+        {
+            problem = $"{file} names the skill '{name}', and a file's skill is named for the last segment of its package ID: name: {expected}.";
+            return false;
+        }
+        if (!ValidName(name))
+        {
+            problem = $"{file} names the skill '{name}', which is not a skill name: lowercase letters and digits in hyphen-separated runs, at most {NameCharacters} characters. Choose a package ID whose last segment is one.";
+            return false;
+        }
+        if (!values.TryGetValue("description", out var description) || description.Length == 0)
+        {
+            problem = $"{file} has no description in its frontmatter. Add description: and say in a sentence what the skill is for and when to use it.";
+            return false;
+        }
+        if (description.Length > DescriptionCharacters)
+        {
+            problem = $"{file} has a description of {description.Length} characters, and a skill's description is at most {DescriptionCharacters}.";
+            return false;
+        }
+        frontmatter = new(name, description);
+        problem = null;
+        return true;
+    }
+
+    /// <summary>
+    /// The top-level scalar keys of a frontmatter block: a <c>key: value</c> line, quoted or
+    /// not, or a folded or literal block (<c>&gt;</c>, <c>|</c>) of the indented lines after
+    /// it. A nested map, such as <c>metadata:</c>, is skipped; only name and description are read.
+    /// </summary>
+    private static Dictionary<string, string> Frontmatter(string[] lines)
+    {
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var line = lines[index];
+            if (line.Length == 0 || line[0] is ' ' or '\t' or '#') continue;
+            var colon = line.IndexOf(':');
+            if (colon <= 0) continue;
+            var key = line[..colon].Trim();
+            var value = line[(colon + 1)..].Trim();
+            if (value.Length > 0 && value[0] is '|' or '>')
+            {
+                var block = new List<string>();
+                while (index + 1 < lines.Length && (lines[index + 1].Length == 0 || lines[index + 1][0] is ' ' or '\t'))
+                    block.Add(lines[++index].Trim());
+                value = string.Join(value[0] == '|' ? "\n" : " ", block).Trim();
+            }
+            else if (value.Length >= 2 && (value[0] == '"' && value[^1] == '"' || value[0] == '\'' && value[^1] == '\''))
+            {
+                value = value[0] == '"'
+                    ? value[1..^1].Replace("\\\"", "\"", StringComparison.Ordinal).Replace("\\\\", "\\", StringComparison.Ordinal)
+                    : value[1..^1].Replace("''", "'", StringComparison.Ordinal);
+            }
+            values.TryAdd(key, value);
+        }
+        return values;
+    }
 }
 
 /// <summary>One file of a package as the file holds it now: where it is, what it is and which bytes.</summary>

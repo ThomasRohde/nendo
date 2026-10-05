@@ -463,7 +463,7 @@ internal sealed class NendoResourceProjection(
 
     private static IReadOnlyList<NendoMcpExtensionPackage> ProjectExtensions(IReadOnlyList<NendoExtensionPackageSnapshot> packages) =>
         packages.Select(package => new NendoMcpExtensionPackage(
-            package.PackageId, package.Title, package.Version, package.EntryPoint, package.Description, package.TotalBytes,
+            package.PackageId, package.Title, package.Version, package.EntryPoint, package.Description, package.Kind, package.TotalBytes,
             package.Files.Select(file => new NendoMcpExtensionFile(file.Path, file.MediaType, file.Sha256, file.ByteLength)).ToArray()))
             .ToArray();
 

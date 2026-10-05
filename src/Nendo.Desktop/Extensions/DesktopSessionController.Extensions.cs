@@ -3,6 +3,9 @@ using Nendo.Engine;
 namespace Nendo.Desktop;
 
 /// <summary>A package the open file carries, with the origin its views run at on this device.</summary>
+/// <param name="EntryPoint">Null for a skill package, which has none.</param>
+/// <param name="Origin">Null for a skill package (ADR-0024): it is never served to a frame, so it has no origin.</param>
+/// <param name="Kind"><c>view</c>, or <c>skill</c> for text an agent reads.</param>
 /// <param name="ContentDigest">
 /// Sixteen hex characters that change whenever any file's content, path or the entry point does,
 /// so a view restarts when accepted code changes, even by an edit of the same size.
@@ -11,12 +14,13 @@ internal sealed record DesktopExtensionPackageView(
     string PackageId,
     string Title,
     string? Version,
-    string EntryPoint,
+    string? EntryPoint,
     string? Description,
-    string Origin,
+    string? Origin,
     int FileCount,
     long TotalBytes,
-    string ContentDigest)
+    string ContentDigest,
+    string Kind)
 {
     /// <summary>
     /// The name of the folder this device runs the package from while it is developed
@@ -149,7 +153,7 @@ internal sealed partial class DesktopSessionController
             throw new NendoPreconditionException("views-off", "Custom views are off, so a view cannot change this file.");
         var definition = await service.GetDefinitionSnapshotAsync(cancellationToken);
         if (!string.Equals(definition.Manifest.ApplicationId, applicationId, StringComparison.Ordinal) ||
-            !definition.ExtensionPackages.Any(package => string.Equals(package.PackageId, packageId, StringComparison.Ordinal)))
+            !definition.ExtensionPackages.Any(package => !package.IsSkill && string.Equals(package.PackageId, packageId, StringComparison.Ordinal)))
             throw new NendoPreconditionException("actor-not-allowed", $"This file carries no package {packageId}, so nothing may write in its name.");
         if (AfterExtensionWriterAdmittedForTest is { } hook) await hook();
     }
@@ -249,15 +253,24 @@ internal sealed partial class DesktopSessionController
             : !fileEnabled ? "file"
             : health != "normal" ? "health"
             : null;
-        ReconcileDevelopment(applicationId, snapshot.ExtensionPackages.Select(package => package.PackageId).ToHashSet(StringComparer.Ordinal));
+        ReconcileDevelopment(applicationId, snapshot.ExtensionPackages.Where(package => !package.IsSkill)
+            .Select(package => package.PackageId).ToHashSet(StringComparer.Ordinal));
         var hosts = new Dictionary<string, NendoExtensionPackageSnapshot>(StringComparer.OrdinalIgnoreCase);
         var packages = new List<DesktopExtensionPackageView>(snapshot.ExtensionPackages.Count);
         foreach (var package in snapshot.ExtensionPackages)
         {
+            // A skill package is listed, so Studio can show its text, and never given an origin:
+            // nothing on this device serves it to a frame or admits a write in its name (ADR-0024).
+            if (package.IsSkill)
+            {
+                packages.Add(new(package.PackageId, package.Title, package.Version, null, package.Description,
+                    null, package.Files.Count, package.TotalBytes, ContentDigest(package), package.Kind));
+                continue;
+            }
             var host = ExtensionOrigins.Host(applicationId, package.PackageId);
             hosts[host] = package;
             packages.Add(new(package.PackageId, package.Title, package.Version, package.EntryPoint, package.Description,
-                "https://" + host, package.Files.Count, package.TotalBytes, ContentDigest(package))
+                "https://" + host, package.Files.Count, package.TotalBytes, ContentDigest(package), package.Kind)
             { DevelopmentFolder = DevelopmentFolderName(package.PackageId) });
         }
         _extensionServing = new(applicationId, offReason is null, hosts);
@@ -266,7 +279,7 @@ internal sealed partial class DesktopSessionController
 
     private static string ContentDigest(NendoExtensionPackageSnapshot package)
     {
-        var text = new System.Text.StringBuilder(package.EntryPoint).Append('\n');
+        var text = new System.Text.StringBuilder(package.EntryPoint ?? package.Kind).Append('\n');
         foreach (var file in package.Files.OrderBy(file => file.Path, StringComparer.Ordinal))
             text.Append(file.Path).Append('\t').Append(file.Sha256).Append('\n');
         return NendoExtensionContent.Sha256(System.Text.Encoding.UTF8.GetBytes(text.ToString()))[..16];
@@ -314,7 +327,7 @@ internal sealed partial class DesktopSessionController
         if (!serving.Hosts.TryGetValue(host, out var package)) return DesktopExtensionAsset.NotFound;
         // The serving order's development step: a package this device develops answers from its folder.
         if (ReadDevelopmentAsset(package.PackageId, path) is { } developed) return developed;
-        if (path.Length == 0) path = package.EntryPoint;
+        if (path.Length == 0) path = package.EntryPoint ?? NendoAgentSkill.FileName;
         else if (path.EndsWith('/')) path += "index.html";
         var file = package.Files.FirstOrDefault(candidate => candidate.Path == path);
         if (file is null) return DesktopExtensionAsset.NotFound;
@@ -346,7 +359,7 @@ internal sealed partial class DesktopSessionController
             return await service.PrepareProposalAsync(
                 new NendoProposalRequest(
                     $"proposal-{Guid.NewGuid():N}",
-                    $"{(current is null ? "Add" : "Update")} the custom view package {archive.Title}",
+                    $"{(current is null ? "Add" : "Update")} the {Noun(archive.Kind)} {archive.Title}",
                     "workbench",
                     NendoExtensionArchives.ChangeSet(archive, current)),
                 cancellationToken);
@@ -367,12 +380,14 @@ internal sealed partial class DesktopSessionController
             var changeSet = new NendoChangeSet(
             [
                 new NendoMutation("desktop.extension", stem, "workbench",
-                    $"Remove the custom view package {package.Title} ({packageId})", operations),
+                    $"Remove the {Noun(package.Kind)} {package.Title} ({packageId})", operations),
             ]);
             return await service.PrepareProposalAsync(
-                new NendoProposalRequest($"proposal-{Guid.NewGuid():N}", $"Remove the custom view package {package.Title}", "workbench", changeSet),
+                new NendoProposalRequest($"proposal-{Guid.NewGuid():N}", $"Remove the {Noun(package.Kind)} {package.Title}", "workbench", changeSet),
                 cancellationToken);
         }, cancellationToken);
+
+    private static string Noun(string kind) => kind == NendoExtensionPackageKind.Skill ? "skill package" : "custom view package";
 
     /// <summary>A package with every file's bytes, for export.</summary>
     internal Task<(NendoExtensionPackageSnapshot Package, IReadOnlyList<NendoExtensionFileContent> Files)> ReadExtensionPackageAsync(

@@ -28,5 +28,9 @@ internal sealed partial class SqliteNendoStore
             !await ExtensionPackageExistsAsync(packageId, transaction, ct))
             throw new NendoPreconditionException("actor-not-allowed",
                 $"This file carries no package {packageId}, so nothing may write in its name.");
+        // A skill package is text for an agent (ADR-0024): nothing runs it, so nothing writes as it.
+        if (await IsSkillPackageAsync(packageId, transaction, ct))
+            throw new NendoPreconditionException("actor-not-allowed",
+                $"{packageId} is a skill package, which never runs, so nothing may write in its name.");
     }
 }

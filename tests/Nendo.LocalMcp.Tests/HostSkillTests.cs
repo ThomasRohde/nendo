@@ -30,8 +30,11 @@ public sealed class HostSkillTests
         var listed = await LatestProtocolTests.Send(http, "skills/list", new());
         var list = listed.GetProperty("result");
         Assert.AreEqual("complete", list.GetProperty("resultType").GetString());
-        Assert.AreEqual("public", list.GetProperty("cacheScope").GetString());
-        Assert.AreEqual(3_600_000, list.GetProperty("ttlMs").GetInt64());
+        // The list follows the open file, which can gain a skill of its own (ADR-0024), so it
+        // is never cached; the host's skill read by URI keeps its hour, below.
+        Assert.AreEqual("private", list.GetProperty("cacheScope").GetString());
+        Assert.AreEqual(0, list.GetProperty("ttlMs").GetInt64());
+        // A file with no skill package serves exactly the host's one skill.
         var skill = list.GetProperty("skills").EnumerateArray().Single();
         Assert.AreEqual("skill://nendo-authoring/SKILL.md", skill.GetProperty("uri").GetString());
         Assert.AreEqual("nendo-authoring", skill.GetProperty("frontmatter").GetProperty("name").GetString());
@@ -66,6 +69,8 @@ public sealed class HostSkillTests
         // By URI, and an unknown one.
         var got = await LatestProtocolTests.Send(http, "skills/get", new() { ["uri"] = "skill://nendo-authoring/SKILL.md" });
         Assert.AreEqual(skill.GetRawText(), got.GetProperty("result").GetProperty("skill").GetRawText());
+        Assert.AreEqual("public", got.GetProperty("result").GetProperty("cacheScope").GetString());
+        Assert.AreEqual(3_600_000, got.GetProperty("result").GetProperty("ttlMs").GetInt64());
         var unknown = await LatestProtocolTests.Send(http, "skills/get", new() { ["uri"] = "skill://other/SKILL.md" });
         Assert.AreEqual(-32602, unknown.GetProperty("error").GetProperty("code").GetInt32());
         StringAssert.Contains(unknown.GetProperty("error").GetProperty("message").GetString(), "NENDO_SKILL_NOT_FOUND", StringComparison.Ordinal);

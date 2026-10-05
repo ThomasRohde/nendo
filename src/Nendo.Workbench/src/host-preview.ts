@@ -747,7 +747,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
     const removed = this.packages.find((candidate) => candidate.packageId === packageId);
     if (removed === undefined) throw new WorkbenchHostError('extension-package-missing', 'That package is not in this file.');
     return this.packageProposalFor(`Remove the custom-view package ${removed.title}`, [{
-      packageId, path: removed.entryPoint, change: 'removed', mediaTypeBefore: 'text/html', mediaTypeAfter: null,
+      packageId, path: removed.entryPoint ?? 'SKILL.md', change: 'removed', mediaTypeBefore: 'text/html', mediaTypeAfter: null,
       bytesBefore: 612, bytesAfter: null, textual: false, truncated: false, hunks: [],
     }], `Remove the package ${removed.title} from this file.`,
     () => { this.packages = this.packages.filter((candidate) => candidate.packageId !== packageId); });
@@ -769,7 +769,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
     this.plan = structuredClone(fixture.plan);
     this.syncPlan();
     if (!preserveRecords) {
-      this.packages = [boardGlancePackage()];
+      this.packages = [boardGlancePackage(), teamWaySkillPackage()];
       this.packageProposal = null;
     }
     this.syncExtensions();
@@ -999,6 +999,15 @@ function boardGlancePackage(): ExtensionPackageView {
     packageId: 'org.example.board-glance', title: 'Board glance', version: '1.0.0', entryPoint: 'index.html',
     description: 'Cards grouped by status, for a quick look at a record type.',
     origin: 'https://org-example-board-glance-5d1c7e9a20.example', fileCount: 3, totalBytes: 14_682,
+  };
+}
+
+/** A skill package (ADR-0024): instructions for an agent, listed in Studio and never run. */
+function teamWaySkillPackage(): ExtensionPackageView {
+  return {
+    packageId: 'org.example.team-way', title: 'How this team works the file', version: '1.0.0', entryPoint: null,
+    description: 'Which status a new record takes, and when work counts as done.',
+    origin: null, kind: 'skill', fileCount: 2, totalBytes: 2_140,
   };
 }
 

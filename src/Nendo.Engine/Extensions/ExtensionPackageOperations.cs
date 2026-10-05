@@ -3,9 +3,11 @@ using System.Text.Json;
 namespace Nendo.Engine;
 
 /// <summary>
-/// Creates a custom-view package in the file, or changes its title, version, entry point or
-/// description (ADR-0013). The package is definition: it changes through a proposal like any
-/// screen, and it holds no permission — a view that names it runs it when shown.
+/// Creates a package in the file, or changes its title, version, entry point or description
+/// (ADR-0013). The package is definition: it changes through a proposal like any screen, and
+/// it holds no permission — a view that names it runs it when shown. A package of kind
+/// <c>skill</c> (ADR-0024) holds text for an agent instead, has no entry point and never runs;
+/// a package keeps the kind it was created with.
 /// </summary>
 public sealed record SetExtensionPackageOperation : NendoOperation
 {
@@ -13,9 +15,10 @@ public sealed record SetExtensionPackageOperation : NendoOperation
         string operationId,
         string packageId,
         string title,
-        string entryPoint,
+        string? entryPoint,
         string? version = null,
-        string? description = null)
+        string? description = null,
+        string? kind = null)
         : base(operationId)
     {
         PackageId = NendoExtensionContent.ValidPackageId(packageId)
@@ -25,9 +28,24 @@ public sealed record SetExtensionPackageOperation : NendoOperation
         Title = string.IsNullOrWhiteSpace(title) || title.Length > 200
             ? throw new NendoValidationException("A package title must contain 1-200 characters.")
             : title;
-        EntryPoint = NendoExtensionContent.ValidPath(entryPoint)
-            ? entryPoint
-            : throw new NendoValidationException($"Entry point '{entryPoint}' is not a valid package path.");
+        Kind = kind ?? NendoExtensionPackageKind.View;
+        if (!NendoExtensionPackageKind.IsKnown(Kind))
+            throw new NendoValidationException($"Package kind '{kind}' is not one of: {NendoExtensionPackageKind.View}, {NendoExtensionPackageKind.Skill}.");
+        if (Kind == NendoExtensionPackageKind.Skill)
+        {
+            if (entryPoint is not null)
+                throw new NendoValidationException(
+                    $"The skill package {packageId} names {entryPoint} as its entry point, and a skill package has none: nothing in it runs. Leave entryPoint out; an agent reads {NendoAgentSkill.FileName} first.");
+            if (!NendoAgentSkill.ValidName(NendoAgentSkill.NameFor(PackageId)))
+                throw new NendoValidationException(
+                    $"A skill is named for the last segment of its package ID, and '{NendoAgentSkill.NameFor(PackageId)}' is not a skill name: lowercase letters and digits in hyphen-separated runs, at most {NendoAgentSkill.NameCharacters} characters.");
+        }
+        else
+        {
+            EntryPoint = entryPoint is not null && NendoExtensionContent.ValidPath(entryPoint)
+                ? entryPoint
+                : throw new NendoValidationException($"Entry point '{entryPoint}' is not a valid package path.");
+        }
         Version = string.IsNullOrWhiteSpace(version) ? null : version;
         if (Version is not null && (Version.Length > 40 || !NendoExtensionContent.ValidVersion(Version)))
             throw new NendoValidationException($"Package version '{Version}' is not a semantic version such as 1.0.0.");
@@ -38,9 +56,14 @@ public sealed record SetExtensionPackageOperation : NendoOperation
 
     public string PackageId { get; }
     public string Title { get; }
-    public string EntryPoint { get; }
+
+    /// <summary>The file a view's frame loads first; null for a skill package.</summary>
+    public string? EntryPoint { get; }
     public string? Version { get; }
     public string? Description { get; }
+
+    /// <summary><see cref="NendoExtensionPackageKind.View"/> or <see cref="NendoExtensionPackageKind.Skill"/>.</summary>
+    public string Kind { get; }
 
     /// <summary>
     /// When set, the write applies only while the package holds exactly this metadata, or is
@@ -57,8 +80,11 @@ public sealed record SetExtensionPackageOperation : NendoOperation
     {
         writer.WriteStartObject();
         if (Description is not null) writer.WriteString("description", Description);
-        writer.WriteString("entryPoint", EntryPoint);
+        if (EntryPoint is not null) writer.WriteString("entryPoint", EntryPoint);
         Expected?.Write(writer);
+        // Written only for a skill, so a view package's canonical bytes, and every digest
+        // over them, are what they were before packages had a kind.
+        if (Kind != NendoExtensionPackageKind.View) writer.WriteString("kind", Kind);
         writer.WriteString("packageId", PackageId);
         writer.WriteString("title", Title);
         if (Version is not null) writer.WriteString("version", Version);
@@ -234,11 +260,15 @@ public sealed record RemoveExtensionPackageOperation : NendoOperation
 /// The package metadata a reversal expects to find before it restores or removes anything:
 /// what the reversed operation left, or, for a restored removal, no package at all.
 /// </summary>
+/// <remarks>
+/// The kind is not compared: a package keeps its kind, and a skill package is told from a view
+/// package by having no entry point.
+/// </remarks>
 internal sealed record ExtensionPackageExpectation(bool Absent, string? Title, string? EntryPoint, string? Version, string? Description)
 {
     internal static ExtensionPackageExpectation Missing { get; } = new(true, null, null, null, null);
 
-    internal static ExtensionPackageExpectation Holding(string title, string entryPoint, string? version, string? description) =>
+    internal static ExtensionPackageExpectation Holding(string title, string? entryPoint, string? version, string? description) =>
         new(false, title, entryPoint, version, description);
 
     /// <summary>Whether the stored metadata, or its absence, is what this expects.</summary>
@@ -256,11 +286,11 @@ internal sealed record ExtensionPackageExpectation(bool Absent, string? Title, s
         if (Absent) { writer.WriteStringValue("absent"); return; }
         writer.WriteStartObject();
         if (Description is not null) writer.WriteString("description", Description);
-        writer.WriteString("entryPoint", EntryPoint);
+        if (EntryPoint is not null) writer.WriteString("entryPoint", EntryPoint);
         writer.WriteString("title", Title);
         if (Version is not null) writer.WriteString("version", Version);
         writer.WriteEndObject();
     }
 
-    public override string ToString() => Absent ? "no package" : $"{Title} ({EntryPoint})";
+    public override string ToString() => Absent ? "no package" : $"{Title} ({EntryPoint ?? "a skill"})";
 }

@@ -67,7 +67,7 @@ The host classifies every open before it enables normal UI or integrations.
   Downgrade-in-place is not supported.
 - A file that carries custom-view packages needs host 1.33.0
   ([ADR-0013](0013-custom-views-with-code-in-the-file.md)). Open view definitions
-  need 1.34.0, an `extensionView` 1.42.0 (W-106), and `extensionTile` will need the rung after it, since
+  need 1.34.0, an `extensionView` 1.42.0 (W-106), a skill package 1.43.0 ([ADR-0024](0024-a-file-carries-its-own-agent-skill.md), W-160), and `extensionTile` will need the rung after it, since
   1.39.0 went to folded history ([ADR-0021](0021-folding-old-history.md)), 1.40.0 to a
   filter or sort on a calculated field (ADR-0008, 2026-09-30 amendment) and 1.41.0 to what a
   new file keeps ([ADR-0022](0022-new-file-keeping-the-records-an-application-ships-with.md)). A declared

@@ -214,13 +214,7 @@ internal static class CanonicalChangeSetRequestCompiler
                 String(request.Payload, "definitionId"),
                 BehaviourKind(request.Payload),
                 Long(request.Payload, "expectedDefinitionRevision")),
-            "extension.setPackage" => new SetExtensionPackageOperation(
-                request.OperationId,
-                String(request.Payload, "packageId", NendoExtensionLimits.PackageIdCharacters),
-                String(request.Payload, "title", 200),
-                OptionalString(request.Payload, "entryPoint", NendoExtensionLimits.PathCharacters) ?? "index.html",
-                OptionalString(request.Payload, "version", 40),
-                OptionalString(request.Payload, "description", 1000)),
+            "extension.setPackage" => ExtensionSetPackage(request.OperationId, request.Payload),
             "extension.putFile" => ExtensionPutFile(request.OperationId, request.Payload),
             "extension.removeFile" => new RemoveExtensionFileOperation(
                 request.OperationId,
@@ -236,6 +230,24 @@ internal static class CanonicalChangeSetRequestCompiler
     }
 
     private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+    /// <summary>
+    /// A view package's entry point defaults to <c>index.html</c>; a skill package (ADR-0024)
+    /// has none, so naming one is refused by the operation, with the file it names.
+    /// </summary>
+    private static SetExtensionPackageOperation ExtensionSetPackage(string operationId, JsonElement payload)
+    {
+        var kind = OptionalString(payload, "kind", 20);
+        var entryPoint = OptionalString(payload, "entryPoint", NendoExtensionLimits.PathCharacters);
+        return new SetExtensionPackageOperation(
+            operationId,
+            String(payload, "packageId", NendoExtensionLimits.PackageIdCharacters),
+            String(payload, "title", 200),
+            kind == NendoExtensionPackageKind.Skill ? entryPoint : entryPoint ?? "index.html",
+            OptionalString(payload, "version", 40),
+            OptionalString(payload, "description", 1000),
+            kind);
+    }
 
     /// <summary>
     /// A file arrives as <c>text</c> (stored as UTF-8 exactly as written), as <c>base64</c>

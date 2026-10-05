@@ -30,7 +30,7 @@ public sealed class DesktopExtensionDevelopmentTests
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot);
         await session.OpenAsync(workspace.FilePath);
         var before = (await session.GetViewAsync()).Manifest!.ChangeSequence;
-        var host = new Uri((await session.GetViewAsync()).Extensions!.Packages.Single().Origin).Host;
+        var host = new Uri((await session.GetViewAsync()).Extensions!.Packages.Single().Origin!).Host;
         Assert.AreEqual(FileHtml, await ReadAsync(session, host, ""));
 
         var view = await session.LinkExtensionFolderAsync(PackageId, folder);
@@ -63,7 +63,7 @@ public sealed class DesktopExtensionDevelopmentTests
         await using (var first = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot))
         {
             await first.OpenAsync(workspace.FilePath);
-            host = new Uri((await first.LinkExtensionFolderAsync(PackageId, folder)).Extensions!.Packages.Single().Origin).Host;
+            host = new Uri((await first.LinkExtensionFolderAsync(PackageId, folder)).Extensions!.Packages.Single().Origin!).Host;
         }
 
         await using var second = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot);
@@ -100,7 +100,7 @@ public sealed class DesktopExtensionDevelopmentTests
         var folder = WriteFolder(workspace, PackageId, FolderHtml);
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot);
         await session.OpenAsync(workspace.FilePath);
-        var host = new Uri((await session.LinkExtensionFolderAsync(PackageId, folder)).Extensions!.Packages.Single().Origin).Host;
+        var host = new Uri((await session.LinkExtensionFolderAsync(PackageId, folder)).Extensions!.Packages.Single().Origin!).Host;
         Assert.AreEqual(FolderHtml, await ReadAsync(session, host, ""));
 
         var notices = new List<string>();
@@ -146,7 +146,7 @@ public sealed class DesktopExtensionDevelopmentTests
         Assert.IsTrue((await session.PromoteProposalAsync(save.ProposalId, expectedOperationDigest: save.OperationDigest)).Promotion.Applied);
 
         await session.UnlinkExtensionFolderAsync(PackageId);
-        var host = new Uri((await session.GetViewAsync()).Extensions!.Packages.Single().Origin).Host;
+        var host = new Uri((await session.GetViewAsync()).Extensions!.Packages.Single().Origin!).Host;
         Assert.AreEqual(FolderHtml, await ReadAsync(session, host, ""), "The accepted save did not put the folder's code in the file.");
     }
 

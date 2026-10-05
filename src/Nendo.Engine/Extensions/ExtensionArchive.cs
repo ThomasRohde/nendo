@@ -13,9 +13,13 @@ public sealed record NendoExtensionArchive(
     string PackageId,
     string Title,
     string? Version,
-    string EntryPoint,
+    string? EntryPoint,
     string? Description,
-    IReadOnlyList<NendoExtensionArchiveFile> Files);
+    IReadOnlyList<NendoExtensionArchiveFile> Files)
+{
+    /// <summary><see cref="NendoExtensionPackageKind.View"/>, or <see cref="NendoExtensionPackageKind.Skill"/> for a package with no entry point (ADR-0024).</summary>
+    public string Kind { get; init; } = NendoExtensionPackageKind.View;
+}
 
 public sealed record NendoExtensionArchiveFile(string Path, byte[] Content);
 
@@ -119,7 +123,7 @@ public static class NendoExtensionArchives
         var stem = "import-" + Guid.NewGuid().ToString("N");
         var operations = new List<NendoOperation>
         {
-            new SetExtensionPackageOperation(stem + "-package", archive.PackageId, archive.Title, archive.EntryPoint, archive.Version, archive.Description),
+            new SetExtensionPackageOperation(stem + "-package", archive.PackageId, archive.Title, archive.EntryPoint, archive.Version, archive.Description, archive.Kind),
         };
         var incoming = archive.Files.Select(file => file.Path).ToHashSet(StringComparer.Ordinal);
         var existing = (current?.Files ?? []).ToDictionary(file => file.Path, StringComparer.Ordinal);
@@ -139,13 +143,14 @@ public static class NendoExtensionArchives
                 had?.Sha256 ?? PutExtensionFileOperation.ExpectAbsent));
         }
         if (current is not null && operations.Count == 1 && current.Title == archive.Title && current.Version == archive.Version &&
-            current.EntryPoint == archive.EntryPoint && current.Description == archive.Description)
+            current.EntryPoint == archive.EntryPoint && current.Description == archive.Description && current.Kind == archive.Kind)
             throw new NendoPreconditionException("extension-unchanged", $"The file already carries {archive.Title} exactly as it is here.");
         var verb = current is null ? "Add" : "Update";
+        var noun = archive.Kind == NendoExtensionPackageKind.Skill ? "skill package" : "custom-view package";
         return new NendoChangeSet(
         [
             new NendoMutation("desktop.extension", stem, "workbench",
-                $"{verb} the custom-view package {archive.Title} ({archive.PackageId})", operations),
+                $"{verb} the {noun} {archive.Title} ({archive.PackageId})", operations),
         ]).Validate();
     }
 
@@ -159,7 +164,8 @@ public static class NendoExtensionArchives
             ["title"] = package.Title,
         };
         if (package.Version is { } version) manifest["version"] = version;
-        manifest["entryPoint"] = package.EntryPoint;
+        if (package.IsSkill) manifest["kind"] = package.Kind;
+        else manifest["entryPoint"] = package.EntryPoint!;
         if (package.Description is { } description) manifest["description"] = description;
         return JsonSerializer.SerializeToUtf8Bytes(manifest, new JsonSerializerOptions { WriteIndented = true });
     }
@@ -170,6 +176,11 @@ public static class NendoExtensionArchives
         var root = document.RootElement;
         var packageId = Text(root, "packageId", required: true)!;
         var title = Text(root, "title") ?? packageId;
+        var kind = Text(root, "kind") ?? NendoExtensionPackageKind.View;
+        if (!NendoExtensionPackageKind.IsKnown(kind))
+            throw new NendoValidationException($"The package manifest's kind '{kind}' is not one of: {NendoExtensionPackageKind.View}, {NendoExtensionPackageKind.Skill}.");
+        if (kind == NendoExtensionPackageKind.Skill)
+            return FinishSkill(packageId, title, Text(root, "version"), Text(root, "entryPoint"), Text(root, "description"), files);
         var entryPoint = Text(root, "entryPoint") ?? "index.html";
         return Finish(packageId, title, Text(root, "version"), entryPoint, Text(root, "description"), files);
     }
@@ -192,6 +203,26 @@ public static class NendoExtensionArchives
         if (!files.Any(file => file.Path == entryPoint))
             throw new NendoValidationException($"The entry point {entryPoint} is not one of the package's files.");
         return new(packageId, title, version, entryPoint, description, files.OrderBy(file => file.Path, StringComparer.Ordinal).ToArray());
+    }
+
+    /// <summary>
+    /// A skill package (ADR-0024) names no entry point and carries a <c>SKILL.md</c> whose
+    /// frontmatter names it, refused here by the file's name rather than at validate.
+    /// </summary>
+    private static NendoExtensionArchive FinishSkill(string packageId, string title, string? version, string? entryPoint, string? description,
+        List<NendoExtensionArchiveFile> files)
+    {
+        if (!NendoExtensionContent.ValidPackageId(packageId))
+            throw new NendoValidationException($"Package ID '{packageId}' is not valid. Use lowercase dotted segments such as org.example.planner.");
+        if (entryPoint is not null)
+            throw new NendoValidationException($"The skill package {packageId} names {entryPoint} as its entry point, and a skill package has none: nothing in it runs. Remove entryPoint from {ManifestName}.");
+        var skill = files.SingleOrDefault(file => file.Path == NendoAgentSkill.FileName);
+        if (!NendoAgentSkill.TryRead(packageId, skill?.Content, out _, out var problem))
+            throw new NendoValidationException(problem!);
+        return new(packageId, title, version, null, description, files.OrderBy(file => file.Path, StringComparer.Ordinal).ToArray())
+        {
+            Kind = NendoExtensionPackageKind.Skill,
+        };
     }
 
     private static void Add(List<NendoExtensionArchiveFile> files, string path, byte[] content, ref long total)

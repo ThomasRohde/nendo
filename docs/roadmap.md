@@ -348,7 +348,7 @@ and aggregates, multi-field and cross-type writes, an agent's undo of its own re
 one proposal in full, and a stale proposal validated again in one call. It adopted
 `subscriptions/listen`, the Tasks extension and a host-level skill, and wrote
 [ADR-0024](decisions/0024-a-file-carries-its-own-agent-skill.md) (a file carries its
-own skill, build pending) and
+own skill, built 2026-10-05 as W-160; the planner's own skill is the step after) and
 [ADR-0025](decisions/0025-mcp-apps-and-a-proposal-review-card.md) (MCP Apps,
 deferred).
 

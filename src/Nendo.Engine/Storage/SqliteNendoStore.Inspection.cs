@@ -316,6 +316,8 @@ internal sealed partial class SqliteNendoStore
             }
 
             var findings = new List<NendoOpenFinding>();
+            if (layout.Contains("-skill-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.SkillPackageMinimumHostVersion))
+                return Unreadable("layout-version-mismatch", "A skill package requires the declared skill-capable host version.", observedAt);
             if (layout.Contains("-newfile-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.NewFileMinimumHostVersion))
                 return Unreadable("layout-version-mismatch", "What a new file keeps requires the declared new-file-capable host version.", observedAt);
             if (layout.Contains("-fold-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.HistoryFoldMinimumHostVersion))
@@ -822,6 +824,9 @@ internal sealed partial class SqliteNendoStore
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(NewFileSchemaSql, null, CancellationToken.None);
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(ExtensionKindSchemaSql, null, CancellationToken.None);
+        layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync("DROP TABLE __nendo_extension_kind;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_new_file_label; DROP TABLE __nendo_new_file_rule;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_history_fold;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_application_look;", null, CancellationToken.None);
@@ -882,6 +887,8 @@ internal sealed partial class SqliteNendoStore
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(NewFileSchemaSql, null, CancellationToken.None);
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(ExtensionKindSchemaSql, null, CancellationToken.None);
+        layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         return layouts;
     }
 

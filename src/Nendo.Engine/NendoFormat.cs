@@ -290,7 +290,14 @@ public static class NendoFormat
     /// </summary>
     public const string FileViewMinimumHostVersion = "1.42.0";
 
-    public const string CurrentHostVersion = FileViewMinimumHostVersion;
+    /// <summary>
+    /// A package of kind skill (ADR-0024, W-160): a protected table the node ladder cannot see,
+    /// stated by the package operation's evidence and by the layout rung at open. A file whose
+    /// packages are all views keeps the rung it had.
+    /// </summary>
+    public const string SkillPackageMinimumHostVersion = "1.43.0";
+
+    public const string CurrentHostVersion = SkillPackageMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

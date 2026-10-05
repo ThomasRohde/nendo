@@ -53,6 +53,32 @@ internal static class NendoAuthoringExamples
             CalculateAndActAutomatically(),
             ACustomGraphFromTheFile(),
             PutACustomViewInTheFile(),
+            TeachAnAgentThisFile(),
+        ]);
+
+    /// <summary>
+    /// A file's own agent skill (ADR-0024): a package of kind skill holding a SKILL.md, which
+    /// skills/list then offers beside the host's skill once the person accepts it.
+    /// </summary>
+    private static NendoAuthoringExample TeachAnAgentThisFile() => new(
+        "teach-an-agent-this-file",
+        "Write the file's own instructions for an agent as a skill it carries, so whoever connects next reads how this file is worked.",
+        [
+            "extension.setPackage with kind \"skill\" and no entryPoint creates a skill package; extension.putFile puts its SKILL.md at the root, and any supporting files beside it. The person reads every line before accepting, as for a view's code.",
+            "SKILL.md opens with frontmatter: a line ---, name: the last segment of the packageId, description: what the skill is for and when to use it, and a closing ---. A missing file or frontmatter, or another name, does not validate, and the diagnostic (NPROP012) names the file.",
+            "Once accepted, skills/list returns the host's nendo-authoring skill and this one, at skill://{packageId}/SKILL.md, with every file's digest and size. Nothing in a skill package runs, and a view cannot name one.",
+            "Write what the file knows and a host build cannot: its record types' meaning, its commands and when to use them, the order work goes in.",
+        ],
+        [
+            new("Put a skill in the file",
+            [
+                Operation("extension.setPackage", new { packageId = "org.example.tasks", title = "Working the task list", kind = "skill", version = "1.0.0" }),
+                Operation("extension.putFile", new
+                {
+                    packageId = "org.example.tasks", path = "SKILL.md",
+                    text = "---\nname: tasks\ndescription: How to work this file's task list: which status a new task takes, and when a task is done.\n---\n\n# Working the task list\n\nA new task starts as Open. Move it to Done only when its checks pass, and say which in its notes.\n",
+                }),
+            ]),
         ]);
 
     /// <summary>

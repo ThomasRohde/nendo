@@ -122,6 +122,8 @@ public sealed partial class NendoWriteCoordinator
                 context.LookBefore = active.Manifest.Look;
                 context.LookAfter = previewSnapshot.Manifest.Look;
                 context.PackageChanges = await ExtensionPackageDiff.ComputeAsync(store, clone, changeSet, cancellationToken);
+                var skillDiagnostics = await SkillPackageDiagnosticsAsync(clone, previewSnapshot, cancellationToken);
+                if (skillDiagnostics.Count > 0) context.Diagnostics = [.. context.Diagnostics, .. skillDiagnostics];
                 context.SemanticDiff = WithHostVersionRaise(
                     context.SemanticDiff,
                     active.Manifest.MinimumHostVersion,
@@ -134,8 +136,9 @@ public sealed partial class NendoWriteCoordinator
                 context.PreviewApplications = boundedPreview.Applications;
                 context.PreviewOverview = boundedPreview.Overview;
                 // The clone has validated all typed schema/data operations. A
-                // custom surface is optional; if present it must compile fully.
-                context.State = previewSnapshot.UiNodes.Count == 0 || compilation.IsValid
+                // custom surface is optional; if present it must compile fully. A
+                // skill package must say what it is, whatever else is in the file.
+                context.State = skillDiagnostics.Count == 0 && (previewSnapshot.UiNodes.Count == 0 || compilation.IsValid)
                     ? NendoProposalState.Previewable
                     : NendoProposalState.Invalid;
             }
@@ -360,6 +363,32 @@ public sealed partial class NendoWriteCoordinator
             {
                 TryDeletePassClone(clonePath);
             }
+        }
+        return diagnostics;
+    }
+
+    /// <summary>
+    /// ADR-0024: every skill package the file would carry holds a <c>SKILL.md</c> at its root
+    /// whose frontmatter names the skill for the package and says what it is for. Checked on
+    /// the clone after the whole change set, since the file usually arrives after its package,
+    /// and for every skill package rather than the touched ones, so nothing accepted later
+    /// leaves one the host cannot list. Each diagnostic names the file.
+    /// </summary>
+    private static async Task<IReadOnlyList<NendoCompilerDiagnostic>> SkillPackageDiagnosticsAsync(
+        SqliteNendoStore clone, NendoSessionSnapshot preview, CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<NendoCompilerDiagnostic>();
+        foreach (var package in preview.ExtensionPackages.Where(package => package.IsSkill))
+        {
+            var file = await clone.ReadExtensionFileAsync(package.PackageId, NendoAgentSkill.FileName, null, cancellationToken);
+            if (NendoAgentSkill.TryRead(package.PackageId, file?.Content, out _, out var problem)) continue;
+            diagnostics.Add(new NendoCompilerDiagnostic(
+                "NPROP012",
+                NendoDiagnosticSeverity.Error,
+                problem!,
+                package.PackageId,
+                NendoAgentSkill.FileName,
+                $"Put {NendoAgentSkill.FileName} at the package's root, opening with ---, name: {NendoAgentSkill.NameFor(package.PackageId)}, description: and a closing ---."));
         }
         return diagnostics;
     }

@@ -169,15 +169,22 @@ export interface ExtensionRuntimeView {
   packages: ExtensionPackageView[];
 }
 
-/** One custom-view package in the open file, and the origin the host serves it from. */
+/**
+ * One package in the open file, and the origin the host serves it from. A package of kind
+ * skill (ADR-0024) holds instructions for an agent: it has no entry point and no origin, and
+ * nothing in Nendo runs it.
+ */
 export interface ExtensionPackageView {
   packageId: string;
   title: string;
   version: string | null;
-  entryPoint: string;
+  /** Null for a skill package. */
+  entryPoint: string | null;
   description: string | null;
-  /** Computed by the host alone, such as https://org-nendo-gantt-3f2a9c01be.example. */
-  origin: string;
+  /** Computed by the host alone, such as https://org-nendo-gantt-3f2a9c01be.example; null for a skill package. */
+  origin: string | null;
+  /** `view`, or `skill` for text an agent reads. An older host sends none, and every package it has is a view. */
+  kind?: 'view' | 'skill';
   fileCount: number;
   totalBytes: number;
   /** Changes whenever the package's content does, so a view restarts on accepted code. */

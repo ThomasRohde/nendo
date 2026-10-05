@@ -61,10 +61,15 @@ public sealed partial class NendoSemanticCompiler
     private static void WarnWithoutPackage(NendoExtensionViewDefinition definition, NendoUiNodeSnapshot node,
         NendoSessionSnapshot source, ICollection<NendoCompilerDiagnostic> diagnostics)
     {
-        if (!source.ExtensionPackages.Any(package => package.PackageId == definition.PackageId))
+        var package = source.ExtensionPackages.SingleOrDefault(package => package.PackageId == definition.PackageId);
+        if (package is null)
             diagnostics.Add(new("NUI452", NendoDiagnosticSeverity.Warning,
                 $"The package {definition.PackageId} is not in this file, so the view has no code to run yet.",
                 node.NodeId, "packageId", "Add the package to the file: Studio → Surfaces → Custom views → Import, or extension.setPackage and extension.putFile in a change set."));
+        else if (package.IsSkill)
+            // ADR-0024: a skill package is text for an agent and is never run, by a view or anything else.
+            AddError(diagnostics, "NUI454", $"The package {definition.PackageId} is a skill package, which holds text for an agent and never runs, so a view cannot use it.",
+                node.NodeId, "packageId", "Name a view package, one created without kind skill, or remove the view.");
     }
 
     /// <summary>

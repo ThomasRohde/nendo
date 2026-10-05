@@ -1,6 +1,6 @@
 # MCP interface contract
 
-This contract lists the twenty-three resources and twenty-five tools that an external
+This contract lists the twenty-four resources and twenty-five tools that an external
 agent sees, and the authority rules behind them. `Test-Production.ps1` asserts
 both surfaces by name, and this sentence is held to the same count by
 `Test-Repository.ps1`.
@@ -76,12 +76,28 @@ operation with its payload keys, the bounds, the examples and the refusals to ex
 generated from the same tables the vocabulary is. Its supporting files are
 `skill://nendo-authoring/references/vocabulary.json`, `examples.json` and
 `view-api.json`, the same bytes as the three build-static reads. `skills/list` returns
-the one entry with its complete manifest, each file's `sha256:` digest and byte size
-computed from the bytes `resources/read` serves; `skills/get` returns it by URI and any
-other URI is `-32602` `NENDO_SKILL_NOT_FOUND`. Every read of the four carries the
+its entry first with its complete manifest, each file's `sha256:` digest and byte size
+computed from the bytes `resources/read` serves; `skills/get` returns it by URI, with
+`cacheScope` `public` and the one-hour TTL, and any URI it does not serve is `-32602`
+`NENDO_SKILL_NOT_FOUND` naming the ones it does. Every read of the four carries the
 one-hour TTL. `directoryRead` is not declared. `HostSkillTests` holds each digest and
-size equal to a read of the file, and the frontmatter equal to the entry's. A file that
-carries its own skill is [ADR-0024](../decisions/0024-a-file-carries-its-own-agent-skill.md).
+size equal to a read of the file, and the frontmatter equal to the entry's.
+
+Since 2026-10-05 (W-160, [ADR-0024](../decisions/0024-a-file-carries-its-own-agent-skill.md))
+a file may carry its own skill: a package of kind `skill`, accepted by its person like any
+package ([custom-view contract](custom-views.md#skill-packages)). `skills/list` lists each
+one after the host's, by package ID, at `skill://{packageId}/SKILL.md`, its frontmatter read
+from that file (`name` is the package ID's last segment) and its manifest the stored SHA-256
+and size of every file, `SKILL.md` first. Its files are the template
+`skill://{packageId}/{+path}` (`nendo.application.skill.file`): text as text and anything else as a
+blob, so the digest of what a client receives is the one listed; a package that is not a
+skill, or a path it does not hold, is refused. The template also answers the host skill's
+own URIs with the same bytes. Because the list follows the open file, `skills/list` is
+`private` with TTL 0, and so are a file skill's `skills/get` and reads. A file with no
+skill package lists the host's skill alone. Nothing in the host vouches for what a file's
+skill says: loading it is the client's act under its own approval, and the person's
+protection is the review before acceptance. `FileSkillTests` holds the listing before and
+after acceptance, every digest and size against a read, and the refusals.
 
 Since 2026-10-04 (W-152) the host also serves the Tasks extension
 (`io.modelcontextprotocol/tasks`, SEP-2663, `ModelContextProtocol.Extensions.Tasks`
@@ -568,8 +584,11 @@ services and are not MCP authoring primitives.
 custom view's code into the file through ordinary proposals, and the person reviews
 it as code before accepting. Once accepted, the code runs in the Workbench whenever
 a view that names its package is shown, and reaches the file only through
-`window.nendo` ([custom-view contract](custom-views.md#packages-in-the-file)). No
-tool or resource reaches this device's custom-view switches. The vocabulary
+`window.nendo` ([custom-view contract](custom-views.md#packages-in-the-file)).
+`extension.setPackage` also takes `kind`; with `skill` it writes the file's own agent
+skill instead, which never runs ([skill packages](custom-views.md#skill-packages)), and the
+example `teach-an-agent-this-file` is one to copy. No tool or resource reaches this device's
+custom-view switches. The vocabulary
 publishes the package bounds under `limits.extensions`:
 
 - `fileBytes`: 4 MiB for one file;

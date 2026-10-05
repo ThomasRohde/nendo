@@ -73,7 +73,8 @@ Open refuses an `-extension-` layout whose stated minimum host is below 1.33.0, 
 ### Operations
 
 The four operations are in the definition lane, and each one declares
-`ReversibleWithRetainedState`. Each raises the file's minimum host to 1.33.0.
+`ReversibleWithRetainedState`. Each raises the file's minimum host to 1.33.0, and
+`extension.setPackage` with `kind: "skill"` to 1.43.0 ([Skill packages](#skill-packages)).
 
 - `extension.setPackage` {`packageId`, `title`, `entryPoint`, `version`,
   `description`} creates a package or changes its metadata. `entryPoint` defaults
@@ -171,12 +172,19 @@ A proposal names each package change in a sentence:
 - "Keep ‹path› in the package ‹title› as it is; the content sent is identical."
 - "Remove ‹path› from the package ‹title›; its content stays in history."
 - "Remove the package ‹title› from this file."
+- "Add the skill package ‹title› (‹id›): instructions for an agent, read from
+  SKILL.md, offered as the skill ‹name›. Nothing in it runs." and "Update the skill
+  package ‹title› (‹id›)", ending ": it is version ‹version›." when a version is set.
 
-A proposal that puts any file also carries one more line, once, as its own entry
-(`extensionCode`): "This code runs when a view that uses its package is shown. It
-can read and change this file's records through Nendo, reach the network and use
-the clipboard." The line states the whole ADR's grant. In this phase a view reads
-and does not yet change records.
+A proposal that puts any file into a view package also carries one more line, once,
+as its own entry (`extensionCode`): "This code runs when a view that uses its package
+is shown. It can read and change this file's records through Nendo, reach the network
+and use the clipboard." The line states the whole ADR's grant. A proposal that puts a
+file into a skill package carries its own line instead, or as well (`extensionSkill`):
+"These are instructions for an agent working on this file. Nendo never runs them; an
+agent's client offers them to its model when the agent connects, after asking you if it
+asks at all. Read them as you would read instructions given to someone editing your
+file."
 
 In a file below 1.33.0, a package change also raises the file's minimum host to
 1.33.0. The review shows that as its own entry, and it cannot be undone.
@@ -250,6 +258,46 @@ every bound, and case-unique paths. A table outside them is `mapping-drift`, and
 editing is disabled. An explicit integrity verification, `health.verify` in the
 Workbench or `nendo.health.verify_integrity` over MCP, also reads every stored
 content and compares it with its SHA-256. A mismatch puts the file into recovery.
+
+### Skill packages
+
+Host rung **1.43.0**, [ADR-0024](../decisions/0024-a-file-carries-its-own-agent-skill.md),
+W-160. A package of kind `skill` holds instructions for an agent instead of a view's
+code: a `SKILL.md` at its root and any supporting files beside it, in the Agent Skills
+format. It has no entry point, and nothing in Nendo runs it. It is written, reviewed,
+accepted, reversed, imported and exported as every package is.
+
+- `extension.setPackage` takes `kind`: `view` (the default, every package before it)
+  or `skill`. A skill package names no `entryPoint`: one is refused where the
+  operation is sent, naming the file it names. The skill's name is the last segment
+  of the package ID, so that segment must be a skill name: lowercase letters and
+  digits in hyphen-separated runs, at most 64 characters. A package keeps the kind
+  it was created with; setting the other kind is `extension-package-kind`.
+- At validation, every skill package the file would carry, not only the ones the
+  change set touches, holds a `SKILL.md` that opens with frontmatter: a line `---`,
+  `name:` equal to that last segment, `description:` of 1 to 1,024 characters, and a
+  closing `---`. A missing file, missing frontmatter, another name or no description
+  is `NPROP012`, an error naming the file, with the package ID as its semantic ID and
+  `SKILL.md` as its property path. The proposal is `Invalid`.
+- A view that names a skill package does not compile (`NUI454`). A write in a skill
+  package's name is `actor-not-allowed`, and view state for one is refused.
+- The kind is a row in `__nendo_extension_kind` (`package_id`, `kind`), the ladder's
+  last rung after the new-file tables. The first skill package creates it, so a file
+  of view packages keeps its layout and host. The package table's text is fixed by
+  released layouts, so a skill package's required `entry_point` holds `SKILL.md`; every
+  read takes the kind from the new table and gives a skill package no entry point.
+  The layout is
+  `production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-v1`,
+  with its `production-p1-` twin, and open refuses a `-skill-` layout stating less than
+  1.43.0 as `layout-version-mismatch`.
+- A view package's canonical payload is unchanged: `kind` is written only for a skill,
+  so no earlier digest moves.
+
+The local MCP host lists each skill package in `skills/list` after its own
+`nendo-authoring` skill, and serves its files under `skill://{packageId}/{+path}` with
+the digests of the stored bytes ([MCP interface](mcp-interface.md)). The Desktop host
+lists a skill package with no origin, so nothing serves it to a frame, and it cannot be
+developed from a folder.
 
 ## Where a view runs
 
@@ -1174,7 +1222,10 @@ views…** opens it. It shows:
 - the two switches: **Run custom views** ("On this device, for every file") and
   **Run this file's views** ("On this device, for ‹file name›");
 - **Packages in this file**: each package's title, ID, version, file count, size
-  and description, with **Export…** and **Remove…**;
+  and description, with **Export…** and **Remove…**. A skill package's card starts its
+  facts with "Agent skill", says "Instructions for an agent connected to this file,
+  offered to it as the skill ‹name›. Nothing in it runs in Nendo.", and offers neither
+  **Add view…** nor **Develop from folder…**;
 - **Import package…**: "A folder, a .zip or a .nendoview file. Importing prepares
   a proposal; nothing runs until you accept it."
 
@@ -1198,6 +1249,7 @@ it:
 | `missing` | "‹package› is not in this file, so ‹title› has no code to run." | **Add package to file…**, which is Import |
 | `preview` | Custom views run in Nendo Desktop, not in the browser preview of the Workbench | None |
 | `unservable` | The package has no address Nendo serves views from | None |
+| `skill` | "‹title› cannot be shown: ‹package› is a skill package, instructions for an agent that never run." | None |
 | `unavailable` | "Custom views are not available in this session." | None |
 
 ## Import, export and remove
@@ -1226,8 +1278,9 @@ commas are allowed, and keys other than these are ignored:
 | `packageId` | Required. A package ID by the rule above |
 | `title` | Default: the package ID |
 | `version` | An optional semantic version |
-| `entryPoint` | Default: `index.html`. It must be one of the package's files |
+| `entryPoint` | Default: `index.html`. It must be one of the package's files. A skill package names none |
 | `description` | Optional |
+| `kind` | `view` (default) or `skill`. A skill folder needs a `SKILL.md` whose frontmatter names it, checked here and refused by the file's name |
 
 The manifest is never stored as a file: the package row holds what it says.
 
@@ -1449,6 +1502,7 @@ A binding is not a permission. The view's code reads through the file's API.
 | --- | --- | --- |
 | `NUI450` | Error | The definition names a package, a record type, a label, fields or filters that do not exist or break the rules above. The message names which. "Name a package, a record type and fields that exist; the view's code reads the rest through the file's API." |
 | `NUI452` | Warning | "The package ‹id› is not in this file, so the view has no code to run yet." Remedy: "Add the package to the file: Studio → Surfaces → Custom views → Import, or extension.setPackage and extension.putFile in a change set." The view says the same where it is shown |
+| `NUI454` | Error | "The package ‹id› is a skill package, which holds text for an agent and never runs, so a view cannot use it." Remedy: "Name a view package, one created without kind skill, or remove the view." |
 | `NUI013` | Error | A child kind its parent does not take, as for every node |
 
 The definition is sound without its package: it can be reviewed, accepted, copied
@@ -1485,8 +1539,8 @@ before any write. View code needs no approval of its own.
 ## Compatibility
 
 - A file that carries packages needs host 1.33.0. A view that only the open rules
-  accept needs 1.34.0. An `extensionView` needs 1.42.0. `extensionTile` will need the
-  rung after it, and is not yet delivered.
+  accept needs 1.34.0. An `extensionView` needs 1.42.0, and a skill package 1.43.0.
+  `extensionTile` will need the rung after that, and is not yet delivered.
 - An older host refuses writable open of such a file by the rung rule of
   [ADR-0012](../decisions/0012-safe-mode-compatibility-and-migration.md). There is
   no downgrade in place.

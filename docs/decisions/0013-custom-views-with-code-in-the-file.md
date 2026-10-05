@@ -422,7 +422,7 @@ and it would add no protection. No rung: nothing reaches the file.
   of the file, not of a record type, with a package, a title, a configuration and an
   optional `entityId`. It appears in the Use "Showing" picker. See *A view as a screen of
   its own*, below.
-- **`extensionTile` (the rung after 1.42.0, not yet delivered).** A child of
+- **`extensionTile` (the next free rung, not yet delivered; 1.43.0 went to ADR-0024's skill packages).** A child of
   `overviewSurface`, `section` or `tabGroup`, sized `tile` or `wide`, with a height. It was
   to share 1.42.0 with `extensionView`. The view came first (W-106), so the tile takes the
   next rung when it lands.
