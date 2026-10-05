@@ -142,13 +142,19 @@ internal sealed class NendoDataMutationService(
     /// A target named by record ID is read for its version; one named by a unique field's
     /// value is found through the same filtered query the screens use. The rule CSV import
     /// follows for matchFieldId, so both formats carry one rule.
+    /// <para>
+    /// In a batch, a target an earlier write of the same batch creates or updates is found
+    /// among those writes first (W-166): the committed store does not hold it yet, and the
+    /// Engine supplies the version that earlier write leaves, as it does for a plain value.
+    /// </para>
     /// </summary>
     private async Task<IReadOnlyDictionary<string, long>?> ResolveReferencesAsync(
         string entityId,
         Dictionary<string, object?> values,
         IReadOnlyDictionary<string, long>? expectedTargetVersions,
         IReadOnlyDictionary<string, NendoReferenceInput>? references,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<BatchWritten>? earlier = null)
     {
         if (references is null || references.Count == 0) return expectedTargetVersions;
         var targets = new Dictionary<string, long>(expectedTargetVersions ?? new Dictionary<string, long>(), StringComparer.Ordinal);
@@ -165,11 +171,18 @@ internal sealed class NendoDataMutationService(
             var target = snapshot.Entities.SingleOrDefault(candidate => candidate.EntityId == field.Reference.TargetEntityId && !candidate.Retired)
                 ?? throw new NendoPreconditionException("entity-not-found", $"The target record type of {fieldId} does not exist.");
             NendoRecordSnapshot found;
+            var inBatch = (earlier ?? []).Where(written => written.EntityId == target.EntityId && written.Values is not null).ToArray();
             if (reference.RecordId is not null)
             {
                 if (reference.MatchFieldId is not null || reference.Value is not null)
                     throw new NendoValidationException($"references.{fieldId} names a recordId or a matchFieldId with value, not both.");
                 NendoText.RequireText(reference.RecordId, "record ID", 200);
+                if (inBatch.Any(written => written.RecordId == reference.RecordId))
+                {
+                    values[fieldId] = JsonSerializer.SerializeToElement(reference.RecordId);
+                    targets.Remove(fieldId);
+                    continue;
+                }
                 found = (await application.QueryRecordsAsync(new NendoRecordQuery(target.EntityId, 1) { RecordId = reference.RecordId }, cancellationToken))
                     .Items.SingleOrDefault()
                     ?? throw new NendoPreconditionException("target-not-found", $"{target.DisplayName} has no record {reference.RecordId}.");
@@ -182,6 +195,15 @@ internal sealed class NendoDataMutationService(
                 if (match is null || !match.Unique)
                     throw new NendoValidationException(
                         $"{field.DisplayName} can be matched only by a unique field of {target.DisplayName}; {reference.MatchFieldId} is not one.");
+                var matched = inBatch.Where(written => written.Values!.TryGetValue(match.FieldId, out var held) && Holds(held, reference.Value)).ToArray();
+                if (matched.Length > 1)
+                    throw new NendoPreconditionException("target-not-found", $"More than one {target.DisplayName} record in this batch holds {reference.Value} in {match.FieldId}.");
+                if (matched.Length == 1)
+                {
+                    values[fieldId] = JsonSerializer.SerializeToElement(matched[0].RecordId);
+                    targets.Remove(fieldId);
+                    continue;
+                }
                 var page = await application.QueryRecordsAsync(new NendoRecordQuery(target.EntityId, 2)
                 {
                     Filters = [new NendoRecordFilter(match.FieldId, "eq", JsonSerializer.SerializeToElement(reference.Value))],
@@ -195,6 +217,17 @@ internal sealed class NendoDataMutationService(
         }
         return targets;
     }
+
+    /// <summary>A record an earlier write of the same batch left in place, with the values it wrote; Values is null for a delete.</summary>
+    private sealed record BatchWritten(string EntityId, string RecordId, IReadOnlyDictionary<string, object?>? Values);
+
+    /// <summary>Whether a written value is the text a matchFieldId reference names, as the screens' eq filter would compare it.</summary>
+    private static bool Holds(object? held, string wanted) => held is JsonElement element && element.ValueKind switch
+    {
+        JsonValueKind.String => string.Equals(element.GetString(), wanted, StringComparison.Ordinal),
+        JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False => string.Equals(element.GetRawText(), wanted, StringComparison.Ordinal),
+        _ => false,
+    };
 
     /// <summary>
     /// The reference target versions the revision this key already committed recorded, by
@@ -287,6 +320,7 @@ internal sealed class NendoDataMutationService(
                 var committed = await CommittedTargetVersionsAsync(
                     context, writes.Any(write => write?.References is { Count: > 0 }), cancellationToken);
                 var mapped = new List<NendoRecordWrite>(writes.Count);
+                var earlier = new List<BatchWritten>(writes.Count);
                 for (var index = 0; index < writes.Count; index++)
                 {
                     var write = writes[index] ?? throw new NendoValidationException($"Write {index} is missing.");
@@ -304,7 +338,7 @@ internal sealed class NendoDataMutationService(
                     if (write.Values.Element.ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Null))
                     {
                         map = ReadValueMap(write.Values.Element);
-                        targets = await ResolveReferencesAsync(write.EntityId, map, write.ExpectedTargetVersions, write.References, cancellationToken);
+                        targets = await ResolveReferencesAsync(write.EntityId, map, write.ExpectedTargetVersions, write.References, cancellationToken, earlier);
                         targets = Recorded(committed, write.RecordId, targets, write.References);
                     }
                     else if (write.References is { Count: > 0 })
@@ -312,6 +346,7 @@ internal sealed class NendoDataMutationService(
                         throw new NendoValidationException($"Write {index} names references and no values; put the reference fields in values or omit both.");
                     }
                     mapped.Add(new NendoRecordWrite(kind, write.EntityId, write.RecordId, map, write.ExpectedRecordVersion, targets));
+                    earlier.Add(new BatchWritten(write.EntityId, write.RecordId, kind == NendoRecordWriteKind.Delete ? null : map));
                 }
                 var result = await application.ApplyRecordWritesAsync(
                     new NendoRecordWritesRequest(mapped, context, string.IsNullOrWhiteSpace(label) ? null : label),

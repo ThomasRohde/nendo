@@ -61,13 +61,13 @@ public sealed record NendoRecordWriteInput(
     [property: Description("create and update: the field values to write, keyed by stable field ID, with exact numbers as $nendoNumber envelopes; omitted on a delete. An update writes up to limits.fieldsPerRecordUpdate fields.")]
     public NendoObjectInput Values { get; init; }
 
-    [property: Description("update and delete: the version the record holds now. A record created earlier in the same batch is at version 1 and needs none.")]
+    [property: Description("update and delete: the version the record holds now. A batch writes each record once, so this is the version you read.")]
     public long? ExpectedRecordVersion { get; init; }
 
     [property: Description("For each non-null reference value, the current version of its target, keyed by field ID. A target created or updated earlier in the same batch is resolved by the host.")]
     public IReadOnlyDictionary<string, long>? ExpectedTargetVersions { get; init; }
 
-    [property: Description("Reference targets named by record ID or by a unique field's value, keyed by field ID, resolved by the host as on nendo.data.create_records.")]
+    [property: Description("Reference targets named by record ID or by a unique field's value, keyed by field ID, resolved by the host as on nendo.data.create_records. A target an earlier write in this batch creates or updates is found there first.")]
     public IReadOnlyDictionary<string, NendoReferenceInput>? References { get; init; }
 }
 

@@ -195,6 +195,40 @@ public sealed class BatchWriteToolTests
     }
 
     /// <summary>
+    /// W-166: a target an earlier write of the same batch creates is found there under
+    /// references, by record ID and by a unique field's value, as a plain value always was.
+    /// </summary>
+    [TestMethod]
+    public async Task ReferencesFindATargetAnEarlierWriteInTheBatchCreated()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareAsync(workspace);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+
+        var applied = await client.CallToolAsync("nendo.data.apply_writes", new Dictionary<string, object?>(session)
+        {
+            ["writes"] = new object[]
+            {
+                new { kind = "create", entityId = "projects", recordId = "p2", values = new { name = "Second", code = "P2" } },
+                new { kind = "create", entityId = "tasks", recordId = "t-by-id", values = new { title = "By ID" }, references = new { project = new { recordId = "p2" } } },
+                new { kind = "create", entityId = "tasks", recordId = "t-by-code", values = new { title = "By code" }, references = new { project = new { matchFieldId = "code", value = "P2" } } },
+                new { kind = "update", entityId = "projects", recordId = "p1", expectedRecordVersion = 1L, values = new { code = "P1-renamed" } },
+                new { kind = "create", entityId = "tasks", recordId = "t-by-new-code", values = new { title = "By new code" }, references = new { project = new { matchFieldId = "code", value = "P1-renamed" } } },
+            },
+            ["idempotencyKey"] = "same-batch-references",
+        });
+        Assert.AreNotEqual(true, applied.IsError, "A same-batch target under references was refused: " + Text(applied));
+        foreach (var (id, project) in new[] { ("t-by-id", "p2"), ("t-by-code", "p2"), ("t-by-new-code", "p1") })
+        {
+            var task = (await workspace.Service.QueryRecordsAsync(new("tasks", 1) { RecordId = id })).Items.Single();
+            Assert.AreEqual(project, task.Values["project"].GetString(), id);
+        }
+    }
+
+    /// <summary>
     /// F-258: a write that names a reference resolves the target's current version before
     /// the Engine compares replay digests, so an exact retry after the target moved was
     /// NENDO_IDEMPOTENCY_CONFLICT, the one case the receipt exists for. The retry now
