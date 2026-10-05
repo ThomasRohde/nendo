@@ -42,6 +42,13 @@ public sealed partial class NendoApplicationService
         remove => _coordinator.Committed -= value;
     }
 
+    /// <summary>The same commit, with the records it changed and whether the definition moved (W-171).</summary>
+    public event Action<NendoCommitSummary>? CommittedChanges
+    {
+        add => _coordinator.CommittedChanges += value;
+        remove => _coordinator.CommittedChanges -= value;
+    }
+
     // Native host lifecycle entry points. The selected path stays on the host;
     // Workbench and MCP receive neither it nor an arbitrary invocation route.
     public Task<NendoBackupPlan> PrepareBackupAsync(

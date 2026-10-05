@@ -192,7 +192,10 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         var wanted = request.Params?.Notifications?.ResourceSubscriptions ?? [];
-        var honoured = NendoChangeFeed.Served.Where(uri => wanted.Contains(uri, StringComparer.Ordinal)).ToArray();
+        var honoured = NendoChangeFeed.Served.Where(uri => wanted.Contains(uri, StringComparer.Ordinal))
+            .Concat(wanted.Where(uri => NendoChangeFeed.RecordsEntity(uri) is not null).Distinct(StringComparer.Ordinal))
+            .ToArray();
+        var recordTypes = honoured.Select(NendoChangeFeed.RecordsEntity).OfType<string>().ToArray();
         using var listener = feed.TryOpen()
             ?? throw new McpProtocolException(
                 $"NENDO_BUSY: {NendoChangeFeed.MaximumListeners} subscriptions/listen streams are already open to this file, the most this " +
@@ -209,9 +212,23 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
             cancellationToken: cancellationToken);
         try
         {
-            await foreach (var uri in listener.Reader.ReadAllAsync(cancellationToken))
+            await foreach (var change in listener.Reader.ReadAllAsync(cancellationToken))
             {
-                if (!honoured.Contains(uri, StringComparer.Ordinal)) continue;
+                if (change.Summary is { } summary)
+                {
+                    foreach (var entityId in recordTypes)
+                    {
+                        if (NendoChangeFeed.RecordsMeta(summary, entityId) is not { } changes) continue;
+                        var meta = Tagged();
+                        foreach (var (key, value) in changes) meta[key] = value?.DeepClone();
+                        await request.Server.SendNotificationAsync(
+                            NotificationMethods.ResourceUpdatedNotification,
+                            new ResourceUpdatedNotificationParams { Uri = NendoChangeFeed.RecordsUri(entityId), Meta = meta },
+                            cancellationToken: cancellationToken);
+                    }
+                    continue;
+                }
+                if (change.Uri is not { } uri || !honoured.Contains(uri, StringComparer.Ordinal)) continue;
                 await request.Server.SendNotificationAsync(
                     NotificationMethods.ResourceUpdatedNotification,
                     new ResourceUpdatedNotificationParams { Uri = uri, Meta = Tagged() },
@@ -306,6 +323,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         Action<long> committed = _ => feed.Signal(NendoChangeFeed.Manifest, NendoChangeFeed.Proposals);
         Action proposalsChanged = () => feed.Signal(NendoChangeFeed.Proposals);
         applicationService.Committed += committed;
+        applicationService.CommittedChanges += feed.SignalChanges;
         proposalStore.ProposalsChanged += proposalsChanged;
         WebApplication? webApplication = null;
         var usedFallbackPort = false;
@@ -630,6 +648,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
             authority.CloseAdmission();
             applicationService.WriteAuthorityLost -= authority.CloseAdmission;
             applicationService.Committed -= committed;
+            applicationService.CommittedChanges -= feed.SignalChanges;
             proposalStore.ProposalsChanged -= proposalsChanged;
             NendoDiscoveryStore.DeleteIfPresent(discoveryPath);
             if (webApplication is not null)
@@ -660,6 +679,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         _failures.Close();
         _applicationService.WriteAuthorityLost -= _authority.CloseAdmission;
         _applicationService.Committed -= _committed;
+        _applicationService.CommittedChanges -= _feed.SignalChanges;
         _proposals.ProposalsChanged -= _proposalsChanged;
         // Every listen stream hears that health changed and then ends, before the
         // listener stops taking requests (W-151).

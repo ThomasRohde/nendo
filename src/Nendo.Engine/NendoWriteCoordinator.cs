@@ -75,6 +75,38 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
     /// </summary>
     public event Action<long>? Committed;
 
+    /// <summary>
+    /// The same commit, with what it changed: every record a write or an automatic action
+    /// touched, and whether the definition moved (W-171). Raised right after
+    /// <see cref="Committed"/>, under the same threading rules.
+    /// </summary>
+    public event Action<NendoCommitSummary>? CommittedChanges;
+
+    /// <summary>Raises the commit events for revisions that were not all idempotent replays.</summary>
+    private void RaiseCommitted(long changeSequence, IReadOnlyList<NendoApplyResult> results, IEnumerable<NendoMutation> mutations)
+    {
+        AfterCommit?.Invoke();
+        Committed?.Invoke(changeSequence);
+        if (CommittedChanges is not { } changes) return;
+        var operations = mutations.SelectMany(mutation => mutation.Operations).ToArray();
+        var fresh = results.Where(result => !result.IsIdempotentReplay).ToArray();
+        var records = operations.Select(ChangedRecord).OfType<NendoChangedRecord>()
+            .Concat(fresh.SelectMany(result => result.GeneratedChanges.Select(change => new NendoChangedRecord(change.EntityId, change.RecordId))))
+            .Distinct()
+            .ToArray();
+        changes(new NendoCommitSummary(
+            changeSequence,
+            [.. fresh.Select(result => result.RevisionId)],
+            records,
+            operations.Any(operation => operation.Lane == NendoRevisionLane.Definition)));
+    }
+
+    /// <summary>The record an operation changes, its metadata included, or null when it changes no single record.</summary>
+    private static NendoChangedRecord? ChangedRecord(NendoOperation operation) =>
+        WrittenRecord(operation) is { } written
+            ? new NendoChangedRecord(written.EntityId, written.RecordId)
+            : operation is SetRecordKeptInNewFilesOperation kept ? new NendoChangedRecord(kept.EntityId, kept.RecordId) : null;
+
     public NendoFileCapabilities Capabilities => _disposed || _replacementRetired || _recoveryRequired && _readOnlySnapshot is null
         ? NendoFileCapabilities.None
         : _readOnlySnapshot is not null
@@ -252,7 +284,7 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
                 // over from before the change.
                 if (mutation.Operations[0].Lane == NendoRevisionLane.Definition)
                     await RefreshBehaviourRequirementAsync(cancellationToken);
-                if (!result.IsIdempotentReplay) { AfterCommit?.Invoke(); Committed?.Invoke(result.ChangeSequence); }
+                if (!result.IsIdempotentReplay) RaiseCommitted(result.ChangeSequence, [result], [mutation]);
                 return result;
             }
             catch (NendoRecoveryRequiredException)
@@ -307,7 +339,7 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
                 }
                 _authority = trusted;
                 if (!result.Revisions.All(revision => revision.IsIdempotentReplay))
-                { AfterCommit?.Invoke(); Committed?.Invoke(result.ChangeSequence); }
+                    RaiseCommitted(result.ChangeSequence, result.Revisions, changeSet.Mutations);
                 return result;
             }
             catch (NendoRecoveryRequiredException)

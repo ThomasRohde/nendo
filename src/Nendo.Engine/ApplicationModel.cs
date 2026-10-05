@@ -319,6 +319,19 @@ public sealed record NendoApplyResult(
     public string? Origin { get; init; }
 }
 
+/// <summary>One record a commit changed.</summary>
+public sealed record NendoChangedRecord(string EntityId, string RecordId);
+
+/// <summary>
+/// What one commit changed: the revisions it wrote, every record a write or an automatic action
+/// touched, and whether the definition moved, which can change records no write named.
+/// </summary>
+public sealed record NendoCommitSummary(
+    long ChangeSequence,
+    IReadOnlyList<string> RevisionIds,
+    IReadOnlyList<NendoChangedRecord> Records,
+    bool DefinitionChanged);
+
 public sealed record NendoChangeSetApplyResult(
     string ChangeSetDigest,
     IReadOnlyList<NendoApplyResult> Revisions,

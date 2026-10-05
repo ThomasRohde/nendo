@@ -281,7 +281,7 @@ public sealed partial class NendoWriteCoordinator
             if (context.ChangeSet.Mutations.Any(mutation => mutation.Operations[0].Lane == NendoRevisionLane.Definition))
                 await RefreshBehaviourRequirementAsync(cancellationToken);
             if (!committedResult.Revisions.All(revision => revision.IsIdempotentReplay))
-            { AfterCommit?.Invoke(); Committed?.Invoke(committedResult.ChangeSequence); }
+                RaiseCommitted(committedResult.ChangeSequence, committedResult.Revisions, context.ChangeSet.Mutations);
             return await FinishCommittedProposalAsync(proposalId, committedResult);
 
             async Task<NendoPromotionOutcome> NotApprovedAsync()
@@ -360,7 +360,7 @@ public sealed partial class NendoWriteCoordinator
                 // requires is read again rather than carried over.
                 if (mutation.Operations[0].Lane == NendoRevisionLane.Definition)
                     await RefreshBehaviourRequirementAsync(cancellationToken);
-                if (!result.IsIdempotentReplay) { AfterCommit?.Invoke(); Committed?.Invoke(result.ChangeSequence); }
+                if (!result.IsIdempotentReplay) RaiseCommitted(result.ChangeSequence, [result], [mutation]);
                 return (result, mutation);
             }
             catch (NendoRecoveryRequiredException)

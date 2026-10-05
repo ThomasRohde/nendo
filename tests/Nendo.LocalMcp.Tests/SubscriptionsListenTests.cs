@@ -101,6 +101,54 @@ public sealed class SubscriptionsListenTests
         }
     }
 
+    /// <summary>
+    /// W-171: a client waiting on a record type hears when a commit changes one of its records,
+    /// and which, and not when a commit changes another type's. An outside author polled every
+    /// two seconds for the requests a screen's buttons file.
+    /// </summary>
+    [TestMethod]
+    public async Task AListeningClientHearsWhichRecordsOfATypeChanged()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        var schema = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest(
+            $"proposal-{Guid.NewGuid():N}", "Notes and tasks", "test",
+            new([new("test", "schema", "test", "Notes and tasks", [
+                new CreateEntityOperation("notes", "notes", "Notes", "notes"),
+                new AddFieldOperation("n-label", "notes", "notes.label", "Label", "label", NendoStorageKind.Text, false),
+                new CreateEntityOperation("tasks", "tasks", "Tasks", "tasks"),
+                new AddFieldOperation("t-label", "tasks", "tasks.label", "Label", "label", NendoStorageKind.Text, false),
+            ])])));
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(schema.ProposalId)).Applied);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.Unattended, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var stream = await ListenStream.OpenAsync(host, 31,
+            "nendo://application/entity/notes/records", "nendo://application/entity/{entityId}/records");
+        var acknowledged = await stream.NextAsync("notifications/subscriptions/acknowledged");
+        CollectionAssert.AreEqual(new[] { "nendo://application/entity/notes/records" },
+            acknowledged.GetProperty("params").GetProperty("notifications").GetProperty("resourceSubscriptions").EnumerateArray().Select(value => value.GetString()).ToArray(),
+            "A record type is named, not templated.");
+
+        async Task WriteAsync(string entityId, string recordId) =>
+            await workspace.Service.CreateRecordAsync(new(entityId, recordId,
+                new Dictionary<string, object?> { [$"{entityId}.label"] = recordId }, new("test", $"create-{recordId}", "test")));
+        await WriteAsync("notes", "n1");
+        AssertNamed(await stream.NextUpdateAsync("nendo://application/entity/notes/records"), "n1");
+        // A task changes: nothing is said about notes, so the next notes update is n2's.
+        await WriteAsync("tasks", "t1");
+        await WriteAsync("notes", "n2");
+        AssertNamed(await stream.NextUpdateAsync("nendo://application/entity/notes/records"), "n2");
+
+        static void AssertNamed(JsonElement update, string recordId)
+        {
+            var changes = update.GetProperty("params").GetProperty("_meta").GetProperty("io.github.thomasrohde.nendo/changes");
+            Assert.AreEqual("notes", changes.GetProperty("entityId").GetString());
+            CollectionAssert.AreEqual(new[] { recordId }, changes.GetProperty("recordIds").EnumerateArray().Select(value => value.GetString()).ToArray(), update.ToString());
+            Assert.IsFalse(changes.GetProperty("definitionChanged").GetBoolean());
+            Assert.AreEqual(1, changes.GetProperty("revisionIds").GetArrayLength());
+        }
+    }
+
     /// <summary>One subscriptions/listen request, read line by line as the server streams it.</summary>
     private sealed class ListenStream : IAsyncDisposable
     {

@@ -67,6 +67,25 @@ API's HTTP fetch returns a whole response and cannot hold a stream, which is rec
 the planner item. [The listen tests](../../tests/Nendo.LocalMcp.Tests/SubscriptionsListenTests.cs)
 read the stream as the wire carries it; the SDK's client has no listen helper in 2.2.0.
 
+Since 2026-10-05 (W-171) a stream may also name one record type's records,
+`nendo://application/entity/{entityId}/records` with the ID filled in; the template
+itself is acknowledged out. The stream then carries `resources/updated` for that URI on
+every commit that changes a record of that type, through any writer, an automatic
+action's writes included, or that changes the definition. Its `_meta` carries
+`io.github.thomasrohde.nendo/changes`: `changeSequence`, the `revisionIds` committed,
+`entityId`, the changed `recordIds` (at most 100, with `truncated` past that) and
+`definitionChanged`. A client waiting on the requests a screen's buttons file reads
+those records instead of paging the type every few seconds, which an outside author had
+built (MCP-FEEDBACK.md #1). The Engine raises the commit with what it changed
+(`NendoApplicationService.CommittedChanges`); a commit that changes no record of the
+type and not the definition says nothing about it.
+
+The handshake-era `resources/subscribe` is not served. This host is stateless
+Streamable HTTP: a handshake client holds no standing stream for the host to write a
+notification to after its request has been answered, so a subscription would be
+acknowledged and then never heard from. A client on that path polls, or moves to the
+2026-07-28 path.
+
 Since 2026-10-04 (W-154) the host also serves the Skills extension
 (`io.modelcontextprotocol/skills`, SEP-2640), declared on `server/discover` and
 `initialize`, with one host-level skill: `skill://nendo-authoring/SKILL.md`, whose
