@@ -70,7 +70,8 @@ function scrollPositions(): HTMLElement[] {
   // its column, so a person reads down it — and every redraw put them back at the top,
   // which is how a screen refreshing behind a failed tile was reported as scrolling on
   // its own.
-  return [content, ...content.querySelectorAll<HTMLElement>('.use-surface, .card-stack, .outline-surface-frame, .record-inspector')];
+  // A Filter menu stays open across the redraw that lists a reference's records (W-172).
+  return [content, ...content.querySelectorAll<HTMLElement>('.use-surface, .card-stack, .outline-surface-frame, .record-inspector, .quick-filter-panel')];
 }
 
 export function rerender(): void {

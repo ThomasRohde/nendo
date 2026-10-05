@@ -10,6 +10,45 @@
 
 ## Context
 
+### Accepted amendment — 2026-10-05 (a person narrows a list, board or matrix by one value)
+
+Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24), for W-172. Like
+the 2026-09-18 and 2026-09-29 entries it adds nothing to the vocabulary: no kind, no
+property, no diagnostic, no rung.
+
+**What was wrong.** A screen's `filterClause` children are fixed when it is authored. An
+outside author's people asked to see *Issues by status* for one debate, a reference field,
+and the only way to give them that was to replace the native board with a custom view that
+drew the board again and lost native drag and drop (MCP-FEEDBACK.md #4). Every app with a
+reference or a choice has this question: the board of all work, for one project.
+
+**What it authorises.** A `recordList`, `boardSurface` or `matrixSurface` in Use offers
+**Filter** beside its other actions. It lists every active field of the screen's record
+type that is a single choice or a bound reference, read from the schema, as the 2026-09-29
+entry read a link from it; nothing is declared and nothing is stored. A person picks one
+value of one field — a choice option, a target record by its label, or *Not set* — and the
+screen narrows to the records holding it: one `eq` clause, or `isNull`, added to the
+screen's own clauses, for its record window and for a matrix's cells. A pill says what is
+showing and clears it, as a drill's does.
+
+**Transient, as a drill is.** The pick is renderer state for the file session, held per
+screen: it is never written to the file, never reaches History and is gone when the file
+closes. While it stands, the screen's own tiles and charts step aside as they do under a
+drill, because they describe the screen's whole set. A board's columns stay the screen's
+columns, and dragging a card between them writes what it always wrote.
+
+**Bounds.** One clause is added, so a screen whose authored clauses already spend the query's
+budget of eight offers no Filter rather than one that is refused. A reference offers at most
+100 target records, ordered by their label; a type with more says so in place of the list,
+and the screen's own authored filter remains the way to narrow it.
+
+**Rejected.** *An author-declared filter control child*: every screen already built would
+stay without it until somebody edited it, the 2026-09-18 entry's third reason, and the
+fields a person may narrow by are already in the schema. *Remembering the pick on this
+device*, as a fold is: a narrowed board reopened a day later reads as a board missing work,
+which the pill only says while somebody looks at it. *Several fields at once*: the question
+asked was one value; a second clause can come when somebody asks it.
+
 ### Accepted amendment — 2026-09-29 (a related list of links links and unlinks)
 
 Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24), for W-076. Like

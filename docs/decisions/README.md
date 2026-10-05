@@ -63,6 +63,10 @@ existed. For this reason the numbering is contiguous by intent.
   custom views load from the installation is the view API, which the Workbench
   build writes to `Workbench/_nendo/api.js`. `Nendo.slnx` lists six projects.
   ADR-0017 carries this as its 2026-09-25 note.
+- **ADR-0004, 2026-10-05 — a person narrows a list, board or matrix by one value**:
+  **Filter** on a `recordList`, `boardSurface` or `matrixSurface` picks one value of one
+  single-choice or reference field and adds one transient clause, never written to the
+  file (W-172). Nothing is declared; the fields come from the schema.
 - **ADR-0004, 2026-09-20 — a section can be folded away**: every `section` folds.
   An author can store how a section starts, as the `opens` property with the
   closed words `open` and `closed`. A person's own fold is never stored in the file.

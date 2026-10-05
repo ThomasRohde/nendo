@@ -14,7 +14,7 @@ import { choiceDisplay, escapeAttribute, escapeHtml, fieldName, stringValue } fr
 import { choiceStyle } from './tones';
 import { accumulatedWindows, boardColumns, matrixCells, state, surfaceErrors, surfaceWindows } from './app-state';
 import {
-  activeDrill, activeSurfaceQuery, applicationPlans, boardOf, calendarKeyFor, calendarModeFor, calendarMonthFor, listFieldIds,
+  activeDrill, activeSurfaceQuery, applicationPlans, boardOf, calendarKeyFor, calendarModeFor, calendarMonthFor, listFieldIds, narrowed,
   recordWindowFor, referenceColumnsOf, selectedSurfaceNode, surfaceAccentFieldId, timelineKeyFor, timelineModeFor,
   timelineYearFor, todayCivil,
 } from './plan-selection';
@@ -111,7 +111,7 @@ export function surfaceTileMarkup(plan: ApplicationPlan): string {
   if (surface === null) return '';
   // While a drill narrows the list, its totals and charts would describe the
   // surface's own set rather than the records on screen; the pill stands in.
-  if (activeDrill(plan, surface) !== null) return '';
+  if (narrowed(plan, surface)) return '';
   const scope: TileScope = { kind: 'surface', surface };
   return summaryTileGroupMarkup(
     surfaceScopedTiles(surface).map((tile) => ({ tile, scope })),
@@ -123,6 +123,7 @@ export function surfaceTileMarkup(plan: ApplicationPlan): string {
 // matching record in the column, which is why the count beside the heading —
 // the cards actually loaded — is labelled separately.
 export function columnTileMarkup(plan: ApplicationPlan, surface: SurfaceNodePlan, board: BoardView, groupId: string | null): string {
+  if (narrowed(plan, surface)) return '';
   const scope = groupTileScope(surface, board.groupByFieldId, groupId);
   return summaryTileGroupMarkup(
     groupScopedTiles(surface).map((tile) => ({ tile, scope })),
@@ -330,7 +331,7 @@ export function boardMarkup(plan: ApplicationPlan, node: SurfaceNodePlan): strin
     if (notice !== null && 'replace' in notice) return notice.replace;
     if (notice !== null) columnsNote = notice.note;
   }
-  const columnTiles = groupScopedTiles(node).length > 0;
+  const columnTiles = groupScopedTiles(node).length > 0 && !narrowed(plan, node);
   // A configured column stays visible even with nothing in it once it carries a
   // total: the number is the answer, and hiding the column hides the answer.
   if (plan.records.length === 0 && !columnTiles) return `${columnsNote}${emptySurfaceMarkup(plan)}`;

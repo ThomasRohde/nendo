@@ -491,6 +491,21 @@
 .surface-picker-options button[aria-pressed="true"] { background: var(--cobalt-soft); color: var(--cobalt); }
 .use-toolbar > .toolbar-group { flex-wrap: wrap; }
 
+/* Filter on a list, board or matrix (W-172): one select per choice or reference field. */
+.quick-filter { position: relative; }
+.quick-filter summary { list-style: none; display: inline-flex; align-items: center; cursor: pointer; }
+.quick-filter summary::-webkit-details-marker { display: none; }
+.quick-filter[open] summary { border-color: var(--cobalt); }
+.quick-filter-panel {
+  position: absolute; z-index: 20; top: calc(100% + 8px); left: 0;
+  width: 280px; max-width: 75vw; max-height: min(420px, 60vh); overflow: auto;
+  display: grid; gap: 10px; padding: 12px;
+  border: 1px solid var(--line); border-radius: var(--radius-panel);
+  background: var(--surface-raised); box-shadow: var(--shadow);
+}
+.quick-filter-panel label { display: grid; gap: 4px; font-size: 0.86rem; color: var(--muted); }
+.quick-filter-panel select { width: 100%; color: var(--ink); }
+
 .view-switcher button {
   min-width: 64px;
   min-height: 26px;

@@ -17,7 +17,7 @@ import {
   chartStates, drills, leaveRecordContext, matrixCells, selectedSurfaces, state, summaryCounts, surfaceErrors,
   surfaceWindows, type ChartOutcome, type DrillFilter,
 } from './app-state';
-import { boardColumnsPending, chartPending, drillTarget, overviewReadIsPending, readIsPending, selectedSurfaceNode, tilePending, visibleCharts, visibleTiles } from './plan-selection';
+import { boardColumnsPending, chartPending, drillTarget, overviewReadIsPending, quickClauses, readIsPending, selectedSurfaceNode, tilePending, visibleCharts, visibleTiles } from './plan-selection';
 import { loadSurfaceWindow } from './reads';
 import { loadBoardColumns, loadRankedWindows, loadRecentWindows } from './reads';
 import { WorkbenchHostError, type ApplicationPlan, type OverviewPlan, type SurfaceNodePlan } from './host';
@@ -172,7 +172,7 @@ export async function loadMatrix(surface: SurfaceNodePlan, entityId: string): Pr
       columnByFieldId: read.columnByFieldId,
       aggregate: read.aggregate,
       fieldId: read.fieldId,
-      filters: read.filters,
+      filters: [...read.filters, ...quickClauses(surface)],
     });
     if (current()) matrixCells.set(key, { state: 'ready', changeSequence: cells.changeSequence, cells });
   } catch (error) {
@@ -384,6 +384,8 @@ export async function drillIntoCell(
   if (list === null) return;
   const filters = cellDrillFilters(surface, rowKey, columnKey);
   if (filters.length === 0) return;
+  // A cell counted under the screen's Filter pick opens the records it counted.
+  filters.push(...quickClauses(surface));
   drills.set(plan.entity.semanticId, { listId: list.semanticId, label, filters });
   await reopenDrilledList(plan, list);
 }

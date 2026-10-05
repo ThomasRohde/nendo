@@ -199,6 +199,21 @@ itself count towards the eight:
 A definition over the budget is refused with a message that names each clause and
 where it came from. Nendo never drops a clause to make a screen fit.
 
+### Filter while you look
+
+A list, a board and a matrix have a **Filter** button. It offers every choice field
+and every reference field of the record type. Pick one value, such as one project
+on a board of all work, or **Not set**, and the screen shows only the records that
+hold it, on top of the screen's own filters. A pill says what is showing, and its
+button shows everything again. A reference lists at most 100 records to choose
+from.
+
+This filter is yours, for as long as the file is open. It is not saved in the
+file, other people do not see it, and nothing about the screen changes. While it
+is on, the screen's own tiles and charts are hidden, because they count the whole
+screen. A screen whose own filters already use all eight clauses has no Filter
+button.
+
 ## How screens get made
 
 There is no visual screen editor. Screens are built as proposals:

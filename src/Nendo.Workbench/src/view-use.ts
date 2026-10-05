@@ -19,6 +19,7 @@ import { closeInspector, executeTreeCommand, wireRecordForm, wireRelatedPager } 
 import { fieldMarkup, recordFormMarkup } from './record-markup';
 import { content, focusWithoutInteraction, requiredElement, rerender, setBusy, showError } from './shell';
 import { drillPillMarkup, recordPagerMarkup, surfaceBodyMarkup, surfaceSelectorMarkup, surfaceTileMarkup } from './surface-markup';
+import { quickFilterMenu, quickFilterPill, wireQuickFilter } from './quick-filter';
 import { type BoardView, isCustomViewKind, readsOwnRecords, surfaceById } from './surface-model';
 import { wireOutlineSurface } from './outline-surface';
 import { renderSurfaces } from './view-surfaces';
@@ -164,9 +165,9 @@ export function renderUse(): void {
   // Where you are is chosen in the breadcrumb (W-092): its record type and its view are the two
   // pickers. The row below keeps what acts on the screen, and a custom view's controls join it.
   const pickers = drawPlacePickers(`<span class="place-root">Use</span><span class="place-dot" aria-hidden="true">·</span><label class="place-entity"><span class="visually-hidden">${showingLabel()}</span><select id="use-entity">${showingOptionsMarkup({ overview: false, fileView: null, entityId: plan.entity.semanticId })}</select><span class="place-chevron" aria-hidden="true">${icon('chevron')}</span></label><span class="place-sep" aria-hidden="true">/</span>${surfaceSelectorMarkup(plan)}`);
-  const back = `${drillPillMarkup(plan)}${state.returnTo === null ? '' : `<button id="related-back" class="text-button related-back" type="button"><span aria-hidden="true">←</span> Back to ${escapeHtml(state.returnTo.label)}</button>`}`;
+  const back = `${drillPillMarkup(plan)}${quickFilterPill(surface)}${state.returnTo === null ? '' : `<button id="related-back" class="text-button related-back" type="button"><span aria-hidden="true">←</span> Back to ${escapeHtml(state.returnTo.label)}</button>`}`;
   content.innerHTML = `<div class="use-page" data-testid="semantic-application">
-    <header class="use-toolbar">${back === '' ? '' : `<div class="toolbar-group">${back}</div>`}${isCustomViewKind(surface?.kind) ? '<div class="view-toolbar-slot" data-view-toolbar-slot></div>' : ''}<div class="toolbar-group use-actions">${surface !== null && readsOwnRecords(surface.kind) ? '' : recordPagerMarkup(plan.entity.semanticId, surface?.semanticId ?? null)}<button id="new-record" class="primary-button" data-action type="button"><span class="button-glyph" aria-hidden="true">+</span>Add ${escapeHtml(entityName)}</button></div></header>
+    <header class="use-toolbar">${back === '' ? '' : `<div class="toolbar-group">${back}</div>`}${isCustomViewKind(surface?.kind) ? '<div class="view-toolbar-slot" data-view-toolbar-slot></div>' : ''}<div class="toolbar-group use-actions">${quickFilterMenu(plan, surface)}${surface !== null && readsOwnRecords(surface.kind) ? '' : recordPagerMarkup(plan.entity.semanticId, surface?.semanticId ?? null)}<button id="new-record" class="primary-button" data-action type="button"><span class="button-glyph" aria-hidden="true">+</span>Add ${escapeHtml(entityName)}</button></div></header>
     <div class="message-slot use-message" role="alert" hidden></div>
     <div class="use-layout ${selected !== null || state.creatingRecord || relatedTarget !== null ? 'has-inspector' : ''}">
       <section class="use-surface${surface?.kind === 'calendarSurface' ? ' calendar-surface' : surface?.kind === 'timelineSurface' ? ' timeline-surface' : surface?.kind === 'gallerySurface' ? ' gallery-surface' : surface?.kind === 'matrixSurface' ? ' matrix-surface' : surface?.kind === 'outlineSurface' ? ' outline-surface' : isCustomViewKind(surface?.kind) ? ' custom-view-surface' : ''}"${surface === null ? '' : ` data-surface="${escapeAttribute(surface.semanticId)}"`}>${surfaceTileMarkup(plan)}${surfaceBodyMarkup(plan)}</section>
@@ -230,6 +231,7 @@ export function renderUse(): void {
         .finally(() => { state.actionInFlight = false; setBusy(false); rerender(); });
     });
   wireRecordPager();
+  wireQuickFilter(plan, surface);
   content.querySelector<HTMLButtonElement>('#related-back')?.addEventListener('click', () => void returnFromRelatedRecord());
   // Adding a record of the type in view abandons whatever record context there was,
   // including a related record half filled in and the way back to somewhere else — so

@@ -920,6 +920,19 @@ An unset lane drills with `isNull`. Moving a card between cells is not in this
 slice. A board's drag sets one field, and the same gesture here would set two,
 which is a different promise about what one movement writes.
 
+**Filter** (W-172, ADR-0004 2026-10-05). A `recordList`, `boardSurface` or
+`matrixSurface` in Use offers one select per active single-choice field and bound
+reference field of its record type. A pick adds one clause, `eq` on the value or
+`isNull` for *Not set*, to the screen's own clauses: for its record window
+(`effectiveSurfaceQuery`), for a matrix's cells, and for a cell's drill. It is
+renderer state per screen for the file session (`quickFilters`), never written to
+the file. A drill on the same list replaces both, as it replaced the list's own
+clauses before. While a pick stands the screen's surface and column tiles and
+charts are not drawn or read, because they describe its whole set. A reference
+offers at most 100 target records ordered by its label field, read each time the
+menu opens; more than that is said in place of the list. A screen whose own
+clauses spend the budget of eight offers no Filter.
+
 A `rankedList` goes where a `recentList` goes: under an `overviewSurface`, or under
 a `section` within one. Elsewhere it is refused (`NUI422`), because on a surface
 that already has a record type, a list ordered by the same field shows the same

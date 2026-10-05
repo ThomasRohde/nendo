@@ -1,3 +1,4 @@
+import type { QuickFilter, QuickFilterTargets } from './quick-filter-model';
 import { emptySession, type AgentProposalPreview, type AgentStatus, type CompileResult, type DesktopSessionView, type ProposalPreview, type ReadPage, type RecentFiles, type RecordPlan, type RecordSnapshot, type RevisionSummary, type HistoryFoldPreview } from './host';
 import type { BucketResult, CellResult, GroupedResult } from './charts';
 import type { CalendarMode, CivilMonth } from './calendar-model';
@@ -299,6 +300,11 @@ export const boardColumns = fileScopedMap<string, BoardColumnsState>();
 // Which charts show their table of numbers. Renderer state, per chart.
 export const chartTables = fileScopedSet<string>();
 export const drills = fileScopedMap<string, DrillState>();
+// What a person narrowed a list, board or matrix to (W-172), keyed by the screen's semantic ID,
+// and the target records each reference offers in the Filter menu, keyed by the target type.
+// Renderer state for the file session; never written to the file.
+export const quickFilters = fileScopedMap<string, QuickFilter>();
+export const quickFilterTargets = fileScopedMap<string, QuickFilterTargets>();
 export const studioQueries = fileScopedMap<string, StudioQuery>();
 export const studioWindows = fileScopedMap<string, RecordWindow>();
 // A version 3 list, board or calendar declares its own query, so each gets its

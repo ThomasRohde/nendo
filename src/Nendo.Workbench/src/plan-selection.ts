@@ -3,14 +3,15 @@ import { sectionIsOpen } from './fold-state';
 import { selectedEntity } from './studio';
 import { applicationRecipeFor, type ApplicationRecipe } from './application-recipes';
 import { accumulatesPages, activeTabSection, bindingFieldId, boardViewOf, descendants, nodeFieldIds, pageRoot, resolveSurface, useSurfaces, type BoardView } from './surface-model';
-import { declaredQuery, emptyWindowQuery, type WindowQuery } from './record-window';
+import { declaredQuery, emptyWindowQuery, type QueryFilter, type WindowQuery } from './record-window';
+import { quickFilterClause } from './quick-filter-model';
 import { calendarWindowKey, type CalendarMode, type CivilMonth } from './calendar-model';
 import { timelineWindowKey } from './timeline-model';
 import { chartKey, groupScopedCharts, pageScopedCharts, surfaceScopedCharts, type ScopedChart } from './charts';
 import { groupScopedTiles, groupTileScope, pageScopedTiles, surfaceScopedTiles, tileKey, type ScopedTile } from './summary-tiles';
 import { cssToken } from './format';
 import {
-  accumulatedWindows, boardColumns, calendarModes, calendarMonths, chartStates, drills, outlineSurfaces, recordWindows, selectedSurfaces,
+  accumulatedWindows, boardColumns, calendarModes, calendarMonths, chartStates, drills, outlineSurfaces, quickFilters, recordWindows, selectedSurfaces,
   selectedTabs, state, studioQueries, studioWindows, summaryCounts, surfaceWindows, tabStateKey,
   timelineModes, timelineYears, type BoardColumn, type DrillState, type RecordWindow,
 } from './app-state';
@@ -341,6 +342,20 @@ export function activeDrill(plan: ApplicationPlan, surface: SurfaceNodePlan | nu
   return drill !== undefined && surface !== null && drill.listId === surface.semanticId ? drill : null;
 }
 
+/** The clause a person's Filter pick adds to a screen's own (W-172), or none. */
+export function quickClauses(surface: SurfaceNodePlan | null): QueryFilter[] {
+  const pick = surface === null ? undefined : quickFilters.get(surface.semanticId);
+  return pick === undefined ? [] : [quickFilterClause(pick)];
+}
+
+/**
+ * Whether the screen shows fewer records than it covers: a drill or a Filter pick narrows it.
+ * Its own tiles and charts describe the whole set, so they step aside while it does.
+ */
+export function narrowed(plan: ApplicationPlan, surface: SurfaceNodePlan | null): boolean {
+  return activeDrill(plan, surface) !== null || quickClauses(surface).length > 0;
+}
+
 /**
  * The query a surface's window opens under. A drill replaces the list's own
  * clauses rather than composing with them, so it spends one filter and can never
@@ -349,9 +364,11 @@ export function activeDrill(plan: ApplicationPlan, surface: SurfaceNodePlan | nu
 export function effectiveSurfaceQuery(entityId: string, node: SurfaceNodePlan): WindowQuery {
   const declared = declaredQuery(node);
   const drill = drills.get(entityId);
-  return drill !== undefined && drill.listId === node.semanticId
-    ? { filters: drill.filters, sortFieldId: declared.sortFieldId, descending: declared.descending }
-    : declared;
+  if (drill !== undefined && drill.listId === node.semanticId)
+    return { filters: drill.filters, sortFieldId: declared.sortFieldId, descending: declared.descending };
+  // A Filter pick composes with the screen's own clauses: it narrows what the author chose.
+  const quick = quickClauses(node);
+  return quick.length === 0 ? declared : { ...declared, filters: [...declared.filters, ...quick] };
 }
 
 // A relation window's query is the reference predicate plus the relation's own
@@ -426,12 +443,13 @@ export function visibleTiles(plan: ApplicationPlan): ScopedTile[] {
   // The columns come from the board in view. Reading the plan's first board
   // would total the second board's tiles by the first one's grouping field.
   const board = boardOf(plan, surface);
-  const groupTiles = groupScopedTiles(surface);
+  const quick = quickClauses(surface).length > 0;
+  const groupTiles = quick ? [] : groupScopedTiles(surface);
   const columns = surface === null || board === null || groupTiles.length === 0
     ? []
     : [...board.groups.map((group): string | null => group), null];
   return [
-    ...(surface === null ? [] : surfaceScopedTiles(surface).map((tile): ScopedTile => ({ tile, scope: { kind: 'surface', surface } }))),
+    ...(surface === null || quick ? [] : surfaceScopedTiles(surface).map((tile): ScopedTile => ({ tile, scope: { kind: 'surface', surface } }))),
     ...(surface === null ? [] : groupTiles.flatMap((tile) => columns.map((groupId): ScopedTile =>
       ({ tile, scope: groupTileScope(surface, board!.groupByFieldId, groupId) })))),
     // A tile in a closed tab is not read either; the scope still comes from the
@@ -455,7 +473,7 @@ export function chartPending(scoped: ScopedChart): boolean {
 /** Every chart the current Use view shows, with the scope each one covers. */
 export function visibleCharts(plan: ApplicationPlan): ScopedChart[] {
   const surface = selectedSurfaceNode(plan);
-  const drilled = surface !== null && activeDrill(plan, surface) !== null;
+  const drilled = surface !== null && narrowed(plan, surface);
   const board = boardOf(plan, surface);
   const groupCharts = drilled ? [] : groupScopedCharts(surface);
   const columns = surface === null || board === null || groupCharts.length === 0
