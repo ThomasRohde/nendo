@@ -1011,7 +1011,27 @@ public sealed record NendoAuthoringLimits(
             PutFilePayloadBytes: 96 * 1024),
         Hierarchy = new(NendoHierarchyLimits.MaximumDepth, NendoHierarchyLimits.MaximumDescendants, NendoHierarchyLimits.OrderGap),
         Import = new(RowsPerCall: 500, RowsPerBatch: NendoApplicationService.MaximumBatchRecords),
+        RecordValueBytes = 32 * 1024,
+        RecordValuesBytes = 64 * 1024,
+        RequestBodyBytes = 256 * 1024,
     };
+
+    /// <summary>
+    /// The most one submitted field value may hold, in UTF-8 bytes of the value itself: the
+    /// text of a string as stored, without its quotes or JSON escapes, and the JSON text of
+    /// anything else (W-165). An outside author found it by bisection while it was unpublished.
+    /// </summary>
+    public int RecordValueBytes { get; init; }
+
+    /// <summary>The most one record write's values may hold together, each counted as <see cref="RecordValueBytes"/> counts it.</summary>
+    public int RecordValuesBytes { get; init; }
+
+    /// <summary>
+    /// The largest request body the local agent endpoint reads. A tool call over it is refused as
+    /// a tool result carrying NENDO_REQUEST_TOO_LARGE when its JSON-RPC id can be read, so the
+    /// client sees a refusal rather than a transport failure.
+    /// </summary>
+    public int RequestBodyBytes { get; init; }
 
     /// <summary>
     /// The bounds an agent import keeps (W-149): the rows one call carries, bounded by the

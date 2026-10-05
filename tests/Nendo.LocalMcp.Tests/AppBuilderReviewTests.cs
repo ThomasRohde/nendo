@@ -43,6 +43,98 @@ public sealed class AppBuilderReviewTests
         Assert.IsTrue(listed.EnumerateArray().Single().GetProperty("isValid").GetBoolean(), listed.ToString());
     }
 
+    /// <summary>
+    /// W-165: the byte caps on record values are published, counted as stored rather than as
+    /// sent, and refused with a code that names the cap and the size.
+    /// </summary>
+    [TestMethod]
+    public async Task RecordValueByteCapsArePublishedAndRefusedByName()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareTextsAsync(workspace);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var limits = JsonDocument.Parse((await client.ReadResourceAsync("nendo://application/vocabulary"))
+            .Contents.OfType<TextResourceContents>().Single().Text).RootElement.GetProperty("limits");
+        Assert.AreEqual(32 * 1024, limits.GetProperty("recordValueBytes").GetInt32());
+        Assert.AreEqual(64 * 1024, limits.GetProperty("recordValuesBytes").GetInt32());
+        Assert.AreEqual(256 * 1024, limits.GetProperty("requestBodyBytes").GetInt32());
+        var session = await AcquireAsync(client);
+
+        // 16,384 × ø is exactly 32 KiB as stored, whatever escaping the client's serializer used.
+        await CallAsync<NendoDataApplyResult>(client, "nendo.data.create_record", new(session)
+        {
+            ["entityId"] = "texts", ["recordId"] = "at-cap", ["values"] = new { a = new string('ø', 16 * 1024) }, ["idempotencyKey"] = "at-cap",
+        });
+        var over = await client.CallToolAsync("nendo.data.create_record", new Dictionary<string, object?>(session)
+        {
+            ["entityId"] = "texts", ["recordId"] = "over-cap", ["values"] = new { a = new string('ø', 16 * 1024 + 1) }, ["idempotencyKey"] = "over-cap",
+        });
+        Assert.IsTrue(over.IsError);
+        StringAssert.Contains(Text(over), "NENDO_VALUE_TOO_LARGE: The value of a is 32770 bytes, and a value may hold at most 32768", StringComparison.Ordinal);
+
+        var ascii = new string('x', 30 * 1024);
+        await CallAsync<NendoDataApplyResult>(client, "nendo.data.create_record", new(session)
+        {
+            ["entityId"] = "texts", ["recordId"] = "two", ["values"] = new { a = ascii, b = ascii }, ["idempotencyKey"] = "two",
+        });
+        var three = await client.CallToolAsync("nendo.data.create_record", new Dictionary<string, object?>(session)
+        {
+            ["entityId"] = "texts", ["recordId"] = "three", ["values"] = new { a = ascii, b = ascii, c = ascii }, ["idempotencyKey"] = "three",
+        });
+        Assert.IsTrue(three.IsError);
+        StringAssert.Contains(Text(three), "NENDO_VALUES_TOO_LARGE: The values of this write hold more than 65536 bytes together", StringComparison.Ordinal);
+    }
+
+    /// <summary>W-165: a tool call over the request body cap is a refused tool result under its own id, not a transport failure.</summary>
+    [TestMethod]
+    public async Task AToolCallOverTheBodyCapIsARefusedToolResult()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareTextsAsync(workspace);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        var chunk = new string('x', 30 * 1024);
+        var writes = Enumerable.Range(0, 10).Select(index => new
+        {
+            kind = "create", entityId = "texts", recordId = $"big-{index}", values = new { a = chunk },
+        }).ToArray();
+
+        var refused = await client.CallToolAsync("nendo.data.apply_writes", new Dictionary<string, object?>(session)
+        {
+            ["writes"] = writes, ["idempotencyKey"] = "too-big",
+        });
+        Assert.IsTrue(refused.IsError, JsonSerializer.Serialize(refused));
+        StringAssert.Contains(Text(refused), "NENDO_REQUEST_TOO_LARGE: This request body is", StringComparison.Ordinal);
+        StringAssert.Contains(Text(refused), "this host reads at most 262144 (limits.requestBodyBytes)", StringComparison.Ordinal);
+        Assert.IsNotNull(refused.Meta);
+        Assert.AreEqual("NENDO_REQUEST_TOO_LARGE",
+            refused.Meta[NendoToolRefusal.MetaKey]!["code"]!.GetValue<string>());
+
+        // The connection is still usable afterwards.
+        await CallAsync<NendoDataApplyResult>(client, "nendo.data.create_record", new(session)
+        {
+            ["entityId"] = "texts", ["recordId"] = "after", ["values"] = new { a = "fine" }, ["idempotencyKey"] = "after",
+        });
+    }
+
+    private static async Task PrepareTextsAsync(LocalMcpTestWorkspace workspace)
+    {
+        await workspace.CreateEmptyAsync();
+        var schema = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest(
+            $"proposal-{Guid.NewGuid():N}", "Texts", "test",
+            new([new("test", "schema", "test", "Texts", [
+                new CreateEntityOperation("texts", "texts", "Texts", "texts"),
+                new AddFieldOperation("t-a", "texts", "a", "A", "a", NendoStorageKind.Text, false),
+                new AddFieldOperation("t-b", "texts", "b", "B", "b", NendoStorageKind.Text, false),
+                new AddFieldOperation("t-c", "texts", "c", "C", "c", NendoStorageKind.Text, false),
+            ])])));
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(schema.ProposalId)).Applied, JsonSerializer.Serialize(schema.Diagnostics));
+    }
+
     internal static NendoAgentMutationInput EntityMutation(string entityId) => new($"Create {entityId}",
     [
         new NendoAgentOperationInput("schema.createEntity", JsonSerializer.SerializeToElement(new { entityId, displayName = entityId })),

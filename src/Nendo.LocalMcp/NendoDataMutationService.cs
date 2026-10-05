@@ -12,8 +12,8 @@ internal sealed class NendoDataMutationService(
     NendoImportService imports)
 {
     private static readonly int MaximumValueMapEntries = NendoAuthoringLimits.Current.ValuesPerRecord;
-    private const int MaximumValueMapBytes = 64 * 1024;
-    private const int MaximumValueBytes = 32 * 1024;
+    private static readonly int MaximumValueMapBytes = NendoAuthoringLimits.Current.RecordValuesBytes;
+    private static readonly int MaximumValueBytes = NendoAuthoringLimits.Current.RecordValueBytes;
 
     internal async Task<NendoDataOutcome> GetReceiptAsync(string receiptContext, string? idempotencyKey, string? proposalId,
         CancellationToken cancellationToken)
@@ -425,7 +425,7 @@ internal sealed class NendoDataMutationService(
                         recordId,
                         fieldId,
                         expectedRecordVersion,
-                        ReadValue(value.Element),
+                        ReadValue(value.Element, fieldId),
                         Context(applicationHandle, idempotencyKey), expectedTargetRecordVersion),
                     cancellationToken),
                 entityId, [recordId],
@@ -666,14 +666,16 @@ internal sealed class NendoDataMutationService(
 
     private static Dictionary<string, object?> ReadValueMap(JsonElement values)
     {
-        if (values.ValueKind != JsonValueKind.Object ||
-            Encoding.UTF8.GetByteCount(values.GetRawText()) > MaximumValueMapBytes)
+        if (values.ValueKind != JsonValueKind.Object)
         {
             throw new NendoValidationException(
-                "Record values must be a bounded JSON object.");
+                "Record values must be a JSON object keyed by field ID.");
         }
 
+        // Counted as stored, not as sent: a client whose serializer escapes ø as ø was
+        // refused at a third of the size a client sending it raw could write (W-165).
         var result = new Dictionary<string, object?>(StringComparer.Ordinal);
+        var total = 0L;
         foreach (var property in values.EnumerateObject())
         {
             if (result.Count == MaximumValueMapEntries)
@@ -682,16 +684,31 @@ internal sealed class NendoDataMutationService(
                     $"A record may contain at most {MaximumValueMapEntries} submitted values.");
             }
             NendoText.RequireText(property.Name, "field ID", 200);
-            result.Add(property.Name, ReadValue(property.Value));
+            var value = ReadValue(property.Value, property.Name);
+            total += StoredBytes(property.Value);
+            if (total > MaximumValueMapBytes)
+            {
+                throw new NendoPreconditionException("values-too-large",
+                    $"The values of this write hold more than {MaximumValueMapBytes} bytes together, the most one write may " +
+                    $"hold (limits.recordValuesBytes); {total} bytes were counted by {property.Name}. Split the fields over more writes.");
+            }
+            result.Add(property.Name, value);
         }
         return result;
     }
 
-    private static JsonElement ReadValue(JsonElement value)
+    /// <summary>The UTF-8 bytes a value holds as stored: a string's own text, anything else its JSON text.</summary>
+    private static long StoredBytes(JsonElement value) => value.ValueKind == JsonValueKind.String
+        ? Encoding.UTF8.GetByteCount(value.GetString()!)
+        : Encoding.UTF8.GetByteCount(value.GetRawText());
+
+    private static JsonElement ReadValue(JsonElement value, string fieldId)
     {
-        if (Encoding.UTF8.GetByteCount(value.GetRawText()) > MaximumValueBytes)
+        if (StoredBytes(value) is var size && size > MaximumValueBytes)
         {
-            throw new NendoValidationException("A submitted value is too large.");
+            throw new NendoPreconditionException("value-too-large",
+                $"The value of {fieldId} is {size} bytes, and a value may hold at most {MaximumValueBytes} " +
+                "(limits.recordValueBytes, UTF-8 bytes of the text as stored). Shorten it or keep the full text outside the file.");
         }
         if (value.ValueKind == JsonValueKind.Object) value = NendoNumericEnvelope.Decode(value);
         if (value.ValueKind is JsonValueKind.Object or JsonValueKind.Array or JsonValueKind.Undefined)

@@ -237,7 +237,7 @@ public sealed class InputSchemaContractTests
             ["values"] = "not a map",
             ["idempotencyKey"] = "shape-values",
         });
-        StringAssert.Contains(values, "NENDO_INVALID_REQUEST: Record values must be a bounded JSON object.");
+        StringAssert.Contains(values, "NENDO_INVALID_REQUEST: Record values must be a JSON object keyed by field ID.");
 
         var value = await RefusalAsync(client, "nendo.data.set_field", new(owned)
         {

@@ -113,6 +113,8 @@ internal static class NendoToolErrors
             "field-sequence-invalid", "field-sequence-unchanged", "field-sequence-in-use",
             // W-153: an undo's refusals name a revision by ID and say whose it is, nothing stored.
             "revision-not-found", "not-an-undo", "revision-not-yours",
+            // W-165: a size refusal names the field the caller sent, the cap and the measured size.
+            "value-too-large", "values-too-large",
         ], StringComparer.Ordinal);
 
     // These authoring messages are written here and carry only bounded counters and

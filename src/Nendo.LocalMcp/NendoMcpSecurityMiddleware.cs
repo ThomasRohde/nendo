@@ -1,12 +1,22 @@
 using System.Net;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http;
+using Nendo.Engine;
 
 namespace Nendo.LocalMcp;
 
 internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
 {
-    internal const long MaximumRequestBodyBytes = 256 * 1024;
+    internal static readonly long MaximumRequestBodyBytes = NendoAuthoringLimits.Current.RequestBodyBytes;
+
+    /// <summary>
+    /// How much of an oversized body is read to find the JSON-RPC id it should be answered under.
+    /// A client may write the id after the arguments, so the scan reads to the end; past this it
+    /// stops, and the body is refused as a plain HTTP 413.
+    /// </summary>
+    internal const long EnvelopeScanBytes = 16L * 1024 * 1024;
     // 32 leaves eighteen levels over the deepest published example; 16 left two, so an
     // automatic action one level richer than the examples was refused (F-182).
     internal const int MaximumJsonDepth = 32;
@@ -51,7 +61,10 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
         }
         if (context.Request.ContentLength > MaximumRequestBodyBytes)
         {
-            await RejectTooLargeAsync(context);
+            var envelope = context.Request.ContentLength <= EnvelopeScanBytes
+                ? await new EnvelopeScanner().ScanAsync(context.Request.Body, 0, context.RequestAborted)
+                : default;
+            await RejectTooLargeAsync(context, envelope, context.Request.ContentLength);
             return;
         }
         // Counted before the body is read: a request still sending its body holds a place,
@@ -106,15 +119,20 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
                 : 0);
         try
         {
-            try
+            var chunk = new byte[16 * 1024];
+            var total = 0L;
+            while (await originalBody.ReadAsync(chunk, context.RequestAborted) is var read and > 0)
             {
-                await using var limited = new SizeLimitedReadStream(originalBody, MaximumRequestBodyBytes);
-                await limited.CopyToAsync(buffered, context.RequestAborted);
-            }
-            catch (RequestBodyTooLargeException)
-            {
-                await RejectTooLargeAsync(context);
-                return;
+                total += read;
+                if (total > MaximumRequestBodyBytes)
+                {
+                    var scanner = new EnvelopeScanner();
+                    scanner.Feed(buffered.GetBuffer().AsSpan(0, (int)buffered.Length));
+                    scanner.Feed(chunk.AsSpan(0, read));
+                    await RejectTooLargeAsync(context, await scanner.ScanAsync(originalBody, total, context.RequestAborted), null);
+                    return;
+                }
+                buffered.Write(chunk, 0, read);
             }
 
             if (buffered.Length > 0)
@@ -227,11 +245,49 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
             string.IsNullOrEmpty(origin.UserInfo);
     }
 
-    private static Task RejectTooLargeAsync(HttpContext context) => RejectAsync(
-        context,
-        StatusCodes.Status413PayloadTooLarge,
-        "NENDO_REQUEST_TOO_LARGE",
-        $"Agent requests are limited to {MaximumRequestBodyBytes} bytes.");
+    /// <summary>
+    /// Refuses a body over the cap. A plain HTTP 413 reaches an MCP client as a transport failure,
+    /// so a request whose JSON-RPC id can be read from the head of the body is answered under that
+    /// id instead (W-165): a tool call as a refused tool result with the code in <c>_meta</c>, as
+    /// every other refusal, and anything else as a JSON-RPC error carrying the code.
+    /// </summary>
+    private static Task RejectTooLargeAsync(HttpContext context, Envelope envelope, long? length)
+    {
+        var message = (length is { } bytes ? $"This request body is {bytes} bytes, and " : "This request body is larger than ") +
+            $"this host reads at most {MaximumRequestBodyBytes} (limits.requestBodyBytes). Send fewer writes per call; a write's " +
+            "values are bounded by limits.recordValueBytes per value and limits.recordValuesBytes per write.";
+        if (envelope.Id is null) return RejectAsync(context, StatusCodes.Status413PayloadTooLarge, "NENDO_REQUEST_TOO_LARGE", message);
+        const string code = "NENDO_REQUEST_TOO_LARGE";
+        var response = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = envelope.Id };
+        if (envelope.Method == "tools/call")
+        {
+            response["result"] = new JsonObject
+            {
+                ["content"] = new JsonArray(new JsonObject
+                {
+                    ["type"] = "text",
+                    ["text"] = $"An error occurred invoking '{envelope.ToolName ?? "the tool"}': {code}: {message}",
+                }),
+                ["isError"] = true,
+                ["_meta"] = new JsonObject
+                {
+                    [NendoToolRefusal.MetaKey] = JsonSerializer.SerializeToNode(new NendoToolRefusal(code, message), NendoMcpJson.Options),
+                },
+            };
+        }
+        else
+        {
+            response["error"] = new JsonObject
+            {
+                ["code"] = -32600,
+                ["message"] = $"{code}: {message}",
+                ["data"] = JsonSerializer.SerializeToNode(new NendoToolRefusal(code, message), NendoMcpJson.Options),
+            };
+        }
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        context.Response.ContentType = "application/json";
+        return context.Response.WriteAsync(response.ToJsonString(), Encoding.UTF8);
+    }
 
     private static async Task RejectAsync(
         HttpContext context,
@@ -244,78 +300,97 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
         await context.Response.WriteAsJsonAsync(new { error = code, message });
     }
 
-    private sealed class RequestBodyTooLargeException : IOException;
+    /// <summary>The id, method and tool name of a JSON-RPC request; any is null when the body did not carry it.</summary>
+    internal readonly record struct Envelope(JsonNode? Id, string? Method, string? ToolName);
 
-    private sealed class SizeLimitedReadStream(Stream inner, long maximumBytes) : Stream
+    /// <summary>
+    /// Reads a JSON-RPC request's id, method and tool name from a body fed in pieces, without
+    /// keeping the body: only a token cut by a piece's end is carried to the next.
+    /// </summary>
+    internal sealed class EnvelopeScanner
     {
-        private long _bytesRead;
+        private JsonReaderState _state = new(new JsonReaderOptions { MaxDepth = MaximumJsonDepth });
+        private byte[] _carry = [];
+        private string? _property;
+        private bool _inParams;
+        private bool _failed;
+        private JsonNode? _id;
+        private string? _method;
+        private string? _tool;
 
-        public override bool CanRead => inner.CanRead;
-        public override bool CanSeek => false;
-        public override bool CanWrite => false;
-        public override long Length => throw new NotSupportedException();
-        public override long Position
+        internal Envelope Result => new(_id, _method, _tool);
+
+        private bool Done => _failed || (_id is not null && _method is not null && (_method != "tools/call" || _tool is not null));
+
+        /// <summary>Feeds the rest of <paramref name="body"/> until the envelope is known, the body ends or the scan cap is reached.</summary>
+        internal async Task<Envelope> ScanAsync(Stream body, long alreadyRead, CancellationToken cancellationToken)
         {
-            get => _bytesRead;
-            set => throw new NotSupportedException();
-        }
-
-        public override int Read(byte[] buffer, int offset, int count)
-        {
-            var read = inner.Read(buffer, offset, Limit(count));
-            Count(read);
-            return read;
-        }
-
-        public override int Read(Span<byte> buffer)
-        {
-            var read = inner.Read(buffer[..Limit(buffer.Length)]);
-            Count(read);
-            return read;
-        }
-
-        public override async ValueTask<int> ReadAsync(
-            Memory<byte> buffer,
-            CancellationToken cancellationToken = default)
-        {
-            var read = await inner.ReadAsync(buffer[..Limit(buffer.Length)], cancellationToken);
-            Count(read);
-            return read;
-        }
-
-        public override async Task<int> ReadAsync(
-            byte[] buffer,
-            int offset,
-            int count,
-            CancellationToken cancellationToken)
-        {
-            var read = await inner.ReadAsync(buffer.AsMemory(offset, Limit(count)), cancellationToken);
-            Count(read);
-            return read;
-        }
-
-        public override void Flush() => throw new NotSupportedException();
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-
-        private int Limit(int requested)
-        {
-            var remainingThroughFailureByte = maximumBytes - _bytesRead + 1;
-            if (remainingThroughFailureByte <= 0)
+            var chunk = new byte[16 * 1024];
+            var total = alreadyRead;
+            try
             {
-                throw new RequestBodyTooLargeException();
+                while (!Done && total < EnvelopeScanBytes &&
+                    await body.ReadAsync(chunk, cancellationToken) is var read and > 0)
+                {
+                    total += read;
+                    Feed(chunk.AsSpan(0, read));
+                }
             }
-            return (int)Math.Min(requested, remainingThroughFailureByte);
+            catch (IOException)
+            {
+            }
+            return Result;
         }
 
-        private void Count(int read)
+        internal void Feed(ReadOnlySpan<byte> piece)
         {
-            _bytesRead += read;
-            if (_bytesRead > maximumBytes)
+            if (Done) return;
+            var buffer = _carry.Length == 0 ? piece.ToArray() : [.. _carry, .. piece];
+            var reader = new Utf8JsonReader(buffer, isFinalBlock: false, _state);
+            try
             {
-                throw new RequestBodyTooLargeException();
+                while (!Done && reader.Read()) Take(ref reader);
             }
+            catch (JsonException)
+            {
+                _failed = true;
+                return;
+            }
+            _state = reader.CurrentState;
+            _carry = buffer[(int)reader.BytesConsumed..];
+        }
+
+        private void Take(ref Utf8JsonReader reader)
+        {
+            if (reader.TokenType == JsonTokenType.PropertyName)
+            {
+                _property = reader.GetString();
+                return;
+            }
+            if (reader.CurrentDepth == 1)
+            {
+                switch (_property)
+                {
+                    case "id" when reader.TokenType == JsonTokenType.Number:
+                        _id = reader.TryGetInt64(out var number) ? JsonValue.Create(number) : JsonValue.Create(reader.GetDouble());
+                        break;
+                    case "id" when reader.TokenType == JsonTokenType.String:
+                        _id = JsonValue.Create(reader.GetString());
+                        break;
+                    case "method" when reader.TokenType == JsonTokenType.String:
+                        _method = reader.GetString();
+                        break;
+                    case "params" when reader.TokenType == JsonTokenType.StartObject:
+                        _inParams = true;
+                        break;
+                }
+                if (reader.TokenType == JsonTokenType.EndObject) _inParams = false;
+            }
+            else if (reader.CurrentDepth == 2 && _inParams && _property == "name" && reader.TokenType == JsonTokenType.String)
+            {
+                _tool = reader.GetString();
+            }
+            _property = null;
         }
     }
 }

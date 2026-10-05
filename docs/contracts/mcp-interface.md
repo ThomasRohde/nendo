@@ -166,7 +166,16 @@ in this way.
 [Output schema contract tests](../../tests/Nendo.LocalMcp.Tests/OutputSchemaContractTests.cs)
 call every declared tool and check its payload against its own declared schema.
 
-Host/Origin/address/body checks occur before dispatch. A body is at most 256 KiB and
+Host/Origin/address/body checks occur before dispatch. A body is at most 256 KiB
+(`limits.requestBodyBytes`). A larger one whose JSON-RPC `id` the host can read in its first
+16 MiB is answered under that id rather than as a bare HTTP 413, which a client reports
+as a transport failure (W-165): a `tools/call` as a refused tool result carrying
+`NENDO_REQUEST_TOO_LARGE` in text and `_meta`, anything else as a JSON-RPC `-32600` error
+with the code. Inside a record write, one value holds at most `limits.recordValueBytes`
+(32 KiB) and one write's values together `limits.recordValuesBytes` (64 KiB), counted as
+UTF-8 bytes of the value as stored: a string's own text, not its JSON escapes, which the
+.NET client SDK writes for every non-ASCII character. Over them is `NENDO_VALUE_TOO_LARGE`
+or `NENDO_VALUES_TOO_LARGE`, naming the field, the cap and the size. A body
 nests at most 32 levels; a deeper one is `NENDO_INVALID_JSON` naming its depth and
 the cap. The cap was 16 until 2026-09-27, two levels over the deepest published
 example, and `ThePublishedExamplesLeaveRoomUnderTheDepthCap` now holds eight levels of
