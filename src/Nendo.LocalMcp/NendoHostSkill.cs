@@ -23,6 +23,12 @@ internal static class NendoHostSkill
     internal const string Root = "skill://" + Name;
     internal const string SkillUri = Root + "/SKILL.md";
     internal const string ReferencesRoot = Root + "/references";
+
+    /// <summary>
+    /// The public guide that names the discovery folder. The protocol itself carries no path of any
+    /// kind, the host's own folders included, so the text points there instead (W-169).
+    /// </summary>
+    internal const string AgentsGuide = "https://thomasrohde.github.io/nendo/docs/agents";
     internal const string DescriptionText =
         "Author a Nendo file over its local MCP: which read answers which question, the lease and the receipt, how a change set becomes a proposal, and the refusals to expect.";
 
@@ -130,9 +136,10 @@ internal static class NendoHostSkill
         text.Append("## Finding the file's address\n\n");
         text.Append("Each open file has an address of its own. A file keeps its port on this device: 41763 for the first, the next free one for each further file, ");
         text.Append("unless the person chose another in Nendo under Agent → Connection or the port was taken, when that session uses a temporary one. ");
-        text.Append("Every running Nendo writes one JSON entry per open file to `%LOCALAPPDATA%\\Nendo\\Mcp\\active\\`, readable by this Windows user only, with its ");
-        text.Append("`endpoint`, `displayName` (the file's name, never its path), `applicationId`, `instanceId`, access `mode` and `processId`. ");
-        text.Append("A tool can read that directory before it connects to find which address has a given file open. Once connected, `nendo://host/instances` lists the same entries.\n\n");
+        text.Append("Every running Nendo also lists itself in a folder of this Windows user's local application data, one JSON entry per open file with its ");
+        text.Append("`endpoint`, `displayName` (the file's name, never its location), `applicationId`, `instanceId`, access `mode` and `processId`, ");
+        text.Append("so a tool can find which address has a given file open before it connects. The guide for agents names the folder: ").Append(AgentsGuide).Append(". ");
+        text.Append("Once connected, `nendo://host/instances` lists the same entries.\n\n");
         text.Append("## Before writing\n\n");
         text.Append("Call `nendo.lease.acquire` with an `idempotencyKey`; keep `applicationHandle` private and pass it with `leaseId` on every owned call. ");
         text.Append("Save `receiptContext`: after a lost response, `nendo.data.get_receipt` reads the original outcome, and an unresolved receipt is not permission to resubmit under a new key. ");
