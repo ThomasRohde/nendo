@@ -189,79 +189,44 @@ replacement. If a Git worktree is used, its repository configuration can reach
 the same host. The connected application identity decides which file an agent
 would edit. The worktree-relative artifact path does not decide this.
 
-### Shared-work handoff
+### The planner's own skill
 
-At task start, name the stable Work item ID in the development conversation.
-Read its status, criteria, sources, Findings and Checks. Work that is already
-Doing is not implicitly free to take over. For the same scope, follow an
-explicit user/task handoff. If there is no such handoff, choose authorized
-independent work. The planner is not a multi-agent job scheduler, and it has no
-hidden ownership/claim mechanism.
+Since 2026-10-05 (W-160, [ADR-0024](decisions/0024-a-file-carries-its-own-agent-skill.md))
+the planner carries the rules for working in it as a skill package, `dev.nendo.planner`.
+A client that speaks the Skills extension lists it beside `nendo-authoring` and reads it
+at `skill://dev.nendo.planner/SKILL.md`; any client can read that resource. It covers the
+record types, finding a record by its Reference, leaving Reference empty on a create,
+decision standing, the lanes, the `pl.cmd.*` commands, the evidence rules, the lease and
+what a handoff writes. **Read it there rather than here**: this document keeps the
+history and what only the repository knows.
 
-Acquire the single edit lease only for bounded planner writes. Release it while
-you do code work or tests. A released lease does not mean that its work item is
-unclaimed. If the other client holds the lease, continue independent read/code
-work, and retry after release. Never revoke the lease for convenience, and never
-widen authority. After you reacquire the lease, use current record versions.
-Reconcile conflicts; do not overwrite the other client's edits.
+Its source is [`tools/planner-skill/`](../tools/planner-skill/SKILL.md). To change it,
+edit the source and propose it with
+`node tools/Put-NendoPackage.mjs tools/planner-skill --endpoint http://127.0.0.1:41766/mcp`;
+the owner accepts it like any proposal, and only what differs is sent. The package in the
+file is what agents read, so a source edit that was never accepted changes nothing.
 
-At handoff, update the work status and linked Checks. Include these items in the
-task's handoff:
-
-- the work ID;
-- the client name (Codex or Claude Code);
-- the branch/worktree, when relevant;
-- the changed paths;
-- the exact commands/outcomes;
-- new Findings;
-- the next action.
-
-If technical implementation notes help the next client, put them in the work
-description. Put measured results in Checks. Do not store handles, credentials
-or lease tokens in either place. Release editing authority before you hand
-over.
+What the repository adds to a handoff: name the branch or worktree when one is used, and
+stage explicit paths, because concurrent sessions share the checkout.
 
 ### Short references
 
-Use **Reference + title** in conversation and handoffs, for example **W-001 —
-Build and qualify Nendo Development**. The required stored Reference field uses
-`W-` for work, `I-` for initiatives, `F-` for findings and `C-` for checks.
-The 108 records that the file held at definition revision 26 received distinct
-codes through an accepted proposal at that revision. This count is later than
-the 97 records of the 2026-09-15 import (see
-[Initial inventory and source reconciliation](#initial-inventory-and-source-reconciliation)),
-and it includes records created after the import. That proposal added four fields, for a total of 46
-stored fields. W-002 is S4 Overview, I-001 is Develop Nendo in Nendo, and F-001
-tracks this reference improvement. Numbers identify records. They do not
-indicate priority.
-
-The main lists, boards, gallery and detail forms show the field. To locate a
-record exactly, use Studio's Reference filter, or over MCP read the records resource
-with a `filter` on the `.ref` field (one call, one record). Before you write,
-resolve the code to its semantic record ID and current version. Native
-relationship pickers still search the configured title field and show internal
-IDs. A short code typed there is not a promised lookup path. Calendar/timeline
-cards keep their concise fields. To see the reference, open the record.
+The skill says how to name and find a record. The history: the 108 records the file
+held at definition revision 26 received distinct codes through an accepted proposal at
+that revision, later than the 97 records of the 2026-09-15 import (see
+[Initial inventory and source reconciliation](#initial-inventory-and-source-reconciliation)).
+That proposal added four fields, for 46 stored fields. W-002 is S4 Overview, I-001 is
+Develop Nendo in Nendo, and F-001 tracked the improvement. Native relationship pickers
+search the configured title field, so a code typed there is not a promised lookup path.
 
 ### Reference codes are numbered by Nendo
 
-**Leave Reference empty when you create a record.** Since 2026-09-27 the Reference field
-of Work items, Findings, Checks and Initiatives is unique and numbered
-([ADR-0020](decisions/0020-unique-and-generated-fields.md), W-074): Nendo gives a new record
-the next code for its type (`W-`, `F-`, `C-` or `I-` and at least three digits) when it
-is saved. `nendo.data.create_record` returns the code under `assigned`; a form says
-*Assigned when saved*. Do not scan a type for its highest code first. The number carries
-on after the highest code of that shape, and a number is never given out twice, even
-after its record is deleted.
-
-A CSV import (`nendo.data.import_records`, or the person's own Import) may leave the Reference
-column out, or its cells empty, and every row receives the next code (since 2026-10-04,
-F-259; before, the column had to be mapped and only an empty-text cell was accepted).
-
-A code you type is kept if no other record of the type holds it; a duplicate is refused
-with `value-not-unique`, whoever writes it. Nothing stops a code being changed later, so
-when titles, priorities or relationships change, keep codes unchanged. Retain historical
-records (use Done, Dropped or Resolved as appropriate) rather than deleting them.
+Since 2026-09-27 the Reference field of Work items, Findings, Checks and Initiatives is
+unique and numbered ([ADR-0020](decisions/0020-unique-and-generated-fields.md), W-074). The
+number carries on after the highest code of that shape and is never given out twice, even
+after its record is deleted; a duplicate is refused with `value-not-unique`, whoever writes
+it. A CSV import may leave the Reference column out, or its cells empty, and every row
+receives the next code (since 2026-10-04, F-259).
 
 Before numbering, the file held five finding codes twice, each written by a client that
 had scanned for the highest code. On 2026-09-27 one record of each pair was renumbered:
@@ -336,40 +301,11 @@ acceptance remains the person's action, also after a reconnect.
 
 ## Record types and daily use
 
-| Entity ID | Purpose | Important relationships |
-| --- | --- | --- |
-| `nd.initiative` | Outcome, product area, status (Active, Paused, Closed), optional target, sources and last reviewed | Work points here |
-| `nd.work` | Brief, acceptance criteria, horizon, execution, decision standing and dates | `nd.work.initiative` -> initiative; `nd.work.parent` -> work (Part of); `nd.work.decision` -> decision |
-| `nd.finding` | Observation, context, severity, disposition, source, and the guard with its falsification | Optional `nd.finding.work` -> work |
-| `nd.decision` | Question, options, recommendation, what was decided and when, and sources | Work that waits on it points here |
-| `nd.check` | Expected/actual result, method, outcome, procedure and environment | Required `nd.check.work` -> work |
-| `nd.link` | One dependency between two work items, with an optional note | Required `nd.link.from` (blocker) and `nd.link.to` (blocked item) -> work |
-
-Fields carry the same prefix, for example `nd.work.title`, `nd.work.status` and
-`nd.check.actual`. Record identity is the record type plus record ID; the planner
-uses distinct prefixed IDs across its types. Initial records have names such as
-`nd.work.r.s4` and similar stable slugs. Future agents should choose a
-descriptive unique ID. They should not reuse an import key for a different
-record. Choices are their displayed strings. Exact numeric values retain the
-host's numeric envelopes.
-
-1. Read existing work and related records before you create a duplicate.
-2. Use **Now / Next / Later** for scheduling intent on open work; closed work has
-   none. Use **Inbox, Ready, Doing, Blocked, Review, Done, Dropped** for execution. Planning order is a stored
-   number. Optional value/effort ratings inform discussion and never choose
-   work.
-3. Read **Decision standing** and the linked repository sources. **Within
-   accepted scope** does not replace the ADR or authorize a push, release or
-   publication.
-4. Record observations as Findings and exact outcomes as Checks. A Finding's
-   disposition is **Untriaged, Investigating, Tracked in work, Accepted limitation**
-   or **Resolved**; the reported-broken loop's guard and its falsification text go in
-   its **Guard and its falsification** field. Select
-   **Automated**, **Agent-observed** or **Owner-reported** independently of
-   **Not run**, **Passed**, **Failed**, **Blocked** or **Accepted exception**.
-5. When the results of work are ready to assess, send it to Review. Complete it
-   only after you check the acceptance evidence. A passed check never completes
-   work by itself. Incomplete and blocked lanes remain explicit.
+The skill has the record types, the lanes and the evidence rules. Record identity is the
+record type plus record ID; the planner uses distinct prefixed IDs across its types, such
+as `nd.work.r.s4`. Choose a descriptive unique ID, and never reuse an import key for a
+different record. `nd.link` holds one dependency (`nd.link.from` blocks `nd.link.to`),
+drawn by the Dependencies screen.
 
 On a work page, the related Findings and Checks carry **Add Check** and **Add
 Finding** beside their headings. Each row opens the record that it names
@@ -379,10 +315,8 @@ versioned, so you do not have to find the reference in the picker. Save returns
 to the work page, with the new record in the list. When you open a row, Nendo
 moves to that record's page and offers one step back to the work item.
 
-Leave Reference empty: Nendo gives the record its code when you save (see
-[Reference codes are numbered by Nendo](#reference-codes-are-numbered-by-nendo)). **C-044 remains an
-Owner-reported Accepted exception and must not be converted into a pass**: it
-records what was true when W-001 closed.
+**C-044 remains an Owner-reported Accepted exception and must not be converted into a
+pass**: it records what was true when W-001 closed.
 
 If Use still shows an older version after an MCP edit, leave it for Agent or
 Studio. Then return to Use before you repeat a write. During setup closure, this
@@ -404,21 +338,8 @@ populated. Exercise artificial/failure scenarios on a disposable copy.
 
 ### Commands
 
-| Command | Command ID | Effect |
-| --- | --- | --- |
-| Plan now | `pl.cmd.planNow` | Horizon Now; status Ready |
-| Start | `pl.cmd.start` | Status Doing; start date today |
-| Send to review | `pl.cmd.review` | Status Review |
-| Complete | `pl.cmd.complete` | Status Done; completion date today; horizon cleared |
-| Drop | `pl.cmd.drop` | Status Dropped; horizon cleared |
-| Reopen | `pl.cmd.reopen` | Status Ready; completion date cleared; horizon Next |
-| Mark reviewed | `pl.cmd.reviewed` | Initiative's last-reviewed date today |
-| Decide | `pl.cmd.decide` | Decision status Decided; decided date today |
-
-These are explicit convenience edits. They are not a guarded state machine. A
-repeated Start resets its date by design. The old file's IDs
-(`nd.screen.work-start.root` and the rest) do not exist here. Read the IDs from the
-compiled surfaces rather than from a button label.
+The skill lists the eight `pl.cmd.*` commands and what each sets. The old file's IDs
+(`nd.screen.work-start.root` and the rest) do not exist here.
 
 ## Screens and calculations
 

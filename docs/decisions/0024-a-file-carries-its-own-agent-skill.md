@@ -108,8 +108,10 @@ Built 2026-10-05 as W-160, at host 1.43.0: the kind, the refusals (`NPROP012` at
 an entry point refused where it is sent, `NUI454` for a view that names a skill), the
 listing and `skill://{packageId}/{+path}`, and Studio's card. `skills/list` became
 `private` with TTL 0, since it follows the open file; the host skill's own read keeps its
-hour. The planner's own skill is still to be proposed into `workspace/Planner.nendo`, which
-needs an installed host of this build.
+hour. The planner's own skill, `dev.nendo.planner` from `tools/planner-skill/`, was accepted
+into `workspace/Planner.nendo` on 2026-10-05 on the installed host of this build: `skills/list`
+names it beside `nendo-authoring`, and every file it serves matches its listed size and digest
+(C-482). `docs/dogfooding.md` now points at it instead of restating its rules.
 
 - The build (a work item under this ADR, Later) delivers: `kind` on `extension.setPackage`
   and the vocabulary; refusal at validate of an entry point or missing frontmatter on a
