@@ -35,9 +35,9 @@ You set the level on the Agent page. Each level includes everything that the lev
 | Level | What the agent may do | What it gets |
 | --- | --- | --- |
 | Off | Nothing. Nendo does not listen, and every lease ends. | No connection. |
-| Inspect | Read the whole file: structure, records, screens, history, health and waiting proposals. | The 18 resources. The tool list is empty. |
-| Edit data | Create, change, delete and import records, and run a screen's command. Writes go straight into the file and appear in History. | Adds 12 tools: `nendo.lease.*` (4), `nendo.data.*` (7) and `nendo.health.verify_integrity`. |
-| Shape app | Propose changes to record types, fields, screens, calculations and automatic actions. Proposals wait for you. | Adds 6 tools: `nendo.change_set.begin`, `add_operations`, `amend`, `validate`, `preview` and `reject`. |
+| Inspect | Read the whole file: structure, records, screens, history, health and waiting proposals. | The 23 resources. The tool list is empty. |
+| Edit data | Create, change, delete, import, move and undo records, and run a screen's command. Writes go straight into the file and appear in History. | Adds 17 tools: `nendo.lease.*` (4), `nendo.data.*` (12) and `nendo.health.verify_integrity`. |
+| Shape app | Propose changes to record types, fields, screens, calculations and automatic actions. Proposals wait for you. | Adds 7 tools: `nendo.change_set.begin`, `add_operations`, `amend`, `validate`, `revalidate`, `preview` and `reject`. |
 | Unattended | Accept its own proposals, and let the automatic actions they install run. | Adds 1 tool: `nendo.change_set.accept`. |
 
 At every level below Unattended, `nendo.change_set.accept` does not exist. A client that calls it by name gets an unknown-tool error. At those levels, only you accept a proposal.
@@ -51,6 +51,8 @@ Only one agent writes at a time. To write, an agent calls `nendo.lease.acquire`.
 
 Every write and every change-set call takes both. The agent must keep the handle private. If a second agent tries to acquire the lease, it gets `NENDO_LEASE_HELD`.
 
+The grant also carries a **receipt context**, an unprivileged value the agent saves before it writes, so it can read the outcome of a write whose answer was lost. An agent that sends an `idempotencyKey` with `nendo.lease.acquire` can repeat the call after a lost answer and receive the same grant instead of being refused against itself. One that released its lease, or lost it, takes it again under its earlier handle with `resumeApplicationHandle`: the proposals it validated, its pseudonym and its receipts are its own once more.
+
 By default the lease has no expiry. It ends when the agent releases it, when you select **Revoke edit access**, when you set access to Off, or when you close or switch the file. Closing the agent does not release it. If you want leases to lapse, turn on **Lease expiry** under **Agent → Connection** and set a time from 15 to 86,400 seconds. The agent must then call `nendo.lease.renew` within that time.
 
 `nendo.lease.status` needs no lease. It tells an agent who holds the lease, which is useful after a reconnect or a lost response.
@@ -59,23 +61,29 @@ The grant and the status both name the open file, and so do the first sentence o
 
 ## Reading the file
 
-Reads are MCP resources. They need no lease. Start with `nendo://application/describe`: one read returns what the file is for, its authoring limits, every record type with its fields, every compiled screen, health, and the address of every other read.
+Reads are MCP resources. They need no lease. Start with `nendo://application/describe`: one read returns what the file is for, its authoring limits, every record type with its fields and record count, every compiled screen, health, and the address of every other read. `describe?include=manifest,entities` returns the record types without the screens, and `nendo://application/entity/{entityId}` is the small first read for one type: its schema, record count and screens together.
 
 | Resource | What it returns |
 | --- | --- |
-| `nendo://application/describe` | The whole application in one read. |
-| `nendo://application/entity/{entityId}/schema` | One record type's fields, including calculated fields. |
-| `nendo://application/entity/{entityId}/records{?cursor,limit}` | A page of records, with exact numbers. |
+| `nendo://application/describe{?include}` | The whole application in one read, or the facets named. |
+| `nendo://application/entity/{entityId}` | One record type as a bundle: schema, record count and its screens. |
+| `nendo://application/entity/{entityId}/schema` | One record type's fields, including calculated fields, and which are unique or numbered by Nendo. |
+| `nendo://application/entity/{entityId}/records{?cursor,limit,recordId,sort,desc,filter}` | A page of records with exact numbers, or one record by ID, or the records a filter leaves, sorted. |
+| `nendo://application/entity/{entityId}/aggregate{?aggregate,fieldId,groupBy,rowBy,columnBy,dateFieldId,bucket,range,filter}` | An exact count, sum, min or max over the records a filter leaves: whole, per choice, as a grid of two choices, or per day, week, month, quarter or year. Nothing is paged. |
 | `nendo://application/entity/{entityId}/tree{?root,depth,cursor,limit}` | A record type kept as a tree, depth-first, each record with its parent, depth and number of children. |
 | `nendo://application/entity/{entityId}/export{?cursor,limit}` | A page of records as Nendo CSV, ready to import again. |
-| `nendo://application/surfaces` | Every compiled screen as a node tree. |
-| `nendo://application/vocabulary` | Everything this Nendo build accepts from an author: node kinds, operators, operations and their payloads, the behaviour catalogue and the limits. |
+| `nendo://application/surfaces` | Every compiled screen as a node tree, with the command IDs a screen's buttons run. |
+| `nendo://application/vocabulary` | Everything this Nendo build accepts from an author: node kinds, operators, operations and their payloads, the behaviour catalogue, the authoring rules and the limits. |
 | `nendo://application/examples` | Complete change sets that validate as they stand. |
-| `nendo://application/proposals` | Proposals that wait for you. |
+| `nendo://application/proposals` | Proposals that wait for you, each with the change set it came from and the agent that made it. |
+| `nendo://application/proposal/{proposalId}` | One proposal in full: its diff, diagnostics and what the file would hold. Its state is live: stale once the file moved under it, active once accepted. |
 | `nendo://application/history{?cursor,limit}` | Revision summaries. |
+| `skill://nendo-authoring/SKILL.md` | The authoring skill, for a client that speaks the Skills extension, with the vocabulary, the examples and the view API as its files. |
 | `nendo://host/instances` | Every running Nendo on this computer and the name of the file each has open. |
 
-The remaining four are the manifest, the list of record types, the operations of one revision, and health.
+The remaining six are the manifest, the list of record types, the operations of one revision, health, the custom-view packages the file carries with their files, and the custom-view API.
+
+A filter is a JSON array of clauses, each a field, an operator and a value, joined by *and*: the operators are `eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `isNull`, `isNotNull`, `contains` and, for a tree, `descendantOf`. The same filter serves the records read and the aggregate, so an agent finds one record by its code, or counts the open items per status, in one read rather than by paging a type.
 
 Records, export, history and revision operations are paged. `limit` is a whole number from 1 to 100. If the file changes between pages, the next page fails with `NENDO_STALE_CURSOR`. Start again from the first page.
 
@@ -87,17 +95,22 @@ At Edit data and above, the agent changes records with these tools:
 | --- | --- |
 | `nendo.data.create_record` | Creates one record. |
 | `nendo.data.create_records` | Creates 1 to 50 records of one type as one revision, all or nothing. |
-| `nendo.data.import_records` | Imports up to 500 rows from CSV text or JSON, committed 50 to a revision. If a later batch is refused, `NENDO_IMPORT_PARTIAL` names the committed and remaining counts, the first uncommitted row and the committed revisions. Retry the identical call and key to replay earlier batches without duplicates. Invalid CSV mappings or a mixed CSV/JSON payload are refused before writing. |
+| `nendo.data.import_records` | Imports up to 500 rows from CSV text or JSON, committed 50 to a revision. If a later batch is refused, `NENDO_IMPORT_PARTIAL` names the committed and remaining counts, the first uncommitted row and the committed revisions. Retry the identical call and key to replay earlier batches without duplicates. Invalid CSV mappings or a mixed CSV/JSON payload are refused before writing. A column that Nendo numbers, such as a Reference, may be left out: every row receives the next code. |
 | `nendo.data.set_field` | Sets one field on one record. |
-| `nendo.data.move_record` | Moves a record in a record type that is kept as a tree: under another parent, to the top level, or before a sibling. |
+| `nendo.data.update_record` | Sets up to 64 fields of one record as one revision, the way a form saves. |
+| `nendo.data.apply_writes` | Creates, updates and deletes up to 200 records across record types as one revision, all or nothing. A write may point at a record an earlier write in the same batch created. |
+| `nendo.data.undo_revision` | Undoes one record revision the agent's own session committed, as the compensation History makes: a new linked revision, nothing rewound. Undoing the compensation is redo. |
+| `nendo.data.move_record` | Moves a record in a record type that is kept as a tree: under another parent, to the top level, or before a sibling. When the siblings leave no room, the few around the new place are renumbered, and the answer names every record written. |
 | `nendo.data.set_kept_in_new_files` | Says whether a new file of the application keeps one record, leaves it out, or follows its record type. |
 | `nendo.data.delete_record` | Deletes one record. Refused while other records refer to it. |
 | `nendo.data.execute_command` | Runs a command that a screen defines. |
-| `nendo.data.get_receipt` | Reads the outcome of an earlier write. |
+| `nendo.data.get_receipt` | Reads the outcome of an earlier write, an import batch by batch, or an acceptance by its proposal. |
 
-Each record has a **version** that goes up by one with each change. A change or delete names the version the agent expects. If the record moved since the agent read it, the write fails with `NENDO_RECORD_VERSION_CONFLICT`. The agent reads the record again and retries.
+A reference field can be given as a **reference** rather than a record ID: the target named by its record ID, or by the value of one of its unique fields, such as a code. Nendo looks the record up and writes its ID and current version, so an agent that knows a task belongs to project `P1` writes that, and never pages the projects to find the ID.
 
-Each write carries an **idempotency key** that the agent chooses. A retry with the same key and the same request returns the original result and writes nothing twice. The same key with a different request fails with `NENDO_IDEMPOTENCY_CONFLICT`.
+Each record has a **version** that goes up by one with each change. A change or delete names the version the agent expects. If the record moved since the agent read it, the write fails with `NENDO_RECORD_VERSION_CONFLICT`. The agent reads the record again and retries. Every write answers with the version it left, and a command advances the record one version per step.
+
+Each write carries an **idempotency key** that the agent chooses. A retry with the same key and the same request returns the original result and writes nothing twice, even when a record the write referred to has changed in between. The same key with a different request fails with `NENDO_IDEMPOTENCY_CONFLICT`.
 
 A write returns the new record version and `alsoChanged`: the other records that an automatic action changed in the same revision. If a response is lost, the agent calls `nendo.data.get_receipt` with the `receiptContext` from its lease grant and the original key. A missing receipt means the outcome is unknown. It is not permission to try again with a new key.
 
@@ -112,21 +125,21 @@ At Shape app and above, the agent changes the application through a **change set
 3. `nendo.change_set.validate` replays the draft on a private copy of the file. If it is valid, it becomes a **proposal**. If it is not, the draft stays open with diagnostics: every independent mistake at once, up to five, each naming the operation it is about. A mistake that only follows from another, such as a field added to a record type that was refused, is not reported twice.
 4. `nendo.change_set.amend` replaces the tail of a draft after a failed validate, so the agent does not rebuild it.
 5. `nendo.change_set.preview` reads a proposal's summary and diff. `nendo.change_set.reject` discards a draft or proposal.
+6. `nendo.change_set.revalidate` validates a proposal's operations again at the file's current revision, as a new proposal under the same change set, after you accepted something else and the file moved under it. Nothing is merged; the operations are simply tried again.
 
-A change set holds at most 128 submitted operations in 32 mutations, and at most 512 after node properties expand. One session can have 8 open drafts.
+A change set holds at most 128 submitted operations in 32 mutations, and at most 512 after node properties expand. One session can have 8 open drafts and 16 proposals waiting.
 
-A proposal appears on the Agent page under **Pending changes**, with its title, the number of changes and how reversible they are. **Review changes** shows **What changes**, a line per change, and **What this builds**: record types, fields, screens and records as the file would be. **Accept changes** applies it. **Reject** leaves the file as it was. When you accept one proposal, other waiting proposals become stale, because they were made against the earlier file.
+A proposal appears on the Agent page under **Pending changes**, with its title, the number of changes and how reversible they are. **Review changes** shows **What changes**, a line per change, and **What this builds**: record types, fields, screens and records as the file would be. **Accept changes** applies it. **Reject** leaves the file as it was. When you accept one proposal, other waiting proposals become stale, because they were made against the earlier file. An agent reads the same proposal at `nendo://application/proposal/{proposalId}`, with no lease, and sees it turn stale or active; an accept answers with the revisions it committed, and `nendo.data.get_receipt` reads them again by the proposal's ID after a lost answer.
 
 When accepting a proposal involves the file's automatic actions, both the queue and the review say so before you accept. A proposal that sets off actions this computer has not approved asks you to approve them on the Agent page first, and **Accept changes** stays unavailable until you do. A proposal that changes the actions says that editing pauses after you accept, until you approve them again. A proposal that both changes the actions and sets them off cannot be accepted as it stands, and the review asks for the actions first and the records after. An agent reads the same facts in the proposal's `behaviour`.
 
-A change set may contain 29 operation types, and nothing else:
+A change set may contain 32 operation types, and nothing else:
 
-- `schema.*` (12): create, rename and retire record types and fields; make a field required; make a field unique, so no two records can share a value, and have Nendo number it (W-001, W-002…) when a record is created without one; configure a reference; name and colour a choice; keep a record type a tree, and stop keeping it one.
+- `schema.*` (13): create, rename and retire record types and fields; make a field required; make a field unique, so no two records can share a value, and have Nendo number it (W-001, W-002…) when a record is created without one; configure a reference; name and colour a choice; keep a record type a tree, and stop keeping it one; say whether a new file of the application keeps a record type's records.
 - `behaviour.setDefinition` and `behaviour.removeDefinition`: calculations, reusable functions, automatic actions and triggers.
-- `application.setPurpose`: say what the file is for.
-- `application.setLook`: give the file its own icon colour and letter, the badge that tells it apart from other open files.
+- `application.*` (3): say what the file is for; give the file its own icon colour and letter, the badge that tells it apart from other open files; name what a new file of it is called.
 - `ui.*` (4): add, set a property on, move and remove a screen node.
-- `data.*` (5): create, change and delete records, fill a value on a retired field, and convert an old text reference, carried in the same proposal.
+- `data.*` (6): create, change and delete records, mark one for a new file, fill a value on a retired field, and convert an old text reference, carried in the same proposal.
 - `extension.*` (4): put a custom view's code into the file as a package and its files, and take them out again. See [Custom views](/nendo/docs/custom-views).
 
 Restoring a deleted record and changing a file's identity are not available to an agent. `nendo://application/vocabulary` lists every operation with the fields it takes. `nendo://application/examples` holds 17 complete change sets, from a record type with required fields to a calculation with an automatic action and a custom view whose code the file carries. Each one is tested against the real authoring path. `nendo://application/view-api` is for an agent writing a custom view's code, and only then: every call the view's page can make, with a whole view to start from. For what a screen can contain, see [Screens](/nendo/docs/screens).
@@ -138,6 +151,16 @@ Unattended removes your review. The agent accepts its own proposals, and Nendo r
 When you select Unattended, Nendo asks you to confirm. The level is never remembered. It ends when you lower the level or close the file. Every change still appears in History, and you can withdraw the approval of automatic actions under Health.
 
 Use it while an agent builds a new file from nothing, where there is nothing yet to protect. Do not leave it on.
+
+## For clients that speak more of the protocol
+
+Everything above works with the standard MCP handshake. A client on the 2026-07-28 protocol revision can use three more things, and loses nothing if it does not.
+
+- **Listening.** `subscriptions/listen` on `nendo://application/proposals`, `manifest` and `health` tells the client when you accept or reject a proposal, when anything commits, and when the file closes. A client that cannot hold a stream polls instead.
+- **Tasks.** A client that declares the Tasks extension runs the three long calls as tasks it polls: `nendo.change_set.validate`, `nendo.data.import_records` and `nendo.health.verify_integrity`. Every other call, every write included, is answered at once whatever the client declares. A task never extends a lease.
+- **The skill.** A client that declares the Skills extension lists one skill, `nendo-authoring`: which read answers which question, the lease, the change-set loop, every operation and the refusals, with the vocabulary, the examples and the view API as its files, each with a digest the client can check. It says what this page says, from the Nendo build that serves it.
+
+Every refusal also travels as a structured object beside its text, under `io.github.thomasrohde.nendo/refusal` in the result's `_meta`, with the code, the sentence and, where a waiting proposal explains the refusal, that proposal's ID. A client reads the code there rather than from the text.
 
 ## While an agent works
 
@@ -152,7 +175,7 @@ A refused call returns `CODE: message`. The code is stable. The message names wh
 ```text
 NENDO_SHAPE_APP_REQUIRED: nendo.change_set.begin is served from Shape app, and this file session is at Edit data. Ask the person to raise agent access to Shape app on the Agent page in Nendo.
 NENDO_INVALID_REQUEST: nendo.data.create_records was not called. records[0] does not take 'expectedTargetVersionz'; a record takes recordId and values, and optionally expectedTargetVersions.
-NENDO_UNKNOWN_OPERATION: Operation type 'sql.execute' is not one this host implements; nendo://application/vocabulary lists the 29 it accepts under operations.
+NENDO_UNKNOWN_OPERATION: Operation type 'sql.execute' is not one this host implements; nendo://application/vocabulary lists the 32 it accepts under operations.
 ```
 
 The last one is the same for SQL as for a typing error. There is no other way in.
@@ -161,7 +184,9 @@ The last one is the same for SQL as for a typing error. There is no other way in
 
 - At Inspect: "Read nendo://application/describe and tell me what this file holds."
 - At Inspect: "List the record types, their fields and how many records each has."
+- At Inspect: "Count the Tasks per status, and show me the one whose code is T-042."
 - At Edit data: "Add three sample records to Tasks, then read them back."
+- At Edit data: "Import this CSV into Tasks, matching the Project column by project code."
 - At Shape app: "Propose a board of Tasks grouped by status. Keep the existing records, and wait for me to review."
 - At Shape app: "Propose a calculated field on Projects that counts its open tasks."
 
