@@ -18,6 +18,21 @@ import { WorkbenchHostError, emptySession, isObject } from './host-types';
  * Desktop host takes.
  */
 
+/** The filter operators the preview answers itself; the rest need the native host. */
+const previewOperators: ReadonlySet<string> = new Set(['contains', 'eq', 'ne', 'isNull', 'isNotNull']);
+
+/** One stored value against one clause, as plain values compare; a missing value matches only isNull. */
+export function previewMatches(stored: unknown, operator: string, value: unknown): boolean {
+  const empty = stored === null || stored === undefined || stored === '';
+  switch (operator) {
+    case 'isNull': return empty;
+    case 'isNotNull': return !empty;
+    case 'eq': return !empty && String(stored) === String(value);
+    case 'ne': return !empty && String(stored) !== String(value);
+    default: return String(stored ?? '').toLowerCase().includes(String(value).toLowerCase());
+  }
+}
+
 export class PreviewWorkbenchClient implements WorkbenchClient {
   readonly mode = 'preview' as const;
   private session = previewSession();
@@ -104,13 +119,14 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         break;
       case 'data.queryRecords': {
         // The preview answers the outline's find box -- `contains` on text, and one record by ID --
-        // and a stored field's plain sort, so Studio's column headers can be tried; every other
-        // filter needs the native host.
+        // the exact comparisons a screen's Filter pick and a drill send (eq, ne, isNull, isNotNull;
+        // W-172), and a stored field's plain sort, so Studio's column headers can be tried; every
+        // other filter needs the native host's typed comparison.
         const filters = Array.isArray(payload.filters) ? payload.filters as Array<{ fieldId: string; operator: string; value: unknown }> : [];
-        if (filters.some(filter => filter.operator !== 'contains'))
+        if (filters.some(filter => !previewOperators.has(filter.operator)))
           throw new WorkbenchHostError('native-query-required', 'Open the native Nendo app to use typed filtering.');
         const matches = (row: RecordSnapshot): boolean => (typeof payload.recordId !== 'string' || row.recordId === payload.recordId) &&
-          filters.every(filter => String(row.values[filter.fieldId] ?? '').toLowerCase().includes(String(filter.value).toLowerCase()));
+          filters.every(filter => previewMatches(row.values[filter.fieldId], filter.operator, filter.value));
         const byId = (left: RecordSnapshot, right: RecordSnapshot): number => left.recordId < right.recordId ? -1 : left.recordId > right.recordId ? 1 : 0;
         const sortFieldId = typeof payload.sortFieldId === 'string' ? payload.sortFieldId : null;
         const byField = (left: RecordSnapshot, right: RecordSnapshot): number => {

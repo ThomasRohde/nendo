@@ -7,12 +7,12 @@ import { escapeHtml, messageFor, mutationKey, valueDisplay } from './format';
 import { decideWriteFailure, nameHolder, namingFieldId } from './write-failure';
 import { refuseWhileDirty } from './draft-guard';
 import { decideDraftState, draftRetentionMessage, type DraftReason } from './draft-state';
-import { declaredQuery, emptyWindowQuery, windowRequest, type WindowQuery } from './record-window';
+import { emptyWindowQuery, windowRequest, type WindowQuery } from './record-window';
 import {
   accumulatedWindows, clearFileScoped, focusedRecords, recordWindows, relatedWindows, state, studioQueries, studioWindows,
   summaryCounts, surfaceErrors, surfaceWindows,
 } from './app-state';
-import { recordPlanOf, recordsForEntity, selectedSurfaceNode, sessionEntity } from './plan-selection';
+import { effectiveSurfaceQuery, recordPlanOf, recordsForEntity, selectedSurfaceNode, sessionEntity } from './plan-selection';
 import { openingFileView } from './file-view-model';
 import { readsOwnRecords } from './surface-model';
 import {
@@ -221,9 +221,11 @@ export async function refreshDerived(attempt = 0): Promise<void> {
   const surfaceNode = surfacePlan === null ? null : selectedSurfaceNode(surfacePlan);
   // A calendar or a timeline reads its own bounded pages when it renders, so
   // the shared refresh must not open an unbounded window for one.
-  const declared = surfaceNode === null || readsOwnRecords(surfaceNode.kind)
+  // The query the screen opened under, a drill or a Filter pick included: the declared one alone
+  // put records back on a narrowed screen after every write (W-172).
+  const declared = surfaceNode === null || readsOwnRecords(surfaceNode.kind) || applicationEntity === undefined
     ? null
-    : declaredQuery(surfaceNode);
+    : effectiveSurfaceQuery(applicationEntity, surfaceNode);
   const surfacePage = surfaceNode === null || declared === null || applicationEntity === undefined ? null
     : await client.request<ReadPage<RecordSnapshot>>('data.queryRecords', windowRequest(applicationEntity, declared));
   if (state.session.fileSessionId !== generation ||
