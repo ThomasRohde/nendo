@@ -1,0 +1,103 @@
+:root { color-scheme: light dark; font: 14px/1.45 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; color: var(--nendo-ink); background: var(--nendo-canvas); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { padding: 5px 10px; border: 1px solid var(--nendo-line-strong); border-radius: 4px; background: var(--nendo-surface); cursor: pointer; white-space: nowrap; }
+button:hover { background: var(--nendo-surface-soft); }
+button:disabled { opacity: .45; cursor: default; }
+input, textarea, select { min-width: 0; width: 100%; padding: 5px 7px; background: var(--nendo-surface); border: 1px solid var(--nendo-line-strong); border-radius: 4px; }
+textarea { resize: vertical; min-height: 64px; }
+input[readonly] { background: var(--nendo-surface-soft); color: var(--nendo-muted); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--nendo-cobalt); outline-offset: 2px; }
+[hidden] { display: none !important; }
+code, pre, .mono { font-family: "Cascadia Mono", Consolas, ui-monospace, monospace; font-size: 12px; }
+
+#workspace { display: grid; grid-template-columns: minmax(0, 1fr) 340px; height: 100vh; min-height: 420px; }
+#canvas-pane { position: relative; min-width: 0; min-height: 0; border-right: 1px solid var(--nendo-line); }
+#canvas { position: absolute; inset: 0; }
+#canvas-hint { position: absolute; left: 12px; bottom: 6px; margin: 0; font-size: 12px; color: var(--nendo-muted); pointer-events: none; }
+#side { min-width: 0; overflow-y: auto; padding: 12px 14px 16px; background: var(--nendo-surface); }
+.panel { padding: 12px 0; border-bottom: 1px solid var(--nendo-line); }
+.panel:first-child { padding-top: 2px; }
+h2, summary { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+summary { cursor: pointer; margin: 0; }
+.count { color: var(--nendo-muted); font-weight: 400; margin-left: 4px; }
+label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; font-size: 12px; color: var(--nendo-muted); }
+.hint { margin: 0 0 8px; font-size: 12px; color: var(--nendo-muted); }
+.row { display: flex; gap: 6px; align-items: center; }
+.pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+
+#problems { margin: 0; padding: 0; list-style: none; font-size: 12px; }
+#problems li { padding: 5px 0 5px 10px; border-left: 2px solid var(--nendo-warning); margin-bottom: 4px; cursor: pointer; }
+#problems li:hover { background: var(--nendo-surface-soft); }
+#problems li.clear { border-left-color: var(--nendo-healthy); cursor: default; color: var(--nendo-muted); }
+
+#runs { display: flex; flex-direction: column; gap: 2px; margin: 8px 0; }
+.run-row { display: flex; justify-content: space-between; gap: 8px; width: 100%; text-align: left; border: 0; border-radius: 4px; padding: 6px 8px; background: transparent; }
+.run-row[aria-pressed="true"] { background: var(--nendo-cobalt-soft); }
+.run-row small { color: var(--nendo-muted); overflow: hidden; text-overflow: ellipsis; }
+#run { font-size: 13px; }
+#run:empty { display: none; }
+.run-card { padding: 10px; border: 1px solid var(--nendo-line); border-radius: 6px; background: var(--nendo-surface-soft); }
+.run-card h3 { margin: 0 0 2px; font-size: 13px; }
+.run-card p { margin: 4px 0; }
+.run-card .muted { color: var(--nendo-muted); font-size: 12px; }
+.outcomes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--nendo-line-strong); color: var(--nendo-muted); white-space: nowrap; }
+.badge.finished { border-color: var(--nendo-healthy); color: var(--nendo-healthy); }
+#agent-guide { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; padding: 8px; border-radius: 4px; background: var(--nendo-surface-soft); }
+#status { margin: 12px 0 0; font-size: 12px; color: var(--nendo-muted); }
+#problem { position: fixed; z-index: 10; top: 10px; left: 10px; right: 10px; padding: 10px 12px; border: 1px solid var(--nendo-danger); border-radius: 6px; background: var(--nendo-surface-raised); white-space: pre-line; overflow-wrap: anywhere; box-shadow: 0 4px 16px var(--nendo-shadow); }
+dialog { width: min(440px, calc(100vw - 32px)); color: var(--nendo-ink); background: var(--nendo-surface-raised); border: 1px solid var(--nendo-line-strong); border-radius: 8px; padding: 22px; }
+dialog::backdrop { background: var(--nendo-ink); opacity: .35; }
+dialog h2 { font-size: 16px; }
+dialog p { color: var(--nendo-muted); font-size: 13px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+/* xyflow, in Nendo's colours */
+.react-flow {
+  --xy-background-color: var(--nendo-canvas);
+  --xy-background-pattern-color: var(--nendo-line);
+  --xy-edge-stroke: var(--nendo-muted);
+  --xy-edge-stroke-selected: var(--nendo-cobalt);
+  --xy-connectionline-stroke: var(--nendo-cobalt);
+  --xy-handle-background-color: var(--nendo-surface);
+  --xy-handle-border-color: var(--nendo-line-strong);
+  --xy-edge-label-background-color: var(--nendo-canvas);
+  --xy-edge-label-color: var(--nendo-ink);
+  --xy-controls-button-background-color: var(--nendo-surface);
+  --xy-controls-button-background-color-hover: var(--nendo-surface-soft);
+  --xy-controls-button-color: var(--nendo-ink);
+  --xy-controls-button-border-color: var(--nendo-line);
+  --xy-attribution-background-color: transparent;
+  --xy-selection-background-color: var(--nendo-cobalt-soft);
+  --xy-selection-border: 1px dotted var(--nendo-cobalt);
+}
+.react-flow__attribution a { color: var(--nendo-muted); }
+.react-flow__edge-textbg { fill: var(--nendo-canvas); }
+.react-flow__edge-text { fill: var(--nendo-ink); font-size: 12px; }
+.react-flow__edge.taken .react-flow__edge-path { stroke: var(--nendo-cobalt); stroke-width: 2.5; }
+.react-flow__edge.flagged .react-flow__edge-path { stroke: var(--nendo-warning); stroke-dasharray: 5 4; }
+.react-flow__handle { width: 10px; height: 10px; }
+.react-flow__handle.side { width: 6px; height: 6px; min-width: 0; min-height: 0; opacity: 0; pointer-events: none; }
+.react-flow__handle.side.out { top: 64%; }
+.react-flow__handle.side.in { top: 36%; }
+
+.step { width: 200px; padding: 8px 12px 9px; border: 1px solid var(--nendo-line-strong); border-radius: 8px; background: var(--nendo-surface); color: var(--nendo-ink); box-shadow: 0 1px 2px var(--nendo-shadow); }
+.step strong { display: block; font-size: 13px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.step code { display: block; margin-top: 2px; color: var(--nendo-muted); font-size: 11px; overflow-wrap: anywhere; }
+.step-kind { display: block; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; color: var(--nendo-muted); }
+.step.kind-start, .step.kind-end { width: 140px; border-radius: 999px; text-align: center; background: var(--nendo-surface-soft); }
+.step.kind-end { border-width: 2px; }
+.step.selected { border-color: var(--nendo-cobalt); box-shadow: 0 0 0 2px var(--nendo-cobalt-soft); }
+.step.flagged { border-color: var(--nendo-warning); }
+.step.visited { background: var(--nendo-cobalt-soft); }
+.step.current { border-color: var(--nendo-cobalt); border-width: 2px; background: var(--nendo-cobalt-soft); }
+.step.current .step-kind::after { content: " · run is here"; color: var(--nendo-cobalt); }
+
+@media (max-width: 760px) {
+  #workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: 60vh auto; height: auto; }
+  #canvas-pane { border-right: 0; border-bottom: 1px solid var(--nendo-line); min-height: 360px; }
+  #side { overflow: visible; }
+}

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Flow</title>
+  <link rel="stylesheet" href="vendor/xyflow.css">
+  <link rel="stylesheet" href="view.css">
+</head>
+<body>
+  <div id="problem" role="alert" hidden></div>
+  <main id="workspace" aria-busy="true">
+    <section id="canvas-pane" aria-label="Flow diagram">
+      <div id="canvas"></div>
+      <p id="canvas-hint">Drag from the bottom of a step to another step to add an edge. Delete removes the selection.</p>
+    </section>
+    <aside id="side" aria-label="Details">
+      <section class="panel" aria-labelledby="inspector-title">
+        <h2 id="inspector-title">Flow</h2>
+        <div id="inspector"></div>
+      </section>
+      <section class="panel" aria-labelledby="problems-title">
+        <h2 id="problems-title">Walkable <span id="problem-count" class="count"></span></h2>
+        <ul id="problems"></ul>
+      </section>
+      <section class="panel" aria-labelledby="runs-title">
+        <h2 id="runs-title">Runs <span id="run-count" class="count"></span></h2>
+        <div id="run"></div>
+        <div id="runs"></div>
+        <form id="start-run" class="row">
+          <input id="run-title" maxlength="200" placeholder="Name a new run" aria-label="Name a new run" autocomplete="off">
+          <button type="submit">Start run</button>
+        </form>
+      </section>
+      <details class="panel" id="agents">
+        <summary>For agents</summary>
+        <pre id="agent-guide"></pre>
+        <button id="copy-guide" type="button">Copy</button>
+      </details>
+      <p id="status" role="status">Reading the file…</p>
+    </aside>
+  </main>
+  <dialog id="new-flow-dialog">
+    <form id="new-flow-form">
+      <h2>New flow</h2>
+      <p>A flow begins with a Start, one step and an End. Draw the rest.</p>
+      <label>Name <input id="new-flow-name" required maxlength="120" autocomplete="off"></label>
+      <div class="dialog-actions"><button id="cancel-new-flow" type="button">Cancel</button><button type="submit">Create flow</button></div>
+    </form>
+  </dialog>
+  <script src="/_nendo/api.js"></script>
+  <script src="vendor/xyflow.js"></script>
+  <script type="module" src="view.mjs"></script>
+</body>
+</html>

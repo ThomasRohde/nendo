@@ -1,0 +1,7 @@
+{
+  "packageId": "org.nendo.flow",
+  "title": "Flow",
+  "version": "0.1.0",
+  "entryPoint": "index.html",
+  "description": "Draw repeatable procedures with xyflow; agents walk them one step at a time while Nendo holds where each run is."
+}

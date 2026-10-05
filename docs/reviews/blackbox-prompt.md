@@ -1279,3 +1279,15 @@ must still produce the same state. Refuse a save with stale versions on the
 disposable copy and check that the draft remains. Inspect Light/Dark state
 colours and the narrow stacked layout. Keep native proposal acceptance separate
 from the browser fixture lane in `tools/Review-Swarm.ps1`.
+
+If Flow is available, ask the owner to open a disposable copy of `Flow.nendo`.
+Over MCP, walk *Fix a reported defect* as its **For agents** panel says: create
+a run on the Start edge, then choose edges. Try an edge that leaves another step,
+an edge of another flow, writing `fl.run.currentKey` alone, and writing it beside
+an edge that leaves the step you name; each must be refused with nothing changed
+and no revision. Walk the loop back through *missed* and on to the End, and read
+the run's status, path and History. Rename a step, then try to change its key or
+kind. In the view, draw a step, connect it by dragging, leave it without
+instructions and read the Walkable panel; save, delete it, and save again. Check
+Light/Dark and the narrow stacked layout, and keep native acceptance separate from
+the browser fixture lane in `tools/Review-Flow.ps1`.
