@@ -15,6 +15,22 @@ $shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Nendo.lnk'
 # from the real per-user location, registry key and Start Menu shortcut, so
 # running it where Nendo is actually installed would destroy that installation.
 if ((Test-Path -LiteralPath $installRoot) -or (Test-Path -LiteralPath "$installRoot.previous") -or (Test-Path -LiteralPath $registration) -or (Test-Path -LiteralPath $shortcut)) {
+    # A run that stopped after writing its canaries leaves them behind, and
+    # uninstall keeps files it does not own, so the folder outlives the install.
+    # Name that case rather than calling it an installation; never delete it here.
+    $laneCanaries = @('user-retention-check.txt', 'upgrade-user-retention.nendo')
+    $remaining = @(if (Test-Path -LiteralPath $installRoot) { Get-ChildItem -LiteralPath $installRoot -Force })
+    if (-not (Test-Path -LiteralPath "$installRoot.previous") -and -not (Test-Path -LiteralPath $registration) -and
+        -not (Test-Path -LiteralPath $shortcut) -and $remaining.Count -gt 0 -and
+        @($remaining | Where-Object { $_.PSIsContainer -or $laneCanaries -notcontains $_.Name }).Count -eq 0) {
+        throw @"
+Refusing to run: $installRoot holds only this lane's own leftover canaries:
+$(($remaining | ForEach-Object { "  $($_.Name)" }) -join "`n")
+
+An earlier run stopped after writing them, and uninstall keeps files it does not
+own. Nendo is not installed. Delete these files and the empty folder, then rerun.
+"@
+    }
     throw @"
 Refusing to run: Nendo is installed at $installRoot.
 

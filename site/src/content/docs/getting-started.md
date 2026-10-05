@@ -16,7 +16,7 @@ This guide takes you from a clone of the repository to a file with your own reco
 | .NET SDK | The version pinned in [`global.json`](https://github.com/ThomasRohde/nendo/blob/main/global.json) (10.0.204, later feature bands are accepted). |
 | Node.js 22.12 or later | Declared under `engines` in `src/Nendo.Workbench/package.json`. The build uses `npm`. |
 | PowerShell 7 | The build and test scripts are `.ps1` files run with `pwsh`. |
-| NSIS | Only to package the installer (`makensis` on your `PATH`). |
+| NSIS | Only to package the installer (`makensis` on your `PATH`). Where winget is disabled, the portable NuGet package `NSIS-Tool` works too, put on `PATH` for the build shell only; [architecture.md](https://github.com/ThomasRohde/nendo/blob/main/docs/architecture.md#nsis-without-winget) has the steps. |
 
 There is no download, no signed installer and no automatic update. You build the installer yourself.
 

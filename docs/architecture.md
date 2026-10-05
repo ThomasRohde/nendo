@@ -997,9 +997,16 @@ Packaging (Windows x64, unsigned, per-user install):
 ```powershell
 pwsh ./tools/Publish-NendoPayload.ps1
 pwsh ./tools/Build-NendoInstaller.ps1     -PilotRoot '<printed payload directory>'
+dotnet build tests/Nendo.Engine.Tests/Nendo.Engine.Tests.csproj -c Debug
 pwsh ./tools/Test-NendoInstaller.ps1      -PilotRoot '<printed payload directory>'
 pwsh ./tools/Test-NendoSetupIsolated.ps1  # install/upgrade/uninstall against a task-owned root
 ```
+
+`Test-NendoInstaller.ps1` seeds its journey file through
+`artifacts/bin/Nendo.Engine.Tests/debug/Nendo.Engine.dll`, so it stops with
+*Build the Engine tests first* unless the Engine tests are built. A run of
+`Test-Production.ps1` builds them as well; the `dotnet build` line above is for a
+machine that went straight to packaging.
 
 NSIS only extracts the payload to a temporary folder. `Invoke-NendoSetup.ps1` does
 the install after the progress bar is full. It checks every file by hash, keeps the
@@ -1011,6 +1018,53 @@ step appears in the installer's details list as it starts, and in
 You must install NSIS to build the installer. When you rebuild the app, rebuild the
 installer in the same task. Prune old payloads only through
 `Remove-NendoBuildPayload.ps1`, which verifies hashes first.
+
+#### NSIS without winget
+
+On a managed machine `winget install NSIS.NSIS` can fail with *This operation is
+disabled by Group Policy*, and NSIS's own download host may not be an approved
+source. NSIS is also on NuGet as `NSIS-Tool` (3.13.0 was used for the 0.17.0
+installer), a third-party repackaging that contains a portable `makensis.exe`.
+The package carries NuGet.org's repository signature (`dotnet nuget verify`
+shows it); `makensis.exe` itself is not Authenticode-signed.
+
+Restore it into the NuGet cache with a throwaway project in a scratch folder
+**outside the repository**, so this repository's `Directory.Build.props` and
+central package management do not apply:
+
+```xml
+<!-- fetch.csproj -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageDownload Include="NSIS-Tool" Version="[3.13.0]" />
+  </ItemGroup>
+</Project>
+```
+
+```powershell
+dotnet restore fetch.csproj --configfile nuget.config   # nuget.config names only your mirror
+$env:Path = "$env:USERPROFILE\.nuget\packages\nsis-tool\3.13.0\tools;$env:Path"
+makensis /VERSION
+```
+
+Nothing is installed: `makensis` is on `PATH` for that shell only, so run the
+packaging steps from the same shell. `Build-NendoInstaller.ps1` records the
+`makensis /VERSION` it used in `installer.json`.
+
+#### When `Test-NendoInstaller.ps1` refuses over its own leftovers
+
+The lane writes canary files into the real `Programs\Nendo` folder
+(`user-retention-check.txt`, and `upgrade-user-retention.nendo` when it upgrades
+a previous installer) to prove that uninstall keeps files it does not own. A run
+that stops after writing them leaves them there, and uninstall keeps them by
+design, so the folder outlives the installation and the interlock below refuses
+the next run. The lane says so by name when the folder holds nothing else. Delete
+those files and the empty folder, then rerun. The lane never deletes them itself,
+because that folder is where a real installation lives.
 
 ### What gets checked, and what doesn't
 

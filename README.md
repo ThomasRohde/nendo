@@ -90,9 +90,17 @@ host is WinUI 3 with WebView2.
 | PowerShell 7 | `pwsh`; every script in `tools/` assumes it | `winget install Microsoft.PowerShell` |
 | Git | Any current version | `winget install Git.Git` |
 | WebView2 Evergreen runtime | Already present on Windows 11 | `winget install Microsoft.EdgeWebView2Runtime` |
-| NSIS | Only to build the installer; `makensis` on `PATH` | `winget install NSIS.NSIS` |
+| NSIS | Only to build the installer; `makensis` on `PATH` | `winget install NSIS.NSIS`, or the NuGet route below |
 
-Open a new shell after installing so `PATH` picks the tools up. The Windows App
+Open a new shell after installing so `PATH` picks the tools up.
+
+Where Group Policy disables winget, or only an internal package mirror is an
+approved source, NSIS is also published on NuGet as the portable package
+`NSIS-Tool` (a third-party repackaging; its `makensis.exe` is not
+Authenticode-signed, the package carries NuGet.org's repository signature).
+Restore it through your mirror and put it on `PATH` for the build session only;
+nothing is installed. The steps are in
+[architecture.md](docs/architecture.md#nsis-without-winget). The Windows App
 SDK is bundled into the build output (self-contained), so it needs no separate
 runtime. `global.json` rolls forward to the latest feature band, so a newer
 10.0 SDK that is already installed wins the pin.
