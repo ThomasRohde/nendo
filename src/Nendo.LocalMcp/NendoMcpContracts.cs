@@ -266,9 +266,13 @@ public sealed record NendoMcpDiagnostic(
 /// The identifiers are the node IDs the author supplied. <c>commandId</c> is
 /// present on a <c>recordCommand</c> root and is the value
 /// <c>nendo.data.execute_command</c> takes; it is the node ID, stated rather
-/// than left to be guessed. A stored <c>surfaceId</c> is deliberately absent: it
-/// is not part of the compiled plan, and the plan is what the file's definition
-/// digest is taken over.
+/// than left to be guessed.
+/// </para>
+/// <para>
+/// <c>surfaceId</c>, <c>parentNodeId</c> and <c>position</c> are read from the stored definition
+/// beside the plan, which carries none of them because its digest is taken over what a node draws,
+/// not where it is kept (W-168). An author changing an existing file needs all three for
+/// <c>ui.moveNode</c> and <c>ui.addNode</c>; one had to guess a position from old change sets.
 /// </para>
 /// </summary>
 public sealed record NendoMcpSurfaceNode(
@@ -280,6 +284,15 @@ public sealed record NendoMcpSurfaceNode(
     public string? Title { get; init; }
     public string? EntityId { get; init; }
     public string? CommandId { get; init; }
+
+    /// <summary>The surface the node is stored under: what ui.moveNode, ui.setProperty and ui.removeNode take.</summary>
+    public string? SurfaceId { get; init; }
+
+    /// <summary>The node it sits under, or null for a root.</summary>
+    public string? ParentNodeId { get; init; }
+
+    /// <summary>Its sort key among its siblings: they draw in position order, then by ID.</summary>
+    public int? Position { get; init; }
 }
 
 /// <summary>

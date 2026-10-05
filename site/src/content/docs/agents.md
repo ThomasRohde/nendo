@@ -74,7 +74,7 @@ Reads are MCP resources. They need no lease. Start with `nendo://application/des
 | `nendo://application/entity/{entityId}/aggregate{?aggregate,fieldId,groupBy,rowBy,columnBy,dateFieldId,bucket,range,filter}` | An exact count, sum, min or max over the records a filter leaves: whole, per choice, as a grid of two choices, or per day, week, month, quarter or year. Nothing is paged. |
 | `nendo://application/entity/{entityId}/tree{?root,depth,cursor,limit}` | A record type kept as a tree, depth-first, each record with its parent, depth and number of children. |
 | `nendo://application/entity/{entityId}/export{?cursor,limit}` | A page of records as Nendo CSV, ready to import again. |
-| `nendo://application/surfaces` | Every compiled screen as a node tree, with the command IDs a screen's buttons run. |
+| `nendo://application/surfaces` | Every compiled screen as a node tree, with the command IDs a screen's buttons run, and where each node is kept: its surface, its parent and its position among its siblings. |
 | `nendo://application/vocabulary` | Everything this Nendo build accepts from an author: node kinds, operators, operations and their payloads, the behaviour catalogue, the authoring rules and the limits. |
 | `nendo://application/examples` | Complete change sets that validate as they stand. |
 | `nendo://application/proposals` | Proposals that wait for you, each with the change set it came from and the agent that made it. |

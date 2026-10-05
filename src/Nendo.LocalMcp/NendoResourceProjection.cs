@@ -512,7 +512,10 @@ internal sealed class NendoResourceProjection(
     internal async Task<NendoMcpSurfaces> GetSurfacesAsync(CancellationToken cancellationToken)
     {
         var compilation = await application.CompileSemanticDefinitionAsync(cancellationToken);
-        var declared = (await application.GetDefinitionSnapshotAsync(cancellationToken)).UiNodes.Count;
+        var stored = (await application.GetDefinitionSnapshotAsync(cancellationToken)).UiNodes
+            .ToDictionary(node => node.NodeId, StringComparer.Ordinal);
+        var declared = stored.Count;
+        NendoMcpSurfaceNode ProjectSurfaceNode(NendoSurfaceNodePlan node) => Project(node, stored);
         var diagnostics = compilation.Diagnostics
             .Select(value => new NendoMcpDiagnostic(
                 value.Code,
@@ -547,12 +550,15 @@ internal sealed class NendoResourceProjection(
     // The node IDs the author supplied, the kind, and the properties the compiler
     // accepted. commandId is stated on a command root rather than left to be
     // inferred from the node ID it happens to equal.
-    private static NendoMcpSurfaceNode ProjectSurfaceNode(NendoSurfaceNodePlan node) =>
+    private static NendoMcpSurfaceNode Project(NendoSurfaceNodePlan node, IReadOnlyDictionary<string, NendoUiNodeSnapshot> stored) =>
         new(node.SemanticId,
             node.Kind,
             node.Properties,
-            node.Children.Select(ProjectSurfaceNode).ToArray())
+            node.Children.Select(child => Project(child, stored)).ToArray())
         {
+            SurfaceId = stored.TryGetValue(node.SemanticId, out var kept) ? kept.SurfaceId : null,
+            ParentNodeId = kept?.ParentNodeId,
+            Position = kept?.Position,
             // A command carries label rather than title; reading only title showed
             // the one node kind an agent most needs to name as having no name.
             Title = Text(node, "title") ?? Text(node, "label"),

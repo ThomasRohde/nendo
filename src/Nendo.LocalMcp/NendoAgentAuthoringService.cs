@@ -5,7 +5,7 @@ using Nendo.Engine;
 
 namespace Nendo.LocalMcp;
 
-internal sealed class NendoAgentAuthoringService(
+internal sealed partial class NendoAgentAuthoringService(
     NendoApplicationService application,
     NendoAgentAuthority authority,
     NendoHostAuthority host,
@@ -138,6 +138,7 @@ internal sealed class NendoAgentAuthoringService(
                     {
                         return ExactReplay(replay, digest);
                     }
+                    validated = await ResolveAnchorsAsync(draft.Mutations, validated, draft.Mutations.Count, cancellationToken);
                     var operationCount = validated.Sum(value => value.Operations.Count);
                     var canonicalCount = CanonicalCount(validated);
                     RequireChangeSetCapacity(
@@ -203,6 +204,7 @@ internal sealed class NendoAgentAuthoringService(
                             $"Drop from mutation ordinal 0-{draft.Mutations.Count}; the change set holds {draft.Mutations.Count} mutations.");
                     }
                     var kept = draft.Mutations.Take(dropFromMutationOrdinal).ToArray();
+                    validated = await ResolveAnchorsAsync(kept, validated, dropFromMutationOrdinal, cancellationToken);
                     var keptOperations = kept.Sum(value => value.Operations.Count);
                     var keptCanonical = CanonicalCount(kept);
                     var operationCount = validated.Sum(value => value.Operations.Count);

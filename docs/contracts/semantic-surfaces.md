@@ -1248,6 +1248,18 @@ the cost of a build: a node and its configuration are one submitted operation, n
 one plus one per property. The two budgets are published and echoed separately,
 so the expansion is bounded and not implicit.
 
+A node's `position` is a sort key among its siblings, not an index: they draw in
+position order, then by surface and node ID, and the store keeps the integer it is
+given. Over MCP, `ui.addNode` and `ui.moveNode` may instead name a sibling with
+`beforeNodeId` or `afterNodeId` (W-168). The adapter resolves the anchor when the
+operation is added, against the file's definition and the change set's earlier
+operations, to the key between the two neighbours. Where no free key lies between
+them, it takes the next key and adds a `ui.moveNode` for each later sibling that has
+to move up, stopping at the first already clear. Those moves are ordinary operations
+in the change set, counted against its budget and reviewed with it. The node takes
+the anchor's parent; a `parentNodeId` that differs is refused. Nothing behind the
+boundary sees an anchor.
+
 Proposal preview renders the validated derivative's bounded plans and record
 values, with no mutation handlers or write authority. Its summary counts are
 taken over the validated clone, not over the compiled plans, so a schema-only
