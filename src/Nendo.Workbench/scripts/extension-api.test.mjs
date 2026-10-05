@@ -77,6 +77,20 @@ async function until(probe, what) {
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
 
+/** The keys a view handed to the Workbench, in order. */
+const keysSent = (workbench) => workbench.inbox.filter((message) => message.t === 'key').map((message) => message.keys);
+
+/**
+ * Waits for the keys a test expects, then settles once more so a key that should not have gone
+ * still arrives to be seen. A fixed pause alone raced the port under load: the gate once read
+ * the inbox before any key had crossed it.
+ */
+async function keysAfter(workbench, expected) {
+  await until(() => keysSent(workbench).length >= expected, `${expected} keys from the view; it sent ${JSON.stringify(keysSent(workbench))}`);
+  await settle();
+  return keysSent(workbench);
+}
+
 // What the client builds is made in its own realm, whose arrays and objects are not this one's;
 // comparing them as JSON compares what a view would actually hold.
 const plain = (value) => JSON.parse(JSON.stringify(value));
@@ -380,8 +394,7 @@ test('G30: Nendo’s own keys pressed inside a view go to the Workbench before t
   view.press('b', { ctrlKey: true }, { tagName: 'TEXTAREA' });
   view.press('k', { ctrlKey: true, repeat: true });
   view.press('0', { ctrlKey: true });
-  await settle();
-  assert.deepEqual(workbench.inbox.filter((message) => message.t === 'key').map((message) => message.keys),
+  assert.deepEqual(await keysAfter(workbench, 4),
     ['Ctrl+K', 'F1', 'Alt+ArrowLeft', 'Ctrl+B'], 'Alt and an arrow were taken from a field, a repeat was sent, or a key nobody declared went.');
 });
 
@@ -402,8 +415,7 @@ test('G30: a key the toolbar declares goes to the Workbench once Nendo accepted 
   view.press('0', { ctrlKey: true }, { tagName: 'DIV' }, true);
   view.press('0', { ctrlKey: true }, { tagName: 'INPUT', type: 'search' });
   view.press('9', { ctrlKey: true });
-  await settle();
-  assert.deepEqual(workbench.inbox.filter((message) => message.t === 'key').map((message) => message.keys), ['Ctrl+0'],
+  assert.deepEqual(await keysAfter(workbench, 1), ['Ctrl+0'],
     'A key the view handled itself, one pressed while typing, or a disabled control’s went to the Workbench.');
 });
 
