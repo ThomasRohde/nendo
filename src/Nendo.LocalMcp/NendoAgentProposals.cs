@@ -157,6 +157,14 @@ public sealed record NendoAgentProposalPreview(
 
     [Description("The pseudonym of the session that validated it, as a lease grant's owner names one; null for a proposal another client prepared.")]
     public string? Owner { get; init; }
+
+    /// <summary>
+    /// The one rule a client otherwise reconstructs from <see cref="State"/>: true when the
+    /// proposal validated and nothing stops it, which is previewable before acceptance and
+    /// active after it. A warning alone never makes it false.
+    /// </summary>
+    [Description("true when the proposal validated and nothing stops it: state previewable, or active once accepted. false for invalid (the diagnostics say why), stale (revalidate), failed and rejected. Warnings alone never make it false.")]
+    public bool IsValid => NendoAgentProposalStore.IsValidState(State);
 }
 
 public sealed record NendoAgentProposalSummary(
@@ -185,6 +193,9 @@ public sealed record NendoAgentProposalSummary(
     /// application handle, owns the proposal.
     /// </summary>
     public string? Owner { get; init; }
+
+    /// <summary>The same rule as <see cref="NendoAgentProposalPreview.IsValid"/>.</summary>
+    public bool IsValid => NendoAgentProposalStore.IsValidState(State);
 }
 
 public sealed class NendoAgentProposalStore
@@ -559,6 +570,9 @@ public sealed class NendoAgentProposalStore
             }
         }
     }
+
+    internal static bool IsValidState(NendoProposalState state) =>
+        state is NendoProposalState.Previewable or NendoProposalState.Active;
 
     internal static NendoAgentProposalSummary ProjectSummary(NendoProposalPreview preview) => new(
         preview.ProposalId,
