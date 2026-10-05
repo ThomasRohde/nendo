@@ -50,6 +50,7 @@ internal static class NendoAuthoringExamples
             AGalleryAndARating(),
             AFrontPageForTheFile(),
             SayWhatTheFileIsFor(),
+            ReplaceAScreenInItsPlace(),
             CalculateAndActAutomatically(),
             ACustomGraphFromTheFile(),
             PutACustomViewInTheFile(),
@@ -168,6 +169,54 @@ internal static class NendoAuthoringExamples
                 }),
             ]),
         ]);
+
+    /// <summary>
+    /// Placing a node beside another rather than at a number (W-168). An outside author replaced
+    /// a root screen at a guessed index and it landed one slot late; nendo://application/surfaces
+    /// now says where every node is kept, and an anchor says where a new one goes.
+    /// </summary>
+    private static NendoAuthoringExample ReplaceAScreenInItsPlace() => new(
+        "replace-a-screen-in-its-place",
+        "Replace a screen and keep it where a person expects it, by placing the new one beside a neighbour.",
+        [
+            "A position is a sort key among a node's siblings, not an index: siblings draw in position order, then by surface and ID. nendo://application/surfaces gives every node its surfaceId, parentNodeId and position.",
+            "ui.addNode and ui.moveNode take exactly one of position, beforeNodeId and afterNodeId. An anchor may be a node earlier in the same change set, and the new node takes the anchor's parent.",
+            "Where no free key lies between the neighbours, the host adds a ui.moveNode for each later sibling that has to move up, stopping at the first already clear. Those moves are ordinary operations in the change set, counted and reviewed with it.",
+            "Removing a screen and adding its replacement before the next one, in one mutation, is how a replacement keeps the old one's place.",
+        ],
+        [
+            new("Create the Task record type",
+            [
+                Operation("schema.createEntity", new { entityId = "task", displayName = "Task" }),
+                Field("task", "taskTitle", "Title", "Text", true, "singleLine", []),
+                Field("task", "taskStatus", "Status", "Text", false, "singleChoice", ["Todo", "Doing", "Done"]),
+            ]),
+            new("Three lists, in order",
+            [
+                InlineNode("taskAll", null, "recordList", 0, ListProperties("All tasks")),
+                InlineNode("taskAllTitle", "taskAll", "fieldBinding", 0, new() { ["fieldId"] = "taskTitle" }),
+                InlineNode("taskOpen", null, "recordList", 1, ListProperties("Open tasks")),
+                InlineNode("taskOpenTitle", "taskOpen", "fieldBinding", 0, new() { ["fieldId"] = "taskTitle" }),
+                InlineNode("taskDoneList", null, "recordList", 2, ListProperties("Done tasks")),
+                InlineNode("taskDoneTitle", "taskDoneList", "fieldBinding", 0, new() { ["fieldId"] = "taskTitle" }),
+            ]),
+            new("Replace the middle list in its place",
+            [
+                Operation("ui.removeNode", new { surfaceId = SurfaceId, nodeId = "taskOpen" }),
+                Operation("ui.addNode", new
+                {
+                    surfaceId = SurfaceId, nodeId = "taskOpenByStatus", kind = "recordList", beforeNodeId = "taskDoneList",
+                    properties = ListProperties("Open tasks by status"),
+                }),
+                InlineNode("taskOpenByStatusTitle", "taskOpenByStatus", "fieldBinding", 0, new() { ["fieldId"] = "taskTitle" }),
+                InlineNode("taskOpenByStatusStatus", "taskOpenByStatus", "fieldBinding", 1, new() { ["fieldId"] = "taskStatus" }),
+            ]),
+        ]);
+
+    private static Dictionary<string, object?> ListProperties(string title) => new()
+    {
+        ["definitionVersion"] = 3, ["entityId"] = "task", ["title"] = title,
+    };
 
     private static NendoAuthoringExample CreateEntityWithRequiredFields() => new(
         "create-entity-with-required-fields",
