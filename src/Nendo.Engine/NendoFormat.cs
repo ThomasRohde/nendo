@@ -297,7 +297,14 @@ public static class NendoFormat
     /// </summary>
     public const string SkillPackageMinimumHostVersion = "1.43.0";
 
-    public const string CurrentHostVersion = SkillPackageMinimumHostVersion;
+    /// <summary>
+    /// A text field presented as Markdown (W-173, ADR-0003's named presentation): a value no
+    /// older host knows, which it would show as an unsupported field. Stated by the field
+    /// operation's evidence, as a rating's is; the presentation column already exists.
+    /// </summary>
+    public const string MarkdownPresentationMinimumHostVersion = "1.44.0";
+
+    public const string CurrentHostVersion = MarkdownPresentationMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

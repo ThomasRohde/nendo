@@ -82,7 +82,7 @@ const coreHelp: HelpProvider = () => [
   ] },
 ];
 
-const presentationLabels: Record<string, string> = { singleLine: 'short text', longText: 'long text', singleChoice: 'choose one option', date: 'date', rating: 'rating on a scale' };
+const presentationLabels: Record<string, string> = { singleLine: 'short text', longText: 'long text', markdown: 'text written in Markdown, shown formatted', singleChoice: 'choose one option', date: 'date', rating: 'rating on a scale' };
 
 // Providers are host-owned code. Application content is always plain text, never executable help.
 const applicationHelp: HelpProvider = ({ entities, applications, fileName }) => entities.map(entity => ({

@@ -151,6 +151,7 @@ internal sealed partial class SqliteNendoStore
     {
         "singleChoice" => "a single choice",
         "longText" => "long text",
+        "markdown" => "Markdown text",
         "rating" => "a rating",
         _ => $"a {field.StorageKind} field",
     };

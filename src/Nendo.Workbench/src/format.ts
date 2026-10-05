@@ -57,6 +57,7 @@ export function presentationLabel(value: string | null | undefined): string {
   const labels: Record<string, string> = {
     singleLine: 'Single line',
     longText: 'Long text',
+    markdown: 'Markdown text',
     singleChoice: 'Single choice',
     rating: 'Rating',
     date: 'Date',

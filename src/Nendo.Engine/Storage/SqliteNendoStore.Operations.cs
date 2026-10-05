@@ -177,10 +177,13 @@ internal sealed partial class SqliteNendoStore
 
         return new OperationEvidence(operation, Evidence(new { created = true }))
         {
-            RequiredHostVersion = operation.Presentation == "rating"
-                ? NendoFormat.GalleryAndRatingMinimumHostVersion
-                : operation.StorageKind == NendoStorageKind.Decimal
+            RequiredHostVersion = operation.Presentation switch
+            {
+                "rating" => NendoFormat.GalleryAndRatingMinimumHostVersion,
+                "markdown" => NendoFormat.MarkdownPresentationMinimumHostVersion,
+                _ => operation.StorageKind == NendoStorageKind.Decimal
                     ? NendoFormat.ScalarMinimumHostVersion : NendoFormat.MinimumHostVersion,
+            },
         };
     }
 

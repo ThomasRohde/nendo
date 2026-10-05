@@ -125,7 +125,11 @@ reserved protected metadata namespace for Nendo state.
   are presentation/validation semantics over those kinds. (Note, 2026-09-22:
   the schema service accepts the presentations `singleLine`, `longText`,
   `singleChoice`, `date` and `rating`. Email, URL, color and Markdown
-  presentations are not implemented.)
+  presentations are not implemented. Note, 2026-10-05: `markdown` is implemented
+  on Text fields, host 1.44.0 (W-173). A record page shows the text formatted
+  from a fixed subset, escaped before any tag is added, with links not followed,
+  and edits the source as plain text. Email, URL and color are still not
+  implemented.)
 - Scalar multi-choice, JSON-as-a-user-type and binary/asset fields are deferred.
   A package file's content is stored as a BLOB, but it is protected metadata, not
   a user field.

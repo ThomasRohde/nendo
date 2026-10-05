@@ -513,6 +513,7 @@ internal static class SemanticDiff
         // A rating without both bounds is not a scale, so it is described as the number it is.
         "rating" when operation.Scale is { } scale => $"a rating from {scale.Min} to {scale.Max}",
         "longText" => "a paragraph of text",
+        "markdown" => "formatted text, written in Markdown",
         _ => operation.StorageKind switch
         {
             NendoStorageKind.Integer => "a whole number",

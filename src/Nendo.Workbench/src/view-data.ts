@@ -120,7 +120,7 @@ function keepColumnWidths(entityId: string, event: ColumnResizedEvent<GridRow>):
 
 /** Where a column starts before the person sizes it: wide enough for what its kind holds. */
 function defaultWidth(field: EntitySnapshot['fields'][number]): number {
-  if (field.presentation === 'longText') return 300;
+  if (field.presentation === 'longText' || field.presentation === 'markdown') return 300;
   if (field.presentation === 'singleChoice') return 170;
   if (field.presentation === 'date') return 140;
   if (ratingScaleOf(field) !== null) return 150;
@@ -559,7 +559,7 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
   // One text column takes the room the others leave, so the table fills the panel without
   // squeezing every column to its minimum; the rest start at a width that suits their kind.
   const primaryFieldId = outlineRows === undefined
-    ? entity.fields.find(field => !field.retired && storageLabel(field.storageKind) === 'Text' && field.presentation !== 'singleChoice' && field.presentation !== 'longText')?.fieldId
+    ? entity.fields.find(field => !field.retired && storageLabel(field.storageKind) === 'Text' && field.presentation !== 'singleChoice' && field.presentation !== 'longText' && field.presentation !== 'markdown')?.fieldId
     : undefined;
   const editable = (field: EntitySnapshot['fields'][number]): ColDef<GridRow> => ({
     colId: field.fieldId,
@@ -613,8 +613,8 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
       ? 'agSelectCellEditor'
       : field.presentation === 'date'
         ? 'agDateStringCellEditor'
-        : field.presentation === 'longText' ? 'agLargeTextCellEditor' : 'agTextCellEditor',
-    cellEditorPopup: field.presentation === 'longText',
+        : field.presentation === 'longText' || field.presentation === 'markdown' ? 'agLargeTextCellEditor' : 'agTextCellEditor',
+    cellEditorPopup: field.presentation === 'longText' || field.presentation === 'markdown',
     cellEditorParams: field.presentation === 'singleChoice'
       ? { values: [...(field.required ? [] : ['']), ...field.options.filter(id => !field.choices?.some(choice => choice.id === id && choice.retired))] }
       : storageLabel(field.storageKind) === 'Boolean' ? { values: field.required ? [true, false] : [null, true, false] }

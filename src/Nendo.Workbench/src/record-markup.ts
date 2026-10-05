@@ -5,6 +5,7 @@ import { isSettledSummaryFailure, tileKey, tileScopeLabel, tileTitle, type Scope
 import { treeCommands } from './surface-model';
 import { calculatedDisplay, isDerived, resultFor } from './calculated-fields';
 import { referenceControl } from './reference-controls';
+import { markdownMarkup } from './markdown';
 import { choiceDisplay, escapeAttribute, escapeHtml, fieldName, sameValue, storageLabel, valueDisplay } from './format';
 import { ratingControlMarkup, ratingMarkup, ratingScaleOf } from './rating';
 import { chartStates, chartTables, relatedWindows, state, summaryCounts } from './app-state';
@@ -432,6 +433,16 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown): str
   if (field.presentation === 'longText') {
     return textControl(`<label>${label}<textarea name="${name}" rows="4" ${required}>${escapeHtml(value)}</textarea></label>`);
   }
+  if (field.presentation === 'markdown') {
+    // Read as formatted text, written as Markdown (W-173). The source sits in a disclosure under
+    // the rendering and is a control of the form like any other, open when there is nothing to
+    // read yet, so a required one is never a hidden control the browser cannot focus.
+    const empty = value.trim() === '';
+    return textControl(`<div class="markdown-field"><span class="markdown-field-label">${label}</span>`
+      + (empty ? '' : `<div class="markdown-body">${markdownMarkup(value)}</div>`)
+      + `<details class="markdown-source"${empty ? ' open' : ''}><summary>${empty ? 'Write' : 'Edit'} ${label} as Markdown</summary>`
+      + `<textarea name="${name}" rows="8" aria-label="${escapeAttribute(field.displayName)}" ${required}>${escapeHtml(value)}</textarea></details></div>`);
+  }
   if (field.presentation === 'singleChoice') {
     return `<label>${label}<select name="${name}" ${required}>${field.required ? '' : '<option value="">Not set</option>'}${field.options.filter(id => id === value || !field.choices?.some(choice => choice.id === id && choice.retired)).map(id => `<option value="${escapeAttribute(id)}" ${id === value ? 'selected' : ''} ${field.choices?.some(choice => choice.id === id && choice.retired) ? 'disabled' : ''}>${escapeHtml(choiceDisplay(field, id))}</option>`).join('')}</select></label>`;
   }
@@ -502,9 +513,10 @@ export function recordSheetMarkup(
   text: RecordSheetText,
 ): string {
   const live = fields.filter((field) => !field.retired);
-  const heading = live.find((field) => field.presentation !== 'longText' && storageLabel(field.storageKind) === 'Text') ?? null;
-  const long = live.filter((field) => field.presentation === 'longText');
-  const short = live.filter((field) => field !== heading && field.presentation !== 'longText');
+  const isLong = (field: FieldPlan): boolean => field.presentation === 'longText' || field.presentation === 'markdown';
+  const heading = live.find((field) => !isLong(field) && storageLabel(field.storageKind) === 'Text') ?? null;
+  const long = live.filter(isLong);
+  const short = live.filter((field) => field !== heading && !isLong(field));
   const retired = fields.filter((field) => field.retired);
   const shortMarkup = short.map((field) => fieldMarkup(record, field)).join('')
     + derived.map((field) => derivedFieldMarkup(record, field)).join('')

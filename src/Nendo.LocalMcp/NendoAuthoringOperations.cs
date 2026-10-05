@@ -45,7 +45,7 @@ internal static class NendoAuthoringOperations
             "Create a record type. A record type exists physically from the end of the mutation that creates it, so a required field must sit in the same mutation or be added optional and made required later.",
             ["entityId", "displayName"]),
         Definition("schema.addField",
-            "Add a field. storageKind (not type) is text, integer, decimal, boolean, date, dateTime, uuid or reference, matched case-insensitively and read back camelCase. presentation is null, singleLine, longText, singleChoice, date or rating; options is empty unless singleChoice, and min and max are set only on rating. A reference field arrives unbound and there is no target to state here: schema.configureReference points it at one, and it may sit in the same mutation as this operation.",
+            "Add a field. storageKind (not type) is text, integer, decimal, boolean, date, dateTime, uuid or reference, matched case-insensitively and read back camelCase. presentation is null, singleLine, longText, markdown (text a page shows formatted: headings, lists, tables, code, emphasis; links are not followed), singleChoice, date or rating; options is empty unless singleChoice, and min and max are set only on rating. A reference field arrives unbound and there is no target to state here: schema.configureReference points it at one, and it may sit in the same mutation as this operation.",
             ["entityId", "fieldId", "displayName", "storageKind", "required"],
             "presentation", "options", "min", "max"),
         Definition("schema.renameEntity", "Change a record type's display name; its stable ID does not move.",

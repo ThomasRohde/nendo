@@ -149,7 +149,7 @@ function decisionLogFixture(): PreviewFixture {
     displayName: 'Decision',
     fields: [
       field('field.decision.title', 'Decision', 'text', true, 'singleLine'),
-      field('field.decision.context', 'Context', 'text', false, 'longText'),
+      field('field.decision.context', 'Context', 'text', false, 'markdown'),
       field('field.decision.state', 'State', 'text', true, 'singleChoice', ['Proposed', 'Accepted', 'Superseded']),
       field('field.decision.owner', 'Owner', 'text', false, 'singleLine'),
       field('field.decision.reviewDate', 'Review date', 'date', false, 'date'),
@@ -159,7 +159,7 @@ function decisionLogFixture(): PreviewFixture {
   const records: RecordSnapshot[] = [
     record(entity.entityId, 'preview-decision-one', {
       'field.decision.title': 'Keep the working file local',
-      'field.decision.context': 'The first release should remain understandable and portable.',
+      'field.decision.context': '## Why\n\nThe first release should remain **understandable** and *portable*.\n\n- One file per application\n- No server to run\n\n| Option | Cost |\n| --- | ---: |\n| Local file | low |\n| Hosted | high |\n\nSee `docs/vision.md` and [the guide](https://thomasrohde.github.io/nendo/docs/agents).',
       'field.decision.state': 'Accepted',
       'field.decision.owner': 'Thomas',
       'field.decision.reviewDate': '2026-10-01',

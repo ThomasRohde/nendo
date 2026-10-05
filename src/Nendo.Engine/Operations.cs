@@ -178,7 +178,7 @@ public sealed record AddFieldOperation : NendoOperation
             throw new ArgumentException("Unsupported field kinds are inspection-only and cannot be authored.", nameof(StorageKind));
         }
         var supported = new HashSet<string>(
-            ["singleLine", "longText", "singleChoice", "date", "rating"],
+            ["singleLine", "longText", "markdown", "singleChoice", "date", "rating"],
             StringComparer.Ordinal);
         if (Presentation is not null && !supported.Contains(Presentation))
         {
@@ -203,6 +203,10 @@ public sealed record AddFieldOperation : NendoOperation
         if (Presentation == "date" && StorageKind != NendoStorageKind.Date)
         {
             throw new ArgumentException("The date presentation requires Date storage.", nameof(Presentation));
+        }
+        if (Presentation == "markdown" && StorageKind != NendoStorageKind.Text)
+        {
+            throw new ArgumentException("The markdown presentation requires Text storage.", nameof(Presentation));
         }
         ValidateScale();
     }

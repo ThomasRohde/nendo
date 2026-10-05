@@ -45,6 +45,7 @@ and edited. These are the choices in Studio's **Add field** dialog:
 | --- | --- | --- | --- |
 | Short text | Text | Single line | |
 | Long text | Text | Long text | |
+| Markdown text | Text | Markdown | A record page shows it formatted: headings, lists, tables, code and emphasis. Links show as text and are not followed. Edit the source under the formatted text. Needs Nendo with host 1.44.0. |
 | Choice | Text | Single choice | 1 to 32 options, each at most 120 characters. One value per record. |
 | Whole number | Integer | none | Large values keep every digit. |
 | Rating on a scale | Integer | Rating | Drawn as dots. The scale has a minimum and a maximum and at most ten values. |

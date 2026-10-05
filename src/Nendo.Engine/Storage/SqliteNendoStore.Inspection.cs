@@ -415,7 +415,7 @@ internal sealed partial class SqliteNendoStore
             }
             if (mappings.SelectMany(entity => entity.Fields).Any(field =>
                     field.StorageKind == NendoStorageKind.Unsupported ||
-                    field.Presentation is not (null or "singleLine" or "longText" or "singleChoice" or "date" or "rating")))
+                    field.Presentation is not (null or "singleLine" or "longText" or "markdown" or "singleChoice" or "date" or "rating")))
             {
                 findings.Add(new("unsupported-field-semantics", "An unknown field type or presentation is shown as unsupported. Its stored values have not been changed."));
             }

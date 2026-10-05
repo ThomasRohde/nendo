@@ -104,7 +104,7 @@ You do not need an agent for this.
 5. Choose **Add Book**, enter a name and choose **Add**. The record is saved.
 6. To change a value, double-click a cell in the table, edit it and press Enter.
 
-To add more fields, open **Structure**, select the record type and choose **Add field**. The field types are Short text, Long text, Choice, Whole number, Rating on a scale, Decimal, Yes / No, Date, Date and time with timezone, UUID and Reference to another record. A new field is optional, so existing records stay valid. It goes through the same review as the record type.
+To add more fields, open **Structure**, select the record type and choose **Add field**. The field types are Short text, Long text, Markdown text, Choice, Whole number, Rating on a scale, Decimal, Yes / No, Date, Date and time with timezone, UUID and Reference to another record. A new field is optional, so existing records stay valid. It goes through the same review as the record type.
 
 This split is the rule for the whole product. A change to records (the data lane) saves at once and adds one entry to History. A change to the shape of the application (record types, fields, screens) is a proposal: a set of typed operations that Nendo validates on a private copy of the file and shows you before anything changes. The [concepts guide](/nendo/docs/concepts) explains both lanes.
 

@@ -135,6 +135,7 @@ The Studio maps semantic storage and constraints to editors:
 | --- | --- | --- |
 | short text | `text` | inline text editor |
 | long text | `text` + presentation hint | clipped cell and record inspector editor |
+| Markdown text | `text` + `markdown` presentation (host 1.44.0, W-173) | clipped cell; the record page shows it formatted (headings, lists, tables, code, emphasis, quotes; links not followed) above an **Edit** disclosure holding the source |
 | integer/decimal | numeric scalar | locale-aware numeric editor |
 | checkbox | `boolean` | direct toggle with nullable state where declared |
 | date/datetime | canonical date value | date/time editor with explicit timezone semantics |
