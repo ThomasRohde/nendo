@@ -117,7 +117,7 @@ internal static class NendoAuthoringExamples
         "show-a-custom-graph",
         "Define a custom dependency graph, drawn by a package the file carries.",
         [
-            "An extensionGraphSurface names its package by packageId and binds a node record type, a label and the two References of an edge type. The package's code lives in the file (see put-a-custom-view-in-the-file); until it does, the view compiles with warning NUI452 and says so where it is shown.",
+            "An extensionGraphSurface names its package by packageId and binds a node record type, a label and the two References of an edge type. The package's code lives in the file (see put-a-custom-view-in-the-file), and its operations may share the view's change set; until the package is in the file, the view compiles with warning NUI452 and says so where it is shown.",
             "Both edge References are distinct and target the node record type. fieldBinding children add fields the view reads, calculated ones included; filterClause children narrow the records with any value kind.",
             "configuration is any JSON object of at most 16 KiB, handed to the view's code as parsed JSON. The earlier pins packageVersion, packageDigest, protocolVersion and configurationVersion are not needed; a view without them requires host 1.34.0.",
         ],

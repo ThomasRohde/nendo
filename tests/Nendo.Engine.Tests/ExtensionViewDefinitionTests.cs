@@ -211,6 +211,27 @@ public sealed class ExtensionViewDefinitionTests
         Assert.IsFalse(compiled.Diagnostics.Any(d => d.Code == "NUI452"), "The warning outlived the package arriving in the file.");
     }
 
+    /// <summary>
+    /// W-170: validation compiles the clone after every operation of the change set, so a package
+    /// and the view that names it arrive together without NUI452. An outside author had split
+    /// them over two change sets and met the warning in between.
+    /// </summary>
+    [TestMethod]
+    public async Task APackageAndTheViewNamingItArriveInOneChangeSetWithoutAWarning()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var (_, service) = await Seed(workspace);
+        var page = Page(OpenPanel(), [Show("starts")]);
+        var package = new NendoMutation("test", "package-" + Guid.NewGuid().ToString("N"), "test", "Put the package in the file", [
+            new SetExtensionPackageOperation("p", "org.nendo.gantt", "Gantt", "index.html"),
+            PutExtensionFileOperation.FromContent("f", "org.nendo.gantt", "index.html", null, "<!doctype html>"u8.ToArray()),
+        ]);
+        // The view first and the package after it: the order inside the change set does not matter.
+        var preview = await Accept(service, page with { ChangeSet = new([.. page.ChangeSet.Mutations, package]) });
+        Assert.IsFalse(preview.Diagnostics.Any(d => d.Code == "NUI452"),
+            "A package in the same change set as its view still drew NUI452: " + string.Join(";", preview.Diagnostics.Select(d => d.Code)));
+    }
+
     [TestMethod]
     public async Task AViewThatNamesASkillPackageDoesNotCompile()
     {

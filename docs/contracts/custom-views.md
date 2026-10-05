@@ -1501,7 +1501,7 @@ A binding is not a permission. The view's code reads through the file's API.
 | Code | Severity | Meaning |
 | --- | --- | --- |
 | `NUI450` | Error | The definition names a package, a record type, a label, fields or filters that do not exist or break the rules above. The message names which. "Name a package, a record type and fields that exist; the view's code reads the rest through the file's API." |
-| `NUI452` | Warning | "The package ‹id› is not in this file, so the view has no code to run yet." Remedy: "Add the package to the file: Studio → Surfaces → Custom views → Import, or extension.setPackage and extension.putFile in a change set." The view says the same where it is shown |
+| `NUI452` | Warning | "The package ‹id› is not in this file, so the view has no code to run yet." Remedy: "Add the package to the file: Studio → Surfaces → Custom views → Import, or extension.setPackage and extension.putFile in this change set or a later one." The view says the same where it is shown. Validation compiles the change set after all its operations, so a package and the view naming it in one change set draw no `NUI452` (W-170) |
 | `NUI454` | Error | "The package ‹id› is a skill package, which holds text for an agent and never runs, so a view cannot use it." Remedy: "Name a view package, one created without kind skill, or remove the view." |
 | `NUI013` | Error | A child kind its parent does not take, as for every node |
 

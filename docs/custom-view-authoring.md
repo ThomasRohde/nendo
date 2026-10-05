@@ -960,7 +960,9 @@ Nendo does not interpret it. It is not the place for data.
   field or a filter that does not exist or breaks a rule.
 - A package the file does not carry is the warning `NUI452`. The definition is
   sound and waits for its code; the view says "‹package› is not in this file" where
-  it is shown, and offers **Add package to file…**.
+  it is shown, and offers **Add package to file…**. Put the package's
+  `extension.setPackage` and `extension.putFile` in the same change set as the view,
+  in either order, and there is no warning: validation reads the change set whole.
 - A view that only the open rules accept needs host 1.34.0: no pins, a configuration
   with anything in it, a calculated label or field, a `today` or `now` filter, or
   more fields or panels than earlier hosts allowed. A view that the earlier rules
