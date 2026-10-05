@@ -26,6 +26,8 @@ Each file keeps a port of its own on your computer. The first file you switch ac
 
 If a file's port is taken by another program when access starts, Nendo does not fail. It listens on a temporary port for that session, and **Agent → Connection** shows a warning and the address to use. Turn **Fixed port** off to use a new port each time.
 
+A script or tool that needs to find a file's address without being told can read `%LOCALAPPDATA%\Nendo\Mcp\active\`. Each running Nendo keeps one small JSON file there for every file it has open, readable only by your Windows account. It holds the `endpoint`, the file's name as `displayName` (never its folder), the file's `applicationId`, the access `mode` and the `processId`. The entry is removed when the file closes. Once connected, `nendo://host/instances` lists the same entries.
+
 There is no credential. While access is on, any program on this computer can connect at the level you chose. On your own computer that is a reasonable trade. On a shared computer it is not. Set access to **Off** when no agent is working.
 
 ## Access levels

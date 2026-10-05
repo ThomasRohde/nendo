@@ -121,6 +121,35 @@ public sealed class AppBuilderReviewTests
         });
     }
 
+    /// <summary>
+    /// W-169: an outside author asked for a per-user list of running instances and a stable port,
+    /// both of which existed unannounced. The skill and the instances read now name the directory
+    /// the host actually writes, and the port it keeps.
+    /// </summary>
+    [TestMethod]
+    public async Task TheSkillAndTheInstancesReadNameTheDiscoveryDirectory()
+    {
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var directory = "%LOCALAPPDATA%\\" + Path.GetRelativePath(local, NendoLocalMcpHostOptions.CreateDefault().DiscoveryRoot) + "\\";
+        Assert.AreEqual(@"%LOCALAPPDATA%\Nendo\Mcp\active\", directory, "The host writes its entries somewhere the text does not say.");
+
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.ReadOnly, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var skill = await ProtocolResourceTests.ReadTextAsync(client, "skill://nendo-authoring/SKILL.md");
+        StringAssert.Contains(skill, $"`{directory}`", StringComparison.Ordinal);
+        StringAssert.Contains(skill, $"{NendoLocalMcpHostOptions.StandardPort} for the first", StringComparison.Ordinal);
+        StringAssert.Contains(skill, $"One field value holds at most {NendoAuthoringLimits.Current.RecordValueBytes} bytes", StringComparison.Ordinal);
+        var templates = await client.ListResourceTemplatesAsync();
+        var resources = await client.ListResourcesAsync();
+        var instances = resources.Select(resource => resource.Description).Concat(templates.Select(template => template.Description))
+            .Single(description => description?.StartsWith("Every Nendo running on this device", StringComparison.Ordinal) == true)!;
+        StringAssert.Contains(instances, directory, StringComparison.Ordinal);
+        Assert.IsLessThanOrEqualTo(2048, instances.Length, "Claude Code cuts a description at 2,048 characters.");
+    }
+
     private static async Task PrepareTextsAsync(LocalMcpTestWorkspace workspace)
     {
         await workspace.CreateEmptyAsync();

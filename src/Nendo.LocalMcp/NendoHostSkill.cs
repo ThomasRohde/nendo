@@ -127,6 +127,12 @@ internal static class NendoHostSkill
         text.Append("| What is waiting for the person, including a predecessor session's work | `nendo://application/proposals`, and one in full at `nendo://application/proposal/{proposalId}` |\n");
         text.Append("| What compiled, and the command IDs | `nendo://application/surfaces` |\n");
         text.Append("| The API a custom view's code calls | `references/view-api.json` here, only when you write a view |\n\n");
+        text.Append("## Finding the file's address\n\n");
+        text.Append("Each open file has an address of its own. A file keeps its port on this device: 41763 for the first, the next free one for each further file, ");
+        text.Append("unless the person chose another in Nendo under Agent → Connection or the port was taken, when that session uses a temporary one. ");
+        text.Append("Every running Nendo writes one JSON entry per open file to `%LOCALAPPDATA%\\Nendo\\Mcp\\active\\`, readable by this Windows user only, with its ");
+        text.Append("`endpoint`, `displayName` (the file's name, never its path), `applicationId`, `instanceId`, access `mode` and `processId`. ");
+        text.Append("A tool can read that directory before it connects to find which address has a given file open. Once connected, `nendo://host/instances` lists the same entries.\n\n");
         text.Append("## Before writing\n\n");
         text.Append("Call `nendo.lease.acquire` with an `idempotencyKey`; keep `applicationHandle` private and pass it with `leaseId` on every owned call. ");
         text.Append("Save `receiptContext`: after a lost response, `nendo.data.get_receipt` reads the original outcome, and an unresolved receipt is not permission to resubmit under a new key. ");
@@ -155,6 +161,8 @@ internal static class NendoHostSkill
         text.Append("a session up to ").Append(limits.DraftsPerSession).Append(" open drafts and ").Append(limits.ProposalsPerSession).Append(" validated proposals. ");
         text.Append("A batch create takes ").Append(limits.RecordsPerCreateBatch).Append(" records, a batch of writes ").Append(limits.RecordWritesPerCall)
             .Append(", an update ").Append(limits.FieldsPerRecordUpdate).Append(" fields, an import ").Append(limits.Import!.RowsPerCall).Append(" rows. ");
+        text.Append("One field value holds at most ").Append(limits.RecordValueBytes).Append(" bytes and one write's values ").Append(limits.RecordValuesBytes)
+            .Append(", counted as UTF-8 text as stored; a request body at most ").Append(limits.RequestBodyBytes).Append(" bytes. ");
         text.Append("Every limit is published under `limits` in the vocabulary and echoed by the result that meets it.\n\n");
         text.Append("## The examples\n\n");
         foreach (var example in NendoAuthoringExamples.Description().Examples)
