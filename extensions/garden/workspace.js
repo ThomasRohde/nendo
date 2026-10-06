@@ -1,21 +1,27 @@
-// The Garden workspace, the screen the file opens on: the notes as a tree on the left, one note's
-// editor and preview in the middle, and what links to it below. Save derives the note's links,
-// tags and tasks from its body and writes everything as one records.batch (sync.mjs), which the
-// view can undo. Nendo draws the controls where it offers its toolbar; otherwise the view draws its
-// own. Every colour is the theme's.
+// The Garden workspace, the screen the file opens on: the notes as a tree on the left and one
+// note in the middle, open for reading. Edit (Ctrl E) turns the page into its Markdown, with the
+// preview beside it. Under the note are its backlinks, its local graph, its tags and its tasks.
+// Save derives the note's links, tags and tasks from its body and writes everything as one
+// records.batch (sync.mjs), which the view can undo; ticking a task while reading saves it at
+// once. Nendo draws the controls where it offers its toolbar; otherwise the view draws its own.
+// Every colour is the theme's.
 import { parse, slugify } from './parse.mjs';
 import { render } from './render.mjs';
 import { plan, resolveTarget, F } from './sync.mjs';
 import { readRelated, readTags, drawRelated } from './related.mjs';
+import { buildGraph } from './graph-data.mjs';
+import { createGraph } from './graph.js';
 
 const STAGE_TONES = { Seed: 'amber', Growing: 'teal', Evergreen: 'green' };
+const TASK_LINE = /^(\s*[-*+]\s+\[)( |x|X)(\])/;
 const $ = id => document.getElementById(id);
 
 export async function startWorkspace(nendo, context, kit) {
   const app = $('app'), tree = $('tree'), treeEmpty = $('tree-empty'), find = $('find');
   const status = $('status'), problem = $('problem'), empty = $('empty'), noteSection = $('note');
   const title = $('title'), meta = $('meta'), editor = $('editor'), preview = $('preview'), autocomplete = $('autocomplete');
-  const ownSummary = $('own-summary'), aboutText = $('about-text');
+  const readingTitle = $('reading-title'), readingMeta = $('reading-meta'), readingBody = $('reading-body');
+  const ownSummary = $('own-summary'), aboutText = $('about-text'), hoverCard = $('hover-card');
   const lists = { backlinks: $('backlinks'), backlinksCount: $('backlinks-count'), tags: $('note-tags'), tasks: $('note-tasks'), tasksCount: $('tasks-count') };
   app.hidden = false;
 
@@ -24,17 +30,22 @@ export async function startWorkspace(nendo, context, kit) {
   const newId = (entityId, hint) => `${entityId}.${slugify(hint).slice(0, 40)}-${crypto.randomUUID().replaceAll('-', '').slice(0, 10)}`;
 
   // State the probe reads through window.garden.
-  const state = { ready: false, index: [], byId: new Map(), note: null, draft: null, dirty: false, external: false, problem: null,
-    preview: true, undo: [], redo: [], filter: '', tags: [], related: null, stubs: [] };
+  const state = { ready: false, index: [], byId: new Map(), links: [], note: null, draft: null, dirty: false, external: false, problem: null,
+    mode: 'read', preview: true, undo: [], redo: [], filter: '', tags: [], related: null, stubs: [], local: null };
   const expose = () => { window.garden = state; };
 
-  // ---- The index: every note, without its body, and the tree they make.
+  // ---- The index: every note, the links between them, and the tree they make.
   async function loadIndex() {
-    const records = await nendo.records.queryAll({ entityId: 'gd.note', sortFieldId: F.note.title }, { max: 10000 });
+    const [records, links, tags] = await Promise.all([
+      nendo.records.queryAll({ entityId: 'gd.note', sortFieldId: F.note.title }, { max: 10000 }),
+      nendo.records.queryAll({ entityId: 'gd.link' }, { max: 10000 }),
+      readTags(nendo),
+    ]);
     state.index = records.map(record => ({ recordId: record.recordId, version: record.version, values: record.values,
       slug: record.values[F.note.slug] ?? '', title: record.values[F.note.title] ?? record.recordId }));
     state.byId = new Map(state.index.map(note => [note.recordId, note]));
-    state.tags = await readTags(nendo);
+    state.links = links;
+    state.tags = tags;
     drawTree();
     declareToolbar();
   }
@@ -50,11 +61,11 @@ export async function startWorkspace(nendo, context, kit) {
     }
     for (const list of children.values()) list.sort((a, b) => (a.values[F.note.order] ?? Infinity) - (b.values[F.note.order] ?? Infinity) || a.title.localeCompare(b.title));
     const matches = note => !filter || note.title.toLowerCase().includes(filter) || note.slug.includes(filter);
-    const build = (parent, depth) => {
+    const build = parent => {
       const list = document.createElement('ul');
       list.setAttribute('role', parent === null ? 'tree' : 'group');
       for (const note of children.get(parent) ?? []) {
-        const below = build(note.recordId, depth + 1);
+        const below = build(note.recordId);
         if (!matches(note) && below.childElementCount === 0) continue;
         const item = document.createElement('li');
         item.setAttribute('role', 'treeitem');
@@ -80,8 +91,7 @@ export async function startWorkspace(nendo, context, kit) {
       }
       return list;
     };
-    const built = build(null, 0);
-    tree.replaceChildren(...built.children);
+    tree.replaceChildren(...build(null).children);
     treeEmpty.hidden = state.index.length > 0;
     treeKeys.refresh();
     ownSummary.textContent = summary();
@@ -97,6 +107,7 @@ export async function startWorkspace(nendo, context, kit) {
     drafts.set(state.note?.recordId ?? 'new', { ...state.draft, version: state.note?.version ?? null });
   }
   async function open(recordId, { fromPlace = false } = {}) {
+    hideHover();
     if (state.note?.recordId !== recordId) keepDraft();
     let record;
     try {
@@ -105,15 +116,14 @@ export async function startWorkspace(nendo, context, kit) {
     if (record === null) { showProblem('That note is not in this file any more.'); return; }
     state.note = record;
     const kept = drafts.get(recordId);
-    if (kept !== undefined && kept.version === record.version) {
+    if (kept !== undefined) {
       state.draft = { title: kept.title, body: kept.body };
       state.dirty = true;
-      state.external = false;
+      state.external = kept.version !== record.version;
     } else {
       state.draft = { title: record.values[F.note.title] ?? '', body: record.values[F.note.body] ?? '' };
       state.dirty = false;
-      state.external = kept !== undefined;
-      if (kept !== undefined) { state.draft = { title: kept.title, body: kept.body }; state.dirty = true; }
+      state.external = false;
     }
     drafts.delete(recordId);
     await showNote();
@@ -130,6 +140,7 @@ export async function startWorkspace(nendo, context, kit) {
     state.dirty = true;
     state.external = false;
     state.related = { backlinks: [], links: [], noteTags: [], tasks: [] };
+    setMode('edit', { quiet: true });
     showNote().then(() => title.focus());
   }
 
@@ -145,20 +156,25 @@ export async function startWorkspace(nendo, context, kit) {
       try { state.related = await readRelated(nendo, state.note.recordId); } catch (error) { showProblem(error.message); state.related = { backlinks: [], links: [], noteTags: [], tasks: [] }; }
     }
     drawRelated(state.related, lists, openRecord, state.byId, new Map(state.tags.map(tag => [tag.recordId, { title: tag.values[F.tag.name] }])));
+    drawLocalGraph();
     drawTree();
     setStatus();
     expose();
   }
 
   function drawMeta() {
-    meta.replaceChildren();
-    if (state.note === null) { meta.append(chip('New note, not saved yet')); return; }
-    const values = state.note.values;
-    meta.append(chip(values[F.note.slug] ?? '', 'slug'));
-    meta.append(chip(values[F.note.stage] ?? 'Seed', 'stage', STAGE_TONES[values[F.note.stage]] ?? 'grey'));
-    if (values[F.note.kind]) meta.append(chip(values[F.note.kind]));
-    if (values[F.note.touched]) meta.append(chip(`tended ${values[F.note.touched]}`));
-    if (values[F.note.pinned]) meta.append(chip('pinned'));
+    const chips = [];
+    if (state.note === null) chips.push(chip('New note, not saved yet'));
+    else {
+      const values = state.note.values;
+      chips.push(chip(values[F.note.stage] ?? 'Seed', 'stage', STAGE_TONES[values[F.note.stage]] ?? 'grey'));
+      if (values[F.note.kind]) chips.push(chip(values[F.note.kind]));
+      if (values[F.note.touched]) chips.push(chip(`tended ${values[F.note.touched]}`));
+      if (values[F.note.pinned]) chips.push(chip('pinned'));
+      chips.push(chip(values[F.note.slug] ?? '', 'slug'));
+    }
+    meta.replaceChildren(...chips);
+    readingMeta.replaceChildren(...chips.map(element => element.cloneNode(true)));
   }
   function chip(text, kind = '', tone = null) {
     const element = document.createElement('span');
@@ -173,9 +189,13 @@ export async function startWorkspace(nendo, context, kit) {
     return found ? { recordId: found.recordId, title: found.title } : null;
   };
   function drawPreview() {
-    preview.innerHTML = render(state.draft.body, { resolve });
+    readingTitle.textContent = state.draft.title.trim() || 'Untitled';
+    readingBody.innerHTML = render(state.draft.body, { resolve, interactive: true });
+    if (state.mode === 'edit' && state.preview) preview.innerHTML = render(state.draft.body, { resolve });
   }
-  preview.addEventListener('click', event => {
+
+  // ---- Reading: links follow, tags open, a task's box saves, a link previews its note.
+  function onLinkClick(event) {
     const link = event.target.closest('a');
     if (!link) return;
     event.preventDefault();
@@ -188,7 +208,87 @@ export async function startWorkspace(nendo, context, kit) {
     } else if (link.href) {
       window.open(link.href, '_blank', 'noopener');
     }
+  }
+  readingBody.addEventListener('click', onLinkClick);
+  preview.addEventListener('click', onLinkClick);
+  readingBody.addEventListener('change', event => {
+    const box = event.target.closest('input[type=checkbox][data-line]');
+    if (box) toggleTask(Number(box.dataset.line), box.checked);
   });
+  async function toggleTask(line, done) {
+    const lines = state.draft.body.split('\n');
+    if (!TASK_LINE.test(lines[line] ?? '')) return;
+    lines[line] = lines[line].replace(TASK_LINE, `$1${done ? 'x' : ' '}$3`);
+    const wasDirty = state.dirty;
+    state.draft.body = lines.join('\n');
+    editor.value = state.draft.body;
+    state.dirty = true;
+    drawPreview();
+    if (wasDirty) { setStatus('Ticked. Save to keep it with your other changes.'); expose(); return; }
+    await save({ quiet: true });
+  }
+
+  let hoverTimer = null, hideTimer = null;
+  function onLinkOver(event) {
+    const link = event.target.closest('a.wikilink[data-id]');
+    if (!link) return;
+    clearTimeout(hideTimer);
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => showHover(link), 300);
+  }
+  function onLinkOut(event) {
+    if (!event.target.closest('a.wikilink')) return;
+    clearTimeout(hoverTimer);
+    hideTimer = setTimeout(hideHover, 200);
+  }
+  function showHover(link) {
+    const note = state.byId.get(link.dataset.id);
+    if (!note) return;
+    $('hover-title').textContent = note.title;
+    const body = note.values[F.note.summary] || String(note.values[F.note.body] ?? '').slice(0, 900);
+    $('hover-body').innerHTML = body ? render(body, { resolve }) : '<p class="none">Nothing written here yet.</p>';
+    hoverCard.hidden = false;
+    const box = link.getBoundingClientRect(), card = hoverCard.getBoundingClientRect();
+    const left = Math.max(8, Math.min(innerWidth - card.width - 8, box.left));
+    const below = box.bottom + 6 + card.height < innerHeight;
+    hoverCard.style.left = `${left}px`;
+    hoverCard.style.top = `${below ? box.bottom + 6 : Math.max(8, box.top - card.height - 6)}px`;
+    expose();
+  }
+  function hideHover() { clearTimeout(hoverTimer); hoverCard.hidden = true; }
+  for (const host of [readingBody, preview]) { host.addEventListener('pointerover', onLinkOver); host.addEventListener('pointerout', onLinkOut); }
+  hoverCard.addEventListener('pointerenter', () => clearTimeout(hideTimer));
+  hoverCard.addEventListener('pointerleave', () => { hideTimer = setTimeout(hideHover, 150); });
+
+  // ---- The local graph: the note and what it links to and from, one step out.
+  const colour = node => node.type === 'tag' ? 'var(--nendo-muted, #5d5d5d)' : `var(--nendo-tone-${STAGE_TONES[node.stage] ?? 'grey'})`;
+  let localGraph = null;
+  function drawLocalGraph() {
+    const card = $('local-graph-card');
+    if (state.note === null) { card.hidden = true; return; }
+    card.hidden = false;
+    try {
+      localGraph ??= createGraph($('local-graph'), { kit, colour, compact: true, label: 'This note and its neighbours',
+        onOpen: node => open(node.id) });
+    } catch (error) { card.hidden = true; return; }
+    const data = buildGraph({ notes: state.index, links: state.links }, { focus: state.note.recordId, depth: 1 });
+    localGraph.update(data, { focus: state.note.recordId, refit: true });
+    $('local-count').textContent = String(data.nodes.length - 1);
+    state.local = { nodes: data.nodes.length, links: data.links.length };
+  }
+
+  // ---- Reading and editing.
+  function setMode(mode, { quiet = false } = {}) {
+    state.mode = mode === 'edit' ? 'edit' : 'read';
+    noteSection.classList.toggle('reading-mode', state.mode === 'read');
+    noteSection.classList.toggle('editing-mode', state.mode === 'edit');
+    document.documentElement.classList.toggle('editor-only', !state.preview);
+    $('own-toolbar').querySelector('[data-command=edit]').setAttribute('aria-pressed', String(state.mode === 'edit'));
+    hideHover();
+    if (state.draft) drawPreview();
+    if (!quiet) declareToolbar();
+    expose();
+  }
 
   function edited() {
     state.draft.title = title.value;
@@ -204,7 +304,7 @@ export async function startWorkspace(nendo, context, kit) {
   function setStatus(text = null) {
     status.classList.toggle('external', state.external);
     status.textContent = text ?? (state.external ? 'This note changed elsewhere. Reload it before saving; your draft is kept.'
-      : state.note === null && state.draft ? 'A new note. Save plants it.' : state.dirty ? 'Unsaved changes.' : state.note ? 'Saved.' : '');
+      : state.note === null && state.draft ? 'A new note. Save plants it.' : state.dirty ? 'Unsaved changes.' : '');
     ownSummary.textContent = summary();
     declareToolbar();
   }
@@ -212,7 +312,7 @@ export async function startWorkspace(nendo, context, kit) {
   function hideProblem() { state.problem = null; problem.hidden = true; expose(); }
 
   // ---- Save: the body becomes records, in one batch the view can undo.
-  async function save() {
+  async function save({ quiet = false } = {}) {
     if (!state.draft) return;
     if (state.external) { showProblem('This note changed elsewhere, so this draft is kept and not saved. Reload the note, then make your change again.'); return; }
     const body = editor.value, noteTitle = title.value;
@@ -236,7 +336,7 @@ export async function startWorkspace(nendo, context, kit) {
     const noteId = state.note?.recordId ?? result.records[0].recordId;
     await loadIndex();
     await open(noteId, { fromPlace: true });
-    setStatus(planned.stubs.length ? `Saved. Planted ${planned.stubs.length} ${planned.stubs.length === 1 ? 'seed' : 'seeds'}: ${planned.stubs.map(s => s.title).join(', ')}.` : 'Saved.');
+    setStatus(planned.stubs.length ? `Saved. Planted ${planned.stubs.length} ${planned.stubs.length === 1 ? 'seed' : 'seeds'}: ${planned.stubs.map(s => s.title).join(', ')}.` : quiet ? 'Saved.' : 'Saved.');
   }
 
   async function undo() {
@@ -329,13 +429,14 @@ export async function startWorkspace(nendo, context, kit) {
   let nativeChrome = false, aboutShown = false;
   function declareToolbar() {
     if (!nativeChrome) return;
-    const hasNote = state.draft !== null;
+    const hasNote = state.draft !== null, editing = state.mode === 'edit';
     nendo.ui.setToolbar({
       items: [
         { kind: 'search', id: 'find', label: 'Find a note', placeholder: 'Find…', value: state.filter, keys: 'Ctrl+Shift+F' },
         { kind: 'button', id: 'new', label: 'New note', icon: 'plus' },
-        { kind: 'button', id: 'daily', label: 'Today', icon: 'edit' },
-        { kind: 'toggle', id: 'preview', label: 'Preview', icon: 'eye', pressed: state.preview },
+        { kind: 'button', id: 'daily', label: 'Today', icon: 'list' },
+        { kind: 'toggle', id: 'edit', label: 'Edit', icon: 'edit', keys: 'Ctrl+E', pressed: editing, disabled: !hasNote },
+        ...(editing ? [{ kind: 'toggle', id: 'preview', label: 'Preview beside', icon: 'eye', pressed: state.preview }] : []),
         { kind: 'button', id: 'save', label: 'Save', icon: 'check', keys: 'Ctrl+S', disabled: !hasNote || !state.dirty },
         { kind: 'group', label: 'History', items: [
           { kind: 'button', id: 'undo', label: 'Undo save', icon: 'undo', iconOnly: true, disabled: state.undo.length === 0 },
@@ -344,7 +445,7 @@ export async function startWorkspace(nendo, context, kit) {
         { kind: 'text', id: 'summary', text: summary() },
         { kind: 'menu', id: 'more', label: 'Note', icon: 'more', items: [
           { id: 'open-record', label: 'Open record page', icon: 'external', disabled: state.note === null },
-          { id: 'graph', label: 'Graph', icon: 'chain' },
+          { id: 'graph', label: 'Graph of the garden', icon: 'chain' },
           { id: 'evergreen', label: 'Mark evergreen', icon: 'check', disabled: state.note === null },
           { kind: 'separator' },
           { kind: 'check', id: 'about', label: 'About this view', checked: aboutShown },
@@ -358,7 +459,8 @@ export async function startWorkspace(nendo, context, kit) {
       case 'find': state.filter = value ?? ''; find.value = state.filter; drawTree(); break;
       case 'new': startNew(); break;
       case 'daily': await daily(); break;
-      case 'preview': state.preview = typeof value === 'boolean' ? value : !state.preview; document.documentElement.classList.toggle('editor-only', !state.preview); $('own-toolbar').querySelector('[data-command=preview]').setAttribute('aria-pressed', String(state.preview)); declareToolbar(); break;
+      case 'edit': if (state.draft) setMode(typeof value === 'boolean' ? (value ? 'edit' : 'read') : state.mode === 'edit' ? 'read' : 'edit'); break;
+      case 'preview': state.preview = typeof value === 'boolean' ? value : !state.preview; setMode(state.mode); break;
       case 'save': await save(); break;
       case 'undo': await undo(); break;
       case 'redo': await redo(); break;
@@ -384,8 +486,10 @@ export async function startWorkspace(nendo, context, kit) {
   });
   find.addEventListener('input', () => { state.filter = find.value; drawTree(); });
   document.addEventListener('keydown', event => {
-    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 's') { event.preventDefault(); save(); }
-    if (event.key === 'Escape' && aboutShown) command('about', false);
+    const ctrl = (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey;
+    if (ctrl && event.key.toLowerCase() === 's') { event.preventDefault(); save(); }
+    if (ctrl && event.key.toLowerCase() === 'e' && !event.defaultPrevented) { event.preventDefault(); command('edit', null); }
+    if (event.key === 'Escape') { hideHover(); if (aboutShown) command('about', false); }
   });
   if (can('ui.setToolbar')) {
     nativeChrome = true;
@@ -403,15 +507,19 @@ export async function startWorkspace(nendo, context, kit) {
     if (!state.dirty) { await open(current, { fromPlace: true }); return; }
     const latest = state.byId.get(current);
     if (latest === undefined || latest.version !== state.note.version) { state.external = true; setStatus(); expose(); }
+    drawLocalGraph();
   }
   nendo.on('changes', () => { if (pending === null) pending = setTimeout(changed, 400); });
   nendo.on('context', () => { if (pending === null) pending = setTimeout(changed, 400); });
   nendo.on('place', place => { if (place?.noteId) open(place.noteId, { fromPlace: true }); });
 
+  setMode('read', { quiet: true });
   await loadIndex();
   state.ready = true;
   expose();
-  const start = context.place?.noteId && state.byId.has(context.place.noteId) ? context.place.noteId : null;
-  if (start) await open(start, { fromPlace: true });
+  // The garden opens on the place Back left, or on its first pinned map, or on its first note.
+  const pinned = state.index.find(note => note.values[F.note.pinned] && note.values[F.note.kind] === 'Map') ?? state.index.find(note => note.values[F.note.pinned]);
+  const start = context.place?.noteId && state.byId.has(context.place.noteId) ? context.place.noteId : pinned?.recordId ?? null;
+  if (start) await open(start, { fromPlace: !!context.place?.noteId });
   else setStatus('');
 }

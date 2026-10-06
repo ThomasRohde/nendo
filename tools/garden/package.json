@@ -1,0 +1,12 @@
+{
+  "name": "nendo-garden-build",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bundle": "node bundle.mjs",
+    "test": "node --test parse.test.mjs render.test.mjs sync.test.mjs graph.test.mjs definition.test.mjs"
+  },
+  "devDependencies": {
+    "d3": "7.9.0"
+  }
+}

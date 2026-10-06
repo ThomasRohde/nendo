@@ -74,9 +74,12 @@ export function fnv1a(text) {
 export function excerptAround(line, index, width = EXCERPT_WIDTH) {
   const text = String(line ?? '');
   if (text.trim().length <= width) return text.trim();
-  const start = Math.max(0, Math.min(index - Math.floor(width / 3), text.length - width));
-  const slice = text.slice(start, start + width).trim();
-  return `${start > 0 ? '…' : ''}${slice}${start + width < text.length ? '…' : ''}`;
+  let start = Math.max(0, Math.min(index - Math.floor(width / 3), text.length - width));
+  let end = Math.min(text.length, start + width);
+  // Cut between words, never inside one.
+  if (start > 0) { const space = text.indexOf(' ', start); if (space !== -1 && space < index) start = space + 1; }
+  if (end < text.length) { const space = text.lastIndexOf(' ', end); if (space > index) end = space; }
+  return `${start > 0 ? '…' : ''}${text.slice(start, end).trim()}${end < text.length ? '…' : ''}`;
 }
 
 function normalise(text) {

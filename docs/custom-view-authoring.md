@@ -29,8 +29,9 @@ dependencies:
   which bound field plays which part, and it finds the related record types in the
   schema;
 - [`extensions/garden/`](../extensions/garden/README.md), a notes workspace that is the
-  screen `workspace/Garden.nendo` opens on and the Backlinks panel on a note's page: it
-  derives Link, Tag and Task records from a note's Markdown in one batch, with undo.
+  screen `workspace/Garden.nendo` opens on, its d3 graph screen, and the Backlinks panel on a
+  note's page: it derives Link, Tag and Task records from a note's Markdown in one batch, with
+  undo. It carries d3 7.9.0 (ISC) in `vendor/`, copied by `tools/garden/bundle.mjs`.
 
 ## What a view can do
 

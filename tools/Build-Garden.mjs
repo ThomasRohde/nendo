@@ -6,6 +6,7 @@
 //   node tools/Build-Garden.mjs --list          what the stages are
 //   node tools/Build-Garden.mjs --dry-run       say what would be sent, take no lease
 //   node tools/Build-Garden.mjs compare         read the built file back and check it
+//   node tools/Build-Garden.mjs upgrade         bring a built file's Garden package up to this folder
 //
 // The shape is in tools/garden/definition.mjs and the reasons in docs/design/garden.md. The
 // empty file is made by Nendo itself (Nendo.Desktop.exe -new <path>). When the person has set the
@@ -15,7 +16,7 @@
 
 import crypto from 'node:crypto';
 import { target, withLease, fail } from './archi-mcp.mjs';
-import { STAGES, STAGE_ORDER, CALL_CHARACTERS, NEW_FILE_LABEL, SKILL_PACKAGE_ID, PACKAGE_ID, GRAPH_PACKAGE_ID, seedRecords } from './garden/definition.mjs';
+import { STAGES, STAGE_ORDER, CALL_CHARACTERS, NEW_FILE_LABEL, SKILL_PACKAGE_ID, PACKAGE_ID, PACKAGE_FOLDER, RETIRED_GRAPH_PACKAGE_ID, seedRecords, packageFiles } from './garden/definition.mjs';
 
 const TARGET_FILE_NAME = process.env.NENDO_GARDEN_TARGET || 'Garden.nendo';
 
@@ -35,8 +36,12 @@ async function runStage(file, name, dryRun) {
   const missing = (stage.needs ?? []).filter(id => !present.includes(id));
   if (missing.length > 0 && !dryRun) fail(`Stage ${name} needs ${missing.join(', ')}, which an earlier stage makes.`);
   if (name === 'schema' && present.length > 0 && !dryRun) fail(`Refused: ${TARGET_FILE_NAME} already holds ${present.join(', ')}. Build only into an empty file.`);
-
   const mutations = await stage.mutations({ applicationId: file.manifest.applicationId });
+  return runChangeSet(file, name, stage.title, mutations, dryRun);
+}
+
+async function runChangeSet(file, name, title, mutations, dryRun) {
+  const stage = { title };
   const operations = mutations.reduce((total, mutation) => total + mutation.operations.length, 0);
   for (const mutation of mutations) {
     if (mutation.operations.length > 16) fail(`"${mutation.description}" holds ${mutation.operations.length} operations; a call carries 16.`);
@@ -90,7 +95,14 @@ async function compare(file) {
   const describe = await file.read.json('nendo://application/describe?include=manifest,entities,extensions');
   if (describe.manifest.newFileLabel !== NEW_FILE_LABEL) problems.push(`new-file label is ${describe.manifest.newFileLabel}, not ${NEW_FILE_LABEL}`);
   const packages = (describe.extensions ?? []).map(p => p.packageId);
-  for (const id of [PACKAGE_ID, GRAPH_PACKAGE_ID, SKILL_PACKAGE_ID]) if (!packages.includes(id)) problems.push(`package ${id} is not in the file`);
+  for (const id of [PACKAGE_ID, SKILL_PACKAGE_ID]) if (!packages.includes(id)) problems.push(`package ${id} is not in the file`);
+  if (packages.includes(RETIRED_GRAPH_PACKAGE_ID)) problems.push(`${RETIRED_GRAPH_PACKAGE_ID} is still in the file: run upgrade`);
+  const garden = (describe.extensions ?? []).find(p => p.packageId === PACKAGE_ID);
+  const { manifest: wanted, files: wantedFiles } = await packageFiles(PACKAGE_FOLDER);
+  if (garden && garden.version !== wanted.version) problems.push(`the file carries Garden ${garden.version}, the folder ${wanted.version}: run upgrade`);
+  const held = new Map((garden?.files ?? []).map(f => [f.path, f.sha256]));
+  const differ = wantedFiles.filter(f => held.get(f.path) !== f.sha256).map(f => f.path);
+  if (differ.length) problems.push(`the file's Garden package differs from the folder in ${differ.join(', ')}: run upgrade`);
   const full = await file.read.json('nendo://application/describe?include=newFile');
   const kept = (full.newFile?.types ?? []).reduce((n, t) => n + (t.kept ?? 0), 0);
   const seeds = seedRecords().length;
@@ -105,6 +117,49 @@ async function compare(file) {
   console.log(`Compare passed: ${STAGE_ORDER.length} stages applied, ${packages.length} packages, ${kept} kept seed records, start-here has ${linksIn} backlinks.`);
 }
 
+/**
+ * One change set that brings a built file up to this folder: the Garden package's changed files
+ * (each put names the content it replaces, so a newer package is never overwritten), the Graph
+ * screen moved onto the Garden package, and the retired Dependency graph package taken out.
+ */
+async function upgrade(file, dryRun) {
+  const listing = await file.read.json('nendo://application/extensions');
+  const current = listing.find(p => p.packageId === PACKAGE_ID);
+  if (!current) fail(`${TARGET_FILE_NAME} does not carry ${PACKAGE_ID}; build it first.`);
+  const { manifest, files } = await packageFiles(PACKAGE_FOLDER);
+  const op = (operationType, payload) => ({ operationType, payload });
+  const operations = [];
+  if (current.version !== manifest.version || current.title !== manifest.title || current.description !== manifest.description) {
+    operations.push(op('extension.setPackage', { packageId: PACKAGE_ID, title: manifest.title, entryPoint: manifest.entryPoint ?? 'index.html', version: manifest.version, description: manifest.description }));
+  }
+  const held = new Map(current.files.map(f => [f.path, f.sha256]));
+  const partBytes = 70 * 1024;
+  for (const f of files) {
+    if (held.get(f.path) === f.sha256) continue;
+    for (let offset = 0; offset === 0 || offset < f.bytes.length; offset += partBytes) {
+      operations.push(op('extension.putFile', { packageId: PACKAGE_ID, path: f.path, base64: f.bytes.subarray(offset, offset + partBytes).toString('base64'),
+        ...(offset === 0 ? { expectedSha256: held.get(f.path) ?? 'absent' } : { append: true }) }));
+    }
+  }
+  for (const [path, sha256] of held) if (!files.some(f => f.path === path)) operations.push(op('extension.removeFile', { packageId: PACKAGE_ID, path, expectedSha256: sha256 }));
+  const retired = listing.find(p => p.packageId === RETIRED_GRAPH_PACKAGE_ID);
+  if (retired) {
+    operations.push(op('ui.setProperty', { surfaceId: 'garden', nodeId: 'gd.note.graph', propertyName: 'packageId', value: PACKAGE_ID }));
+    for (const f of retired.files) operations.push(op('extension.removeFile', { packageId: RETIRED_GRAPH_PACKAGE_ID, path: f.path, expectedSha256: f.sha256 }));
+    operations.push(op('extension.removePackage', { packageId: RETIRED_GRAPH_PACKAGE_ID }));
+  }
+  if (operations.length === 0) { console.log('Nothing to upgrade: the file carries the Garden package in this folder.'); return true; }
+  const mutations = [];
+  for (const operation of operations) {
+    const size = JSON.stringify(operation).length, last = mutations.at(-1);
+    if (!last || last.operations.length === 16 || last.size + size > CALL_CHARACTERS) mutations.push({ description: `Bring Garden up to ${manifest.version}`, operations: [], size: 0 });
+    mutations.at(-1).operations.push(operation);
+    mutations.at(-1).size += size;
+  }
+  return runChangeSet(file, 'upgrade', `Garden: the reading page and the living graph (package ${manifest.version})`,
+    mutations.map(({ description, operations: o }) => ({ description, operations: o })), dryRun);
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
@@ -114,6 +169,7 @@ async function main() {
   console.log(`Target          ${to.entry.displayName}  ${to.manifest.applicationId}  ${to.entry.endpoint}`);
   console.log(`Revision        definition ${to.manifest.definitionRevision}, data ${to.manifest.dataRevision}\n`);
   if (name === 'compare') { await compare(to); return; }
+  if (name === 'upgrade') { await upgrade(to, dryRun); return; }
   if (name) {
     if (!STAGES[name]) fail(`Unknown stage ${name}. Run with --list.`);
     if (await applied(to, name)) fail(`Stage ${name} is already applied.`);

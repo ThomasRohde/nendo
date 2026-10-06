@@ -48,5 +48,9 @@ test('an excerpt keeps the match inside a window of the width asked for', () => 
   const excerpt = excerptAround(long, 301, 200);
   assert.ok(excerpt.includes('[[target]]'));
   assert.ok(excerpt.length <= 202);
+  // Seven-letter words, so the window (66 characters before the link) opens in the middle of one.
+  const words = excerptAround(`${'alphas '.repeat(60)}[[target]] ${'omegas '.repeat(60)}`, 420, 200);
+  assert.match(words, /^…alphas /, `an excerpt starts at a word: ${words.slice(0, 20)}`);
+  assert.match(words, / omegas…$/, `an excerpt ends at a word: ${words.slice(-20)}`);
   assert.equal(excerptAround('  short  ', 2, 200), 'short');
 });

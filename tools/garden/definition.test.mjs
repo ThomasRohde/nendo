@@ -68,6 +68,15 @@ test('every field a screen names exists on that node\'s record type, stored or c
   }
 });
 
+test('the graph screen runs the Garden package, and no stage carries the retired Dependency graph', async () => {
+  const ops = await allOps();
+  const graph = ops.find(o => o.operationType === 'ui.addNode' && o.payload.nodeId === 'gd.note.graph');
+  assert.equal(graph.payload.kind, 'extensionGraphSurface');
+  assert.equal(graph.payload.properties.packageId, 'org.nendo.garden');
+  assert.ok(!ops.some(o => o.payload?.packageId === 'org.nendo.dependency-graph'), 'a stage still names org.nendo.dependency-graph');
+  assert.ok(STAGE_ORDER.indexOf('garden') < STAGE_ORDER.indexOf('graph'), 'the package is in the file before the graph names it');
+});
+
 test('one view opens the file, one front page, one page per record type, at most eight roots per kind', async () => {
   const roots = (await allOps()).filter(o => o.operationType === 'ui.addNode' && o.payload.parentNodeId === null).map(o => o.payload);
   assert.equal(roots.filter(r => r.kind === 'extensionView' && r.properties.opensFile === true).length, 1, 'exactly one extensionView must open the file');
@@ -151,10 +160,13 @@ test('the package manifest, the kit copy and the skill are what the file will ca
   assert.equal(manifest.packageId, 'org.nendo.garden');
   assert.match(manifest.packageId, /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$/);
   assert.equal(manifest.entryPoint, 'index.html');
-  for (const file of ['index.html', 'garden.js', 'garden.css', 'workspace.js', 'panel.js', 'parse.mjs', 'render.mjs', 'sync.mjs', 'related.mjs', 'kit/nendo-view-kit.js', 'LICENSE.txt']) {
+  for (const file of ['index.html', 'garden.js', 'garden.css', 'workspace.js', 'panel.js', 'graphscreen.js', 'graph.js', 'graph-data.mjs', 'parse.mjs', 'render.mjs', 'sync.mjs', 'related.mjs', 'kit/nendo-view-kit.js', 'vendor/d3.min.js', 'vendor/d3.LICENSE.txt', 'vendor/THIRD-PARTY-NOTICES.txt', 'LICENSE.txt']) {
     assert.ok(readFileSync(path.join(PACKAGE_FOLDER, file)).length > 0, `${file} is missing from the package`);
   }
-  const sources = ['garden.js', 'workspace.js', 'panel.js', 'parse.mjs', 'render.mjs', 'sync.mjs', 'related.mjs'].map(f => readFileSync(path.join(PACKAGE_FOLDER, f), 'utf8')).join('\n');
+  assert.match(readFileSync(path.join(PACKAGE_FOLDER, 'vendor/d3.min.js'), 'utf8').slice(0, 80), /d3js\.org v7\.9\.0/, 'the vendored d3 is the pinned 7.9.0');
+  const html = readFileSync(path.join(PACKAGE_FOLDER, 'index.html'), 'utf8');
+  assert.ok(html.indexOf('vendor/d3.min.js') > html.indexOf('/_nendo/api.js') && html.indexOf('vendor/d3.min.js') < html.indexOf('garden.js'), 'd3 loads after the API and before the view');
+  const sources = ['garden.js', 'workspace.js', 'panel.js', 'graphscreen.js', 'graph.js', 'graph-data.mjs', 'parse.mjs', 'render.mjs', 'sync.mjs', 'related.mjs', 'vendor/d3.min.js'].map(f => readFileSync(path.join(PACKAGE_FOLDER, f), 'utf8')).join('\n');
   assert.ok(!sources.includes('chrome.' + 'webview'), 'a package never names the host bridge');
   const skill = JSON.parse(readFileSync(path.join(SKILL_FOLDER, 'nendo-package.json'), 'utf8'));
   assert.equal(skill.packageId, SKILL_PACKAGE_ID);

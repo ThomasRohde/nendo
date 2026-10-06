@@ -18,6 +18,14 @@ export async function readRelated(nendo, noteId) {
 
 export const readTags = nendo => nendo.records.queryAll({ entityId: 'gd.tag' }, { max: 5000 });
 
+/** A stored context sentence as reading text: Markdown marks dropped, a wikilink shown by its words. */
+export function plainText(text) {
+  return String(text ?? '')
+    .replace(/\[\[([^[\]|]+?)\|([^[\]]+?)\]\]/g, '$2').replace(/\[\[([^[\]]+?)\]\]/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1').replace(/(^|\s)[*_]([^*_\s][^*_]*?)[*_](?=\s|[.,;:!?]|$)/g, '$1$2')
+    .replace(/`([^`]*)`/g, '$1').replace(/^\s*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+|#{1,6}\s+|>\s?)/, '');
+}
+
 /** A reference's label as the host read it, or the target's title from an index, or its ID. */
 export function labelOf(record, fieldId, index) {
   const id = record.values[fieldId];
@@ -52,7 +60,7 @@ export function none(text) {
 export function drawRelated({ backlinks, noteTags, tasks }, lists, open, index, tagNames = null) {
   lists.backlinks.replaceChildren(...(backlinks.length ? backlinks.map(link =>
     row(labelOf(link, F.link.from, index), () => open('gd.note', link.values[F.link.from]),
-      [link.values[F.link.kind], link.values[F.link.context]].filter(Boolean).join(' · ')))
+      [link.values[F.link.kind], plainText(link.values[F.link.context])].filter(Boolean).join(' · ')))
     : [none('Nothing links here yet.')]));
   lists.backlinksCount.textContent = backlinks.length ? String(backlinks.length) : '';
   lists.tags.replaceChildren(...(noteTags.length ? noteTags.map(noteTag =>

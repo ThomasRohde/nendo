@@ -3,7 +3,8 @@
 // headings, paragraphs, emphasis, inline and fenced code, lists with checkboxes, quotes, rules and
 // http links. Tables, footnotes, embeds and images are not in it.
 //
-//   render(body, { resolve })   -> HTML text. resolve(target) answers { recordId, title } or null.
+//   render(body, { resolve, interactive })   -> HTML text. resolve(target) answers { recordId, title } or null;
+//   interactive leaves task checkboxes enabled, each naming its source line as data-line.
 
 const WIKILINK = /\[\[([^[\]|]+?)(?:\|([^[\]]+?))?\]\]/g;
 const TAG = /(^|[\s(,;])#([\p{L}\p{N}_][\p{L}\p{N}_/-]*)/gu;
@@ -14,7 +15,7 @@ export function escape(text) {
   return String(text ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
-export function render(body, { resolve = () => null } = {}) {
+export function render(body, { resolve = () => null, interactive = false } = {}) {
   const lines = String(body ?? '').split(/\r?\n/);
   const out = [];
   let paragraph = [], list = null, quote = [], fence = null, code = [];
@@ -22,7 +23,7 @@ export function render(body, { resolve = () => null } = {}) {
   const flushList = () => { if (list) { out.push(`<${list.tag}>${list.items.join('')}</${list.tag}>`); list = null; } };
   const flushQuote = () => { if (quote.length) { out.push(`<blockquote>${inline(quote.join(' '), resolve)}</blockquote>`); quote = []; } };
   const flushAll = () => { flushParagraph(); flushList(); flushQuote(); };
-  for (const line of lines) {
+  for (const [number, line] of lines.entries()) {
     const opening = FENCE.exec(line);
     if (fence !== null) {
       if (opening !== null && opening[1][0] === fence[0] && opening[1].length >= fence.length) {
@@ -46,7 +47,7 @@ export function render(body, { resolve = () => null } = {}) {
       const task = /^\[( |x|X)\]\s+(.*)$/.exec(item[3]);
       list.items.push(task === null
         ? `<li>${inline(item[3], resolve)}</li>`
-        : `<li class="task${task[1] === ' ' ? '' : ' done'}"><input type="checkbox" disabled${task[1] === ' ' ? '' : ' checked'}> ${inline(task[2], resolve)}</li>`);
+        : `<li class="task${task[1] === ' ' ? '' : ' done'}"><input type="checkbox"${interactive ? ` data-line="${number}" aria-label="${escape(task[2])}"` : ' disabled'}${task[1] === ' ' ? '' : ' checked'}> ${inline(task[2], resolve)}</li>`);
       continue;
     }
     flushList(); flushQuote();

@@ -17,44 +17,70 @@
     <div id="own-toolbar" class="own-chrome" role="toolbar" aria-label="Garden controls">
       <button type="button" data-command="new">New note</button>
       <button type="button" data-command="daily">Today</button>
-      <button type="button" data-command="preview" aria-pressed="true">Preview</button>
+      <button type="button" data-command="edit" aria-pressed="false">Edit</button>
       <button type="button" data-command="save">Save</button>
       <button type="button" data-command="undo">Undo</button>
       <button type="button" data-command="redo">Redo</button>
-      <button type="button" data-command="open-record">Open record</button>
       <button type="button" data-command="graph">Graph</button>
       <span id="own-summary"></span>
     </div>
     <p id="status" role="status"></p>
     <p id="problem" role="alert" hidden></p>
     <p id="empty">Pick a note on the left, or plant one with New note.</p>
-    <section id="note" hidden aria-label="Note">
-      <input id="title" aria-label="Title" placeholder="Title">
-      <div id="meta"></div>
-      <div id="panes">
-        <div id="editor-wrap">
-          <textarea id="editor" aria-label="Note body" spellcheck="true" placeholder="Write. Link with [[a note]], tag with #word, and keep a task as - [ ] what to do."></textarea>
-          <ul id="autocomplete" role="listbox" aria-label="Notes to link" hidden></ul>
+    <section id="note" class="reading-mode" hidden aria-label="Note">
+      <div id="sheet">
+        <article id="reading" aria-label="Reading">
+          <h1 id="reading-title"></h1>
+          <div class="meta" id="reading-meta"></div>
+          <div id="reading-body" class="markdown"></div>
+        </article>
+        <div id="editing" aria-label="Editing">
+          <input id="title" aria-label="Title" placeholder="Title">
+          <div class="meta" id="meta"></div>
+          <div id="panes">
+            <div id="editor-wrap">
+              <textarea id="editor" aria-label="Note body" spellcheck="true" placeholder="Write. Link with [[a note]], tag with #word, and keep a task as - [ ] what to do."></textarea>
+              <ul id="autocomplete" role="listbox" aria-label="Notes to link" hidden></ul>
+            </div>
+            <div id="preview" class="markdown" aria-label="Preview"></div>
+          </div>
         </div>
-        <div id="preview" class="markdown" aria-label="Preview"></div>
-      </div>
-      <div id="about">
-        <section><h2>Backlinks <span id="backlinks-count" class="count"></span></h2><ul id="backlinks" class="rows"></ul></section>
-        <section><h2>Tags</h2><ul id="note-tags" class="rows chips"></ul></section>
-        <section><h2>Tasks <span id="tasks-count" class="count"></span></h2><ul id="note-tasks" class="rows"></ul></section>
+        <div id="about">
+          <section class="card"><h2>Backlinks <span id="backlinks-count" class="count"></span></h2><ul id="backlinks" class="rows"></ul></section>
+          <section class="card" id="local-graph-card"><h2>Local graph <span id="local-count" class="count"></span></h2><div id="local-graph" class="graph-host local"></div></section>
+          <section class="card"><h2>Tags</h2><ul id="note-tags" class="rows chips"></ul></section>
+          <section class="card"><h2>Tasks <span id="tasks-count" class="count"></span></h2><ul id="note-tasks" class="rows"></ul></section>
+        </div>
       </div>
     </section>
   </main>
 </div>
+<div id="hover-card" role="tooltip" hidden><strong id="hover-title"></strong><div id="hover-body" class="markdown"></div></div>
 <div id="panel" hidden>
   <p id="panel-status" role="status"></p>
   <section><h2>Backlinks <span id="panel-backlinks-count" class="count"></span></h2><ul id="panel-backlinks" class="rows"></ul></section>
   <section><h2>Tags</h2><ul id="panel-tags" class="rows chips"></ul></section>
   <section><h2>Tasks <span id="panel-tasks-count" class="count"></span></h2><ul id="panel-tasks" class="rows"></ul></section>
 </div>
-<p id="about-text" class="hint" hidden>Write Markdown. A [[wikilink]] names another note by its slug or title and becomes a Link record when you save; a note it names that is not there yet is planted as a Seed. A #tag becomes a Tag record, and a line that starts with - [ ] becomes a Task. Links, tags and tasks that somebody wrote by hand are kept as they are.</p>
+<div id="graph-screen" hidden>
+  <div id="graph-toolbar" class="own-chrome" role="toolbar" aria-label="Graph controls" hidden>
+    <input id="graph-find" type="search" placeholder="Find…" aria-label="Find a note">
+    <button type="button" data-command="colour" data-value="stage">Stage</button>
+    <button type="button" data-command="colour" data-value="kind">Kind</button>
+    <button type="button" data-command="tags" data-toggle="1" aria-pressed="false">Tags</button>
+    <button type="button" data-command="orphans" data-toggle="1" aria-pressed="true">Orphans</button>
+    <button type="button" data-command="arrows" data-toggle="1" aria-pressed="false">Arrows</button>
+    <button type="button" data-command="fit">Fit</button>
+    <span id="graph-summary"></span>
+  </div>
+  <p id="graph-problem" role="alert" hidden></p>
+  <div id="graph-canvas" class="graph-host"></div>
+  <p id="about-graph" class="hint" hidden>Each dot is a note, sized by how many links it has, coloured by its stage or kind. Drag the background to pan, the wheel to zoom, a note to move it. Hover a note to light it and its neighbours. Click to open it; right-click for its neighbourhood. Tags shows tags as small grey dots.</p>
+</div>
+<p id="about-text" class="hint" hidden>A note opens for reading. Edit (Ctrl E) switches to its Markdown. A [[wikilink]] names another note by its slug or title and becomes a Link record when you save; a note it names that is not there yet is planted as a Seed. A #tag becomes a Tag record, and a line that starts with - [ ] becomes a Task: tick it while reading and it is saved. Links, tags and tasks that somebody wrote by hand are kept as they are.</p>
 <p id="not-framed" hidden>This view runs inside Nendo.</p>
 <script src="/_nendo/api.js"></script>
+<script src="vendor/d3.min.js"></script>
 <script type="module" src="garden.js"></script>
 </body>
 </html>

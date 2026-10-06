@@ -27,17 +27,47 @@ carries its own agent skill). No host change is required.
 - **Agents** read the file's own skill, `dev.nendo.garden`, address a note by its unique slug,
   read `gd.note.summary` instead of a body, and ask the file for backlinks and counts.
 
+## Reading first, and a living graph
+
+The owner asked on 2026-10-06 for the page to be for reading, with a switch to edit, and for
+the graph to be dynamic and interactive, drawn with a common library as Obsidian's is.
+
+- **A note opens for reading.** The title is the page heading, the body is set in a 720-pixel
+  column, and the editor is out of sight. **Edit** (Ctrl E, a toggle in Nendo's row) swaps
+  the page for its Markdown with the preview beside it; New note and Today open in Edit.
+  Ticking a task while reading writes the tick into the body and saves at once, as one batch.
+  Hovering a wikilink previews the note it names: its summary, or the start of its body.
+- **The graph is d3.** `vendor/d3.min.js` is d3 7.9.0, pinned in `tools/garden/package.json`
+  and copied with its licences by `tools/garden/bundle.mjs` (ISC; the notices of every module
+  it was built from are in `vendor/THIRD-PARTY-NOTICES.txt`). A force simulation lays the
+  notes out (links, many-body repulsion, a pull to the centre, and collision that leaves room
+  for a label). The wheel and a drag on the background zoom and pan, a drag on a note moves it
+  and the rest follow, hovering a note lights it and its neighbours and dims the rest, labels
+  fade in as you zoom, and a click opens the note. Nodes grow with the square root of their
+  links and take their stage's tone, or their kind's.
+- **Two places draw it.** The Graph screen (`gd.note.graph`, an `extensionGraphSurface` that
+  now runs the Garden package) shows the whole garden, with Find, colour by stage or kind,
+  tags as nodes, orphans, arrows, spread and fit in Nendo's row; a right-click shows a note's
+  neighbourhood. The **local graph** under a note while reading shows it and every note one
+  link away. The Dependency graph package the Graph screen ran before is taken out of the file.
+- **Why SVG and not a canvas.** The node count of a personal garden stays in the hundreds,
+  where SVG keeps up; SVG lets the theme colour every mark through CSS, lets the keyboard
+  traverse the nodes with the view kit, and lets the lane measure what it draws.
+
 ## The file
 
 `workspace/Garden.nendo`, built by `tools/Build-Garden.mjs` from `tools/garden/definition.mjs`,
-one change set per stage: `schema`, `colour`, `behaviour`, `notes`, `others`, `front`, `graph`
-(the Dependency graph package over `gd.link`), `garden` (the Garden package, the
-`extensionView` the file opens on, and the Backlinks `extensionRecordPanel`), `skill`, `seed`
-and `keep`. The builder finds the file by name in the host's discovery folder, refuses a
+one change set per stage: `schema`, `colour`, `behaviour`, `notes`, `others`, `front`, `garden`
+(the Garden package, the `extensionView` the file opens on, and the Backlinks
+`extensionRecordPanel`), `graph` (the Graph screen over `gd.link`, run by the same package),
+`skill`, `seed` and `keep`. The builder finds the file by name in the host's discovery folder, refuses a
 development planner and a non-empty file, keeps every stage under 128 operations and every
 mutation under 16, and accepts its own proposal only at Unattended. `compare` reads the file
-back: every stage applied, the three packages present, the seeds kept for a new garden, and a
-backlink count alive.
+back: every stage applied, the Garden package identical to the folder and the skill present,
+the retired Dependency graph absent, the seeds kept for a new garden, and a backlink count
+alive. `upgrade` brings a built file up to the folder in one change set: only the package files
+that differ, each naming the content it replaces, and, for a file built before the d3 graph,
+the Graph screen moved onto the Garden package and the Dependency graph package removed.
 
 The seed notes (Start here, How links work, Daily notes, Tags and tasks, For agents, Daily note
 template) are kept in new files, so *File → New garden…* opens with the guide. Their links,
@@ -70,21 +100,29 @@ cannot disagree with the parser.
 - `node --test tools/garden/*.test.mjs tools/view-kit/kit.test.mjs`: the parser skips code,
   tags and tasks keep their keys, the renderer never passes markup, sync plants stubs, keeps
   Manual rows, diffs tasks by key, carries target versions only for existing targets and
-  refuses a body over 32 KiB or a save over 200 writes; every field a screen names exists,
-  one view opens the file, the seeds say what their bodies say, the kit copy is the kit.
+  refuses a body over 32 KiB or a save over 200 writes; an excerpt is cut between words; the
+  graph keeps one edge per direction and no self-links and walks a focus either way along a
+  link; every field a screen names exists, one view opens the file, the graph screen runs the
+  Garden package, the seeds say what their bodies say, the kit copy is the kit.
 - `pwsh ./tools/Review-Garden.ps1` (in `Test-Production.ps1`): mount with Nendo's toolbar
-  accepted by the Workbench's own rules, wikilink navigation with places, `[[` autocomplete,
+  accepted by the Workbench's own rules; a note opening for reading in a readable column; the
+  local graph drawing the note and its neighbours; a hover previewing a linked note; a tick
+  while reading saved as one batch; wikilink navigation with places, Edit swapping in the
+  Markdown, `[[` autocomplete,
   one-batch save deriving a stub, a link with context, a tag and a task, link removal keeping
   Manual rows, checkbox done by key, undo, a refused save keeping the draft, an external change
   blocking a save, a 32 KiB body refused, Light and Dark measured, the Backlinks panel opening
-  its source once, and the narrow layout.
+  its source once; on the Graph screen, with a real pointer, every note and one edge per linked
+  pair, a spread layout, hover dimming all but the neighbours, a drag that moves a note and
+  opens nothing, the wheel zooming, a click opening a note once, Find, tags as nodes and the
+  stage tones in both themes; and the narrow layout.
 - `node tools/Build-Garden.mjs` then `compare` against `workspace/Garden.nendo`;
   `Test-Repository.ps1` and `Test-Production.ps1 -SkipRestore`.
 - Owner-reported: the file opens on the Garden view in the installed host.
 
 ## Build and handoff
 
-Source: `extensions/garden/` (the package) and `tools/garden-skill/` (the skill);
+Source: `extensions/garden/` (the package; `vendor/` from `tools/garden/bundle.mjs`) and `tools/garden-skill/` (the skill);
 definition, builder and lane: `tools/garden/`, `tools/Build-Garden.mjs`,
 `tools/Review-Garden.ps1`, `tools/Gate-Garden.mjs`. Exact commands, outcomes and remaining
 owner actions are on W-174 and its Checks. Screenshots under `artifacts/garden/` are scratch.

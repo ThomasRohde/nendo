@@ -13,11 +13,12 @@ import { plan, F } from '../../extensions/garden/sync.mjs';
 export const SURFACE = 'garden';
 export const CALL_CHARACTERS = 200_000;
 export const PACKAGE_ID = 'org.nendo.garden';
-export const GRAPH_PACKAGE_ID = 'org.nendo.dependency-graph';
+// The graph screen ran this package before the Garden package drew its own graph with d3; a
+// file built then still carries it until `node tools/Build-Garden.mjs upgrade` takes it out.
+export const RETIRED_GRAPH_PACKAGE_ID = 'org.nendo.dependency-graph';
 export const SKILL_PACKAGE_ID = 'dev.nendo.garden';
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PACKAGE_FOLDER = path.resolve(here, '..', '..', 'extensions', 'garden');
-export const GRAPH_PACKAGE_FOLDER = path.resolve(here, '..', '..', 'extensions', 'dependency-graph');
 export const SKILL_FOLDER = path.resolve(here, '..', 'garden-skill');
 export const NEW_FILE_LABEL = 'garden';
 export const SEED_DATE = '2026-10-06';
@@ -367,16 +368,15 @@ export const STAGES = {
   },
 
   graph: {
-    title: 'Garden: the graph of notes, drawn by the Dependency graph package',
+    title: 'Garden: the living graph of the notes',
     needs: ENTITIES,
     appliedWhen: async read => read.hasNode('gd.note.graph'),
-    mutations: async () => {
-      const files = await packageMutations(GRAPH_PACKAGE_FOLDER, GRAPH_PACKAGE_ID, 'Put the Dependency graph package into the file');
+    mutations: () => {
       const t = tree();
-      const graph = t.add('gd.note.graph', 'extensionGraphSurface', null, { definitionVersion: 3, entityId: 'gd.note', title: 'Graph', packageId: GRAPH_PACKAGE_ID,
+      const graph = t.add('gd.note.graph', 'extensionGraphSurface', null, { definitionVersion: 3, entityId: 'gd.note', title: 'Graph', packageId: PACKAGE_ID,
         labelFieldId: F.note.title, statusFieldId: F.note.stage, edgeEntityId: 'gd.link', sourceFieldId: F.link.from, targetFieldId: F.link.to });
       t.bindings(graph, [F.note.kind, F.link.kind]);
-      return [...files, ...t.asMutations('Show the notes as a graph')];
+      return t.asMutations('Show the notes as a living graph');
     },
   },
 
@@ -423,7 +423,7 @@ export const STAGES = {
   },
 };
 
-export const STAGE_ORDER = ['schema', 'colour', 'behaviour', 'notes', 'others', 'front', 'graph', 'garden', 'skill', 'seed', 'keep'];
+export const STAGE_ORDER = ['schema', 'colour', 'behaviour', 'notes', 'others', 'front', 'garden', 'graph', 'skill', 'seed', 'keep'];
 
 // ---- Seeds: the notes a new garden starts with. Their links, tags and tasks come from the same
 // parse and sync the view uses on save, so the seed cannot disagree with the parser.
@@ -619,7 +619,7 @@ export async function packageFiles(folder) {
   return { manifest, files };
 }
 
-async function packageMutations(folder, packageId, description) {
+export async function packageMutations(folder, packageId, description) {
   const { manifest, files } = await packageFiles(folder);
   if (manifest.packageId !== packageId) throw new Error(`${folder} is ${manifest.packageId}, not ${packageId}.`);
   const operations = [op('extension.setPackage', { packageId, title: manifest.title, entryPoint: manifest.entryPoint ?? 'index.html', version: manifest.version, description: manifest.description })];

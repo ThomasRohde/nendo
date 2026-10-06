@@ -31,13 +31,49 @@ async page => {
   assert(await frame.evaluate(() => getComputedStyle(document.getElementById('own-toolbar')).display === 'none'), 'With Nendo\'s toolbar offered the view draws no controls of its own.');
   checks.push('mount');
 
-  // 2. Open Start here from the tree: the preview links, a click follows one and declares a place.
-  await frame.locator('#tree .row[data-id="gd.note.start-here"]').click();
+  // 2. The garden opens on its pinned map, for reading: the page, not the Markdown.
   await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here');
+  const visible = selector => frame.evaluate(selector => { const e = document.querySelector(selector); return !!e && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden'; }, selector);
+  assert(await frame.evaluate(() => window.garden.mode) === 'read' && await visible('#reading') && !await visible('#editor'), 'A note must open for reading, with the editor out of sight.');
+  assert(await frame.locator('#reading-title').textContent() === 'Start here', 'Reading shows the title as the page heading.');
   const seedLinks = fixture.records['gd.link'].filter(l => l.values[F.from] === 'gd.note.start-here' && l.values[F.source] === 'Body').length;
-  assert(await frame.locator('#preview a.wikilink[data-id]').count() === seedLinks, `The preview must resolve the ${seedLinks} wikilinks of Start here.`);
+  assert(await frame.locator('#reading-body a.wikilink[data-id]').count() === seedLinks, `Reading must resolve the ${seedLinks} wikilinks of Start here.`);
   assert(await frame.locator('#backlinks li button').count() === fixture.records['gd.link'].filter(l => l.values[F.to] === 'gd.note.start-here').length, 'Backlinks under the note must match the link rows into it.');
-  await frame.locator('#preview a.wikilink[data-id="gd.note.how-links-work"]').first().click();
+  const readingWidth = await frame.evaluate(() => document.getElementById('reading').getBoundingClientRect().width);
+  assert(readingWidth <= 721, `The reading column must keep a readable measure, not the window's width: ${readingWidth}px.`);
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: '__OUTPUT__/reading.png', fullPage: true });
+  checks.push('opens for reading');
+
+  // The local graph: the note and every note one link away, either way.
+  const near = new Set(['gd.note.start-here']);
+  for (const l of fixture.records['gd.link']) { if (l.values[F.from] === 'gd.note.start-here') near.add(l.values[F.to]); if (l.values[F.to] === 'gd.note.start-here') near.add(l.values[F.from]); }
+  await frame.waitForFunction(count => document.querySelectorAll('#local-graph .node').length === count, near.size, { timeout: 5000 }).catch(async () => { throw Error(`The local graph must draw ${near.size} notes, drew ${await frame.locator('#local-graph .node').count()}.`); });
+  assert(await frame.locator('#local-graph .node.current[data-id="gd.note.start-here"]').count() === 1, 'The local graph marks the note it is about.');
+  checks.push('local graph');
+
+  // Hovering a wikilink previews the note it names.
+  const hoverLink = frame.locator('#reading-body a.wikilink[data-id="gd.note.how-links-work"]').first();
+  const linkBox = await hoverLink.boundingBox();
+  await page.mouse.move(linkBox.x + linkBox.width / 2, linkBox.y + linkBox.height / 2);
+  await frame.waitForFunction(() => !document.getElementById('hover-card').hidden, { timeout: 3000 }).catch(() => { throw Error('Hovering a wikilink must preview its note.'); });
+  assert(await frame.locator('#hover-title').textContent() === 'How links work', 'The preview names the linked note.');
+  await page.mouse.move(5, 5);
+  checks.push('hover preview');
+
+  // Ticking a task while reading saves it at once, in one batch, and the page stays a page.
+  const tickBefore = await requests('records.batch');
+  await frame.locator('#reading-body input[type=checkbox][data-line]').first().click();
+  await frame.waitForFunction(() => window.garden.undo.length === 1 && !window.garden.dirty);
+  assert(await requests('records.batch') === tickBefore + 1, 'A tick while reading must be exactly one records.batch.');
+  const ticked0 = (await records('gd.task')).find(t => t.values[F.taskTitle] === 'Plant your first note with **New note**');
+  assert(ticked0?.values[F.taskDone] === true, 'The ticked task record must be done.');
+  assert((await records('gd.note')).find(n => n.recordId === 'gd.note.start-here').values[F.body].includes('- [x] Plant your first note'), 'The tick must be written into the body.');
+  assert(await frame.evaluate(() => window.garden.mode) === 'read', 'Ticking keeps the page in reading.');
+  checks.push('tick while reading');
+
+  // A wikilink followed while reading opens its note and declares a place.
+  await frame.locator('#reading-body a.wikilink[data-id="gd.note.how-links-work"]').first().click();
   await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.how-links-work');
   const places = await page.evaluate(() => window.broker.places);
   assert(places.some(p => p.place.noteId === 'gd.note.how-links-work' && p.label === 'How links work' && !p.replace), 'Following a wikilink must declare a new place named after the note: ' + JSON.stringify(places));
@@ -46,7 +82,12 @@ async page => {
   // 3. [[ autocomplete.
   await frame.locator('#tree .row[data-id="gd.note.start-here"]').click();
   await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here' && !window.garden.dirty);
-  const original = await frame.evaluate(() => document.getElementById('editor').value);
+  await command('edit', true);
+  await frame.waitForFunction(() => window.garden.mode === 'edit');
+  assert(await visible('#editor') && !await visible('#reading'), 'Edit must swap the page for its Markdown.');
+  // The API sends a declaration at most every tenth of a second, so wait for the one that follows Edit.
+  await page.waitForFunction(() => window.broker.toolbars.at(-1).items.some(i => i.id === 'edit' && i.pressed === true && i.keys === 'Ctrl+E'), null, { timeout: 2000 })
+    .catch(async () => { throw Error('The Edit toggle is pressed in Nendo\'s row, on Ctrl E: ' + JSON.stringify((await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'edit'))); });
   await frame.locator('#editor').focus();
   await frame.evaluate(() => { const e = document.getElementById('editor'); e.setSelectionRange(e.value.length, e.value.length); });
   await page.keyboard.type('\nAlso [[da');
@@ -61,7 +102,7 @@ async page => {
   await page.keyboard.type(' and [[A brand new note]] #planted\n- [ ] Water the seeds');
   const batchesBefore = await requests('records.batch');
   await command('save');
-  await frame.waitForFunction(() => !window.garden.dirty && window.garden.undo.length === 1);
+  await frame.waitForFunction(() => !window.garden.dirty && window.garden.undo.length === 2);
   assert(await requests('records.batch') === batchesBefore + 1, 'Save must be exactly one records.batch.');
   const notes = await records('gd.note');
   const stub = notes.find(n => n.values[F.slug] === 'a-brand-new-note');
@@ -86,7 +127,7 @@ async page => {
   const manualBefore = (await records('gd.link')).filter(l => l.values[F.source] === 'Manual').length;
   await frame.evaluate(() => { const e = document.getElementById('editor'); e.value = e.value.replace(' and [[A brand new note]]', ''); e.dispatchEvent(new Event('input', { bubbles: true })); });
   await command('save');
-  await frame.waitForFunction(() => !window.garden.dirty && window.garden.undo.length === 2);
+  await frame.waitForFunction(() => !window.garden.dirty && window.garden.undo.length === 3);
   const after = await records('gd.link');
   assert(!after.some(l => l.values[F.to] === stub.recordId), 'The removed wikilink\'s row must be deleted.');
   assert((await records('gd.note')).some(n => n.recordId === stub.recordId), 'The planted seed stays when its link goes.');
@@ -96,7 +137,7 @@ async page => {
   // 6. Tick the checkbox: the same task row is updated, by its key.
   await frame.evaluate(() => { const e = document.getElementById('editor'); e.value = e.value.replace('- [ ] Water the seeds', '- [x] Water the seeds'); e.dispatchEvent(new Event('input', { bubbles: true })); });
   await command('save');
-  await frame.waitForFunction(() => !window.garden.dirty && window.garden.undo.length === 3);
+  await frame.waitForFunction(() => !window.garden.dirty && window.garden.undo.length === 4);
   const ticked = (await records('gd.task')).find(t => t.recordId === task.recordId);
   assert(ticked && ticked.values[F.taskDone] === true, 'Ticking must update the same task record (matched by key), not make another.');
   assert((await records('gd.task')).filter(t => t.values[F.taskTitle] === 'Water the seeds').length === 1, 'One task row per checkbox.');
@@ -105,7 +146,7 @@ async page => {
   // 7. Undo takes the last save back as one step.
   const undosBefore = await requests('records.undo');
   await command('undo');
-  await frame.waitForFunction(() => window.garden.undo.length === 2);
+  await frame.waitForFunction(() => window.garden.undo.length === 3);
   assert(await requests('records.undo') === undosBefore + 1, 'Undo must be exactly one records.undo.');
   assert((await records('gd.task')).find(t => t.recordId === task.recordId).values[F.taskDone] === false, 'Undo must put the task back to open.');
   assert((await frame.evaluate(() => document.getElementById('editor').value)).includes('- [ ] Water the seeds'), 'Undo must reload the body.');
@@ -161,7 +202,7 @@ async page => {
   const into = fixture.records['gd.link'].filter(l => l.values[F.to] === 'gd.note.how-links-work');
   assert(await frame.locator('#panel-backlinks li button').count() === into.length, `The panel must list the ${into.length} links into How links work.`);
   const firstRow = await frame.locator('#panel-backlinks li').first().innerText();
-  assert(firstRow.includes(into[0].labels[F.from]) && firstRow.includes(into[0].values[F.context].slice(0, 20)), 'A backlink row names its source note and its sentence: ' + firstRow);
+  assert(firstRow.includes(into[0].labels[F.from]) && firstRow.includes(into[0].values[F.context].slice(-20)), 'A backlink row names its source note and its sentence: ' + firstRow);
   assert(await frame.locator('#panel-tasks li').count() === fixture.records['gd.task'].filter(t => t.values[F.taskNote] === 'gd.note.how-links-work').length || await frame.locator('#panel-tasks li.none').count() === 1, 'The panel lists the note\'s tasks or says there are none.');
   const openedBefore = (await page.evaluate(() => window.broker.opened())).length;
   await frame.locator('#panel-backlinks li button').first().click();
@@ -170,7 +211,79 @@ async page => {
   assert(opened.length === openedBefore + 1 && opened.at(-1).entityId === 'gd.note' && opened.at(-1).recordId === into[0].values[F.from], 'A backlink row opens its source note, exactly once.');
   checks.push('backlinks panel');
 
-  // 12. Narrow: the sidebar stacks above the editor and nothing scrolls sideways.
+  // 12. The Graph screen: d3 lays the notes out, and a real pointer hovers, drags, zooms and opens.
+  const graphContext = { ...fixture.context, viewId: 'gd.note.graph', kind: 'extensionGraphSurface', title: 'Graph',
+    bindings: { labelFieldId: 'gd.note.title', statusFieldId: 'gd.note.stage', edgeEntityId: 'gd.link', sourceFieldId: 'gd.link.from', targetFieldId: 'gd.link.to', fields: [], filters: [] } };
+  await page.evaluate(({ fixture, graphContext }) => { window.broker.setFixture({ ...fixture, context: graphContext }); window.broker.remount(); }, { fixture, graphContext });
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.waitForFunction(() => window.gardenGraph?.ready === true, { timeout: 15000 });
+  const pairs = new Set(fixture.records['gd.link'].filter(l => l.values[F.from] !== l.values[F.to]).map(l => `${l.values[F.from]}>${l.values[F.to]}`));
+  assert(await frame.locator('#graph-canvas .node').count() === seedNotes, `The graph draws every note: ${seedNotes}.`);
+  assert(await frame.locator('#graph-canvas line.edge').count() === pairs.size, `The graph draws one edge per linked pair and direction: ${pairs.size}.`);
+  assert((await page.evaluate(() => window.broker.chromeRefusals)).length === 0, 'Nendo refused a graph toolbar declaration: ' + JSON.stringify(await page.evaluate(() => window.broker.chromeRefusals)));
+  assert(await frame.locator('.nendo-kit-text-alternative li').count() === seedNotes, 'A screen reader reads every note and its links as text.');
+  await page.waitForTimeout(1600);
+  const centre = id => frame.evaluate(id => { const b = document.querySelector(`#graph-canvas .node[data-id="${id}"] circle`).getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; }, id);
+  const laid = await frame.evaluate(() => { const xs = [], ys = []; for (const c of document.querySelectorAll('#graph-canvas .node circle')) { const b = c.getBoundingClientRect(); xs.push(b.x); ys.push(b.y); } return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }; });
+  assert(laid.w > 120 && laid.h > 60, `The force layout must spread the notes out: ${JSON.stringify(laid)}.`);
+  // Hover lights a note and its neighbours and dims the rest.
+  const template = await centre('gd.note.daily-note-template');
+  await page.mouse.move(template.x, template.y);
+  await page.waitForTimeout(300);
+  const dim = await frame.evaluate(() => ({ focusing: document.querySelector('#graph-canvas svg').classList.contains('focusing'),
+    other: Number(getComputedStyle(document.querySelector('#graph-canvas .node[data-id="gd.note.for-agents"]')).opacity),
+    neighbour: Number(getComputedStyle(document.querySelector('#graph-canvas .node[data-id="gd.note.daily-notes"]')).opacity) }));
+  assert(dim.focusing && dim.other < 0.5 && dim.neighbour > 0.9, `Hover must light the note's neighbours and dim the rest: ${JSON.stringify(dim)}.`);
+  // A drag moves the note, and opens nothing.
+  const openedBeforeDrag = (await page.evaluate(() => window.broker.opened())).length;
+  await page.mouse.down();
+  await page.mouse.move(template.x + 150, template.y + 90, { steps: 12 });
+  const held = await centre('gd.note.daily-note-template');
+  await page.mouse.up();
+  assert(Math.hypot(held.x - template.x, held.y - template.y) > 80, `Dragging must move the note with the pointer: from ${JSON.stringify(template)} to ${JSON.stringify(held)}.`);
+  assert((await page.evaluate(() => window.broker.opened())).length === openedBeforeDrag, 'A drag must not open the note.');
+  // The wheel zooms.
+  const k0 = await frame.evaluate(() => window.gardenGraph.state().k);
+  await page.mouse.move(40, 120);
+  await page.mouse.wheel(0, -400);
+  await page.waitForTimeout(250);
+  const k1 = await frame.evaluate(() => window.gardenGraph.state().k);
+  assert(k1 > k0 * 1.2, `The wheel must zoom in: ${k0} to ${k1}.`);
+  // A click opens the note, exactly once. Fit first: zooming at the edge can carry it out of sight.
+  await command('fit');
+  await page.waitForTimeout(1200);
+  const start = await centre('gd.note.start-here');
+  const viewport = page.viewportSize();
+  assert(start.x > 0 && start.y > 0 && start.x < viewport.width && start.y < viewport.height, `Fit must bring every note into sight: ${JSON.stringify(start)}.`);
+  await page.mouse.click(start.x, start.y);
+  await page.waitForTimeout(150);
+  const graphOpened = await page.evaluate(() => window.broker.opened());
+  assert(graphOpened.length === openedBeforeDrag + 1 && graphOpened.at(-1).recordId === 'gd.note.start-here' && graphOpened.at(-1).entityId === 'gd.note', 'A click on a note opens it, exactly once: ' + JSON.stringify(graphOpened.slice(openedBeforeDrag)));
+  // Find picks out a note; Tags adds the tags as nodes; the colour is the stage's tone.
+  await command('find', 'agents');
+  await page.waitForTimeout(100);
+  assert(await frame.locator('#graph-canvas .node.match').count() === 1, 'Find must pick out For agents.');
+  await command('find', '');
+  await command('tags', true);
+  await frame.waitForFunction(count => document.querySelectorAll('#graph-canvas .node').length === count, seedNotes + fixture.records['gd.tag'].length, { timeout: 5000 })
+    .catch(async () => { throw Error(`Tags must add the ${fixture.records['gd.tag'].length} tags as nodes: ${await frame.locator('#graph-canvas .node').count()}.`); });
+  const graphColours = {};
+  for (const mode of ['light', 'dark']) {
+    await page.evaluate(mode => window.broker.pushTheme(mode), mode); await page.waitForTimeout(150);
+    graphColours[mode] = await frame.evaluate(() => {
+      const token = name => { const e = document.createElement('i'); e.style.color = `var(--nendo-${name})`; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; };
+      return { evergreen: getComputedStyle(document.querySelector('#graph-canvas .node[data-id="gd.note.start-here"] circle')).fill, green: token('tone-green'),
+        growing: getComputedStyle(document.querySelector('#graph-canvas .node[data-id="gd.note.daily-notes"] circle')).fill, teal: token('tone-teal') };
+    });
+    assert(graphColours[mode].evergreen === graphColours[mode].green && graphColours[mode].growing === graphColours[mode].teal, `${mode}: a note is drawn in its stage's tone: ${JSON.stringify(graphColours[mode])}`);
+    await page.mouse.move(2, 2); await page.waitForTimeout(250);
+    await page.screenshot({ path: '__OUTPUT__/graph-' + mode + '.png', fullPage: true });
+  }
+  assert(graphColours.light.evergreen !== graphColours.dark.evergreen, 'The graph follows the theme.');
+  checks.push('graph screen');
+
+  // 13. Narrow: the sidebar stacks above the editor and nothing scrolls sideways.
   await page.evaluate(fixture => { window.broker.setFixture(fixture); window.broker.remount(); }, fixture);
   await page.waitForTimeout(300);
   frame = await mounted();
