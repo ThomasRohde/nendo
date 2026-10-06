@@ -79,7 +79,7 @@ Reads are MCP resources. They need no lease. Start with `nendo://application/des
 | `nendo://application/examples` | Complete change sets that validate as they stand. |
 | `nendo://application/proposals` | Proposals that wait for you, each with the change set it came from and the agent that made it. |
 | `nendo://application/proposal/{proposalId}` | One proposal in full: its diff, diagnostics and what the file would hold. Its state is live: stale once the file moved under it, active once accepted. |
-| `nendo://application/history{?cursor,limit}` | Revision summaries. |
+| `nendo://application/history{?cursor,limit,newestFirst}` | Revision summaries, oldest first, or newest first with `newestFirst=true`. |
 | `skill://nendo-authoring/SKILL.md` | The authoring skill, for a client that speaks the Skills extension, with the vocabulary, the examples and the view API as its files. |
 | `nendo://host/instances` | Every running Nendo on this computer and the name of the file each has open. |
 

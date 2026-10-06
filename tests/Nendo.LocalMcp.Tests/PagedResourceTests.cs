@@ -32,6 +32,48 @@ public sealed class PagedResourceTests
     }
 
     /// <summary>
+    /// Review R-008: the history read was hard-coded oldest first, so the last change cost a
+    /// walk over every older page. newestFirst=true answers it in one read; the default stays
+    /// oldest first, and a cursor continues only the direction it came from.
+    /// </summary>
+    [TestMethod]
+    public async Task NewestFirstHistoryAnswersTheLastChangesInOneRead()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateIdeaGardenAsync(25);
+        await using var host = await NendoLocalMcpHost.StartAsync(workspace.Service, AgentAccessMode.ReadOnly,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var latest = ProtocolResourceTests.Deserialize<NendoMcpManifest>(
+            await ProtocolResourceTests.ReadTextAsync(client, "nendo://application/manifest")).ChangeSequence;
+
+        var newest = ProtocolResourceTests.Deserialize<NendoMcpPage<NendoMcpRevision>>(
+            await ProtocolResourceTests.ReadTextAsync(client, "nendo://application/history?newestFirst=true&limit=10"));
+        CollectionAssert.AreEqual(Enumerable.Range(0, 10).Select(offset => latest - offset).ToArray(),
+            newest.Items.Select(revision => revision.ChangeSequence).ToArray(), "The newest ten revisions arrive in one read, newest first.");
+        Assert.IsNotNull(newest.NextCursor);
+
+        var older = ProtocolResourceTests.Deserialize<NendoMcpPage<NendoMcpRevision>>(await ProtocolResourceTests.ReadTextAsync(client,
+            $"nendo://application/history?newestFirst=true&limit=10&cursor={Uri.EscapeDataString(newest.NextCursor)}"));
+        CollectionAssert.AreEqual(Enumerable.Range(10, 10).Select(offset => latest - offset).ToArray(),
+            older.Items.Select(revision => revision.ChangeSequence).ToArray(), "The next page is the ten before, with no repeat.");
+
+        var turned = await Assert.ThrowsExactlyAsync<McpProtocolException>(() => ProtocolResourceTests.ReadTextAsync(client,
+            $"nendo://application/history?limit=10&cursor={Uri.EscapeDataString(newest.NextCursor)}"));
+        StringAssert.Contains(turned.Message, "NENDO_INVALID_CURSOR", StringComparison.Ordinal);
+
+        var oldest = ProtocolResourceTests.Deserialize<NendoMcpPage<NendoMcpRevision>>(
+            await ProtocolResourceTests.ReadTextAsync(client, "nendo://application/history?limit=10"));
+        Assert.IsTrue(oldest.Items.Zip(oldest.Items.Skip(1)).All(pair => pair.First.ChangeSequence < pair.Second.ChangeSequence),
+            "Without newestFirst the history still reads oldest first.");
+        Assert.IsLessThan(newest.Items[^1].ChangeSequence, oldest.Items[^1].ChangeSequence);
+
+        var word = await Assert.ThrowsExactlyAsync<McpProtocolException>(() => ProtocolResourceTests.ReadTextAsync(client,
+            "nendo://application/history?newestFirst=yes"));
+        StringAssert.Contains(word.Message, "newestFirst is true or false.", StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// A limit the binder could not turn into an integer — letters, a fraction, a
     /// value past what an integer holds, nothing at all — reached the client as a
     /// bare internal error, while 0 and 101 were refused by name. Every malformed

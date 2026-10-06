@@ -668,14 +668,33 @@ internal sealed class NendoResourceProjection(
             ? value.GetString()
             : null;
 
+    internal Task<NendoMcpPage<NendoMcpRevision>> GetHistoryAsync(
+        string? cursor,
+        int limit,
+        CancellationToken cancellationToken) =>
+        GetHistoryAsync(cursor, limit, null, cancellationToken);
+
+    /// <summary>
+    /// A page of revision summaries, oldest first unless <paramref name="newestFirst"/> is true.
+    /// Newest first answers "what changed last" in one read instead of paging the whole history.
+    /// The direction is part of the cursor's scope here and in the Engine, so a cursor from one
+    /// direction does not continue the other.
+    /// </summary>
     internal async Task<NendoMcpPage<NendoMcpRevision>> GetHistoryAsync(
         string? cursor,
         int limit,
+        string? newestFirst,
         CancellationToken cancellationToken)
     {
         RequireLimit(limit);
-        const string scope = "history";
-        var page = await application.QueryHistoryAsync(new(limit, cursors.Decode(cursor, scope), false), cancellationToken);
+        var newest = newestFirst switch
+        {
+            null or "" or "false" => false,
+            "true" => true,
+            _ => throw new NendoValidationException("newestFirst is true or false."),
+        };
+        var scope = newest ? "history:newest" : "history";
+        var page = await application.QueryHistoryAsync(new(limit, cursors.Decode(cursor, scope), newest), cancellationToken);
         return new NendoMcpPage<NendoMcpRevision>(
             page.Items.Select(ProjectRevision).ToArray(),
             page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor));

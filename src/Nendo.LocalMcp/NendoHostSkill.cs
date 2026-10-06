@@ -133,6 +133,7 @@ internal static class NendoHostSkill
         text.Append("| Change sets you can send as they stand | `references/examples.json` here, or `nendo://application/examples` |\n");
         text.Append("| What is waiting for the person, including a predecessor session's work | `nendo://application/proposals`, and one in full at `nendo://application/proposal/{proposalId}` |\n");
         text.Append("| What compiled, and the command IDs | `nendo://application/surfaces` |\n");
+        text.Append("| What changed last | `nendo://application/history?newestFirst=true&limit=10` |\n");
         text.Append("| The API a custom view's code calls | `references/view-api.json` here, only when you write a view |\n\n");
         text.Append("## Finding the file's address\n\n");
         text.Append("Each open file has an address of its own. A file keeps its port on this device: 41763 for the first, the next free one for each further file, ");

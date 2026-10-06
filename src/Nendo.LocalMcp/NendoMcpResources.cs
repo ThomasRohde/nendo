@@ -255,14 +255,15 @@ internal sealed class NendoMcpResources(
     [McpServerResource(
         Name = "nendo.application.history",
         Title = "Revision history",
-        UriTemplate = "nendo://application/history{?cursor,limit}",
+        UriTemplate = "nendo://application/history{?cursor,limit,newestFirst}",
         MimeType = "application/json")]
-    [Description("Bounded revision summaries in ascending sequence order, with operation counts and paged operations URIs. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
+    [Description("Bounded revision summaries in ascending sequence order, or newest first with newestFirst=true, with operation counts and paged operations URIs. For the last changes, read newestFirst=true with a small limit rather than paging from the start. A cursor continues only the direction it came from. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
     public Task<string> GetHistoryAsync(
         string? cursor = null,
         string? limit = null,
+        string? newestFirst = null,
         CancellationToken cancellationToken = default) =>
-        TranslateAsync(() => projection.GetHistoryAsync(cursor, PageLimit(limit), cancellationToken));
+        TranslateAsync(() => projection.GetHistoryAsync(cursor, PageLimit(limit), newestFirst, cancellationToken));
 
     [McpServerResource(
         Name = "nendo.application.revision.operations",
