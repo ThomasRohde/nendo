@@ -2,9 +2,9 @@
 // commands, one stage per change set. tools/Build-Planner.mjs sends them; this file
 // only says what they are. docs/design/planner.md gives the reason for each choice.
 //
-// Entity and field IDs keep the nd.* prefix of workspace/Nendo.nendo wherever the
-// meaning is the same, so a record carried across keeps its field IDs and every
-// reader of the old file (the /next skill, the docs) reads the new one unchanged.
+// Entity and field IDs keep the nd.* prefix of the planner this one replaced
+// wherever the meaning is the same, so the records carried across kept their field
+// IDs and the /next skill and the docs read them unchanged.
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -734,28 +734,3 @@ async function packageFiles() {
   }
   return { manifest, files };
 }
-
-// How a record of Nendo.nendo becomes a record of Planner.nendo. Every field the
-// new type has is copied as it stands, except for these, and the compare stage
-// holds the migration to exactly this list.
-export const CARRY = [
-  { entityId: 'nd.initiative', transform: values => ({ ...values, 'nd.initiative.status': 'Active' }) },
-  {
-    entityId: 'nd.work',
-    // A horizon on closed work said nothing; here closed work has none.
-    transform: values => ['Done', 'Dropped'].includes(values['nd.work.status'])
-      ? { ...values, 'nd.work.horizon': null } : values,
-  },
-  { entityId: 'nd.link', transform: values => values },
-  {
-    entityId: 'nd.finding',
-    transform: values => values['nd.finding.disposition'] === 'Linked to work'
-      ? { ...values, 'nd.finding.disposition': 'Tracked in work' } : values,
-  },
-  { entityId: 'nd.check', transform: values => values },
-];
-
-// Fields of Nendo.nendo that deliberately do not cross, with the reason.
-export const LEFT_BEHIND = {
-  'nd.initiative.reviewNeeded': 'the flag an always-on action raised; the review date remains',
-};

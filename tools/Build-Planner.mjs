@@ -1,34 +1,24 @@
-// Builds workspace/Planner.nendo from an empty file over MCP alone, and fills it
-// from the development planner it replaced on 2026-09-29, workspace/Nendo.nendo.
-// Planner.nendo is the primary planner since then, so migrate and catch-up are
-// history: a rebuild from empty would copy the archive, not the live work.
+// Builds the shape of workspace/Planner.nendo into an empty file over MCP alone.
+// It writes no records: the live planner's work is owner data, not something a
+// rebuild could reproduce.
 //
 //   node tools/Build-Planner.mjs                 the first stage not yet applied
 //   node tools/Build-Planner.mjs <stage>         one named stage
 //   node tools/Build-Planner.mjs --list          what the stages are
 //   node tools/Build-Planner.mjs --dry-run       say what would be sent, take no lease
-//   node tools/Build-Planner.mjs migrate         copy every record across
-//   node tools/Build-Planner.mjs compare         measure the copy against the source
-//   node tools/Build-Planner.mjs catch-up        bring a filled copy up to the source
 //
 // The shape is in tools/planner-definition.mjs and the reasons in
 // docs/design/planner.md. One stage is one change set, validated into a proposal.
 // When the person has set Planner.nendo's Agent access to Unattended the script
 // accepts its own proposal, as tools/Put-NendoPackage.mjs --accept does; below it,
 // it prints the proposal's title and stops, because acceptance is theirs.
-//
-// The development planner is only ever read. It is found by its application ID,
-// and a target with that ID is refused before any lease is taken.
-// NENDO_PLANNER_SOURCE_ID exists so that guard can be falsified without writing.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createNendoMcpClient, isRunning } from './Nendo-McpClient.mjs';
-import { STAGES, STAGE_ORDER, CARRY, LEFT_BEHIND, CALL_CHARACTERS } from './planner-definition.mjs';
+import { STAGES, STAGE_ORDER, CALL_CHARACTERS } from './planner-definition.mjs';
 
-const SOURCE_APPLICATION_ID =
-  process.env.NENDO_PLANNER_SOURCE_ID || 'application-7efd926c073f4be9974be19bbc39ff41';
 const TARGET_FILE_NAME = process.env.NENDO_PLANNER_TARGET || 'Planner.nendo';
 
 function fail(message) {
@@ -58,22 +48,7 @@ async function target() {
   const entries = (await running()).filter(entry => entry.displayName === TARGET_FILE_NAME);
   if (entries.length === 0) fail(`No Nendo has ${TARGET_FILE_NAME} open. Open it, turn Agent access on, and run this again.`);
   if (entries.length > 1) fail(`More than one Nendo has a file named ${TARGET_FILE_NAME} open. Close all but one.`);
-  const file = await open(entries[0]);
-  if (file.manifest.applicationId === SOURCE_APPLICATION_ID) {
-    fail([
-      `${TARGET_FILE_NAME} answers with the development planner's application ID, ${SOURCE_APPLICATION_ID}.`,
-      'This script only ever reads that file. Nothing was written.',
-    ].join('\n'));
-  }
-  return file;
-}
-
-async function source() {
-  for (const entry of await running()) {
-    const file = await open(entry).catch(() => null);
-    if (file?.manifest.applicationId === SOURCE_APPLICATION_ID) return file;
-  }
-  fail(`The development planner (${SOURCE_APPLICATION_ID}) is not open in Nendo, so there is nothing to read.`);
+  return open(entries[0]);
 }
 
 function reader(client) {
@@ -84,16 +59,6 @@ function reader(client) {
     schema: entityId => json(`nendo://application/entity/${entityId}/schema`),
     hasNode: async nodeId => (await client.rpc('resources/read', { uri: 'nendo://application/surfaces' }))
       .contents[0].text.includes(`"${nodeId}"`),
-    records: async entityId => {
-      const items = [];
-      let uri = `nendo://application/entity/${entityId}/records?limit=100`;
-      for (;;) {
-        const page = await json(uri);
-        items.push(...page.items);
-        if (!page.nextCursor) return items;
-        uri = `nendo://application/entity/${entityId}/records?cursor=${page.nextCursor}&limit=100`;
-      }
-    },
   };
 }
 
@@ -187,226 +152,18 @@ async function runStage(file, name, dryRun) {
   });
 }
 
-// A value as the target should hold it: exact numbers travel as their lexeme, and
-// only fields the target type has are carried.
-function carried(item, fieldIds, transform) {
-  const values = {};
-  for (const [fieldId, value] of Object.entries(transform(item.values))) {
-    if (!fieldIds.has(fieldId)) continue;
-    const lexeme = item.numericLexemes?.[fieldId];
-    values[fieldId] = lexeme !== undefined && value !== null ? { $nendoNumber: lexeme } : value;
-  }
-  return values;
-}
-
-async function migrate(from, to, dryRun) {
-  const plan = [];
-  for (const { entityId, transform } of CARRY) {
-    const schema = await to.read.schema(entityId);
-    const fieldIds = new Set(schema.fields.map(f => f.fieldId));
-    const references = schema.fields.filter(f => f.storageKind === 'reference' && f.reference)
-      .map(f => ({ fieldId: f.fieldId, targetEntityId: f.reference.targetEntityId }));
-    const items = await from.read.records(entityId);
-    const dropped = Object.keys(items[0]?.values ?? {}).filter(id => !fieldIds.has(id));
-    const unexplained = dropped.filter(id => !LEFT_BEHIND[id]);
-    if (unexplained.length > 0) fail(`${entityId} would lose ${unexplained.join(', ')}, which LEFT_BEHIND does not name.`);
-    plan.push({ entityId, transform, fieldIds, references, items });
-    console.log(`${String(items.length).padStart(5)}  ${entityId}${dropped.length ? `   (left behind: ${dropped.join(', ')})` : ''}`);
-  }
-  if (dryRun) {
-    console.log('Dry run: nothing written, no lease taken.');
-    return;
-  }
-
-  await withLease(to.client, async owned => {
-    for (const { entityId, transform, fieldIds, references, items } of plan) {
-      const held = await to.read.records(entityId);
-      if (held.length === items.length) { console.log(`    -  ${entityId} already holds ${held.length}; left alone`); continue; }
-      if (held.length > 0) fail(`${entityId} holds ${held.length} of ${items.length} records. Re-run to replay, or start from a new file.`);
-
-      // Reference targets are read now, after the types they point at were written.
-      const versions = new Map();
-      for (const { targetEntityId } of references) {
-        if (versions.has(targetEntityId)) continue;
-        versions.set(targetEntityId, new Map((await to.read.records(targetEntityId)).map(r => [r.recordId, r.recordVersion])));
-      }
-      const records = items.map(item => {
-        const values = carried(item, fieldIds, transform);
-        const expected = {};
-        for (const { fieldId, targetEntityId } of references) {
-          const targetId = values[fieldId];
-          if (targetId === null || targetId === undefined) continue;
-          const version = versions.get(targetEntityId).get(targetId);
-          if (version === undefined) fail(`${item.recordId} points at ${targetId}, which is not in ${targetEntityId}.`);
-          expected[fieldId] = version;
-        }
-        return Object.keys(expected).length > 0
-          ? { recordId: item.recordId, values, expectedTargetVersions: expected }
-          : { recordId: item.recordId, values };
-      });
-
-      // 500 rows or 256 KiB per call, whichever comes first; the key is derived from
-      // the content so an interrupted run replays rather than duplicates.
-      let written = 0;
-      let part = [];
-      const flush = async () => {
-        if (part.length === 0) return;
-        const key = crypto.createHash('sha256').update(entityId + JSON.stringify(part)).digest('hex').slice(0, 40);
-        const result = await to.client.tool('nendo.data.import_records', {
-          ...owned, entityId, format: 'json', records: part, idempotencyKey: `planner-migrate-${key}`,
-        });
-        written += result.committed ?? part.length;
-        part = [];
-      };
-      for (const record of records) {
-        if (part.length === 500 || JSON.stringify(part).length + JSON.stringify(record).length > 180 * 1024) await flush();
-        part.push(record);
-      }
-      await flush();
-      console.log(`${String(written).padStart(5)}  ${entityId} written`);
-    }
-  });
-}
-
-// Brings a copy that was filled earlier up to the source, record by record: a record the copy
-// lacks is imported, and a carried field that differs is set to the source's value. A record
-// only the copy holds, or one already edited in the copy (its version is past the 1 an import
-// gives it), is named and left alone: that edit is newer than the source. Each write's idempotency key is derived from
-// what it writes, so an interrupted run replays.
-async function catchUp(from, to, dryRun) {
-  const key = (...parts) => 'planner-catch-up-' + crypto.createHash('sha256').update(JSON.stringify(parts)).digest('hex').slice(0, 40);
-  const plan = [];
-  for (const { entityId, transform } of CARRY) {
-    const schema = await to.read.schema(entityId);
-    const fieldIds = new Set(schema.fields.map(f => f.fieldId));
-    const references = new Map(schema.fields.filter(f => f.storageKind === 'reference' && f.reference)
-      .map(f => [f.fieldId, f.reference.targetEntityId]));
-    const held = new Map((await to.read.records(entityId)).map(r => [r.recordId, r]));
-    const missing = [], changed = [];
-    for (const item of await from.read.records(entityId)) {
-      const values = carried(item, fieldIds, transform);
-      const copy = held.get(item.recordId);
-      held.delete(item.recordId);
-      if (!copy) { missing.push({ recordId: item.recordId, values }); continue; }
-      const differs = Object.entries(values).filter(([fieldId, value]) =>
-        JSON.stringify(value?.$nendoNumber ?? value ?? null) !== JSON.stringify(copy.numericLexemes?.[fieldId] ?? copy.values[fieldId] ?? null));
-      if (differs.length > 0 && copy.recordVersion > 1) {
-        console.log(`    !  ${item.recordId} was edited in the copy (version ${copy.recordVersion}); left alone: ${differs.map(([id]) => id).join(', ')}`);
-        continue;
-      }
-      for (const [fieldId, value] of differs) changed.push({ recordId: item.recordId, fieldId, value: value ?? null });
-    }
-    for (const extra of held.keys()) console.log(`    !  ${entityId} ${extra} is in the copy only; left alone`);
-    plan.push({ entityId, references, missing, changed });
-    console.log(`${String(missing.length).padStart(5)} new, ${String(changed.length).padStart(4)} fields changed  ${entityId}`);
-  }
-  if (dryRun) {
-    for (const { changed } of plan) for (const c of changed) console.log(`         ${c.recordId} ${c.fieldId} = ${JSON.stringify(c.value).slice(0, 80)}`);
-    console.log('Dry run: nothing written, no lease taken.');
-    return;
-  }
-
-  await withLease(to.client, async owned => {
-    const versionOf = async (entityId, recordId) =>
-      (await to.read.records(entityId)).find(r => r.recordId === recordId)?.recordVersion;
-    for (const { entityId, references, missing, changed } of plan) {
-      if (missing.length > 0) {
-        // Reference targets are read now, after the types they point at were brought up.
-        const targets = new Map();
-        for (const targetEntityId of new Set(references.values()))
-          targets.set(targetEntityId, new Map((await to.read.records(targetEntityId)).map(r => [r.recordId, r.recordVersion])));
-        const records = missing.map(({ recordId, values }) => {
-          const expected = {};
-          for (const [fieldId, targetEntityId] of references) {
-            const targetId = values[fieldId];
-            if (targetId === null || targetId === undefined) continue;
-            const version = targets.get(targetEntityId).get(targetId);
-            if (version === undefined) fail(`${recordId} points at ${targetId}, which is not in ${targetEntityId}.`);
-            expected[fieldId] = version;
-          }
-          return Object.keys(expected).length > 0 ? { recordId, values, expectedTargetVersions: expected } : { recordId, values };
-        });
-        await to.client.tool('nendo.data.import_records', {
-          ...owned, entityId, format: 'json', records, idempotencyKey: key(entityId, records),
-        });
-        console.log(`${String(records.length).padStart(5)}  ${entityId} imported`);
-      }
-      for (const { recordId, fieldId, value } of changed) {
-        const targetEntityId = references.get(fieldId);
-        const expectedTargetRecordVersion = targetEntityId && value !== null ? await versionOf(targetEntityId, value) : null;
-        await to.client.tool('nendo.data.set_field', {
-          ...owned, entityId, recordId, fieldId, value,
-          expectedRecordVersion: await versionOf(entityId, recordId),
-          expectedTargetRecordVersion, idempotencyKey: key(recordId, fieldId, value),
-        });
-      }
-      if (changed.length > 0) console.log(`${String(changed.length).padStart(5)}  ${entityId} fields set`);
-    }
-  });
-}
-
-// Measures the copy: every source record under its own ID, every carried field
-// equal after the declared transform, nothing extra, every Reference unique.
-async function compare(from, to) {
-  let problems = 0;
-  const report = message => { problems++; if (problems <= 40) console.log(`  ${message}`); };
-  for (const { entityId, transform } of CARRY) {
-    const fieldIds = new Set((await to.read.schema(entityId)).fields.map(f => f.fieldId));
-    const before = await from.read.records(entityId);
-    const after = new Map((await to.read.records(entityId)).map(r => [r.recordId, r]));
-    let fields = 0;
-    for (const item of before) {
-      const copy = after.get(item.recordId);
-      if (!copy) { report(`${entityId} ${item.recordId} is missing`); continue; }
-      after.delete(item.recordId);
-      const expected = transform(item.values);
-      for (const fieldId of fieldIds) {
-        if (!(fieldId in expected)) {
-          if (copy.values[fieldId] !== null && copy.values[fieldId] !== undefined) report(`${item.recordId} ${fieldId} is new and set`);
-          continue;
-        }
-        const want = item.numericLexemes?.[fieldId] ?? expected[fieldId] ?? null;
-        const have = copy.numericLexemes?.[fieldId] ?? copy.values[fieldId] ?? null;
-        fields++;
-        if (JSON.stringify(want) !== JSON.stringify(have)) report(`${item.recordId} ${fieldId}: ${JSON.stringify(want)} became ${JSON.stringify(have)}`);
-      }
-    }
-    for (const extra of after.keys()) report(`${entityId} ${extra} is in the copy only`);
-    const refField = [...fieldIds].find(id => id.endsWith('.ref'));
-    if (refField) {
-      const codes = (await to.read.records(entityId)).map(r => String(r.values[refField] ?? '').toUpperCase());
-      if (new Set(codes).size !== codes.length) report(`${entityId} holds a Reference twice`);
-    }
-    console.log(`${String(before.length).padStart(5)}  ${entityId}, ${fields} field values compared`);
-  }
-  console.log(problems === 0 ? '\nThe copy matches the source.' : `\n${problems} differences.`);
-  if (problems > 0) process.exitCode = 1;
-}
-
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const name = args.find(value => !value.startsWith('--'));
   if (args.includes('--list')) {
     for (const stage of STAGE_ORDER) console.log(`${stage.padEnd(14)}${STAGES[stage].title}`);
-    console.log(`${'migrate'.padEnd(14)}Copy every record from the development planner`);
-    console.log(`${'compare'.padEnd(14)}Measure the copy against the development planner`);
-    console.log(`${'catch-up'.padEnd(14)}Bring a filled copy up to the development planner`);
     return;
   }
 
   const to = await target();
   console.log(`Target          ${to.entry.displayName}  ${to.manifest.applicationId}  ${to.entry.endpoint}`);
   console.log(`Revision        definition ${to.manifest.definitionRevision}, data ${to.manifest.dataRevision}\n`);
-
-  if (name === 'migrate' || name === 'compare' || name === 'catch-up') {
-    const from = await source();
-    console.log(`Source          ${from.entry.displayName}  ${from.manifest.applicationId}  (read only)\n`);
-    if (name === 'migrate') await migrate(from, to, dryRun);
-    else if (name === 'catch-up') await catchUp(from, to, dryRun);
-    else await compare(from, to);
-    return;
-  }
 
   if (name) {
     if (!STAGES[name]) fail(`Unknown stage ${name}. Run with --list.`);
@@ -421,7 +178,7 @@ async function main() {
     if (!await runStage(to, stage, dryRun)) return;
     console.log('');
   }
-  if (!dryRun) console.log('Every stage is applied. Next: node tools/Build-Planner.mjs migrate');
+  if (!dryRun) console.log('Every stage is applied.');
 }
 
 main().catch(error => fail(error.stack ?? String(error)));

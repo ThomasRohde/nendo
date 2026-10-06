@@ -23,32 +23,16 @@ the output, as it is for Nendo Station.
 ```text
 node tools/Build-Planner.mjs --list       the stages
 node tools/Build-Planner.mjs              every stage not yet applied, in order
-node tools/Build-Planner.mjs migrate      copy every record from Nendo.nendo
-node tools/Build-Planner.mjs compare      measure the copy against Nendo.nendo
-node tools/Build-Planner.mjs catch-up     bring a filled copy up to Nendo.nendo
 ```
 
-- **Finding the files.** The script finds `Planner.nendo` among the running Nendo
-  windows by its name. It finds the old planner by its application ID. It refuses a
-  target that answers with the old planner's ID before it takes a lease. It only ever
-  reads the old planner: `migrate` and `compare` take no lease there.
+- **Finding the file.** The script finds `Planner.nendo` among the running Nendo
+  windows by its name, and writes the shape only: no records.
 - **Proposals.** Each stage is one change set, validated into a proposal. At
   Unattended the script accepts its own proposal. Below Unattended it stops and names
   the proposal for the person to accept.
-- **Migration.** `migrate` writes by JSON import, keeping record IDs and typed
-  Reference codes. It works in reference order: initiatives, work, dependencies,
-  findings, checks. Its idempotency keys are derived from content, so an interrupted
-  run replays rather than duplicates.
-- **Compare.** `compare` checks each field. Every source record must exist under its ID,
-  every carried field must be equal after the transform declared in `CARRY`, and the
-  copy must hold nothing extra. Every Reference must be unique.
-
-**Rebuilding for the switch.** The switch rebuilds the file, so it carries the data of
-that day:
-
-1. Create an empty `Planner.nendo`.
-2. Set its Agent access to Unattended.
-3. Run the script, then `migrate`, then `compare`.
+The records came from the planner it replaced, once, on 2026-09-29: a `migrate`
+and `catch-up` pass, measured by `compare`, that read the old file and was removed
+with it.
 
 ## The model
 
@@ -160,7 +144,6 @@ The owner switched on 2026-09-29, with Planner.nendo already open.
 - **Documents.** `docs/dogfooding.md`, `AGENTS.md`, `workspace/README.md` and the
   `/next` command name the new file.
 - **Guards.** `tools/Build-NendoStation.mjs` refuses both planners' application IDs.
-  `tools/Build-Planner.mjs` keeps the old one as its source.
 - **The old file.** `Nendo.nendo` was kept as the archive until the owner retired it
   on 2026-10-06.
 
