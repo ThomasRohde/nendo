@@ -44,15 +44,24 @@ async page => {
     return { width: r.width, left: r.left - m.left, right: m.right - r.right, note: m.width }; });
   const fullSheet = await sheet();
   assert(fullSheet.note - fullSheet.width <= 60, `Full must fill the view: ${JSON.stringify(fullSheet)}.`);
-  await command('width', 'narrow');
+  await command('width-narrow', true);
   const narrowSheet = await sheet();
   assert(narrowSheet.width <= 760 && Math.abs(narrowSheet.left - narrowSheet.right) <= 2, `Narrow must keep a centred column of at most 760 px: ${JSON.stringify(narrowSheet)}.`);
-  await command('width', 'medium');
+  await command('width-medium', true);
   const mediumSheet = await sheet();
   assert(mediumSheet.width > narrowSheet.width && mediumSheet.width <= 1120, `Medium must sit between Narrow and Full: ${JSON.stringify(mediumSheet)}.`);
-  await page.waitForFunction(() => window.broker.toolbars.at(-1).items.some(i => i.id === 'width' && i.value === 'medium' && i.options.length === 3), null, { timeout: 2000 })
-    .catch(() => { throw Error('Nendo\'s row must show the width chosen, of three.'); });
-  await command('width', 'full');
+  const widthGroup = () => page.evaluate(() => window.broker.toolbars.at(-1).items.find(i => i.kind === 'group' && i.label === 'Width'));
+  await page.waitForFunction(() => window.broker.toolbars.at(-1).items.some(i => i.kind === 'group' && i.label === 'Width' && i.items.find(t => t.id === 'width-medium')?.pressed === true), null, { timeout: 2000 })
+    .catch(async () => { throw Error('Nendo\'s row must show the width chosen: ' + JSON.stringify(await widthGroup())); });
+  const group = await widthGroup();
+  assert(JSON.stringify(group.items.map(t => [t.kind, t.icon, t.iconOnly])) === JSON.stringify([['toggle', 'widthNarrow', true], ['toggle', 'widthMedium', true], ['toggle', 'widthFull', true]]),
+    'The width is three icon-only toggles: ' + JSON.stringify(group.items));
+  // A Nendo without the width icons refuses the row; the view says the width in words instead.
+  await page.evaluate(() => window.broker.fail('ui.setToolbar', { code: 'invalid-params', message: "items[5].items[0].icon must be one of Nendo's icons." }, 1));
+  await command('width-full', true);
+  await page.waitForFunction(() => window.broker.toolbars.at(-1).items.some(i => i.id === 'width' && i.kind === 'choice' && i.value === 'full' && i.options.map(o => o.label).join() === 'Narrow,Medium,Full'), null, { timeout: 2000 })
+    .catch(async () => { throw Error('On a Nendo without the width icons the width must be a choice of words: ' + JSON.stringify((await page.evaluate(() => window.broker.toolbars.at(-1))).items.map(i => i.id ?? i.label))); });
+  assert(await frame.evaluate(() => document.documentElement.classList.contains('native-chrome')), 'A refused icon must not cost the view Nendo\'s row.');
   await page.waitForTimeout(800);
   await page.screenshot({ path: '__OUTPUT__/reading.png', fullPage: true });
   checks.push('opens for reading');

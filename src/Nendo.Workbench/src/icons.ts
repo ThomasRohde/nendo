@@ -79,6 +79,10 @@ const paths = {
   layout: '<rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/>', // network
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>', // undo-2
   redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13"/>', // redo-2
+  // W-174, for a view's page width in three levels.
+  widthNarrow: '<rect width="12" height="20" x="6" y="2" rx="2"/>', // rectangle-vertical
+  widthMedium: '<rect width="18" height="18" x="3" y="3" rx="2"/>', // square
+  widthFull: '<rect width="20" height="12" x="2" y="6" rx="2"/>', // rectangle-horizontal
 } as const;
 export type IconName = keyof typeof paths;
 export function icon(name: IconName): string {

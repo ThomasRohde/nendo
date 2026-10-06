@@ -51,7 +51,8 @@ reads every note with its neighbours as a list.
 ## In Nendo's toolbar
 
 Where Nendo offers its toolbar the view draws no controls of its own. The Garden view declares
-Find (Ctrl Shift F), New note (also Nendo's Add), Today, View or Edit, Narrow, Medium or Full,
+Find (Ctrl Shift F), New note (also Nendo's Add), Today, View or Edit, the width as three icons
+(Narrow, Medium, Full; words on a Nendo without those icons),
 Save (Ctrl S), Undo and Redo, and a menu with Open record page, Graph of the garden,
 Mark evergreen and About. Following a wikilink declares a place, so Back and Forward move
 between notes. The Graph screen declares Find, Colour by stage or kind, Tags, Orphans,

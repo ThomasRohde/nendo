@@ -478,7 +478,8 @@ export async function startWorkspace(nendo, context, kit) {
   editor.addEventListener('blur', () => setTimeout(closeSuggest, 150));
 
   // ---- Controls: Nendo's row where it is offered, the view's own otherwise.
-  let nativeChrome = false, aboutShown = false;
+  let nativeChrome = false, aboutShown = false, widthIcons = true;
+  const WIDTHS = [['narrow', 'Narrow width', 'widthNarrow'], ['medium', 'Medium width', 'widthMedium'], ['full', 'Full width', 'widthFull']];
   function declareToolbar() {
     if (!nativeChrome) return;
     const hasNote = state.draft !== null, editing = state.mode === 'edit';
@@ -489,8 +490,10 @@ export async function startWorkspace(nendo, context, kit) {
         { kind: 'button', id: 'daily', label: 'Today', icon: 'list' },
         { kind: 'choice', id: 'mode', label: 'Mode', hideLabel: true, value: editing ? 'edit' : 'view',
           options: [{ value: 'view', label: 'View' }, { value: 'edit', label: 'Edit' }] },
-        { kind: 'choice', id: 'width', label: 'Width', hideLabel: true, value: state.width,
-          options: [{ value: 'narrow', label: 'Narrow' }, { value: 'medium', label: 'Medium' }, { value: 'full', label: 'Full' }] },
+        widthIcons
+          ? { kind: 'group', label: 'Width', items: WIDTHS.map(([value, label, icon]) => ({ kind: 'toggle', id: `width-${value}`, label, icon, iconOnly: true, pressed: state.width === value })) }
+          : { kind: 'choice', id: 'width', label: 'Width', hideLabel: true, value: state.width,
+            options: WIDTHS.map(([value, label]) => ({ value, label: label.replace(' width', '') })) },
         { kind: 'button', id: 'save', label: 'Save', icon: 'check', keys: 'Ctrl+S', disabled: !hasNote || !state.dirty },
         { kind: 'group', label: 'History', items: [
           { kind: 'button', id: 'undo', label: 'Undo save', icon: 'undo', iconOnly: true, disabled: state.undo.length === 0 },
@@ -506,9 +509,14 @@ export async function startWorkspace(nendo, context, kit) {
         ] },
       ],
       add: 'new',
-    }).catch(error => { nativeChrome = false; document.documentElement.classList.remove('native-chrome'); setStatus(error.message); });
+    }).catch(error => {
+      // A Nendo from before the width icons refuses the row that names them: say it in words.
+      if (widthIcons && /icon/.test(error.message ?? '')) { widthIcons = false; declareToolbar(); return; }
+      nativeChrome = false; document.documentElement.classList.remove('native-chrome'); setStatus(error.message);
+    });
   }
   async function command(id, value) {
+    if (id.startsWith('width-')) { setWidth(id.slice('width-'.length)); declareToolbar(); expose(); return; }
     switch (id) {
       case 'find': state.filter = value ?? ''; find.value = state.filter; drawTree(); break;
       case 'new': startNew(); break;

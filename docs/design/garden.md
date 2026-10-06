@@ -38,8 +38,10 @@ the graph to be dynamic and interactive, drawn with a common library as Obsidian
   divider between them drags, moves five points with the arrow keys, folds the preview away at
   the right edge (End) and shares the width evenly on a double-click. New note and Today open
   in Edit.
-- **Width in three levels**: Narrow (760 px), Medium (1,120 px) and Full, chosen in Nendo's
-  row and applied to the page in both modes. Where the divider and the width sit is this
+- **Width in three levels**: Narrow (760 px), Medium (1,120 px) and Full, three icon toggles
+  in Nendo's row (`widthNarrow`, `widthMedium`, `widthFull`, added to Nendo's icon set for
+  this; on an older Nendo, which refuses them, a choice of words), applied to the page in both
+  modes. Where the divider and the width sit is this
   person's, so it stays in this browser rather than in the file.
 - **Flush with Nendo.** The view is drawn on Nendo's own surface colour from edge to edge, with
   no paper-coloured margin, and in Edit the title, editor and preview are unboxed and meet the

@@ -20,6 +20,8 @@ export const toolbarIcons = [
   'layers', 'chain', 'refresh', 'settings', 'eye', 'command', 'info',
   // W-115, for the Archi workbench's row: Copy and paste, Lay out, Undo and Redo.
   'clipboard', 'layout', 'undo', 'redo',
+  // W-174, for the Garden view's page width: narrow, medium and full.
+  'widthNarrow', 'widthMedium', 'widthFull',
 ] as const;
 export type ToolbarIcon = typeof toolbarIcons[number];
 

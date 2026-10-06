@@ -533,7 +533,9 @@ if (nendo.has('ui.setToolbar')) declare(); else showOwnToolbar();
   markup. The icons are Nendo's own, by name: plus, minus, search, fit, pan, export,
   filter, list, link, focus, more, check, edit, external, trash, arrowUp, arrowDown,
   chevronLeft, chevronRight, indent, outdent, layers, chain, refresh, settings, eye,
-  command and info.
+  command, info, clipboard, layout, undo, redo, widthNarrow, widthMedium and widthFull.
+  An older Nendo refuses a declaration that names an icon it has not got, so a view that
+  wants to run there declares again without it.
 - **Declare again when your state changes.** Each call replaces the last, and `[]`
   removes the toolbar. Nendo shows a press at once, and your next declaration decides
   what stands. The API sends the latest declaration at most once every tenth of a

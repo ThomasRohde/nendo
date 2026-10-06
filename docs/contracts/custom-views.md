@@ -1976,3 +1976,7 @@ passed. Each guard below was falsified, seen to fail and then restored:
   off the window. Four icons join the set: `clipboard`, `layout`, `undo` and `redo`. An older
   Nendo refuses a row that names them, so a view that wants to run there declares it again
   without them. Measured in a real host (G42). No method, no rung.
+- 2026-10-06 — three icons for a page's width (W-174): `widthNarrow`, `widthMedium` and
+  `widthFull`, Lucide's rectangle-vertical, square and rectangle-horizontal. The Garden view
+  declares them as three toggles, and on an older Nendo, which refuses them, declares its
+  width again as a choice of words. Measured by `tools/Review-Garden.ps1`. No method, no rung.
