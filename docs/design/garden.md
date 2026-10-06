@@ -32,11 +32,20 @@ carries its own agent skill). No host change is required.
 The owner asked on 2026-10-06 for the page to be for reading, with a switch to edit, and for
 the graph to be dynamic and interactive, drawn with a common library as Obsidian's is.
 
-- **A note opens for reading.** The title is the page heading, the body is set in a 720-pixel
-  column, and the editor is out of sight. **Edit** (Ctrl E, a toggle in Nendo's row) swaps
-  the page for its Markdown with the preview beside it, filling the whole view; the divider
-  between them drags (or moves five points with the arrow keys, and a double-click shares the
-  width evenly), and where it sits stays in this browser. New note and Today open in Edit.
+- **Two modes, View and Edit.** A note opens in View: the title is the page heading and the
+  editor is out of sight. Edit (Ctrl E toggles; both are one segmented control in Nendo's row)
+  swaps the page for its Markdown with the preview beside it, filling the whole view. The
+  divider between them drags, moves five points with the arrow keys, folds the preview away at
+  the right edge (End) and shares the width evenly on a double-click. New note and Today open
+  in Edit.
+- **Width in three levels**: Narrow (760 px), Medium (1,120 px) and Full, chosen in Nendo's
+  row and applied to the page in both modes. Where the divider and the width sit is this
+  person's, so it stays in this browser rather than in the file.
+- **Flush with Nendo.** The view is drawn on Nendo's own surface colour from edge to edge, with
+  no paper-coloured margin, and in Edit the title, editor and preview are unboxed and meet the
+  view's edges, divided by lines. The sheet is 100% wide and capped, never sized by its
+  content: an auto-margined box in a flex column shrinks to fit, which is how a wide window
+  once showed the editor in a column with blank margins.
   Ticking a task while reading writes the tick into the body and saves at once, as one batch.
   Hovering a wikilink previews the note it names: its summary, or the start of its body.
 - **The graph is d3.** `vendor/d3.min.js` is d3 7.9.0, pinned in `tools/garden/package.json`

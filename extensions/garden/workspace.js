@@ -1,6 +1,6 @@
 // The Garden workspace, the screen the file opens on: the notes as a tree on the left and one
-// note in the middle, open for reading. Edit (Ctrl E) turns the page into its Markdown, with the
-// preview beside it. Under the note are its backlinks, its local graph, its tags and its tasks.
+// note in the middle, in one of two modes: View, the page, and Edit (Ctrl E toggles them), its
+// Markdown with the preview beside it. The page is Narrow, Medium or Full, as the person picks. Under the note are its backlinks, its local graph, its tags and its tasks.
 // Save derives the note's links, tags and tasks from its body and writes everything as one
 // records.batch (sync.mjs), which the view can undo; ticking a task while reading saves it at
 // once. Nendo draws the controls where it offers its toolbar; otherwise the view draws its own.
@@ -31,7 +31,7 @@ export async function startWorkspace(nendo, context, kit) {
 
   // State the probe reads through window.garden.
   const state = { ready: false, index: [], byId: new Map(), links: [], note: null, draft: null, dirty: false, external: false, problem: null,
-    mode: 'read', preview: true, undo: [], redo: [], filter: '', tags: [], related: null, stubs: [], local: null };
+    mode: 'read', width: 'full', undo: [], redo: [], filter: '', tags: [], related: null, stubs: [], local: null };
   const expose = () => { window.garden = state; };
 
   // ---- The index: every note, the links between them, and the tree they make.
@@ -191,7 +191,7 @@ export async function startWorkspace(nendo, context, kit) {
   function drawPreview() {
     readingTitle.textContent = state.draft.title.trim() || 'Untitled';
     readingBody.innerHTML = render(state.draft.body, { resolve, interactive: true });
-    if (state.mode === 'edit' && state.preview) preview.innerHTML = render(state.draft.body, { resolve });
+    if (state.mode === 'edit' && state.split < 100) preview.innerHTML = render(state.draft.body, { resolve });
   }
 
   // ---- Reading: links follow, tags open, a task's box saves, a link previews its note.
@@ -282,10 +282,14 @@ export async function startWorkspace(nendo, context, kit) {
   const panes = $('panes'), splitter = $('splitter');
   const storedSplit = (() => { try { return Number(localStorage.getItem('garden.split')); } catch { return NaN; } })();
   function setSplit(percent, { keep = true } = {}) {
-    const value = Math.round(Math.max(20, Math.min(80, Number.isFinite(percent) ? percent : 50)));
+    let value = Math.round(Math.max(20, Math.min(100, Number.isFinite(percent) ? percent : 50)));
+    if (value >= 92) value = 100;
+    const unfolded = state.split === 100 && value < 100;
+    panes.classList.toggle('preview-folded', value === 100);
     panes.style.setProperty('--split', String(value));
     splitter.setAttribute('aria-valuenow', String(value));
     state.split = value;
+    if (unfolded && state.draft) drawPreview();
     if (keep) { try { localStorage.setItem('garden.split', String(value)); } catch { /* a private window keeps none */ } }
     expose();
   }
@@ -313,16 +317,25 @@ export async function startWorkspace(nendo, context, kit) {
     const step = { ArrowLeft: -5, ArrowRight: 5 }[event.key];
     if (step !== undefined) { event.preventDefault(); setSplit(state.split + step); }
     if (event.key === 'Home') { event.preventDefault(); setSplit(20); }
-    if (event.key === 'End') { event.preventDefault(); setSplit(80); }
+    if (event.key === 'End') { event.preventDefault(); setSplit(100); }
   });
 
-  // ---- Reading and editing.
+  // ---- The page's width, as the person picks it; kept in this browser.
+  function setWidth(level, { keep = true } = {}) {
+    state.width = ['narrow', 'medium', 'full'].includes(level) ? level : 'full';
+    noteSection.dataset.width = state.width;
+    for (const button of $('own-toolbar').querySelectorAll('[data-command=width]')) button.setAttribute('aria-pressed', String(button.dataset.value === state.width));
+    if (keep) { try { localStorage.setItem('garden.width', state.width); } catch { /* a private window keeps none */ } }
+    expose();
+  }
+  setWidth((() => { try { return localStorage.getItem('garden.width'); } catch { return null; } })(), { keep: false });
+
+  // ---- View and Edit.
   function setMode(mode, { quiet = false } = {}) {
     state.mode = mode === 'edit' ? 'edit' : 'read';
     noteSection.classList.toggle('reading-mode', state.mode === 'read');
     noteSection.classList.toggle('editing-mode', state.mode === 'edit');
-    document.documentElement.classList.toggle('editor-only', !state.preview);
-    $('own-toolbar').querySelector('[data-command=edit]').setAttribute('aria-pressed', String(state.mode === 'edit'));
+    for (const button of $('own-toolbar').querySelectorAll('[data-command=mode]')) button.setAttribute('aria-pressed', String((button.dataset.value === 'edit') === (state.mode === 'edit')));
     hideHover();
     if (state.draft) drawPreview();
     if (!quiet) declareToolbar();
@@ -474,8 +487,10 @@ export async function startWorkspace(nendo, context, kit) {
         { kind: 'search', id: 'find', label: 'Find a note', placeholder: 'Find…', value: state.filter, keys: 'Ctrl+Shift+F' },
         { kind: 'button', id: 'new', label: 'New note', icon: 'plus' },
         { kind: 'button', id: 'daily', label: 'Today', icon: 'list' },
-        { kind: 'toggle', id: 'edit', label: 'Edit', icon: 'edit', keys: 'Ctrl+E', pressed: editing, disabled: !hasNote },
-        ...(editing ? [{ kind: 'toggle', id: 'preview', label: 'Preview beside', icon: 'eye', pressed: state.preview }] : []),
+        { kind: 'choice', id: 'mode', label: 'Mode', hideLabel: true, value: editing ? 'edit' : 'view',
+          options: [{ value: 'view', label: 'View' }, { value: 'edit', label: 'Edit' }] },
+        { kind: 'choice', id: 'width', label: 'Width', hideLabel: true, value: state.width,
+          options: [{ value: 'narrow', label: 'Narrow' }, { value: 'medium', label: 'Medium' }, { value: 'full', label: 'Full' }] },
         { kind: 'button', id: 'save', label: 'Save', icon: 'check', keys: 'Ctrl+S', disabled: !hasNote || !state.dirty },
         { kind: 'group', label: 'History', items: [
           { kind: 'button', id: 'undo', label: 'Undo save', icon: 'undo', iconOnly: true, disabled: state.undo.length === 0 },
@@ -498,8 +513,9 @@ export async function startWorkspace(nendo, context, kit) {
       case 'find': state.filter = value ?? ''; find.value = state.filter; drawTree(); break;
       case 'new': startNew(); break;
       case 'daily': await daily(); break;
-      case 'edit': if (state.draft) setMode(typeof value === 'boolean' ? (value ? 'edit' : 'read') : state.mode === 'edit' ? 'read' : 'edit'); break;
-      case 'preview': state.preview = typeof value === 'boolean' ? value : !state.preview; setMode(state.mode); break;
+      case 'mode': if (state.draft) setMode(value === 'edit' ? 'edit' : 'read'); else declareToolbar(); break;
+      case 'edit': if (state.draft) setMode(state.mode === 'edit' ? 'read' : 'edit'); break;
+      case 'width': setWidth(value); declareToolbar(); break;
       case 'save': await save(); break;
       case 'undo': await undo(); break;
       case 'redo': await redo(); break;
@@ -521,7 +537,7 @@ export async function startWorkspace(nendo, context, kit) {
   }
   $('own-toolbar').addEventListener('click', event => {
     const button = event.target.closest('button[data-command]');
-    if (button) command(button.dataset.command, null);
+    if (button) command(button.dataset.command, button.dataset.value ?? null);
   });
   find.addEventListener('input', () => { state.filter = find.value; drawTree(); });
   document.addEventListener('keydown', event => {

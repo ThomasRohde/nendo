@@ -2,7 +2,8 @@
    after each is that token as 02-tokens.css declares it, used only when the page runs without them. */
 :root {
   color-scheme: light;
-  --bg: var(--nendo-canvas, #f9f9fa);
+  /* One surface, Nendo's own, from edge to edge: no paper-coloured margin sets the view apart. */
+  --bg: var(--nendo-surface, #ffffff);
   --panel: var(--nendo-surface-raised, #fff);
   --soft: var(--nendo-surface-soft, #f3f3f4);
   --ink: var(--nendo-ink, #1b1b1b);
@@ -49,50 +50,60 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 #main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 #own-toolbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 #own-summary { color: var(--muted); margin-left: auto; font-size: 12px; }
-#status { margin: 0; padding: 2px 16px; color: var(--muted); font-size: 12px; min-height: 20px; }
+#status { margin: 0; padding: 4px 16px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--line); }
+#status:empty { display: none; }
 #status.external { color: var(--warning); }
-#problem { margin: 0 16px 6px; padding: 8px 10px; border: 1px solid var(--danger); border-radius: 8px; color: var(--danger); background: var(--panel); }
+#problem { margin: 0; padding: 8px 16px; border-bottom: 1px solid var(--danger); color: var(--danger); background: var(--panel); }
 #empty { margin: 40px; color: var(--muted); text-align: center; }
-#note { flex: 1; min-height: 0; overflow: auto; padding: 0 24px 32px; }
-#sheet { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+#note { flex: 1; min-height: 0; overflow: auto; padding: 16px 28px 32px; }
+/* The sheet's width is the person's choice, in three levels. It is 100% wide and capped, never
+   sized by its content: an auto-margined box in a flex column shrinks to fit, which left a wide
+   window's editor in a column with blank margins on both sides. */
+#sheet { width: 100%; max-width: var(--sheet-width); margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+#note { --sheet-width: none; }
+#note[data-width=narrow] { --sheet-width: 760px; }
+#note[data-width=medium] { --sheet-width: 1120px; }
 
 /* Reading is the page; editing swaps the page for its Markdown. */
 #note.reading-mode #editing { display: none; }
 #note.editing-mode #reading, #note.editing-mode #local-graph-card { display: none; }
-#reading { width: 100%; max-width: 720px; margin: 8px auto 0; }
-#reading-title { font-size: 30px; line-height: 1.2; margin: 6px 0 8px; letter-spacing: -0.01em; }
+#reading { width: 100%; margin: 8px 0 0; }
+#reading-title { font-size: 30px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.01em; }
 #reading-body { font-size: 16px; line-height: 1.72; }
 #reading-body > :first-child { margin-top: 0; }
 #reading-body h1 { font-size: 24px; } #reading-body h2 { font-size: 20px; } #reading-body h3 { font-size: 17px; }
 #reading-body p, #reading-body ul, #reading-body ol, #reading-body blockquote, #reading-body pre { margin: 0 0 .9em; }
 #reading-body li.task input { cursor: pointer; }
 .meta { display: flex; gap: 6px; flex-wrap: wrap; color: var(--muted); font-size: 12px; align-items: center; margin-bottom: 18px; }
-#editing .meta { margin: 8px 0; }
+#editing .meta { margin: 0; padding: 6px 16px; border-bottom: 1px solid var(--line); }
 .chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); font-size: 12px; color: var(--ink); }
 .chip.slug { color: var(--muted); font-family: Consolas, "Cascadia Code", monospace; }
 .chip .dot { width: 8px; height: 8px; border-radius: 50%; }
 
 /* Editing takes every pixel the view has: the editor and the preview fill the height, the
    cards under the note wait for reading, and the divider between the two panes is dragged. */
-#note.editing-mode { display: flex; flex-direction: column; overflow: hidden; padding: 0 12px 12px; }
-#note.editing-mode #sheet { max-width: none; flex: 1; min-height: 0; gap: 0; }
+#note.editing-mode { display: flex; flex-direction: column; overflow: hidden; padding: 0; }
+#note.editing-mode #sheet { flex: 1; min-height: 0; gap: 0; }
 #note.editing-mode #about { display: none; }
-#editing { padding-top: 6px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
-#title { font-size: 22px; font-weight: 600; width: 100%; }
-#panes { --split: 50; flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, calc(var(--split) * 1% - 6px)) 12px minmax(0, 1fr); }
-.editor-only #panes { grid-template-columns: minmax(0, 1fr); }
-.editor-only #preview, .editor-only #splitter { display: none; }
+#editing { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#editing #title { font-size: 22px; font-weight: 600; width: 100%; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 10px 16px; background: transparent; }
+#editing #title:focus-visible { outline: none; border-bottom-color: var(--accent); }
+#panes { --split: 50; flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, calc(var(--split) * 1% - 4px)) 9px minmax(0, 1fr); }
+/* The divider dragged to the right edge folds the preview away; it stays there to drag back. */
+#panes.preview-folded { grid-template-columns: minmax(0, 1fr) 9px 0; }
+#panes.preview-folded #preview { display: none; }
 #editor-wrap { position: relative; display: flex; min-height: 0; }
-#editor { width: 100%; height: 100%; min-height: 0; resize: none; font: 14px/1.65 Consolas, "Cascadia Code", monospace; tab-size: 2; padding: 12px 14px; }
+#editing #editor { width: 100%; height: 100%; min-height: 0; resize: none; font: 14px/1.65 Consolas, "Cascadia Code", monospace; tab-size: 2; padding: 14px 16px; border: 0; border-radius: 0; background: transparent; }
+#editing #editor:focus-visible { outline: none; }
 #splitter { cursor: col-resize; position: relative; touch-action: none; }
-#splitter::before { content: ''; position: absolute; top: 0; bottom: 0; left: 5px; width: 2px; border-radius: 1px; background: var(--line); transition: background .15s; }
-#splitter:hover::before, #splitter.dragging::before, #splitter:focus-visible::before { background: var(--accent); }
+#splitter::before { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; border-radius: 1px; background: var(--line); transition: background .15s; }
+#splitter:hover::before, #splitter.dragging::before, #splitter:focus-visible::before { background: var(--accent); width: 3px; left: 3px; }
 #splitter:focus-visible { outline: none; }
 #autocomplete { position: absolute; left: 12px; top: 40px; z-index: 5; list-style: none; margin: 0; padding: 4px; background: var(--panel); border: 1px solid var(--line-strong); border-radius: 8px; box-shadow: var(--shadow); min-width: 220px; max-height: 240px; overflow: auto; }
 #autocomplete li { padding: 4px 8px; border-radius: 6px; cursor: pointer; }
 #autocomplete li[aria-selected=true] { background: var(--accent-soft); color: var(--accent); }
 #autocomplete li .slug { color: var(--muted); font-size: 12px; margin-left: 6px; }
-#preview { border: 1px solid var(--line); border-radius: 8px; padding: 12px 18px; background: var(--panel); overflow: auto; min-height: 0; font-size: 15px; line-height: 1.65; }
+#preview { border: 0; border-radius: 0; padding: 14px 20px; background: transparent; overflow: auto; min-height: 0; font-size: 15px; line-height: 1.65; }
 
 .markdown h1, .markdown h2, .markdown h3 { margin: .8em 0 .35em; line-height: 1.25; }
 .markdown h1 { font-size: 22px; } .markdown h2 { font-size: 18px; } .markdown h3 { font-size: 15px; }
@@ -111,7 +122,7 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 .markdown a.tag { text-decoration: none; background: var(--accent-soft); border-radius: 999px; padding: 0 7px; font-size: .9em; }
 .markdown hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
 
-#about { width: 100%; max-width: 720px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: row dense; gap: 12px; border-top: 1px solid var(--line); padding-top: 18px; }
+#about { width: 100%; display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: row dense; gap: 12px; border-top: 1px solid var(--line); padding-top: 18px; }
 .editing-mode #about { max-width: none; grid-template-columns: repeat(3, 1fr); }
 #local-graph-card { grid-column: 1 / -1; }
 .card, #panel section { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; background: var(--panel); }

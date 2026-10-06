@@ -39,8 +39,20 @@ async page => {
   const seedLinks = fixture.records['gd.link'].filter(l => l.values[F.from] === 'gd.note.start-here' && l.values[F.source] === 'Body').length;
   assert(await frame.locator('#reading-body a.wikilink[data-id]').count() === seedLinks, `Reading must resolve the ${seedLinks} wikilinks of Start here.`);
   assert(await frame.locator('#backlinks li button').count() === fixture.records['gd.link'].filter(l => l.values[F.to] === 'gd.note.start-here').length, 'Backlinks under the note must match the link rows into it.');
-  const readingWidth = await frame.evaluate(() => document.getElementById('reading').getBoundingClientRect().width);
-  assert(readingWidth <= 721, `The reading column must keep a readable measure, not the window's width: ${readingWidth}px.`);
+  // Width, three levels: Full fills the view, Narrow and Medium keep a centred column.
+  const sheet = () => frame.evaluate(() => { const r = document.getElementById('reading').getBoundingClientRect(), m = document.getElementById('note').getBoundingClientRect();
+    return { width: r.width, left: r.left - m.left, right: m.right - r.right, note: m.width }; });
+  const fullSheet = await sheet();
+  assert(fullSheet.note - fullSheet.width <= 60, `Full must fill the view: ${JSON.stringify(fullSheet)}.`);
+  await command('width', 'narrow');
+  const narrowSheet = await sheet();
+  assert(narrowSheet.width <= 760 && Math.abs(narrowSheet.left - narrowSheet.right) <= 2, `Narrow must keep a centred column of at most 760 px: ${JSON.stringify(narrowSheet)}.`);
+  await command('width', 'medium');
+  const mediumSheet = await sheet();
+  assert(mediumSheet.width > narrowSheet.width && mediumSheet.width <= 1120, `Medium must sit between Narrow and Full: ${JSON.stringify(mediumSheet)}.`);
+  await page.waitForFunction(() => window.broker.toolbars.at(-1).items.some(i => i.id === 'width' && i.value === 'medium' && i.options.length === 3), null, { timeout: 2000 })
+    .catch(() => { throw Error('Nendo\'s row must show the width chosen, of three.'); });
+  await command('width', 'full');
   await page.waitForTimeout(800);
   await page.screenshot({ path: '__OUTPUT__/reading.png', fullPage: true });
   checks.push('opens for reading');
@@ -82,12 +94,12 @@ async page => {
   // 3. [[ autocomplete.
   await frame.locator('#tree .row[data-id="gd.note.start-here"]').click();
   await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here' && !window.garden.dirty);
-  await command('edit', true);
+  await command('mode', 'edit');
   await frame.waitForFunction(() => window.garden.mode === 'edit');
   assert(await visible('#editor') && !await visible('#reading'), 'Edit must swap the page for its Markdown.');
   // The API sends a declaration at most every tenth of a second, so wait for the one that follows Edit.
-  await page.waitForFunction(() => window.broker.toolbars.at(-1).items.some(i => i.id === 'edit' && i.pressed === true && i.keys === 'Ctrl+E'), null, { timeout: 2000 })
-    .catch(async () => { throw Error('The Edit toggle is pressed in Nendo\'s row, on Ctrl E: ' + JSON.stringify((await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'edit'))); });
+  await page.waitForFunction(() => window.broker.toolbars.at(-1).items.some(i => i.id === 'mode' && i.value === 'edit' && i.options.map(o => o.label).join() === 'View,Edit'), null, { timeout: 2000 })
+    .catch(async () => { throw Error('Nendo\'s row must show the two modes, View and Edit, with Edit chosen: ' + JSON.stringify((await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'mode'))); });
   // Editing takes the whole view: the panes reach the bottom and both sides, the cards wait for reading.
   await page.waitForTimeout(100);
   const space = await frame.evaluate(() => {
@@ -98,6 +110,20 @@ async page => {
   });
   assert(space.mainBottom - space.editorBottom <= 16 && space.mainBottom - space.previewBottom <= 16 && space.mainWidth - space.panesWidth <= 30 && space.about === 'none',
     `The editor and the preview must fill the view while editing: ${JSON.stringify(space)}.`);
+  // And in a wide window too, where a box sized by its content would leave margins.
+  await page.setViewportSize({ width: 2560, height: 1200 }); await page.waitForTimeout(150);
+  const wide = await frame.evaluate(() => { const m = document.getElementById('main').getBoundingClientRect(), p = document.getElementById('panes').getBoundingClientRect();
+    return { mainWidth: m.width, panesWidth: p.width, leftGap: p.left - m.left, rightGap: m.right - p.right }; });
+  await page.setViewportSize({ width: 1440, height: 900 }); await page.waitForTimeout(150);
+  assert(wide.mainWidth - wide.panesWidth <= 1 && wide.leftGap <= 1 && wide.rightGap <= 1, `In a wide window editing must still fill the view, with no margins: ${JSON.stringify(wide)}.`);
+  const tight = await frame.evaluate(() => {
+    const box = id => document.getElementById(id).getBoundingClientRect(), colour = id => getComputedStyle(document.getElementById(id)).backgroundColor;
+    const surface = (() => { const e = document.createElement('i'); e.style.color = 'var(--nendo-surface, #ffffff)'; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; })();
+    return { titleGap: box('title').top - box('main').top, panesLeft: box('panes').left - box('main').left, body: getComputedStyle(document.body).backgroundColor,
+      main: colour('main'), sidebar: colour('sidebar'), surface, titleBorder: getComputedStyle(document.getElementById('title')).borderTopWidth, editorBorder: getComputedStyle(document.getElementById('editor')).borderLeftWidth };
+  });
+  assert(tight.titleGap <= 1 && tight.panesLeft <= 1 && tight.body === tight.surface && tight.sidebar === tight.surface && tight.titleBorder === '0px' && tight.editorBorder === '0px',
+    `Editing must sit flush with Nendo, on its surface colour, with no boxes or paper margins: ${JSON.stringify(tight)}.`);
   // The divider drags with a real pointer, and moves with the keyboard.
   const split = () => frame.evaluate(() => {
     const panes = document.getElementById('panes').getBoundingClientRect(), editor = document.getElementById('editor-wrap').getBoundingClientRect();
@@ -114,8 +140,10 @@ async page => {
   await frame.locator('#splitter').focus();
   await page.keyboard.press('ArrowLeft');
   assert((await split()).value === 65, 'Left arrow on the divider must narrow the editor by five points.');
+  await page.keyboard.press('End');
+  assert((await split()).value === 100 && !await visible('#preview'), 'End on the divider folds the preview away.');
   await frame.locator('#splitter').dblclick();
-  assert((await split()).value === 50, 'A double-click on the divider shares the width evenly again.');
+  assert((await split()).value === 50 && await visible('#preview'), 'A double-click on the divider shares the width evenly again.');
   await page.screenshot({ path: '__OUTPUT__/editing.png', fullPage: true });
   checks.push('editing fills the view, divider drags');
   await frame.locator('#editor').focus();

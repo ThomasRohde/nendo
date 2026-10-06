@@ -3,9 +3,10 @@
 A custom view for a garden of notes, in three places:
 
 - **The Garden view**, the screen `workspace/Garden.nendo` opens on (`extensionView` with
-  `opensFile`): the notes as a tree on the left and one note in the middle, open for reading.
-  **Edit** (Ctrl E) swaps the page for its Markdown, with the preview beside it, filling the
-  view; drag the divider between them, or move it with the arrow keys.
+  `opensFile`): the notes as a tree on the left and one note in the middle, in View or Edit.
+  View is the page; Edit (Ctrl E toggles) is its Markdown with the preview beside it, filling
+  the view. Drag the divider between them, or move it with the arrow keys; at the right edge it
+  folds the preview away. Narrow, Medium or Full sets the page's width.
 - **The Graph screen** (`extensionGraphSurface` over `gd.link`): the whole garden as a living
   d3 graph.
 - **The Backlinks panel** on a note's record page (`extensionRecordPanel`).
@@ -50,8 +51,8 @@ reads every note with its neighbours as a list.
 ## In Nendo's toolbar
 
 Where Nendo offers its toolbar the view draws no controls of its own. The Garden view declares
-Find (Ctrl Shift F), New note (also Nendo's Add), Today, Edit (Ctrl E), Preview beside while
-editing, Save (Ctrl S), Undo and Redo, and a menu with Open record page, Graph of the garden,
+Find (Ctrl Shift F), New note (also Nendo's Add), Today, View or Edit, Narrow, Medium or Full,
+Save (Ctrl S), Undo and Redo, and a menu with Open record page, Graph of the garden,
 Mark evergreen and About. Following a wikilink declares a place, so Back and Forward move
 between notes. The Graph screen declares Find, Colour by stage or kind, Tags, Orphans,
 Arrows, Spread, zoom and Fit (Ctrl 0), and About. On an older Nendo the views show their own
