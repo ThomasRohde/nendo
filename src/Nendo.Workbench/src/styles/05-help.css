@@ -42,6 +42,17 @@
 .help-article h3 { font-size: 1.05rem; margin-bottom: 12px; }
 .help-article p, .help-article li { line-height: 1.7; font-size: .9rem; }
 .help-article ol { padding-left: 24px; }
+/* A page the file carries (ADR-0027): its headings meet the article's, a quote is a tinted note
+   in the callout's manner, and a table spans the column. */
+.help-markdown { max-width: 72ch; margin-top: 22px; }
+.help-markdown h3 { font-size: 1.05rem; margin: 30px 0 12px; }
+.help-markdown h4 { font-size: .95rem; margin: 22px 0 8px; }
+.help-markdown blockquote { margin: 16px 0; padding: 12px 16px; border: 1px solid color-mix(in srgb, var(--cobalt) 26%, var(--line)); border-radius: var(--radius-panel); background: color-mix(in srgb, var(--cobalt) 8%, var(--surface)); color: var(--ink); }
+.help-markdown blockquote > :last-child { margin-bottom: 0; }
+.help-markdown table { width: 100%; font-size: .88rem; }
+.help-markdown th { background: var(--surface-soft); font-weight: 620; }
+.help-markdown th, .help-markdown td { padding: 7px 10px; }
+.help-markdown li + li { margin-top: 6px; }
 .help-article li + li { margin-top: 12px; }
 .connection-request { padding: 20px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: var(--radius-panel); }
 .connection-request textarea { display: block; width: 100%; resize: vertical; color: var(--ink); background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-control); padding: 12px; font: inherit; font-size: .8rem; line-height: 1.6; margin-bottom: 12px; }

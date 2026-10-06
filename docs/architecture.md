@@ -200,6 +200,12 @@ Validation refuses a skill package whose `SKILL.md` lacks the frontmatter that n
 skill and serves its files under `skill://{packageId}/`; the Desktop host gives it no
 origin, so nothing serves it to a frame or writes in its name.
 
+A package's Markdown files under `help/` are the file's own help pages
+([ADR-0027](decisions/0027-a-file-carries-its-own-help.md)). The Desktop host reads them
+for the Workbench with `help.readPages`, and Help shows them first under *About this app*,
+rendered by the Workbench's escaping Markdown renderer. They are ordinary package files, so
+storage, review and serving are unchanged.
+
 **Cloud sync is unsupported.** Where practical, the host detects known
 sync-managed paths (OneDrive, Dropbox, Google Drive) and shows a warning. The
 project makes no sync-safety claim and has no live-provider evidence.

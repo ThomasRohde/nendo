@@ -854,9 +854,10 @@ export async function startWorkspace(nendo, context, kit) {
     pending = null;
     // A save on its way changes the note under the draft it came from: look again once it is answered.
     if (state.saving) { pending = setTimeout(changed, 400); return; }
-    const current = state.note?.recordId ?? null;
+    const current = state.note?.recordId ?? null, ticket = openTicket;
     await loadIndex();
-    if (current === null) return;
+    // The person went to another note while the garden was read: theirs wins, and its own open declares its place.
+    if (current === null || ticket !== openTicket) return;
     if (!state.dirty) { await open(current, { fromPlace: true }); return; }
     const latest = state.byId.get(current);
     if (latest === undefined || latest.version !== state.note.version) { state.external = true; setStatus(); expose(); }

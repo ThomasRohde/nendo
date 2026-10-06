@@ -74,3 +74,9 @@ test('Structure offers long text as Markdown and back, and nothing else', async 
   assert.equal(presentationToggleMarkup({ retired: false }, text('singleChoice')), '');
   assert.match(presentationToggleMarkup({ retired: true }, text('longText')), /disabled/);
 });
+
+test('a heading shift moves every heading, inside a quote too, and stops at h6 (ADR-0027)', () => {
+  assert.match(markdownMarkup('# One\n## Two'), /<h3>One<\/h3><h4>Two<\/h4>/);
+  assert.match(markdownMarkup('## Two\n\n> ## Quoted', { headingShift: 1 }), /<h3>Two<\/h3><blockquote><h3>Quoted<\/h3><\/blockquote>/);
+  assert.match(markdownMarkup('###### Six', { headingShift: 1 }), /<h6>Six<\/h6>/);
+});

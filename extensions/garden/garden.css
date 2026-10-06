@@ -221,6 +221,7 @@ h2 { font-size: 12px; margin: 0 0 6px; color: var(--muted); text-transform: uppe
 .guide-body { flex: 1; min-height: 0; overflow: auto; padding: 4px 20px 28px; scroll-behavior: smooth; }
 .guide-section { padding: 16px 0 6px; border-top: 1px solid var(--line); scroll-margin-top: 4px; }
 .guide-section:first-child { border-top: 0; }
+.guide-more { margin: 4px 0 0; padding-top: 14px; border-top: 1px solid var(--line); }
 .guide-section h3 { margin: 0 0 10px; font-size: 15px; }
 .guide-section p { margin: 0 0 10px; }
 #guide code, #guide kbd { font: 12px/1.4 Consolas, "Cascadia Code", monospace; }

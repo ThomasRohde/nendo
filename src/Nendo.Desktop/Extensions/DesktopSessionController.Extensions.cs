@@ -1,3 +1,4 @@
+using System.Text;
 using Nendo.Engine;
 
 namespace Nendo.Desktop;
@@ -404,6 +405,47 @@ internal sealed partial class DesktopSessionController
                     ?? throw new NendoPreconditionException("extension-file-missing", $"{file.Path} went missing while it was being read. Try again."));
             }
             return (package, (IReadOnlyList<NendoExtensionFileContent>)files);
+        }, cancellationToken);
+
+    /// <summary>The folder a package's help pages sit in (ADR-0027).</summary>
+    internal const string HelpFolder = "help/";
+
+    /// <summary>The most help pages Help shows for one file, and the most text they carry together.</summary>
+    internal const int HelpPageLimit = 40;
+    internal const int HelpPageBytes = 128 * 1024;
+    internal const int HelpTotalBytes = 1024 * 1024;
+
+    /// <summary>
+    /// The file's own help pages (ADR-0027): every Markdown file under <c>help/</c> in a package the
+    /// file carries, packages by title, pages by path. Text only, for Help to render as Markdown;
+    /// nothing in them runs. A page that is not UTF-8, or past a bound, is left out and counted.
+    /// </summary>
+    internal Task<DesktopHelpPagesView> ReadHelpPagesAsync(CancellationToken cancellationToken = default) =>
+        QueryAsync(async service =>
+        {
+            var snapshot = await service.GetDefinitionSnapshotAsync(cancellationToken);
+            var pages = new List<DesktopHelpPageView>();
+            var omitted = 0;
+            var total = 0;
+            var strict = new UTF8Encoding(false, true);
+            foreach (var package in snapshot.ExtensionPackages
+                .OrderBy(package => package.Title, StringComparer.CurrentCultureIgnoreCase).ThenBy(package => package.PackageId, StringComparer.Ordinal))
+            {
+                foreach (var file in package.Files
+                    .Where(file => file.Path.StartsWith(HelpFolder, StringComparison.Ordinal) && file.Path.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(file => file.Path, StringComparer.Ordinal))
+                {
+                    if (pages.Count == HelpPageLimit || file.ByteLength > HelpPageBytes || total + file.ByteLength > HelpTotalBytes) { omitted++; continue; }
+                    var content = await service.ReadExtensionFileAsync(package.PackageId, file.Path, cancellationToken);
+                    if (content is null) { omitted++; continue; }
+                    string text;
+                    try { text = strict.GetString(content.Content); }
+                    catch (DecoderFallbackException) { omitted++; continue; }
+                    total += content.Content.Length;
+                    pages.Add(new(package.PackageId, package.Title, file.Path, text.TrimStart('﻿')));
+                }
+            }
+            return new DesktopHelpPagesView(pages, omitted);
         }, cancellationToken);
 
     /// <summary>

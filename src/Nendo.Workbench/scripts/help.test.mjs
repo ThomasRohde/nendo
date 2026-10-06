@@ -4,7 +4,7 @@ import { build } from 'vite';
 
 const bundle = await build({ configFile: false, logLevel: 'error',
   build: { ssr: 'src/help.ts', write: false, rollupOptions: { output: { codeSplitting: false } } } });
-const { helpTopics, helpProviders, groupHelpTopics, helpSearchText, agentSurface } = await import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
+const { helpTopics, helpProviders, groupHelpTopics, helpSearchText, agentSurface, fileHelpTopic } = await import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
 const context = { entities: [], applications: [], fileName: null };
 
 // Mirrors of the closed surface pinned in tools/Test-Production.ps1. Adding a tool touches both lists on purpose.
@@ -63,15 +63,34 @@ test('host providers extend guides and reject ambiguous topic identities', () =>
   assert.throws(() => helpTopics(context, [...helpProviders, extension, extension]), /unique/);
 });
 
-test('the index groups topics in a fixed order, starts at Find your way around, and ends with the generated reference', () => {
+test('the index puts the open file\'s app first, then the guides in a fixed order starting at Find your way around', () => {
   const groups = groupHelpTopics(helpTopics(context));
   assert.deepEqual(groups.map(group => group.category), ['Getting started', 'How Nendo works', 'Everyday work', 'Agents']);
   assert.equal(groups[0].topics[0].id, 'start');
   assert.ok(groups[1].topics.length >= 7, 'How Nendo works teaches the model in several topics');
   const entity = { entityId: 'note', displayName: 'Note', fields: [] };
-  assert.equal(groupHelpTopics(helpTopics({ ...context, entities: [entity] })).at(-1).category, 'About this app');
+  const page = { packageId: 'org.example.garden', packageTitle: 'Garden', path: 'help/01-start.md', markdown: '# Start here\n\nWelcome.' };
+  const withApp = groupHelpTopics(helpTopics({ ...context, entities: [entity], pages: [page] }));
+  assert.equal(withApp[0].category, 'About this app', 'The open file\'s app is first in the index.');
+  assert.deepEqual(withApp[0].topics.map(topic => topic.id), ['page:org.example.garden/help/01-start.md', 'entity:note'],
+    'The file\'s own pages come before the reference generated from its record types.');
   const extension = () => [{ id: 'x', title: 'X', category: 'Data', summary: '', sections: [] }];
   assert.equal(groupHelpTopics(helpTopics(context, [...helpProviders, extension])).at(-1).category, 'Data');
+});
+
+test('a page the file carries is a topic: its heading the title, its first paragraph the summary, the rest Markdown (ADR-0027)', () => {
+  const topic = fileHelpTopic({ packageId: 'org.example.garden', packageTitle: 'Garden', path: 'help/02-links.md',
+    markdown: '\uFEFF\n# How **links** work\r\n\r\nWrite `[[a note]]` and *save*: [the link](https://x.example) becomes a record.\nSecond line.\n\n## Backlinks\n\n- one\n' });
+  assert.equal(topic.title, 'How links work', 'A title is plain text: its inline Markdown is taken off.');
+  assert.equal(topic.category, 'About this app');
+  assert.equal(topic.source, 'Garden');
+  assert.equal(topic.summary, 'Write [[a note]] and save: the link becomes a record. Second line.');
+  assert.equal(topic.markdown, '## Backlinks\n\n- one');
+  assert.ok(helpSearchText(topic).includes('backlinks'), 'Search reaches the page\'s Markdown.');
+  const untitled = fileHelpTopic({ packageId: 'p.q', packageTitle: 'Q', path: 'help/03-keyboard_keys.md', markdown: '- a list first\n' });
+  assert.equal(untitled.title, 'Keyboard keys', 'Without a heading the file name, less its number, is the title.');
+  assert.equal(untitled.summary, '', 'A list is not a summary.');
+  assert.equal(untitled.markdown, '- a list first');
 });
 
 test('the agent surface article names every resource and tool the host declares, and no other tool', () => {

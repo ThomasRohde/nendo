@@ -1,6 +1,7 @@
 import { state } from './app-state';
 import { escapeAttribute, escapeHtml } from './format';
 import { type HelpSection, groupHelpTopics, helpSearchText, helpTopics } from './help';
+import { markdownMarkup } from './markdown';
 import { content, requiredElement } from './shell';
 /**
  * Help: how the system works, the guides, and the reference this build ties to
@@ -10,8 +11,10 @@ import { content, requiredElement } from './shell';
 
 export function renderHelp(): void {
   const topics = helpTopics({ entities: state.session.entities,
-    applications: state.compilation?.isValid ? state.compilation.applications : [], fileName: state.session.fileName });
-  const topic = topics.find(item=>item.id===state.helpTopicId) ?? topics.find(item=>item.id==='start') ?? topics[0];
+    applications: state.compilation?.isValid ? state.compilation.applications : [], fileName: state.session.fileName,
+    pages: state.session.hasFile ? state.helpPages : [] });
+  // With no topic named, Help opens on the file's own first page (ADR-0027), else on Start.
+  const topic = topics.find(item=>item.id===state.helpTopicId) ?? topics.find(item=>item.id.startsWith('page:')) ?? topics.find(item=>item.id==='start') ?? topics[0];
   state.helpTopicId = topic.id;
   const byId = new Map(topics.map(item => [item.id, item]));
   const searchText = new Map(topics.map(item => [item.id, helpSearchText(item)]));
@@ -23,11 +26,12 @@ export function renderHelp(): void {
     + '</section>';
   content.innerHTML = `<div class="help-page"><aside class="help-index" aria-label="Help topics"><label for="help-search">Find help</label><input id="help-search" type="search" placeholder="Search guides and this app" value="${escapeAttribute(state.helpQuery)}" />
     <div class="help-topics">${groupHelpTopics(topics).map((group, index)=>`<div class="help-group" role="group" aria-labelledby="help-group-${index}"><p id="help-group-${index}" class="help-group-label">${escapeHtml(group.category)}</p>${group.topics.map(item=>`<button type="button" data-help-topic="${escapeAttribute(item.id)}" ${item.id===topic.id ? 'aria-current="page"' : ''}><strong>${escapeHtml(item.title)}</strong></button>`).join('')}</div>`).join('')}</div><p id="help-no-results" hidden>No matching topics.</p></aside>
-    <article class="help-article"><p class="location">${escapeHtml(topic.category)}</p><h2 id="help-article-title" tabindex="-1">${escapeHtml(topic.title)}</h2><p class="help-summary">${escapeHtml(topic.summary)}</p>
+    <article class="help-article"><p class="location">${escapeHtml(topic.source ? `${topic.category} · ${topic.source}` : topic.category)}</p><h2 id="help-article-title" tabindex="-1">${escapeHtml(topic.title)}</h2>${topic.summary ? `<p class="help-summary">${escapeHtml(topic.summary)}</p>` : ''}
+    ${topic.markdown !== undefined ? `<div class="help-markdown markdown-body">${markdownMarkup(topic.markdown, { headingShift: 1 })}</div>` : ''}
     ${topic.sections.map(sectionMarkup).join('')}
     ${topic.setupRequest ? `<section class="connection-request"><h3>Register with your client</h3><p>Run the line for your client once. It contains the address only; there is no secret.</p><textarea id="help-setup-request" readonly rows="3" aria-label="MCP registration commands">${escapeHtml(topic.setupRequest)}</textarea><button id="copy-help-request" type="button" class="secondary-button">Copy commands</button><p id="copy-help-status" role="status"></p></section>` : ''}
     ${related.length ? `<nav class="help-related" aria-label="Related topics"><h3>See also</h3>${related.map(id=>`<button type="button" class="help-link" data-help-topic="${escapeAttribute(id)}">${escapeHtml(byId.get(id)!.title)}</button>`).join('')}</nav>` : ''}
-    <p class="help-footnote">Built-in guides are available offline. “About this app” follows the current file’s record types, fields and configured actions. Reopen Help after changing the app to refresh its reference.</p></article></div>`;
+    <p class="help-footnote">Built-in guides are available offline. “About this app” is the current file’s own help, written into it, and a reference that follows its record types, fields and configured actions. Reopen Help after changing the app to refresh its reference.</p></article></div>`;
   // Search covers article bodies, so a refusal code or a screen label finds its topic; the query outlives a topic click.
   const applyFilter = (): void => {
     let matches = 0;

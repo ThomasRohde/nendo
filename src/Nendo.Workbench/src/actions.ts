@@ -1,3 +1,4 @@
+import type { FileHelpPage } from './help';
 import type { ViewName } from './app-state';
 import type { ApplicationRecipe } from './application-recipes';
 import { client } from './client';
@@ -17,7 +18,7 @@ import { openingFileView } from './file-view-model';
 import { readsOwnRecords } from './surface-model';
 import {
   WorkbenchHostError, type AgentStatus, type CompileResult, type DesktopMutationView, type DesktopPromotionView,
-  type DesktopSessionView, type HistoryFoldPreview, type HistoryFoldResult, type ProposalPreview, type ReadPage, type RecordSnapshot, type RevisionSummary,
+  type DesktopSessionView, type HelpPagesView, type HistoryFoldPreview, type HistoryFoldResult, type ProposalPreview, type ReadPage, type RecordSnapshot, type RevisionSummary,
 } from './host';
 
 /**
@@ -502,7 +503,8 @@ export async function refreshStudioQuery(entityId: string): Promise<void> {
   studioWindows.set(entityId, { page, cursors: [null], index: 0, query });
 }
 
-export async function openHelp(topicId = 'start'): Promise<void> {
+/** Help on a topic, or with none named on the open file's own first page, where it has one (ADR-0027). */
+export async function openHelp(topicId = ''): Promise<void> {
   if (refuseWhileDirty('opening Help')) return;
   state.helpTopicId = topicId; state.view = 'help'; state.creatingRecord = false;
   rerender();
@@ -513,7 +515,17 @@ export async function openHelp(topicId = 'start'): Promise<void> {
     catch { /* Built-in guidance remains available if the file cannot refresh. */ }
     finally { state.actionInFlight = false; setBusy(false); }
   }
+  state.helpPages = await readHelpPages();
+  // The first render, before the pages arrived, settled on Start: with no topic named, choose again now they are here.
+  if (topicId === '' && state.view === 'help') state.helpTopicId = '';
   rerender();
+}
+
+/** The open file's help pages; none without a file, or from a host that has no such read. */
+async function readHelpPages(): Promise<FileHelpPage[]> {
+  if (client.mode === 'unavailable' || !state.session.hasFile) return [];
+  try { return (await client.request<HelpPagesView>('help.readPages')).pages; }
+  catch { return []; }
 }
 
 export async function prepareApplication(recipe: ApplicationRecipe, returnView: ViewName): Promise<void> {

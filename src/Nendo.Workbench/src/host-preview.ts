@@ -66,6 +66,10 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
       case 'session.getRecentFiles':
         result = { files: [], notice: null };
         break;
+      case 'help.readPages':
+        // ADR-0027: the Board glance sample documents itself under help/.
+        result = { pages: this.packages.some(item => item.packageId === boardGlancePackage().packageId) ? previewHelpPages() : [], omitted: 0 };
+        break;
       case 'file.close':
         this.reset(previewSession());
         result = { session: this.session, notice: null };
@@ -1016,6 +1020,35 @@ function boardGlancePackage(): ExtensionPackageView {
     description: 'Cards grouped by status, for a quick look at a record type.',
     origin: 'https://org-example-board-glance-5d1c7e9a20.example', fileCount: 3, totalBytes: 14_682,
   };
+}
+
+/** The help pages the Board glance sample carries (ADR-0027), as `help.readPages` answers them. */
+function previewHelpPages(): Array<{ packageId: string; packageTitle: string; path: string; markdown: string }> {
+  const page = (path: string, markdown: string): { packageId: string; packageTitle: string; path: string; markdown: string } =>
+    ({ packageId: boardGlancePackage().packageId, packageTitle: boardGlancePackage().title, path, markdown });
+  return [
+    page('help/01-welcome.md', [
+      '# Welcome to Board glance',
+      '',
+      'Every record type at a glance, as cards grouped by status.',
+      '',
+      '## Three things to try',
+      '',
+      '1. Open **Board glance** from the view picker.',
+      '2. Drag a card to another column to change its status.',
+      '3. Hover a card to read its details.',
+      '',
+      '> Cards follow the file: a change anywhere shows on the board at once.',
+    ].join('\n')),
+    page('help/02-keys.md', [
+      '# Keys',
+      '',
+      '| Key | What it does |',
+      '| --- | --- |',
+      '| `Ctrl` `F` | Find a card |',
+      '| Arrow keys | Move between cards |',
+    ].join('\n')),
+  ];
 }
 
 /** A skill package (ADR-0024): instructions for an agent, listed in Studio and never run. */

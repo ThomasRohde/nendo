@@ -10,7 +10,7 @@ import { escapeHtml } from './format';
  * tags in the result are the ones written here, so stored text can never become markup. A link
  * is not followed: its text shows, with the address as its tooltip. An image shows its alt text.
  */
-export function markdownMarkup(source: string): string {
+export function markdownMarkup(source: string, { headingShift = 2 }: { headingShift?: number } = {}): string {
   const lines = source.replace(/\r\n?/g, '\n').split('\n');
   const blocks: string[] = [];
   let paragraph: string[] = [];
@@ -33,7 +33,7 @@ export function markdownMarkup(source: string): string {
     if (heading) {
       flush();
       // A record page's own headings come first; a field's start below them.
-      const level = Math.min(heading[1].length + 2, 6);
+      const level = Math.min(heading[1].length + headingShift, 6);
       blocks.push(`<h${level}>${inline(heading[2])}</h${level}>`);
       continue;
     }
@@ -43,7 +43,7 @@ export function markdownMarkup(source: string): string {
       const quoted: string[] = [];
       for (; index < lines.length && /^\s{0,3}>/.test(lines[index]); index++) quoted.push(lines[index].replace(/^\s{0,3}>\s?/, ''));
       index--;
-      blocks.push(`<blockquote>${markdownMarkup(quoted.join('\n'))}</blockquote>`);
+      blocks.push(`<blockquote>${markdownMarkup(quoted.join('\n'), { headingShift })}</blockquote>`);
       continue;
     }
     const item = listItem(line);

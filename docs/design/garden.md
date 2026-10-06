@@ -53,6 +53,12 @@ the graph to be dynamic and interactive, drawn with a common library as Obsidian
   and resets to 250 px on a double-click. It lies over the sidebar's border, out of the grid, so
   nothing on the page measures it. The folds and the width are this person's and stay in this
   browser.
+- **Help pages in Nendo's Help** (owner, 2026-10-06: the help meant was Nendo's own Help page,
+  and *About this app* should come first). The package carries `help/01-welcome.md` to
+  `help/08-working-with-an-agent.md`, which Help lists first under *About this app*, itself
+  first in the index, and opens on (ADR-0027). They say what the in-view guide says at more
+  length, with tables of what Markdown becomes, the screens, the graph's controls, the keys and
+  things to ask an agent. The in-view guide points at them.
 - **The Garden guide** (owner, 2026-10-06: more elaborate and more exciting) replaces the one
   paragraph About. It is a sheet at the right, beside the page rather than over it, opened by an
   info toggle in Nendo's row (or the view's own Guide button, or from the empty page), and closed

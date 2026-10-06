@@ -15,6 +15,10 @@ A custom view for a garden of notes, in three places:
 - **The Graph screen** (`extensionGraphSurface` over `gd.link`): the whole garden as a living
   d3 graph.
 - **The Backlinks panel** on a note's record page (`extensionRecordPanel`).
+- **Help pages**: `help/*.md`, eight Markdown pages that Nendo's Help shows first under
+  *About this app* ([ADR-0027](../../docs/decisions/0027-a-file-carries-its-own-help.md)):
+  welcome, writing, growing, finding your way, the graph, daily notes and tasks, keys, and
+  working with an agent. Nothing in them runs.
 
 ## Reading
 

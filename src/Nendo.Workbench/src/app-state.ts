@@ -1,3 +1,4 @@
+import type { FileHelpPage } from './help';
 import type { QuickFilter, QuickFilterTargets } from './quick-filter-model';
 import { emptySession, type AgentProposalPreview, type AgentStatus, type CompileResult, type DesktopSessionView, type ProposalPreview, type ReadPage, type RecentFiles, type RecordPlan, type RecordSnapshot, type RevisionSummary, type HistoryFoldPreview } from './host';
 import type { BucketResult, CellResult, GroupedResult } from './charts';
@@ -204,6 +205,8 @@ export interface AppState {
    */
   lastOutcome: OutcomeNotice | null;
   helpTopicId: string;
+  /** The open file's own help pages (ADR-0027), read when Help opens. */
+  helpPages: FileHelpPage[];
   helpQuery: string;
 }
 
@@ -235,7 +238,8 @@ export const state: AppState = {
   openDraft: null,
   retainedDraft: null,
   lastOutcome: null,
-  helpTopicId: 'start',
+  helpTopicId: '',
+  helpPages: [],
   helpQuery: '',
 };
 

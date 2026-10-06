@@ -312,6 +312,19 @@ the digests of the stored bytes ([MCP interface](mcp-interface.md)). The Desktop
 lists a skill package with no origin, so nothing serves it to a frame, and it cannot be
 developed from a folder.
 
+### Help pages
+
+[ADR-0027](../decisions/0027-a-file-carries-its-own-help.md). Every file under `help/`
+whose name ends in `.md`, in any package the file carries, is one of the file's help pages,
+shown first under *About this app* in Help ([Help contract](help.md)). Nothing about the
+package changes: the pages are package files, written, reviewed, accepted and exported as
+every file is, and served to the package's own frames like its other files. The Desktop
+host reads them for Help with `help.readPages`; an agent reads them as any package file,
+under `nendo://application/extension/{packageId}/file`. Nothing in them runs, and Help
+renders them through the Workbench's Markdown renderer, which escapes every character first
+and does not follow links. A page larger than 128 KiB, past the fortieth, past 1 MiB together
+or not UTF-8 is left out of Help and counted in `omitted`.
+
 ## Where a view runs
 
 ### One frame per view
@@ -1363,6 +1376,7 @@ The Workbench reaches the host over the bridge (protocol 7) with these methods:
 | `extension.develop.link` | `{packageId}` | The host opens its folder picker, then the session view, whose package names the folder by `developmentFolder`; or `{cancelled: true}`. `extension-link-mismatch` when the folder's `nendo-package.json` names another package, `extension-package-not-found` when the file does not carry the package |
 | `extension.develop.stop` | `{packageId}` | The session view. Stopping a package that is not developed is not an error |
 | `extension.develop.save` | `{packageId}` | The proposal preview Import would prepare from the folder; `extension-not-linked` when the package is not developed on this device |
+| `help.readPages` | `{}` | `{pages, omitted}`: each page `{packageId, packageTitle, path, markdown}`, packages by title then package ID, pages by path; `omitted` counts the pages left out at a bound or as not UTF-8. Needs an open file |
 | `diagnostics.frameProcesses` | `{}` | Only when `NENDO_NATIVE_DIAGNOSTICS=1`, otherwise `unknown-method`: each browser process with its ID, kind, private working set in bytes and the frames it holds, each `{name, source}` |
 
 The host reports renderer failure through `extensionFramesFailed`, which carries

@@ -122,6 +122,12 @@ export interface StorageHealthSnapshot {
   integrityChangeSequence?: number | null;
 }
 
+/** `help.readPages` (ADR-0027): the open file's help pages in Help's order, and how many a bound or a non-UTF-8 file left out. */
+export interface HelpPagesView {
+  pages: Array<{ packageId: string; packageTitle: string; path: string; markdown: string }>;
+  omitted: number;
+}
+
 export interface DesktopSessionView {
   fileSessionId: string | null;
   capabilities: FileCapabilities;

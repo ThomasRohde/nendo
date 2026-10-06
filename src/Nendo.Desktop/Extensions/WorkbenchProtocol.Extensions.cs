@@ -32,6 +32,9 @@ internal static partial class WorkbenchMethods
     /// <summary>Keep, replace or remove one value of a custom view, only with its actor.</summary>
     internal const string ExtensionStateSet = "extension.state.set";
 
+    /// <summary>The open file's own help pages (ADR-0027): the Markdown under <c>help/</c> in its packages, as text.</summary>
+    internal const string HelpReadPages = "help.readPages";
+
     /// <summary>
     /// The only methods a request may carry a custom view's actor on (ADR-0013 Phase 3): the
     /// record writes a person's own edit uses, since 2026-09-28 a move in a declared tree
@@ -76,6 +79,12 @@ internal sealed record DesktopExtensionStateEntryView(string Key, JsonElement? V
 
 /// <summary>Where an export went, by folder name only: the Workbench is never handed a path.</summary>
 internal sealed record DesktopExtensionExportView(bool Exported, int FileCount, string? FolderName);
+
+/// <summary>The file's help pages, in the order Help lists them, and how many were left out at a bound or as not UTF-8.</summary>
+internal sealed record DesktopHelpPagesView(IReadOnlyList<DesktopHelpPageView> Pages, int Omitted);
+
+/// <summary>One help page: the package it comes from, its path in that package and its Markdown.</summary>
+internal sealed record DesktopHelpPageView(string PackageId, string PackageTitle, string Path, string Markdown);
 
 internal sealed partial class WorkbenchProtocolHandler
 {

@@ -7,12 +7,18 @@ import type { ApplicationPlan, EntitySnapshot } from './host';
 
 export interface HelpTerm { term: string; meaning: string; code?: boolean }
 export interface HelpSection { heading: string; paragraphs?: string[]; steps?: string[]; terms?: HelpTerm[] }
-export interface HelpTopic { id: string; title: string; category: string; summary: string; sections: HelpSection[]; setupRequest?: string; related?: string[] }
-export interface HelpContext { entities: EntitySnapshot[]; applications?: ApplicationPlan[]; fileName: string | null }
+/** `markdown` is a page the open file carries (ADR-0027): shown through the host's own Markdown renderer, which escapes every character first. */
+export interface HelpTopic { id: string; title: string; category: string; summary: string; sections: HelpSection[]; markdown?: string; source?: string; setupRequest?: string; related?: string[] }
+/** One help page the open file carries: Markdown under `help/` in one of its packages (ADR-0027). */
+export interface FileHelpPage { packageId: string; packageTitle: string; path: string; markdown: string }
+export interface HelpContext { entities: EntitySnapshot[]; applications?: ApplicationPlan[]; fileName: string | null; pages?: FileHelpPage[] }
 export type HelpProvider = (context: HelpContext) => HelpTopic[];
 
-/** Index order. A category a host provider adds without naming it here follows these, in first-seen order. */
-export const helpCategoryOrder: readonly string[] = ['Getting started', 'How Nendo works', 'Everyday work', 'Agents', 'About this app'];
+/**
+ * Index order. A category a host provider adds without naming it here follows these, in first-seen
+ * order. The open file's own app comes first: it is what the person has in front of them.
+ */
+export const helpCategoryOrder: readonly string[] = ['About this app', 'Getting started', 'How Nendo works', 'Everyday work', 'Agents'];
 
 export function groupHelpTopics(topics: readonly HelpTopic[]): Array<{ category: string; topics: HelpTopic[] }> {
   const groups = new Map<string, HelpTopic[]>();
@@ -26,7 +32,7 @@ export function groupHelpTopics(topics: readonly HelpTopic[]): Array<{ category:
 
 /** Everything a search may match: title, category, summary, headings, paragraphs, steps and terms. */
 export function helpSearchText(topic: HelpTopic): string {
-  return [topic.title, topic.category, topic.summary, ...topic.sections.flatMap(section => [section.heading,
+  return [topic.title, topic.category, topic.summary, topic.markdown ?? '', ...topic.sections.flatMap(section => [section.heading,
     ...(section.paragraphs ?? []), ...(section.steps ?? []), ...(section.terms ?? []).flatMap(term => [term.term, term.meaning])])]
     .join(' ').toLocaleLowerCase();
 }
@@ -84,6 +90,35 @@ const coreHelp: HelpProvider = () => [
 
 const presentationLabels: Record<string, string> = { singleLine: 'short text', longText: 'long text', markdown: 'text written in Markdown, shown formatted', singleChoice: 'choose one option', date: 'date', rating: 'rating on a scale' };
 
+/**
+ * A file's own help page as a topic (ADR-0027). Its first `# ` heading is the title, or the file's
+ * name without the folder and extension; the first paragraph after it is the summary; the rest is
+ * the article. Text from the file is only ever Markdown here, never markup.
+ */
+export function fileHelpTopic(page: FileHelpPage): HelpTopic {
+  const lines = page.markdown.replace(/\r\n?/g, '\n').split('\n');
+  let at = 0;
+  while (at < lines.length && lines[at].trim() === '') at++;
+  const heading = /^\s{0,3}#\s+(.+?)\s*#*\s*$/.exec(lines[at] ?? '');
+  const fallback = page.path.replace(/^help\//, '').replace(/\.md$/i, '').replace(/^\d+[-_ .]*/, '').replace(/[-_]+/g, ' ').trim();
+  // The title and the summary are shown as plain text, so their inline Markdown is taken off.
+  const plain = (text: string): string => text.replace(/(\*\*|__|`|~~)/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/(^|\W)[*_]([^*_]+)[*_](?=\W|$)/g, '$1$2');
+  const title = heading ? plain(heading[1]) : fallback.charAt(0).toLocaleUpperCase() + fallback.slice(1);
+  if (heading) at++;
+  while (at < lines.length && lines[at].trim() === '') at++;
+  // The opening paragraph is the summary when it is prose, not a heading, a list, a quote, a table or code.
+  let summary = '';
+  if (at < lines.length && !/^\s{0,3}(#|[-*+]\s|\d+[.)]\s|>|\||```|~~~)/.test(lines[at])) {
+    const paragraph: string[] = [];
+    while (at < lines.length && lines[at].trim() !== '') paragraph.push(lines[at++].trim());
+    summary = plain(paragraph.join(' '));
+  }
+  return { id: `page:${page.packageId}/${page.path}`, title, category: 'About this app', summary, sections: [],
+    markdown: lines.slice(at).join('\n').trim(), source: page.packageTitle };
+}
+
+const fileHelp: HelpProvider = ({ pages }) => (pages ?? []).map(fileHelpTopic);
+
 // Providers are host-owned code. Application content is always plain text, never executable help.
 const applicationHelp: HelpProvider = ({ entities, applications, fileName }) => entities.map(entity => ({
   id: `entity:${entity.entityId}`, title: entity.displayName, category: 'About this app',
@@ -108,7 +143,7 @@ const applicationHelp: HelpProvider = ({ entities, applications, fileName }) => 
   ],
 }));
 
-export const helpProviders: readonly HelpProvider[] = [coreHelp, conceptHelp, clientHelp, agentHelp, applicationHelp];
+export const helpProviders: readonly HelpProvider[] = [fileHelp, coreHelp, conceptHelp, clientHelp, agentHelp, applicationHelp];
 export function helpTopics(context: HelpContext, providers: readonly HelpProvider[] = helpProviders): HelpTopic[] {
   const topics = providers.flatMap(provider => provider(context));
   if (new Set(topics.map(topic=>topic.id)).size !== topics.length) throw new Error('Help topic IDs must be unique.');
