@@ -179,16 +179,17 @@ async function travel(direction: 'back' | 'forward'): Promise<void> {
  * Put the screen back on the place the trail is on now, without stepping (G, trial).
  *
  * Switching tabs swaps the whole trail, so the place to show is the new trail's current one.
- * It is checked and read exactly as a step back is. A place that has gone leaves the screen as
- * it is, and the next draw records that screen on the tab.
+ * It is checked and read exactly as a step back is. A place that has gone, or whose record
+ * cannot be read, leaves the screen as it is and answers false, so the caller puts the tab and
+ * its trail back too (tab-set.ts, review R-002).
  */
-export async function revisitCurrent(): Promise<void> {
+export async function revisitCurrent(): Promise<boolean> {
   const target = navigationTrail.current();
-  if (target === null) { rerender(); return; }
+  if (target === null) { rerender(); return true; }
   const gone = whyPlaceIsGone(target);
-  if (gone !== null) { showError(gone); refreshChrome(); return; }
-  if (!(await readPlaceRecord(target))) return;
-  await settleRestoring(target.recordId !== null && !focusedRecords.has(target.recordId) ? { ...target, recordId: null } : target);
+  if (gone !== null) { showError(gone); return false; }
+  if (!(await readPlaceRecord(target))) return false;
+  return settleRestoring(target.recordId !== null && !focusedRecords.has(target.recordId) ? { ...target, recordId: null } : target);
 }
 
 /**
@@ -215,9 +216,9 @@ async function readPlaceRecord(target: Place): Promise<boolean> {
 
 /**
  * Show a place with the trail held still, after `step` moves it, and end the busy state
- * the read began.
+ * the read began. False when the place could not be shown.
  */
-async function settleRestoring(target: Place, step: () => void = () => undefined): Promise<void> {
+async function settleRestoring(target: Place, step: () => void = () => undefined): Promise<boolean> {
   navigationTrail.setRestoring(true);
   step();
   // Held rather than shown, and said after the redraw: a refusal about a move belongs
@@ -236,6 +237,7 @@ async function settleRestoring(target: Place, step: () => void = () => undefined
     navigationTrail.setRestoring(false);
   }
   if (failure !== null) showError(failure);
+  return failure === null;
 }
 
 function capitalised(text: string): string { return text.charAt(0).toUpperCase() + text.slice(1); }

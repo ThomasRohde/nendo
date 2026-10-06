@@ -250,3 +250,56 @@ test('the places kept are bounded, and it is the one used longest ago that goes'
   assert.equal(places.viewPlaceOf(anchorOf(0), view), null);
   assert.equal(places.viewPlaceOf(anchorOf(places.viewPlaceCeiling), view)?.value, places.viewPlaceCeiling);
 });
+
+// Review R-002: going to a tab is a transaction. The tab controller's moves (tab-set.ts) are
+// driven here with the real trail; `show` stands for revisitCurrent, which answers false when
+// the destination's record type has gone or its record cannot be read.
+const { switchTab, closeTabAt } = await bundleOf('src/tab-set.ts');
+const { createTrail: makeTrail } = await bundleOf('src/navigation-trail.ts');
+
+function twoTabs() {
+  const trail = makeTrail();
+  const a = place({ title: 'Board A', surfaceId: 'nd.work.a' });
+  const a2 = place({ title: 'List A', surfaceId: 'nd.work.a2' });
+  const b = place({ applicationEntityId: 'nd.retired', eyebrow: 'Use · Retired', title: 'B', surfaceId: 'nd.retired.b' });
+  trail.record(a); trail.record(a2);
+  const set = { tabs: [{ id: 1, saved: null }, { id: 2, saved: { places: [b], cursor: 0 } }], active: 0 };
+  return { trail, set, a, a2, b };
+}
+
+test('R-002: a tab whose place is refused leaves the tab on screen selected, with its own trail', async () => {
+  for (const reason of ['record type retired', 'record read failed']) {
+    const { trail, set, a2, b } = twoTabs();
+    const before = JSON.stringify(trail.inspect());
+    let shownAt = null;
+    const moved = await switchTab(set, 1, trail, async () => { shownAt = trail.current(); return false; });
+    assert.equal(moved, false, reason);
+    assert.equal(shownAt?.title, b.title, `${reason}: the destination's place was the one tried`);
+    assert.equal(set.active, 0, `${reason}: the selected tab must stay the one on screen`);
+    assert.equal(placeKey(trail.current()), placeKey(a2), `${reason}: the heading's place must stay the page on screen`);
+    assert.equal(JSON.stringify(trail.inspect()), before, `${reason}: Back and Forward must still be the tab's own`);
+    assert.equal(trail.canGoBack(), true);
+    assert.deepEqual(set.tabs[1].saved, { places: [b], cursor: 0 }, `${reason}: the refused tab keeps its trail`);
+    assert.equal(set.tabs[0].saved, null, `${reason}: the tab on screen holds its trail in the window, not saved`);
+  }
+});
+
+test('R-002: closing the tab on screen when its neighbour is refused closes nothing', async () => {
+  const { trail, set, a2 } = twoTabs();
+  assert.equal(await closeTabAt(set, 0, trail, async () => false), false);
+  assert.equal(set.tabs.length, 2);
+  assert.equal(set.active, 0);
+  assert.equal(placeKey(trail.current()), placeKey(a2));
+});
+
+test('R-002: a tab that is shown swaps the trails, and closing the old one keeps the right one', async () => {
+  const { trail, set, a2, b } = twoTabs();
+  assert.equal(await switchTab(set, 1, trail, async () => true), true);
+  assert.equal(set.active, 1);
+  assert.equal(placeKey(trail.current()), placeKey(b));
+  assert.equal(placeKey(set.tabs[0].saved.places[set.tabs[0].saved.cursor]), placeKey(a2));
+  assert.equal(await closeTabAt(set, 0, trail, async () => true), true);
+  assert.equal(set.tabs.length, 1);
+  assert.equal(set.active, 0);
+  assert.equal(placeKey(trail.current()), placeKey(b));
+});

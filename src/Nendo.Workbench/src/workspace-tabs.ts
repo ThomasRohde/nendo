@@ -6,6 +6,7 @@ import { applicationPlans } from './plan-selection';
 import { typeGlyph } from './type-icons';
 import { revisitCurrent } from './navigation-actions';
 import { navigationTrail, type Place } from './navigation-trail';
+import { closeTabAt, switchTab, type Tab, type TabSet } from './tab-set';
 import { announce, refreshChrome, requiredElement } from './shell';
 
 /**
@@ -19,24 +20,20 @@ import { announce, refreshChrome, requiredElement } from './shell';
  * Tabs are the window's, not the file's. They are cleared with the file, like the trail.
  */
 
-interface Saved { places: Place[]; cursor: number }
-interface Tab { id: number; saved: Saved | null }
-
-let tabs: Tab[] = [{ id: 1, saved: null }];
-let active = 0;
+const set: TabSet = { tabs: [{ id: 1, saved: null }], active: 0 };
 let nextId = 2;
 
 fileScopedClearable({
   clear(): void {
-    tabs = [{ id: nextId++, saved: null }];
-    active = 0;
+    set.tabs = [{ id: nextId++, saved: null }];
+    set.active = 0;
   },
 });
 
 const strip = requiredElement<HTMLElement>('#tab-strip');
 
 function placeOf(tab: Tab, index: number): Place | null {
-  if (index === active) return navigationTrail.current();
+  if (index === set.active) return navigationTrail.current();
   const saved = tab.saved;
   return saved === null || saved.cursor < 0 ? null : saved.places[saved.cursor] ?? null;
 }
@@ -77,11 +74,11 @@ export function drawTabs(): void {
   const open = state.session.fileName !== null;
   strip.hidden = !open;
   if (!open) { strip.innerHTML = ''; return; }
-  const only = tabs.length === 1;
-  strip.innerHTML = tabs.map((tab, index) => {
+  const only = set.tabs.length === 1;
+  strip.innerHTML = set.tabs.map((tab, index) => {
     const place = placeOf(tab, index);
     const label = tabLabel(place);
-    const selected = index === active;
+    const selected = index === set.active;
     return `<div class="tab${selected ? ' is-active' : ''}" data-tab-index="${index}">
       <button class="tab-main" type="button" role="tab" aria-selected="${selected}" data-tab="${index}" title="${escapeAttribute(label)}">${tabGlyph(place)}<span class="tab-label">${escapeHtml(label)}</span></button>
       <button class="tab-close" type="button" data-close-tab="${index}" aria-label="Close ${escapeAttribute(label)}" title="Close tab (Ctrl+W)" ${only ? 'disabled' : ''}>${icon('close')}</button>
@@ -93,47 +90,33 @@ export function drawTabs(): void {
 export function newTab(): void {
   if (state.session.fileName === null) return;
   const here = navigationTrail.current();
-  tabs[active].saved = navigationTrail.inspect();
+  set.tabs[set.active].saved = navigationTrail.inspect();
   const tab: Tab = { id: nextId++, saved: null };
-  tabs.splice(active + 1, 0, tab);
-  active += 1;
+  set.tabs.splice(set.active + 1, 0, tab);
+  set.active += 1;
   navigationTrail.load(here === null ? { places: [], cursor: -1 } : { places: [here], cursor: 0 });
   refreshChrome();
   announce('New tab opened.');
 }
 
 export async function activateTab(index: number): Promise<void> {
-  if (index === active || index < 0 || index >= tabs.length) return;
+  if (index === set.active || index < 0 || index >= set.tabs.length) return;
   if (state.actionInFlight || refuseWhileDirty('switching tabs')) return;
-  tabs[active].saved = navigationTrail.inspect();
-  const saved = tabs[index].saved ?? { places: [], cursor: -1 };
-  tabs[index].saved = null;
-  active = index;
-  navigationTrail.load(saved);
-  await revisitCurrent();
+  // A refused place leaves the tab that was on screen selected, with its trail (tab-set.ts).
+  if (!(await switchTab(set, index, navigationTrail, revisitCurrent))) refreshChrome();
   focusActiveTab();
 }
 
 export async function closeTab(index: number): Promise<void> {
-  if (tabs.length === 1 || index < 0 || index >= tabs.length) return;
-  if (index !== active) {
-    tabs.splice(index, 1);
-    if (index < active) active -= 1;
-    refreshChrome();
-    return;
-  }
-  // The tab on screen goes: show the one beside it first, so nothing is drawn from a trail that has gone.
-  const next = index + 1 < tabs.length ? index + 1 : index - 1;
-  const before = active;
-  await activateTab(next);
-  if (active === before) return; // The move was refused, so the tab stays.
-  tabs.splice(index, 1);
-  if (index < active) active -= 1;
+  if (set.tabs.length === 1 || index < 0 || index >= set.tabs.length) return;
+  if (index === set.active && (state.actionInFlight || refuseWhileDirty('switching tabs'))) return;
+  await closeTabAt(set, index, navigationTrail, revisitCurrent);
   refreshChrome();
+  focusActiveTab();
 }
 
 function focusActiveTab(): void {
-  strip.querySelector<HTMLButtonElement>(`[data-tab="${active}"]`)?.focus({ preventScroll: true });
+  strip.querySelector<HTMLButtonElement>(`[data-tab="${set.active}"]`)?.focus({ preventScroll: true });
 }
 
 strip.addEventListener('click', (event) => {
@@ -158,7 +141,7 @@ strip.addEventListener('keydown', (event) => {
   const at = Number(main.dataset.tab);
   if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
     event.preventDefault();
-    const to = (at + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    const to = (at + (event.key === 'ArrowRight' ? 1 : -1) + set.tabs.length) % set.tabs.length;
     strip.querySelector<HTMLButtonElement>(`[data-tab="${to}"]`)?.focus();
   } else if (event.key === 'Delete') {
     event.preventDefault();
@@ -168,12 +151,12 @@ strip.addEventListener('keydown', (event) => {
 
 /** The next tab, or the one before it: Ctrl Tab is in the shortcut table, Ctrl Shift Tab here. */
 export function cycleTab(step: 1 | -1): void {
-  void activateTab((active + step + tabs.length) % tabs.length);
+  void activateTab((set.active + step + set.tabs.length) % set.tabs.length);
 }
 
 /** The tab on screen goes, as Ctrl W does. */
 export function closeActiveTab(): void {
-  void closeTab(active);
+  void closeTab(set.active);
 }
 
 document.addEventListener('keydown', (event) => {
