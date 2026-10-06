@@ -11,11 +11,14 @@ characters and drops the rest with nothing on the wire to say so, so the host
 cannot see the cut and holds the bound itself. On 2026-09-27 the instructions were
 2,755 characters and lost the sentence that says no SQL, file, process or network
 access exists; `add_operations` (2,179) lost its amend remedy and `import_records`
-(2,056) its retry sentence. The instructions now say what the file is, the first
-read, how to take the lease and keep the handle private, to save `receiptContext`,
-what does not exist, the smaller first read for one record type, that a
+(2,056) its retry sentence. The instructions now say what the file is, describe for
+the whole file and the smaller reads for one record type, how to take the lease and
+keep the handle private, to save `receiptContext`, what does not exist, that a
 predecessor's proposals may be waiting, and who accepts a proposal at the current
-level, in under 2,000 characters across their variants (W-150 took them to the bound). The paragraph for someone writing a
+level, in under 2,000 characters across their variants. Since 2026-10-06 (review
+R-006) they no longer route to the vocabulary, the examples or the view API: those
+pointers live in `add_operations`' description, the resources' own descriptions and
+the host skill, and some clients repeat the instructions before every tool. The paragraph for someone writing a
 2026-07-28 client by hand left them: `server/discover` and this contract carry it.
 The rules that were the second half of the `add_operations` description are the
 vocabulary's `authoringRules`, which the description names.
@@ -274,7 +277,7 @@ physical mappings or arbitrary host invocation.
 | `nendo://application/health` | `GetHealthAsync` → `GetDefinitionSnapshotAsync` | Lightweight status with the time of the last integrity check and the change sequence. A status read does not run integrity again. `changesSinceIntegrityCheck` and `integrityStale` state how far the file has moved since that result was measured. An `ok` taken thirty-two changes ago therefore cannot be read as `ok` now. `nendo.health.verify_integrity` requests a measurement. |
 | `nendo://application/extensions` | `GetExtensionsAsync` → `GetDefinitionSnapshotAsync` | Every custom-view package that the file carries: its ID, title, version, entry point, description and total size, and each file's path, media type, SHA-256 and size. No content. A view that names a package runs its code in the Workbench when the view is shown ([custom-view contract](custom-views.md#packages-in-the-file)). |
 | `nendo://application/extension/{packageId}/file{?path,offset,length}` | `GetExtensionFileAsync` → `ReadExtensionFileAsync` | One package file, a page of bytes at a time. `path` is percent-encoded, so `tiles/world.bin` is sent as `tiles%2Fworld.bin`. `offset` and `length` are byte positions. `length` is at most 131,072, and by default the page runs to the end of the file up to that. A text file's page arrives as `text`. Any other page arrives as `base64`, and so does a text page that would split a UTF-8 sequence. `sha256` and `byteLength` describe the whole file, and `nextOffset` is null on the last page. |
-| `nendo://application/view-api` | `NendoViewApi.Json`, embedded from the Workbench's api build | `window.nendo` as a custom view's code calls it ([custom-view contract](custom-views.md#the-view-api-as-a-read)): every broker method with its call, parameters and answer, the helpers `api.js` adds, the context and record shapes, the events, the filter words, write values, toolbar kinds, icons and keys, theme tokens, limits, refusals, a whole view to start from, and how a person develops a package from a folder. Read only while an agent writes a view's code (W-094). The instructions, the vocabulary's `extension.setPackage`, the custom-view example and describe's `reads` each name it with that condition and carry none of it; `ViewApiResourceTests` fails when one of them does. Static for a host build. |
+| `nendo://application/view-api` | `NendoViewApi.Json`, embedded from the Workbench's api build | `window.nendo` as a custom view's code calls it ([custom-view contract](custom-views.md#the-view-api-as-a-read)): every broker method with its call, parameters and answer, the helpers `api.js` adds, the context and record shapes, the events, the filter words, write values, toolbar kinds, icons and keys, theme tokens, limits, refusals, a whole view to start from, and how a person develops a package from a folder. Read only while an agent writes a view's code (W-094). Its own description, the vocabulary's `extension.setPackage`, the custom-view example and describe's `reads` each name it with that condition and carry none of it, and the instructions do not name it (review R-006); `ViewApiResourceTests` fails when one of them does. Static for a host build. |
 
 All four page resources (records, export, history and revision operations) keep
 the MCP 1–100 limit. `limit` is a whole number in

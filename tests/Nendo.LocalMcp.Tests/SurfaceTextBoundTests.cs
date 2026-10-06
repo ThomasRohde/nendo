@@ -46,7 +46,8 @@ public sealed class SurfaceTextBoundTests
             $"At {mode} the instructions are {viaClient.Length} characters; a client stops reading at 2,048 and says nothing.");
         foreach (var required in new[]
                  {
-                     "Read nendo://application/describe first",
+                     "read nendo://application/describe",
+                     "nendo://application/proposals lists what waits for the person",
                      "keep its applicationHandle private",
                      "Save receiptContext",
                      "no SQL, file, process or network access",

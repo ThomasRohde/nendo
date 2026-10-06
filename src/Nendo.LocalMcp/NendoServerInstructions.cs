@@ -24,14 +24,10 @@ internal static class NendoServerInstructions
         "commands), calculated fields, reusable functions, and automatic actions that run on a trigger. " +
         "Records are written directly; everything else is authored as a change set (begin, add_operations, " +
         "validate), and calculations, functions, actions and triggers are its behaviour.setDefinition operation. " +
-        "Read nendo://application/describe first: the whole open application and every read path this host " +
-        "serves, in one call; for one record type, manifest and nendo://application/entity/{entityId} are smaller. " +
-        "nendo://application/vocabulary is the authoring contract: every operation with its payload, the " +
-        "authoringRules and the limits. nendo://application/examples holds change sets you can send as they " +
-        "stand; nendo://application/proposals lists what waits for the person, a predecessor session's work " +
-        "included: read it before beginning. " +
-        "skill://nendo-authoring/SKILL.md (skills/list) says when to read each. " +
-        "Read nendo://application/view-api only when you write a custom view's code. " +
+        "For the whole application and every read path, read nendo://application/describe; for one record type, " +
+        "manifest and nendo://application/entity/{entityId} are smaller. " +
+        "nendo://application/proposals lists what waits for the person, a predecessor session's work included: " +
+        "read it before beginning. skill://nendo-authoring/SKILL.md (skills/list) says which read answers which question. " +
         "To write, call nendo.lease.acquire, keep its applicationHandle private, and pass it with leaseId on " +
         "every owned call. " +
         (leaseTtl is { } ttl

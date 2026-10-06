@@ -57,8 +57,9 @@ public sealed class ViewApiResourceTests
         var carried = Distinctive(await ProtocolResourceTests.ReadTextAsync(client, Uri));
 
         var instructions = client.ServerInstructions ?? string.Empty;
-        Assert.AreEqual(1, Occurrences(instructions, Uri), "The instructions name the view API other than once.");
-        StringAssert.Contains(instructions, $"Read {Uri} only when you write a custom view's code.");
+        // The handshake does not route to it (review R-006): the resource's own description, describe,
+        // extension.setPackage and the custom-view example send a view's author there, checked below.
+        Assert.AreEqual(0, Occurrences(instructions, Uri), "The instructions send every agent toward the view API.");
         NoneCarried("the instructions", instructions, carried);
 
         var listed = (await client.ListResourcesAsync()).Single(resource => resource.Uri == Uri);
