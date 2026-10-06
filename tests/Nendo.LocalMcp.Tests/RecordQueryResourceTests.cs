@@ -132,6 +132,41 @@ public sealed class RecordQueryResourceTests
         Assert.AreEqual(3, one.RecordCount);
     }
 
+    /// <summary>
+    /// Review R-004: each filter clause, the sort and each aggregate field read the whole
+    /// definition again, so a sorted four-clause read took five snapshots before the query.
+    /// One request now takes one, with the same rows and the same unknown-field refusal.
+    /// </summary>
+    [TestMethod]
+    public async Task AFilteredSortedReadAndAGridAggregateEachReadTheDefinitionOnce()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateIdeaGardenAsync(6);
+        var projection = new NendoResourceProjection(workspace.Service, new NendoCursorCodec(new byte[32]));
+        var status = NendoApplicationService.IdeaStatusFieldId;
+        var filter = "[" +
+            $"{{\"fieldId\":\"{status}\",\"op\":\"eq\",\"value\":\"Idea\"}}," +
+            $"{{\"fieldId\":\"{NendoApplicationService.IdeaTitleFieldId}\",\"op\":\"isNotNull\"}}," +
+            $"{{\"fieldId\":\"{NendoApplicationService.IdeaCreatedDateFieldId}\",\"op\":\"lte\",\"value\":\"2026-09-05\"}}," +
+            $"{{\"fieldId\":\"{status}\",\"op\":\"ne\",\"value\":\"Trying\"}}]";
+
+        var page = await projection.GetRecordsAsync(NendoApplicationService.IdeaEntityId, null, 50, null,
+            NendoApplicationService.IdeaTitleFieldId, "true", filter, CancellationToken.None);
+        CollectionAssert.AreEqual(new[] { "idea-005", "idea-004", "idea-002", "idea-001" }, page.Items.Select(record => record.RecordId).ToArray());
+        Assert.AreEqual(1, projection.DefinitionReads, "A sorted four-clause records read takes one definition snapshot.");
+
+        var grid = await projection.GetAggregateAsync(NendoApplicationService.IdeaEntityId, "count", null, null,
+            status, NendoApplicationService.IdeaEnergyFieldId, null, null, null, filter, CancellationToken.None);
+        Assert.AreEqual("cells", grid.Shape);
+        Assert.AreEqual(4, grid.Cells!.Sum(cell => cell.ContributingRecords));
+        Assert.AreEqual(2, projection.DefinitionReads, "A filtered grid aggregate takes one definition snapshot.");
+
+        var unknown = await Assert.ThrowsExactlyAsync<NendoValidationException>(() => projection.GetRecordsAsync(
+            NendoApplicationService.IdeaEntityId, null, 50, null, "field.idea.colour", null, filter, CancellationToken.None));
+        StringAssert.Contains(unknown.Message, "The sort field 'field.idea.colour' is not a field of entity.idea; its fields are", StringComparison.Ordinal);
+        Assert.AreEqual(3, projection.DefinitionReads, "A refused field is named from the same one snapshot.");
+    }
+
     private static string Filter(string json) => Uri.EscapeDataString(json);
 
     private static Task<NendoMcpPage<NendoMcpRecord>> ReadAsync(McpClient client, string uri) =>

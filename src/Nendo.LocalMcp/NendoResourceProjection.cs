@@ -8,6 +8,52 @@ internal sealed class NendoResourceProjection(
     NendoApplicationService application,
     NendoCursorCodec cursors)
 {
+    private int _definitionReads;
+
+    /// <summary>How many definition snapshots this projection has asked the Engine for; the read-cost tests count it.</summary>
+    internal int DefinitionReads => Volatile.Read(ref _definitionReads);
+
+    /// <summary>
+    /// Called after each Engine read this projection makes, with the read's name. The tests
+    /// commit a change here to put it between two reads of one request; null otherwise.
+    /// </summary>
+    internal Func<string, Task>? AfterRead { get; set; }
+
+    private async Task<NendoSessionSnapshot> ReadDefinitionAsync(CancellationToken cancellationToken)
+    {
+        Interlocked.Increment(ref _definitionReads);
+        var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
+        await Settled("definition");
+        return snapshot;
+    }
+
+    private Task Settled(string read) => AfterRead?.Invoke(read) ?? Task.CompletedTask;
+
+    /// <summary>How many times a bundled read starts again when the file moves under it, before it refuses.</summary>
+    internal const int CoherentReadAttempts = 3;
+
+    /// <summary>
+    /// A read that puts the definition snapshot beside reads the snapshot does not carry --
+    /// record counts, compiled screens, the new-file preview -- from one moment of the file.
+    /// Each of those reads reports the change sequence it saw. Every commit advances the
+    /// sequence and the Engine serializes reads, so a last sequence equal to the snapshot's
+    /// proves nothing was committed in between. A mismatch starts again from a new snapshot,
+    /// a bounded number of times, and then refuses by name rather than stitching two moments
+    /// of the file into one answer.
+    /// </summary>
+    private async Task<T> CoherentAsync<T>(
+        Func<NendoSessionSnapshot, List<long>, Task<T>> read, CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            var snapshot = await ReadDefinitionAsync(cancellationToken);
+            var seen = new List<long>();
+            var value = await read(snapshot, seen);
+            if (seen.TrueForAll(sequence => sequence == snapshot.Manifest.ChangeSequence)) return value;
+            if (attempt == CoherentReadAttempts) throw NendoMcpErrors.ReadInterrupted(CoherentReadAttempts);
+        }
+    }
+
     /// <summary>The Engine's own preview of a proposal, whoever prepared it (W-148): the person already sees all of it in Pending changes.</summary>
     internal async Task<NendoAgentProposalPreview> GetProposalAsync(string proposalId, CancellationToken cancellationToken)
     {
@@ -24,11 +70,13 @@ internal sealed class NendoResourceProjection(
 
     /// <summary>The definition revision the file is at now, without a record or history read.</summary>
     internal async Task<long> GetDefinitionRevisionAsync(CancellationToken cancellationToken) =>
-        (await application.GetDefinitionSnapshotAsync(cancellationToken)).Manifest.DefinitionRevision;
+        (await ReadDefinitionAsync(cancellationToken)).Manifest.DefinitionRevision;
 
-    internal async Task<NendoMcpManifest> GetManifestAsync(CancellationToken cancellationToken)
+    internal async Task<NendoMcpManifest> GetManifestAsync(CancellationToken cancellationToken) =>
+        ProjectManifest(await ReadDefinitionAsync(cancellationToken));
+
+    private static NendoMcpManifest ProjectManifest(NendoSessionSnapshot snapshot)
     {
-        var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
         var value = snapshot.Manifest;
         var look = NendoLook.Resolve(value.ApplicationId, snapshot.FileName, value.Look);
         return new NendoMcpManifest(
@@ -51,19 +99,22 @@ internal sealed class NendoResourceProjection(
 
     internal async Task<IReadOnlyList<NendoMcpEntity>> GetEntitiesAsync(
         CancellationToken cancellationToken) =>
-        (await application.GetDefinitionSnapshotAsync(cancellationToken)).Entities
+        (await ReadDefinitionAsync(cancellationToken)).Entities
             .OrderBy(entity => entity.EntityId, StringComparer.Ordinal)
             .Select(entity => new NendoMcpEntity(entity.EntityId, entity.DisplayName) { Retired = entity.Retired })
             .ToArray();
 
-    internal async Task<NendoMcpEntitySchema> GetSchemaAsync(
+    internal Task<NendoMcpEntitySchema> GetSchemaAsync(
         string entityId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        CoherentAsync((snapshot, seen) => SchemaAsync(snapshot, entityId, seen, cancellationToken), cancellationToken);
+
+    private async Task<NendoMcpEntitySchema> SchemaAsync(
+        NendoSessionSnapshot snapshot, string entityId, List<long> seen, CancellationToken cancellationToken)
     {
-        var entity = (await application.GetDefinitionSnapshotAsync(cancellationToken)).Entities
-            .SingleOrDefault(candidate => candidate.EntityId == entityId)
+        var entity = snapshot.Entities.SingleOrDefault(candidate => candidate.EntityId == entityId)
             ?? throw NendoMcpErrors.EntityNotFound();
-        var counts = await CountRecordsAsync([entity], cancellationToken);
+        var counts = await CountRecordsAsync([entity], seen, cancellationToken);
         return ProjectSchema(entity) with { RecordCount = counts[entity.EntityId] };
     }
 
@@ -147,8 +198,9 @@ internal sealed class NendoResourceProjection(
     {
         RequireLimit(limit);
         var scope = $"records:{entityId}";
-        var filters = await ParseFiltersAsync(entityId, filter, cancellationToken);
-        if (sort is not null) await RequireFieldAsync(entityId, sort, "sort", cancellationToken);
+        var fields = new RequestEntity(this, entityId, cancellationToken);
+        var filters = await ParseFiltersAsync(fields, filter);
+        if (sort is not null) await fields.RequireAsync(sort, "sort");
         var descending = desc switch
         {
             null or "" or "false" => false,
@@ -180,7 +232,7 @@ internal sealed class NendoResourceProjection(
     /// the fields the record type has: the Engine's own refusals say only that the filter is
     /// invalid.
     /// </summary>
-    private async Task<IReadOnlyList<NendoRecordFilter>> ParseFiltersAsync(string entityId, string? filter, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<NendoRecordFilter>> ParseFiltersAsync(RequestEntity fields, string? filter)
     {
         if (string.IsNullOrWhiteSpace(filter)) return [];
         if (filter.Length > MaximumFilterCharacters)
@@ -209,7 +261,7 @@ internal sealed class NendoResourceProjection(
                 if (!FilterOperators.Contains(contractOperator, StringComparer.Ordinal))
                     throw new NendoValidationException(
                         $"Filter operator '{contractOperator}' is not one of {string.Join(", ", FilterOperators)}.");
-                await RequireFieldAsync(entityId, fieldId.GetString()!, "filter", cancellationToken);
+                await fields.RequireAsync(fieldId.GetString()!, "filter");
                 var value = clause.TryGetProperty("value", out var given) ? given.Clone() : default;
                 filters.Add(new NendoRecordFilter(fieldId.GetString()!, contractOperator switch
                 {
@@ -222,18 +274,35 @@ internal sealed class NendoResourceProjection(
         }
     }
 
-    /// <summary>A field the record type has, stored or calculated, named with the ones it has when it is not.</summary>
-    private async Task RequireFieldAsync(string entityId, string fieldId, string use, CancellationToken cancellationToken)
+    /// <summary>
+    /// The record type one request names, read from a single definition snapshot the first time
+    /// a field needs checking and reused for every other field the same request names. Each
+    /// filter clause, the sort and each aggregate field read the whole definition again before.
+    /// The Engine still validates the query itself against the file as it stands.
+    /// </summary>
+    private sealed class RequestEntity(NendoResourceProjection owner, string entityId, CancellationToken cancellationToken)
     {
-        var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
-        var entity = snapshot.Entities.SingleOrDefault(candidate => candidate.EntityId == entityId)
+        private Task<NendoEntitySnapshot>? _entity;
+
+        internal Task<NendoEntitySnapshot> EntityAsync() => _entity ??= ReadAsync();
+
+        /// <summary>A field the record type has, stored or calculated, named with the ones it has when it is not.</summary>
+        internal async Task RequireAsync(string fieldId, string use)
+        {
+            var entity = await EntityAsync();
+            if (entity.Fields.Any(field => field.FieldId == fieldId) || entity.DerivedFields.Any(field => field.FieldId == fieldId)) return;
+            throw new NendoValidationException(
+                $"The {use} field '{fieldId}' is not a field of {entityId}; its fields are {string.Join(", ", FieldIds(entity))}.");
+        }
+
+        private async Task<NendoEntitySnapshot> ReadAsync() =>
+            (await owner.ReadDefinitionAsync(cancellationToken)).Entities.SingleOrDefault(candidate => candidate.EntityId == entityId)
             ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
-        if (entity.Fields.Any(field => field.FieldId == fieldId) || entity.DerivedFields.Any(field => field.FieldId == fieldId)) return;
-        var known = entity.Fields.Select(field => field.FieldId).Concat(entity.DerivedFields.Select(field => field.FieldId))
-            .OrderBy(value => value, StringComparer.Ordinal).ToArray();
-        throw new NendoValidationException(
-            $"The {use} field '{fieldId}' is not a field of {entityId}; its fields are {string.Join(", ", known)}.");
     }
+
+    private static string[] FieldIds(NendoEntitySnapshot entity) =>
+        entity.Fields.Select(field => field.FieldId).Concat(entity.DerivedFields.Select(field => field.FieldId))
+            .OrderBy(value => value, StringComparer.Ordinal).ToArray();
 
     /// <summary>
     /// One exact aggregate over a filtered record type, through the Engine's own folds
@@ -263,15 +332,16 @@ internal sealed class NendoResourceProjection(
             throw new NendoValidationException("count takes no fieldId; it counts records.");
         if (aggregate != "count" && string.IsNullOrWhiteSpace(fieldId))
             throw new NendoValidationException($"{aggregate} names the numeric fieldId it reads.");
-        if (!string.IsNullOrWhiteSpace(fieldId)) await RequireFieldAsync(entityId, fieldId!, "aggregate", cancellationToken);
-        var filters = await ParseFiltersAsync(entityId, filter, cancellationToken);
+        var fields = new RequestEntity(this, entityId, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(fieldId)) await fields.RequireAsync(fieldId!, "aggregate");
+        var filters = await ParseFiltersAsync(fields, filter);
         var shapes = new[] { groupBy, rowBy ?? columnBy, dateFieldId }.Count(value => !string.IsNullOrWhiteSpace(value));
         if (shapes > 1)
             throw new NendoValidationException("Choose one shape: groupBy, rowBy with columnBy, or dateFieldId with bucket and range.");
         var field = string.IsNullOrWhiteSpace(fieldId) ? null : fieldId;
         if (!string.IsNullOrWhiteSpace(groupBy))
         {
-            await RequireFieldAsync(entityId, groupBy, "groupBy", cancellationToken);
+            await fields.RequireAsync(groupBy, "groupBy");
             var grouped = await application.GroupAggregateRecordsAsync(
                 new NendoRecordGroupedAggregateQuery(entityId, groupBy, aggregate, field) { Filters = filters }, cancellationToken);
             return new NendoMcpAggregate(entityId, aggregate, field, "grouped", grouped.ChangeSequence)
@@ -285,8 +355,8 @@ internal sealed class NendoResourceProjection(
         {
             if (string.IsNullOrWhiteSpace(rowBy) || string.IsNullOrWhiteSpace(columnBy))
                 throw new NendoValidationException("A grid names both rowBy and columnBy.");
-            await RequireFieldAsync(entityId, rowBy, "rowBy", cancellationToken);
-            await RequireFieldAsync(entityId, columnBy, "columnBy", cancellationToken);
+            await fields.RequireAsync(rowBy, "rowBy");
+            await fields.RequireAsync(columnBy, "columnBy");
             var cells = await application.CellAggregateRecordsAsync(
                 new NendoRecordCellAggregateQuery(entityId, rowBy, columnBy, aggregate, field) { Filters = filters }, cancellationToken);
             return new NendoMcpAggregate(entityId, aggregate, field, "cells", cells.ChangeSequence)
@@ -303,7 +373,7 @@ internal sealed class NendoResourceProjection(
         {
             if (string.IsNullOrWhiteSpace(bucket) || string.IsNullOrWhiteSpace(range))
                 throw new NendoValidationException("Date buckets name dateFieldId, bucket and range, as the vocabulary lists them.");
-            await RequireFieldAsync(entityId, dateFieldId, "dateFieldId", cancellationToken);
+            await fields.RequireAsync(dateFieldId, "dateFieldId");
             var buckets = await application.BucketAggregateRecordsAsync(
                 new NendoRecordDateBucketQuery(entityId, dateFieldId, bucket, range, aggregate, field) { Filters = filters }, cancellationToken);
             return new NendoMcpAggregate(entityId, aggregate, field, "buckets", buckets.ChangeSequence)
@@ -335,12 +405,16 @@ internal sealed class NendoResourceProjection(
     }
 
     /// <summary>How many records each record type holds now, keyed by entity ID (W-146).</summary>
-    private async Task<IReadOnlyDictionary<string, long>> CountRecordsAsync(IEnumerable<NendoEntitySnapshot> entities, CancellationToken cancellationToken)
+    private async Task<IReadOnlyDictionary<string, long>> CountRecordsAsync(
+        IEnumerable<NendoEntitySnapshot> entities, List<long> seen, CancellationToken cancellationToken)
     {
         var counts = new Dictionary<string, long>(StringComparer.Ordinal);
         foreach (var entity in entities)
         {
-            counts[entity.EntityId] = (await application.CountRecordsAsync(new NendoRecordCountQuery(entity.EntityId), cancellationToken)).Count;
+            var count = await application.CountRecordsAsync(new NendoRecordCountQuery(entity.EntityId), cancellationToken);
+            await Settled("count");
+            seen.Add(count.ChangeSequence);
+            counts[entity.EntityId] = count.Count;
         }
         return counts;
     }
@@ -397,36 +471,49 @@ internal sealed class NendoResourceProjection(
             throw new NendoValidationException(
                 $"include names {string.Join(", ", unknown)}; the facets are {string.Join(", ", DescribeFacets)}, comma-separated.");
         bool Wants(string facet) => facets.Contains(facet, StringComparer.Ordinal);
-        var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
-        NendoMcpEntitySchema[]? entities = null;
-        if (Wants("entities"))
+        return await CoherentAsync(async (snapshot, seen) =>
         {
-            var counts = await CountRecordsAsync(snapshot.Entities, cancellationToken);
-            entities = snapshot.Entities
-                .OrderBy(entity => entity.EntityId, StringComparer.Ordinal)
-                .Select(entity => ProjectSchema(entity) with { RecordCount = counts[entity.EntityId] })
-                .ToArray();
-        }
-        return new NendoMcpDescription(
-            snapshot.Manifest.Purpose,
-            Wants("manifest") ? await GetManifestAsync(cancellationToken) : null,
-            Wants("limits") ? NendoAuthoringLimits.Current : null,
-            entities,
-            Wants("surfaces") ? await GetSurfacesAsync(cancellationToken) : null,
-            Wants("health") ? await GetHealthAsync(cancellationToken) : null)
-        {
-            Included = facets.Distinct(StringComparer.Ordinal).ToArray(),
-            Reads = Wants("reads") ? NendoMcpReadIndex.All : [],
-            Extensions = Wants("extensions") ? ProjectExtensions(snapshot.ExtensionPackages) : [],
-            NewFile = Wants("newFile") ? await GetNewFileAsync(cancellationToken) : null,
-        };
+            // The new-file preview carries no change sequence, so a later read that does
+            // must close it in: the counts or the screens, or else one more snapshot.
+            var newFile = Wants("newFile") ? await GetNewFileAsync(cancellationToken) : null;
+            var closed = seen.Count;
+            NendoMcpEntitySchema[]? entities = null;
+            if (Wants("entities"))
+            {
+                var counts = await CountRecordsAsync(snapshot.Entities, seen, cancellationToken);
+                entities = snapshot.Entities
+                    .OrderBy(entity => entity.EntityId, StringComparer.Ordinal)
+                    .Select(entity => ProjectSchema(entity) with { RecordCount = counts[entity.EntityId] })
+                    .ToArray();
+            }
+            var surfaces = Wants("surfaces") ? await SurfacesAsync(snapshot, seen, cancellationToken) : null;
+            if (Wants("newFile") && seen.Count == closed)
+                seen.Add((await ReadDefinitionAsync(cancellationToken)).Manifest.ChangeSequence);
+            return new NendoMcpDescription(
+                snapshot.Manifest.Purpose,
+                Wants("manifest") ? ProjectManifest(snapshot) : null,
+                Wants("limits") ? NendoAuthoringLimits.Current : null,
+                entities,
+                surfaces,
+                Wants("health") ? Health(snapshot.Health, snapshot.Storage, snapshot.Manifest.ChangeSequence) : null)
+            {
+                Included = facets.Distinct(StringComparer.Ordinal).ToArray(),
+                Reads = Wants("reads") ? NendoMcpReadIndex.All : [],
+                Extensions = Wants("extensions") ? ProjectExtensions(snapshot.ExtensionPackages) : [],
+                NewFile = newFile,
+            };
+        }, cancellationToken);
     }
 
     /// <summary>One record type as a bundle (W-150): schema, record count and its compiled surfaces.</summary>
-    internal async Task<NendoMcpEntityBundle> GetEntityBundleAsync(string entityId, CancellationToken cancellationToken)
+    internal Task<NendoMcpEntityBundle> GetEntityBundleAsync(string entityId, CancellationToken cancellationToken) =>
+        CoherentAsync(async (snapshot, seen) => Bundle(
+            entityId,
+            await SchemaAsync(snapshot, entityId, seen, cancellationToken),
+            await SurfacesAsync(snapshot, seen, cancellationToken)), cancellationToken);
+
+    private static NendoMcpEntityBundle Bundle(string entityId, NendoMcpEntitySchema schema, NendoMcpSurfaces surfaces)
     {
-        var schema = await GetSchemaAsync(entityId, cancellationToken);
-        var surfaces = await GetSurfacesAsync(cancellationToken);
         var own = surfaces.Applications.FirstOrDefault(app => app.EntityId == entityId);
         var nodeIds = own is null ? new HashSet<string>(StringComparer.Ordinal) : Nodes(own.Surfaces).Select(node => node.NodeId).ToHashSet(StringComparer.Ordinal);
         var fieldIds = schema.Fields.Select(field => field.FieldId).Concat(schema.DerivedFields.Select(field => field.FieldId)).ToHashSet(StringComparer.Ordinal);
@@ -460,7 +547,7 @@ internal sealed class NendoResourceProjection(
     internal const long ExtensionFilePageBytes = 128 * 1024;
 
     internal async Task<IReadOnlyList<NendoMcpExtensionPackage>> GetExtensionsAsync(CancellationToken cancellationToken) =>
-        ProjectExtensions((await application.GetDefinitionSnapshotAsync(cancellationToken)).ExtensionPackages);
+        ProjectExtensions((await ReadDefinitionAsync(cancellationToken)).ExtensionPackages);
 
     private static IReadOnlyList<NendoMcpExtensionPackage> ProjectExtensions(IReadOnlyList<NendoExtensionPackageSnapshot> packages) =>
         packages.Select(package => new NendoMcpExtensionPackage(
@@ -510,11 +597,20 @@ internal sealed class NendoResourceProjection(
         }
     }
 
-    internal async Task<NendoMcpSurfaces> GetSurfacesAsync(CancellationToken cancellationToken)
+    internal Task<NendoMcpSurfaces> GetSurfacesAsync(CancellationToken cancellationToken) =>
+        CoherentAsync((snapshot, seen) => SurfacesAsync(snapshot, seen, cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// The compiled screens beside the stored nodes of <paramref name="snapshot"/>. The compiler
+    /// reads the definition itself and says which change sequence it compiled; a recovery
+    /// state's fixed refusal names none, and describes no definition to disagree with.
+    /// </summary>
+    private async Task<NendoMcpSurfaces> SurfacesAsync(NendoSessionSnapshot snapshot, List<long> seen, CancellationToken cancellationToken)
     {
         var compilation = await application.CompileSemanticDefinitionAsync(cancellationToken);
-        var stored = (await application.GetDefinitionSnapshotAsync(cancellationToken)).UiNodes
-            .ToDictionary(node => node.NodeId, StringComparer.Ordinal);
+        await Settled("surfaces");
+        if (compilation.SourceChangeSequence is { } compiled) seen.Add(compiled);
+        var stored = snapshot.UiNodes.ToDictionary(node => node.NodeId, StringComparer.Ordinal);
         var declared = stored.Count;
         NendoMcpSurfaceNode ProjectSurfaceNode(NendoSurfaceNodePlan node) => Project(node, stored);
         var diagnostics = compilation.Diagnostics
@@ -598,7 +694,7 @@ internal sealed class NendoResourceProjection(
 
     internal async Task<NendoMcpHealth> GetHealthAsync(CancellationToken cancellationToken)
     {
-        var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
+        var snapshot = await ReadDefinitionAsync(cancellationToken);
         return Health(snapshot.Health, snapshot.Storage, snapshot.Manifest.ChangeSequence);
     }
 
@@ -618,7 +714,7 @@ internal sealed class NendoResourceProjection(
                 before);
         }
         var storage = await application.VerifyIntegrityAsync(cancellationToken);
-        var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
+        var snapshot = await ReadDefinitionAsync(cancellationToken);
         return new NendoMcpIntegrityCheck(
             true,
             "The file was scanned and is intact as of this change sequence.",

@@ -109,7 +109,7 @@ internal sealed class NendoMcpResources(
         Title = "Whole application",
         UriTemplate = "nendo://application/describe{?include}",
         MimeType = "application/json")]
-    [Description("The whole open application in one read: identity and revision counters, the authoring limits to plan batches against, every record type with its fields, references and record count, every compiled screen, current health, and reads — every resource URI this host serves, including the templated ones that resources/list does not return. Equivalent to manifest plus entities plus one schema read per record type plus surfaces plus health, without the round trips. On a mature file most of it is the screens: include takes a comma-separated subset of manifest, limits, entities, surfaces, health, reads, extensions, newFile, and included says what came. For one record type, nendo://application/entity/{entityId} is the smaller first read.")]
+    [Description("The whole open application in one read: identity and revision counters, the authoring limits to plan batches against, every record type with its fields, references and record count, every compiled screen, current health, and reads — every resource URI this host serves, including the templated ones that resources/list does not return. Equivalent to manifest plus entities plus one schema read per record type plus surfaces plus health, without the round trips. On a mature file most of it is the screens: include takes a comma-separated subset of manifest, limits, entities, surfaces, health, reads, extensions, newFile, and included says what came. For one record type, nendo://application/entity/{entityId} is the smaller first read. Every facet describes one moment of the file; NENDO_READ_INTERRUPTED means the file kept changing during the read, so read again.")]
     public Task<string> GetDescriptionAsync(string? include = null, CancellationToken cancellationToken = default) =>
         TranslateAsync(() => projection.GetDescriptionAsync(include, cancellationToken));
 
@@ -118,7 +118,7 @@ internal sealed class NendoMcpResources(
         Title = "One record type as a bundle",
         UriTemplate = "nendo://application/entity/{entityId}",
         MimeType = "application/json")]
-    [Description("One record type in one read: its schema with fields, choice options, calculated fields, hierarchy and record count, and the compiled screens that belong to it, with the diagnostics that name it. With nendo://application/manifest, the small first read for a session that works on one type rather than the whole application.")]
+    [Description("One record type in one read: its schema with fields, choice options, calculated fields, hierarchy and record count, and the compiled screens that belong to it, with the diagnostics that name it. With nendo://application/manifest, the small first read for a session that works on one type rather than the whole application. Schema, count and screens describe one moment of the file; NENDO_READ_INTERRUPTED means the file kept changing during the read, so read again.")]
     public Task<string> GetEntityAsync(string entityId, CancellationToken cancellationToken) =>
         TranslateAsync(() => projection.GetEntityBundleAsync(entityId, cancellationToken));
 

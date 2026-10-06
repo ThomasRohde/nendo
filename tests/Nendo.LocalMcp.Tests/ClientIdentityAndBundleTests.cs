@@ -80,4 +80,85 @@ public sealed class ClientIdentityAndBundleTests
             ProtocolResourceTests.ReadTextAsync(client, "nendo://application/describe?include=manifest,screens"));
         StringAssert.Contains(unknown.Message, "include names screens; the facets are manifest, limits, entities, surfaces, health, reads, extensions, newFile", StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Review R-010: the bundle read its schema and its screens separately, and describe
+    /// its record types, manifest, screens and health, so a change committed between two
+    /// of those reads put a screen beside a schema that has no field for it. A change
+    /// committed after the first snapshot now starts the read again, and the answer is
+    /// one generation of the file.
+    /// </summary>
+    [TestMethod]
+    public async Task ABundleAndDescribeDescribeOneMomentOfTheFile()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        await ApplyAsync(workspace, "notes", [
+            new CreateEntityOperation("notes", "notes", "Notes", "notes"),
+            new AddFieldOperation("label", "notes", "label", "Label", "label", NendoStorageKind.Text, true),
+            new AddUiNodeOperation("form-add", "notes-surface", "notesForm", null, "recordForm", 0),
+            new SetUiPropertyOperation("form-version", "notes-surface", "notesForm", "definitionVersion", NendoSemanticVocabulary.ContractVersion),
+            new SetUiPropertyOperation("form-entity", "notes-surface", "notesForm", "entityId", "notes"),
+            new AddUiNodeOperation("label-add", "notes-surface", "notesLabel", "notesForm", "fieldBinding", 0),
+            new SetUiPropertyOperation("label-field", "notes-surface", "notesLabel", "fieldId", "label"),
+        ]);
+        var projection = new NendoResourceProjection(workspace.Service, new NendoCursorCodec(new byte[32]));
+
+        // A field and the screen binding it, committed right after the bundle's first snapshot.
+        projection.AfterRead = Once("definition", () => AddBoundFieldAsync(workspace, "extra"));
+        var bundle = await projection.GetEntityBundleAsync("notes", CancellationToken.None);
+        var fields = bundle.Schema.Fields.Select(field => field.FieldId).ToHashSet(StringComparer.Ordinal);
+        foreach (var bound in Bindings(bundle.Surfaces))
+            Assert.Contains(bound, fields, $"The bundle's screens bind {bound}, which its schema does not have.");
+        Assert.Contains("extra", fields, "The bundle is the file after the change.");
+
+        projection.AfterRead = Once("definition", () => AddBoundFieldAsync(workspace, "later"));
+        var described = await projection.GetDescriptionAsync(null, CancellationToken.None);
+        var notes = described.Entities!.Single(entity => entity.EntityId == "notes").Fields.Select(field => field.FieldId).ToHashSet(StringComparer.Ordinal);
+        var screens = described.Surfaces!.Applications.Single(app => app.EntityId == "notes").Surfaces;
+        foreach (var bound in Bindings(screens))
+            Assert.Contains(bound, notes, $"Describe's screens bind {bound}, which its record type does not have.");
+        Assert.Contains("later", notes, "Describe is the file after the change.");
+        Assert.AreEqual(described.Manifest!.ChangeSequence, described.Health!.ChangeSequence, "Manifest and health are one moment.");
+
+        // A file that moves under every attempt is refused by name, not looped over.
+        var reads = projection.DefinitionReads;
+        var count = 0;
+        projection.AfterRead = read => read == "definition"
+            ? workspace.Service.CreateRecordAsync(new("notes", $"busy-{++count}", new Dictionary<string, object?> { ["label"] = "busy" },
+                new("test", $"busy-{count}", "test")))
+            : Task.CompletedTask;
+        var busy = await Assert.ThrowsExactlyAsync<McpProtocolException>(() => projection.GetEntityBundleAsync("notes", CancellationToken.None));
+        StringAssert.Contains(busy.Message, "NENDO_READ_INTERRUPTED", StringComparison.Ordinal);
+        Assert.AreEqual(NendoResourceProjection.CoherentReadAttempts, projection.DefinitionReads - reads);
+    }
+
+    private static Func<string, Task> Once(string read, Func<Task> action)
+    {
+        var done = false;
+        return name =>
+        {
+            if (done || name != read) return Task.CompletedTask;
+            done = true;
+            return action();
+        };
+    }
+
+    private static Task AddBoundFieldAsync(LocalMcpTestWorkspace workspace, string fieldId) => ApplyAsync(workspace, fieldId, [
+        new AddFieldOperation($"{fieldId}-field", "notes", fieldId, fieldId, fieldId, NendoStorageKind.Text, false),
+        new AddUiNodeOperation($"{fieldId}-add", "notes-surface", $"notes-{fieldId}", "notesForm", "fieldBinding", 1),
+        new SetUiPropertyOperation($"{fieldId}-bind", "notes-surface", $"notes-{fieldId}", "fieldId", fieldId),
+    ]);
+
+    private static IEnumerable<string> Bindings(IEnumerable<NendoMcpSurfaceNode> nodes) => nodes.SelectMany(node =>
+        (node.Properties.TryGetValue("fieldId", out var field) && field.ValueKind == JsonValueKind.String ? [field.GetString()!] : Array.Empty<string>())
+            .Concat(Bindings(node.Children)));
+
+    private static async Task ApplyAsync(LocalMcpTestWorkspace workspace, string key, NendoOperation[] operations)
+    {
+        var preview = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest($"proposal-{Guid.NewGuid():N}", key,
+            "test", new([new("test", key, "test", key, operations)])));
+        Assert.AreEqual(NendoProposalState.Previewable, preview.State, JsonSerializer.Serialize(preview.Diagnostics));
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(preview.ProposalId)).Applied);
+    }
 }

@@ -17,6 +17,10 @@ internal static class NendoMcpErrors
         "NENDO_ENTITY_NOT_FOUND",
         "The requested entity does not exist.");
 
+    internal static McpProtocolException ReadInterrupted(int attempts) => Invalid(
+        "NENDO_READ_INTERRUPTED",
+        $"The file changed during each of {attempts} attempts at this read, so no answer from one moment of it was put together. Read it again.");
+
     internal static McpProtocolException Translate(Exception exception) => exception switch
     {
         McpProtocolException protocol => protocol,
