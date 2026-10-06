@@ -1,36 +1,37 @@
 ---
 import Page from '../layouts/Page.astro';
 
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
 
 // Condensed from the "Not qualified" table in docs/roadmap.md, in plainer words.
 // Keep its distinction between what a test measured and what a person reported.
 const notQualified = [
   { area: 'Public distribution, code signing, ARM64', status: 'Not started.' },
   { area: 'Clean-machine install', status: 'Reported as passing by the author, on a machine since used for everything else. There is no automated test, and none is planned.' },
-  { area: 'Installed startup on large datasets', status: 'Measured, and accepted as an exception rather than a pass. Opening a file inspects it twice, and the layout signature scan is the largest single cost.' },
+  { area: 'Installed startup on large datasets', status: 'Measured, and accepted as an exception rather than a pass. Most of the startup time lies outside opening the file itself.' },
   { area: 'Human usability and accessibility', status: 'Reported by the author. Scaling, keyboard and focus, and screen-reader checks were done by hand, not measured.' },
   { area: 'Cloud sync and live-root writes', status: 'Unsupported. Nendo warns about known sync folders but makes no claim that syncing is safe.' },
   { area: 'Physical power loss', status: 'Not tested.' },
   { area: 'Broad MCP client parity', status: 'Not promised. Claude Code and Codex both connect with just the address, checked by optional tests against installed clients. Other clients are untested.' },
-  { area: 'Account boundary on a shared machine', status: 'Removed along with the password, to move faster on a single-user machine. There is no plan to restore it.' },
+  { area: 'Account boundary on a shared machine', status: 'Not provided. While agent access is on, any program on this computer can connect, and there is no plan to change that.' },
   { area: 'Cross-platform', status: 'Windows only.' },
+  { area: 'Custom views', status: 'A received file\'s view code runs when its view is shown; that is an accepted limitation, and switches turn views off. Clipboard, downloads, pop-ups and the memory budget are not measured.' },
   { area: 'The notification area and Windows notifications', status: 'Reported by the author. A test checks that closing hides the window, that the process and its file stay open, and that Exit quits. The icon, its menu and the notifications themselves cannot be checked from a script.' },
   { area: 'What the Windows shell draws', status: 'Reported by the author, item by item. Registry writes, shell identity and the Jump List file are tested. Whether Explorer shows the file icon, the taskbar shows the badge or progress, or a file dragged from Explorer arrives cannot be checked from a script.' },
 ];
 
 
 const gaps = [
-  'Consent is shown where you accept a change, but not in the proposal queue.',
-  'Validation reports only one error at a time.',
   'Overlapping proposals are flagged, but not rebased onto each other.',
-  'A reconnecting agent can see a pending proposal but cannot act on it.',
+  'Waiting proposals are kept in memory, so a restart of Nendo discards them.',
   'With Unattended agent access, nobody reviews a change before it is applied, and nothing records that it went in unreviewed.',
   'Imports are not atomic. The app saves a hundred rows per batch, and an agent import saves fifty rows per revision.',
   'Any program on this computer can reach an open file. There is no password.',
   'The calendar shows a Date field on a month. There are no times, time zones, week or day views, durations, recurring events or drag-to-reschedule.',
   'A rating scale is fixed once set, and a timeline shows one calendar year at a time.',
   'The selected tab and screen are not saved, so reopening a file returns every tab group to its first tab.',
-  'A whole-file snapshot with calculations grows linearly with size: 49 ms cold at 1,000 records, 474 ms at 10,000.',
+  'A whole-file snapshot with calculations grows linearly with size: 49 ms cold at 1,000 records and 474 ms at 10,000, measured on one machine on 2026-09-13.',
 ];
 ---
 
@@ -69,16 +70,17 @@ const gaps = [
   <section class="page section">
     <div class="panel risk">
       <p class="eyebrow">The biggest risk</p>
-      <h2>Everyone who has used Nendo built it.</h2>
+      <h2>Nobody who did not build Nendo has used it yet.</h2>
       <p>
         Every usability, scaling and accessibility result so far comes from the author.
         That says something about the product, but nothing about whether it makes sense
         to someone coming to it fresh.
       </p>
       <p>
-        The only way to find out is for other people to use it. The Idea Garden journey
-        walks through the whole core loop and is the place to start. If you get lost along
-        the way, that is exactly what the project needs to hear.
+        The only way to find out is for other people to use it. The
+        <a href={`${base}/use`}>walkthrough on Using Nendo</a> goes through the whole core
+        loop and is the place to start. If you get lost along the way, that is exactly what
+        the project needs to hear.
       </p>
       <p class="risk-cta">
         <a class="button button-primary" href="https://github.com/ThomasRohde/nendo/issues" rel="noopener">Report what confused you</a>

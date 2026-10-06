@@ -4,12 +4,11 @@ import Prose from '../components/Prose.astro';
 import Shot from '../components/Shot.astro';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-const repository = 'https://github.com/ThomasRohde/nendo';
 
 const openWays = [
   'Double-click a .nendo file (the installer registers the file type and its icon)',
   'In Explorer, right-click and choose New › Nendo application',
-  'Use File › New or File › Open in the app',
+  'Choose Create Nendo file or Open Nendo file on the start screen, or File › New file or File › Open file… in the app',
   'Drag a .nendo file onto the Nendo window',
 ];
 
@@ -22,11 +21,11 @@ const journey = [
 ];
 
 const demo = [
-  'Open the file. It starts on Station status: nine systems, twelve crew, and which systems are nominal.',
+  'Open the file. It starts on Station status: nine systems, twelve crew, and how many systems are nominal.',
   'Open a system record page. The header is coloured by condition, and four tabs hold its capacity, components, incidents and telemetry readings.',
   'Show Systems Lens, a screen of Components, and press Fit. This custom view runs code the file carries and draws the schematic from the same records.',
-  'Take a component offline with its command, and watch the things that depend on it change.',
-  'Try the structural change the file refuses, and read why.',
+  'Take a component offline with its command, and watch the schematic mark it.',
+  'Select it in Systems Lens and press Take out: the components that would lose every supply path are marked. The what-if writes nothing.',
   'Raise an incident and watch an automatic action run in the same save.',
   'Ask the agent, in your own words, for something the file does not have yet.',
   'The agent writes one proposal. Read the diff.',
@@ -56,16 +55,16 @@ const demo = [
     <p class="lede">
       You need Windows x64, the WebView2 Evergreen runtime, the .NET SDK version pinned in
       <code>global.json</code>, and Node 22.12 or later (declared under
-      <code>engines</code> in <code>src/Nendo.Workbench/package.json</code>). The
-      Workbench is built first, because the desktop app bundles it.
+      <code>engines</code> in <code>src/Nendo.Workbench/package.json</code>). The web
+      interface is built first, because the desktop app bundles it.
     </p>
     <div class="steps">
       <article>
-        <h3>Clone and verify</h3>
+        <h3>Clone, build and test</h3>
         <pre><code>git clone https://github.com/ThomasRohde/nendo
 cd nendo
 pwsh ./tools/Test-Production.ps1</code></pre>
-        <p>The full test gate takes about a minute.</p>
+        <p>After the first restore this takes about a minute. Run it in an unlocked desktop session.</p>
       </article>
       <article>
         <h3>Package an installer</h3>
@@ -95,7 +94,7 @@ pwsh ./tools/Build-NendoInstaller.ps1</code></pre>
     <p class="eyebrow">Step three</p>
     <h2>Studio works from the start.</h2>
     <p class="lede">
-      Every record type automatically gets an <em>All records</em> table and a record
+      Every record type automatically gets a table in <em>Data</em> and a record
       editor, with create, edit and delete, sorting, filtering, search, history, and CSV
       import and export. It aims to feel like a database table in a modern notes app, not
       a raw SQLite browser.
@@ -126,10 +125,8 @@ pwsh ./tools/Build-NendoInstaller.ps1</code></pre>
 codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
     <Prose class="agent-notes">
       <p>
-        The repository already includes both registrations (<code>.mcp.json</code> and
-        <code>.codex/config.toml</code>), so an agent started in a clone connects as soon
-        as a file is open. If port 41763 was taken, Agent › Connection shows the address
-        Nendo is using and can copy either command.
+        Each further open file keeps a port of its own. Agent › Connection shows the
+        address for the file you are in and can copy either command.
       </p>
       <p>
         <strong>No password also means</strong> any program on this computer can connect
@@ -148,10 +145,10 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
     <p class="eyebrow">The journey</p>
     <h2>A walkthrough in five parts.</h2>
     <p class="lede">
-      <a href={`${repository}/blob/main/fixtures/idea-garden/journey.md`} rel="noopener">The
-      Idea Garden journey</a> is the standard walkthrough, with the exact prompt to give
-      the agent at each step. Start here if you have never opened a <code>.nendo</code>
-      file.
+      Five parts that take you through the whole loop, from an empty file to recovery.
+      Start here if you have never opened a <code>.nendo</code> file;
+      <a href={`${base}/docs/getting-started`}>Getting started</a> covers the first part
+      step by step.
     </p>
     <ol class="journey">
       {journey.map(part => (
@@ -170,9 +167,9 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
     <p class="eyebrow">The demonstration</p>
     <h2>Nendo Station, in about four minutes.</h2>
     <p class="lede">
-      The fourth reference application, and the quickest way to show someone what Nendo
+      A demo file in the repository, and the quickest way to show someone what Nendo
       does. The screenshots on this site come from it. The last three steps are the test
-      the vision sets for the whole project, done live.
+      Nendo sets itself, done live.
     </p>
     <ol class="demo">{demo.map(step => <li>{step}</li>)}</ol>
     <div class="demo-shots">

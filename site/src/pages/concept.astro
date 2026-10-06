@@ -20,16 +20,17 @@ const axioms = [
 ];
 
 const references = [
-  { name: 'Idea Garden', role: 'The first one', body: 'The first form and board, and the walkthrough for newcomers: an empty file, editing by hand, a first shape built by an agent, a CSV import, focused screens, and recovery offline.' },
-  { name: 'Decision Log', role: 'Nothing special-cased', body: 'Built to check that nothing in the path was specific to Idea Garden. The same building blocks make a different application.' },
-  { name: 'Axiom Register', role: 'Built over MCP alone', body: 'Record pages, related lists, filters, summary tiles and multi-step commands, all built by an agent from an empty file. It learned what it could build from the MCP interface, not from the source code.' },
-  { name: 'Nendo Station', role: 'The demonstration', body: 'An operations room for a fictional habitat: a front page, record pages with tabs, a schematic drawn by a custom view, commands, an automatic trigger, and an agent’s change reviewed live.' },
+  { name: 'Nendo Station', role: 'Operations room', body: 'A fictional habitat: a front page, record pages with tabs, a schematic drawn by a custom view, commands and an automatic trigger. Built by a script over MCP alone.' },
+  { name: 'Capability Atlas', role: 'Hierarchy', body: 'A business capability model of 635 capabilities kept as a tree, with applications, initiatives and dated assessments, drawn as a capability map by a custom view.' },
+  { name: 'Archi', role: 'A whole modeller', body: 'An ArchiMate 3.2 model, and a modeller in the manner of Archi as a custom view that is the screen the file opens on. Built by a script over MCP alone.' },
+  { name: 'Garden', role: 'Notes as records', body: 'Markdown notes whose links, tags and tasks become records when a note is saved, with a living graph and an agent skill in the file. Built by a script over MCP alone.' },
+  { name: 'Swarm', role: 'A playground', body: 'Creature behaviours edited as diagrams, a habitat that runs them, and experiments that replay. Built by a script over MCP alone.' },
 ];
 
 const inScope = [
   'Empty-file lifecycle', 'Scalar schema and relational data', 'Studio table and editor',
   'CSV import and export', 'Semantic forms, lists, boards, record pages',
-  'Related lists, declared filters, summary tiles', 'Declarative commands',
+  'Related lists, declared filters, summary tiles', 'Charts and front pages', 'Declarative commands',
   'MCP inspection and authoring', 'Proposal preview and promotion',
   'History and bounded compensation', 'Safe mode',
   'Bounded calculations and local actions', 'Custom views whose code the file carries',
@@ -83,8 +84,8 @@ const outOfScope = [
     <p class="eyebrow">The axioms</p>
     <h2>Eight rules that don't bend.</h2>
     <p class="lede">
-      Quoted from <a href="https://github.com/ThomasRohde/nendo/blob/main/docs/vision.md" rel="noopener">the vision document</a>. Breaking one
-      takes a formally accepted architecture decision; a good argument is not enough.
+      Quoted from <a href="https://github.com/ThomasRohde/nendo/blob/main/docs/vision.md" rel="noopener">the vision document</a>. Nendo keeps
+      them even where bending one would make a feature easier.
     </p>
     <ol class="axioms">
       {axioms.map((axiom, index) => (
@@ -117,11 +118,12 @@ const outOfScope = [
 
   <section class="page section">
     <p class="eyebrow">The evidence so far</p>
-    <h2>Four reference applications, each a different shape.</h2>
+    <h2>Five demo files, each a different shape.</h2>
     <p class="lede">
-      One application shows the approach can work. Four different ones begin to show it
-      wasn't tailored to the first. The last two were built from an empty file by an agent
-      working only through MCP.
+      One application shows the approach can work. Several different ones begin to show
+      it wasn't tailored to the first. Each is in the repository's
+      <a href="https://github.com/ThomasRohde/nendo/tree/main/workspace" rel="noopener"><code>workspace</code></a>
+      folder, and four were built by scripts working only through MCP.
     </p>
     <div class="grid grid-2 references">
       {references.map(item => (
@@ -138,7 +140,7 @@ const outOfScope = [
     <p class="eyebrow">Scope</p>
     <h2>What is in, and what is left out.</h2>
     <p class="lede">
-      The out list isn't a to-do list. Each item was left out on purpose, often to keep
+      The out list isn't a to-do list. Each item is left out on purpose, often to keep
       what is in small enough to reason about.
     </p>
     <div class="scope">
@@ -147,7 +149,7 @@ const outOfScope = [
         <ul class="chips">{inScope.map(item => <li>{item}</li>)}</ul>
       </div>
       <div>
-        <h3>Out, unless an architecture decision says otherwise</h3>
+        <h3>Out</h3>
         <ul class="chips chips-out">{outOfScope.map(item => <li>{item}</li>)}</ul>
       </div>
     </div>
