@@ -51,13 +51,20 @@ export function quickFilterClause(filter: QuickFilter): QueryFilter {
     : { fieldId: filter.fieldId, operator: 'eq', value: filter.value };
 }
 
-/** The value a select names: the empty value for none, a sentinel for Not set, else the value. */
-export const notSetValue = '__nendo_not_set__';
+/**
+ * What a select's option carries: the empty value for Any, `none` for Not set, and `v:` before
+ * a stored value. Every stored value is prefixed, so no choice ID or record ID, whatever it
+ * spells, can be read as Any or Not set (review R-012).
+ */
+export const notSetValue = 'none';
+export const optionValue = (value: string): string => `v:${value}`;
 
 /** The pick a select's value makes, or null when it asks for every record again. */
-export function quickFilterFor(field: FieldPlan, selected: string, targets: QuickFilterTargets | undefined): QuickFilter | null {
-  if (selected === '') return null;
-  if (selected === notSetValue) return { fieldId: field.semanticId, value: null, label: `${field.displayName}: Not set` };
+export function quickFilterFor(field: FieldPlan, option: string, targets: QuickFilterTargets | undefined): QuickFilter | null {
+  if (option === '') return null;
+  if (option === notSetValue) return { fieldId: field.semanticId, value: null, label: `${field.displayName}: Not set` };
+  if (!option.startsWith('v:')) return null;
+  const selected = option.slice(2);
   const label = field.presentation === 'singleChoice'
     ? choiceDisplay(field, selected)
     : targets?.state === 'ready' ? targets.items.find(item => item.recordId === selected)?.label ?? selected : selected;
@@ -83,19 +90,19 @@ export function quickFilterMenuMarkup(
 ): string {
   const selects = quickFilterFields(fields).map(field => {
     const name = escapeAttribute(field.semanticId);
-    const chosen = current?.fieldId === field.semanticId ? current.value ?? notSetValue : '';
+    const chosen = current?.fieldId !== field.semanticId ? '' : current.value === null ? notSetValue : optionValue(current.value);
     const option = (value: string, label: string): string =>
       `<option value="${escapeAttribute(value)}"${value === chosen ? ' selected' : ''}>${escapeHtml(label)}</option>`;
     const notSet = field.required ? '' : option(notSetValue, 'Not set');
     if (field.presentation === 'singleChoice') {
       const options = field.options
-        .filter(id => id === chosen || !field.choices?.some(choice => choice.id === id && choice.retired))
-        .map(id => option(id, choiceDisplay(field, id))).join('');
+        .filter(id => optionValue(id) === chosen || !field.choices?.some(choice => choice.id === id && choice.retired))
+        .map(id => option(optionValue(id), choiceDisplay(field, id))).join('');
       return `<label>${escapeHtml(field.displayName)}<select data-quick-filter="${name}">${option('', 'Any')}${options}${notSet}</select></label>`;
     }
     const read = targets(field);
     const body = read?.state === 'ready'
-      ? read.items.map(item => option(item.recordId, item.label)).join('') + notSet
+      ? read.items.map(item => option(optionValue(item.recordId), item.label)).join('') + notSet
       : read?.state === 'overflowing'
         ? `<option disabled>More than ${read.ceiling} to list</option>`
         : read?.state === 'failed' ? '<option disabled>Could not be read</option>' : '<option disabled>Reading…</option>';

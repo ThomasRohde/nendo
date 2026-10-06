@@ -39,3 +39,36 @@ test('a list that declares no fields shows its record type’s first three, not 
   const head = html.slice(html.indexOf('record-list-head'), html.indexOf('role="listitem"'));
   assert.deepEqual(cells(head, 'span'), ['Type', 'Folder']);
 });
+
+// Review R-013: a row that opens a record is a native button inside a list item, so a screen
+// reader hears a button with the record's name, not a list item it cannot tell is actionable.
+const { galleryMarkup } = await bundleOf('src/surface-markup.ts');
+const { readFile, readdir } = await import('node:fs/promises');
+
+function actionableRows(html) {
+  // Each list item and what it holds, in order; a button carries no role of its own.
+  const items = [...html.matchAll(/<div role="listitem" class="record-row">(<button\b[^>]*>)/g)].map(match => match[1]);
+  const buttons = [...html.matchAll(/<button\b[^>]*data-record-id="[^"]*"[^>]*>/g)].map(match => match[0]);
+  return { items, buttons };
+}
+
+test('R-013: every record row in a list or a gallery is a button inside a list item', () => {
+  const list = node('l', 'recordList', { entityId: 'concept' });
+  for (const [name, html] of [['list', listMarkup(planOf(list), list)], ['gallery', galleryMarkup(planOf(node('g', 'gallerySurface', { entityId: 'concept' })), node('g', 'gallerySurface', { entityId: 'concept' }))]]) {
+    const { items, buttons } = actionableRows(html);
+    assert.equal(buttons.length, records.length, `${name}: one button per record`);
+    assert.deepEqual(items, buttons, `${name}: each record button must sit directly in a list item`);
+    for (const button of buttons) assert.doesNotMatch(button, /\brole=/, `${name}: a record button must keep its own role: ${button}`);
+    assert.match(html, /role="list"/, `${name}: the items sit in a list`);
+  }
+});
+
+test('R-013: no markup in the Workbench gives a button the role of a list item', async () => {
+  const folder = new URL('../src/', import.meta.url);
+  const offenders = [];
+  for (const name of (await readdir(folder)).filter(file => file.endsWith('.ts'))) {
+    const text = await readFile(new URL(name, folder), 'utf8');
+    for (const match of text.matchAll(/<button\b[^>`]*role="listitem"/g)) offenders.push(`${name}: ${match[0]}`);
+  }
+  assert.deepEqual(offenders, []);
+});

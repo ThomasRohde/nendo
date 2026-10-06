@@ -36,6 +36,7 @@ import {
   ClientSideRowModelModule,
   ColumnAutoSizeModule,
   DateEditorModule,
+  LargeTextEditorModule,
   ModuleRegistry,
   RenderApiModule,
   ScrollApiModule,
@@ -57,12 +58,14 @@ import './styles.css';
 // An option or API call whose module is missing is ignored after a console error, so the
 // grid still draws: `cellClass` needs CellStyle, `ensureIndexVisible` needs ScrollApi, and a
 // double-click on a column's edge fits it to its content only with ColumnAutoSize.
-// Journey-Behaviour.mjs fails on either the error or a missing cell class.
+// Journey-Behaviour.mjs fails on either the error or a missing cell class. Long text and
+// Markdown are edited in the large-text popup, which needs LargeTextEditor (review R-018).
 ModuleRegistry.registerModules([
   CellStyleModule,
   ClientSideRowModelModule,
   ColumnAutoSizeModule,
   DateEditorModule,
+  LargeTextEditorModule,
   RenderApiModule,
   ScrollApiModule,
   SelectEditorModule,

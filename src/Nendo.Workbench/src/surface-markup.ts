@@ -168,7 +168,7 @@ export function calendarMarkup(plan: ApplicationPlan, node: SurfaceNodePlan): st
   if (mode === 'undated') {
     const rows = entries.length === 0 && complete
       ? `<p class="empty-column">No ${escapeHtml(plan.entity.displayName)} records are missing a ${escapeHtml(fieldName(plan, dateFieldId))}.</p>`
-      : `<div class="record-list" role="list">${entries.map((record) => `<button type="button" role="listitem" data-record-id="${escapeAttribute(record.semanticId)}">${accentDot(plan, accentFieldId, record)}<strong>${escapeHtml(recordFieldDisplay(record, titleFieldId, plan.entity.derivedFields) || `Untitled ${plan.entity.displayName}`)}</strong><small>v${record.version}</small></button>`).join('')}</div>`;
+      : `<div class="record-list" role="list">${entries.map((record) => `<div role="listitem" class="record-row"><button type="button" data-record-id="${escapeAttribute(record.semanticId)}">${accentDot(plan, accentFieldId, record)}<strong>${escapeHtml(recordFieldDisplay(record, titleFieldId, plan.entity.derivedFields) || `Untitled ${plan.entity.displayName}`)}</strong><small>v${record.version}</small></button></div>`).join('')}</div>`;
     return `${controls}${loadedLine}${rows}${more}`;
   }
 
@@ -237,7 +237,7 @@ export function timelineMarkup(plan: ApplicationPlan, node: SurfaceNodePlan): st
   if (mode === 'undated') {
     const rows = entries.length === 0 && complete
       ? `<p class="empty-column">No ${escapeHtml(displayName)} records are missing a ${escapeHtml(fieldName(plan, dateFieldId))}.</p>`
-      : `<div class="record-list" role="list">${entries.map((record) => `<button type="button" role="listitem" data-record-id="${escapeAttribute(record.semanticId)}">${accentDot(plan, accentFieldId, record)}<strong>${escapeHtml(titleOf(record))}</strong><small>v${record.version}</small></button>`).join('')}</div>`;
+      : `<div class="record-list" role="list">${entries.map((record) => `<div role="listitem" class="record-row"><button type="button" data-record-id="${escapeAttribute(record.semanticId)}">${accentDot(plan, accentFieldId, record)}<strong>${escapeHtml(titleOf(record))}</strong><small>v${record.version}</small></button></div>`).join('')}</div>`;
     return `${controls}${loadedLine}${rows}${more}`;
   }
 
@@ -282,8 +282,8 @@ export function galleryMarkup(plan: ApplicationPlan, node: SurfaceNodePlan): str
   const accentFieldId = typeof node.properties.accentFieldId === 'string' ? node.properties.accentFieldId : null;
   const accentField = accentFieldId === null ? undefined : plan.entity.fields.find((field) => field.semanticId === accentFieldId);
   return `<div class="record-gallery" role="list" aria-label="${escapeAttribute(`${plan.entity.displayName} cards`)}">${plan.records.map((record) =>
-    recordCardMarkup(plan, record, [titleFieldId, ...bodyFieldIds],
-      accentFieldId === null ? '' : choiceStyle(accentField, record.values[accentFieldId]))).join('')}</div>`;
+    `<div role="listitem" class="record-row">${recordCardMarkup(plan, record, [titleFieldId, ...bodyFieldIds],
+      accentFieldId === null ? '' : choiceStyle(accentField, record.values[accentFieldId]))}</div>`).join('')}</div>`;
 }
 
 /**
@@ -507,7 +507,7 @@ export function listMarkup(plan: ApplicationPlan, node: SurfaceNodePlan | null):
   // A record with no value for the dot keeps its place, so every row's columns line up with the head.
   const dotSpace = dotFieldId ? '<span class="status-dot dot-space" aria-hidden="true"></span>' : '';
   const head = `<div class="record-list-head" aria-hidden="true">${dotSpace}<strong>${escapeHtml(fieldName(plan, headingFieldId ?? ''))}</strong>${details.map((fieldId) => `<span>${escapeHtml(fieldName(plan, fieldId))}</span>`).join('')}<small></small></div>`;
-  return `<div class="record-list" role="list">${head}${plan.records.map((record) => `<button type="button" role="listitem" data-record-id="${escapeAttribute(record.semanticId)}">${accentDot(plan, dotFieldId ?? null, record) || dotSpace}<strong>${escapeHtml(recordFieldDisplay(record, headingFieldId, plan.entity.derivedFields) || `Untitled ${plan.entity.displayName}`)}</strong>${details.map((fieldId) => `<span>${fieldValueMarkup(plan, record, fieldId, '—')}</span>`).join('')}<small>v${record.version}</small></button>`).join('')}</div>`;
+  return `<div class="record-list" role="list">${head}${plan.records.map((record) => `<div role="listitem" class="record-row"><button type="button" data-record-id="${escapeAttribute(record.semanticId)}">${accentDot(plan, dotFieldId ?? null, record) || dotSpace}<strong>${escapeHtml(recordFieldDisplay(record, headingFieldId, plan.entity.derivedFields) || `Untitled ${plan.entity.displayName}`)}</strong>${details.map((fieldId) => `<span>${fieldValueMarkup(plan, record, fieldId, '—')}</span>`).join('')}<small>v${record.version}</small></button></div>`).join('')}</div>`;
 }
 
 export function drillPillMarkup(plan: ApplicationPlan): string {

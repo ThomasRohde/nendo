@@ -78,6 +78,9 @@ export const nendoGridTheme = themeQuartz
 // AG Grid owns DOM that replacing #studio-content would otherwise orphan.
 let gridApi: GridApi<GridRow> | null = null;
 
+/** The most a Studio cell's large-text editor holds: far past any note, short of a runaway paste. */
+const largeTextCharacters = 1_000_000;
+
 export function destroyGrid(): void {
   gridApi?.destroy();
   gridApi = null;
@@ -623,7 +626,9 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
         // way back in; the dots are how it reads, not how it is typed.
         : ratingScaleOf(field) !== null
           ? { values: [...(field.required ? [] : ['']), ...ratingSteps(ratingScaleOf(field)!).map(String)] }
-          : undefined,
+          // The large-text editor cuts what it holds at 200 characters unless told otherwise.
+          : field.presentation === 'longText' || field.presentation === 'markdown' ? { maxLength: largeTextCharacters, rows: 12, cols: 60 }
+            : undefined,
   });
   // A calculated column reads like the record page does: the same four states, the
   // same words, never an editor. Studio is the permanent route into a file, so a

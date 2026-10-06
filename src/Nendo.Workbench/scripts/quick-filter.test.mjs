@@ -50,27 +50,51 @@ test('the fields a screen can be narrowed by are its single choices and bound re
 });
 
 test('a pick is one clause, eq on its value or isNull for Not set', () => {
-  const pick = model.quickFilterFor(status, 'done', undefined);
+  const pick = model.quickFilterFor(status, 'v:done', undefined);
   assert.deepEqual(pick, { fieldId: 'status', value: 'done', label: 'Status: Done' });
   assert.deepEqual(model.quickFilterClause(pick), { fieldId: 'status', operator: 'eq', value: 'done' });
   const none = model.quickFilterFor(debate, model.notSetValue, undefined);
   assert.deepEqual(model.quickFilterClause(none), { fieldId: 'debate', operator: 'isNull' });
   assert.equal(none.label, 'Debate: Not set');
   const targets = { state: 'ready', items: [{ recordId: 'd1', label: 'Should we ship?' }] };
-  assert.equal(model.quickFilterFor(debate, 'd1', targets).label, 'Debate: Should we ship?');
+  assert.equal(model.quickFilterFor(debate, 'v:d1', targets).label, 'Debate: Should we ship?');
   assert.equal(model.quickFilterFor(status, '', undefined), null, 'Any asks for every record again');
+});
+
+test('R-012: a stored value spelled like Any or Not set is still that value', () => {
+  // Any legal choice ID or record ID, the old sentinel and the new words among them.
+  const tricky = ['__nendo_not_set__', 'none', 'v:x', ''].filter(Boolean);
+  const odd = field('status', 'singleChoice', { options: tricky, choices: tricky.map(id => ({ id, displayName: `Label ${id}`, retired: false })) });
+  const ref = field('debate', null, { storageKind: 'reference', reference: { targetEntityId: 'debates', labelFieldId: 'title' } });
+  const targets = { state: 'ready', items: tricky.map(recordId => ({ recordId, label: `Record ${recordId}` })) };
+  for (const subject of [odd, ref]) {
+    const markup = model.quickFilterMenuMarkup([subject], undefined, () => targets, true, '');
+    const values = [...markup.matchAll(/<option value="([^"]*)"/g)].map(match => match[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&'));
+    assert.equal(new Set(values).size, values.length, `Two options of ${subject.semanticId} share a value: ${JSON.stringify(values)}`);
+    for (const id of tricky) {
+      const option = values.find(value => value !== '' && value !== model.notSetValue && model.quickFilterFor(subject, value, targets)?.value === id);
+      assert.ok(option !== undefined, `No option of ${subject.semanticId} picks the stored value ${id}: ${JSON.stringify(values)}`);
+      assert.deepEqual(model.quickFilterClause(model.quickFilterFor(subject, option, targets)), { fieldId: subject.semanticId, operator: 'eq', value: id },
+        `The stored value ${id} was asked for as another clause.`);
+    }
+    assert.deepEqual(model.quickFilterClause(model.quickFilterFor(subject, model.notSetValue, targets)), { fieldId: subject.semanticId, operator: 'isNull' });
+    // The pill's pick selects its own option when the menu is drawn again.
+    const reopened = model.quickFilterMenuMarkup([subject], { fieldId: subject.semanticId, value: '__nendo_not_set__', label: 'x' }, () => targets, true, '');
+    assert.match(reopened, /<option value="v:__nendo_not_set__" selected>/);
+    assert.doesNotMatch(reopened, /<option value="none" selected>/);
+  }
 });
 
 test('the menu lists choices at once and a reference once its targets are read', () => {
   const pick = { fieldId: 'status', value: 'done', label: 'Status: Done' };
   const reading = model.quickFilterMenuMarkup(fields, pick, () => ({ state: 'loading' }), false, '');
-  assert.match(reading, /<select data-quick-filter="status"><option value="">Any<\/option><option value="open">Open<\/option><option value="done" selected>Done<\/option>/);
+  assert.match(reading, /<select data-quick-filter="status"><option value="">Any<\/option><option value="v:open">Open<\/option><option value="v:done" selected>Done<\/option>/);
   assert.match(reading, /<select data-quick-filter="debate" disabled><option value="" selected>Any<\/option><option disabled>Reading…<\/option><\/select>/);
-  assert.match(reading, /<option value="__nendo_not_set__">Not set<\/option>/);
+  assert.match(reading, /<option value="none">Not set<\/option>/);
   assert.match(reading, /Filter \(1\)/);
   const ready = model.quickFilterMenuMarkup(fields, undefined, () => ({ state: 'ready', items: [{ recordId: 'd1', label: '<b>Ship</b>' }] }), true, '');
   assert.match(ready, /<details class="quick-filter" data-testid="quick-filter" open>/);
-  assert.match(ready, /<option value="d1">&lt;b&gt;Ship&lt;\/b&gt;<\/option>/);
+  assert.match(ready, /<option value="v:d1">&lt;b&gt;Ship&lt;\/b&gt;<\/option>/);
   const many = model.quickFilterMenuMarkup(fields, undefined, () => ({ state: 'overflowing', ceiling: 100 }), false, '');
   assert.match(many, /More than 100 to list/);
 });

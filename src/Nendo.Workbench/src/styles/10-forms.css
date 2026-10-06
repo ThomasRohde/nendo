@@ -104,6 +104,10 @@ textarea:focus {
   background: var(--surface);
 }
 
+/* A row is a list item holding a native button, so the row keeps the button's role (review
+   R-013); the item is a grid so the button still stretches across the list. */
+.record-row { display: grid; min-width: 0; }
+
 .record-list button {
   display: flex;
   align-items: center;
