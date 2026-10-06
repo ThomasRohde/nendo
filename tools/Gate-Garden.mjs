@@ -88,6 +88,36 @@ async page => {
   // The API sends a declaration at most every tenth of a second, so wait for the one that follows Edit.
   await page.waitForFunction(() => window.broker.toolbars.at(-1).items.some(i => i.id === 'edit' && i.pressed === true && i.keys === 'Ctrl+E'), null, { timeout: 2000 })
     .catch(async () => { throw Error('The Edit toggle is pressed in Nendo\'s row, on Ctrl E: ' + JSON.stringify((await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'edit'))); });
+  // Editing takes the whole view: the panes reach the bottom and both sides, the cards wait for reading.
+  await page.waitForTimeout(100);
+  const space = await frame.evaluate(() => {
+    const box = id => document.getElementById(id).getBoundingClientRect();
+    const main = box('main'), panes = box('panes'), editor = box('editor'), preview = box('preview');
+    return { mainBottom: main.bottom, mainWidth: main.width, panesWidth: panes.width, editorBottom: editor.bottom, previewBottom: preview.bottom, editorHeight: editor.height,
+      about: getComputedStyle(document.getElementById('about')).display };
+  });
+  assert(space.mainBottom - space.editorBottom <= 16 && space.mainBottom - space.previewBottom <= 16 && space.mainWidth - space.panesWidth <= 30 && space.about === 'none',
+    `The editor and the preview must fill the view while editing: ${JSON.stringify(space)}.`);
+  // The divider drags with a real pointer, and moves with the keyboard.
+  const split = () => frame.evaluate(() => {
+    const panes = document.getElementById('panes').getBoundingClientRect(), editor = document.getElementById('editor-wrap').getBoundingClientRect();
+    return { share: (editor.width + 6) / panes.width, value: Number(document.getElementById('splitter').getAttribute('aria-valuenow')), left: panes.left, width: panes.width };
+  });
+  const handle = await frame.locator('#splitter').boundingBox();
+  const before = await split();
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(before.left + before.width * 0.7, handle.y + handle.height / 2, { steps: 10 });
+  await page.mouse.up();
+  const dragged = await split();
+  assert(Math.abs(dragged.share - 0.7) < 0.04 && dragged.value === 70, `Dragging the divider to 70% must give the editor 70%: ${JSON.stringify({ before, dragged })}.`);
+  await frame.locator('#splitter').focus();
+  await page.keyboard.press('ArrowLeft');
+  assert((await split()).value === 65, 'Left arrow on the divider must narrow the editor by five points.');
+  await frame.locator('#splitter').dblclick();
+  assert((await split()).value === 50, 'A double-click on the divider shares the width evenly again.');
+  await page.screenshot({ path: '__OUTPUT__/editing.png', fullPage: true });
+  checks.push('editing fills the view, divider drags');
   await frame.locator('#editor').focus();
   await frame.evaluate(() => { const e = document.getElementById('editor'); e.setSelectionRange(e.value.length, e.value.length); });
   await page.keyboard.type('\nAlso [[da');

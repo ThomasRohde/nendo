@@ -4,7 +4,8 @@ A custom view for a garden of notes, in three places:
 
 - **The Garden view**, the screen `workspace/Garden.nendo` opens on (`extensionView` with
   `opensFile`): the notes as a tree on the left and one note in the middle, open for reading.
-  **Edit** (Ctrl E) swaps the page for its Markdown, with the preview beside it.
+  **Edit** (Ctrl E) swaps the page for its Markdown, with the preview beside it, filling the
+  view; drag the divider between them, or move it with the arrow keys.
 - **The Graph screen** (`extensionGraphSurface` over `gd.link`): the whole garden as a living
   d3 graph.
 - **The Backlinks panel** on a note's record page (`extensionRecordPanel`).

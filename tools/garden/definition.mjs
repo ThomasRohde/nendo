@@ -22,6 +22,9 @@ export const PACKAGE_FOLDER = path.resolve(here, '..', '..', 'extensions', 'gard
 export const SKILL_FOLDER = path.resolve(here, '..', 'garden-skill');
 export const NEW_FILE_LABEL = 'garden';
 export const SEED_DATE = '2026-10-06';
+// Use lists the front page beside the Garden view, so the two need different names.
+export const FRONT_TITLE = 'Overview';
+export const FRONT_DESCRIPTION = 'What is growing, what is pinned, what was tended lately, and the tasks the notes carry. Notes are read and written in the Garden view.';
 
 const op = (operationType, payload) => ({ operationType, payload });
 const text = (entityId, fieldId, displayName, required = false, presentation = 'singleLine') =>
@@ -327,8 +330,7 @@ export const STAGES = {
     appliedWhen: async read => read.hasNode('gd.front'),
     mutations: () => {
       const t = tree();
-      const front = t.add('gd.front', 'overviewSurface', null, { definitionVersion: 3, title: 'Garden',
-        description: 'What is growing, what is pinned, what was tended lately, and the tasks the notes carry. The Garden view is where notes are written.' });
+      const front = t.add('gd.front', 'overviewSurface', null, { definitionVersion: 3, title: FRONT_TITLE, description: FRONT_DESCRIPTION });
       const tabs = t.add('gd.front.tabs', 'tabGroup', front, { title: 'Garden' });
 
       const tending = t.add('gd.front.tending', 'section', tabs, { title: 'Tending' });

@@ -277,6 +277,45 @@ export async function startWorkspace(nendo, context, kit) {
     state.local = { nodes: data.nodes.length, links: data.links.length };
   }
 
+  // ---- The divider between the editor and the preview: dragged, or moved with the arrow keys.
+  // Where it sits is this person's, so it stays in this browser rather than in the file.
+  const panes = $('panes'), splitter = $('splitter');
+  const storedSplit = (() => { try { return Number(localStorage.getItem('garden.split')); } catch { return NaN; } })();
+  function setSplit(percent, { keep = true } = {}) {
+    const value = Math.round(Math.max(20, Math.min(80, Number.isFinite(percent) ? percent : 50)));
+    panes.style.setProperty('--split', String(value));
+    splitter.setAttribute('aria-valuenow', String(value));
+    state.split = value;
+    if (keep) { try { localStorage.setItem('garden.split', String(value)); } catch { /* a private window keeps none */ } }
+    expose();
+  }
+  setSplit(storedSplit > 0 ? storedSplit : 50, { keep: false });
+  splitter.addEventListener('pointerdown', event => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    splitter.setPointerCapture(event.pointerId);
+    splitter.classList.add('dragging');
+    const box = panes.getBoundingClientRect();
+    const move = moved => setSplit((moved.clientX - box.left) / box.width * 100, { keep: false });
+    const up = () => {
+      splitter.classList.remove('dragging');
+      splitter.removeEventListener('pointermove', move);
+      splitter.removeEventListener('pointerup', up);
+      splitter.removeEventListener('pointercancel', up);
+      setSplit(state.split);
+    };
+    splitter.addEventListener('pointermove', move);
+    splitter.addEventListener('pointerup', up);
+    splitter.addEventListener('pointercancel', up);
+  });
+  splitter.addEventListener('dblclick', () => setSplit(50));
+  splitter.addEventListener('keydown', event => {
+    const step = { ArrowLeft: -5, ArrowRight: 5 }[event.key];
+    if (step !== undefined) { event.preventDefault(); setSplit(state.split + step); }
+    if (event.key === 'Home') { event.preventDefault(); setSplit(20); }
+    if (event.key === 'End') { event.preventDefault(); setSplit(80); }
+  });
+
   // ---- Reading and editing.
   function setMode(mode, { quiet = false } = {}) {
     state.mode = mode === 'edit' ? 'edit' : 'read';

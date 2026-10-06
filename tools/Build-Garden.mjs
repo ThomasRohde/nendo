@@ -16,7 +16,7 @@
 
 import crypto from 'node:crypto';
 import { target, withLease, fail } from './archi-mcp.mjs';
-import { STAGES, STAGE_ORDER, CALL_CHARACTERS, NEW_FILE_LABEL, SKILL_PACKAGE_ID, PACKAGE_ID, PACKAGE_FOLDER, RETIRED_GRAPH_PACKAGE_ID, seedRecords, packageFiles } from './garden/definition.mjs';
+import { STAGES, STAGE_ORDER, CALL_CHARACTERS, NEW_FILE_LABEL, SKILL_PACKAGE_ID, PACKAGE_ID, PACKAGE_FOLDER, RETIRED_GRAPH_PACKAGE_ID, FRONT_TITLE, FRONT_DESCRIPTION, seedRecords, packageFiles } from './garden/definition.mjs';
 
 const TARGET_FILE_NAME = process.env.NENDO_GARDEN_TARGET || 'Garden.nendo';
 
@@ -96,6 +96,8 @@ async function compare(file) {
   if (describe.manifest.newFileLabel !== NEW_FILE_LABEL) problems.push(`new-file label is ${describe.manifest.newFileLabel}, not ${NEW_FILE_LABEL}`);
   const packages = (describe.extensions ?? []).map(p => p.packageId);
   for (const id of [PACKAGE_ID, SKILL_PACKAGE_ID]) if (!packages.includes(id)) problems.push(`package ${id} is not in the file`);
+  const overview = (await file.read.json('nendo://application/surfaces')).overview;
+  if (overview?.properties.title !== FRONT_TITLE) problems.push(`the front page is titled ${overview?.properties.title}, not ${FRONT_TITLE}: run upgrade`);
   if (packages.includes(RETIRED_GRAPH_PACKAGE_ID)) problems.push(`${RETIRED_GRAPH_PACKAGE_ID} is still in the file: run upgrade`);
   const garden = (describe.extensions ?? []).find(p => p.packageId === PACKAGE_ID);
   const { manifest: wanted, files: wantedFiles } = await packageFiles(PACKAGE_FOLDER);
@@ -148,6 +150,10 @@ async function upgrade(file, dryRun) {
     for (const f of retired.files) operations.push(op('extension.removeFile', { packageId: RETIRED_GRAPH_PACKAGE_ID, path: f.path, expectedSha256: f.sha256 }));
     operations.push(op('extension.removePackage', { packageId: RETIRED_GRAPH_PACKAGE_ID }));
   }
+  // The front page was first titled Garden, the Garden view's own name, so Use listed two.
+  const front = (await file.read.json('nendo://application/surfaces')).overview;
+  if (front && front.properties.title !== FRONT_TITLE) operations.push(op('ui.setProperty', { surfaceId: 'garden', nodeId: 'gd.front', propertyName: 'title', value: FRONT_TITLE }));
+  if (front && front.properties.description !== FRONT_DESCRIPTION) operations.push(op('ui.setProperty', { surfaceId: 'garden', nodeId: 'gd.front', propertyName: 'description', value: FRONT_DESCRIPTION }));
   if (operations.length === 0) { console.log('Nothing to upgrade: the file carries the Garden package in this folder.'); return true; }
   const mutations = [];
   for (const operation of operations) {
@@ -156,7 +162,7 @@ async function upgrade(file, dryRun) {
     mutations.at(-1).operations.push(operation);
     mutations.at(-1).size += size;
   }
-  return runChangeSet(file, 'upgrade', `Garden: the reading page and the living graph (package ${manifest.version})`,
+  return runChangeSet(file, 'upgrade', `Garden: bring the file up to the package ${manifest.version} and its definition`,
     mutations.map(({ description, operations: o }) => ({ description, operations: o })), dryRun);
 }
 

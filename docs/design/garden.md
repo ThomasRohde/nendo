@@ -34,7 +34,9 @@ the graph to be dynamic and interactive, drawn with a common library as Obsidian
 
 - **A note opens for reading.** The title is the page heading, the body is set in a 720-pixel
   column, and the editor is out of sight. **Edit** (Ctrl E, a toggle in Nendo's row) swaps
-  the page for its Markdown with the preview beside it; New note and Today open in Edit.
+  the page for its Markdown with the preview beside it, filling the whole view; the divider
+  between them drags (or moves five points with the arrow keys, and a double-click shares the
+  width evenly), and where it sits stays in this browser. New note and Today open in Edit.
   Ticking a task while reading writes the tick into the body and saves at once, as one batch.
   Hovering a wikilink previews the note it names: its summary, or the start of its body.
 - **The graph is d3.** `vendor/d3.min.js` is d3 7.9.0, pinned in `tools/garden/package.json`
@@ -75,6 +77,10 @@ tags and tasks are derived by the same `parse.mjs` and `sync.mjs` the view uses,
 cannot disagree with the parser.
 
 ## Choices
+
+- **The front page is Overview.** Use lists the front page, then the views of the file, then
+  the record types, so the front page cannot share the Garden view's name; a test refuses any
+  two entries with one name.
 
 - **No triggers.** Calculations give every count. A trigger would put the file behind device
   behaviour consent and refuse an agent's writes until approved.

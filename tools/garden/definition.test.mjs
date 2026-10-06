@@ -77,6 +77,15 @@ test('the graph screen runs the Garden package, and no stage carries the retired
   assert.ok(STAGE_ORDER.indexOf('garden') < STAGE_ORDER.indexOf('graph'), 'the package is in the file before the graph names it');
 });
 
+test('no two entries in Use share a name: the front page, the views of the file and the record types', async () => {
+  const ops = await allOps();
+  const names = [
+    ...ops.filter(o => o.operationType === 'ui.addNode' && o.payload.parentNodeId === null && ['overviewSurface', 'extensionView'].includes(o.payload.kind)).map(o => o.payload.properties.title),
+    ...ops.filter(o => o.operationType === 'schema.createEntity').map(o => o.payload.displayName),
+  ];
+  assert.deepEqual(names.filter((name, index) => names.indexOf(name) !== index), [], `Use would list a name twice: ${names.join(', ')}`);
+});
+
 test('one view opens the file, one front page, one page per record type, at most eight roots per kind', async () => {
   const roots = (await allOps()).filter(o => o.operationType === 'ui.addNode' && o.payload.parentNodeId === null).map(o => o.payload);
   assert.equal(roots.filter(r => r.kind === 'extensionView' && r.properties.opensFile === true).length, 1, 'exactly one extensionView must open the file');
