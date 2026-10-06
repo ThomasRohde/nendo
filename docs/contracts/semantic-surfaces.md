@@ -925,8 +925,10 @@ which is a different promise about what one movement writes.
 reference field of its record type. A pick adds one clause, `eq` on the value or
 `isNull` for *Not set*, to the screen's own clauses: for its record window
 (`effectiveSurfaceQuery`), for a matrix's cells, and for a cell's drill. It is
-renderer state per screen for the file session (`quickFilters`), never written to
-the file. A drill on the same list replaces both, as it replaced the list's own
+renderer state for the file session (`quickFilters`), never written to the file, and
+part of the place: each place on the trail carries a copy, so two tabs on one screen keep
+their own pick, and Back, Forward or a tab switch puts a place's pick back (ADR-0004,
+2026-10-06). Changing it amends the place on screen. A drill on the same list replaces both, as it replaced the list's own
 clauses before. While a pick stands the screen's surface and column tiles and
 charts are not drawn or read, because they describe its whole set. A reference
 offers at most 100 target records ordered by its label field, read each time the

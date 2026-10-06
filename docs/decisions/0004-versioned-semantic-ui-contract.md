@@ -10,6 +10,24 @@
 
 ## Context
 
+### Accepted amendment — 2026-10-06 (a Filter pick and Studio's query belong to the place)
+
+Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24), for review R-003.
+It changes one sentence of the 2026-10-05 entry and adds nothing to the vocabulary.
+
+**What was wrong.** The 2026-10-05 entry held a Filter pick *per screen*, and Studio kept its
+sort and filter per record type. Two workspace tabs on the same screen therefore shared one
+pick: narrowing tab A to *Ready* narrowed tab B too, so two views of one board could not be
+compared side by side.
+
+**What it changes.** A Filter pick and Studio's query are part of the place, as a drill is. The
+trail copies them into each place it records, by value, and putting a place back (Back,
+Forward, switching tabs) puts its pick and its query back before its records are read. A pick
+or a query changed on a screen amends the place on screen rather than adding a step, so Back
+still leads to the previous screen, not to the previous pick. Everything else in the
+2026-10-05 entry stands: the pick is renderer state for the file session, never written to
+the file, and gone when the file closes.
+
 ### Accepted amendment — 2026-10-05 (a person narrows a list, board or matrix by one value)
 
 Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24), for W-172. Like

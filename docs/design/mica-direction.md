@@ -84,6 +84,8 @@ a CSS variable. Change them together.
   Switching tabs swaps the saved trail into `navigationTrail` and puts its current place back the
   way a step back does (`revisitCurrent`). A tab that is not on screen costs a list of places and
   nothing else: no frame, no read. Tabs belong to the window, and they are cleared with the file.
+  A place carries its Filter pick and Studio's sort and filter, so two tabs on one screen keep
+  their own (ADR-0004, 2026-10-06); changing them amends the place on screen, not a new step.
   - **+**, Ctrl T: a new tab on the place on screen.
   - Ctrl W, a tab's close button, a middle click on a tab: close it. The last tab cannot be closed.
   - Ctrl Tab and Ctrl Shift Tab: the next and previous tab. The arrow keys move between tabs, and

@@ -1,7 +1,7 @@
 import { refreshDerived } from './actions';
 import {
   calendarModes, calendarMonths, drills, focusedRecords, leaveRecordContext, selectedSurfaces, selectedTabs,
-  state, surfaceErrors, surfaceWindows, timelineModes, timelineYears,
+  quickFilters, state, studioQueries, surfaceErrors, surfaceWindows, timelineModes, timelineYears,
 } from './app-state';
 import { refuseWhileDirty } from './draft-guard';
 import { messageFor } from './format';
@@ -70,6 +70,9 @@ function placeOfNendo(heading: { eyebrow: string; title: string }): Omit<Place, 
     proposalId: state.view === 'proposal' ? state.proposal?.proposalId ?? null : null,
     agentProposalId: state.view === 'agentProposal' ? state.agentProposal?.proposalId ?? null : null,
     proposalReturnView: state.view === 'proposal' ? state.proposalReturnView : null,
+    // Copies, not the map entries: the maps keep changing, and the place must keep what it showed.
+    quickFilter: surfaceId === null ? null : structuredClone(quickFilters.get(surfaceId) ?? null),
+    studioQuery: state.selectedEntityId === null ? null : structuredClone(studioQueries.get(state.selectedEntityId) ?? null),
   };
 }
 
@@ -274,6 +277,15 @@ async function settle(place: Place): Promise<void> {
   // Every tab of this record type, not only the ones the place carries: a tab opened
   // since must close again, or going back to a page shows a section the page did not
   // have open when it was left.
+  // The place's own Filter pick and Studio query, before anything is read under them (R-003).
+  if (place.surfaceId !== null && place.quickFilter !== undefined) {
+    if (place.quickFilter === null) quickFilters.delete(place.surfaceId);
+    else quickFilters.set(place.surfaceId, structuredClone(place.quickFilter));
+  }
+  if (place.studioEntityId !== null && place.studioQuery !== undefined) {
+    if (place.studioQuery === null) studioQueries.delete(place.studioEntityId);
+    else studioQueries.set(place.studioEntityId, structuredClone(place.studioQuery));
+  }
   for (const [key] of tabsOf(entityId)) selectedTabs.delete(key);
   for (const [key, sectionId] of place.tabs) selectedTabs.set(key, sectionId);
   if (place.calendar !== null) {

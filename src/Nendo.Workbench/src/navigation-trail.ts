@@ -1,4 +1,5 @@
-import { fileScopedClearable, selectedTabs, type DrillState, type ReturnTo, type ViewName } from './app-state';
+import { fileScopedClearable, selectedTabs, type DrillState, type ReturnTo, type StudioQuery, type ViewName } from './app-state';
+import type { QuickFilter } from './quick-filter-model';
 import type { CalendarMode, CivilMonth } from './calendar-model';
 import type { ViewPlace } from './view-places';
 
@@ -67,6 +68,14 @@ export interface Place {
    * view started over, and a view's own pages were never steps.
    */
   viewPlaces: ViewPlace[];
+  /**
+   * The Filter pick on the screen shown and Studio's sort and filter for the record type in
+   * Data, copied when the place was recorded (ADR-0004, 2026-10-06; review R-003), so two tabs on
+   * one screen keep their own. Not part of the key: changing either amends the place on screen.
+   * Undefined on a place recorded before it was carried, which leaves the screen's own alone.
+   */
+  quickFilter?: QuickFilter | null;
+  studioQuery?: StudioQuery | null;
 }
 
 /**
