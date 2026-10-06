@@ -13,6 +13,7 @@
     <ul id="tree" role="tree" aria-label="Notes by place"></ul>
     <p id="tree-empty" hidden>No notes yet. Plant one with New note.</p>
   </aside>
+  <div id="tree-splitter" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Width of the notes beside the page" aria-controls="sidebar" aria-valuemin="160" aria-valuemax="720" aria-valuenow="250" title="Drag to resize the notes; double-click to reset"></div>
   <main id="main">
     <div id="own-toolbar" class="own-chrome" role="toolbar" aria-label="Garden controls">
       <button type="button" data-command="new">New note</button>
@@ -26,11 +27,12 @@
       <button type="button" data-command="undo">Undo</button>
       <button type="button" data-command="redo">Redo</button>
       <button type="button" data-command="graph">Graph</button>
+      <button type="button" data-command="about" aria-pressed="false">Guide</button>
       <span id="own-summary"></span>
     </div>
     <p id="status" role="status"></p>
     <p id="problem" role="alert" hidden></p>
-    <p id="empty">Pick a note on the left, or plant one with New note.</p>
+    <div id="empty"><p>Pick a note on the left, or plant one with New note.</p><button type="button" data-guide="open">Open the Garden guide</button></div>
     <section id="note" class="reading-mode" hidden aria-label="Note">
       <div id="sheet">
         <article id="reading" aria-label="Reading">
@@ -82,7 +84,108 @@
   <div id="graph-canvas" class="graph-host"></div>
   <p id="about-graph" class="hint" hidden>Each dot is a note, sized by how many links it has, coloured by its stage or kind. Drag the background to pan, the wheel to zoom, a note to move it. Hover a note to light it and its neighbours. Click to open it; right-click for its neighbourhood. Tags shows tags as small grey dots.</p>
 </div>
-<p id="about-text" class="hint" hidden>A note opens for reading. Edit (Ctrl E) switches to its Markdown. A [[wikilink]] names another note by its slug or title and becomes a Link record when you save; a note it names that is not there yet is planted as a Seed. A #tag becomes a Tag record, and a line that starts with - [ ] becomes a Task: tick it while reading and it is saved. Links, tags and tasks that somebody wrote by hand are kept as they are.</p>
+<aside id="guide" aria-labelledby="guide-title" tabindex="-1" hidden>
+  <header class="guide-head">
+    <svg class="guide-art" viewBox="0 0 220 96" aria-hidden="true">
+      <path class="soil" d="M4 86 H216"/>
+      <path class="vine" d="M40 70 C70 40, 90 40, 110 54 S160 66, 182 30"/>
+      <path class="vine late" d="M40 70 C80 84, 150 84, 182 30"/>
+      <g class="plant seed"><circle cx="40" cy="78" r="7"/></g>
+      <g class="plant growing"><path class="stem" d="M110 84 V56"/><path class="leaf" d="M110 66 C98 64, 94 56, 96 50 C104 52, 110 58, 110 66 Z"/><path class="leaf" d="M110 62 C122 58, 126 50, 124 44 C116 46, 110 52, 110 62 Z"/><circle cx="110" cy="54" r="6"/></g>
+      <g class="plant evergreen"><path class="stem" d="M182 84 V40"/><path class="crown" d="M182 8 L204 46 H192 L208 70 H156 L172 46 H160 Z"/><circle cx="182" cy="30" r="8"/></g>
+    </svg>
+    <div class="guide-intro">
+      <p class="guide-kicker">Garden guide</p>
+      <h2 id="guide-title">Grow ideas by linking them</h2>
+      <p>Write a note. Link it to another with <code>[[double brackets]]</code>. Save, and the garden remembers who links where, plants the notes you named but have not written yet, and draws it all as a graph.</p>
+    </div>
+    <button type="button" id="guide-close" class="guide-close" aria-label="Close the guide" title="Close (Esc)">✕</button>
+  </header>
+  <nav class="guide-toc" aria-label="In this guide">
+    <a href="#guide-yours">Your garden</a><a href="#guide-start">Start</a><a href="#guide-write">Write</a><a href="#guide-grow">Grow</a><a href="#guide-around">Find your way</a><a href="#guide-keys">Keys</a><a href="#guide-agents">Agents</a>
+  </nav>
+  <div class="guide-body">
+    <section id="guide-yours" class="guide-section">
+      <h3>Your garden today</h3>
+      <dl class="guide-stats">
+        <div><dt>Notes</dt><dd data-stat="notes">0</dd></div>
+        <div><dt>Links</dt><dd data-stat="links">0</dd></div>
+        <div><dt>Tags</dt><dd data-stat="tags">0</dd></div>
+        <div><dt>Seeds to grow</dt><dd data-stat="seeds">0</dd></div>
+        <div><dt>Lonely notes</dt><dd data-stat="orphans">0</dd></div>
+      </dl>
+      <div class="guide-stages" role="img" aria-label="Notes by stage"><span class="stage-bar seed" data-stage="Seed"></span><span class="stage-bar growing" data-stage="Growing"></span><span class="stage-bar evergreen" data-stage="Evergreen"></span></div>
+      <p class="guide-legend"><span><i class="tone seed"></i>Seed <b data-stage-count="Seed">0</b></span><span><i class="tone growing"></i>Growing <b data-stage-count="Growing">0</b></span><span><i class="tone evergreen"></i>Evergreen <b data-stage-count="Evergreen">0</b></span></p>
+      <ul class="guide-picks" id="guide-picks"></ul>
+    </section>
+
+    <section id="guide-start" class="guide-section">
+      <h3>Start in four moves</h3>
+      <ol class="guide-steps">
+        <li><strong>Plant a note.</strong> New note opens a blank page in Edit. Give it a title and a few lines. <button type="button" data-guide="new">Plant one now</button></li>
+        <li><strong>Link it.</strong> Type <code>[[</code> and pick a note from the list, or name one that does not exist yet: saving plants it as a Seed.</li>
+        <li><strong>Save.</strong> <kbd>Ctrl</kbd> <kbd>S</kbd> turns links, tags and tasks into records in one step, and Undo takes the whole step back.</li>
+        <li><strong>Watch it grow.</strong> The note's backlinks and local graph appear under it while you read, and the Graph shows the whole garden. <button type="button" data-guide="graph">Open the graph</button></li>
+      </ol>
+      <p class="guide-aside">Keeping a journal? <button type="button" data-guide="daily" class="link-like">Today</button> opens today's note, made from the note whose kind is Template.</p>
+    </section>
+
+    <section id="guide-write" class="guide-section">
+      <h3>What you write becomes records</h3>
+      <table class="guide-table">
+        <thead><tr><th scope="col">Write</th><th scope="col">On save it becomes</th></tr></thead>
+        <tbody>
+          <tr><td><code>[[start-here]]</code><br><code>[[Start here]]</code></td><td>A <b>Link</b> to the note with that slug or title, with the sentence it sits in. That note lists this one in its backlinks.</td></tr>
+          <tr><td><code>[[start-here|the welcome]]</code></td><td>The same link, showing your own words.</td></tr>
+          <tr><td><code>[[A new idea]]</code></td><td>A link, and a new <b>Seed</b> note called A new idea, waiting to be written.</td></tr>
+          <tr><td><code>#reading</code></td><td>A <b>Tag</b>, made once for the garden, and the note is filed under it.</td></tr>
+          <tr><td><code>- [ ] Call Sam</code></td><td>A <b>Task</b> on the garden's task list. Tick it while reading and the tick is saved at once.</td></tr>
+          <tr><td><code>`[[code]]`</code></td><td>Nothing: inside code, brackets and hashes stay text.</td></tr>
+        </tbody>
+      </table>
+      <p class="guide-aside">The rest is everyday Markdown: <code># Heading</code>, <code>**bold**</code>, <code>*italic*</code>, <code>&gt; quote</code>, lists, links and fenced code. Links, tags and tasks somebody added by hand are marked Manual, and a save never touches them.</p>
+    </section>
+
+    <section id="guide-grow" class="guide-section">
+      <h3>The life of a note</h3>
+      <ol class="guide-life">
+        <li><i class="tone seed"></i><div><strong>Seed</strong> A name and little else, often planted by a link. The front page counts the seeds that wait.</div></li>
+        <li><i class="tone growing"></i><div><strong>Growing</strong> Being written and linked. Most notes live here.</div></li>
+        <li><i class="tone evergreen"></i><div><strong>Evergreen</strong> Says what it means and is worth linking to. Mark it evergreen from the menu.</div></li>
+      </ol>
+      <p class="guide-aside">A lonely note has no links in or out. Link it to something, and the graph will pull it in.</p>
+    </section>
+
+    <section id="guide-around" class="guide-section">
+      <h3>Find your way</h3>
+      <ul class="guide-tips">
+        <li><strong>The tree is the outline.</strong> A note can sit under another. Click the arrow beside a note to fold its branch away, or use <kbd>←</kbd> and <kbd>→</kbd>. Expand all and Collapse all are in the Note menu. Opening a note unfolds the branch it is in.</li>
+        <li><strong>Make room.</strong> Drag the line between the tree and the page to widen either. In Edit, drag the line between the Markdown and the preview; drag it to the right edge to fold the preview away. A double-click resets both.</li>
+        <li><strong>Read at your width.</strong> Narrow, Medium or Full, from the row above the page.</li>
+        <li><strong>Peek before you jump.</strong> Hover a link to preview its note. Follow it, and Nendo's Back returns you.</li>
+        <li><strong>Find a note</strong> by title or slug with Find; the tree keeps the branches that hold a match.</li>
+      </ul>
+    </section>
+
+    <section id="guide-keys" class="guide-section">
+      <h3>Keys</h3>
+      <dl class="guide-keys">
+        <div><dt><kbd>Ctrl</kbd> <kbd>E</kbd></dt><dd>Switch between View and Edit</dd></div>
+        <div><dt><kbd>Ctrl</kbd> <kbd>S</kbd></dt><dd>Save the note</dd></div>
+        <div><dt><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd></dt><dd>Find a note</dd></div>
+        <div><dt><kbd>[[</kbd></dt><dd>Link to a note: <kbd>↑</kbd> <kbd>↓</kbd> to pick, <kbd>Enter</kbd> to insert</dd></div>
+        <div><dt><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>In the tree: move, fold and unfold</dd></div>
+        <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>On a divider: move it; <kbd>Home</kbd> and <kbd>End</kbd> go to its ends</dd></div>
+        <div><dt><kbd>Esc</kbd></dt><dd>Close this guide or a preview</dd></div>
+      </dl>
+    </section>
+
+    <section id="guide-agents" class="guide-section">
+      <h3>Working with an agent</h3>
+      <p>This garden carries its own instructions for agents, the <code>dev.nendo.garden</code> skill. An agent connected to Nendo finds a note by its slug, reads its summary instead of the whole body, and asks the garden who links where instead of reading every note. How much an agent may change is yours to set, under Agent in Nendo.</p>
+    </section>
+  </div>
+</aside>
 <p id="not-framed" hidden>This view runs inside Nendo.</p>
 <script src="/_nendo/api.js"></script>
 <script src="vendor/d3.min.js"></script>

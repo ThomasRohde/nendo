@@ -22,7 +22,7 @@ export async function startWorkspace(nendo, context, kit) {
   const status = $('status'), problem = $('problem'), empty = $('empty'), noteSection = $('note');
   const title = $('title'), meta = $('meta'), editor = $('editor'), preview = $('preview'), autocomplete = $('autocomplete');
   const readingTitle = $('reading-title'), readingMeta = $('reading-meta'), readingBody = $('reading-body');
-  const ownSummary = $('own-summary'), aboutText = $('about-text'), hoverCard = $('hover-card');
+  const ownSummary = $('own-summary'), guide = $('guide'), hoverCard = $('hover-card');
   const lists = { backlinks: $('backlinks'), backlinksCount: $('backlinks-count'), tags: $('note-tags'), tasks: $('note-tasks'), tasksCount: $('tasks-count') };
   app.hidden = false;
 
@@ -52,12 +52,21 @@ export async function startWorkspace(nendo, context, kit) {
     declareToolbar();
   }
 
+  // ---- The tree. A branch folds away with the arrow beside its note, or with Left and Right; what
+  // is folded is this person's, so it stays in this browser rather than in the file. Find shows
+  // every branch that holds a match, folded or not, and opening a note unfolds the branch it is in.
+  const collapsedKey = `garden.tree.collapsed.v1.${context.viewId ?? 'workspace'}`;
+  const collapsed = new Set((() => { try { const kept = JSON.parse(localStorage.getItem(collapsedKey) ?? '[]'); return Array.isArray(kept) ? kept : []; } catch { return []; } })());
+  const keepCollapsed = () => { try { localStorage.setItem(collapsedKey, JSON.stringify([...collapsed])); } catch { /* a private window keeps none */ } };
+  const parentOf = recordId => { const parent = state.byId.get(recordId)?.values[F.note.parent] ?? null; return state.byId.has(parent) ? parent : null; };
+  const hasChildren = recordId => state.index.some(note => parentOf(note.recordId) === recordId);
+  const TWISTY = '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1.5 6.5 5 3 8.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
   function drawTree() {
     const filter = state.filter.trim().toLowerCase();
     const children = new Map();
     for (const note of state.index) {
-      const parent = note.values[F.note.parent] ?? null;
-      const key = state.byId.has(parent) ? parent : null;
+      const key = parentOf(note.recordId);
       if (!children.has(key)) children.set(key, []);
       children.get(key).push(note);
     }
@@ -67,38 +76,89 @@ export async function startWorkspace(nendo, context, kit) {
       const list = document.createElement('ul');
       list.setAttribute('role', parent === null ? 'tree' : 'group');
       for (const note of children.get(parent) ?? []) {
-        const below = build(note.recordId);
-        if (!matches(note) && below.childElementCount === 0) continue;
+        const kids = children.get(note.recordId)?.length ?? 0;
+        // A folded branch is not drawn at all, so the arrow keys and the count of rows only meet what shows.
+        const unfolded = kids > 0 && (filter !== '' || !collapsed.has(note.recordId));
+        const below = unfolded || filter !== '' ? build(note.recordId) : null;
+        if (!matches(note) && (below?.childElementCount ?? 0) === 0) continue;
         const item = document.createElement('li');
         item.setAttribute('role', 'treeitem');
+        if (kids > 0) item.setAttribute('aria-expanded', String(unfolded));
         const row = document.createElement('button');
         row.type = 'button';
         row.className = 'row';
         row.dataset.id = note.recordId;
         if (state.note?.recordId === note.recordId) row.setAttribute('aria-current', 'true');
         if (drafts.has(note.recordId)) { row.classList.add('draft'); row.title = 'Has an unsaved draft'; }
+        const twisty = document.createElement('span');
+        twisty.className = kids > 0 ? 'twisty' : 'twisty leaf';
+        if (kids > 0) { twisty.innerHTML = TWISTY; twisty.title = unfolded ? 'Fold away' : 'Unfold'; }
         const dot = document.createElement('span');
         dot.className = 'dot';
         dot.style.background = `var(--nendo-tone-${STAGE_TONES[note.values[F.note.stage]] ?? 'grey'})`;
         const name = document.createElement('span');
         name.className = 'name';
         name.textContent = note.title;
-        row.append(dot, name);
-        const count = below.childElementCount;
+        row.append(twisty, dot, name);
+        const count = filter !== '' ? below.childElementCount : kids;
         if (count) { const n = document.createElement('span'); n.className = 'n'; n.textContent = String(count); row.append(n); }
-        row.addEventListener('click', () => open(note.recordId));
+        row.addEventListener('click', event => {
+          if (kids > 0 && event.target.closest('.twisty')) fold(note.recordId, !collapsed.has(note.recordId));
+          else open(note.recordId);
+        });
         item.append(row);
-        if (count) item.append(below);
+        if (unfolded && below.childElementCount) item.append(below);
         list.append(item);
       }
       return list;
     };
+    const focused = document.activeElement?.closest?.('#tree .row')?.dataset.id ?? null;
     tree.replaceChildren(...build(null).children);
     treeEmpty.hidden = state.index.length > 0;
     treeKeys.refresh();
+    // A redraw replaces the rows: keep the keyboard on the note it was on.
+    if (focused !== null) tree.querySelector(`.row[data-id="${CSS.escape(focused)}"]`)?.focus();
     ownSummary.textContent = summary();
+    state.collapsed = [...collapsed];
   }
   const treeKeys = kit.roving(tree, { items: '.row' });
+
+  function fold(recordId, shut) {
+    if (shut === collapsed.has(recordId)) return;
+    if (shut) collapsed.add(recordId); else collapsed.delete(recordId);
+    keepCollapsed();
+    drawTree();
+    expose();
+  }
+  function foldAll(shut) {
+    collapsed.clear();
+    if (shut) for (const note of state.index) if (hasChildren(note.recordId)) collapsed.add(note.recordId);
+    keepCollapsed();
+    drawTree();
+    expose();
+  }
+  // Opening a note unfolds every branch above it, so the tree always shows where you are.
+  function reveal(recordId) {
+    let changed = false;
+    for (let at = parentOf(recordId), guard = 0; at !== null && guard < 1000; at = parentOf(at), guard++) if (collapsed.delete(at)) changed = true;
+    if (changed) keepCollapsed();
+  }
+  // Right unfolds a branch, or steps into it; Left folds it, or steps up to the note it is under.
+  tree.addEventListener('keydown', event => {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+    const row = event.target.closest?.('.row');
+    if (!row) return;
+    event.preventDefault();
+    const id = row.dataset.id, item = row.parentElement, expanded = item.getAttribute('aria-expanded');
+    if (event.key === 'ArrowRight') {
+      if (expanded === 'false') fold(id, false);
+      else if (expanded === 'true') item.querySelector(':scope > ul .row')?.focus();
+    } else if (expanded === 'true' && state.filter.trim() === '') fold(id, true);
+    else {
+      const up = parentOf(id);
+      if (up !== null) tree.querySelector(`.row[data-id="${CSS.escape(up)}"]`)?.focus();
+    }
+  });
   const summary = () => `${state.index.length} ${state.index.length === 1 ? 'note' : 'notes'}${state.note ? ` · ${state.dirty ? 'unsaved changes' : 'saved'}` : ''}`;
 
   // ---- One note.
@@ -134,8 +194,11 @@ export async function startWorkspace(nendo, context, kit) {
     } catch (error) { if (ticket === openTicket) showProblem(error.message); return; }
     if (ticket !== openTicket) return;
     if (record === null) { showProblem('That note is not in this file any more.'); return; }
-    if (state.note?.recordId !== recordId) keepDraft();
+    const moving = state.note?.recordId !== recordId;
+    if (moving) keepDraft();
     state.note = record;
+    // Going to a note unfolds its branch; reading the same note again leaves the tree as the person left it.
+    if (moving) reveal(recordId);
     const kept = drafts.get(recordId);
     if (kept !== undefined) {
       state.draft = { title: kept.title, body: kept.body };
@@ -150,6 +213,7 @@ export async function startWorkspace(nendo, context, kit) {
     storeDrafts();
     await showNote();
     if (ticket !== openTicket) return;
+    tree.querySelector('.row[aria-current=true]')?.scrollIntoView({ block: 'nearest' });
     if (!fromPlace && can('ui.setPlace')) nendo.ui.setPlace({ noteId: recordId }, { label: state.draft.title.slice(0, 80) || 'Note', replace: state.firstPlace !== false }).catch(() => undefined);
     state.firstPlace = false;
   }
@@ -351,6 +415,49 @@ export async function startWorkspace(nendo, context, kit) {
     if (event.key === 'Home') { event.preventDefault(); setSplit(20); }
     if (event.key === 'End') { event.preventDefault(); setSplit(100); }
   });
+
+  // ---- The line between the tree and the page: dragged, or moved with the arrow keys; kept in this browser.
+  const treeSplitter = $('tree-splitter'), TREE_WIDTH = 250, TREE_MIN = 160;
+  const treeMax = () => Math.max(TREE_MIN, Math.min(720, Math.round(innerWidth * 0.6)));
+  function setTreeWidth(px, { keep = true } = {}) {
+    const value = Math.round(Math.max(TREE_MIN, Math.min(treeMax(), Number.isFinite(px) ? px : TREE_WIDTH)));
+    app.style.setProperty('--tree-width', `${value}px`);
+    treeSplitter.setAttribute('aria-valuenow', String(value));
+    treeSplitter.setAttribute('aria-valuemax', String(treeMax()));
+    state.treeWidth = value;
+    if (keep) { try { localStorage.setItem('garden.treeWidth', String(value)); } catch { /* a private window keeps none */ } }
+    expose();
+  }
+  setTreeWidth((() => { try { return Number(localStorage.getItem('garden.treeWidth')) || TREE_WIDTH; } catch { return TREE_WIDTH; } })(), { keep: false });
+  treeSplitter.addEventListener('pointerdown', event => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    treeSplitter.setPointerCapture(event.pointerId);
+    treeSplitter.classList.add('dragging');
+    app.classList.add('resizing');
+    const left = app.getBoundingClientRect().left;
+    const move = moved => setTreeWidth(moved.clientX - left, { keep: false });
+    const up = () => {
+      treeSplitter.classList.remove('dragging');
+      app.classList.remove('resizing');
+      treeSplitter.removeEventListener('pointermove', move);
+      treeSplitter.removeEventListener('pointerup', up);
+      treeSplitter.removeEventListener('pointercancel', up);
+      setTreeWidth(state.treeWidth);
+    };
+    treeSplitter.addEventListener('pointermove', move);
+    treeSplitter.addEventListener('pointerup', up);
+    treeSplitter.addEventListener('pointercancel', up);
+  });
+  treeSplitter.addEventListener('dblclick', () => setTreeWidth(TREE_WIDTH));
+  treeSplitter.addEventListener('keydown', event => {
+    const step = { ArrowLeft: -16, ArrowRight: 16 }[event.key];
+    if (step !== undefined) { event.preventDefault(); setTreeWidth(state.treeWidth + step); }
+    if (event.key === 'Home') { event.preventDefault(); setTreeWidth(TREE_MIN); }
+    if (event.key === 'End') { event.preventDefault(); setTreeWidth(treeMax()); }
+  });
+  // A window made narrower never leaves the tree wider than the page can spare.
+  addEventListener('resize', () => { if (state.treeWidth > treeMax()) setTreeWidth(treeMax(), { keep: false }); });
 
   // ---- The page's width, as the person picks it; kept in this browser.
   function setWidth(level, { keep = true } = {}) {
@@ -596,12 +703,14 @@ export async function startWorkspace(nendo, context, kit) {
           { kind: 'button', id: 'redo', label: 'Redo save', icon: 'redo', iconOnly: true, disabled: state.redo.length === 0 || state.saving },
         ] },
         { kind: 'text', id: 'summary', text: summary() },
+        { kind: 'toggle', id: 'about', label: 'Garden guide', icon: 'info', iconOnly: true, pressed: aboutShown },
         { kind: 'menu', id: 'more', label: 'Note', icon: 'more', items: [
           { id: 'open-record', label: 'Open record page', icon: 'external', disabled: state.note === null },
           { id: 'graph', label: 'Graph of the garden', icon: 'chain' },
           { id: 'evergreen', label: 'Mark evergreen', icon: 'check', disabled: state.note === null },
           { kind: 'separator' },
-          { kind: 'check', id: 'about', label: 'About this view', checked: aboutShown },
+          { id: 'expand-all', label: 'Expand all', icon: 'chevronRight' },
+          { id: 'collapse-all', label: 'Collapse all', icon: 'chevronLeft' },
         ] },
       ],
       add: 'new',
@@ -626,7 +735,9 @@ export async function startWorkspace(nendo, context, kit) {
       case 'open-record': if (state.note) nendo.ui.openRecord('gd.note', state.note.recordId).catch(error => setStatus(error.message)); break;
       case 'graph': if (can('ui.openScreen')) nendo.ui.openScreen('gd.note.graph').catch(error => setStatus(error.message)); break;
       case 'evergreen': await runCommand('gd.cmd.evergreen'); break;
-      case 'about': aboutShown = typeof value === 'boolean' ? value : !aboutShown; aboutText.hidden = !aboutShown; declareToolbar(); break;
+      case 'about': showGuide(typeof value === 'boolean' ? value : !aboutShown); break;
+      case 'expand-all': foldAll(false); break;
+      case 'collapse-all': foldAll(true); break;
       default: break;
     }
     expose();
@@ -648,13 +759,94 @@ export async function startWorkspace(nendo, context, kit) {
     const ctrl = (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey;
     if (ctrl && event.key.toLowerCase() === 's') { event.preventDefault(); save(); }
     if (ctrl && event.key.toLowerCase() === 'e' && !event.defaultPrevented) { event.preventDefault(); command('edit', null); }
-    if (event.key === 'Escape') { hideHover(); if (aboutShown) command('about', false); }
+    if (event.key === 'Escape') { hideHover(); if (aboutShown) showGuide(false); }
   });
   if (can('ui.setToolbar')) {
     nativeChrome = true;
     document.documentElement.classList.add('native-chrome');
     nendo.on('command', ({ id, value }) => { command(id, value); });
   }
+
+  // ---- The Garden guide: how the garden works, with the person's own garden in numbers and a few
+  // ways in. A sheet beside the page rather than a dialog, so the page stays usable while it is open.
+  let guideReturn = null;
+  function showGuide(shown) {
+    aboutShown = shown;
+    if (shown) {
+      if (guide.hidden) guideReturn = document.activeElement;
+      drawGuide();
+      guide.hidden = false;
+      guide.focus({ preventScroll: true });
+    } else if (!guide.hidden) {
+      guide.hidden = true;
+      if (guideReturn?.isConnected) guideReturn.focus({ preventScroll: true });
+      guideReturn = null;
+    }
+    for (const button of $('own-toolbar').querySelectorAll('[data-command=about]')) button.setAttribute('aria-pressed', String(aboutShown));
+    declareToolbar();
+    expose();
+  }
+  function drawGuide() {
+    const linked = new Set(), into = new Map();
+    for (const link of state.links) {
+      const from = link.values[F.link.from], to = link.values[F.link.to];
+      if (from === to) continue;
+      linked.add(from); linked.add(to);
+      into.set(to, (into.get(to) ?? 0) + 1);
+    }
+    const notes = state.index.filter(note => note.values[F.note.kind] !== 'Template');
+    const stageOf = note => note.values[F.note.stage] ?? 'Seed';
+    const seeds = notes.filter(note => stageOf(note) === 'Seed');
+    const lonely = notes.filter(note => !linked.has(note.recordId));
+    const stats = { notes: state.index.length, links: state.links.length, tags: state.tags.length, seeds: seeds.length, orphans: lonely.length };
+    for (const [name, value] of Object.entries(stats)) guide.querySelector(`[data-stat=${name}]`).textContent = value.toLocaleString();
+    state.guide = stats;
+    for (const stage of ['Seed', 'Growing', 'Evergreen']) {
+      const count = notes.filter(note => stageOf(note) === stage).length;
+      guide.querySelector(`[data-stage-count=${stage}]`).textContent = String(count);
+      // Drawn from nothing on the next frame, so the bar grows as the guide opens.
+      const bar = guide.querySelector(`.stage-bar[data-stage=${stage}]`);
+      bar.style.width = '0';
+      requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = notes.length ? `${count / notes.length * 100}%` : '0'; }));
+    }
+    // Two ways in: the seed most asked for, and a note nothing links to yet.
+    const wanted = [...seeds].sort((a, b) => (into.get(b.recordId) ?? 0) - (into.get(a.recordId) ?? 0) || a.title.localeCompare(b.title))[0];
+    const alone = lonely.find(note => note !== wanted);
+    const picks = [];
+    if (wanted) {
+      const asked = into.get(wanted.recordId) ?? 0;
+      picks.push(['Grow next: ', wanted, asked ? `, asked for by ${asked} ${asked === 1 ? 'link' : 'links'}.` : ', still a seed.']);
+    }
+    if (alone) picks.push(['Link up: ', alone, ' has no links in or out yet.']);
+    if (!picks.length) picks.push(['Every note is linked and nothing waits to grow. Plant something new.', null, '']);
+    $('guide-picks').replaceChildren(...picks.map(([before, note, after]) => {
+      const item = document.createElement('li');
+      const words = document.createElement('span');
+      words.append(before);
+      if (note) { const name = document.createElement('b'); name.textContent = note.title; words.append(name); }
+      words.append(after);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.guide = note ? `open:${note.recordId}` : 'new';
+      button.textContent = note ? 'Open' : 'New note';
+      item.append(words, button);
+      return item;
+    }));
+  }
+  guide.addEventListener('click', async event => {
+    const link = event.target.closest('.guide-toc a');
+    if (link) { event.preventDefault(); guide.querySelector(link.getAttribute('href'))?.scrollIntoView({ block: 'start' }); return; }
+    if (event.target.closest('#guide-close')) { showGuide(false); return; }
+    const button = event.target.closest('button[data-guide]');
+    if (!button) return;
+    const action = button.dataset.guide;
+    if (action === 'graph') { await command('graph'); return; }
+    showGuide(false);
+    if (action === 'new') startNew();
+    else if (action === 'daily') await daily();
+    else if (action.startsWith('open:')) await open(action.slice('open:'.length));
+  });
+  $('empty').addEventListener('click', event => { if (event.target.closest('button[data-guide=open]')) showGuide(true); });
 
   // ---- Following the file, and Back and Forward.
   let pending = null;

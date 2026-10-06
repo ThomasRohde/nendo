@@ -6,7 +6,12 @@ A custom view for a garden of notes, in three places:
   `opensFile`): the notes as a tree on the left and one note in the middle, in View or Edit.
   View is the page; Edit (Ctrl E toggles) is its Markdown with the preview beside it, filling
   the view. Drag the divider between them, or move it with the arrow keys; at the right edge it
-  folds the preview away. Narrow, Medium or Full sets the page's width.
+  folds the preview away. Narrow, Medium or Full sets the page's width. A note with notes under
+  it has an arrow that folds its branch away (Left and Right do the same), and the line between
+  the tree and the page drags too.
+- **The Garden guide**, a sheet beside the page: the garden in numbers, a seed to grow next and
+  a note to link up, four first moves with buttons that do them, what Markdown becomes, the life
+  of a note, finding your way, the keys, and agents.
 - **The Graph screen** (`extensionGraphSurface` over `gd.link`): the whole garden as a living
   d3 graph.
 - **The Backlinks panel** on a note's record page (`extensionRecordPanel`).
@@ -57,8 +62,8 @@ reads every note with its neighbours as a list.
 Where Nendo offers its toolbar the view draws no controls of its own. The Garden view declares
 Find (Ctrl Shift F), New note (also Nendo's Add), Today, View or Edit, the width as three icons
 (Narrow, Medium, Full; words on a Nendo without those icons),
-Save (Ctrl S), Undo and Redo, and a menu with Open record page, Graph of the garden,
-Mark evergreen and About. Following a wikilink declares a place, so Back and Forward move
+Save (Ctrl S), Undo and Redo, the Garden guide, and a menu with Open record page, Graph of the
+garden, Mark evergreen, Expand all and Collapse all. Following a wikilink declares a place, so Back and Forward move
 between notes. The Graph screen declares Find, Colour by stage or kind, Tags, Orphans,
 Arrows, Spread, zoom and Fit (Ctrl 0), and About. On an older Nendo the views show their own
 controls.

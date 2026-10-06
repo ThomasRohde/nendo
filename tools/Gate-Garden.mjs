@@ -101,6 +101,68 @@ async page => {
   assert(places.some(p => p.place.noteId === 'gd.note.how-links-work' && p.label === 'How links work' && !p.replace), 'Following a wikilink must declare a new place named after the note: ' + JSON.stringify(places));
   checks.push('wikilink navigation and places');
 
+  // The tree folds. The arrow beside a note with notes under it folds the branch away under a real
+  // pointer and opens nothing; Right and Left unfold, step in, step up and fold; the fold is kept;
+  // and following a link to a note in a folded branch unfolds it.
+  const rowCount = () => frame.locator('#tree .row').count();
+  const expanded = id => frame.evaluate(id => document.querySelector(`#tree .row[data-id="${id}"]`)?.parentElement.getAttribute('aria-expanded') ?? null, id);
+  const placesBeforeFold = (await page.evaluate(() => window.broker.places)).length;
+  assert(await expanded('gd.note.start-here') === 'true' && await rowCount() === seedNotes, 'A branch starts unfolded.');
+  const twisty = await frame.locator('#tree .row[data-id="gd.note.start-here"] .twisty').boundingBox();
+  await page.mouse.click(twisty.x + twisty.width / 2, twisty.y + twisty.height / 2);
+  await frame.waitForFunction(() => document.querySelectorAll('#tree .row').length === 1, null, { timeout: 2000 })
+    .catch(async () => { throw Error(`The arrow must fold the branch away: ${await rowCount()} rows.`); });
+  const folded = { expanded: await expanded('gd.note.start-here'), note: (await state()).note, places: (await page.evaluate(() => window.broker.places)).length,
+    kept: await frame.evaluate(() => Object.entries(localStorage).find(([key]) => key.startsWith('garden.tree.collapsed'))?.[1] ?? null) };
+  assert(folded.expanded === 'false' && folded.note === 'gd.note.how-links-work' && folded.places === placesBeforeFold && folded.kept?.includes('gd.note.start-here'),
+    `Folding opens nothing and is kept: ${JSON.stringify(folded)}.`);
+  await frame.locator('#tree .row[data-id="gd.note.start-here"]').focus();
+  await page.keyboard.press('ArrowRight');
+  assert(await rowCount() === seedNotes && await expanded('gd.note.start-here') === 'true', 'Right must unfold a folded branch.');
+  await page.keyboard.press('ArrowRight');
+  const stepped = await frame.evaluate(() => document.activeElement?.dataset.id);
+  assert(stepped === 'gd.note.how-links-work', `Right on an unfolded branch must step to its first note: ${stepped}.`);
+  await page.keyboard.press('ArrowLeft');
+  assert(await frame.evaluate(() => document.activeElement?.dataset.id) === 'gd.note.start-here', 'Left must step up to the note a note is under.');
+  await page.keyboard.press('ArrowLeft');
+  assert(await rowCount() === 1 && await expanded('gd.note.start-here') === 'false', 'Left on an unfolded branch must fold it.');
+  await frame.locator('#reading-body a.wikilink[data-id="gd.note.start-here"]').first().click();
+  await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here');
+  assert(await rowCount() === 1, 'Opening a note at the top leaves a folded branch folded.');
+  await frame.locator('#reading-body a.wikilink[data-id="gd.note.how-links-work"]').first().click();
+  await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.how-links-work');
+  assert(await rowCount() === seedNotes && await frame.locator('#tree .row[aria-current=true][data-id="gd.note.how-links-work"]').count() === 1,
+    'Opening a note in a folded branch must unfold it and show the note as current.');
+  await command('collapse-all');
+  assert(await rowCount() === 1, 'Collapse all must fold every branch.');
+  await command('expand-all');
+  assert(await rowCount() === seedNotes, 'Expand all must unfold every branch.');
+  checks.push('tree folds');
+
+  // The line between the tree and the page drags with a real pointer, moves with the keys and resets on a double-click.
+  const treeSide = () => frame.evaluate(() => ({ sidebar: document.getElementById('sidebar').getBoundingClientRect().width, mainLeft: document.getElementById('main').getBoundingClientRect().left,
+    value: Number(document.getElementById('tree-splitter').getAttribute('aria-valuenow')), kept: localStorage.getItem('garden.treeWidth') }));
+  const treeBefore = await treeSide();
+  assert(treeBefore.sidebar === 250 && treeBefore.mainLeft === 250, `The tree starts 250 px wide: ${JSON.stringify(treeBefore)}.`);
+  const grip = await frame.locator('#tree-splitter').boundingBox();
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + 400);
+  await page.mouse.down();
+  await page.mouse.move(grip.x + grip.width / 2 + 150, grip.y + 400, { steps: 10 });
+  await page.mouse.up();
+  const treeDragged = await treeSide();
+  assert(Math.abs(treeDragged.sidebar - 400) <= 2 && Math.abs(treeDragged.mainLeft - treeDragged.sidebar) <= 1 && treeDragged.value === Math.round(treeDragged.sidebar) && treeDragged.kept === String(treeDragged.value),
+    `Dragging the line 150 px right must widen the tree to 400 px and keep it: ${JSON.stringify({ treeBefore, treeDragged })}.`);
+  assert((await state()).note === 'gd.note.how-links-work', 'Dragging the line opens nothing.');
+  await frame.locator('#tree-splitter').focus();
+  await page.keyboard.press('ArrowLeft');
+  assert((await treeSide()).value === treeDragged.value - 16, 'Left on the line must narrow the tree by 16 px.');
+  await page.keyboard.press('Home');
+  assert((await treeSide()).sidebar === 160, 'Home on the line narrows the tree to its least.');
+  await frame.locator('#tree-splitter').dblclick();
+  const treeReset = await treeSide();
+  assert(treeReset.sidebar === 250 && treeReset.kept === '250', `A double-click on the line resets the tree to 250 px: ${JSON.stringify(treeReset)}.`);
+  checks.push('tree divider drags');
+
   // 3. [[ autocomplete.
   await frame.locator('#tree .row[data-id="gd.note.start-here"]').click();
   await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here' && !window.garden.dirty);
@@ -367,6 +429,59 @@ async page => {
   // 14. A save on its way (review R-005): what is typed meanwhile stays a draft, a second Save
   // writes nothing more, a note gone to meanwhile is not replaced, and a note read late never lands.
   await page.setViewportSize({ width: 1440, height: 900 });
+
+  // The Garden guide: Nendo's row toggles it; it opens beside the page with focus on it, counts this
+  // garden, scrolls to a section from its contents, follows the theme, closes on Esc, and a way in acts.
+  await command('about', true);
+  await frame.waitForFunction(() => !document.getElementById('guide').hidden, null, { timeout: 2000 }).catch(() => { throw Error('Garden guide must open from Nendo\'s row.'); });
+  await page.waitForFunction(() => window.broker.toolbars.at(-1).items.find(i => i.id === 'about')?.pressed === true, null, { timeout: 2000 })
+    .catch(async () => { throw Error('Nendo\'s row must show the guide as open: ' + JSON.stringify((await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'about'))); });
+  await page.waitForTimeout(700);
+  const guideOpen = await frame.evaluate(() => { const box = document.getElementById('guide').getBoundingClientRect();
+    const stat = name => Number(document.querySelector(`[data-stat=${name}]`).textContent.replace(/\D/g, ''));
+    const bars = [...document.querySelectorAll('.stage-bar')].reduce((sum, bar) => sum + bar.getBoundingClientRect().width, 0);
+    return { sections: document.querySelectorAll('#guide .guide-section').length, notes: stat('notes'), links: stat('links'), tags: stat('tags'),
+      focus: document.activeElement?.id, right: innerWidth - box.right, width: box.width, bars, track: document.querySelector('.guide-stages').getBoundingClientRect().width,
+      picks: document.querySelectorAll('#guide-picks li button').length, note: window.garden.note?.recordId }; });
+  const notesNow = (await records('gd.note')).length, linksNow = (await records('gd.link')).length, tagsNow = (await records('gd.tag')).length;
+  assert(guideOpen.sections >= 7 && guideOpen.notes === notesNow && guideOpen.links === linksNow && guideOpen.tags === tagsNow && guideOpen.focus === 'guide' && Math.abs(guideOpen.right) <= 1
+    && guideOpen.width >= 400 && Math.abs(guideOpen.bars - guideOpen.track) <= 2 && guideOpen.picks >= 1 && guideOpen.note === 'gd.note.start-here',
+    `The guide must open beside the page and count this garden (${notesNow} notes, ${linksNow} links, ${tagsNow} tags): ${JSON.stringify(guideOpen)}.`);
+  const keysLink = await frame.locator('.guide-toc a[href="#guide-keys"]').boundingBox();
+  await page.mouse.click(keysLink.x + keysLink.width / 2, keysLink.y + keysLink.height / 2);
+  await page.waitForTimeout(700);
+  const scrolled = await frame.evaluate(() => { const body = document.querySelector('.guide-body').getBoundingClientRect(), keys = document.getElementById('guide-keys').getBoundingClientRect();
+    const scroller = document.querySelector('.guide-body');
+    return { offset: keys.top - body.top, scrollTop: scroller.scrollTop, atEnd: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop <= 1, inView: keys.top >= body.top - 1 && keys.bottom <= body.bottom + 1 }; });
+  // Keys sits near the end: it either reaches the top, or the guide scrolls to its end with Keys whole in view.
+  assert(scrolled.scrollTop > 0 && (Math.abs(scrolled.offset) <= 8 || (scrolled.atEnd && scrolled.inView)), `The contents must scroll the guide to Keys: ${JSON.stringify(scrolled)}.`);
+  const guideColours = {};
+  for (const mode of ['dark', 'light']) {
+    await page.evaluate(mode => window.broker.pushTheme(mode), mode); await page.waitForTimeout(150);
+    guideColours[mode] = await frame.evaluate(() => {
+      const token = name => { const e = document.createElement('i'); e.style.color = `var(--nendo-${name})`; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; };
+      const guide = document.getElementById('guide');
+      return { background: getComputedStyle(guide).backgroundColor, raised: (() => { const e = document.createElement('i'); e.style.color = 'var(--nendo-surface-raised)'; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; })(),
+        ink: getComputedStyle(guide).color, evergreen: getComputedStyle(document.querySelector('.stage-bar.evergreen')).backgroundColor, green: token('tone-green') };
+    });
+    assert(guideColours[mode].background === guideColours[mode].raised && guideColours[mode].evergreen === guideColours[mode].green, `${mode}: the guide is drawn in the theme's tokens: ${JSON.stringify(guideColours[mode])}`);
+    await frame.locator('.guide-body').evaluate(body => { body.style.scrollBehavior = 'auto'; body.scrollTop = 0; body.style.scrollBehavior = ''; });
+    await page.waitForTimeout(150);
+    await page.screenshot({ path: '__OUTPUT__/guide-' + mode + '.png', fullPage: true });
+  }
+  assert(guideColours.light.background !== guideColours.dark.background && guideColours.light.ink !== guideColours.dark.ink, 'The guide follows the theme.');
+  await page.keyboard.press('Escape');
+  await frame.waitForFunction(() => document.getElementById('guide').hidden, null, { timeout: 2000 }).catch(() => { throw Error('Esc must close the guide.'); });
+  await page.waitForFunction(() => window.broker.toolbars.at(-1).items.find(i => i.id === 'about')?.pressed === false, null, { timeout: 2000 })
+    .catch(() => { throw Error('Nendo\'s row must show the guide as closed after Esc.'); });
+  await command('about', true);
+  await frame.waitForFunction(() => !document.getElementById('guide').hidden);
+  const plant = await frame.locator('#guide button[data-guide="new"]').first().boundingBox();
+  await page.mouse.click(plant.x + plant.width / 2, plant.y + plant.height / 2);
+  await frame.waitForFunction(() => document.getElementById('guide').hidden && window.garden.note === null && window.garden.mode === 'edit', null, { timeout: 2000 })
+    .catch(async () => { throw Error('Plant one now must close the guide and open a new note in Edit: ' + JSON.stringify(await frame.evaluate(() => ({ hidden: document.getElementById('guide').hidden, mode: window.garden.mode, note: window.garden.note?.recordId ?? null })))); });
+  checks.push('Garden guide');
+
   await frame.evaluate(() => localStorage.clear());
   await page.evaluate(fixture => { window.broker.setFixture(fixture); window.broker.remount(); }, fixture);
   await page.waitForTimeout(300);

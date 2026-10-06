@@ -31,14 +31,27 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 .native-chrome .own-chrome { display: none !important; }
 
 /* ---- The workspace: a tree of notes beside one note. */
-#app { display: grid; grid-template-columns: 250px 1fr; height: 100vh; }
-#sidebar { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+#app { --tree-width: 250px; position: relative; display: grid; grid-template-columns: var(--tree-width) minmax(0, 1fr); height: 100vh; }
+#sidebar { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+/* The line between the tree and the page drags. It lies over that border, out of the grid, so
+   the page's own measurements do not move with it. */
+#tree-splitter { position: absolute; top: 0; bottom: 0; left: calc(var(--tree-width) - 5px); width: 9px; z-index: 6; cursor: col-resize; touch-action: none; }
+#tree-splitter::before { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; background: transparent; transition: background .15s; }
+#tree-splitter:hover::before, #tree-splitter.dragging::before, #tree-splitter:focus-visible::before { background: var(--accent); width: 3px; left: 3px; }
+#tree-splitter:focus-visible { outline: none; }
+#app.resizing { cursor: col-resize; user-select: none; }
 .side-head { padding: 10px; border-bottom: 1px solid var(--line); }
 .side-head input { width: 100%; }
 #tree, #tree ul { list-style: none; margin: 0; padding: 0; }
 #tree { overflow: auto; padding: 6px; flex: 1; }
 #tree ul { padding-left: 14px; }
-#tree .row { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; padding: 4px 8px; color: var(--ink); }
+#tree .row { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; padding: 4px 8px 4px 2px; color: var(--ink); }
+/* The arrow that folds a branch away; a note with nothing under it keeps the space, so names line up. */
+#tree .twisty { flex: none; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 4px; color: var(--muted); }
+#tree .twisty svg { width: 10px; height: 10px; transition: transform .15s; }
+#tree .twisty:hover { background: var(--line); color: var(--ink); }
+#tree .twisty.leaf { visibility: hidden; }
+#tree li[aria-expanded=true] > .row .twisty svg { transform: rotate(90deg); }
 #tree .row:hover { background: var(--soft); }
 #tree .row[aria-current=true] { background: var(--accent-soft); color: var(--accent); }
 #tree .row .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--nendo-tone-grey, #677080); }
@@ -55,6 +68,7 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 #status.external { color: var(--warning); }
 #problem { margin: 0; padding: 8px 16px; border-bottom: 1px solid var(--danger); color: var(--danger); background: var(--panel); }
 #empty { margin: 40px; color: var(--muted); text-align: center; }
+#empty p { margin: 0 0 12px; }
 #note { flex: 1; min-height: 0; overflow: auto; padding: 16px 28px 32px; }
 /* The sheet's width is the person's choice, in three levels. It is 100% wide and capped, never
    sized by its content: an auto-margined box in a flex column shrinks to fit, which left a wide
@@ -177,7 +191,83 @@ h2 { font-size: 12px; margin: 0 0 6px; color: var(--muted); text-transform: uppe
 #graph-problem { margin: 8px 12px; padding: 8px 10px; border: 1px solid var(--danger); border-radius: 8px; color: var(--danger); background: var(--panel); }
 #graph-canvas { flex: 1; min-height: 0; }
 
+/* ---- The Garden guide: a sheet at the right that leaves the page usable beside it. */
+#guide { position: fixed; top: 0; right: 0; bottom: 0; z-index: 25; width: min(480px, 100vw); display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--line-strong); box-shadow: var(--shadow); animation: guide-in .22s ease-out; }
+#guide:focus { outline: none; }
+@keyframes guide-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.guide-head { position: relative; padding: 18px 20px 12px; background: linear-gradient(180deg, color-mix(in srgb, var(--nendo-tone-green, #2f7d4f) 12%, transparent), transparent); }
+.guide-art { display: block; width: 100%; max-width: 260px; height: auto; margin-bottom: 6px; overflow: visible; }
+.guide-art .soil { stroke: var(--line-strong); stroke-width: 2; stroke-linecap: round; fill: none; }
+.guide-art .vine { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 220; stroke-dashoffset: 220; animation: vine-draw 1.1s .25s ease-out forwards; }
+.guide-art .vine.late { stroke-dasharray: 4 4; stroke: var(--muted); stroke-dashoffset: 0; opacity: 0; animation: fade-in .6s 1.2s ease-out forwards; }
+.guide-art .stem { stroke: var(--nendo-tone-green, #2f7d4f); stroke-width: 2.5; stroke-linecap: round; fill: none; }
+.guide-art .plant { transform-box: fill-box; transform-origin: 50% 100%; animation: sprout .5s ease-out both; }
+.guide-art .seed { animation-delay: .05s; } .guide-art .growing { animation-delay: .25s; } .guide-art .evergreen { animation-delay: .45s; }
+.guide-art .seed circle { fill: var(--nendo-tone-amber, #b7791f); }
+.guide-art .growing circle, .guide-art .growing .leaf { fill: var(--nendo-tone-teal, #1f7a7a); }
+.guide-art .evergreen .crown, .guide-art .evergreen circle { fill: var(--nendo-tone-green, #2f7d4f); }
+.guide-art .evergreen circle { stroke: var(--panel); stroke-width: 2; }
+@keyframes sprout { from { transform: scale(.2); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes vine-draw { to { stroke-dashoffset: 0; } }
+@keyframes fade-in { to { opacity: .8; } }
+.guide-kicker { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--nendo-tone-green, #2f7d4f); }
+#guide-title { margin: 2px 0 6px; font-size: 22px; line-height: 1.25; letter-spacing: -0.01em; color: var(--ink); text-transform: none; }
+.guide-intro p:last-child { margin: 0; color: var(--muted); }
+.guide-close { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; padding: 0; border-radius: 8px; background: transparent; border-color: transparent; color: var(--muted); font-size: 14px; }
+.guide-close:hover { background: var(--soft); color: var(--ink); border-color: var(--line); }
+.guide-toc { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 20px 12px; border-bottom: 1px solid var(--line); }
+.guide-toc a { padding: 2px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); text-decoration: none; font-size: 12px; background: var(--bg); }
+.guide-toc a:hover { border-color: var(--accent); color: var(--accent); }
+.guide-body { flex: 1; min-height: 0; overflow: auto; padding: 4px 20px 28px; scroll-behavior: smooth; }
+.guide-section { padding: 16px 0 6px; border-top: 1px solid var(--line); scroll-margin-top: 4px; }
+.guide-section:first-child { border-top: 0; }
+.guide-section h3 { margin: 0 0 10px; font-size: 15px; }
+.guide-section p { margin: 0 0 10px; }
+#guide code, #guide kbd { font: 12px/1.4 Consolas, "Cascadia Code", monospace; }
+#guide code { background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+#guide kbd { display: inline-block; min-width: 20px; padding: 1px 6px; text-align: center; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 5px; background: var(--bg); color: var(--ink); }
+.guide-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 0 0 12px; }
+.guide-stats div { padding: 8px 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); text-align: center; }
+.guide-stats dt { font-size: 11px; color: var(--muted); line-height: 1.2; }
+.guide-stats dd { margin: 2px 0 0; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.guide-stages { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--soft); }
+.stage-bar { flex: 0 0 auto; width: 0; transition: width .6s ease-out; }
+.tone, .stage-bar { background: var(--nendo-tone-grey, #677080); }
+.seed.stage-bar, .tone.seed { background: var(--nendo-tone-amber, #b7791f); }
+.growing.stage-bar, .tone.growing { background: var(--nendo-tone-teal, #1f7a7a); }
+.evergreen.stage-bar, .tone.evergreen { background: var(--nendo-tone-green, #2f7d4f); }
+.tone { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+.guide-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 10px; font-size: 12px; color: var(--muted); }
+.guide-legend span { display: inline-flex; align-items: center; }
+.guide-legend b { margin-left: 4px; color: var(--ink); }
+.guide-picks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.guide-picks li { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--accent-soft); }
+.guide-picks li span { flex: 1; min-width: 0; }
+.guide-picks li button { flex: none; }
+.guide-steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 10px; }
+.guide-steps li { position: relative; padding-left: 36px; counter-increment: step; }
+.guide-steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--bg); font-size: 12px; font-weight: 600; }
+.guide-steps li button { display: block; margin-top: 6px; }
+#guide button[data-guide] { border-color: var(--accent); color: var(--accent); }
+#guide button[data-guide]:hover { background: var(--accent-soft); }
+#guide button.link-like { display: inline; margin: 0; padding: 0 2px; border: 0; background: none; text-decoration: underline; }
+.guide-aside { color: var(--muted); font-size: 13px; }
+.guide-table { width: 100%; border-collapse: collapse; margin: 0 0 10px; font-size: 13px; }
+.guide-table th { text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding: 0 8px 6px 0; }
+.guide-table td { vertical-align: top; padding: 7px 8px 7px 0; border-top: 1px solid var(--line); }
+.guide-table td:first-child { width: 42%; white-space: nowrap; }
+.guide-life { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
+.guide-life li { display: flex; align-items: flex-start; gap: 4px; }
+.guide-life .tone { margin-top: 6px; }
+.guide-life strong { display: block; }
+.guide-tips { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
+.guide-keys { margin: 0; display: grid; gap: 6px; }
+.guide-keys div { display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: baseline; }
+.guide-keys dd { margin: 0; }
+
 @media (max-width: 760px) {
+  #tree-splitter { display: none; }
+  .guide-stats { grid-template-columns: repeat(3, 1fr); }
   #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   #sidebar { border-right: 0; border-bottom: 1px solid var(--line); max-height: 34vh; }
   #panes, .editing-mode #about, #about { grid-template-columns: 1fr; }
