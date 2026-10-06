@@ -134,44 +134,6 @@ try {
         }
     }
 
-    Write-Host '== Blackbox review coverage =='
-    # The blackbox prompt is the only lane that measures what the interface teaches an
-    # outside client. A contract it never reaches is a feature a review passes over in
-    # silence, so every published contract has to be accounted for in the coverage table.
-    $promptPath = Join-Path $repoRoot 'docs/reviews/blackbox-prompt.md'
-    $coveragePath = Join-Path $repoRoot 'docs/reviews/README.md'
-    foreach ($required in @($promptPath, $coveragePath)) {
-        if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-            throw "The blackbox review lane is missing a file: $required"
-        }
-    }
-
-    $promptText = Get-Content -LiteralPath $promptPath -Raw
-    $coverageText = Get-Content -LiteralPath $coveragePath -Raw
-
-    $contractFiles = @(
-        Get-ChildItem -LiteralPath (Join-Path $repoRoot 'docs/contracts') -File -Filter '*.md' |
-            Where-Object { $_.Name -ne 'README.md' }
-    )
-    foreach ($contract in $contractFiles) {
-        if ($coverageText -notmatch [regex]::Escape("../contracts/$($contract.Name)")) {
-            throw "docs/reviews/README.md does not say how the blackbox prompt reaches $($contract.Name). Add a coverage row — including one that says the contract is person-owned or out of scope, with the reason."
-        }
-    }
-
-    $phases = @(
-        [regex]::Matches($coverageText, 'Phase (\d+)') |
-            ForEach-Object { $_.Groups[1].Value } |
-            Sort-Object -Unique
-    )
-    if ($phases.Count -eq 0) {
-        throw 'docs/reviews/README.md names no prompt phase; the coverage table cannot be checked.'
-    }
-    foreach ($phase in $phases) {
-        Assert-Match $promptText "(?m)^## Phase $phase — " "docs/reviews/README.md maps a contract onto Phase $phase, which docs/reviews/blackbox-prompt.md does not contain."
-    }
-    Write-Host "OK       $($contractFiles.Count) contract(s) across $($phases.Count) prompt phase(s)."
-
     Write-Host '== MCP surface count =='
     # The contract opens by counting the resources and tools an agent sees, and the
     # sentence drifted when a tool arrived without it moving (W-144). The count is read

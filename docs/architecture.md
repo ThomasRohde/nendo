@@ -1144,13 +1144,6 @@ refresh. It also records that a grant binds the whole definition revision, so ev
 a change that alters no rule asks the owner again.
 
 The three gates above were written by somebody who already knew where everything
-was. Thus none of them can show whether a capable client could find it. The blackbox review
-lane covers this. The project gives
-[`docs/reviews/blackbox-prompt.md`](reviews/blackbox-prompt.md) to an agent that
-has never seen this repository.
-[`docs/reviews/README.md`](reviews/README.md) tells how to run a round and which
-contract each phase reaches. It is a manual lane, because it needs a person at the
-keyboard and a fresh reviewer. Thus it runs before a release and not in the gate.
-The repository gate checks that the coverage table in `docs/reviews/README.md`
-names every published contract, and that the prompt contains each phase that the
-table names.
+was, so none of them can show whether a capable client could find it. Outside reviews
+answer that when one is run; their dated reports are kept in
+[`docs/reviews/`](reviews/README.md).

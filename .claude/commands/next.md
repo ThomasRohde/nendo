@@ -37,7 +37,7 @@ highest.
 
 ## Process
 
-1. Read `docs/dogfooding.md` — the horizons paragraph, the reference ledger and
+1. Read `docs/dogfooding.md` — the horizons paragraph, the Reference codes and
    the reading mechanics. The planner is `workspace/Planner.nendo`; closed work
    has no horizon, and an item that waits on an owner's choice points at a
    Decision (`nd.work.decision`).

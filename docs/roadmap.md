@@ -7,7 +7,7 @@ delivered work, and this file does not discuss that work again.
 ## Development planning
 
 **Nendo Development is the primary work planner.** [dogfooding.md](dogfooding.md)
-describes its setup status, connection, record types and agent handoff. Use its
+describes its connection, record types and agent handoff. Use its
 Now / Next / Later horizons, work statuses, Findings and Checks for detailed
 priorities and execution evidence. This roadmap keeps product direction,
 qualification limits and source context. Accepted ADRs and contracts keep

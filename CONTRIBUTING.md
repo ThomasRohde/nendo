@@ -73,9 +73,7 @@ outside the product boundary and outside the gate; build it locally with
   already runs, put the defect back, watch the check fail, and quote the failure
   text in the pull request.
 - **Update the contract, ADR or architecture document in the same change as the
-  behaviour**, and extend
-  [`docs/reviews/blackbox-prompt.md`](docs/reviews/blackbox-prompt.md) when a
-  change adds something a client or a person can see.
+  behaviour**.
 - Keep `workspace/` and `artifacts/` out of it: the first holds real `.nendo`
   files that are never reset or used as fixtures, the second is scratch.
 

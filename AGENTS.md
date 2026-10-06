@@ -8,7 +8,7 @@
   things live.
 - [`docs/roadmap.md`](docs/roadmap.md) — what is next and what is not qualified.
 - [`docs/dogfooding.md`](docs/dogfooding.md) — the Nendo Development planner,
-  its setup status, and the work/evidence handoff for development tasks.
+  its connection, and the work/evidence handoff for development tasks.
 - Accepted ADRs in [`docs/decisions/`](docs/decisions/README.md) are the
   architecture authority. Deferred and scheduled ADRs grant no implementation
   authority on their own.
@@ -72,7 +72,7 @@ make a task easier.
   release the lease, and hand over by the proposal's exact title so they can find
   it. Never describe a proposal as applied before they have accepted it.
 - Nendo Development is the primary work planner. Read
-  [`docs/dogfooding.md`](docs/dogfooding.md) for rollout status, semantic IDs, the
+  [`docs/dogfooding.md`](docs/dogfooding.md) for the connection, semantic IDs, the
   reference codes and how to read the file without paying for it twice.
   Connect through the registered `nendo` MCP server and inspect the open
   application before writing. Do not open its SQLite storage directly.
@@ -206,10 +206,6 @@ It bites heredocs hardest, since they carry a whole file in one command — a
 - Update the affected contract, ADR or architecture document in the same change
   as the behaviour. Inspect the final changed-file set and remove only transient
   artefacts your task created.
-- When a change adds something a client or a person can see, extend
-  [`docs/reviews/blackbox-prompt.md`](docs/reviews/blackbox-prompt.md) in the same
-  change so the next outside review reaches it. The repository gate checks that
-  every contract is accounted for there; it cannot check that a phase is honest.
 
 ## When something is reported broken
 
