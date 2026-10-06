@@ -7,6 +7,8 @@
 //   node tools/Build-Garden.mjs --dry-run       say what would be sent, take no lease
 //   node tools/Build-Garden.mjs compare         read the built file back and check it
 //   node tools/Build-Garden.mjs upgrade         bring a built file's Garden package up to this folder
+//   node tools/Build-Garden.mjs upgrade --skip-index   the same without building the search index, for a
+//                                               host that cannot take the build in a proposal (1.46.0)
 //
 // The shape is in tools/garden/definition.mjs and the reasons in docs/design/garden.md. The
 // empty file is made by Nendo itself (Nendo.Desktop.exe -new <path>). When the person has set the
@@ -124,7 +126,7 @@ async function compare(file) {
  * (each put names the content it replaces, so a newer package is never overwritten), the Graph
  * screen moved onto the Garden package, and the retired Dependency graph package taken out.
  */
-async function upgrade(file, dryRun) {
+async function upgrade(file, dryRun, skipIndex = false) {
   const listing = await file.read.json('nendo://application/extensions');
   const current = listing.find(p => p.packageId === PACKAGE_ID);
   if (!current) fail(`${TARGET_FILE_NAME} does not carry ${PACKAGE_ID}; build it first.`);
@@ -167,7 +169,7 @@ async function upgrade(file, dryRun) {
   if (front && front.properties.description !== FRONT_DESCRIPTION) operations.push(op('ui.setProperty', { surfaceId: 'garden', nodeId: 'gd.front', propertyName: 'description', value: FRONT_DESCRIPTION }));
   // Find reads the file's search index (ADR-0028): build it with the upgrade when the file has none,
   // as its own mutation, since it is a definition change with nothing to undo.
-  const buildIndex = !(await hasSearchIndex(file.read));
+  const buildIndex = !skipIndex && !(await hasSearchIndex(file.read));
   if (operations.length === 0 && !buildIndex) { console.log('Nothing to upgrade: the file carries the Garden package in this folder.'); return true; }
   const mutations = [];
   for (const operation of operations) {
@@ -190,7 +192,7 @@ async function main() {
   console.log(`Target          ${to.entry.displayName}  ${to.manifest.applicationId}  ${to.entry.endpoint}`);
   console.log(`Revision        definition ${to.manifest.definitionRevision}, data ${to.manifest.dataRevision}\n`);
   if (name === 'compare') { await compare(to); return; }
-  if (name === 'upgrade') { await upgrade(to, dryRun); return; }
+  if (name === 'upgrade') { await upgrade(to, dryRun, args.includes('--skip-index')); return; }
   if (name) {
     if (!STAGES[name]) fail(`Unknown stage ${name}. Run with --list.`);
     if (await applied(to, name)) fail(`Stage ${name} is already applied.`);

@@ -229,6 +229,10 @@ internal static class SemanticDiff
                     $"Stop checking {EntityName(names, value.EntityId)} records against their allowed links. Every record stays as it is.",
                     value.Reversibility,
                     value.EntityId),
+                BuildSearchIndexOperation value => Entry(
+                    "buildSearchIndex",
+                    "Build this file's search index, so its records can be found by any word in their text. It changes no record.",
+                    value.Reversibility),
                 SetApplicationLookOperation value => Entry(
                     "setApplicationLook",
                     value.Tone is null && value.Letter is null

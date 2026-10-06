@@ -175,6 +175,13 @@ A history fold changes no record and needs nothing.
   **Falsified** 2026-10-06 with the finder told search is unavailable: the unit test failed
   ("a pause in typing sends one search, of the latest text") and so did the browser check ("Find
   must be answered by the index: unavailable").
+- **Reported broken** 2026-10-06, on the first real upgrade of `Garden.nendo`: a proposal holding
+  `application.buildSearchIndex` was refused at validate with "Operation type
+  application.buildSearchIndex has no semantic diff mapping". Every test had built the index
+  directly or promoted data writes, never the build itself in a proposal. Fixed in
+  `SemanticDiff.cs`. Guarded by `ABuildInAReviewedProposalIsDescribedAndPromoted`, which sends the
+  build as canonical JSON through validation and promotion. Falsified: with the mapping removed, it
+  fails with the same refusal.
 - **Measured** 2026-10-06 with `SearchIndexMeasurementTests` on copies of the workspace files (set
   `NENDO_MEASURE_SEARCH` to run it):
 

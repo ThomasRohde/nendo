@@ -146,6 +146,36 @@ public sealed class SearchIndexTests
         CollectionAssert.AreEqual(new[] { "n9" }, await Find(service, "quinces"));
     }
 
+    /// <summary>
+    /// The build operation itself in a reviewed proposal, sent as an agent or Build-Garden sends it:
+    /// canonical JSON, validated on the clone with a line in the review, then promoted. Its first
+    /// release refused at validate ("has no semantic diff mapping"), which no direct build exercised.
+    /// </summary>
+    [TestMethod]
+    public async Task ABuildInAReviewedProposalIsDescribedAndPromoted()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SeedAsync(coordinator);
+
+        using var payload = System.Text.Json.JsonDocument.Parse("{}");
+        var preview = await service.PrepareProposalAsync(new NendoCanonicalProposalRequest(
+            $"proposal-{Guid.NewGuid():N}", "Build the search index", "test", new NendoCanonicalChangeSetRequest([
+                new NendoCanonicalMutationRequest("search-test", "proposal-build", "test", "Build the search index", [
+                    new NendoCanonicalOperationRequest("op-build", "application.buildSearchIndex", payload.RootElement.Clone()),
+                ]),
+            ])));
+        var line = preview.SemanticDiff.Single(entry => entry.Kind == "buildSearchIndex");
+        StringAssert.Contains(line.Summary, "search index");
+        Assert.AreEqual(NendoReversibilityClass.IrreversibleDeclared, line.Reversibility);
+        await Code("search-index-missing", () => service.SearchRecordsAsync(new("garden")));
+
+        Assert.IsTrue((await service.PromoteProposalAsync(preview.ProposalId)).Applied);
+        await AssertInStep(coordinator);
+        CollectionAssert.AreEquivalent(new[] { "n1", "n2", "t1" }, await Find(service, "garden"));
+    }
+
     [TestMethod]
     public async Task WordsMatchAcrossFieldsAndNothingTypedIsSyntax()
     {
