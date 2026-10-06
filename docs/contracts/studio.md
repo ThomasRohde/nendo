@@ -57,7 +57,7 @@ Studio does not add a sample entity, record or custom surface implicitly.
 
 When an entity exists, Studio immediately supplies:
 
-- an `All records` table;
+- a table in **Data**, headed with the record type's name (`<Type> data`);
 - a generated record inspector/form;
 - create, edit and delete paths;
 - sorting, filtering and quick search;
