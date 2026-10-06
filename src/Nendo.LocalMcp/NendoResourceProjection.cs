@@ -158,9 +158,10 @@ internal sealed class NendoResourceProjection(
         RequireLimit(limit);
         var scope = $"tree:{entityId}:{root}:{depth}";
         var page = await application.TreeRecordsAsync(new(entityId, root, depth, limit, cursors.Decode(cursor, scope)), cancellationToken);
+        await Settled("tree");
         return new NendoMcpPage<NendoMcpTreeNode>(
             page.Items.Select(node => new NendoMcpTreeNode(Project(node.Record), node.ParentRecordId, node.Depth, node.ChildCount)).ToArray(),
-            page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor));
+            page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor)) { ChangeSequence = page.ChangeSequence };
     }
 
     private static NendoMcpRecord Project(NendoRecordSnapshot record) => new(record.EntityId, record.RecordId, record.RecordVersion, record.Values)
@@ -214,10 +215,11 @@ internal sealed class NendoResourceProjection(
             Descending = descending,
             Filters = filters,
         }, cancellationToken);
+        await Settled("records");
         var records = page.Items.Select(Project).ToArray();
         return new NendoMcpPage<NendoMcpRecord>(
             records,
-            page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor));
+            page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor)) { ChangeSequence = page.ChangeSequence };
     }
 
     /// <summary>The operators the records and aggregate reads accept: the vocabulary's, plus the two the Engine's query takes beyond a screen.</summary>
@@ -695,9 +697,10 @@ internal sealed class NendoResourceProjection(
         };
         var scope = newest ? "history:newest" : "history";
         var page = await application.QueryHistoryAsync(new(limit, cursors.Decode(cursor, scope), newest), cancellationToken);
+        await Settled("history");
         return new NendoMcpPage<NendoMcpRevision>(
             page.Items.Select(ProjectRevision).ToArray(),
-            page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor));
+            page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor)) { ChangeSequence = page.ChangeSequence };
     }
 
     internal async Task<NendoMcpPage<NendoMcpOperation>> GetRevisionOperationsAsync(
@@ -708,7 +711,7 @@ internal sealed class NendoResourceProjection(
         var page = await application.QueryRevisionOperationsAsync(new(revisionId, limit, cursors.Decode(cursor, scope)), cancellationToken);
         return new(page.Items.Select(operation => new NendoMcpOperation(operation.OperationType, operation.Reversibility,
             AffectedSemanticIds(operation.CanonicalJson))).ToArray(),
-            page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor));
+            page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor)) { ChangeSequence = page.ChangeSequence };
     }
 
     internal async Task<NendoMcpHealth> GetHealthAsync(CancellationToken cancellationToken)

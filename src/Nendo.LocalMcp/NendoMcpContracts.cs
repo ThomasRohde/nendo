@@ -215,7 +215,15 @@ public sealed record NendoMcpRecord(
         .ToDictionary(pair => pair.Key, pair => pair.Value.GetRawText(), StringComparer.Ordinal);
 }
 
-public sealed record NendoMcpPage<T>(IReadOnlyList<T> Items, string? NextCursor);
+public sealed record NendoMcpPage<T>(IReadOnlyList<T> Items, string? NextCursor)
+{
+    /// <summary>
+    /// The file's change sequence the Engine read this page at, returned with the page itself
+    /// and never read again afterwards. Two reads with equal sequences saw the same revision of
+    /// the file; separate reads are still not one transaction.
+    /// </summary>
+    public long ChangeSequence { get; init; }
+}
 
 /// <summary>
 /// One exact aggregate (W-146). <c>Shape</c> says which sections are filled: <c>whole</c> fills

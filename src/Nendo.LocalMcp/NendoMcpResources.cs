@@ -154,7 +154,7 @@ internal sealed class NendoMcpResources(
         Title = "Records",
         UriTemplate = "nendo://application/entity/{entityId}/records{?cursor,limit,recordId,sort,desc,filter}",
         MimeType = "application/json")]
-    [Description("A bounded page of records in stable record-ID order, or one record by recordId. filter is a percent-encoded JSON array of {fieldId, op, value} joined by AND, op one of eq, ne, lt, lte, gt, gte, contains, isNull, isNotNull, descendantOf (the vocabulary's filterOperators); sort names a field and desc=true reverses it. A calculated field may be filtered or sorted within limits.query. numericLexemes preserves exact numeric strings by field ID; use these with $nendoNumber envelopes when editing, not lossy numeric parsers. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
+    [Description("A bounded page of records in stable record-ID order, or one record by recordId. filter is a percent-encoded JSON array of {fieldId, op, value} joined by AND, op one of eq, ne, lt, lte, gt, gte, contains, isNull, isNotNull, descendantOf (the vocabulary's filterOperators); sort names a field and desc=true reverses it. A calculated field may be filtered or sorted within limits.query. numericLexemes preserves exact numeric strings by field ID; use these with $nendoNumber envelopes when editing, not lossy numeric parsers. changeSequence is the file revision the page was read at; an aggregate with the same changeSequence saw the same records. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
     public Task<string> GetRecordsAsync(
         string entityId,
         string? cursor = null,
@@ -192,7 +192,7 @@ internal sealed class NendoMcpResources(
         Title = "Record tree",
         UriTemplate = "nendo://application/entity/{entityId}/tree{?root,depth,cursor,limit}",
         MimeType = "application/json")]
-    [Description("A window of a record type's declared hierarchy, depth-first in sibling order: the records under root, or the whole tree from the top level when root is omitted, down to depth levels (1 to 32, default 1). Each item is a record with its parentRecordId, its depth below the root and its childCount. Refused past limits.hierarchy.maximumDescendants records; read fewer levels or a lower root. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
+    [Description("A window of a record type's declared hierarchy, depth-first in sibling order: the records under root, or the whole tree from the top level when root is omitted, down to depth levels (1 to 32, default 1). Each item is a record with its parentRecordId, its depth below the root and its childCount. Refused past limits.hierarchy.maximumDescendants records; read fewer levels or a lower root. changeSequence is the file revision the page was read at. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
     public Task<string> GetTreeAsync(
         string entityId,
         string? root = null,
@@ -257,7 +257,7 @@ internal sealed class NendoMcpResources(
         Title = "Revision history",
         UriTemplate = "nendo://application/history{?cursor,limit,newestFirst}",
         MimeType = "application/json")]
-    [Description("Bounded revision summaries in ascending sequence order, or newest first with newestFirst=true, with operation counts and paged operations URIs. For the last changes, read newestFirst=true with a small limit rather than paging from the start. A cursor continues only the direction it came from. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
+    [Description("Bounded revision summaries in ascending sequence order, or newest first with newestFirst=true, with operation counts and paged operations URIs. For the last changes, read newestFirst=true with a small limit rather than paging from the start. A cursor continues only the direction it came from. changeSequence is the file revision the page was read at. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
     public Task<string> GetHistoryAsync(
         string? cursor = null,
         string? limit = null,

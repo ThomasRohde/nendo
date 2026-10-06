@@ -167,6 +167,59 @@ public sealed class RecordQueryResourceTests
         Assert.AreEqual(3, projection.DefinitionReads, "A refused field is named from the same one snapshot.");
     }
 
+    /// <summary>
+    /// Review R-009: a records page carried no revision, so comparing it with an aggregate
+    /// took a later manifest read, which is not the revision the page saw. Each page now
+    /// carries the change sequence the Engine returned with it, even when a commit lands
+    /// between the Engine's answer and the page being put together.
+    /// </summary>
+    [TestMethod]
+    public async Task APageReportsTheRevisionItReadNotALaterOne()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateIdeaGardenAsync();
+        var projection = new NendoResourceProjection(workspace.Service, new NendoCursorCodec(new byte[32]));
+        var count = await projection.GetAggregateAsync(NendoApplicationService.IdeaEntityId, "count", null, null, null, null, null, null, null, null, CancellationToken.None);
+        var commits = 0;
+        Func<Task> Commit() => () => workspace.Service.CreateRecordAsync(new(NendoApplicationService.IdeaEntityId, $"idea-late-{++commits}",
+            new Dictionary<string, object?> { [NendoApplicationService.IdeaTitleFieldId] = "Late", [NendoApplicationService.IdeaStatusFieldId] = "Idea" },
+            new("test", $"late-{commits}", "test")));
+
+        projection.AfterRead = Once("records", Commit());
+        var records = await projection.GetRecordsAsync(NendoApplicationService.IdeaEntityId, null, 50, CancellationToken.None);
+        Assert.AreEqual(count.ChangeSequence, records.ChangeSequence, "The page reports the revision the count also read.");
+        Assert.HasCount(3, records.Items);
+
+        projection.AfterRead = Once("history", Commit());
+        var history = await projection.GetHistoryAsync(null, 100, "true", CancellationToken.None);
+        Assert.AreEqual(history.Items[0].ChangeSequence, history.ChangeSequence, "The history page reports the revision it read.");
+        Assert.AreEqual(count.ChangeSequence + 1, history.ChangeSequence);
+
+        projection.AfterRead = null;
+        var now = (await projection.GetManifestAsync(CancellationToken.None)).ChangeSequence;
+        Assert.AreEqual(count.ChangeSequence + 2, now, "Both commits landed after their pages were read.");
+        var again = await projection.GetRecordsAsync(NendoApplicationService.IdeaEntityId, null, 50, CancellationToken.None);
+        Assert.AreEqual(now, again.ChangeSequence);
+        Assert.HasCount(5, again.Items);
+
+        await using var host = await NendoLocalMcpHost.StartAsync(workspace.Service, AgentAccessMode.ReadOnly,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var wire = await ProtocolResourceTests.ReadTextAsync(client, $"{Records}?limit=1");
+        StringAssert.Contains(wire, $"\"changeSequence\":{now}", StringComparison.Ordinal);
+    }
+
+    private static Func<string, Task> Once(string read, Func<Task> action)
+    {
+        var done = false;
+        return name =>
+        {
+            if (done || name != read) return Task.CompletedTask;
+            done = true;
+            return action();
+        };
+    }
+
     private static string Filter(string json) => Uri.EscapeDataString(json);
 
     private static Task<NendoMcpPage<NendoMcpRecord>> ReadAsync(McpClient client, string uri) =>

@@ -283,6 +283,14 @@ larger than an integer holds, an empty value, `0` or `101`. The template variabl
 arrives as text, and Nendo classifies it. Before, the SDK's binder refused a
 non-integer first, and the client saw a bare internal error with no code.
 
+The records, tree, history and revision-operations pages carry `changeSequence`:
+the file's change sequence the Engine read that page at, taken from the Engine's
+own page result and never from a manifest read afterwards (review R-009, since
+2026-10-06). A records page and an aggregate with equal sequences saw the same
+revision of the file, so they may be compared. Separate reads are still not one
+transaction: unequal sequences mean the file moved in between, and nothing here
+holds it still across two reads.
+
 If a data or definition change occurs between pages, the read returns
 `NENDO_STALE_CURSOR`. Restart the query. Foreign, tampered, reopened-file or
 earlier agent-access cursors fail. The query is a set: `cursor` and `limit` may
