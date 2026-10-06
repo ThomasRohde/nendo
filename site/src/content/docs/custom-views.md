@@ -9,7 +9,8 @@ A custom view is a small web page that draws your records in a way Nendo's own s
 
 ## Where a view appears
 
-- **As a screen.** A graph of linked records, or a view of one record type, is one of that record type's screens in Use, listed by its title. The view fills the screen.
+- **As a screen of a record type.** A graph of linked records, or a view of one record type, is one of that record type's screens in Use, listed by its title. The view fills the screen.
+- **As a screen of the file.** A view about the whole file is listed in Use before the record types, and a file can open on it. `workspace/Archi.nendo` opens on its modeller this way.
 - **On a record page.** A view can sit on a record page, about that page's one record: a Gantt bar for one task, say. It starts when you scroll it into sight. On a record that is not saved yet, it asks you to save first.
 
 A redraw of the page around a view does not restart it. When you leave the screen, the view stops.
@@ -23,7 +24,7 @@ A view can hand its controls to Nendo. The view says what it offers: buttons, sw
 - **Add** on the view's screen can be the view's own. In the Capability map it adds a capability under the one you selected.
 - **Right-click** inside a view can open Nendo's menu. In the Capability map it offers Open record, Rename and the moves.
 
-A view on an older Nendo draws its own controls. The view never puts its own markup into Nendo's toolbar or menus: Nendo draws the words it is given, as words.
+A view never puts its own markup into Nendo's toolbar or menus: Nendo draws the words it is given, as words.
 
 ## How the code gets into the file
 
@@ -44,7 +45,7 @@ Each way proposes only what differs from the package the file already carries. W
 
 A copy of the file carries its views' code. If a view names a package that the file does not carry, the view says so and offers **Add package to file…**, which is Import.
 
-A view also needs a definition: a screen, a graph or a record-page panel that names its package, the record type it is about and the fields it shows. In **Studio → Surfaces → Custom views**, each package lists where it is already shown and has **Add view…**. The form offers only fields that work, and **Preview view** opens the ordinary review. After you accept a screen, Use opens on it. An agent can write the same definition through a change set, with extra fields and filters the form does not ask for. An agent can also make a view a screen of the file itself, listed before the record types and, if the definition says so, the screen the file opens on. With custom views off, such a file opens on its front page or its first record type instead. The [authoring guide](https://github.com/ThomasRohde/nendo/blob/main/docs/custom-view-authoring.md) shows each kind.
+A view also needs a definition: a screen, a graph or a record-page panel that names its package, the record type it is about and the fields it shows. In **Studio › Surfaces › Custom views**, each package lists where it is already shown and has **Add view…**. The form offers only fields that work, and **Preview view** opens the ordinary review. After you accept a screen, Use opens on it. An agent can write the same definition through a change set, with extra fields and filters the form does not ask for. An agent can also make a view a screen of the file itself, listed before the record types and, if the definition says so, the screen the file opens on. With custom views off, such a file opens on its front page or its first record type instead. The [authoring guide](https://github.com/ThomasRohde/nendo/blob/main/docs/custom-view-authoring.md) shows each kind.
 
 ## What a view can and cannot do
 
@@ -66,7 +67,7 @@ A file that somebody else wrote brings its views' code with it, and that code ru
 
 History offers **Compensate** where it can reverse a change, a view's batch included: a record the batch created is deleted, and a record it deleted comes back. A view can do the same itself for what it wrote since it opened: `nendo.records.undo(revision)` takes a batch back and `nendo.records.redo(...)` makes it again, each as a new entry in History, and refused if somebody else changed those records since. See [History and undo](/nendo/docs/files-and-data#history-and-undo) for the reversibility classes and other limits.
 
-This is a deliberate trade for an exploratory project: no install step and no permission dialog, in exchange for switches. The switches below are the whole control. Turn views off before you open a file you do not trust.
+This is a deliberate trade: no install step and no permission dialog, in exchange for switches. The switches below are the whole control. Turn views off before you open a file you do not trust.
 
 ## Switching views off
 
@@ -88,7 +89,7 @@ Studio is there in every case, and your records stay editable.
 
 ## The examples
 
-The repository has six MIT-licensed example packages under [`extensions/`](https://github.com/ThomasRohde/nendo/tree/main/extensions). Four have no dependencies; `work-dependencies` carries elkjs, the Eclipse Layout Kernel, unchanged in its `vendor` folder under the Eclipse Public License 2.0, and `garden` carries d3 under the ISC licence. Each folder has a `nendo-package.json`, so you import it as it is. All six hand their controls to Nendo's toolbar and open Nendo's menu on a right-click, and draw their own controls on an older Nendo.
+The repository has eight example packages under [`extensions/`](https://github.com/ThomasRohde/nendo/tree/main/extensions). Each folder has a `nendo-package.json`, so you import it as it is. Four have no dependencies. The others keep third-party code unchanged in a `vendor` folder, with its licence: `work-dependencies` and `archi` carry elkjs, the Eclipse Layout Kernel (Eclipse Public License 2.0), `garden` carries d3 (ISC), and `swarm` carries bpmn-js under the bpmn.io licence. Every package except `swarm` is MIT-licensed; `archi` lists the further libraries it builds in under `THIRD-PARTY.txt`.
 
 | Package | Shows |
 | --- | --- |
@@ -98,8 +99,10 @@ The repository has six MIT-licensed example packages under [`extensions/`](https
 | [`gantt`](https://github.com/ThomasRohde/nendo/tree/main/extensions/gantt) | One record type on a time line, from a start date to an end date; a record with only a start is a diamond. **Find** (Ctrl F) picks out rows by name. It also works on a record page, for one record |
 | [`bcm-atlas`](https://github.com/ThomasRohde/nendo/tree/main/extensions/bcm-atlas) | A business capability map over a five-level hierarchy of 635 fictional capabilities: nested packing with fixed-size cards, levels, focus, search, heatmaps, and editing with version checks. It reads the capabilities as the tree the file keeps, so it needs the record type kept as a tree. It works over any such record type: the view's configuration says which of its fields is the maturity, the importance and so on, and what it is not told is left out. Capabilities move by dragging or with Alt+Shift+arrows, and F2 renames one. It exports the map as an SVG to edit or a PNG for a slide. Where the file keeps dated assessments, a capability shows its latest score on each dimension, the map can colour by the change since a chosen date, and **Importance × health** places every capability by its importance against its IT health. **Application coverage** colours a capability by how many applications support it or anything below it, **Capability × application** lays capabilities against the applications that support them with each link's role and fit, and an initiative can cover several capabilities. `workspace/BCM.nendo` carries it |
 | [`garden`](https://github.com/ThomasRohde/nendo/tree/main/extensions/garden) | A garden of Markdown notes: a tree of notes, each opening for reading with Edit a key away, a hover preview of a linked note, and a save that turns `[[wikilinks]]`, `#tags` and `- [ ]` lines into Link, Tag and Task records in one undoable batch, planting a Seed note for a link to nothing. Its graph screen is a living d3 force layout you drag, zoom and hover, and a note's own neighbourhood is drawn under it. The same package is the Backlinks panel on a note's page. `workspace/Garden.nendo` opens on it |
+| [`archi`](https://github.com/ThomasRohde/nendo/tree/main/extensions/archi) | An ArchiMate 3.2 modeller in the manner of Archi: the model tree, views drawn with Archi's figures, properties, analysis and the Visualiser, as a screen of the file. `workspace/Archi.nendo` opens on it |
+| [`swarm`](https://github.com/ThomasRohde/nendo/tree/main/extensions/swarm) | A behaviour playground: creature behaviours edited as bpmn-js diagrams, a habitat that runs them, and experiments that replay. `workspace/Swarm.nendo` carries it |
 
-Apart from `BCM.nendo`, the demo files in the repository were made before views ran from the file. Their views name a package that the file does not carry yet, and offer **Add package to file…**.
+Each demo file under [`workspace/`](https://github.com/ThomasRohde/nendo/tree/main/workspace) carries its package. When the repository has a newer version of a package than the file, import it as above.
 
 ## Build your own
 
@@ -126,9 +129,9 @@ To debug, right-click inside the running view and choose **Inspect**. To run cod
 | New code in one proposal | 4 MiB |
 | A view's configuration | 16 KiB of JSON |
 
-A file that carries a package needs file capability 1.33.0 or later, and a view defined with the newer, open rules needs 1.34.0. See [Files and data](/nendo/docs/files-and-data).
+A file that carries a package or defines a view records that it needs a Nendo that can run them. See [Minimum host version](/nendo/docs/files-and-data#minimum-host-version).
 
 ## Not yet
 
-- A view as a screen of its own, and a view as a tile on the front page, are not built.
+- A view as a tile on the front page is not built.
 - Packages are not signed. There is no marketplace, download or update channel: packages move inside files and as folders.

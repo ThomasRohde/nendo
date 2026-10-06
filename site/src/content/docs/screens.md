@@ -27,14 +27,15 @@ screen can hide Studio.
 
 Most screens belong to one record type. In Use, the breadcrumb at the top names
 the record type and the screen, and each name is a picker: choose the record type,
-then the screen. The front page is the exception: it belongs
-to the file, and Use opens it first when the file has one. Which screen, tab,
-month or year is open is remembered for the session only and never written to
-the file.
+then the screen. Two kinds belong to the file instead: the front page and a
+custom view of the file (see [Screens for the whole file](#screens-for-the-whole-file)).
+Which screen, tab, month or year is open is remembered for the session only and
+never written to the file.
 
-A calculated field can appear on any screen as a read-only value. It cannot
-filter, sort or group a screen, place a record on a calendar or timeline, or feed
-a total.
+A calculated field can appear on any screen as a read-only value, and a list,
+board, calendar or tile can filter and sort by one. It cannot group a screen,
+place a record on a calendar or timeline, or feed a total. See
+[Calculations and actions](/nendo/docs/calculations-and-actions#calculated-fields-on-screens).
 
 ## Screens for one record type
 
@@ -144,7 +145,19 @@ related lists or tiles.
 step sets one field to a fixed value, today's date, the current time or empty. A
 command can be its own root or sit inside the record page.
 
-## The front page
+## Screens for the whole file
+
+| Screen | Per file | What it shows |
+| --- | --- | --- |
+| Front page | 1 | Tiles, charts and lists over any record types. |
+| Custom view of the file | up to 8 | A custom view that is about the file rather than one record type. See [Custom views](/nendo/docs/custom-views). |
+
+The navigation under **Use** lists the front page, then the file's custom views,
+then the record types. Use opens on the custom view marked as the one the file
+opens on, if there is one and custom views run; otherwise on the front page, if
+there is one; otherwise on the first record type.
+
+### The front page
 
 A file can have one front page (`overviewSurface`). It belongs to the file, so it
 has no record type of its own. Each tile, chart and list on it names the record
@@ -233,8 +246,9 @@ There is no visual screen editor. Screens are built as proposals:
 
 Studio's **Surfaces** area lists the compiled screens of each record type, with
 their kind and what they are bound to. When the definition does not compile, it
-shows each error with a hint. The one screen edit Studio makes itself is renaming
-a board, which also goes through a proposal and a review.
+shows each error with a hint. Studio makes two kinds of screen edit itself:
+renaming a board, and adding a custom view with **Add view…** under **Custom
+views**. Both go through a proposal and a review.
 
 A file records the lowest Nendo version that can draw its screens. An older
 Nendo refuses the file instead of drawing part of it.

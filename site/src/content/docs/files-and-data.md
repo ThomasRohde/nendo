@@ -56,7 +56,7 @@ Both profiles read UTF-8 (a BOM is accepted, invalid UTF-8 is refused), comma de
 1. Choose **Import CSV…**, select the destination record type and a `.csv` file.
 2. Choose the profile, then map each source column to a field. Nendo shows the mapping before it writes anything. Duplicate or missing headers are reported, not mapped silently.
 3. Choose **Validate first batch** and review the rows and their typed values.
-4. Choose **Import** to commit the batch, or **Cancel remaining import**.
+4. Choose **Import** (the button names how many records) to commit the batch, or **Cancel remaining import**.
 
 A reference column can name its records by a code instead of a record ID. Where the target record type has a unique field, such as a Code, the mapping asks what the column **names its … by**: choose that field, and each cell is looked up among the rows you are importing first and the records already in the file second, without regard to case. A code that names nothing, or names more than one row, stops the import at its row. When the column is the parent of a tree, Nendo imports parents before their children, whatever order the file lists them in, and still reports each row by its line in the file.
 

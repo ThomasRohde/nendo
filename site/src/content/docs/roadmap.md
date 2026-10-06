@@ -29,15 +29,15 @@ see [Status](/nendo/status). This page does not repeat those tables.
 
 ## Near-term work
 
-These items are unfinished now. They are the next work, not new ideas.
+These items are unfinished now.
 
-### Custom views: the next steps
+### Custom views on the front page
 
-A custom view's code now lives in the `.nendo` file. A view that is shown runs
-inline in Nendo, reads and changes the file's records, proposes changes for you to
-review and keeps its own state in the file. The next step is a view as a screen of its
-own, and as a tile on the front page. It is not available yet. What is already true,
-and what is not measured, is on [Custom views](/nendo/docs/custom-views).
+A custom view's code lives in the `.nendo` file. A view runs inside Nendo as a
+screen of a record type, a screen of the file or a panel on a record page; it reads
+and changes the file's records, proposes changes for you to review and keeps its own
+state in the file. A view as a tile on the front page is not available yet. See
+[Custom views](/nendo/docs/custom-views).
 
 ### Distribution and signing
 
@@ -49,27 +49,24 @@ only. Public distribution, code signing and an ARM64 build are not started.
 Agents author successfully today, but some steps cost more round trips than they
 need to:
 
-- Validation reports one error at a time. After you fix it, the next error
-  appears. The reason is that validation runs in one database transaction, and
-  the first refusal ends that transaction.
-- Consent for automatic actions is a separate step from accepting the proposal
-  that installs them. The proposal list does not show it.
-- An action step that writes to the wrong record installs without error, and
-  fails only when it runs.
-- A data import commits in batches of fifty rows. If a row is refused, the
-  earlier batches stay committed, and the caller cannot skip the refused row and
+- Approving automatic actions is a separate step from accepting the proposal
+  that installs them, except at Unattended. The review says so before you accept.
+- An action step whose bindings read the record that raised the event, while the
+  step writes to a referenced record, installs without error and fails on the
+  first save that runs it.
+- An agent's import commits in batches of fifty rows. If a row is refused, the
+  earlier batches stay committed, and the agent cannot skip the refused row and
   continue.
 
 ## Possible future directions
 
-The items below are possibilities, not commitments. The repository records each
-one as deferred, out of scope or unresolved. Some may never happen, because they
-conflict with the eight product axioms on the [concept page](/nendo/concept).
-Any of them needs an accepted design decision before work starts.
+The items below are possibilities, not commitments. Some may never happen,
+because they conflict with the eight product axioms on the
+[concept page](/nendo/concept).
 
 | Direction | What it would mean | What stands in the way |
 | --- | --- | --- |
-| Broader extensions | Extension code that runs without a view: contributed commands, event handlers, background work. Signed packages and a trust model. | Custom views carry their code in the file today. Code that runs without a view needs its own design decision. Nothing signs a package, and there is no identity, dependency or update model for packages. |
+| Broader extensions | Extension code that runs without a view: contributed commands, event handlers, background work. Signed packages and a trust model. | Custom views carry their code in the file today. Code that runs without a view needs a design of its own. Nothing signs a package, and there is no identity, dependency or update model for packages. |
 | General scripting in formulas | Code beyond the bounded calculation language in calculations and actions: loops, objects, compiled code. | Calculations and actions today are closed, pure and bounded. General code there brings isolation questions that nobody has measured. |
 | External effects | Actions that send email, call a web service, read files or run on a timer. | These cannot share the local all-or-nothing transaction. They need durable intent, retries, credentials, consent and recovery, and none is designed. |
 | Scalar multi-choice | A field that holds several choices at once. | Out of scope by product rule. A choice field holds one option, and no design for several options exists. |
@@ -77,30 +74,33 @@ Any of them needs an accepted design decision before work starts.
 | DateTime in calendars | Times of day, time zones, week and day views, durations, recurrence, drag to reschedule. | A calendar places a Date field on a month. To group a DateTime by day, the host must choose a time zone, and the screen contract does not define one. The host refuses a DateTime field on a calendar or timeline. |
 | Collaboration and sync | Several people or devices working on one file. | Out of scope. Nendo is personal and single-user. It warns when a file is in a known cloud-sync folder and makes no claim that sync is safe. |
 | Proposal rebase | An older proposal replayed onto a newer file revision, so that a conflict does not appear at validation. | Promotion replays validated operations against the active file. A rebase changes what a conflict means, so it needs its own design. |
-| Durable proposals | An agent that reconnects can preview or reject a proposal from its earlier session. | Today a proposal belongs to the session that created it. A longer-lived binding is a change to agent authority. |
+| Durable proposals | A waiting proposal that survives a restart of Nendo. | Proposals are kept in memory. An agent that reconnects while Nendo runs takes its proposals back, but a restart discards every waiting proposal. |
 | Shared-machine protection | A check that only the signed-in user's processes can reach an open file. | There is no credential today. Every process on the machine can connect at the file's access level. The check is not built. |
-| Other platforms | ARM64 Windows, macOS, Linux. | The host is a WinUI and WebView2 application. ARM64 waits for a final production build. Other operating systems need a different host. |
+| Other platforms | ARM64 Windows, macOS, Linux. | The host is a WinUI and WebView2 application. There is no ARM64 build yet. Other operating systems need a different host. |
 | Broader MCP clients | A stated promise that any MCP client works. | Claude Code and Codex connect with the address alone. Other clients are not tested, and no parity claim is made. |
 | An embedded agent | An assistant built into Nendo. | Dropped. The local MCP interface is the agent surface, and local use never depends on an agent. |
 
 ## What would change the plan
 
-The project states its own test of whether the idea works. The test has two parts:
+Nendo has a stated test of whether the idea works. The test has two parts:
 
 1. An agent that has only the MCP interface can build an application of a shape
    that nobody planned for.
 2. A person can read that change and understand what it does before accepting it.
 
-Four reference applications exist to test this, each a different shape: Idea
-Garden, Decision Log, the Axiom Register and Nendo Station. An agent built the
-last two from an empty file through MCP alone.
+The demo files in the repository's
+[`workspace/`](https://github.com/ThomasRohde/nendo/tree/main/workspace) folder
+test this, each a different shape: Nendo Station (an operations room), a business
+capability map, an ArchiMate model, a garden of notes and a behaviour playground.
+Scripts built Nendo Station, the ArchiMate model, the garden and the playground
+from an empty file through MCP alone.
 
 The stop signal is also stated. If Studio works but the screens that agents build
 give no value that the plain table does not already give, the idea has failed.
 That result means change direction or stop. It does not mean add more features.
 
-The largest open risk is that everyone who has used Nendo also built it. Nobody
-knows yet if a new person can follow it without help. If you try Nendo and
+The largest open risk is that Nendo has not yet been tried by people who did not
+build it. Nobody knows yet if a new person can follow it without help. If you try Nendo and
 something confuses you, that is useful evidence.
 [Open an issue on GitHub](https://github.com/ThomasRohde/nendo/issues) and say
 where you got stuck.

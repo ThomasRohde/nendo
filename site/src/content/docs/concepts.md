@@ -45,7 +45,7 @@ and edited. These are the choices in Studio's **Add field** dialog:
 | --- | --- | --- | --- |
 | Short text | Text | Single line | |
 | Long text | Text | Long text | |
-| Markdown text | Text | Markdown | A record page shows it formatted: headings, lists, tables, code and emphasis. Links show as text and are not followed. Edit the source under the formatted text. A Long text field can become one, and back, with **Show as Markdown** in Structure; no value changes. Needs Nendo with host 1.44.0. |
+| Markdown text | Text | Markdown | A record page shows it formatted: headings, lists, tables, code and emphasis. Links show as text and are not followed. Edit the source under the formatted text. A Long text field can become one, and back, with **Show as Markdown** in Structure; no value changes. |
 | Choice | Text | Single choice | 1 to 32 options, each at most 120 characters. One value per record. |
 | Whole number | Integer | none | Large values keep every digit. |
 | Rating on a scale | Integer | Rating | Drawn as dots. The scale has a minimum and a maximum and at most ten values. |
@@ -96,8 +96,8 @@ reassign the references first. Nothing cascades.
 ### Screen
 
 A screen is a stored description of how to show and edit records: a list, a
-board, a gallery, a calendar, a timeline, a matrix, a record page, a form, a
-command or the front page. Internal names call a screen a *surface*. The file
+board, a gallery, a calendar, a timeline, a matrix, an outline, a record page, a
+form, a command, the front page or a custom view. Internal names call a screen a *surface*. The file
 stores only the description, never HTML, scripts or SQL. Nendo compiles the
 description and draws it. See [Screens](/nendo/docs/screens) for every kind. The
 one screen that runs code is a custom view, whose code the file carries as a
@@ -112,7 +112,7 @@ to a screen adds, sets, moves or removes a node.
 
 ### Use and Studio
 
-Nendo has two views of a file.
+Nendo has two ways to look at a file.
 
 - **Use** shows the screens that the file defines. It is the application as its
   author built it.

@@ -22,7 +22,7 @@ There is no download, no signed installer and no automatic update. You build the
 
 ## Build from source
 
-1. Clone the repository and run the full test gate:
+1. Clone the repository, then build and test it:
 
    ```powershell
    git clone https://github.com/ThomasRohde/nendo
@@ -30,7 +30,7 @@ There is no download, no signed installer and no automatic update. You build the
    pwsh ./tools/Test-Production.ps1
    ```
 
-   The gate restores the Workbench packages with `npm ci`, builds the Workbench, builds the .NET solution and runs the tests. It takes about a minute after the first restore. The Workbench is the web interface that the desktop app bundles, so it is built first. Some tests open real windows and use the clipboard, so run the gate in an unlocked desktop session: on a locked or headless session they fail without any defect in Nendo.
+   The script restores the web interface's packages with `npm ci`, builds the web interface that the desktop app bundles, builds the .NET solution and runs the tests. After the first restore it takes about a minute. Some tests open real windows and use the clipboard, so run it in an unlocked desktop session: on a locked or headless session those tests fail even though nothing is wrong.
 
 2. Publish the app and package the installer:
 
@@ -61,7 +61,7 @@ A `.nendo` file is one application: its record types, records, screens and histo
 | --- | --- |
 | Create a file from Explorer | Right-click in a folder and choose **New › Nendo application**. Explorer names the file; Nendo creates a real empty file and opens it. |
 | Create a file in the app | On the start screen, choose **Create Nendo file**. With a file already open, choose **Close file** from the file menu first; **New file** is available only when no file is open. |
-| Start the same application again | With a file open, choose **New empty copy…** from the file menu, or the name the application gives it, such as **New planner…**. The new file has the record types, screens and views, and only the records the application keeps in new files. See [Files and data](/nendo/docs/files-and-data#copies). |
+| Start the same application again | With a file open, choose **New empty copy…** from the file menu, or the name the application gives it, such as **New Archi model…**. The new file has the record types, screens and views, and only the records the application keeps in new files. See [Files and data](/nendo/docs/files-and-data#copies). |
 | Open a file you have | Double-click it in Explorer, choose **Open Nendo file** on the start screen, or choose **Open file…** from the file menu. |
 | Open a recent file | The start screen lists up to four recent files. Right-click Nendo's taskbar button for the same list. |
 | Drag a file in | Drop one `.nendo` file on the window. Nendo opens one file at a time and refuses a drop of several. |
@@ -84,8 +84,8 @@ Studio is the part of Nendo that the host provides for every file. No file conte
 | Area | What it shows | What you can do there |
 | --- | --- | --- |
 | **Data** | Each record type as a table, with a record editor. A record type kept as a tree opens as an outline, with a switch to the table. | Add, edit and delete records; click a column's name to sort by it, drag its edge to resize it, or use its pencil to rename the field; filter and search; open **Show retired data**. In an outline, open and close records and move one with **Move up**, **Move down**, **Indent** and **Outdent**, or Alt, Shift and an arrow key. |
-| **Structure** | Record types and their fields. | **Add field**, **Rename**, **Rename record type**, **Edit choices**, make a field required or optional, **Make unique**, **Number automatically**, retire and reactivate. Each change opens a proposal for you to review. |
-| **Surfaces** | The screens the file defines and what each one is bound to. | Read screen definitions and their diagnostics. |
+| **Structure** | Record types and their fields. | **Add field**, **Rename**, **Rename record type**, **Edit choices**, make a field required or optional, **Make unique**, **Number automatically**, **Show as Markdown**, retire and reactivate. Each change opens a proposal for you to review. |
+| **Surfaces** | The screens the file defines and what each one is bound to. | Read screen definitions and their diagnostics; import custom-view packages and add views. |
 | **History** | Every saved change, in order, with its lane and its reversibility. | **View changes** on an entry, and **Compensate** where Nendo can reverse it. |
 | **Health** | Whether the file is ready for editing, read-only or in recovery, and the last integrity check. | Create and restore backups, export readable data, re-inspect the file, and approve automatic actions on this computer. |
 
@@ -101,7 +101,7 @@ You do not need an agent for this.
 2. Enter a name for the record type, for example `Book`. **First field** starts as `Name`; keep it or change it. This first field is required short text.
 3. Choose **Preview record type**. Nendo builds a proposal and shows the review: **What changes** lists each operation, **What this builds** describes the file as it will be.
 4. Choose **Accept changes**. The record type now exists. **Reject** leaves the file unchanged.
-5. Choose **Add Book**, enter a name and choose **Add**. The record is saved.
+5. Choose **Add Book**, enter a name and choose **Add Book** in the form. The record is saved.
 6. To change a value, double-click a cell in the table, edit it and press Enter.
 
 To add more fields, open **Structure**, select the record type and choose **Add field**. The field types are Short text, Long text, Markdown text, Choice, Whole number, Rating on a scale, Decimal, Yes / No, Date, Date and time with timezone, UUID and Reference to another record. A new field is optional, so existing records stay valid. It goes through the same review as the record type.
@@ -112,7 +112,7 @@ Every record type gets its table and record editor in Studio. Other screens, suc
 
 ## Connect an agent
 
-Nendo has no built-in agent. A coding agent such as Claude Code or Codex connects to the open file over MCP at `http://127.0.0.1:41763/mcp` (each further file keeps a port of its own), after you turn agent access on in the **Agent** area and choose a level: Off, Inspect, Edit data, Shape app or Unattended. There is no key or password, so any program on this computer can connect at the level you chose; set access to Off when no agent is working. The registrations in a clone of this repository point at port 41766, the port the author's planner file keeps, so on your computer register the address **Agent → Connection** shows. The agent writes proposals, and you accept them in Nendo. The [agents guide](/nendo/docs/agents) covers the access levels, the connection commands and what an agent can and cannot do.
+Nendo has no built-in agent. A coding agent such as Claude Code or Codex connects to the open file over MCP at `http://127.0.0.1:41763/mcp` (each further file keeps a port of its own), after you turn agent access on in the **Agent** area and choose a level: Off, Inspect, Edit data, Shape app or Unattended. **Agent › Connection** shows the address to register. There is no key or password, so any program on this computer can connect at the level you chose; set access to Off when no agent is working. The agent writes proposals, and you accept them in Nendo. The [agents guide](/nendo/docs/agents) covers the access levels, the connection commands and what an agent can and cannot do.
 
 ## Try Nendo Station
 
@@ -120,11 +120,11 @@ Nendo Station is a demonstration file: a fictional orbital habitat with nine rec
 
 To look around, open the file. It starts on the **Station status** front page. The file has automatic actions, so editing stays off until you choose **Approve automatic actions** under **Health**. Reading works without it.
 
-The **Systems Lens** schematic is a custom view, a screen of Components, and the file carries its code as it was when the file was last updated. To bring the view up to the repository's version, pick `extensions/systems-lens/nendo-package.json` in **Studio › Surfaces › Custom views › Import package…** and accept the proposal. See [Custom views](/nendo/docs/custom-views).
+The **Systems Lens** schematic is a custom view, a screen of Components, and the file carries its code. If the repository has a newer version of the view, pick `extensions/systems-lens/nendo-package.json` in **Studio › Surfaces › Custom views › Import package…** and accept the proposal. See [Custom views](/nendo/docs/custom-views).
 
 To keep the tracked file unchanged, open it and use **Duplicate…** from the file menu, then work in the copy. A copy asks for the approval of automatic actions again.
 
-The file is an output. [`tools/Build-NendoStation.mjs`](https://github.com/ThomasRohde/nendo/blob/main/tools/Build-NendoStation.mjs) authors it from an empty file over MCP, one stage at a time:
+An agent script built the file from an empty one over MCP alone. [`tools/Build-NendoStation.mjs`](https://github.com/ThomasRohde/nendo/blob/main/tools/Build-NendoStation.mjs) does it again, one stage at a time:
 
 ```powershell
 node tools/Build-NendoStation.mjs --list    # the stages, in order

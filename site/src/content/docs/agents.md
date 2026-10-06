@@ -20,11 +20,11 @@ claude mcp add --transport http nendo http://127.0.0.1:41763/mcp
 codex mcp add nendo --url http://127.0.0.1:41763/mcp
 ```
 
-The address is the whole configuration. Nendo listens on the loopback address `127.0.0.1` only while a file is open and access is not Off. **Agent → Connection** shows the live address and has a copy button for each client. Claude Code and Codex are the tested clients. Other MCP clients that support Streamable HTTP may work, but they are not tested.
+The address is the whole configuration. Nendo listens on the loopback address `127.0.0.1` only while a file is open and access is not Off. **Agent › Connection** shows the live address and has a copy button for each client. Claude Code and Codex are the tested clients. Other MCP clients that support Streamable HTTP may work, but they are not tested.
 
-Each file keeps a port of its own on your computer. The first file you switch access on for keeps `41763`, and each further file keeps the next free one, whatever order you open them in later. So you can work with several files at once: register each one once, from its own **Agent → Connection**. The copy buttons name the server after the file, `nendo` for `Nendo.nendo` and `nendo-bcm` for `BCM.nendo`, so the second registration does not replace the first. To give a file a different port, change **Port for this file** there. A port that another file keeps is refused, and the message names that file.
+Each file keeps a port of its own on your computer. The first file you switch access on for keeps `41763`, and each further file keeps the next free one, whatever order you open them in later. So you can work with several files at once: register each one once, from its own **Agent › Connection**. The copy buttons name the server after the file, `nendo` for `Nendo.nendo` and `nendo-bcm` for `BCM.nendo`, so the second registration does not replace the first. To give a file a different port, change **Port for this file** there. A port that another file keeps is refused, and the message names that file.
 
-If a file's port is taken by another program when access starts, Nendo does not fail. It listens on a temporary port for that session, and **Agent → Connection** shows a warning and the address to use. Turn **Fixed port** off to use a new port each time.
+If a file's port is taken by another program when access starts, Nendo does not fail. It listens on a temporary port for that session, and **Agent › Connection** shows a warning and the address to use. Turn **Fixed port** off to use a new port each time.
 
 A script or tool that needs to find a file's address without being told can read `%LOCALAPPDATA%\Nendo\Mcp\active\`. Each running Nendo keeps one small JSON file there for every file it has open, readable only by your Windows account. It holds the `endpoint`, the file's name as `displayName` (never its folder), the file's `applicationId`, the access `mode` and the `processId`. The entry is removed when the file closes. Once connected, `nendo://host/instances` lists the same entries.
 
@@ -53,9 +53,9 @@ Only one agent writes at a time. To write, an agent calls `nendo.lease.acquire`.
 
 Every write and every change-set call takes both. The agent must keep the handle private. If a second agent tries to acquire the lease, it gets `NENDO_LEASE_HELD`.
 
-The grant also carries a **receipt context**, an unprivileged value the agent saves before it writes, so it can read the outcome of a write whose answer was lost. An agent that sends an `idempotencyKey` with `nendo.lease.acquire` can repeat the call after a lost answer and receive the same grant instead of being refused against itself. One that released its lease, or lost it, takes it again under its earlier handle with `resumeApplicationHandle`: the proposals it validated, its pseudonym and its receipts are its own once more.
+The grant also carries a **receipt context**, an unprivileged value the agent saves before it writes, so it can read the outcome of a write whose answer was lost. An agent that sends an `idempotencyKey` with `nendo.lease.acquire` can repeat the call after a lost answer and receive the same grant instead of being refused against itself. One that released its lease, or lost it, takes it again under its earlier handle with `resumeApplicationHandle`: the proposals it validated, its pseudonym and its receipts are its own once more. A handle lasts while Nendo runs; after a restart it is unknown.
 
-By default the lease has no expiry. It ends when the agent releases it, when you select **Revoke edit access**, when you set access to Off, or when you close or switch the file. Closing the agent does not release it. If you want leases to lapse, turn on **Lease expiry** under **Agent → Connection** and set a time from 15 to 86,400 seconds. The agent must then call `nendo.lease.renew` within that time.
+By default the lease has no expiry. It ends when the agent releases it, when you select **Revoke edit access**, when you set access to Off, or when you close or switch the file. Closing the agent does not release it. If you want leases to lapse, turn on **Lease expiry** under **Agent › Connection** and set a time from 15 to 86,400 seconds. The agent must then call `nendo.lease.renew` within that time.
 
 `nendo.lease.status` needs no lease. It tells an agent who holds the lease, which is useful after a reconnect or a lost response.
 
@@ -83,7 +83,7 @@ Reads are MCP resources. They need no lease. Start with `nendo://application/des
 | `skill://nendo-authoring/SKILL.md` | The authoring skill, for a client that speaks the Skills extension, with the vocabulary, the examples and the view API as its files. |
 | `nendo://host/instances` | Every running Nendo on this computer and the name of the file each has open. |
 
-The remaining six are the manifest, the list of record types, the operations of one revision, health, the custom-view packages the file carries with their files, and the custom-view API.
+The remaining nine are the manifest, the list of record types, the operations of one revision, health, the custom-view packages the file carries, one file of a package, the custom-view API, the reference files of the authoring skill, and the files of a skill the file carries.
 
 A filter is a JSON array of clauses, each a field, an operator and a value, joined by *and*: the operators are `eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `isNull`, `isNotNull`, `contains` and, for a tree, `descendantOf`. The same filter serves the records read and the aggregate, so an agent finds one record by its code, or counts the open items per status, in one read rather than by paging a type.
 
@@ -137,14 +137,14 @@ When accepting a proposal involves the file's automatic actions, both the queue 
 
 A change set may contain 35 operation types, and nothing else:
 
-- `schema.*` (16): create, rename and retire record types and fields; make a field required; show a text field as one line, long text or Markdown; make a field unique, so no two records can share a value, and have Nendo number it (W-001, W-002…) when a record is created without one; configure a reference; name and colour a choice; keep a record type a tree, and stop keeping it one; say which links a record type allows, from a table of allowed combinations, so Nendo refuses any other link whoever writes it; say whether a new file of the application keeps a record type's records.
+- `schema.*` (16): create, rename and retire record types and fields; make a field required; show a text field as one line, long text or Markdown; make a field unique, so no two records can share a value, and have Nendo number it (T-001, T-002…) when a record is created without one; configure a reference; name and colour a choice; keep a record type a tree, and stop keeping it one; say which links a record type allows, from a table of allowed combinations, so Nendo refuses any other link whoever writes it; say whether a new file of the application keeps a record type's records.
 - `behaviour.setDefinition` and `behaviour.removeDefinition`: calculations, reusable functions, automatic actions and triggers.
 - `application.*` (3): say what the file is for; give the file its own icon colour and letter, the badge that tells it apart from other open files; name what a new file of it is called.
 - `ui.*` (4): add, set a property on, move and remove a screen node.
 - `data.*` (6): create, change and delete records, mark one for a new file, fill a value on a retired field, and convert an old text reference, carried in the same proposal.
 - `extension.*` (4): put a custom view's code into the file as a package and its files, and take them out again. See [Custom views](/nendo/docs/custom-views).
 
-Restoring a deleted record and changing a file's identity are not available to an agent. `nendo://application/vocabulary` lists every operation with the fields it takes. `nendo://application/examples` holds 17 complete change sets, from a record type with required fields to a calculation with an automatic action and a custom view whose code the file carries. Each one is tested against the real authoring path. `nendo://application/view-api` is for an agent writing a custom view's code, and only then: every call the view's page can make, with a whole view to start from. For what a screen can contain, see [Screens](/nendo/docs/screens).
+Restoring a deleted record and changing a file's identity are not available to an agent. `nendo://application/vocabulary` lists every operation with the fields it takes. `nendo://application/examples` holds 19 complete change sets, from a record type with required fields to a calculation with an automatic action and a custom view whose code the file carries. `nendo://application/view-api` is for an agent writing a custom view's code, and only then: every call the view's page can make, with a whole view to start from. For what a screen can contain, see [Screens](/nendo/docs/screens).
 
 ## Unattended
 
@@ -169,7 +169,7 @@ Every refusal also travels as a structured object beside its text, under `io.git
 
 - The status bar shows a pill, for example *Claude Code is working*, on every screen. Its tooltip names the current activity and tells you to use **Revoke edit access** to stop it.
 - If your own action waits behind an agent write, the busy bar says that the agent is writing to this file.
-- The Agent page shows the **Most recent agent**, the **Editing owner**, **Pending changes** and **Recent activity**: reads, writes with their revision, proposal steps and access changes. A client that connects with the standard handshake appears as *Local agent*.
+- The Agent page shows the **Most recent agent**, the **Editing owner**, **Pending changes** and **Recent activity**: reads, writes with their revision, proposal steps and access changes. A client that does not give its name in the handshake is named after its HTTP user agent, or appears as *Local agent* if it sends none.
 
 ## How a refusal reads
 
@@ -177,8 +177,8 @@ A refused call returns `CODE: message`. The code is stable. The message names wh
 
 ```text
 NENDO_SHAPE_APP_REQUIRED: nendo.change_set.begin is served from Shape app, and this file session is at Edit data. Ask the person to raise agent access to Shape app on the Agent page in Nendo.
-NENDO_INVALID_REQUEST: nendo.data.create_records was not called. records[0] does not take 'expectedTargetVersionz'; a record takes recordId and values, and optionally expectedTargetVersions.
-NENDO_UNKNOWN_OPERATION: Operation type 'sql.execute' is not one this host implements; nendo://application/vocabulary lists the 32 it accepts under operations.
+NENDO_INVALID_REQUEST: nendo.data.create_records was not called. records[0] does not take 'expectedTargetVersionz'; a record takes recordId and values, and optionally expectedTargetVersions, keptInNewFiles and references.
+NENDO_UNKNOWN_OPERATION: Operation type 'sql.execute' is not one this host implements; nendo://application/vocabulary lists the 35 it accepts under operations.
 ```
 
 The last one is the same for SQL as for a typing error. There is no other way in.

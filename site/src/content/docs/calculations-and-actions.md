@@ -222,7 +222,7 @@ A save and all the actions it starts share one budget. If a chain of triggers re
 
 ## What a person sees
 
-A calculated field is shown, but it is not offered for editing. It has four states, and each looks different:
+A calculated field is shown, but it is not offered for editing. It has four states: a value, empty, still calculating, or failed. A failure reads differently when it was an input that failed:
 
 | On screen | Meaning |
 | --- | --- |
@@ -234,7 +234,7 @@ A calculated field is shown, but it is not offered for editing. It has four stat
 
 Studio shows the formula below the value. A finished screen in Use shows the value and a *Calculated* mark, without the formula. A total on a summary tile that does not fit exactly in its type reads *Unavailable* with the reason.
 
-## What screens cannot do with calculated fields
+## Calculated fields on screens
 
 A calculated field can appear on any screen: a record page, a list column, a board card, or a related list. A list can also be sorted by one, or filtered on one: *Tasks is 0* lists the records nothing points at. Nendo works that out over every record the list could show, up to 10,000 of them; past that, add a filter on an ordinary field to narrow it.
 
