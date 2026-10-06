@@ -6,9 +6,8 @@ this repository does not keep versions of it. The file contains real work. It is
 not a reusable test fixture. The application is authored through MCP and is used
 through the installed host's Use and Studio routes.
 
-`workspace/Nendo.nendo` is the planner it replaced, kept as the archive; never plan
-in it. Records crossed with their record IDs and Reference codes, so a W-, F-, C- or
-I- code in an older commit or document means what it meant.
+Records crossed from the planner it replaced with their record IDs and Reference
+codes, so a W-, F-, C- or I- code in an older commit or document means what it meant.
 
 ## Live planner and next work
 
@@ -60,7 +59,7 @@ Use opens on the front page. It is a tab group:
 - **Decisions**: open decisions, and open work needing one.
 
 The record types are one step away, in the breadcrumb's record-type picker. The file
-is violet with the letter P; the archive is the amber N.
+is violet with the letter P.
 
 ## Connect and identify the file
 
@@ -93,8 +92,8 @@ planner. In Claude, `/context` lists loaded memory files. Check that the
 repository `CLAUDE.md` and the imported `AGENTS.md` are present.
 
 Both registrations name the local host at port 41766. Each file keeps its own
-agent port on a device: 41766 is the one Planner.nendo claimed on this machine,
-and the archive keeps 41763. If Agent → Connection in the planner shows another
+agent port on a device: 41766 is the one Planner.nendo claimed on this machine.
+If Agent → Connection in the planner shows another
 port, set it back to 41766 there; the refusal names the file that has it.
 On another device, first open the intended planner in Nendo and confirm the
 application identity. The
@@ -182,9 +181,7 @@ Proposal acceptance alone does not allow the agent to bypass that interlock.
 The registered MCP server is `nendo`, at `http://127.0.0.1:41766/mcp` for this
 installation. Before you author, read `nendo://application/describe`, the live
 vocabulary and the pending proposals. The planner's application ID is
-`application-5c52097771f342d5a648fcb514318e7c`. The archive, `Nendo.nendo`, is
-`application-7efd926c073f4be9974be19bbc39ff41`; an agent that finds itself
-connected to it is on the wrong file. A different identity must be explained before
+`application-5c52097771f342d5a648fcb514318e7c`. A different identity must be explained before
 writes. Instance IDs and edit handles are not durable
 identity.
 

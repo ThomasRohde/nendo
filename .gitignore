@@ -40,9 +40,6 @@ site/public/favicon.ico
 # The live planner: real owner data, and a 5 MB SQLite file that git would store
 # whole on every write. It lives in workspace/ beside the tracked demo files and
 # is deliberately not one of them; workspace/README.md says how it is kept.
-workspace/Nendo.nendo
-# Its designed successor, built from the planner by tools/Build-Planner.mjs and
-# owner data on the same terms (docs/design/planner.md).
 workspace/Planner.nendo
 
 # Nendo/SQLite operational derivatives

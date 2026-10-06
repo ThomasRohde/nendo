@@ -161,8 +161,8 @@ The owner switched on 2026-09-29, with Planner.nendo already open.
   `/next` command name the new file.
 - **Guards.** `tools/Build-NendoStation.mjs` refuses both planners' application IDs.
   `tools/Build-Planner.mjs` keeps the old one as its source.
-- **The old file.** `Nendo.nendo` is kept as the archive. Do not delete it, and do not
-  plan in it.
+- **The old file.** `Nendo.nendo` was kept as the archive until the owner retired it
+  on 2026-10-06.
 
 ## Known limitations
 

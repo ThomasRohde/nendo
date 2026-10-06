@@ -6,12 +6,10 @@ The demo files are tracked; the live planner is the owner's data and is ignored.
 | File | What it is | In git |
 | --- | --- | --- |
 | `Planner.nendo` | The live [Nendo Development planner](../docs/dogfooding.md) since 2026-09-29: work items, findings, checks, decisions and initiatives. Real work, not a fixture. [Designed](../docs/design/planner.md) and built by `tools/Build-Planner.mjs`. | **No** — ignored |
-| `Nendo.nendo` | The planner before it, kept as the archive: its History, receipts and record versions did not move. Read it; do not plan in it. | **No** — ignored |
-| `Work dependencies demo.nendo` | Fourteen test tasks and their dependencies, with the [work-dependency view](../extensions/work-dependencies/README.md): a chain, an isolated task, a three-task cycle and one task behind it. | Yes |
-| `Nendo graph demo (fitted).nendo` | A small record graph with a view of the [dependency-graph package](../extensions/dependency-graph/README.md). | Yes |
-| `Nendo custom-view demo.nendo` | The first custom-view demo, kept as the shape that slice produced. | Yes |
 | `Nendo Station.nendo` | [Nendo Station](../docs/nendo-station.md), the fourth reference application: a fictional habitat run as an operations room, with the [Systems Lens](../extensions/systems-lens/README.md) schematic. Rebuilt by `tools/Build-NendoStation.mjs` rather than edited. | Yes |
 | `BCM.nendo` | Capability Atlas: a business capability model of the fictional Northstar organisation, 635 capabilities with applications and initiatives, and the [Capability Atlas package](../extensions/bcm-atlas/README.md) in the file. | Yes |
+| `Archi.nendo` | An ArchiMate 3.2 model with the [Archi workbench](../extensions/archi/README.md) in the file. Built by `tools/Build-Archi.mjs`. | Yes |
+| `Swarm.nendo` | The [Swarm](../extensions/swarm/README.md) behaviour playground: creature behaviours edited with bpmn-js, a habitat, and experiments that replay. Built by `tools/Build-Swarm.mjs`. | Yes |
 
 ## Rules
 
@@ -20,12 +18,6 @@ The demo files are tracked; the live planner is the owner's data and is ignored.
   the Nendo application, or the `nendo` MCP server against the file it has open.
 - Host-owned sidecars (`-wal`, `-shm`, journal, write-owner) belong to Nendo while
   it holds a file open. `.gitignore` keeps them out of git; leave them alone.
-- The older demo files were built before custom views ran from the file (ADR-0013,
-  2026-09-25); only `BCM.nendo` carries its package. Each other view names its package, so
-  each view says that its package is not in this file and offers **Add package to
-  file…**. Importing the package from its folder under `extensions/` changes the
-  file through a proposal you accept; do it in a Duplicate to keep the tracked file
-  as it is. The package pins these files still hold are kept and ignored.
 
 ## What is in git, and what is not
 
