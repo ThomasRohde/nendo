@@ -289,7 +289,7 @@ async function settle(place: Place): Promise<void> {
   // missed that read.
   state.selectedRecordId = place.recordId;
   state.returnTo = place.returnTo;
-  await refreshDerived();
+  await refreshDerived(0, { navigation: true });
 
   const plan = activePlan();
   if (plan !== null && entityId !== null && place.surfaceId !== null) {

@@ -188,8 +188,26 @@ export async function handlePageFailure(error: unknown): Promise<void> {
   } else showError(messageFor(error));
 }
 
-export async function refreshDerived(attempt = 0): Promise<void> {
+/**
+ * The compiled definition of the last refresh, and the revision it was compiled at. A move
+ * between screens reuses it while the file has not moved (review R-014); every other refresh,
+ * after a write, an acceptance or a setting, compiles again.
+ */
+let compiled: { key: string; definition: CompileResult | null } | null = null;
+
+export interface RefreshOptions {
+  /** A move between screens: reuse the definition compiled at this revision, if there is one. */
+  navigation?: boolean;
+}
+
+/**
+ * Rebuild what the screens draw from, from one revision. The History page and the Agent page
+ * read what only they show when they are the screen (review R-014): a move elsewhere reads
+ * neither, and opening either reads it then.
+ */
+export async function refreshDerived(attempt = 0, options: RefreshOptions = {}): Promise<void> {
   if (!state.session.hasFile) {
+    compiled = null;
     state.compilation = null;
     state.history = [];
     state.historyWindow = null;
@@ -202,17 +220,21 @@ export async function refreshDerived(attempt = 0): Promise<void> {
   }
   const generation = state.session.fileSessionId;
   const sequence = state.session.manifest?.changeSequence;
+  const compileKey = `${generation}:${sequence}:${state.session.capabilities.customSurfaces}`;
+  const reuse = options.navigation === true && sequence !== undefined && compiled?.key === compileKey ? compiled : null;
+  const onHistory = state.view === 'history', onAgent = state.view === 'agent' || state.view === 'agentProposal';
   const [definition, revisions, status] = await Promise.all([
-    state.session.capabilities.customSurfaces ? client.request<CompileResult>('semantic.compile') : Promise.resolve(null),
-    state.session.capabilities.readHistory ? client.request<ReadPage<RevisionSummary>>('history.query', { limit: 50 }) : Promise.resolve(null),
-    client.request<AgentStatus>('agent.getStatus'),
+    reuse !== null ? Promise.resolve(reuse.definition)
+      : state.session.capabilities.customSurfaces ? client.request<CompileResult>('semantic.compile') : Promise.resolve(null),
+    onHistory && state.session.capabilities.readHistory ? client.request<ReadPage<RevisionSummary>>('history.query', { limit: 50 }) : Promise.resolve(null),
+    onAgent ? client.request<AgentStatus>('agent.getStatus') : Promise.resolve(state.agentStatus),
   ]);
   const applicationEntity =
     (definition?.applications?.find(app => app.entity.semanticId === state.selectedApplicationEntity) ?? definition?.applications?.[0])?.entity.semanticId;
   const entityIds = state.session.capabilities.readData ? [...new Set([sessionEntity()?.entityId, applicationEntity]
     .filter((id): id is string => id !== undefined))] : [];
   const browseQuery = emptyWindowQuery();
-  const pages = await Promise.all(entityIds.map(async entityId => ({ entityId,
+  const pages = await Promise.all(entityIds.map(async entityId => ({ entityId, request: JSON.stringify(windowRequest(entityId, browseQuery)),
     page: await client.request<ReadPage<RecordSnapshot>>('data.queryRecords', windowRequest(entityId, browseQuery)) })));
 
   // Only the selected surface is read. An unselected one keeps whatever window it
@@ -226,8 +248,11 @@ export async function refreshDerived(attempt = 0): Promise<void> {
   const declared = surfaceNode === null || readsOwnRecords(surfaceNode.kind) || applicationEntity === undefined
     ? null
     : effectiveSurfaceQuery(applicationEntity, surfaceNode);
-  const surfacePage = surfaceNode === null || declared === null || applicationEntity === undefined ? null
-    : await client.request<ReadPage<RecordSnapshot>>('data.queryRecords', windowRequest(applicationEntity, declared));
+  // A screen that asks for exactly what the browse window read takes that page rather than reading it twice.
+  const surfaceRequest = surfaceNode === null || declared === null || applicationEntity === undefined ? null : windowRequest(applicationEntity, declared);
+  const surfacePage = surfaceRequest === null ? null
+    : pages.find(value => value.request === JSON.stringify(surfaceRequest))?.page
+      ?? await client.request<ReadPage<RecordSnapshot>>('data.queryRecords', surfaceRequest);
   if (state.session.fileSessionId !== generation ||
       (definition?.sourceChangeSequence != null && definition.sourceChangeSequence !== sequence) ||
       (revisions !== null && revisions.changeSequence !== sequence) || pages.some(value => value.page.changeSequence !== sequence) ||
@@ -237,10 +262,11 @@ export async function refreshDerived(attempt = 0): Promise<void> {
     const changed = refreshed.fileSessionId !== state.session.fileSessionId;
     state.session = refreshed;
     if (changed) resetFileView();
-    await refreshDerived(attempt + 1);
+    await refreshDerived(attempt + 1, options);
     return;
   }
   state.compilation = definition;
+  compiled = { key: compileKey, definition };
   // The file's definition is known now, so the screen Use opens on is settled:
   // a file with a front page opens on it, and one without opens on a record type
   // exactly as it did. Already answered for this file, it stays as the person
@@ -250,6 +276,7 @@ export async function refreshDerived(attempt = 0): Promise<void> {
     state.fileView = openingFileView(definition, state.session.extensions);
     state.showOverview = state.fileView === null && definition?.isValid === true && (definition.overview ?? null) !== null;
   }
+  // Away from History its page is not kept: opening History reads it at that moment.
   state.history = revisions?.items ?? [];
   state.historyWindow = revisions === null ? null : { page: revisions, cursors: [null], index: 0 };
   state.agentStatus = status;
@@ -309,7 +336,7 @@ export async function openWorkspaceView(target: 'use' | 'data' | 'structure' | '
     if (changed) resetFileView();
     state.view = target;
     state.creatingRecord = false;
-    await refreshDerived();
+    await refreshDerived(0, { navigation: true });
     rerender();
   } catch (error) {
     showError(messageFor(error));
