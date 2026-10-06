@@ -189,6 +189,26 @@ internal sealed class NendoMcpResources(
             entityId, aggregate, fieldId, groupBy, rowBy, columnBy, dateFieldId, bucket, range, filter, cancellationToken));
 
     [McpServerResource(
+        Name = "nendo.application.search",
+        Title = "Search records",
+        UriTemplate = "nendo://application/search{?q,entity,field,cursor,limit}",
+        MimeType = "application/json")]
+    [Description("Records found by any word in their text, best match first, from the file's full-text index (ADR-0028). q is what to search for: every word is required and words may sit in different fields of a record; \"a phrase\" in double quotes is matched as one; -word leaves out the records that contain it; the last word also matches as a prefix. Nothing else is syntax. entity and field narrow it to comma-separated record type and field IDs. limit is 1 to 100, 20 by default. Each item is {entityId, recordId, version, label, score, fields}: label is the record's first text field, and each field is {fieldId, snippet, ranges}, a plain-text excerpt with the matched words as {start, length}. Every active text field that is not a choice is searched. A file without an index refuses with NENDO_SEARCH_INDEX_MISSING; a change set with application.buildSearchIndex builds it, and every write keeps it current after that. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
+    public Task<string> SearchAsync(
+        string? q = null,
+        string? entity = null,
+        string? field = null,
+        string? cursor = null,
+        string? limit = null,
+        CancellationToken cancellationToken = default) =>
+        TranslateAsync(() => projection.SearchAsync(q, entity, field, cursor, limit switch
+        {
+            null => Nendo.Engine.NendoSearchLimits.DefaultPage,
+            _ when int.TryParse(limit, NumberStyles.None, CultureInfo.InvariantCulture, out var value) => value,
+            _ => throw NendoMcpErrors.InvalidLimit(),
+        }, cancellationToken));
+
+    [McpServerResource(
         Name = "nendo.application.entity.tree",
         Title = "Record tree",
         UriTemplate = "nendo://application/entity/{entityId}/tree{?root,depth,cursor,limit}",

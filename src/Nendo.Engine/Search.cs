@@ -75,6 +75,7 @@ public static class NendoSearchLimits
     public const int MaximumTextLength = 256;
     public const int MaximumTerms = 16;
     public const int MaximumPage = 100;
+    public const int DefaultPage = 20;
     public const int MaximumScope = 64;
 }
 

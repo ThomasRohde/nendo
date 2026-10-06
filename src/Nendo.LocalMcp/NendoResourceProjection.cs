@@ -164,6 +164,31 @@ internal sealed class NendoResourceProjection(
             page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor)) { ChangeSequence = page.ChangeSequence };
     }
 
+    /// <summary>A full-text search over the file's text fields (ADR-0028).</summary>
+    internal async Task<NendoMcpPage<NendoSearchHit>> SearchAsync(
+        string? q,
+        string? entity,
+        string? field,
+        string? cursor,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        RequireLimit(limit);
+        if (string.IsNullOrWhiteSpace(q))
+            throw new NendoValidationException("q is what to search for: words, \"a phrase\" in double quotes, or -word to leave records out.");
+        static string[] Ids(string? list) => string.IsNullOrWhiteSpace(list)
+            ? []
+            : [.. list.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.Ordinal)];
+        var entityIds = Ids(entity);
+        var fieldIds = Ids(field);
+        var scope = $"search:{q}:{string.Join(',', entityIds)}:{string.Join(',', fieldIds)}";
+        var page = await application.SearchRecordsAsync(
+            new(q, limit, cursors.Decode(cursor, scope)) { EntityIds = entityIds, FieldIds = fieldIds }, cancellationToken);
+        await Settled("search");
+        return new NendoMcpPage<NendoSearchHit>(page.Items, page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor))
+        { ChangeSequence = page.ChangeSequence };
+    }
+
     private static NendoMcpRecord Project(NendoRecordSnapshot record) => new(record.EntityId, record.RecordId, record.RecordVersion, record.Values)
     {
         ReferenceLabels = record.ReferenceLabels,

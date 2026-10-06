@@ -97,7 +97,7 @@ public sealed class SurfaceTextBoundTests
         foreach (var resource in resources) Measure(findings, resource.Name, resource.Description);
         var templates = await client.ListResourceTemplatesAsync();
         foreach (var template in templates) Measure(findings, template.Name, template.Description);
-        Assert.AreEqual(24, resources.Count + templates.Count, "Every resource is measured.");
+        Assert.AreEqual(25, resources.Count + templates.Count, "Every resource is measured.");
         Assert.IsEmpty(findings, "A client stops reading at 2,048 characters:\n" + string.Join('\n', findings));
 
         // The rules that no longer fit in add_operations are one read away, and the

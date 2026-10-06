@@ -153,7 +153,9 @@ public sealed class AuthoringErgonomicsTests
             "Every operation the boundary accepts must be published, and nothing else.");
         foreach (var operation in vocabulary.Operations)
         {
-            Assert.IsNotEmpty(operation.RequiredPayload, operation.OperationType);
+            // Only an operation that takes no payload at all, such as application.buildSearchIndex, requires nothing.
+            if (NendoAuthoringOperations.AllowedPayloads[operation.OperationType].Count > 0)
+                Assert.IsNotEmpty(operation.RequiredPayload, operation.OperationType);
             Assert.IsFalse(string.IsNullOrWhiteSpace(operation.Summary), operation.OperationType);
             CollectionAssert.AreEquivalent(
                 NendoAuthoringOperations.AllowedPayloads[operation.OperationType].ToArray(),

@@ -37,7 +37,7 @@ You set the level on the Agent page. Each level includes everything that the lev
 | Level | What the agent may do | What it gets |
 | --- | --- | --- |
 | Off | Nothing. Nendo does not listen, and every lease ends. | No connection. |
-| Inspect | Read the whole file: structure, records, screens, history, health and waiting proposals. | The 24 resources. The tool list is empty. |
+| Inspect | Read the whole file: structure, records, screens, history, health and waiting proposals. | The 25 resources. The tool list is empty. |
 | Edit data | Create, change, delete, import, move and undo records, and run a screen's command. Writes go straight into the file and appear in History. | Adds 17 tools: `nendo.lease.*` (4), `nendo.data.*` (12) and `nendo.health.verify_integrity`. |
 | Shape app | Propose changes to record types, fields, screens, calculations and automatic actions. Proposals wait for you. | Adds 7 tools: `nendo.change_set.begin`, `add_operations`, `amend`, `validate`, `revalidate`, `preview` and `reject`. |
 | Unattended | Accept its own proposals, and let the automatic actions they install run. | Adds 1 tool: `nendo.change_set.accept`. |
@@ -74,6 +74,7 @@ Reads are MCP resources. They need no lease. Start with `nendo://application/des
 | `nendo://application/entity/{entityId}/aggregate{?aggregate,fieldId,groupBy,rowBy,columnBy,dateFieldId,bucket,range,filter}` | An exact count, sum, min or max over the records a filter leaves: whole, per choice, as a grid of two choices, or per day, week, month, quarter or year. Nothing is paged. |
 | `nendo://application/entity/{entityId}/tree{?root,depth,cursor,limit}` | A record type kept as a tree, depth-first, each record with its parent, depth and number of children. |
 | `nendo://application/entity/{entityId}/export{?cursor,limit}` | A page of records as Nendo CSV, ready to import again. |
+| `nendo://application/search{?q,entity,field,cursor,limit}` | Records found by any word in their text, best match first, each with a short excerpt. The file needs a search index first. |
 | `nendo://application/surfaces` | Every compiled screen as a node tree, with the command IDs a screen's buttons run, and where each node is kept: its surface, its parent and its position among its siblings. |
 | `nendo://application/vocabulary` | Everything this Nendo build accepts from an author: node kinds, operators, operations and their payloads, the behaviour catalogue, the authoring rules and the limits. |
 | `nendo://application/examples` | Complete change sets that validate as they stand. |
@@ -135,11 +136,11 @@ A proposal appears on the Agent page under **Pending changes**, with its title, 
 
 When accepting a proposal involves the file's automatic actions, both the queue and the review say so before you accept. A proposal that sets off actions this computer has not approved asks you to approve them on the Agent page first, and **Accept changes** stays unavailable until you do. A proposal that changes the actions says that editing pauses after you accept, until you approve them again. A proposal that both changes the actions and sets them off cannot be accepted as it stands, and the review asks for the actions first and the records after. An agent reads the same facts in the proposal's `behaviour`.
 
-A change set may contain 35 operation types, and nothing else:
+A change set may contain 36 operation types, and nothing else:
 
 - `schema.*` (16): create, rename and retire record types and fields; make a field required; show a text field as one line, long text or Markdown; make a field unique, so no two records can share a value, and have Nendo number it (T-001, T-002…) when a record is created without one; configure a reference; name and colour a choice; keep a record type a tree, and stop keeping it one; say which links a record type allows, from a table of allowed combinations, so Nendo refuses any other link whoever writes it; say whether a new file of the application keeps a record type's records.
 - `behaviour.setDefinition` and `behaviour.removeDefinition`: calculations, reusable functions, automatic actions and triggers.
-- `application.*` (3): say what the file is for; give the file its own icon colour and letter, the badge that tells it apart from other open files; name what a new file of it is called.
+- `application.*` (4): say what the file is for; give the file its own icon colour and letter, the badge that tells it apart from other open files; name what a new file of it is called; build the file's search index, so its records can be found by any word in their text.
 - `ui.*` (4): add, set a property on, move and remove a screen node.
 - `data.*` (6): create, change and delete records, mark one for a new file, fill a value on a retired field, and convert an old text reference, carried in the same proposal.
 - `extension.*` (4): put a custom view's code into the file as a package and its files, and take them out again. See [Custom views](/nendo/docs/custom-views).

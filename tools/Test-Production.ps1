@@ -256,6 +256,7 @@ try {
         'nendo.application.proposal',
         'nendo.application.proposals',
         'nendo.application.revision.operations',
+        'nendo.application.search',
         'nendo.application.surfaces',
         'nendo.application.view.api',
         'nendo.application.vocabulary',

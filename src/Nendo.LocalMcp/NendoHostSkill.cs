@@ -129,6 +129,7 @@ internal static class NendoHostSkill
         text.Append("| One record type: its fields, record count and screens | `nendo://application/entity/{entityId}` |\n");
         text.Append("| One record, or a filtered and sorted page; `fields` for only some fields | `nendo://application/entity/{entityId}/records{?recordId,filter,sort,desc,fields}` |\n");
         text.Append("| A count, sum, min or max, whole or grouped | `nendo://application/entity/{entityId}/aggregate` |\n");
+        text.Append("| Which records mention a word, across record types | `nendo://application/search?q=` (after `application.buildSearchIndex`) |\n");
         text.Append("| Every operation with its payload, the authoring rules and the limits | `references/vocabulary.json` here, or `nendo://application/vocabulary` |\n");
         text.Append("| Change sets you can send as they stand | `references/examples.json` here, or `nendo://application/examples` |\n");
         text.Append("| What is waiting for the person, including a predecessor session's work | `nendo://application/proposals`, and one in full at `nendo://application/proposal/{proposalId}` |\n");

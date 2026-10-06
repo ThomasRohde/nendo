@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-06
-- **Delivery:** Stages 1 (the Engine, at host 1.46.0), 2 (Desktop and the view API) and 3 (Ctrl K and Studio) done 2026-10-06; stages 4 (MCP) and 5 (Garden) follow. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24), with the owner choosing, on 2026-10-06, that the index lives inside the file rather than beside it
+- **Delivery:** Stages 1 (the Engine, at host 1.46.0), 2 (Desktop and the view API), 3 (Ctrl K and Studio) and 4 (MCP) done 2026-10-06; stage 5 (Garden) follows. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24), with the owner choosing, on 2026-10-06, that the index lives inside the file rather than beside it
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** `tests/Nendo.Engine.Tests/SearchIndexTests.cs`; the falsification in Evidence below
@@ -150,7 +150,7 @@ A history fold changes no record and needs nothing.
    `nendo.records.search` for custom views.
 3. **Ctrl K and Studio** (done 2026-10-06): records in the command palette, a search box on Studio's per-type table, and
    building the index from there.
-4. **MCP:** a `search` resource for agents, and the build operation in the authoring union.
+4. **MCP** (done 2026-10-06): a `search` resource for agents, and the build operation in the authoring union.
 5. **Garden:** Find searches note bodies through the service, and the package proposal builds the index.
 
 ## Evidence and validation obligations

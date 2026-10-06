@@ -275,7 +275,7 @@ An edit to an unrelated record does not invalidate a UI-only proposal
 
 ### Typed operations
 
-Thirty-seven operation types are the primitive: every type that a revision can
+Thirty-eight operation types are the primitive: every type that a revision can
 record, including the two that only host services create. Semantic diff, undo
 evidence and replay all derive from the same operation stream.
 
@@ -290,7 +290,7 @@ schema.setChoiceMetadata    data.setKeptInNewFiles         behaviour.removeDefin
 schema.configureReference   identity.transition *          application.setPurpose
 schema.declareHierarchy                                    application.setLook
 schema.removeHierarchy                                     application.setNewFileLabel
-schema.setFieldUnique
+schema.setFieldUnique                                      application.buildSearchIndex
 schema.setFieldSequence     extension.setPackage           extension.removeFile
 schema.setFieldPresentation extension.putFile              extension.removePackage
 schema.setKeptInNewFiles
@@ -298,7 +298,7 @@ schema.declareLinkRule
 schema.removeLinkRule
 ```
 
-`*` marks a native-only operation. The other thirty-five are the closed union that
+`*` marks a native-only operation. The other thirty-six are the closed union that
 the canonical change-set parser accepts and an MCP client may author (see
 `NendoAuthoringOperations.cs`). Whole-definition
 convenience APIs must expand into typed operations before the host records, diffs
@@ -786,7 +786,7 @@ with the `leaseId`, and every owned operation requires both. Possession of the
 handle governs ownership. Claimed client names and HTTP connection identity do
 not govern it.
 
-The MCP surface has eighteen resources and twenty tools. Resources are reads and
+The MCP surface is listed in the [MCP contract](contracts/mcp-interface.md). Resources are reads and
 need no lease. Tools are writes and need a lease. The exceptions are
 `nendo.lease.status`, `nendo.data.get_receipt` and
 `nendo.health.verify_integrity`: they read authority or file state, and they

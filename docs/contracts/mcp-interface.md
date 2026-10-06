@@ -1,6 +1,6 @@
 # MCP interface contract
 
-This contract lists the twenty-four resources and twenty-five tools that an external
+This contract lists the twenty-five resources and twenty-five tools that an external
 agent sees, and the authority rules behind them. `Test-Production.ps1` asserts
 both surfaces by name, and this sentence is held to the same count by
 `Test-Repository.ps1`.
@@ -268,6 +268,7 @@ physical mappings or arbitrary host invocation.
 | `nendo://application/entity/{entityId}/tree{?root,depth,cursor,limit}` | `GetTreeAsync` → `TreeRecordsAsync` | A declared hierarchy depth-first (ADR-0019): the records under `root`, or from the top level, down to `depth` levels (1 to 32, default 1), each with `parentRecordId`, `depth` and `childCount`. Refused past 10,000 records as `NENDO_HIERARCHY_TOO_WIDE`; position-cut pages with a revision-bound continuation. |
 | `nendo://application/entity/{entityId}/records{?cursor,limit,recordId,sort,desc,filter,fields}` | `GetRecordsAsync` → `QueryRecordsAsync` | Storage keyset page in stable record-ID order; revision-bound continuation. Since 2026-10-04 (W-145) the same typed query the screens use: `recordId` reads one record, `sort` and `desc` order the page, and `filter` is a percent-encoded JSON array of `{fieldId, op, value}` joined by AND, `op` one of the vocabulary's `filterOperators` (`lte` and `gte` are mapped to the Engine's `le` and `ge`) plus `contains` and `descendantOf`. An unknown operator is refused naming the ten accepted; an unknown field, naming the record type's fields. The Engine's own bounds apply: at most eight filters, and a calculated field filtered or sorted within `limits.query`. Every field a request names is checked against one definition snapshot, taken only when a field needs checking (review R-004); the Engine still validates the query against the file as it stands. Since 2026-10-06 (review R-007) `fields` takes up to 64 comma-separated field IDs of the record type, stored or calculated: each record then carries only those `values`, `referenceLabels` and `calculations` (and so only their `numericLexemes`), always with `entityId`, `recordId` and `recordVersion`, and `keptInNewFiles` when the record has its own mark. Omitted or empty, the record is whole, as before. An unknown field is `NENDO_INVALID_REQUEST` naming the record type's fields; more than 64 IDs or more than 4,096 characters is refused by name. The projection chooses what each record carries, never which records match or their order, so it is not part of the cursor's scope and does not change matching. It is applied in the adapter: the Engine still reads whole records, so it saves wire bytes and client context, not storage reads — 100 records with 2 KB bodies read as `label,amount` were 21,859 bytes against 220,859 whole. |
 | `nendo://application/entity/{entityId}/aggregate{?aggregate,fieldId,groupBy,rowBy,columnBy,dateFieldId,bucket,range,filter}` | `GetAggregateAsync` → `CountRecordsAsync`, `AggregateRecordsAsync`, `GroupAggregateRecordsAsync`, `CellAggregateRecordsAsync`, `BucketAggregateRecordsAsync` | One exact `count`, `sum`, `min` or `max` over the records a `filter` leaves, as invariant lexemes and without paging (W-146): whole, grouped by one closed field (`groupBy`), as a grid of two (`rowBy`, `columnBy`) or per civil-date bucket (`dateFieldId`, `bucket`, `range`). `shape` says which sections are filled; an empty set is null, never zero; `unrecognised` counts stored values outside the configured groups. `avg` is refused for the vocabulary's reason. `aggregate-not-exact` stays withheld. `describe` and `entity/{entityId}/schema` carry `recordCount` per record type. As on the records read, every field the request names is checked against one definition snapshot (review R-004). |
+| `nendo://application/search{?q,entity,field,cursor,limit}` | `SearchAsync` → `SearchRecordsAsync` | Records found by any word in their text, best match first, from the file's full-text index ([ADR-0028](../decisions/0028-full-text-search-in-the-file.md)). `q` is required: every word must match, in any of a record's searched fields; text in double quotes is a phrase; `-word` leaves records out; the last word also matches as a prefix. `entity` and `field` narrow it to comma-separated IDs. `limit` is 1–100, 20 by default, under the same revision-bound cursor as every page here. Each item is `{entityId, recordId, version, label, score, fields}`, a field `{fieldId, snippet, ranges}`. A file without an index refuses with `NENDO_SEARCH_INDEX_MISSING`, and `application.buildSearchIndex` in a change set builds one. It is a resource and not a tool, so an agent at Inspect can search. |
 | `nendo://application/surfaces` | `GetSurfacesAsync` → `CompileSemanticDefinitionAsync` | Cached verified definition, with no records. Surface roots appear under `applications[].surfaces` as an ordered node tree with `nodeId`, `kind`, `properties`, `children` and, on a command root, the `commandId` that `nendo.data.execute_command` takes. The removed contract version 1 and 2 `form`/`list`/`board`/`command` slots are gone from this resource as of 2026-09-12. The front page of the file, if it has one, is under `overview` and not among the record types. `state` is `valid`, `invalid` or `noCustomSurfaces`. Every node also carries `surfaceId`, `parentNodeId` and `position` (W-168), read from the stored definition beside the plan: the plan carries none of them, because the definition digest is taken over what a node draws and not where it is kept. An author changing an existing file needs all three for `ui.moveNode`. |
 | `nendo://application/history{?cursor,limit,newestFirst}` | `GetHistoryAsync` → `QueryHistoryAsync` | Bounded revision summaries in ascending sequence order. `operationCount` and `operationsUri` replace the unbounded nested `operations` array. Since 2026-10-06 (review R-008) `newestFirst=true` reads them newest first, forwarded to `NendoHistoryQuery.NewestFirst`, so the last changes are one read rather than a walk over every older page; omitted, `false` or empty keeps ascending order, and any other value is `NENDO_INVALID_REQUEST`. The direction is part of the cursor's scope in the adapter and in the Engine, so a cursor from one direction is `NENDO_INVALID_CURSOR` in the other. |
 | `nendo://application/revision/{revisionId}/operations{?cursor,limit}` | `GetRevisionOperationsAsync` → `QueryRevisionOperationsAsync` | Bounded sanitized operation descriptors in ordinal order. No canonical payload, raw inverse or physical mapping escapes. |
@@ -279,7 +280,7 @@ physical mappings or arbitrary host invocation.
 | `nendo://application/extension/{packageId}/file{?path,offset,length}` | `GetExtensionFileAsync` → `ReadExtensionFileAsync` | One package file, a page of bytes at a time. `path` is percent-encoded, so `tiles/world.bin` is sent as `tiles%2Fworld.bin`. `offset` and `length` are byte positions. `length` is at most 131,072, and by default the page runs to the end of the file up to that. A text file's page arrives as `text`. Any other page arrives as `base64`, and so does a text page that would split a UTF-8 sequence. `sha256` and `byteLength` describe the whole file, and `nextOffset` is null on the last page. |
 | `nendo://application/view-api` | `NendoViewApi.Json`, embedded from the Workbench's api build | `window.nendo` as a custom view's code calls it ([custom-view contract](custom-views.md#the-view-api-as-a-read)): every broker method with its call, parameters and answer, the helpers `api.js` adds, the context and record shapes, the events, the filter words, write values, toolbar kinds, icons and keys, theme tokens, limits, refusals, a whole view to start from, and how a person develops a package from a folder. Read only while an agent writes a view's code (W-094). Its own description, the vocabulary's `extension.setPackage`, the custom-view example and describe's `reads` each name it with that condition and carry none of it, and the instructions do not name it (review R-006); `ViewApiResourceTests` fails when one of them does. Static for a host build. |
 
-All four page resources (records, export, history and revision operations) keep
+All five page resources (records, search, export, history and revision operations) keep
 the MCP 1–100 limit. `limit` is a whole number in
 that range. Any other value is `NENDO_INVALID_LIMIT`: letters, a fraction, a value
 larger than an integer holds, an empty value, `0` or `101`. The template variable
@@ -616,13 +617,13 @@ that table serves two purposes. It is published at
 enforcement from it. Before, the payload specification was prose inside the
 `add_operations` tool description. That prose grew so long that a real client's
 tool listing truncated it mid-token. The rules that stayed behind went the same
-way on 2026-09-27 and are now `authoringRules`. The union permits thirty-five of the Engine's
+way on 2026-09-27 and are now `authoringRules`. The union permits thirty-six of the Engine's
 thirty-seven canonical operations. `data.restoreDeletedRecord` and
 `identity.transition` are native-only: lifecycle identity operations remain host
 services and are not MCP authoring primitives.
 
 `extension.setPackage`, `extension.putFile`, `extension.removeFile` and
-`extension.removePackage` are among the thirty-five. An agent therefore writes a
+`extension.removePackage` are among the thirty-six. An agent therefore writes a
 custom view's code into the file through ordinary proposals, and the person reviews
 it as code before accepting. Once accepted, the code runs in the Workbench whenever
 a view that names its package is shown, and reaches the file only through
@@ -642,7 +643,7 @@ publishes the package bounds under `limits.extensions`:
 
 The bounds of a declared hierarchy are under `limits.hierarchy`: `maximumDepth` 32,
 `maximumDescendants` 10,000 and `orderGap` 1,024. `schema.declareHierarchy` and
-`schema.removeHierarchy` are among the thirty-five, and a record type's schema read carries
+`schema.removeHierarchy` are among the thirty-six, and a record type's schema read carries
 its `hierarchy` (`parentFieldId`, `orderFieldId`), or null.
 
 `schema.setFieldUnique` and `schema.setFieldSequence` are among them too
@@ -670,7 +671,7 @@ joined, is refused at validation as `NENDO_INVALID_REQUEST`, and nothing reaches
 the clone. A package precondition met on the clone, one of the `extension-*` codes,
 arrives as a validation diagnostic, `NPROP010`, with the Engine's sentence.
 
-`behaviour.setDefinition` and `behaviour.removeDefinition` are among the thirty-five,
+`behaviour.setDefinition` and `behaviour.removeDefinition` are among the thirty-six,
 so an agent authors calculations, reusable functions, actions and triggers through
 ordinary proposals. The vocabulary's `behaviour.bindings` publishes every binding
 shape with the keys that it takes, from the same table that the codec refuses

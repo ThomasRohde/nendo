@@ -133,6 +133,8 @@ public sealed class ProtocolResourceTests
                 "nendo.application.history",
                 "nendo.application.proposal",
                 "nendo.application.revision.operations",
+                // Records by any word in their text (ADR-0028).
+                "nendo.application.search",
                 "nendo.host.skill.file",
                 // A file of a skill the open file carries (ADR-0024, W-160).
                 "nendo.application.skill.file",
