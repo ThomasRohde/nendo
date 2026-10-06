@@ -151,7 +151,7 @@ public sealed class RecordQueryResourceTests
             $"{{\"fieldId\":\"{status}\",\"op\":\"ne\",\"value\":\"Trying\"}}]";
 
         var page = await projection.GetRecordsAsync(NendoApplicationService.IdeaEntityId, null, 50, null,
-            NendoApplicationService.IdeaTitleFieldId, "true", filter, CancellationToken.None);
+            NendoApplicationService.IdeaTitleFieldId, "true", filter, null, CancellationToken.None);
         CollectionAssert.AreEqual(new[] { "idea-005", "idea-004", "idea-002", "idea-001" }, page.Items.Select(record => record.RecordId).ToArray());
         Assert.AreEqual(1, projection.DefinitionReads, "A sorted four-clause records read takes one definition snapshot.");
 
@@ -162,7 +162,7 @@ public sealed class RecordQueryResourceTests
         Assert.AreEqual(2, projection.DefinitionReads, "A filtered grid aggregate takes one definition snapshot.");
 
         var unknown = await Assert.ThrowsExactlyAsync<NendoValidationException>(() => projection.GetRecordsAsync(
-            NendoApplicationService.IdeaEntityId, null, 50, null, "field.idea.colour", null, filter, CancellationToken.None));
+            NendoApplicationService.IdeaEntityId, null, 50, null, "field.idea.colour", null, filter, null, CancellationToken.None));
         StringAssert.Contains(unknown.Message, "The sort field 'field.idea.colour' is not a field of entity.idea; its fields are", StringComparison.Ordinal);
         Assert.AreEqual(3, projection.DefinitionReads, "A refused field is named from the same one snapshot.");
     }
@@ -207,6 +207,78 @@ public sealed class RecordQueryResourceTests
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
         var wire = await ProtocolResourceTests.ReadTextAsync(client, $"{Records}?limit=1");
         StringAssert.Contains(wire, $"\"changeSequence\":{now}", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Review R-007: a records read always carried every value, so triage over long bodies
+    /// paid for the bodies. fields names the ones wanted; IDs, versions, order and exact
+    /// numbers are unchanged, and only the wire bytes shrink -- the Engine still reads the
+    /// whole record.
+    /// </summary>
+    [TestMethod]
+    public async Task AProjectedReadCarriesOnlyTheNamedFieldsWithTheSameRecords()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        var schema = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest(
+            $"proposal-{Guid.NewGuid():N}", "Items", "test",
+            new([new("test", "schema", "test", "Items", [
+                new CreateEntityOperation("items", "items", "Items", "items"),
+                new AddFieldOperation("i-label", "items", "label", "Label", "label", NendoStorageKind.Text, true),
+                new AddFieldOperation("i-amount", "items", "amount", "Amount", "amount", NendoStorageKind.Decimal, false),
+                new AddFieldOperation("i-body", "items", "body", "Body", "body", NendoStorageKind.Text, false),
+            ])])));
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(schema.ProposalId)).Applied);
+        var body = string.Concat(Enumerable.Repeat("A long body of acceptance prose. ", 60));
+        for (var index = 0; index < 100; index++)
+        {
+            await workspace.Service.CreateRecordAsync(new("items", $"item-{index:D3}", new Dictionary<string, object?>
+            {
+                ["label"] = $"Item {index}",
+                ["amount"] = decimal.Parse($"123456789012345678.{index % 100:D2}", System.Globalization.CultureInfo.InvariantCulture),
+                ["body"] = body,
+            }, new("test", $"item-{index}", "test")));
+        }
+        await using var host = await NendoLocalMcpHost.StartAsync(workspace.Service, AgentAccessMode.ReadOnly,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        const string items = "nendo://application/entity/items/records";
+
+        async Task<(List<NendoMcpRecord> Records, long Bytes)> ReadAllAsync(string query)
+        {
+            var records = new List<NendoMcpRecord>();
+            long bytes = 0;
+            string? cursor = null;
+            do
+            {
+                var text = await ProtocolResourceTests.ReadTextAsync(client,
+                    $"{items}?limit=50{query}{(cursor is null ? string.Empty : $"&cursor={Uri.EscapeDataString(cursor)}")}");
+                bytes += System.Text.Encoding.UTF8.GetByteCount(text);
+                var page = Read<NendoMcpPage<NendoMcpRecord>>(text);
+                records.AddRange(page.Items);
+                cursor = page.NextCursor;
+            }
+            while (cursor is not null);
+            return (records, bytes);
+        }
+
+        var whole = await ReadAllAsync(string.Empty);
+        var projected = await ReadAllAsync("&fields=label,amount");
+        Assert.HasCount(100, projected.Records);
+        CollectionAssert.AreEqual(whole.Records.Select(record => (record.EntityId, record.RecordId, record.RecordVersion)).ToArray(),
+            projected.Records.Select(record => (record.EntityId, record.RecordId, record.RecordVersion)).ToArray(),
+            "The same records, in the same order, at the same versions.");
+        Assert.IsTrue(projected.Records.All(record => record.Values.Keys.Order(StringComparer.Ordinal).SequenceEqual(["amount", "label"])),
+            "A projected record carries only the named fields.");
+        Assert.IsTrue(whole.Records.All(record => record.Values.ContainsKey("body")), "Without fields the record is whole.");
+        Assert.AreEqual("123456789012345678.07", projected.Records[7].NumericLexemes["amount"], "Exact lexemes survive the projection.");
+        Assert.IsLessThan(whole.Bytes / 10, projected.Bytes, $"Projected {projected.Bytes} bytes against {whole.Bytes} whole.");
+
+        var unknown = await Assert.ThrowsExactlyAsync<McpProtocolException>(() => ProtocolResourceTests.ReadTextAsync(client, $"{items}?fields=label,colour"));
+        StringAssert.Contains(unknown.Message, "The projected field 'colour' is not a field of items; its fields are amount, body, label", StringComparison.Ordinal);
+        var many = string.Join(",", Enumerable.Repeat("label", NendoResourceProjection.MaximumProjectedFields + 1));
+        var tooMany = await Assert.ThrowsExactlyAsync<McpProtocolException>(() => ProtocolResourceTests.ReadTextAsync(client, $"{items}?fields={many}"));
+        StringAssert.Contains(tooMany.Message, "fields names at most 64 field IDs", StringComparison.Ordinal);
     }
 
     private static Func<string, Task> Once(string read, Func<Task> action)

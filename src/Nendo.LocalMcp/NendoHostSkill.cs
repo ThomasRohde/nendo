@@ -127,7 +127,7 @@ internal static class NendoHostSkill
         text.Append("| Question | Read |\n| --- | --- |\n");
         text.Append("| What is this file, and every read path this host serves | `nendo://application/describe` (or `describe?include=manifest,entities` for the record types without the screens) |\n");
         text.Append("| One record type: its fields, record count and screens | `nendo://application/entity/{entityId}` |\n");
-        text.Append("| One record, or a filtered and sorted page | `nendo://application/entity/{entityId}/records{?recordId,filter,sort,desc}` |\n");
+        text.Append("| One record, or a filtered and sorted page; `fields` for only some fields | `nendo://application/entity/{entityId}/records{?recordId,filter,sort,desc,fields}` |\n");
         text.Append("| A count, sum, min or max, whole or grouped | `nendo://application/entity/{entityId}/aggregate` |\n");
         text.Append("| Every operation with its payload, the authoring rules and the limits | `references/vocabulary.json` here, or `nendo://application/vocabulary` |\n");
         text.Append("| Change sets you can send as they stand | `references/examples.json` here, or `nendo://application/examples` |\n");

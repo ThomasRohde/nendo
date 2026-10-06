@@ -180,7 +180,7 @@ internal sealed class NendoResourceProjection(
         string? cursor,
         int limit,
         CancellationToken cancellationToken) =>
-        GetRecordsAsync(entityId, cursor, limit, null, null, null, null, cancellationToken);
+        GetRecordsAsync(entityId, cursor, limit, null, null, null, null, null, cancellationToken);
 
     /// <summary>
     /// A page of one record type, or one record by ID, filtered and sorted through the same
@@ -195,13 +195,15 @@ internal sealed class NendoResourceProjection(
         string? sort,
         string? desc,
         string? filter,
+        string? fields,
         CancellationToken cancellationToken)
     {
         RequireLimit(limit);
         var scope = $"records:{entityId}";
-        var fields = new RequestEntity(this, entityId, cancellationToken);
-        var filters = await ParseFiltersAsync(fields, filter);
-        if (sort is not null) await fields.RequireAsync(sort, "sort");
+        var entity = new RequestEntity(this, entityId, cancellationToken);
+        var filters = await ParseFiltersAsync(entity, filter);
+        if (sort is not null) await entity.RequireAsync(sort, "sort");
+        var projected = await ParseProjectionAsync(entity, fields);
         var descending = desc switch
         {
             null or "" or "false" => false,
@@ -216,10 +218,50 @@ internal sealed class NendoResourceProjection(
             Filters = filters,
         }, cancellationToken);
         await Settled("records");
-        var records = page.Items.Select(Project).ToArray();
+        var records = page.Items.Select(record => Project(record, projected)).ToArray();
         return new NendoMcpPage<NendoMcpRecord>(
             records,
             page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor)) { ChangeSequence = page.ChangeSequence };
+    }
+
+    /// <summary>The most field IDs one records read may name in fields.</summary>
+    internal const int MaximumProjectedFields = 64;
+
+    private const int MaximumProjectionCharacters = 4 * 1024;
+
+    /// <summary>
+    /// The fields query parameter: comma-separated field IDs of the record type, stored or
+    /// calculated, each refused by name when the type has no such field. Null, the whole
+    /// record, when it is absent or empty. It chooses what each record carries and never
+    /// which records match or their order, so it is not part of the cursor's scope.
+    /// </summary>
+    private static async Task<IReadOnlySet<string>?> ParseProjectionAsync(RequestEntity entity, string? fields)
+    {
+        if (string.IsNullOrWhiteSpace(fields)) return null;
+        if (fields.Length > MaximumProjectionCharacters)
+            throw new NendoValidationException($"fields is at most {MaximumProjectionCharacters} characters.");
+        var ids = fields.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (ids.Length > MaximumProjectedFields)
+            throw new NendoValidationException($"fields names at most {MaximumProjectedFields} field IDs, comma-separated.");
+        foreach (var id in ids) await entity.RequireAsync(id, "projected");
+        return ids.ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// A record with only the named fields' values, reference labels and calculations. Entity
+    /// ID, record ID and version always come, so a projected read can still be written back.
+    /// The Engine read the whole record; the projection saves bytes on the wire, not the read.
+    /// </summary>
+    private static NendoMcpRecord Project(NendoRecordSnapshot record, IReadOnlySet<string>? fields)
+    {
+        var whole = Project(record);
+        if (fields is null) return whole;
+        return whole with
+        {
+            Values = whole.Values.Where(pair => fields.Contains(pair.Key)).ToDictionary(StringComparer.Ordinal),
+            ReferenceLabels = whole.ReferenceLabels.Where(pair => fields.Contains(pair.Key)).ToDictionary(StringComparer.Ordinal),
+            Calculations = whole.Calculations.Where(calculation => fields.Contains(calculation.FieldId)).ToArray(),
+        };
     }
 
     /// <summary>The operators the records and aggregate reads accept: the vocabulary's, plus the two the Engine's query takes beyond a screen.</summary>

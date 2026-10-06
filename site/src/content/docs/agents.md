@@ -70,7 +70,7 @@ Reads are MCP resources. They need no lease. Start with `nendo://application/des
 | `nendo://application/describe{?include}` | The whole application in one read, or the facets named. |
 | `nendo://application/entity/{entityId}` | One record type as a bundle: schema, record count and its screens. |
 | `nendo://application/entity/{entityId}/schema` | One record type's fields, including calculated fields, which are unique or numbered by Nendo, and the links it allows. |
-| `nendo://application/entity/{entityId}/records{?cursor,limit,recordId,sort,desc,filter}` | A page of records with exact numbers, or one record by ID, or the records a filter leaves, sorted. |
+| `nendo://application/entity/{entityId}/records{?cursor,limit,recordId,sort,desc,filter,fields}` | A page of records with exact numbers, or one record by ID, or the records a filter leaves, sorted; `fields` keeps only the named fields. |
 | `nendo://application/entity/{entityId}/aggregate{?aggregate,fieldId,groupBy,rowBy,columnBy,dateFieldId,bucket,range,filter}` | An exact count, sum, min or max over the records a filter leaves: whole, per choice, as a grid of two choices, or per day, week, month, quarter or year. Nothing is paged. |
 | `nendo://application/entity/{entityId}/tree{?root,depth,cursor,limit}` | A record type kept as a tree, depth-first, each record with its parent, depth and number of children. |
 | `nendo://application/entity/{entityId}/export{?cursor,limit}` | A page of records as Nendo CSV, ready to import again. |

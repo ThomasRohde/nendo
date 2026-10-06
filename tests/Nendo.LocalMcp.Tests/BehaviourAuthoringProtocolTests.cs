@@ -244,6 +244,15 @@ public sealed class BehaviourAuthoringProtocolTests
         Assert.AreEqual("33.33", completion.NumericLexeme,
             "A third, rounded to two places in the decimal domain, is the number a binary double cannot hold.");
         Assert.AreEqual(NendoBehaviourScalar.Decimal, completion.ResultType);
+
+        // A projected read names a calculated field like a stored one (review R-007).
+        var counted = ProtocolResourceTests.Deserialize<NendoMcpPage<NendoMcpRecord>>(
+            await ProtocolResourceTests.ReadTextAsync(client, "nendo://application/entity/projects/records?recordId=p1&fields=taskCount"));
+        var only = counted.Items.Single();
+        Assert.AreEqual("taskCount", only.Calculations.Single().FieldId);
+        Assert.AreEqual("3", only.Calculations.Single().NumericLexeme);
+        Assert.IsEmpty(only.Values);
+        Assert.AreEqual(project.RecordVersion, only.RecordVersion);
     }
 
     [TestMethod]

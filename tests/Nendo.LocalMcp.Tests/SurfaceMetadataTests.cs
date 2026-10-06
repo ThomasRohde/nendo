@@ -131,8 +131,8 @@ public sealed class SurfaceMetadataTests
 
         foreach (var (uri, sentence) in new[]
                  {
-                     ($"{records}?limit=2&limt=3", "takes cursor, limit, recordId, sort, desc and filter; 'limt' is not one of them."),
-                     ($"{records}?limit=2&limit=3", "takes cursor, limit, recordId, sort, desc and filter; 'limit' is given twice."),
+                     ($"{records}?limit=2&limt=3", "takes cursor, limit, recordId, sort, desc, filter and fields; 'limt' is not one of them."),
+                     ($"{records}?limit=2&limit=3", "takes cursor, limit, recordId, sort, desc, filter and fields; 'limit' is given twice."),
                      ("nendo://application/manifest?limit=2", "nendo://application/manifest takes no query parameters; remove 'limit'."),
                  })
         {
