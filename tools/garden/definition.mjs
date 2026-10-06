@@ -124,7 +124,6 @@ export const STAGES = {
         reference('gd.note', F.note.parent, 'Under'),
         integer('gd.note', F.note.order, 'Order'),
         unique('gd.note', F.note.slug),
-        op('schema.declareHierarchy', { entityId: 'gd.note', parentFieldId: F.note.parent, orderFieldId: F.note.order }),
       ] },
       { description: 'Create Links', operations: [
         op('schema.createEntity', { entityId: 'gd.link', displayName: 'Links' }),
@@ -160,6 +159,9 @@ export const STAGES = {
         bind('gd.noteTag', F.noteTag.note, 'gd.note', F.note.title),
         bind('gd.noteTag', F.noteTag.tag, 'gd.tag', F.tag.name),
         bind('gd.task', F.task.note, 'gd.note', F.note.title),
+      ] },
+      { description: 'Let a note sit under another note, in order', operations: [
+        op('schema.declareHierarchy', { entityId: 'gd.note', parentFieldId: F.note.parent, orderFieldId: F.note.order }),
       ] },
     ],
   },

@@ -98,8 +98,9 @@ async function compare(file) {
   if ((full.newFile?.conflictCount ?? 0) !== 0) problems.push(`newFile has ${full.newFile.conflictCount} conflicts`);
   const start = await file.read.json(`nendo://application/entity/gd.note/records?recordId=gd.note.start-here`);
   const record = start.items?.[0] ?? start;
-  const linksIn = record?.calculated?.['gd.note.linksIn']?.value ?? record?.values?.['gd.note.linksIn'];
-  if (!(linksIn > 0)) problems.push(`start-here has no backlinks (${JSON.stringify(record?.calculated ?? record?.values ?? start).slice(0, 300)})`);
+  const calculation = (record?.calculations ?? []).find(c => c.fieldId === 'gd.note.linksIn');
+  const linksIn = calculation?.state === 'value' ? calculation.value : null;
+  if (!(linksIn > 0)) problems.push(`start-here has no backlinks (${JSON.stringify(record?.calculations ?? start).slice(0, 300)})`);
   if (problems.length) { console.error(`Compare failed:\n  ${problems.join('\n  ')}`); process.exitCode = 1; return; }
   console.log(`Compare passed: ${STAGE_ORDER.length} stages applied, ${packages.length} packages, ${kept} kept seed records, start-here has ${linksIn} backlinks.`);
 }
