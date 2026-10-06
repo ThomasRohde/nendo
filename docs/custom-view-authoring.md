@@ -12,7 +12,7 @@ screens cannot: a graph, a Gantt chart, a map. Its code lives in the `.nendo` fi
 as a **package**. A view that is shown runs, inline in Nendo, in a frame of its own.
 There is nothing to install and nothing to allow.
 
-This repository has four worked examples. All are MIT-licensed and have no
+This repository has six worked examples. All are MIT-licensed and have no
 dependencies:
 
 - [`extensions/dependency-graph/`](../extensions/dependency-graph/README.md), a
@@ -27,7 +27,10 @@ dependencies:
   map over any record type a file keeps as a tree, with editing, carried by
   `workspace/BCM.nendo`. It names no record type or field: its view's configuration says
   which bound field plays which part, and it finds the related record types in the
-  schema.
+  schema;
+- [`extensions/garden/`](../extensions/garden/README.md), a notes workspace that is the
+  screen `workspace/Garden.nendo` opens on and the Backlinks panel on a note's page: it
+  derives Link, Tag and Task records from a note's Markdown in one batch, with undo.
 
 ## What a view can do
 

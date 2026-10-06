@@ -6,7 +6,7 @@ import { version, fitBox, toneFor } from './nendo-view-kit.js';
 // W-064: the view kit is one versioned file that packages copy. A copy that drifts from the
 // source is a package carrying an older kit than its name says, so every copy is checked.
 const source = readFileSync(new URL('./nendo-view-kit.js', import.meta.url));
-const copies = ['../../extensions/gantt/kit/nendo-view-kit.js', '../../extensions/archi/kit/nendo-view-kit.js'];
+const copies = ['../../extensions/gantt/kit/nendo-view-kit.js', '../../extensions/archi/kit/nendo-view-kit.js', '../../extensions/garden/kit/nendo-view-kit.js'];
 
 test('the kit says its version, and every copy a package carries is the kit byte for byte', () => {
   assert.match(version, /^\d+\.\d+\.\d+$/);

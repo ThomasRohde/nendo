@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Garden</title>
+<link rel="stylesheet" href="garden.css">
+</head>
+<body>
+<div id="app" hidden>
+  <aside id="sidebar" aria-label="Notes">
+    <div class="side-head own-chrome"><input id="find" type="search" placeholder="Find a note…" aria-label="Find a note"></div>
+    <ul id="tree" role="tree" aria-label="Notes by place"></ul>
+    <p id="tree-empty" hidden>No notes yet. Plant one with New note.</p>
+  </aside>
+  <main id="main">
+    <div id="own-toolbar" class="own-chrome" role="toolbar" aria-label="Garden controls">
+      <button type="button" data-command="new">New note</button>
+      <button type="button" data-command="daily">Today</button>
+      <button type="button" data-command="preview" aria-pressed="true">Preview</button>
+      <button type="button" data-command="save">Save</button>
+      <button type="button" data-command="undo">Undo</button>
+      <button type="button" data-command="redo">Redo</button>
+      <button type="button" data-command="open-record">Open record</button>
+      <button type="button" data-command="graph">Graph</button>
+      <span id="own-summary"></span>
+    </div>
+    <p id="status" role="status"></p>
+    <p id="problem" role="alert" hidden></p>
+    <p id="empty">Pick a note on the left, or plant one with New note.</p>
+    <section id="note" hidden aria-label="Note">
+      <input id="title" aria-label="Title" placeholder="Title">
+      <div id="meta"></div>
+      <div id="panes">
+        <div id="editor-wrap">
+          <textarea id="editor" aria-label="Note body" spellcheck="true" placeholder="Write. Link with [[a note]], tag with #word, and keep a task as - [ ] what to do."></textarea>
+          <ul id="autocomplete" role="listbox" aria-label="Notes to link" hidden></ul>
+        </div>
+        <div id="preview" class="markdown" aria-label="Preview"></div>
+      </div>
+      <div id="about">
+        <section><h2>Backlinks <span id="backlinks-count" class="count"></span></h2><ul id="backlinks" class="rows"></ul></section>
+        <section><h2>Tags</h2><ul id="note-tags" class="rows chips"></ul></section>
+        <section><h2>Tasks <span id="tasks-count" class="count"></span></h2><ul id="note-tasks" class="rows"></ul></section>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="panel" hidden>
+  <p id="panel-status" role="status"></p>
+  <section><h2>Backlinks <span id="panel-backlinks-count" class="count"></span></h2><ul id="panel-backlinks" class="rows"></ul></section>
+  <section><h2>Tags</h2><ul id="panel-tags" class="rows chips"></ul></section>
+  <section><h2>Tasks <span id="panel-tasks-count" class="count"></span></h2><ul id="panel-tasks" class="rows"></ul></section>
+</div>
+<p id="about-text" class="hint" hidden>Write Markdown. A [[wikilink]] names another note by its slug or title and becomes a Link record when you save; a note it names that is not there yet is planted as a Seed. A #tag becomes a Tag record, and a line that starts with - [ ] becomes a Task. Links, tags and tasks that somebody wrote by hand are kept as they are.</p>
+<p id="not-framed" hidden>This view runs inside Nendo.</p>
+<script src="/_nendo/api.js"></script>
+<script type="module" src="garden.js"></script>
+</body>
+</html>

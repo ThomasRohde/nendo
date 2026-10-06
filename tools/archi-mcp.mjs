@@ -27,16 +27,17 @@ async function running() {
   return entries.filter(entry => /^http:\/\/127\.0\.0\.1:\d+\/mcp\/?$/.test(entry.endpoint ?? '') && isRunning(entry));
 }
 
-export async function target(clientName) {
-  const entries = (await running()).filter(entry => entry.displayName === TARGET_FILE_NAME);
-  if (entries.length === 0) fail(`No Nendo has ${TARGET_FILE_NAME} open with Agent access on. Open it, turn Agent access on, and run this again.`);
-  if (entries.length > 1) fail(`More than one Nendo has a file named ${TARGET_FILE_NAME} open. Close all but one.`);
+/** The running Nendo that has `fileName` open (Archi.nendo unless said otherwise), never a planner. */
+export async function target(clientName, fileName = TARGET_FILE_NAME) {
+  const entries = (await running()).filter(entry => entry.displayName === fileName);
+  if (entries.length === 0) fail(`No Nendo has ${fileName} open with Agent access on. Open it, turn Agent access on, and run this again.`);
+  if (entries.length > 1) fail(`More than one Nendo has a file named ${fileName} open. Close all but one.`);
   const client = createNendoMcpClient(entries[0], clientName);
   const manifest = JSON.parse((await client.rpc('resources/read', { uri: 'nendo://application/manifest' })).contents[0].text);
   if (PLANNER_APPLICATION_IDS.includes(manifest.applicationId)) {
-    fail(`${TARGET_FILE_NAME} answers with a development planner's application ID. Nothing was written.`);
+    fail(`${fileName} answers with a development planner's application ID. Nothing was written.`);
   }
-  return { client, manifest, read: reader(client) };
+  return { entry: entries[0], client, manifest, read: reader(client) };
 }
 
 function reader(client) {

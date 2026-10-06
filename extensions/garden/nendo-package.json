@@ -1,0 +1,7 @@
+{
+  "packageId": "org.nendo.garden",
+  "title": "Garden",
+  "version": "0.1.0",
+  "entryPoint": "index.html",
+  "description": "A notes workspace: Markdown notes as a tree, with [[wikilinks]], #tags and - [ ] tasks that become Link, Tag and Task records when a note is saved, and a Backlinks panel for a note's page."
+}
