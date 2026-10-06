@@ -392,6 +392,12 @@
  .record-delete-dialog { max-width: 32rem; padding: 2rem; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); color: var(--ink); }
  .record-delete-dialog::backdrop { background: rgb(10 20 40 / 45%); }
  .record-delete-dialog p { overflow-wrap: anywhere; }
+/* A proposed file read whole before it is accepted (review R-017). */
+.package-file-dialog { max-width: min(64rem, calc(100vw - 32px)); width: 100%; }
+.package-file-text { max-height: 60vh; overflow: auto; margin: 0 0 1rem; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface-soft); font-family: var(--mono); font-size: 0.85rem; white-space: pre; }
+.package-file-facts code { font-family: var(--mono); font-size: 0.8rem; }
+.package-read { display: flex; gap: 12px; align-items: baseline; margin: 8px 0 0; }
+.package-read [data-package-read-note] { color: var(--muted); }
 .field-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .proposal-live-preview { margin-top: 24px; padding: 20px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
 .preview-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }

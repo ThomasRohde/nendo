@@ -206,8 +206,21 @@ Studio's proposal review and the agent review both show these files in a **Code*
 section: each file with its lines, a binary file by its sizes, and a note where the
 change continues past what the review shows. Each file is a disclosure that starts
 folded. Folded, it still shows its path, what happened to it, its sizes and, for text,
-how many lines it adds and removes, so a long list reads as an overview. The lines open
-by pointer or keyboard (W-098). The MCP preview carries the same list.
+how many lines it adds and removes, so a long list reads as an overview, and a change cut
+short says "longer than the review shows" there too. The lines open by pointer or keyboard
+(W-098). The MCP preview carries the same list.
+
+**Reading a proposed file whole** (review R-017, 2026-10-06). Every file a proposal adds or
+replaces offers *Read the whole file*. The Workbench calls the host's
+`proposal.readPackageFile` with `proposalId`, `reviewedDigest` (the digest on screen),
+`packageId`, `path`, `offset` and `length` (1 to 262,144 bytes). The host answers from the
+copy the proposal was validated on, never from the active file: `{mediaType, sha256,
+totalBytes, offset, content}` with `content` in base64 and `sha256` the whole file's. It
+refuses a digest other than the one reviewed (`idempotency-conflict`), a proposal that is not
+waiting for review, and a file the proposal removes or does not touch. The Workbench puts
+the windows together, checks them against `sha256`, and shows valid UTF-8 as text in its own
+dialog with Copy, or the size and digest of anything else. A view cannot call it: it is not
+in the broker's table. Accept stays bound to the same digest.
 A proposal that only brings code says beside it: "Read the code beside this panel:
 once you accept, it runs wherever a screen or a record page shows its view."
 
@@ -2004,3 +2017,7 @@ passed. Each guard below was falsified, seen to fail and then restored:
   no longer say to send a write again. A view keeps its own drafts recoverable, because Nendo
   stops views off screen without asking. Measured by `scripts/extension-broker.test.mjs`,
   `tools/Review-Garden.ps1` and `tools/Review-Swarm.ps1`. No rung.
+- 2026-10-06 — a proposed package file read whole (review R-017): `proposal.readPackageFile`
+  answers windows of a file as the proposal under review leaves it, bound to its reviewed
+  digest, and each review offers *Read the whole file*; a cut-short change says so folded.
+  Measured by `ExtensionPackageTests` and `scripts/package-diff.test.mjs`. No rung.

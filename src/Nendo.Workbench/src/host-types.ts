@@ -596,6 +596,20 @@ export interface SemanticDiffEntry {
   reversibility: string | number;
 }
 
+/** Part of a package file as a waiting proposal leaves it (proposal.readPackageFile, review R-017). */
+export interface ProposalFileWindow {
+  proposalId: string;
+  reviewedDigest: string;
+  packageId: string;
+  path: string;
+  mediaType: string;
+  sha256: string;
+  totalBytes: number;
+  offset: number;
+  /** The window's bytes, base64. */
+  content: string;
+}
+
 export interface ProposalPreview {
   previewRecordCounts?: Record<string, number>;
   /** Who prepared it: workbench, an agent, or extension:‹package› for a custom view (ADR-0013 Phase 3). */

@@ -21,6 +21,7 @@ internal static partial class WorkbenchMethods
     internal const string SemanticCompile = "semantic.compile";
     internal const string ProposalPrepareChangeSet = "proposal.prepareChangeSet";
     internal const string ProposalGet = "proposal.get";
+    internal const string ProposalReadPackageFile = "proposal.readPackageFile";
     internal const string ProposalPromote = "proposal.promote";
     internal const string ProposalReject = "proposal.reject";
     internal const string HistoryGet = "history.get";
@@ -217,6 +218,7 @@ internal sealed record PrepareChangeSetPayload(
 
 internal sealed record ProposalIdPayload(string ProposalId);
 internal sealed record ProposalAcceptancePayload(string ProposalId, string? ExpectedOperationDigest);
+internal sealed record ProposalFilePayload(string ProposalId, string ReviewedDigest, string PackageId, string Path, long Offset, int Length);
 
 internal sealed record CompensationPayload(string RevisionId, string IdempotencyKey);
 
@@ -383,6 +385,7 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.SemanticCompile => await _session.CompileSemanticUiAsync(cancellationToken),
                     WorkbenchMethods.ProposalPrepareChangeSet => await PrepareChangeSetAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.ProposalGet => await GetProposalAsync(payload, writer, cancellationToken),
+                    WorkbenchMethods.ProposalReadPackageFile => await ReadProposalPackageFileAsync(payload, cancellationToken),
                     WorkbenchMethods.ProposalPromote => await PromoteProposalAsync(payload, cancellationToken),
                     WorkbenchMethods.ProposalReject => await RejectProposalAsync(payload, cancellationToken),
                     WorkbenchMethods.HistoryGet => await _session.GetHistoryAsync(cancellationToken),
@@ -670,6 +673,18 @@ internal sealed partial class WorkbenchProtocolHandler
         return writer is null
             ? await _session.GetProposalAsync(request.ProposalId, cancellationToken)
             : await _session.GetExtensionProposalAsync(request.ProposalId, writer, cancellationToken);
+    }
+
+    /// <summary>
+    /// Part of a package file as the proposal under review would leave it (review R-017): the
+    /// person reads a change the diff shows only in part, bound to the digest they review.
+    /// </summary>
+    private async Task<NendoProposalFileWindow> ReadProposalPackageFileAsync(
+        JsonElement payload,
+        CancellationToken cancellationToken)
+    {
+        var request = Deserialize<ProposalFilePayload>(payload);
+        return await _session.ReadProposalPackageFileAsync(request, cancellationToken);
     }
 
     private async Task<DesktopPromotionView> PromoteProposalAsync(

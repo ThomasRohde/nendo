@@ -415,6 +415,12 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
         CancellationToken cancellationToken = default) =>
         QueryAsync(service => service.GetProposalAsync(proposalId, cancellationToken), cancellationToken);
 
+    internal Task<NendoProposalFileWindow> ReadProposalPackageFileAsync(
+        ProposalFilePayload request,
+        CancellationToken cancellationToken = default) =>
+        QueryAsync(service => service.ReadProposalPackageFileAsync(request.ProposalId, request.ReviewedDigest,
+            request.PackageId, request.Path, request.Offset, request.Length, cancellationToken), cancellationToken);
+
     internal async Task<DesktopPromotionView> PromoteProposalAsync(
         string proposalId,
         CancellationToken cancellationToken = default,

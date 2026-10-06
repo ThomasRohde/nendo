@@ -201,6 +201,23 @@ public sealed record NendoExtensionFileChange(
     IReadOnlyList<NendoExtensionDiffHunk> Hunks,
     bool Truncated);
 
+/// <summary>
+/// A window of one package file exactly as a proposal would leave it, read from the proposal's
+/// own validated copy, so a review whose diff stops early can still be read to its last byte
+/// (review R-017). <paramref name="Sha256"/> and <paramref name="TotalBytes"/> are the whole
+/// file's, so a reader that assembles every window can check what it has.
+/// </summary>
+public sealed record NendoProposalFileWindow(
+    string ProposalId,
+    string ReviewedDigest,
+    string PackageId,
+    string Path,
+    string MediaType,
+    string Sha256,
+    long TotalBytes,
+    long Offset,
+    byte[] Content);
+
 /// <summary>A run of changed lines and its context, numbered from one on each side.</summary>
 public sealed record NendoExtensionDiffHunk(
     int OldStart,
@@ -256,6 +273,9 @@ public static class NendoExtensionLimits
     /// is what the write reserve below the open bound has to cover.
     /// </summary>
     public const int ContentBytesPerChangeSet = 4 * 1024 * 1024;
+
+    /// <summary>The most bytes one read of a proposed package file returns.</summary>
+    public const int ProposalFileWindowBytes = 256 * 1024;
 
     /// <summary>The largest text file the review diffs line by line; a larger one is said by its sizes.</summary>
     public const int DiffedFileBytes = 1024 * 1024;

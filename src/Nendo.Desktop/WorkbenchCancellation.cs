@@ -54,6 +54,7 @@ internal static partial class WorkbenchMethods
         ProposalGetReceipt,
         ProposalPrepareChangeSet,
         ProposalGet,
+        ProposalReadPackageFile,
         ProposalPromote,
         ProposalReject,
         SemanticCompile,

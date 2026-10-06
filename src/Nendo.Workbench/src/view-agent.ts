@@ -11,6 +11,7 @@ import { addedSurfaceSentence, kindLabel } from './surface-model';
 import { behaviourApprovalMarkup, refreshHealth, wireBehaviourApproval } from './view-health';
 import { attachScreenPreview } from './view-proposal';
 import { packageChangesMarkup } from './package-diff-markup';
+import { wirePackageFileReading } from './package-file-dialog';
 import { proposalConsent, proposalConsentMarkup } from './proposal-consent';
 /**
  * Agent access: what this device has granted, where an agent connects, what it
@@ -172,6 +173,7 @@ export function renderAgentProposal(): void {
   if (state.agentScreenPreview?.proposalId === preview.proposalId && state.agentScreenPreview.operationDigest === preview.operationDigest)
     attachScreenPreview(state.agentScreenPreview.previewApplications ?? [], state.agentScreenPreview.previewRecordCounts,
       state.agentScreenPreview.previewOverview ?? null);
+  wirePackageFileReading(content, () => state.agentProposal === null ? null : { proposalId: state.agentProposal.proposalId, reviewedDigest: state.agentProposal.operationDigest });
   requiredElement<HTMLButtonElement>('#close-agent-proposal').addEventListener('click', () => { state.agentProposal = null; state.view = 'agent'; rerender(); });
   requiredElement<HTMLButtonElement>('#reject-agent-proposal').addEventListener('click', () => void resolveAgentProposal(false));
   requiredElement<HTMLButtonElement>('#accept-agent-proposal').addEventListener('click', () => void resolveAgentProposal(true));

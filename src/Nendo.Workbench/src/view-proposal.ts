@@ -5,6 +5,7 @@ import { escapeHtml, isProposalPreviewable, messageFor, proposalAuthorLine, prop
 import { type ApplicationPlan, type DesktopPromotionView, type OverviewPlan, type ProposalPreview } from './host';
 import { proposalConsent, proposalConsentMarkup } from './proposal-consent';
 import { packageChangesMarkup } from './package-diff-markup';
+import { wirePackageFileReading } from './package-file-dialog';
 import { announce, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
 import { landAddedView } from './view-packages';
 import { surfaceTitle } from './surface-model';
@@ -31,6 +32,7 @@ export function renderProposal(): void {
     </div>
   </div>`;
   attachScreenPreview(preview.previewApplications ?? [], preview.previewRecordCounts, preview.previewOverview ?? null);
+  wirePackageFileReading(content, () => state.proposal === null ? null : { proposalId: state.proposal.proposalId, reviewedDigest: state.proposal.operationDigest });
   requiredElement<HTMLButtonElement>('#close-proposal').addEventListener('click', () => { state.proposal = null; state.view = state.proposalReturnView; rerender(); });
   requiredElement<HTMLButtonElement>('#reject-proposal').addEventListener('click', () => void rejectProposal());
   requiredElement<HTMLButtonElement>('#accept-proposal').addEventListener('click', () => void promoteProposal());

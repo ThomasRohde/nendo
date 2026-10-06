@@ -292,6 +292,49 @@ public sealed class ExtensionPackageTests
     }
 
     [TestMethod]
+    public async Task AReviewWhoseDiffStopsEarlyCanReadTheProposedFileToItsLastByte()
+    {
+        // Review R-017: a change longer than the diff shows ended with "the change continues"
+        // and nothing more; the proposed bytes could not be read before accepting them.
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await coordinator.ApplyAsync(Mutation("add", Package(), Put("map.js", "old;\n"), Put("gone.js", "x;\n")));
+        var proposed = string.Join('\n', Enumerable.Range(1, 30000).Select(index => $"const line{index} = 'Århus {index}';")) + "\n";
+        var request = Canonical(
+            Operation("e", "extension.putFile", new { packageId = PackageId, path = "map.js", text = proposed }),
+            Operation("r", "extension.removeFile", new { packageId = PackageId, path = "gone.js" }));
+        var proposal = await service.PrepareProposalAsync(new NendoCanonicalProposalRequest(ProposalId(3), "Rewrite the map", "test", request));
+        Assert.IsTrue(proposal.PackageChanges.Single(change => change.Path == "map.js").Truncated, "The fixture must be longer than the review shows.");
+
+        var expected = Encoding.UTF8.GetBytes(proposed);
+        var read = new List<byte>();
+        NendoProposalFileWindow window;
+        do
+        {
+            window = await service.ReadProposalPackageFileAsync(proposal.ProposalId, proposal.OperationDigest, PackageId, "map.js", read.Count, NendoExtensionLimits.ProposalFileWindowBytes);
+            Assert.AreEqual(expected.LongLength, window.TotalBytes);
+            Assert.AreEqual((long)read.Count, window.Offset);
+            read.AddRange(window.Content);
+        } while (window.Content.Length > 0 && read.Count < window.TotalBytes);
+        CollectionAssert.AreEqual(expected, read.ToArray(), "The windows put together are not the proposed file.");
+        Assert.AreEqual(Convert.ToHexString(SHA256.HashData(expected)).ToLowerInvariant(), window.Sha256.ToLowerInvariant());
+
+        await Assert.ThrowsExactlyAsync<NendoIdempotencyConflictException>(() =>
+            service.ReadProposalPackageFileAsync(proposal.ProposalId, "sha256:" + new string('0', 64), PackageId, "map.js", 0, 10));
+        await Assert.ThrowsExactlyAsync<NendoValidationException>(() =>
+            service.ReadProposalPackageFileAsync(proposal.ProposalId, proposal.OperationDigest, PackageId, "gone.js", 0, 10));
+        await Assert.ThrowsExactlyAsync<NendoValidationException>(() =>
+            service.ReadProposalPackageFileAsync(proposal.ProposalId, proposal.OperationDigest, PackageId, "map.js", 0, NendoExtensionLimits.ProposalFileWindowBytes + 1));
+        // The active file still holds the old bytes: the read never answered from it.
+        Assert.AreEqual("old;\n", Encoding.UTF8.GetString((await service.ReadExtensionFileAsync(PackageId, "map.js"))!.Content));
+        await service.RejectProposalAsync(proposal.ProposalId);
+        var gone = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() =>
+            service.ReadProposalPackageFileAsync(proposal.ProposalId, proposal.OperationDigest, PackageId, "map.js", 0, 10));
+        Assert.AreEqual("proposal-not-found", gone.Code);
+    }
+
+    [TestMethod]
     public void TheLineScriptReplaysToTheNewText()
     {
         var random = new Random(7);

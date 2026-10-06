@@ -94,6 +94,12 @@ public sealed partial class NendoApplicationService
     public Task<NendoStorageHealthSnapshot> VerifyIntegrityAsync(CancellationToken cancellationToken = default) =>
         _coordinator.VerifyIntegrityAsync(cancellationToken);
 
+    /// <summary>Part of a package file as a waiting proposal would leave it, bound to its reviewed digest (review R-017).</summary>
+    public Task<NendoProposalFileWindow> ReadProposalPackageFileAsync(
+        string proposalId, string reviewedDigest, string packageId, string path, long offset, int length,
+        CancellationToken cancellationToken = default) =>
+        _coordinator.ReadProposalPackageFileAsync(proposalId, reviewedDigest, packageId, path, offset, length, cancellationToken);
+
     /// <summary>One file of a custom-view package carried in the file, with its bytes; null when there is none.</summary>
     public Task<NendoExtensionFileContent?> ReadExtensionFileAsync(string packageId, string path, CancellationToken cancellationToken = default) =>
         _coordinator.ReadExtensionFileAsync(packageId, path, cancellationToken);

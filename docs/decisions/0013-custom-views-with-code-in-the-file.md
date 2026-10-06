@@ -212,7 +212,9 @@ Five canonical operations write them. `extension.setState` arrives with Phase 3.
   - "Remove the package ‹title› from this file."
 - The review shows a line diff for each text file of at most 1 MiB, with three
   lines of context: at most 400 changed lines per file and 2,000 per proposal, with
-  a truncation flag. Any other file shows its sizes.
+  a truncation flag. Any other file shows its sizes. Each file a proposal adds or
+  replaces can also be read whole before accepting, from the proposal's own copy and
+  bound to the reviewed digest (2026-10-06, review R-017).
 - A proposal that puts code into the file also carries one fixed sentence, once:
   "This code runs when a view that uses its package is shown. It can read and
   change this file's records through Nendo, reach the network and use the
@@ -862,3 +864,6 @@ falsified once, and has the failure text quoted in its planner Check.
   asking; `records.batch` takes a `writeKey`, so an unanswered batch is finished once, and a
   write kept but not read back answers `written-not-read`. No rung. On the owner's standing
   pre-acceptance.
+- 2026-10-06 — a proposed package file can be read whole in the review, through the host's
+  `proposal.readPackageFile`, from the proposal's validated copy and bound to its reviewed
+  digest (review R-017). No rung. On the owner's standing pre-acceptance.
