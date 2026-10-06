@@ -10,8 +10,8 @@ difference and fix this file.
 
 [ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md), accepted
 2026-09-25, puts a custom view's code in the `.nendo` file and runs views inline in
-the Workbench. It lands in phases, and Phases 0 to 2 are delivered, in product
-0.14.0:
+the Workbench. Phases 0 to 5 are delivered, except Phase 5's tile; Phase 2 (product
+0.14.0) put the frames in place:
 
 - A view's code is a package that the file carries, at host 1.33.0 (see
   [The file](#the-file)). It arrives through a proposal, and a person reviews it as
@@ -25,8 +25,9 @@ the Workbench. It lands in phases, and Phases 0 to 2 are delivered, in product
   installed Workbench.
 - A view calls `window.nendo`. The Workbench's broker checks each request against a
   closed method table and answers it through the Workbench's own typed bridge, so a
-  view is one more client of the same application services. In this phase the table
-  holds reads and navigation, and nothing that writes.
+  view is one more client of the same application services. The table holds reads,
+  navigation, record writes and commands under the package's own name, proposals the
+  person reviews, and the view's own state; never promotion, behaviour or file actions.
 - Device-local kill switches decide whether views run. A view's renderer ending
   stops that view alone. Only a failure of the Workbench's own renderer or of the
   browser sends the app to recovery, whose panel can restart without custom views.

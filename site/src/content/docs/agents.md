@@ -37,7 +37,7 @@ You set the level on the Agent page. Each level includes everything that the lev
 | Level | What the agent may do | What it gets |
 | --- | --- | --- |
 | Off | Nothing. Nendo does not listen, and every lease ends. | No connection. |
-| Inspect | Read the whole file: structure, records, screens, history, health and waiting proposals. | The 23 resources. The tool list is empty. |
+| Inspect | Read the whole file: structure, records, screens, history, health and waiting proposals. | The 24 resources. The tool list is empty. |
 | Edit data | Create, change, delete, import, move and undo records, and run a screen's command. Writes go straight into the file and appear in History. | Adds 17 tools: `nendo.lease.*` (4), `nendo.data.*` (12) and `nendo.health.verify_integrity`. |
 | Shape app | Propose changes to record types, fields, screens, calculations and automatic actions. Proposals wait for you. | Adds 7 tools: `nendo.change_set.begin`, `add_operations`, `amend`, `validate`, `revalidate`, `preview` and `reject`. |
 | Unattended | Accept its own proposals, and let the automatic actions they install run. | Adds 1 tool: `nendo.change_set.accept`. |

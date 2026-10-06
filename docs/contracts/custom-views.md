@@ -55,7 +55,7 @@ its layout and the host version it states.
 | `__nendo_extension_package` | `package_id`, `title`, `version`, `entry_point`, `description` |
 | `__nendo_extension_blob` | `sha256`, `byte_length`, `content`: each distinct content once, at most 4 MiB |
 | `__nendo_extension_file` | `package_id`, `path`, `media_type`, and the `sha256` of the blob the path holds |
-| `__nendo_extension_state` | `package_id`, `view_id`, `state_key`, `value_json` of at most 64 KiB, `version`. Created with the others. Nothing writes it yet: view state arrives with Phase 3 |
+| `__nendo_extension_state` | `package_id`, `view_id`, `state_key`, `value_json` of at most 64 KiB, `version`. Created with the others. Written by `nendo.state` through `extension.setState` ([below](#state)) |
 
 Content is addressed by its SHA-256. A file row names a blob, and identical
 content is stored once, however many paths hold it. A replaced or removed version

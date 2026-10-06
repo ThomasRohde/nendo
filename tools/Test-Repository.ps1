@@ -156,6 +156,15 @@ try {
             $counted.Groups[1].Value, $counted.Groups[2].Value, $mcpResourceCount, $mcpToolCount)
     }
     Write-Host "OK       the contract counts $mcpResourceCount resources and $mcpToolCount tools, as declared"
+    # The outsiders' guide counted resources by hand and fell one behind (review R-016).
+    foreach ($guide in @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'site/src/content/docs') -Filter '*.md' -File)) {
+        foreach ($match in [regex]::Matches((Get-Content -LiteralPath $guide.FullName -Raw), '(?i)\bthe (\d+) resources\b')) {
+            if ([int]$match.Groups[1].Value -ne $mcpResourceCount) {
+                throw ("site/src/content/docs/{0} says '{1}'; src/Nendo.LocalMcp declares {2} resources." -f $guide.Name, $match.Value, $mcpResourceCount)
+            }
+        }
+    }
+    Write-Host "OK       the site guides count $mcpResourceCount resources where they count them"
 
     Write-Host '== Shell identity =='
     # The application names itself to Windows in C# and setup registers that name in
