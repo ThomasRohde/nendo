@@ -69,7 +69,7 @@ Reads are MCP resources. They need no lease. Start with `nendo://application/des
 | --- | --- |
 | `nendo://application/describe{?include}` | The whole application in one read, or the facets named. |
 | `nendo://application/entity/{entityId}` | One record type as a bundle: schema, record count and its screens. |
-| `nendo://application/entity/{entityId}/schema` | One record type's fields, including calculated fields, and which are unique or numbered by Nendo. |
+| `nendo://application/entity/{entityId}/schema` | One record type's fields, including calculated fields, which are unique or numbered by Nendo, and the links it allows. |
 | `nendo://application/entity/{entityId}/records{?cursor,limit,recordId,sort,desc,filter}` | A page of records with exact numbers, or one record by ID, or the records a filter leaves, sorted. |
 | `nendo://application/entity/{entityId}/aggregate{?aggregate,fieldId,groupBy,rowBy,columnBy,dateFieldId,bucket,range,filter}` | An exact count, sum, min or max over the records a filter leaves: whole, per choice, as a grid of two choices, or per day, week, month, quarter or year. Nothing is paged. |
 | `nendo://application/entity/{entityId}/tree{?root,depth,cursor,limit}` | A record type kept as a tree, depth-first, each record with its parent, depth and number of children. |
@@ -135,9 +135,9 @@ A proposal appears on the Agent page under **Pending changes**, with its title, 
 
 When accepting a proposal involves the file's automatic actions, both the queue and the review say so before you accept. A proposal that sets off actions this computer has not approved asks you to approve them on the Agent page first, and **Accept changes** stays unavailable until you do. A proposal that changes the actions says that editing pauses after you accept, until you approve them again. A proposal that both changes the actions and sets them off cannot be accepted as it stands, and the review asks for the actions first and the records after. An agent reads the same facts in the proposal's `behaviour`.
 
-A change set may contain 32 operation types, and nothing else:
+A change set may contain 35 operation types, and nothing else:
 
-- `schema.*` (13): create, rename and retire record types and fields; make a field required; make a field unique, so no two records can share a value, and have Nendo number it (W-001, W-002…) when a record is created without one; configure a reference; name and colour a choice; keep a record type a tree, and stop keeping it one; say whether a new file of the application keeps a record type's records.
+- `schema.*` (16): create, rename and retire record types and fields; make a field required; show a text field as one line, long text or Markdown; make a field unique, so no two records can share a value, and have Nendo number it (W-001, W-002…) when a record is created without one; configure a reference; name and colour a choice; keep a record type a tree, and stop keeping it one; say which links a record type allows, from a table of allowed combinations, so Nendo refuses any other link whoever writes it; say whether a new file of the application keeps a record type's records.
 - `behaviour.setDefinition` and `behaviour.removeDefinition`: calculations, reusable functions, automatic actions and triggers.
 - `application.*` (3): say what the file is for; give the file its own icon colour and letter, the badge that tells it apart from other open files; name what a new file of it is called.
 - `ui.*` (4): add, set a property on, move and remove a screen node.

@@ -155,7 +155,8 @@ A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
 what a file can contain. `1.11.0` is for composable surfaces. After it, each
 version adds one capability, usually a widened semantic shape. The highest version
-is `1.43.0`, for a package of kind skill (ADR-0024, W-160). `1.42.0` is for a custom view
+is `1.45.0`, for a link rule (ADR-0026, W-105). `1.44.0` is for a text field shown as Markdown
+(W-173), and `1.43.0` for a package of kind skill (ADR-0024, W-160). `1.42.0` is for a custom view
 as a screen of the file (`extensionView`, ADR-0013 Phase 5, W-106). `1.34.0` is for a custom view defined by rules that earlier hosts refused
 (ADR-0013, 2026-09-25). `1.33.0` is for custom-view packages carried in the file, `1.32.0` a
 custom view on a record page (`extensionRecordPanel`), `1.31.0` a custom view of one
@@ -251,29 +252,30 @@ An edit to an unrelated record does not invalidate a UI-only proposal
 
 ### Typed operations
 
-Thirty-one operation types are the primitive: every type that a revision can
+Thirty-seven operation types are the primitive: every type that a revision can
 record, including the two that only host services create. Semantic diff, undo
 evidence and replay all derive from the same operation stream.
 
 ```text
-schema.createEntity      data.createRecord              ui.addNode
-schema.addField          data.setField                  ui.setProperty
-schema.renameEntity      data.deleteRecord              ui.moveNode
-schema.renameField       data.restoreDeletedRecord *    ui.removeNode
-schema.setFieldRequired  data.backfillRetiredField
-schema.setRetired        data.convertLegacyReference    behaviour.setDefinition
-schema.setChoiceMetadata identity.transition *          behaviour.removeDefinition
-schema.configureReference                               application.setPurpose
-schema.declareHierarchy                                 application.setLook
-schema.removeHierarchy
+schema.createEntity         data.createRecord              ui.addNode
+schema.addField             data.setField                  ui.setProperty
+schema.renameEntity         data.deleteRecord              ui.moveNode
+schema.renameField          data.restoreDeletedRecord *    ui.removeNode
+schema.setFieldRequired     data.backfillRetiredField
+schema.setRetired           data.convertLegacyReference    behaviour.setDefinition
+schema.setChoiceMetadata    data.setKeptInNewFiles         behaviour.removeDefinition
+schema.configureReference   identity.transition *          application.setPurpose
+schema.declareHierarchy                                    application.setLook
+schema.removeHierarchy                                     application.setNewFileLabel
 schema.setFieldUnique
-schema.setFieldSequence
-
-extension.setPackage     extension.removeFile
-extension.putFile        extension.removePackage
+schema.setFieldSequence     extension.setPackage           extension.removeFile
+schema.setFieldPresentation extension.putFile              extension.removePackage
+schema.setKeptInNewFiles
+schema.declareLinkRule
+schema.removeLinkRule
 ```
 
-`*` marks a native-only operation. The other twenty-nine are the closed union that
+`*` marks a native-only operation. The other thirty-five are the closed union that
 the canonical change-set parser accepts and an MCP client may author (see
 `NendoAuthoringOperations.cs`). Whole-definition
 convenience APIs must expand into typed operations before the host records, diffs

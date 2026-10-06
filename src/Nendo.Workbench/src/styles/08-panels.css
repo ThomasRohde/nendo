@@ -103,6 +103,20 @@
   display: grid;
 }
 
+/* ADR-0026: what a link rule holds a record type to, under its fields. */
+.link-rule-note {
+  margin: 0;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.link-rule-note strong {
+  margin-right: 6px;
+  color: var(--ink);
+}
+
 .field-row {
   display: grid;
   grid-template-columns: minmax(250px, 1.6fr) repeat(3, minmax(100px, 0.65fr));

@@ -24,6 +24,8 @@ const rejected = new Set(['validation', 'invalid-request', 'idempotency-conflict
   'entity-not-found', 'field-not-found', 'record-not-found', 'command-unavailable', 'compensation-not-supported', 'proposal-not-found',
   'hierarchy-not-declared', 'hierarchy-order-not-declared', 'hierarchy-sibling-not-found',
   'hierarchy-too-wide', 'hierarchy-cycle', 'hierarchy-too-deep', 'move-unchanged',
+  // ADR-0026: the whole mutation was refused at its end, so nothing of it landed.
+  'link-not-allowed', 'links-not-allowed',
   // A save refused because an automatic action could not run. The whole transaction
   // rolled back, so nothing is in flight.
   'calculation-missing-input', 'calculation-divide-by-zero', 'calculation-overflow', 'calculation-invalid-date',

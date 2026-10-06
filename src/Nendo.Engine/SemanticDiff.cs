@@ -216,6 +216,19 @@ internal static class SemanticDiff
                     $"Stop keeping {EntityName(names, value.EntityId)} a tree. Its parent field keeps every value.",
                     value.Reversibility,
                     value.EntityId),
+                DeclareLinkRuleOperation value => Entry(
+                    "declareLinkRule",
+                    $"Allow a {EntityName(names, value.EntityId)} record from {FieldName(names, value.Rule.SourceFieldId)} to {FieldName(names, value.Rule.TargetFieldId)} " +
+                    $"only when a {EntityName(names, value.Rule.TableEntityId)} record holds the source's {FieldName(names, value.Rule.SourceKindFieldId)}, " +
+                    $"the target's {FieldName(names, value.Rule.TargetKindFieldId)} and its {FieldName(names, value.Rule.KindFieldId)}, whoever writes it.",
+                    value.Reversibility,
+                    value.EntityId,
+                    value.Rule.TableEntityId),
+                RemoveLinkRuleOperation value => Entry(
+                    "removeLinkRule",
+                    $"Stop checking {EntityName(names, value.EntityId)} records against their allowed links. Every record stays as it is.",
+                    value.Reversibility,
+                    value.EntityId),
                 SetApplicationLookOperation value => Entry(
                     "setApplicationLook",
                     value.Tone is null && value.Letter is null

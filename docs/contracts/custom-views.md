@@ -973,10 +973,14 @@ A record, from `records.query`, `records.get` and the loaders below:
 
 `schema.describe` answers `{purpose, changeSequence, entities, screens, commands}`:
 
-- Each entity is `{entityId, displayName, fields, hierarchy}`. `hierarchy` is the tree
+- Each entity is `{entityId, displayName, fields, hierarchy, linkRule}`. `hierarchy` is the tree
   the record type declares ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)),
   `{parentFieldId, orderFieldId}` with a null order when it has none, or null when it
-  declares no tree. Each field is `{fieldId, displayName, storageKind, required,
+  declares no tree. `linkRule` is the links it allows
+  ([ADR-0026](../decisions/0026-allowed-links.md)): `{sourceFieldId, targetFieldId,
+  kindFieldId, sourceKindFieldId, targetKindFieldId, tableEntityId, tableSourceFieldId,
+  tableTargetFieldId, tableKindFieldId}`, or null. A batch that leaves a link no record of the
+  table allows is refused whole with `link-not-allowed`, naming the link. Each field is `{fieldId, displayName, storageKind, required,
   presentation, calculated, expression, choices, reference, scale}`. A calculated field
   has `calculated: true`, its formula in `expression` and its result type as
   `storageKind`. Each choice is `{id, displayName, retired, tone}`. Retired record types
@@ -1943,6 +1947,9 @@ passed. Each guard below was falsified, seen to fail and then restored:
   (W-127, the owner's F-215).
 - 2026-09-29 — each file in a review's **Code** section starts folded, and its folded row
   says the lines it adds and removes (W-098). No change to the wire.
+- 2026-10-06 — `schema.describe` names each record type's `linkRule` (ADR-0026), so a view
+  can offer only the links the file allows; a write that leaves another is refused with
+  `link-not-allowed` (W-105). A view on an earlier host finds the key missing.
 - 2026-09-27 — `schema.describe` names each record type's declared `hierarchy`, so a view
   that writes a parent knows which field holds it rather than guessing among the record
   type's references to itself. A view on an earlier host finds the key missing (W-077).

@@ -470,6 +470,7 @@ internal sealed partial class SqliteNendoStore
                             'schema.renameEntity', 'schema.renameField',
                             'behaviour.setDefinition', 'behaviour.removeDefinition',
                             'ui.setProperty', 'application.setPurpose', 'application.setLook', 'schema.declareHierarchy', 'schema.removeHierarchy',
+                            'schema.declareLinkRule', 'schema.removeLinkRule',
                             'application.setNewFileLabel', 'schema.setKeptInNewFiles', 'data.setKeptInNewFiles',
                             'extension.setPackage', 'extension.putFile', 'extension.removeFile', 'extension.removePackage')
                             OR (o.operation_type = 'ui.removeNode'

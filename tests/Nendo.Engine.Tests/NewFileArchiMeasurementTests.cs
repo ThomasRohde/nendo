@@ -4,8 +4,8 @@ namespace Nendo.Engine.Tests;
 
 /// <summary>
 /// ADR-0022 (W-129, W-130): a new Archi model from a copy of the committed Archi.nendo, marked
-/// as tools/Build-Archi.mjs marks it, keeps the 72 concept types and the nine top-level folders
-/// and nothing else. Measures the file sizes and the time New takes. The file in workspace/ is
+/// as tools/Build-Archi.mjs marks it, keeps the 72 concept types, the nine top-level folders and,
+/// since W-105, the 12,829 allowed relationships its link rule reads (ADR-0026), and nothing else. Measures the file sizes and the time New takes. The file in workspace/ is
 /// only read; NENDO_ARCHI_SOURCE names another copy, such as one taken from git while Nendo has
 /// the workspace file open.
 /// </summary>
@@ -51,7 +51,7 @@ public sealed class NewFileArchiMeasurementTests
         var preview = await service.PreviewNewFileAsync();
         Assert.AreEqual("New Archi model…", preview.MenuLabel);
         Assert.IsTrue(preview.CanCreate, $"{preview.ConflictCount} conflicts");
-        Assert.AreEqual(81L, preview.Kept);
+        Assert.AreEqual(Kept, preview.Kept);
 
         var destination = Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, "New model.nendo");
         var clock = Stopwatch.StartNew();
@@ -65,9 +65,15 @@ public sealed class NewFileArchiMeasurementTests
         var fresh = await new NendoApplicationService(opened).GetSnapshotAsync();
         Assert.AreEqual(72, fresh.Records.Count(record => record.EntityId == "ar.type"));
         Assert.AreEqual(9, fresh.Records.Count(record => record.EntityId == "ar.folder"));
-        Assert.HasCount(81, fresh.Records, "A new Archi model kept work it should have left out.");
+        Assert.AreEqual(12_829, fresh.Records.Count(record => record.EntityId == "ar.rule"));
+        Assert.AreEqual("ar.rule", fresh.Entities.Single(entity => entity.EntityId == "ar.concept").LinkRule?.TableEntityId,
+            "A new Archi model keeps its link rule.");
+        Assert.HasCount((int)Kept, fresh.Records, "A new Archi model kept work it should have left out.");
         Assert.HasCount(3, await new NendoApplicationService(opened).GetHistoryAsync());
     }
+
+    /// <summary>72 concept types, 9 top-level folders and 12,829 allowed relationships.</summary>
+    private const long Kept = 72 + 9 + 12_829;
 
     private static string RepositoryRoot() => TestRepository.Root();
 }

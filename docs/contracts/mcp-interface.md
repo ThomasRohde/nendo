@@ -605,13 +605,13 @@ that table serves two purposes. It is published at
 enforcement from it. Before, the payload specification was prose inside the
 `add_operations` tool description. That prose grew so long that a real client's
 tool listing truncated it mid-token. The rules that stayed behind went the same
-way on 2026-09-27 and are now `authoringRules`. The union permits twenty-eight of the Engine's
-thirty canonical operations. `data.restoreDeletedRecord` and
+way on 2026-09-27 and are now `authoringRules`. The union permits thirty-five of the Engine's
+thirty-seven canonical operations. `data.restoreDeletedRecord` and
 `identity.transition` are native-only: lifecycle identity operations remain host
 services and are not MCP authoring primitives.
 
 `extension.setPackage`, `extension.putFile`, `extension.removeFile` and
-`extension.removePackage` are among the twenty-eight. An agent therefore writes a
+`extension.removePackage` are among the thirty-five. An agent therefore writes a
 custom view's code into the file through ordinary proposals, and the person reviews
 it as code before accepting. Once accepted, the code runs in the Workbench whenever
 a view that names its package is shown, and reaches the file only through
@@ -631,7 +631,7 @@ publishes the package bounds under `limits.extensions`:
 
 The bounds of a declared hierarchy are under `limits.hierarchy`: `maximumDepth` 32,
 `maximumDescendants` 10,000 and `orderGap` 1,024. `schema.declareHierarchy` and
-`schema.removeHierarchy` are among the twenty-eight, and a record type's schema read carries
+`schema.removeHierarchy` are among the thirty-five, and a record type's schema read carries
 its `hierarchy` (`parentFieldId`, `orderFieldId`), or null.
 
 `schema.setFieldUnique` and `schema.setFieldSequence` are among them too
@@ -646,12 +646,20 @@ and `markdown`, the presentations that keep every value valid; no value changes,
 reversible, a unique field stays `singleLine`, and the operation states host 1.44.0. It is
 how a long text field written before `markdown` existed is shown formatted.
 
+`schema.declareLinkRule` and `schema.removeLinkRule` say which links a record type allows
+([ADR-0026](../decisions/0026-allowed-links.md),
+[allowed links](relationships.md#allowed-links)). The schema read carries `linkRule` on the link
+type, with its ten IDs, or null. A mutation that leaves a link no table record allows is refused
+as `NENDO_LINK_NOT_ALLOWED`, naming the link and, for a reference kind, the three kind records
+by ID. A proposal that declares the rule over such links fails validation with the Engine's
+`links-not-allowed` sentence, naming the first 20. The declaration states host 1.45.0.
+
 A change set past the content bound, or a file past 4 MiB once its parts are
 joined, is refused at validation as `NENDO_INVALID_REQUEST`, and nothing reaches
 the clone. A package precondition met on the clone, one of the `extension-*` codes,
 arrives as a validation diagnostic, `NPROP010`, with the Engine's sentence.
 
-`behaviour.setDefinition` and `behaviour.removeDefinition` are among the twenty-eight,
+`behaviour.setDefinition` and `behaviour.removeDefinition` are among the thirty-five,
 so an agent authors calculations, reusable functions, actions and triggers through
 ordinary proposals. The vocabulary's `behaviour.bindings` publishes every binding
 shape with the keys that it takes, from the same table that the codec refuses

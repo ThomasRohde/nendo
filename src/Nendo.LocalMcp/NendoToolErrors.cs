@@ -111,6 +111,10 @@ internal static class NendoToolErrors
             // ADR-0020: a uniqueness refusal names the field, the value and the record holding it.
             "value-not-unique", "field-values-not-unique", "field-unique-invalid", "field-unique-unchanged",
             "field-sequence-invalid", "field-sequence-unchanged", "field-sequence-in-use",
+            // ADR-0026: a link rule's refusals name links and kind records by stable ID, fields
+            // and record types by display name, and a text kind by its field only.
+            "link-not-allowed", "links-not-allowed", "link-rule-invalid", "link-rule-already-declared",
+            "link-rule-not-declared", "link-rule-field-in-use",
             // W-153: an undo's refusals name a revision by ID and say whose it is, nothing stored.
             "revision-not-found", "not-an-undo", "revision-not-yours",
             // W-165: a size refusal names the field the caller sent, the cap and the measured size.

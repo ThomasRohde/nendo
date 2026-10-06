@@ -174,6 +174,8 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                 newEntityIds,
                 transaction,
                 cancellationToken);
+            // ADR-0026: the mutation as a whole, automatic actions included, before it is recorded.
+            await RequireAllowedLinksAsync(evidence, transaction, cancellationToken);
 
             var lane = mutation.Operations[0].Lane;
             if (lane == NendoRevisionLane.Definition) await ValidateRetiredBindingsAsync(transaction, cancellationToken);
@@ -402,6 +404,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                         newEntityIds,
                         transaction,
                         cancellationToken);
+                    await RequireAllowedLinksAsync(evidence, transaction, cancellationToken);
 
                     var lane = mutation.Operations[0].Lane;
                     var definitionAfter = running.DefinitionRevision +

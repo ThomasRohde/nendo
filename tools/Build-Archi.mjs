@@ -20,7 +20,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { STAGES, STAGE_ORDER, CALL_CHARACTERS, ROOT_FOLDERS, TYPES, MODEL, PACKAGE_FOLDER, NEW_FILE_LABEL, WORKBENCH_SCREEN, workbenchView } from './archi-definition.mjs';
+import { STAGES, STAGE_ORDER, LINK_RULE_STAGE, CALL_CHARACTERS, ROOT_FOLDERS, TYPES, MODEL, PACKAGE_FOLDER, NEW_FILE_LABEL, WORKBENCH_SCREEN, workbenchView, allowedRelationships } from './archi-definition.mjs';
 import { CONCEPT_TYPES } from './archi-concept-types.mjs';
 import { TARGET_FILE_NAME, fail, target, withLease } from './archi-mcp.mjs';
 
@@ -102,10 +102,11 @@ async function runStage(file, name, dryRun) {
   });
 }
 
-// The folders, concept types and model record a new Archi file starts with. A type already
-// holding its records is left alone; one holding some but not all is refused, not topped up.
+// The folders, concept types, model record and allowed relationships a new Archi file starts with.
+// A type already holding its records is left alone; one holding some but not all is refused, not
+// topped up. An allowed relationship points at three concept types, so it carries their versions.
 async function seed(file, dryRun) {
-  const plan = [['ar.folder', ROOT_FOLDERS], ['ar.type', TYPES], ['ar.model', [MODEL]]];
+  const plan = [['ar.folder', ROOT_FOLDERS], ['ar.type', TYPES], ['ar.model', [MODEL]], ['ar.rule', allowedRelationships()]];
   for (const [entityId, records] of plan) console.log(`${String(records.length).padStart(5)}  ${entityId}`);
   if (dryRun) return;
   await withLease(file.client, async owned => {
@@ -113,8 +114,13 @@ async function seed(file, dryRun) {
       const held = await file.read.records(entityId);
       if (held.length >= records.length) { console.log(`    -  ${entityId} already holds ${held.length}; left alone`); continue; }
       if (held.length > 0) fail(`${entityId} holds ${held.length} of ${records.length} seeded records. Start from a new file.`);
+      const versions = entityId === 'ar.rule'
+        ? new Map((await file.read.records('ar.type')).map(record => [record.recordId, record.recordVersion])) : null;
       for (let start = 0; start < records.length; start += 50) {
-        const slice = records.slice(start, start + 50);
+        const slice = records.slice(start, start + 50).map(record => versions === null ? record : {
+          ...record,
+          expectedTargetVersions: Object.fromEntries(Object.entries(record.values).map(([field, type]) => [field, versions.get(type)])),
+        });
         const key = crypto.createHash('sha256').update(JSON.stringify(slice)).digest('hex').slice(0, 32);
         await file.client.tool('nendo.data.create_records', { ...owned, entityId, records: slice, idempotencyKey: `archi-seed-${key}` });
       }
@@ -158,10 +164,17 @@ async function compare(file) {
   if (newFile) {
     const kept = Object.fromEntries(newFile.types.map(type => [type.entityId, type.kept]));
     const total = newFile.types.reduce((sum, type) => sum + type.kept, 0);
-    console.log(`${newFile.menuLabel} keeps ${total} records: ${kept['ar.type']} concept types and ${kept['ar.folder']} folders`);
-    if (total !== CONCEPT_TYPES.length + ROOT_FOLDERS.length) problems.push(`a new file keeps ${total} records, not ${CONCEPT_TYPES.length + ROOT_FOLDERS.length}`);
+    console.log(`${newFile.menuLabel} keeps ${total} records: ${kept['ar.type']} concept types, ${kept['ar.folder']} folders and ${kept['ar.rule'] ?? 0} allowed relationships`);
+    const keeps = CONCEPT_TYPES.length + ROOT_FOLDERS.length + allowedRelationships().length;
+    if (total !== keeps) problems.push(`a new file keeps ${total} records, not ${keeps}`);
     if (newFile.conflictCount !== 0) problems.push(`${newFile.conflictCount} kept records point at records a new file leaves out`);
   } else problems.push('describe has no newFile section; is the host older than 1.41.0?');
+  // W-105: the relationship table as records, and the rule that reads them.
+  const rules = (await file.read.json('nendo://application/entity/ar.rule/aggregate?aggregate=count')).value;
+  const expected = allowedRelationships().length;
+  if (Number(rules) !== expected) problems.push(`${rules} allowed relationships, not ${expected}`);
+  if (!(await file.read.schema('ar.concept')).linkRule) problems.push('Concepts declare no link rule');
+  console.log(`${rules} allowed relationships, and Concepts ${problems.some(problem => problem.includes('link rule')) ? 'declare no' : 'declare their'} link rule`);
   const letters = CONCEPT_TYPES.filter(type => type.letter).map(type => type.letter).sort().join('');
   console.log(`${held.size} concept types, ${folders.length} top-level folders; relationship letters ${letters}`);
   if (problems.length > 0) fail(`The seeded records differ from the tables:\n  ${problems.join('\n  ')}`);
@@ -190,7 +203,8 @@ const named = args.filter(arg => !arg.startsWith('--'));
 
 if (args.includes('--list')) {
   for (const name of STAGE_ORDER) console.log(`${name.padEnd(10)} ${STAGES[name].title}`);
-  console.log(`${'seed'.padEnd(10)} The top-level folders, the 72 concept types and the model record`);
+  console.log(`${'seed'.padEnd(10)} The top-level folders, the 72 concept types, the model record and the allowed relationships`);
+  console.log(`${LINK_RULE_STAGE.padEnd(10)} ${STAGES[LINK_RULE_STAGE].title}, once the seed is in`);
   console.log(`${'compare'.padEnd(10)} The seeded concept types against their table`);
   console.log(`${'workbench'.padEnd(10)} The Archi workbench package, and the screen that shows it`);
   process.exit(0);
@@ -199,6 +213,7 @@ if (args.includes('--list')) {
 if (dryRun && named.length === 0) {
   for (const name of STAGE_ORDER) await runStage(null, name, true);
   await seed(null, true);
+  await runStage(null, LINK_RULE_STAGE, true);
   console.log('Dry run: nothing sent, no lease taken.');
   process.exit(0);
 }
@@ -217,5 +232,7 @@ else if (named.length > 0) {
     if (!await runStage(file, name, dryRun)) process.exit(process.exitCode ?? 0);
   }
   await seed(file, dryRun);
+  if (await applied(file, LINK_RULE_STAGE)) console.log(`Stage           ${LINK_RULE_STAGE}: applied`);
+  else if (!await runStage(file, LINK_RULE_STAGE, dryRun)) process.exit(process.exitCode ?? 0);
   await compare(file);
 }

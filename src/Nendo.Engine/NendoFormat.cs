@@ -304,7 +304,14 @@ public static class NendoFormat
     /// </summary>
     public const string MarkdownPresentationMinimumHostVersion = "1.44.0";
 
-    public const string CurrentHostVersion = MarkdownPresentationMinimumHostVersion;
+    /// <summary>
+    /// A link record type's rule (ADR-0026, W-105): a protected table the node ladder cannot
+    /// see, stated by the operation's evidence and by the layout rung at open. A file that
+    /// declares none keeps the rung it had.
+    /// </summary>
+    public const string LinkRuleMinimumHostVersion = "1.45.0";
+
+    public const string CurrentHostVersion = LinkRuleMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

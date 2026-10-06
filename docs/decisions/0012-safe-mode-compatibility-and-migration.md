@@ -73,8 +73,9 @@ The host classifies every open before it enables normal UI or integrations.
   new file keeps ([ADR-0022](0022-new-file-keeping-the-records-an-application-ships-with.md)). A declared
   hierarchy needs 1.35.0, and an outline of one 1.36.0
   ([ADR-0019](0019-hierarchies-in-the-schema.md)). A unique field needs 1.37.0
-  ([ADR-0020](0020-unique-and-generated-fields.md)), and a file's own look 1.38.0
-  ([ADR-0004](0004-versioned-semantic-ui-contract.md), 2026-09-28). An older host
+  ([ADR-0020](0020-unique-and-generated-fields.md)), a file's own look 1.38.0
+  ([ADR-0004](0004-versioned-semantic-ui-contract.md), 2026-09-28), and a link rule 1.45.0
+  ([ADR-0026](0026-allowed-links.md)). An older host
   refuses writable open of such a file by the `minimum_host_version` rule above.
 
 ### Migration and recovery

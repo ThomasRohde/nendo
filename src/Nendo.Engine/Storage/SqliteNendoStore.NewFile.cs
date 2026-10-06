@@ -373,6 +373,11 @@ internal sealed partial class SqliteNendoStore
                 for (var index = 0; index < chunk.Length; index++) delete.Parameters.AddWithValue(names[index], chunk[index]);
                 await delete.ExecuteNonQueryAsync(ct);
             }
+            // ADR-0026: a kept link must still be allowed by the kept table, or the new file
+            // would start breaking its own rule.
+            foreach (var (linkId, rule) in await ReadLinkRulesAsync(transaction, ct))
+                if (ResolveLinkRule(linkId, rule, mappings).Rule is { } resolved)
+                    await RequireAllowedLinksAsync(resolved, LinkScope.All, transaction, ct, declaring: true);
             // A deleted record's ID is reserved so its deletion can be undone; a new file has no
             // deletions to undo, and starts with every ID free.
             if (await TableExistsAsync("__nendo_deleted_record", transaction, ct))

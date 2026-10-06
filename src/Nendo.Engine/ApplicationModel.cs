@@ -176,6 +176,9 @@ public sealed record NendoEntitySnapshot(
     /// <summary>The record type's declared hierarchy (ADR-0019), or null when it declares none.</summary>
     public NendoHierarchy? Hierarchy { get; init; }
 
+    /// <summary>The link rule this record type declares (ADR-0026), or null when it declares none.</summary>
+    public NendoLinkRule? LinkRule { get; init; }
+
     /// <summary>
     /// Whether a new file of this application keeps this type's records unless a record says
     /// otherwise (ADR-0022). False, the default, leaves them out.

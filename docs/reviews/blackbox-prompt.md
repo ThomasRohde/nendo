@@ -314,6 +314,16 @@ through each route you have, and say whether every refusal named the record that
 Then have the host number the field, create records without a code, delete the newest and
 create another, and record which codes you were given and whether any came back twice.
 Then ask the person to do the same in Studio without your help: make a field unique, number it, and add a record without typing a code. Record whether they found where, and what the form told them the code would be.
+Make three record types: things with a kind, links that join two things and have a kind of
+their own, and a table of which kinds of link may join which kinds of thing. Find out from the
+vocabulary how to have the host hold the links to the table. Before you declare it, write one
+link the table does not allow, and record what the declaration told you. Then try to write a
+link the table does not allow through every route you have — a create, a change of its kind or
+of one of its ends, a change to one of the things it joins, an import, and a batch that only
+passes through such a link on its way to an allowed one — and say which were refused, whether
+every refusal named the link and the kinds, and whether the file changed. Delete the table row
+a link needs and say what happened. Then ask the person to open Studio's Structure on the link
+type and on the table, and record whether they could tell from it what the rule does.
 On a record type kept as a tree, add a calculated field that shows each record's place as 1.2.3,
 move a record, and say whether every code below it followed — and whether anything told you such
 a code is not one to write down.

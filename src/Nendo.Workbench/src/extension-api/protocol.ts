@@ -281,13 +281,15 @@ export interface SchemaField {
 /**
  * A record type. `hierarchy` is the tree it declares (ADR-0019): the self-reference that holds
  * each record's parent, and the whole-number field that orders siblings, if any. Null when it
- * declares none.
+ * declares none. `linkRule` says which links it allows (ADR-0026): a link whose kinds no record of
+ * the table holds is refused at the end of the batch that writes it. Null when it declares none.
  */
 export interface SchemaEntity {
   entityId: string;
   displayName: string;
   fields: SchemaField[];
   hierarchy: { parentFieldId: string; orderFieldId: string | null } | null;
+  linkRule: { sourceFieldId: string; targetFieldId: string; kindFieldId: string; sourceKindFieldId: string; targetKindFieldId: string; tableEntityId: string; tableSourceFieldId: string; tableTargetFieldId: string; tableKindFieldId: string } | null;
 }
 
 /** A screen the file defines: a root node, by its node ID and the surface that holds it. */

@@ -49,12 +49,17 @@ export interface ResolvedLook {
   defaultLetter: string | null;
 }
 
+/** Which links a record type allows (ADR-0026): its ends, its kind, and the record type of allowed combinations. */
+export type LinkRule = { sourceFieldId: string; targetFieldId: string; kindFieldId: string; sourceKindFieldId: string; targetKindFieldId: string; tableEntityId: string; tableSourceFieldId: string; tableTargetFieldId: string; tableKindFieldId: string };
+
 export interface EntitySnapshot {
   entityId: string;
   retired?: boolean;
   displayName: string;
   /** The record type's declared hierarchy (ADR-0019), or null/absent when it declares none. */
   hierarchy?: { parentFieldId: string; orderFieldId: string | null } | null;
+  /** The link rule this record type declares (ADR-0026), or null/absent when it declares none. */
+  linkRule?: LinkRule | null;
   /** Whether a new file of this application keeps this type's records unless a record says otherwise (ADR-0022). */
   keptInNewFiles?: boolean;
   fields: Array<{

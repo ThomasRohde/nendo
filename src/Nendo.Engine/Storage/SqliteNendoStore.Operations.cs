@@ -61,6 +61,8 @@ internal sealed partial class SqliteNendoStore
             SetFieldUniqueOperation setUnique => await ExecuteSetFieldUniqueAsync(setUnique, transaction, cancellationToken),
             SetFieldSequenceOperation setSequence => await ExecuteSetFieldSequenceAsync(setSequence, transaction, cancellationToken),
             RemoveHierarchyOperation remove => await ExecuteRemoveHierarchyAsync(remove, transaction, cancellationToken),
+            DeclareLinkRuleOperation declareLinks => await ExecuteDeclareLinkRuleAsync(declareLinks, transaction, cancellationToken),
+            RemoveLinkRuleOperation removeLinks => await ExecuteRemoveLinkRuleAsync(removeLinks, transaction, cancellationToken),
             SetApplicationLookOperation setLook => await ExecuteSetApplicationLookAsync(setLook, transaction, cancellationToken),
             SetFieldPresentationOperation presentation => await ExecuteSetFieldPresentationAsync(presentation, transaction, cancellationToken),
             SetKeptInNewFilesDefaultOperation keptDefault => await ExecuteSetKeptInNewFilesDefaultAsync(keptDefault, transaction, cancellationToken),
@@ -569,6 +571,12 @@ internal sealed partial class SqliteNendoStore
                 await EnsureUniqueIndexAsync(entity, field, transaction, cancellationToken);
         }
 
+        // ADR-0026: a rule whose table was added in this same mutation gets its index now that
+        // the columns exist; a table that already had them got it when the rule was declared.
+        foreach (var declare in operations.OfType<DeclareLinkRuleOperation>())
+            if (ResolveLinkRule(declare.EntityId, declare.Rule, await ReadEntityMappingsAsync(transaction, cancellationToken)).Rule is { } rule)
+                await EnsureLinkIndexAsync(rule, transaction, cancellationToken);
+
         // ADR-0003 note, 2026-09-09: a covering index for the inverse read a
         // related list performs. Created here because the reference column may
         // be added by this same change set, and only for a reference that was
@@ -680,6 +688,7 @@ internal sealed partial class SqliteNendoStore
             Retired = (await RetiredIdsAsync("entity", transaction, cancellationToken)).Contains(entityId),
             Hierarchy = (await ReadHierarchiesAsync(transaction, cancellationToken)).GetValueOrDefault(entityId),
             KeptInNewFiles = (await ReadKeptTypesAsync(transaction, cancellationToken)).Contains(entityId),
+            LinkRule = (await ReadLinkRulesAsync(transaction, cancellationToken)).GetValueOrDefault(entityId),
         };
     }
 

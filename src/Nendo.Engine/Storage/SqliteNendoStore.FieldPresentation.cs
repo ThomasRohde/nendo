@@ -25,6 +25,7 @@ internal sealed partial class SqliteNendoStore
         if (field.Unique && operation.Presentation != "singleLine")
             throw new NendoPreconditionException("field-presentation-invalid",
                 $"{field.DisplayName} is unique, which only a single-line text field can be. Stop keeping it unique first.");
+        await RequireNotLinkRuleFieldAsync(entity, field.FieldId, "shown another way", transaction, ct);
 
         await using (var update = Command("UPDATE __nendo_field SET presentation = @presentation WHERE field_id = @field;", transaction))
         {

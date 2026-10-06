@@ -128,6 +128,13 @@ public sealed record NendoMcpEntitySchema(
     public NendoHierarchy? Hierarchy { get; init; }
 
     /// <summary>
+    /// The link rule this record type declares (ADR-0026): its source, target and kind fields,
+    /// each end's kind field, and the record type of allowed combinations with its three
+    /// fields. Null when the record type declares none.
+    /// </summary>
+    public NendoLinkRule? LinkRule { get; init; }
+
+    /// <summary>
     /// Whether a new file of this application keeps this type's records unless a record says
     /// otherwise (ADR-0022). False, the default, leaves them out.
     /// </summary>

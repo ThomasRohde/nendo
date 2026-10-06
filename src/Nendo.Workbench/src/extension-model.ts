@@ -143,7 +143,8 @@ function describeEntity(entity: EntitySnapshot): SchemaEntity {
     scale: null,
   }));
   const hierarchy = entity.hierarchy ? { parentFieldId: entity.hierarchy.parentFieldId, orderFieldId: entity.hierarchy.orderFieldId ?? null } : null;
-  return { entityId: entity.entityId, displayName: entity.displayName, fields: [...stored, ...derived], hierarchy };
+  const linkRule = entity.linkRule ? { ...entity.linkRule } : null;
+  return { entityId: entity.entityId, displayName: entity.displayName, fields: [...stored, ...derived], hierarchy, linkRule };
 }
 
 /** The root a node sits under, through its parents in the same surface. */

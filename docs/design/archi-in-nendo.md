@@ -13,7 +13,9 @@ what one editing session costs against the file's write bound. The work items W-
 W-125 build it.
 
 **Decisions.** D-001 (one Concept record type) and D-003 (relationship rules are
-checked in the view and reported by the validator) were decided on 2026-09-29.
+checked in the view and reported by the validator) were decided on 2026-09-29. D-003's
+option C followed on 2026-10-06 as W-105: the file itself refuses an invalid relationship
+([ADR-0026](../decisions/0026-allowed-links.md)).
 D-002, how the editor stays inside the operation-row bound, is open. The
 [write budget](#the-write-budget) below gives it a measured number.
 
@@ -65,14 +67,18 @@ is the code that CSV import resolves references by (W-075).
 | **View** | Name, documentation, folder, viewpoint (the viewpoint's key), router (Manual, Manhattan), Archi ID | Sketch and Canvas views are out, as in archi-online |
 | **Diagram item** | View (required), kind (Element, Group, Note, View reference, Relationship connection, Connection), concept, referenced view, parent, order, source and target (both Diagram item), x, y, width, height, bendpoints, name, documentation, content, figure, border type, connection type, name visible, text alignment and position, fill, line and font colour, fill, line and font alpha, gradient, line style and width, icon visibility and colour, derived line colour, font, label expression, legend options, Archi ID | Nodes and connections in one type, because a connection may end on another connection. Nesting is the hierarchy; order is z-order. Bounds are typed integers relative to the parent, as Archi stores them. Bendpoints are a JSON list in text, in Archi's relative `startX/startY/endX/endY` form, because Nendo has no list type. Legend options are JSON text for the same reason |
 | **Property** | Key, value, order, and one owner of: concept, view, folder, diagram item, model | Archi's ordered key/value lists. A Nendo reference targets one type, so a property has five optional owner references, exactly one set; each owner's page lists its properties |
+| **Allowed relationship** | Source type, target type, relationship type (each a Concept type) | ArchiMate's relationship table as 12,829 seeded records, kept in a new file (W-105). Concepts declare a link rule over it ([ADR-0026](../decisions/0026-allowed-links.md)): Source, Target and Type on a relationship, Type on each end. The table's *Relationship* end is spelled out for each of the eleven relationship types |
 
 **What stays in code.** The relationship table (3,973 lines of generated source in
 archi-online), the 25 viewpoints, the figures, the label-expression grammar and the
 validator's rules are ArchiMate's, not the modeller's, and they do not change with a
 model. They live in the package, generated from archi-online's tables as archi-online
-generates them from Archi's `relationships.xml` and `viewpoints.xml`. Kept as records,
-the relationship table alone would cost about 4,000 writes before the first element.
-If W-105 builds an Engine-checked constraint, the table becomes records then.
+generates them from Archi's `relationships.xml` and `viewpoints.xml`. Since W-105 the
+relationship table is records as well (*Allowed relationships*, seeded by
+`tools/Build-Archi.mjs` from `tools/archi-relationships.mjs`), because the Engine reads it to
+refuse an invalid relationship; the package keeps its own copy for the palette, the magic
+connector and the validator. Seeding it took 257 batches of 50 and brought the file from
+18.7 MB to 36 MB.
 
 **Screens without the view.** Studio lists every type. The Use side adds a Concepts
 list by layer, a Views list, and a Concept page with related relationships,
@@ -121,7 +127,7 @@ not built, with the reason.
 | A reference targets exactly one record type | One Concept type; one Diagram item type; five owner references on Property | None (D-001) |
 | A choice holds 32 options | The ArchiMate type is a reference to Concept type | None |
 | No list or JSON field kind | Bendpoints and legend options as JSON text | None; noted, not requested |
-| No rule refuses an invalid relationship on every path | The view offers only valid types; the validator reports the rest | W-105, Later (D-003) |
+| No rule refused an invalid relationship on every path | *Allowed relationships* holds ArchiMate's table as records, and Concepts declare a link rule over it, so the Engine refuses an invalid relationship from the view, a form, CSV, an agent or an automatic action | W-105, built 2026-10-06 (ADR-0026, host 1.45.0) |
 | A view writes one record per call, each its own revision | A gesture is several writes, not atomic, and several History rows | W-102 |
 | No undo | The workbench undoes and redoes what it saved, one gesture a step, by Nendo's `records.undo` and `records.redo`; edits waiting in the editor use archi-online's own. See below | W-112, built 2026-10-03; W-103, 2026-10-04 |
 | A view cannot read a file the person picks | `.archimate`, XML and CSV import wait for it | W-104 |
@@ -200,7 +206,7 @@ view is edited (`Gate-ArchiWorkbench.mjs`).
 | --- | --- | --- |
 | Unused elements, unused relationships | Yes | A calculated *On views* count (`RelatedAggregate` over Diagram item's concept) shows in the Elements and Relationships lists and on a concept's page, and Concepts → *Not on any view* lists the concepts whose count is 0. Until F-222 was fixed (2026-09-30) a list could not filter on a calculated field (`NUI214`, refused on Archi.nendo itself), so the count was a column to read by eye. The count is third in Elements and Views, where a host that drew only three fields (F-225) draws it too (`tools/archi/definition.test.mjs`); a `ui.moveNode` sets one node's position and renumbers none, so the first move tied it with Folder, behind it |
 | Empty views | Yes | The same, as *Diagram objects* on Views, with Views → *Empty views*. A view of more than 256 objects had no count but `calculation-limit-reached` (measured on a view of 300) until a plain count on a read became the store's own count (F-223, 2026-09-30) |
-| Invalid relationships | No | Needs ArchiMate's relationship table (about 4,000 lines), which is package code (D-003); W-105 would make it an Engine constraint |
+| Invalid relationships | Yes, since W-105 | The table is records (*Allowed relationships*, 12,829 rows) and the Engine refuses an invalid relationship on every path, so the file cannot hold one. The validator keeps its own check, from the package's table, for a file that has not declared the rule |
 | Viewpoint violations | No | Needs the 25 viewpoints' element lists, package code |
 | Nested elements | No | Compares a box's parent box with the relationships between their concepts: two hops over two record types and a type test |
 | Duplicate names | No | Compares records of the same type with each other; a unique field is unique across all concepts, not per type, and would refuse the write rather than report it |

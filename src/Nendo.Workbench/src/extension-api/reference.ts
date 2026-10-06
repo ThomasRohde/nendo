@@ -22,7 +22,7 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
   'schema.describe': {
     call: 'nendo.schema.describe()',
     params: 'None.',
-    answer: '{purpose, changeSequence, entities, screens, commands}. An entity is {entityId, displayName, fields, hierarchy}; a field {fieldId, displayName, storageKind, required, presentation, calculated, expression, choices, reference, scale}, where a choice is {id, displayName, retired, tone} and reference is {targetEntityId, labelFieldId}. hierarchy is {parentFieldId, orderFieldId} or null. A screen is {id, surfaceId, kind, title, entityId}; a command {id, entityId, label, steps}, each step {fieldId, valueKind, value}.',
+    answer: '{purpose, changeSequence, entities, screens, commands}. An entity is {entityId, displayName, fields, hierarchy, linkRule}; a field {fieldId, displayName, storageKind, required, presentation, calculated, expression, choices, reference, scale}, where a choice is {id, displayName, retired, tone} and reference is {targetEntityId, labelFieldId}. hierarchy is {parentFieldId, orderFieldId} or null. linkRule is {sourceFieldId, targetFieldId, kindFieldId, sourceKindFieldId, targetKindFieldId, tableEntityId, tableSourceFieldId, tableTargetFieldId, tableKindFieldId} or null: a write that leaves a link whose kinds no record of tableEntityId holds is refused with link-not-allowed. A screen is {id, surfaceId, kind, title, entityId}; a command {id, entityId, label, steps}, each step {fieldId, valueKind, value}.',
     note: 'Retired record types and fields are left out. storageKind is text, integer, decimal, boolean, date, dateTime, uuid or reference.',
   },
   'records.query': {

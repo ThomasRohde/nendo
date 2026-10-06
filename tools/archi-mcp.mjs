@@ -15,7 +15,9 @@ export function fail(message) {
 }
 
 async function running() {
-  const root = path.join(process.env.LOCALAPPDATA ?? '', 'Nendo', 'Mcp', 'active');
+  // NENDO_MCP_DISCOVERY names a host's own discovery folder: one started with a device-state root of
+  // its own (NENDO_DEVICE_STATE_ROOT) lists itself there rather than in the person's.
+  const root = process.env.NENDO_MCP_DISCOVERY || path.join(process.env.LOCALAPPDATA ?? '', 'Nendo', 'Mcp', 'active');
   let names = [];
   try { names = (await fs.readdir(root)).filter(name => name.endsWith('.json')); } catch { /* none */ }
   const entries = [];

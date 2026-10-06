@@ -121,6 +121,45 @@ no spaces and no final digit, and a width 1 to 9.
 - `prefix` and `width` null remove the sequence and leave every code. Compensating a removal
   puts the sequence back no lower than the number it had reached.
 
+## Allowed links
+
+A record type whose records join two others can say which links it allows
+([ADR-0026](../decisions/0026-allowed-links.md)) with `schema.declareLinkRule { entityId,
+sourceFieldId, targetFieldId, kindFieldId, sourceKindFieldId, targetKindFieldId, tableEntityId,
+tableSourceFieldId, tableTargetFieldId, tableKindFieldId }`. Source and target are configured
+references of the link type and the kind a field of it; each end's kind is a field of the record
+type that end points at. The table is another record type, and its three fields hold allowed
+combinations of source kind, target kind and link kind. Each table field is the same kind of
+field as the one it stands for: a reference to the same record type, or single-line Text.
+Anything else is `link-rule-invalid`, naming the field. One rule per link type
+(`link-rule-already-declared`); it is stored in `__nendo_link_rule`, the last rung of the layout
+ladder, and a file that carries one needs host 1.45.0.
+
+- **What is checked.** A link whose source, target and kind are all set is allowed when a table
+  record holds its source's kind, its target's kind and its kind, compared exactly as stored. An
+  end with no kind matches no row. A link missing its source, target or kind is not checked.
+- **Declaring checks the data.** Links that are not allowed are refused as `links-not-allowed`,
+  naming the first 20 and how many there are. Nothing is changed.
+- **At the end of every mutation.** After its operations and automatic actions, before the
+  revision is recorded, a mutation that leaves a link not allowed is refused whole as
+  `link-not-allowed`. That covers a link created, restored, or given a new source, target or
+  kind; a link whose end was given a new kind; and every link, when a table record is changed or
+  deleted. A batch may pass through a link that is not allowed on its way to one that is. The
+  refusal names the link, and for a reference kind the three kind records by ID; a text kind is
+  named by its field only.
+- **In use.** While declared, the four record types and ten fields the rule reads cannot be
+  retired or shown another way (`link-rule-field-in-use`). Renaming is allowed.
+- **New files.** A new file of the application refuses with `links-not-allowed` when a kept link
+  would not be allowed by the kept table.
+- An index on the table's three columns (`nendo_link_<table>`, outside the protected namespace)
+  makes each check one lookup. The schema read carries `linkRule`, with the ten IDs, on the link
+  type (Studio snapshot, MCP and the view API's `schema.describe`); Studio's Structure names the
+  rule on the link type and on its table.
+
+Declaring and `schema.removeLinkRule { entityId }` are definition-lane operations of class
+`ReversibleWithRetainedState`, each the other's inverse. Removing keeps every record;
+compensating a removal over links the rule would not allow is refused like declaring.
+
 ## Labels, choices and retirement
 
 Entity and field renames change display labels only. They keep stable IDs and

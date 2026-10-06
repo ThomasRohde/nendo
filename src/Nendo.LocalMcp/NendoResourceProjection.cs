@@ -85,6 +85,7 @@ internal sealed class NendoResourceProjection(
         {
             Retired = entity.Retired,
             Hierarchy = entity.Hierarchy,
+            LinkRule = entity.LinkRule,
             KeptInNewFiles = entity.KeptInNewFiles,
             DerivedFields = entity.DerivedFields
                 .OrderBy(field => field.FieldId, StringComparer.Ordinal)
@@ -694,7 +695,7 @@ internal sealed class NendoResourceProjection(
 
     private static bool IsSemanticIdProperty(string name) => name is
         "entityId" or "fieldId" or "recordId" or "surfaceId" or "nodeId" or
-        "parentNodeId" or "commandId" or "targetEntityId" or "labelFieldId";
+        "parentNodeId" or "commandId" or "targetEntityId" or "labelFieldId" or "tableEntityId";
 
     private static void RequireLimit(int limit)
     {

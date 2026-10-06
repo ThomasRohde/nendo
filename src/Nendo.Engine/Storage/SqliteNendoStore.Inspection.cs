@@ -316,6 +316,8 @@ internal sealed partial class SqliteNendoStore
             }
 
             var findings = new List<NendoOpenFinding>();
+            if (layout.Contains("-linkrule-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.LinkRuleMinimumHostVersion))
+                return Unreadable("layout-version-mismatch", "A link rule requires the declared link-rule-capable host version.", observedAt);
             if (layout.Contains("-skill-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.SkillPackageMinimumHostVersion))
                 return Unreadable("layout-version-mismatch", "A skill package requires the declared skill-capable host version.", observedAt);
             if (layout.Contains("-newfile-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.NewFileMinimumHostVersion))
@@ -393,7 +395,8 @@ internal sealed partial class SqliteNendoStore
                 !await store.RetirementMetadataIsValidAsync(cancellationToken) ||
                 !await store.ExtensionPackagesAreValidAsync(cancellationToken) ||
                 !await store.HierarchyMetadataIsValidAsync(mappings, cancellationToken) ||
-                !await store.FieldRuleMetadataIsValidAsync(mappings, cancellationToken);
+                !await store.FieldRuleMetadataIsValidAsync(mappings, cancellationToken) ||
+                !await store.LinkRuleMetadataIsValidAsync(mappings, cancellationToken);
             if (mappingDrift)
             {
                 coreValid = false;
@@ -449,6 +452,7 @@ internal sealed partial class SqliteNendoStore
                     DerivedFields = derivedFields.TryGetValue(mapping.EntityId, out var calculated) ? calculated : [],
                     Hierarchy = mapping.Hierarchy,
                     KeptInNewFiles = mapping.KeptInNewFiles,
+                    LinkRule = mapping.LinkRule,
                 }).ToArray();
 
             recordsTiming?.Dispose();
@@ -826,6 +830,9 @@ internal sealed partial class SqliteNendoStore
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(ExtensionKindSchemaSql, null, CancellationToken.None);
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(LinkRuleSchemaSql, null, CancellationToken.None);
+        layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync("DROP TABLE __nendo_link_rule;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_extension_kind;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_new_file_label; DROP TABLE __nendo_new_file_rule;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_history_fold;", null, CancellationToken.None);
@@ -889,6 +896,8 @@ internal sealed partial class SqliteNendoStore
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(ExtensionKindSchemaSql, null, CancellationToken.None);
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(LinkRuleSchemaSql, null, CancellationToken.None);
+        layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         return layouts;
     }
 

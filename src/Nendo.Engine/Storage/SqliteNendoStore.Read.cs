@@ -35,6 +35,7 @@ internal sealed partial class SqliteNendoStore
                 DerivedFields = derived.TryGetValue(mapping.EntityId, out var calculated) ? calculated : [],
                 Hierarchy = mapping.Hierarchy,
                 KeptInNewFiles = mapping.KeptInNewFiles,
+                LinkRule = mapping.LinkRule,
             })
             .ToArray();
         var records = includeRecords ? await ReadRecordsAsync(mappings, transaction, cancellationToken) : [];
@@ -238,6 +239,7 @@ internal sealed partial class SqliteNendoStore
         var retiredEntities = await RetiredIdsAsync("entity", transaction, cancellationToken);
         var hierarchies = await ReadHierarchiesAsync(transaction, cancellationToken);
         var keptTypes = await ReadKeptTypesAsync(transaction, cancellationToken);
+        var linkRules = await ReadLinkRulesAsync(transaction, cancellationToken);
         for (var index = 0; index < fields.Count; index++) fields[index] = fields[index] with { Retired = retiredFields.Contains(fields[index].FieldId) };
         return entities
             .Select(entity => new EntityMapping(
@@ -249,6 +251,7 @@ internal sealed partial class SqliteNendoStore
                 Retired = retiredEntities.Contains(entity.Id),
                 Hierarchy = hierarchies.GetValueOrDefault(entity.Id),
                 KeptInNewFiles = keptTypes.Contains(entity.Id),
+                LinkRule = linkRules.GetValueOrDefault(entity.Id),
             })
             .ToArray();
     }

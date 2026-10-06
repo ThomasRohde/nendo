@@ -7,6 +7,7 @@
 // in the same mutation as its record type.
 
 import { CONCEPT_TYPES } from './archi-concept-types.mjs';
+import { RELATIONSHIP_TABLE } from './archi-relationships.mjs';
 
 export const SURFACE = 'archi';
 // What one add_operations call may carry, as Put-NendoPackage.mjs measures it.
@@ -384,6 +385,35 @@ export const STAGES = {
     ]),
   },
 
+  // W-105 (ADR-0026): ArchiMate's relationship table as records, so the file refuses an invalid
+  // relationship on every path, not only in the view. The rows are seeded after the stages, and
+  // the rule that reads them is declared once they are there (LINK_RULE_STAGE).
+  rules: {
+    title: 'Archi: the relationships ArchiMate allows',
+    needs: ['ar.type'],
+    makes: ['ar.rule'],
+    mutations: () => inMutations('Create Allowed relationships', [
+      op('schema.createEntity', { entityId: 'ar.rule', displayName: 'Allowed relationships' }),
+      ...reference('ar.rule', 'ar.rule.source', 'Source type', 'ar.type', 'ar.type.name', true),
+      ...reference('ar.rule', 'ar.rule.target', 'Target type', 'ar.type', 'ar.type.name', true),
+      ...reference('ar.rule', 'ar.rule.type', 'Relationship type', 'ar.type', 'ar.type.name', true),
+      op('schema.setKeptInNewFiles', { entityId: 'ar.rule', kept: true }),
+    ]),
+  },
+
+  linkRule: {
+    title: 'Archi: refuse a relationship ArchiMate does not allow',
+    needs: ['ar.concept', 'ar.rule'],
+    appliedWhen: async read => (await read.schema('ar.concept')).linkRule != null,
+    mutations: () => inMutations('Refuse a relationship ArchiMate does not allow', [
+      op('schema.declareLinkRule', {
+        entityId: 'ar.concept', sourceFieldId: 'ar.concept.source', targetFieldId: 'ar.concept.target', kindFieldId: 'ar.concept.type',
+        sourceKindFieldId: 'ar.concept.type', targetKindFieldId: 'ar.concept.type',
+        tableEntityId: 'ar.rule', tableSourceFieldId: 'ar.rule.source', tableTargetFieldId: 'ar.rule.target', tableKindFieldId: 'ar.rule.type',
+      }),
+    ]),
+  },
+
   pages: {
     title: 'Archi: screens for diagram items, types, the model and properties',
     needs: ['ar.model', 'ar.folder', 'ar.type', 'ar.concept', 'ar.view', 'ar.item', 'ar.property', 'ar.specialization'],
@@ -515,7 +545,10 @@ function screenOperations() {
   return { first: t.operations.slice(0, cut), second: t.operations.slice(cut) };
 }
 
-export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages', 'counts', 'countsShown', 'folderLast', 'unused', 'newFile', 'order'];
+export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages', 'counts', 'countsShown', 'folderLast', 'unused', 'newFile', 'order', 'rules'];
+
+/** Declared after the seed, since declaring checks every relationship against the seeded rows. */
+export const LINK_RULE_STAGE = 'linkRule';
 
 /** What the File menu calls a new file of Archi: New Archi model… (ADR-0022). */
 export const NEW_FILE_LABEL = 'Archi model';
@@ -560,3 +593,32 @@ export const TYPES = CONCEPT_TYPES.map(type => ({
 }));
 
 export const MODEL = { recordId: 'ar.model.r.model', values: { 'ar.model.name': 'New model' } };
+
+/**
+ * ArchiMate's relationship table as records (W-105): one per source type, target type and
+ * relationship type it allows. The table's Relationship stands for any relationship used as an
+ * end, so its rows are spelled out for each of the eleven relationship types, which is what a
+ * Concept's Type holds. 12,829 rows, kept in a new file as the concept types are.
+ */
+export function allowedRelationships() {
+  const byLetter = new Map(CONCEPT_TYPES.filter(type => type.letter).map(type => [type.letter, type.key]));
+  const relationships = CONCEPT_TYPES.filter(type => type.category === 'Relationship').map(type => type.key);
+  const keys = new Set(CONCEPT_TYPES.map(type => type.key));
+  const ends = key => (key === 'Relationship' ? relationships : [key]);
+  const rows = [];
+  for (const [from, row] of Object.entries(RELATIONSHIP_TABLE))
+    for (const [to, letters] of Object.entries(row))
+      for (const letter of letters) {
+        const relationship = byLetter.get(letter);
+        if (!relationship) throw new Error(`No relationship type has the letter ${letter}.`);
+        for (const source of ends(from))
+          for (const target of ends(to)) {
+            if (!keys.has(source) || !keys.has(target)) throw new Error(`${source} or ${target} is not a concept type.`);
+            rows.push({
+              recordId: `ar.rule.r.${source}.${target}.${letter}`,
+              values: { 'ar.rule.source': `ar.type.r.${source}`, 'ar.rule.target': `ar.type.r.${target}`, 'ar.rule.type': `ar.type.r.${relationship}` },
+            });
+          }
+      }
+  return rows;
+}
