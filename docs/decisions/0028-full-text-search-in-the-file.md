@@ -175,6 +175,18 @@ A history fold changes no record and needs nothing.
   **Falsified** 2026-10-06 with the finder told search is unavailable: the unit test failed
   ("a pause in typing sends one search, of the latest text") and so did the browser check ("Find
   must be answered by the index: unavailable").
+- **Measured** 2026-10-06 with `SearchIndexMeasurementTests` on copies of the workspace files (set
+  `NENDO_MEASURE_SEARCH` to run it):
+
+  | File | Size before and after the index | First build | Rebuilds | Search median, slowest |
+  | --- | --- | --- | --- | --- |
+  | Garden | 1.9 to 2.0 MiB | 55 ms | 15 and 15 ms | 0.8 ms, 24 ms |
+  | BCM | 5.8 to 10.0 MiB | 314 ms | 425 and 445 ms | 2.7 ms, 11 ms |
+  | Archi | 34.3 to 34.6 MiB | 61 ms | 48 and 46 ms | 0.9 ms, 1.2 ms |
+  | Nendo Station | 1.7 to 1.9 MiB | 26 ms | 25 and 23 ms | 0.7 ms, 1.2 ms |
+
+  BCM's growth (4.2 MiB, about 72%) is the cost the Consequences name: its text is copied once
+  more into the index, with the index beside it. It is the first revisit trigger's case.
 - **Not measured:** the row-ceiling exemption, because the ceiling is 100,000 rows. It is covered by
   review of `IsSearchStorage`.
 
