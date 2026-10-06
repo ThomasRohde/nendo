@@ -22,11 +22,19 @@ const operations = [
   ['schema.createEntity', 'data.createRecord', 'ui.addNode', 'extension.setPackage'],
   ['schema.addField', 'data.setField', 'ui.setProperty', 'extension.putFile'],
   ['schema.renameEntity', 'data.deleteRecord', 'ui.moveNode', 'extension.removeFile'],
-  ['schema.renameField', 'data.restoreDeletedRecord *', 'ui.removeNode', 'extension.removePackage'],
-  ['schema.setFieldRequired', 'data.backfillRetiredField', '', ''],
-  ['schema.setRetired', 'data.convertLegacyReference', 'behaviour.setDefinition', ''],
-  ['schema.setChoiceMetadata', 'identity.transition *', 'behaviour.removeDefinition', ''],
-  ['schema.configureReference', '', 'application.setPurpose', ''],
+  ['schema.renameField', 'data.setKeptInNewFiles', 'ui.removeNode', 'extension.removePackage'],
+  ['schema.setFieldRequired', 'data.backfillRetiredField', '', 'extension.setState †'],
+  ['schema.setFieldPresentation', 'data.convertLegacyReference', 'behaviour.setDefinition', ''],
+  ['schema.setFieldUnique', 'data.restoreDeletedRecord *', 'behaviour.removeDefinition', ''],
+  ['schema.setFieldSequence', 'identity.transition *', '', ''],
+  ['schema.setRetired', '', 'application.setPurpose', ''],
+  ['schema.setChoiceMetadata', '', 'application.setLook', ''],
+  ['schema.configureReference', '', 'application.setNewFileLabel', ''],
+  ['schema.declareHierarchy', '', '', ''],
+  ['schema.removeHierarchy', '', '', ''],
+  ['schema.declareLinkRule', '', '', ''],
+  ['schema.removeLinkRule', '', '', ''],
+  ['schema.setKeptInNewFiles', '', '', ''],
 ];
 
 const reversibility = [
@@ -45,11 +53,11 @@ const accessLevels = [
 
 const screens = [
   'recordList', 'boardSurface', 'gallerySurface', 'calendarSurface', 'timelineSurface',
-  'matrixSurface', 'rankedList', 'detailSurface', 'overviewSurface', 'recordForm',
+  'matrixSurface', 'outlineSurface', 'rankedList', 'detailSurface', 'overviewSurface', 'recordForm',
   'recordCommand', 'relatedList', 'summaryTile', 'breakdownChart', 'trendChart',
   'progressTile', 'rangeTile', 'activityGrid', 'recentList', 'filterClause',
   'section', 'tabGroup', 'fieldBinding', 'commandStep', 'extensionGraphSurface',
-  'extensionRecordsSurface', 'extensionRecordPanel',
+  'extensionRecordsSurface', 'extensionRecordPanel', 'extensionView',
 ];
 ---
 
@@ -66,14 +74,14 @@ const screens = [
       <p>
         An application is a single SQLite file with the extension <code>.nendo</code> and
         application id <code>0x4E454E44</code>. It uses a rollback (DELETE) journal,
-        <code>synchronous=FULL</code> and a two-second busy timeout. Write-ahead logging
-        was measured and rejected.
+        <code>synchronous=FULL</code> and a two-second busy timeout, not write-ahead
+        logging.
       </p>
       <p>
         Each file records a <code>minimumHostVersion</code>. An older version of Nendo
         refuses to open a newer file instead of opening part of it, and opening an older
-        file never upgrades or rewrites it. A file can grow to 256&nbsp;MiB, roughly 75,500
-        text-heavy records; a cold open at that size took about 6.6 seconds.
+        file never upgrades or rewrites it. A file can grow to 256&nbsp;MiB, roughly 75,000
+        text-heavy records; a cold open at that size takes several seconds.
       </p>
       <p>
         Each record type is an ordinary relational table. Stable IDs map record types and
@@ -106,11 +114,12 @@ const screens = [
 
   <section class="page section">
     <p class="eyebrow">The vocabulary</p>
-    <h2>Twenty-six operations, twenty-four of them open to agents.</h2>
+    <h2>Thirty-eight operations, thirty-five of them open to agents.</h2>
     <p class="lede">
       These are the only ways the file can change. There is no raw SQL and no
       general-purpose escape hatch. The two marked <code>*</code> are available only in
-      the Nendo app itself.
+      the Nendo app itself, and the one marked <code>†</code> only to a custom view
+      keeping its own state.
     </p>
     <div class="table-scroll operations">
       <table>
@@ -210,9 +219,9 @@ const screens = [
     <h2>Five access levels, one lease, no password.</h2>
     <p class="lede">
       Agents talk to a stateless MCP server that listens only on this computer, at
-      <code>http://127.0.0.1:41763/mcp</code>. Fourteen resources are read-only and need
-      no lease. There are nineteen tools, and the ones that write need the lease. The test
-      suite checks both lists by name.
+      <code>http://127.0.0.1:41763/mcp</code>; each further open file keeps a port of its
+      own. Twenty-four resources are read-only and need no lease. There are twenty-five
+      tools, and the ones that write need the lease.
     </p>
     <ol class="levels">
       {accessLevels.map((level, index) => (
@@ -231,16 +240,16 @@ const screens = [
         <code>leaseId</code>, and every write needs both. Whoever holds the handle holds
         the lease, whatever name the client gives and whichever HTTP connection it uses.
         By default the lease never expires: the client releases it, and the person can
-        revoke it at any time. The person can turn on a lease expiry under Agent →
+        revoke it at any time. The person can turn on a lease expiry under Agent ›
         Connection.
       </p>
       <p>
         You can see an agent working from any screen. The status indicator names the
-        client and what it is doing, as in <em>Claude Code is writing to this file…</em>,
-        instead of a bare <em>Still working…</em>
+        client, as in <em>Claude Code is working</em>, and its tooltip says what the
+        agent is doing.
       </p>
       <p>
-        <a href={`${base}/docs/agents`}>Working with agents</a>
+        <a href={`${base}/docs/agents`}>The agents guide</a>
         lists every resource and tool, and what each refusal means.
       </p>
     </Prose>
@@ -253,9 +262,10 @@ const screens = [
       <p>
         A calculated field is stored as a definition, not as a column you can edit. It
         shows a value, <em>Not set</em>, <em>Calculating…</em>, or <em>Cannot
-        calculate</em> with the reason. Screens can't sort, filter, group or total by a
-        calculated field; they refuse and explain why, rather than quietly sorting only the
-        rows already loaded.
+        calculate</em> with the reason. A list, board, calendar or tile can filter and sort
+        by a calculated field, over up to 10,000 records. Screens can't group or total by
+        one; they refuse and explain why, rather than quietly counting only the rows
+        already loaded.
       </p>
       <p>
         Formulas run in a restricted evaluator with a fixed set of functions and hard
@@ -273,11 +283,12 @@ const screens = [
         arrive in the file as a package, reviewed line by line in a proposal, and run when
         the view is shown, in a frame of Nendo's own window. Each package gets a web
         address and a browser process of its own, apart from Nendo's own page. A view
-        reads the file only through a closed set of typed calls, the same reads Nendo's own
-        screens make, and cannot reach Nendo's page, SQL or a file path. It can reach the
-        network and the clipboard. There is no install step and no permission dialog:
-        switches on this computer turn views off, for every file or for one. In this
-        version a view reads and does not write.
+        reaches the file only through a closed set of typed calls: it reads records, changes
+        them as a person would, and proposes changes for review, each recorded in History
+        under its package's name. It cannot reach Nendo's page, SQL or a file path, and it
+        cannot accept a proposal. It can reach the network and the clipboard. There is no
+        install step and no permission dialog: switches on this computer turn views off,
+        for every file or for one.
       </p>
     </Prose>
   </section>
