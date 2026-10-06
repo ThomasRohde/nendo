@@ -1,7 +1,7 @@
 {
   "packageId": "org.nendo.swarm",
   "title": "Swarm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "entryPoint": "index.html",
   "description": "Invent creature behaviours with bpmn-js, watch a living habitat, and replay captured experiments offline."
 }

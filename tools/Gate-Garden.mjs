@@ -20,6 +20,7 @@ async page => {
   const requests = method => page.evaluate(method => window.broker.requests.filter(r => r.m === method).length, method);
   const state = () => frame.evaluate(() => ({ note: window.garden.note?.recordId ?? null, version: window.garden.note?.version ?? null, dirty: window.garden.dirty, external: window.garden.external, problem: window.garden.problem, index: window.garden.index.length, undo: window.garden.undo.length }));
   const seedNotes = fixture.records['gd.note'].length;
+  const localToday = () => { const d = new Date(), pad = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
   const F = { body: 'gd.note.body', slug: 'gd.note.slug', stage: 'gd.note.stage', touched: 'gd.note.touched', from: 'gd.link.from', to: 'gd.link.to', kind: 'gd.link.kind', context: 'gd.link.context', source: 'gd.link.source', tagName: 'gd.tag.name', noteTagTag: 'gd.noteTag.tag', noteTagNote: 'gd.noteTag.note', taskTitle: 'gd.task.title', taskDone: 'gd.task.done', taskSource: 'gd.task.source', taskNote: 'gd.task.note' };
 
   // 1. Mounted: the tree lists every seed, the toolbar was accepted by Nendo's rules, Add is the view's.
@@ -176,7 +177,7 @@ async page => {
   assert(stub && stub.values[F.stage] === 'Seed', 'The unknown wikilink must plant a Seed note with its slug.');
   assert(notes.length === seedNotes + 1 && await frame.locator('#tree .row').count() === seedNotes + 1, 'The tree must show the planted seed.');
   const saved = notes.find(n => n.recordId === 'gd.note.start-here');
-  assert(saved.values[F.body].includes('[[daily-notes]]') && saved.values[F.touched] === new Date().toISOString().slice(0, 10), 'The body and the touched date must be stored.');
+  assert(saved.values[F.body].includes('[[daily-notes]]') && saved.values[F.touched] === localToday(), 'The body and the touched date must be stored, as the local calendar day.');
   const links = await records('gd.link');
   const toStub = links.find(l => l.values[F.from] === 'gd.note.start-here' && l.values[F.to] === stub.recordId);
   assert(toStub && toStub.values[F.kind] === 'Mentions' && toStub.values[F.source] === 'Body' && toStub.values[F.context].includes('[[A brand new note]]'), 'The link to the seed must carry its sentence: ' + JSON.stringify(toStub));
@@ -362,6 +363,111 @@ async page => {
   assert(narrow.mainTop >= narrow.sidebarBottom - 1 && narrow.overflow <= 1, `Narrow panes must stack without overflow: ${JSON.stringify(narrow)}`);
   await page.screenshot({ path: '__OUTPUT__/narrow.png', fullPage: true });
   checks.push('narrow layout');
+
+  // 14. A save on its way (review R-005): what is typed meanwhile stays a draft, a second Save
+  // writes nothing more, a note gone to meanwhile is not replaced, and a note read late never lands.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await frame.evaluate(() => localStorage.clear());
+  await page.evaluate(fixture => { window.broker.setFixture(fixture); window.broker.remount(); }, fixture);
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.waitForFunction(() => window.garden?.ready === true && window.garden.note?.recordId === 'gd.note.start-here' && !window.garden.dirty);
+  const type = text => frame.evaluate(text => { const e = document.getElementById('editor'); e.value = text; e.dispatchEvent(new Event('input', { bubbles: true })); }, text);
+  const editorText = () => frame.evaluate(() => document.getElementById('editor').value);
+  const storedBody = async id => (await records('gd.note')).find(n => n.recordId === id)?.values[F.body];
+  const settled = () => frame.waitForFunction(() => window.garden.saving === false, { timeout: 5000 });
+  await command('mode', 'edit');
+  await frame.waitForFunction(() => window.garden.mode === 'edit');
+  await type('REVIEW saved A');
+  const slowBefore = await requests('records.batch');
+  await page.evaluate(() => window.broker.hold('records.batch', 900));
+  await command('save');
+  await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.batch').length === n, slowBefore + 1);
+  await page.waitForFunction(() => window.broker.toolbars.at(-1).items.find(i => i.id === 'save')?.disabled === true, null, { timeout: 2000 })
+    .catch(() => { throw Error('Save must be disabled while a save is on its way.'); });
+  await type('REVIEW newer B typed while saving');
+  await settled();
+  await page.waitForTimeout(100);
+  const afterSlow = { editor: await editorText(), stored: await storedBody('gd.note.start-here'), ...(await state()) };
+  assert(afterSlow.stored === 'REVIEW saved A' && afterSlow.editor === 'REVIEW newer B typed while saving' && afterSlow.dirty === true && afterSlow.external === false,
+    `Typing that arrives while a save travels must stay a draft over the saved text: ${JSON.stringify(afterSlow)}.`);
+  checks.push('typing during a save stays a draft');
+
+  // Two presses of Save on a new note make one note.
+  await command('new');
+  await frame.evaluate(() => { const t = document.getElementById('title'); t.value = 'Fresh once'; t.dispatchEvent(new Event('input', { bubbles: true })); });
+  await type('Planted only once.');
+  const doubleBefore = await requests('records.batch');
+  await page.evaluate(() => window.broker.hold('records.batch', 600));
+  await command('save');
+  await command('save');
+  await page.waitForTimeout(150);
+  await settled();
+  assert(await requests('records.batch') === doubleBefore + 1, 'A second Save while the first travels must send nothing.');
+  assert((await records('gd.note')).filter(n => n.values['gd.note.title'] === 'Fresh once').length === 1, 'Two presses of Save must plant one note.');
+  checks.push('double Save writes once');
+
+  // A save answered after the person went to another note leaves them there.
+  await frame.locator('#tree .row[data-id="gd.note.start-here"]').click();
+  await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here' && window.garden.dirty);
+  await page.evaluate(() => window.broker.hold('records.batch', 900));
+  await command('save');
+  await page.waitForTimeout(100);
+  await frame.locator('#tree .row[data-id="gd.note.how-links-work"]').click();
+  await settled();
+  await page.waitForTimeout(200);
+  const away = { note: (await state()).note, editor: await editorText(), stored: await storedBody('gd.note.start-here'), draftRow: await frame.locator('#tree .row.draft[data-id="gd.note.start-here"]').count() };
+  assert(away.note === 'gd.note.how-links-work' && !away.editor.includes('REVIEW') && away.stored === 'REVIEW newer B typed while saving' && away.draftRow === 0,
+    `A save answered after the person moved on must not take them back or leave a spent draft: ${JSON.stringify(away)}.`);
+  checks.push('save answered after moving on');
+
+  // Two notes read in reverse order: the one gone to last is the one shown.
+  await page.evaluate(() => window.broker.hold('records.get', 700));
+  await frame.locator('#tree .row[data-id="gd.note.daily-notes"]').click();
+  await frame.locator('#tree .row[data-id="gd.note.start-here"]').click();
+  await page.waitForTimeout(1100);
+  const lastWins = { note: (await state()).note, editor: await editorText() };
+  assert(lastWins.note === 'gd.note.start-here' && lastWins.editor === 'REVIEW newer B typed while saving', `The note gone to last must win over a slower read: ${JSON.stringify(lastWins)}.`);
+  checks.push('last note opened wins');
+
+  // 15. A save Nendo never answered (review R-011): saying so, and sending it again, keeps it once.
+  await command('new');
+  await frame.evaluate(() => { const t = document.getElementById('title'); t.value = 'Unanswered seed'; t.dispatchEvent(new Event('input', { bubbles: true })); });
+  await type('Kept once, whatever the wire did.');
+  await page.evaluate(() => window.broker.drop('records.batch', { code: 'host-timeout', message: 'The Desktop host did not respond.' }));
+  await command('save');
+  await frame.waitForFunction(() => window.garden.saving === false && window.garden.problem !== null);
+  const lost = await frame.evaluate(() => window.garden.problem);
+  assert(/did not answer/.test(lost) && !/refused/.test(lost), `An unanswered save must not be called refused: ${lost}`);
+  await command('save');
+  await frame.waitForFunction(() => window.garden.saving === false && window.garden.dirty === false, { timeout: 5000 });
+  const sent = await page.evaluate(() => window.broker.requests.filter(r => r.m === 'records.batch').slice(-2).map(r => r.p.writeKey));
+  assert(sent[0] && sent[0] === sent[1], `Saving again must send the same batch under the same writeKey: ${JSON.stringify(sent)}.`);
+  assert((await records('gd.note')).filter(n => n.values['gd.note.title'] === 'Unanswered seed').length === 1, 'An unanswered create saved again must make one note.');
+  checks.push('unanswered save kept once');
+
+  // 16. Drafts outlast the view (review R-001): two dirty notes, the frame started again, both back.
+  await frame.locator('#tree .row[data-id="gd.note.start-here"]').click();
+  await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here');
+  await type('REVIEW unsaved D');
+  await frame.locator('#tree .row[data-id="gd.note.daily-notes"]').click();
+  await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.daily-notes');
+  await type('REVIEW unsaved E');
+  await page.waitForTimeout(400);
+  const batchesBeforeRemount = await requests('records.batch');
+  await page.evaluate(() => window.broker.remount());
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.waitForFunction(() => window.garden?.ready === true && window.garden.note?.recordId === 'gd.note.start-here');
+  const recovered = { editor: await editorText(), dirty: (await state()).dirty, marked: await frame.locator('#tree .row.draft[data-id="gd.note.daily-notes"]').count(),
+    status: await frame.locator('#status').textContent(), stored: await storedBody('gd.note.start-here') };
+  assert(recovered.editor === 'REVIEW unsaved D' && recovered.dirty === true && recovered.marked === 1 && /kept from before/.test(recovered.status) && recovered.stored !== 'REVIEW unsaved D',
+    `Both unsaved drafts must come back after the view starts again, unsaved: ${JSON.stringify(recovered)}.`);
+  await frame.locator('#tree .row[data-id="gd.note.daily-notes"]').click();
+  await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.daily-notes');
+  assert(await editorText() === 'REVIEW unsaved E', 'The second draft must come back too.');
+  assert(await requests('records.batch') === batchesBeforeRemount, 'Keeping drafts must never save them.');
+  checks.push('drafts outlast the view');
 
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, colours, narrow, checks, errors };

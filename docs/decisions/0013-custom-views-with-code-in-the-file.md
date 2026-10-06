@@ -405,6 +405,22 @@ and it would add no protection. No rung: nothing reaches the file.
   removes them; removing a frame alone left its renderer running for 10 seconds
   (S3).
 
+### A view's drafts and unanswered writes (2026-10-06)
+
+- **Drafts are the view's to keep.** Nendo ends a view's frame whenever the view leaves
+  the screen, and on reload, Stop, revocation and the kill switches. It does not ask
+  first and does not keep offscreen renderers running: a prompt could not cover Stop, a
+  crash or a kill switch anyway, and those must stay prompt. A view that holds unsaved
+  typing keeps it recoverable in its origin's storage, which is per file and package on
+  this device, never as records and never saved for the person, and restores it over
+  the version it was made from when it starts again. A host leave prompt was considered
+  and not taken; recovery is the one mechanism that covers every way a frame ends.
+- **An unanswered write is finished, not repeated.** `records.batch` takes an optional
+  `writeKey`. The broker writes the batch under `view-‹package›-‹writeKey›`, so a batch
+  whose answer was lost to a timeout or a reconnect is sent again and kept once, and the
+  same key with other writes is refused. A single write kept but not read back answers
+  `written-not-read`. The person's form journal is not shared with views.
+
 ### Views anywhere, many at once
 
 - Views appear on Use screens (`extensionGraphSurface`,
@@ -840,4 +856,9 @@ falsified once, and has the failure text quoted in its planner Check.
   W-103): `records.batch` answers its revision, and `records.undo` and `records.redo` compensate a
   revision this frame was answered in this visit, through `data.undoRecordWrites`, which admits the
   view's actor for its own package's record revisions only. No rung. On the owner's standing
+  pre-acceptance.
+- 2026-10-06 — a view's drafts and unanswered writes (review R-001, R-011): a view keeps its own
+  drafts recoverable in its origin's storage, because Nendo ends frames off screen without
+  asking; `records.batch` takes a `writeKey`, so an unanswered batch is finished once, and a
+  write kept but not read back answers `written-not-read`. No rung. On the owner's standing
   pre-acceptance.

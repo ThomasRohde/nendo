@@ -34,8 +34,12 @@ with the note as one `records.batch`, which Undo takes back as one step:
 - A body over 32 KiB is refused in the frame, so an agent can always rewrite the note over
   MCP, where one value is bounded there.
 
-A draft left behind when you move to another note is kept and marked in the tree; a note
-changed elsewhere while a draft is dirty blocks Save until it is reloaded. `[[` in the editor
+A draft left behind when you move to another note is kept and marked in the tree, and it
+survives going to another screen of Nendo or reopening the view: drafts wait in the view's own
+storage on this device, never in the file, until saved. Typing that arrives while a save is on
+its way stays a draft; Save is off until the save is answered, and a save Nendo never answered
+is finished, not repeated, by pressing Save again. A note changed elsewhere while a draft is
+dirty blocks Save until it is reloaded. Today is your own calendar day. `[[` in the editor
 opens a list of notes to link.
 
 ## The graph

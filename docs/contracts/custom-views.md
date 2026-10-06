@@ -592,7 +592,7 @@ Workbench suite, pins the table name by name.
 | `records.update` | `entityId`, `recordId`, `version`, `values`, `targetVersions` (optional) | `data.setFields`, with `targetVersions` as `expectedTargetVersions` | The record as it now stands |
 | `records.delete` | `entityId`, `recordId`, `version` | `data.deleteRecord` | null |
 | `records.move` | `entityId`, `recordId`, `version`, `parentRecordId` (null for the top level), `parentVersion` (with a parent), `beforeRecordId` (optional) | `data.moveRecord`, with `parentVersion` as `expectedParentVersion` ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)) | The record as it now stands |
-| `records.batch` | `writes` (1–200, each `{op: 'create', entityId, recordId?, values, targetVersions?}`, `{op: 'update', entityId, recordId, version, values, targetVersions?}` or `{op: 'delete', entityId, recordId, version}`), `label` (1–80 characters, optional) | `data.writeRecords`, one revision ([below](#writes)) | `{records: [{entityId, recordId, version}], revision}`, version null for a deleted record |
+| `records.batch` | `writes` (1–200, each `{op: 'create', entityId, recordId?, values, targetVersions?}`, `{op: 'update', entityId, recordId, version, values, targetVersions?}` or `{op: 'delete', entityId, recordId, version}`), `label` (1–80 characters, optional), `writeKey` (1–64 letters, digits, `-` or `_`, optional; [below](#writes)) | `data.writeRecords`, one revision ([below](#writes)) | `{records: [{entityId, recordId, version}], revision}`, version null for a deleted record |
 | `records.undo` | `revision` (a batch's or a redo's, this frame's), `label` (1–80 characters, optional) | `data.undoRecordWrites` ([below](#writes)) | `{records, revision}`, as a batch |
 | `records.redo` | `revision` (an undo's, this frame's), `label` (optional) | `data.undoRecordWrites` with `redo` | `{records, revision}`, as a batch |
 | `commands.run` | `commandId`, `entityId`, `recordId`, `version` | `data.executeCommand` | The record as it now stands |
@@ -642,8 +642,17 @@ commands, through the same typed operations and version checks as a person's edi
 - **History names the package.** Each write is a revision whose origin is
   `extension:‹package›`, read and compensated in History like any other.
 - **Versions.** `version` is the record's version as the view last read it. A write
-  over another version is refused and changes nothing. Each write carries a fresh
-  idempotency key, so a request is never applied twice.
+  over another version is refused and changes nothing. Each call carries a fresh
+  idempotency key, so a call made again is a new write.
+- **An unanswered write** (review R-011, 2026-10-06). `host-timeout` and
+  `disconnected` mean Nendo never said; the write may have been kept. A view finishes
+  one by sending the same `records.batch` again under the same `writeKey` (1–64
+  letters, digits, `-` or `_`): the broker writes it under the idempotency key
+  `view-‹package›-‹writeKey›`, so the host keeps it once and answers a repeat as it
+  answered the first; the same key with other writes is refused. The package is part
+  of the key, so one package's key never answers for another's. Without a `writeKey`
+  a batch sent again is a new batch. A single write that was kept but could not be
+  read back is answered `written-not-read`, never as a refusal.
 - **Values.** Each value is null, text, true or false, a number, or
   `{"$nendoNumber": "‹digits›"}` for a decimal a JavaScript number would round. The
   broker rebuilds the map field by field, at most 64 fields. Valid field IDs such as
@@ -653,7 +662,14 @@ commands, through the same typed operations and version checks as a person's edi
   null after a delete.
 - **Not the person's save.** A view's write does not take the Workbench's pending-save
   slot, so it never holds the person's next save behind it. A view whose answer is
-  lost reads the record again.
+  lost reads the record again, or sends its batch again under its `writeKey`.
+- **Drafts are the view's** (review R-001, 2026-10-06). Nendo stops a view that is no
+  longer on screen: another screen, another tab, Studio, a reload, Stop and the
+  kill switches all end its frame, and nothing asks first. A view that holds unsaved
+  typing keeps it recoverable itself, in its origin's browser storage, which is this
+  file's and this package's on this device, never as records and never saved on the
+  person's behalf; it restores the draft when it starts again, over the version the
+  draft was made from, and lets the person discard it. Garden and Swarm do.
 - **No confirmation** is drawn by the host (ADR-0013, the trust trade). A view that
   wants the person to confirm an act asks them itself.
 - A file open read-only refuses a view's writes with `read-only` before the host is
@@ -1077,7 +1093,9 @@ sentence.
 | `views-off` | Broker | Views were off when the request ran |
 | `not-allowed` | Workbench | A record page holds unsaved changes, so Nendo stays where it is |
 | `not-found` | Workbench | The record type or the screen is not in this file |
-| `disconnected` | Script | The Workbench reconnected the view while the request waited. Send it again |
+| `disconnected` | Script | The Workbench reconnected the view before it answered. Send a read again; a write may have been kept, so read first or send a batch again under its `writeKey` |
+| `host-timeout` | Workbench | Nendo did not answer within 15 seconds. As `disconnected` |
+| `written-not-read` | Broker | The write was kept, but reading the record back failed. Read it; do not write it again |
 | `not-framed` | Script | The page was opened on its own, outside any frame, so nothing can connect it |
 | `unknown-event` | Script | `nendo.on` was given a name other than `context`, `theme`, `changes` or `command` |
 | `failed` | Broker | The answer could not be sent, or the failure had no code |
@@ -1980,3 +1998,9 @@ passed. Each guard below was falsified, seen to fail and then restored:
   `widthFull`, Lucide's rectangle-vertical, square and rectangle-horizontal. The Garden view
   declares them as three toggles, and on an older Nendo, which refuses them, declares its
   width again as a choice of words. Measured by `tools/Review-Garden.ps1`. No method, no rung.
+- 2026-10-06 — an unanswered write and a view's drafts (review R-011, R-001): `records.batch`
+  takes an optional `writeKey`, so a batch whose answer was lost is sent again and kept once;
+  `written-not-read` for a write kept but not read back; `disconnected` and `host-timeout`
+  no longer say to send a write again. A view keeps its own drafts recoverable, because Nendo
+  stops views off screen without asking. Measured by `scripts/extension-broker.test.mjs`,
+  `tools/Review-Garden.ps1` and `tools/Review-Swarm.ps1`. No rung.

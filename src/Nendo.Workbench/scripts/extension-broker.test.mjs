@@ -1090,3 +1090,35 @@ test('a view undoes and redoes only what this frame wrote, as the mount’s pack
   assert.equal(h.calls[2].payload.redo, true);
   assert.equal(h.calls[2].payload.label, 'Make it again');
 });
+
+test('R-011: a batch sent again under its writeKey carries the same idempotency key, scoped to the package', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  const writes = [{ op: 'create', entityId: 'items', recordId: 'n1', values: { name: 'A' } }];
+  view.send({ t: 'req', id: 1, m: 'records.batch', p: { writes, writeKey: 'save-7f3a' } });
+  await until(() => h.calls.length === 1, 'the first batch');
+  h.pending[0].reject(Object.assign(new Error('The Desktop host did not respond.'), { code: 'host-timeout' }));
+  assert.equal((await view.next((message) => message.id === 1)).ok, false);
+  view.send({ t: 'req', id: 2, m: 'records.batch', p: { writes, writeKey: 'save-7f3a' } });
+  await until(() => h.calls.length === 2, 'the batch sent again');
+  assert.equal(h.calls[0].payload.idempotencyKey, 'view-org.example.glance-save-7f3a');
+  assert.equal(h.calls[1].payload.idempotencyKey, h.calls[0].payload.idempotencyKey, 'A batch sent again under its writeKey must replay, not write twice.');
+  h.pending[1].resolve({ mutation: { changeSequence: 3, revisionId: 'revision-a' }, records: [{ entityId: 'items', recordId: 'n1', recordVersion: 1 }] });
+  assert.equal((await view.next((message) => message.id === 2)).ok, true);
+  view.send({ t: 'req', id: 3, m: 'records.batch', p: { writes, writeKey: 'not a key!' } });
+  const refused = await view.next((message) => message.id === 3);
+  assert.equal(refused.ok, false);
+  assert.equal(refused.e.code, 'invalid-params');
+  assert.equal(h.calls.length, 2, 'A malformed writeKey reached the host.');
+});
+
+test('R-011: a write kept but not read back is answered as written-not-read, never as a refusal', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  view.send({ t: 'req', id: 1, m: 'records.update', p: { entityId: 'tasks', recordId: 't1', version: 3, values: { title: 'Done' } } });
+  await until(() => h.calls.length === 1, 'the host write');
+  h.pending[0].resolve({ mutation: { changeSequence: 10 }, session: null });
+  await until(() => h.calls.length === 2, 'the read back');
+  h.pending[1].reject(Object.assign(new Error('The Desktop host did not respond.'), { code: 'host-timeout' }));
+  const answered = await view.next((message) => message.id === 1);
+  assert.equal(answered.ok, false);
+  assert.equal(answered.e.code, 'written-not-read', `A kept write was answered as ${answered.e.code}.`);
+});

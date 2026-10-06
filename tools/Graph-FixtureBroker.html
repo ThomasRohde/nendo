@@ -29,6 +29,10 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
 //                                              record command sets; mounts the frame the first time
 //   pushChanges(), pushTheme(mode | theme), pushContext()   the three events a view hears
 //   fail(method, { code, message }, times)     refuse the next requests of one method
+//   hold(method, ms, times)                     answer the next requests of one method late: a
+//                                               write is kept at once, its answer arrives ms later
+//   drop(method, { code, message }, times)      keep the next requests of one method, then answer
+//                                               them with this error, as a reply lost on the way
 //   remount()                                   a fresh frame, as a new placeholder would start one
 //   offerWrites(on)                             offer records.create, records.delete, records.batch,
 //                                               records.undo and records.redo from the next connect on
@@ -98,7 +102,10 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
       'tone-teal': '#4ecdc4', 'tone-blue': '#6f9bff', 'tone-violet': '#b392ff', 'tone-grey': '#a3abb8',
     },
   };
-  const requests = [], events = [], hellos = [], refused = [], pongs = [], failures = [];
+  const requests = [], events = [], hellos = [], refused = [], pongs = [], failures = [], holds = [], drops = [];
+  // A batch's writeKey and what it was answered: the same key and writes again answer the same,
+  // the same key with other writes is refused, as the host's idempotency key does.
+  const keyed = new Map();
   let fixture = null, frame = null, port = null, connects = 0, nextPing = 1;
 
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -321,6 +328,12 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
       case 'records.delete':
       case 'records.batch': {
         if (!writes) throw refusal('unknown-method', `${method} is not a method this fixture answers.`);
+        const writeKey = method === 'records.batch' && typeof params.writeKey === 'string' ? params.writeKey : null;
+        if (writeKey !== null && keyed.has(writeKey)) {
+          const earlier = keyed.get(writeKey);
+          if (earlier.writes !== JSON.stringify(params.writes)) throw refusal('idempotency-conflict', 'This writeKey already names a different batch.');
+          return clone(earlier.answer);
+        }
         // As the host writes them: each at the version the view read, a reference at its target's
         // version, a record other records point at never deleted, and a batch whole or not at all.
         const before = clone(fixture.records), deletedBefore = clone([...deletedIds]);
@@ -332,7 +345,9 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
           fixture.changeSequence += 1;
           queueMicrotask(() => emit('changes', fixture.changeSequence));
           if (method === 'records.batch') {
-            return { records: answered.map(record => ({ entityId: record.entityId, recordId: record.recordId, version: record.deleted ? null : record.version })), revision: remember(log, false) };
+            const result = { records: answered.map(record => ({ entityId: record.entityId, recordId: record.recordId, version: record.deleted ? null : record.version })), revision: remember(log, false) };
+            if (writeKey !== null) keyed.set(writeKey, { writes: JSON.stringify(params.writes), answer: clone(result) });
+            return result;
           }
           return method === 'records.delete' ? null : clone(answered[0]);
         } catch (error) {
@@ -541,12 +556,26 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     if (message.t !== 'req' || typeof message.id !== 'number') return;
     const params = message.p ?? {};
     requests.push({ m: message.m, p: clone(params), t: now() });
+    let reply;
     try {
       const result = answer(message.m, params);
-      post({ t: 'res', id: message.id, ok: true, r: result === undefined ? null : result });
+      reply = { t: 'res', id: message.id, ok: true, r: result === undefined ? null : result };
     } catch (error) {
-      post({ t: 'res', id: message.id, ok: false, e: { code: error.code ?? 'failed', message: error.message } });
+      reply = { t: 'res', id: message.id, ok: false, e: { code: error.code ?? 'failed', message: error.message } };
     }
+    const dropped = takeOne(drops, message.m);
+    if (dropped !== null) reply = { t: 'res', id: message.id, ok: false, e: clone(dropped.error) };
+    const held = takeOne(holds, message.m);
+    if (held !== null) setTimeout(() => post(reply), held.ms); else post(reply);
+  }
+
+  function takeOne(list, method) {
+    const index = list.findIndex(entry => entry.method === method);
+    if (index === -1) return null;
+    const entry = list[index];
+    entry.times -= 1;
+    if (entry.times <= 0) list.splice(index, 1);
+    return entry;
   }
 
   function mount() {
@@ -601,6 +630,8 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     },
     pushContext() { emit('context', contextOf()); return events.length; },
     fail(method, error, times = 1) { failures.push({ method, error: clone(error), times }); return true; },
+    hold(method, ms, times = 1) { holds.push({ method, ms, times }); return true; },
+    drop(method, error, times = 1) { drops.push({ method, error: clone(error), times }); return true; },
     remount() { mount(); return true; },
     offerChrome(on) { chrome = on === true; return chrome; },
     offerWrites(on) { writes = on === true; return writes; },

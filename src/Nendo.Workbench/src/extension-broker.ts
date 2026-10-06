@@ -252,9 +252,12 @@ function assignedValues(params: Params): Params {
  * The actor is the mount's package, from the view definition the Workbench mounted, and never
  * anything the view sent: a view cannot write as the person or as another package. The host
  * admits that actor on these methods alone and refuses it elsewhere (actor-not-allowed), and
- * History records the write under it. Each call carries a fresh idempotency key, so a
- * retried request is never applied twice. The answer is the record as it now stands, read
- * back, so the view has the version its next write needs; a deleted record answers null.
+ * History records the write under it. Each call carries a fresh idempotency key: a call
+ * the view makes again is a new write, so a view that must finish an unanswered write sends
+ * a batch under its own writeKey instead (`batchKey`). The answer is the record as it now
+ * stands, read back, so the view has the version its next write needs; a deleted record
+ * answers null. A read-back that fails after the write was kept is answered as
+ * `written-not-read`, never as a refusal.
  */
 function write(host: string, payload: (params: Params) => Params & { entityId: string; recordId?: string }, readBack = true): MethodEntry {
   return {
@@ -266,11 +269,30 @@ function write(host: string, payload: (params: Params) => Params & { entityId: s
       const body = payload(params);
       await deps.request(host, { ...body, idempotencyKey: `view-${crypto.randomUUID()}`, actor: `extension:${context.packageId}` });
       if (!readBack || body.recordId === undefined) return null;
-      const page = await deps.request('data.queryRecords', { entityId: body.entityId, recordId: body.recordId, limit: 1 }) as { items?: RecordSnapshot[] } | null;
+      let page: { items?: RecordSnapshot[] } | null;
+      try {
+        page = await deps.request('data.queryRecords', { entityId: body.entityId, recordId: body.recordId, limit: 1 }) as { items?: RecordSnapshot[] } | null;
+      } catch (error) {
+        throw new WorkbenchHostError('written-not-read', `The change was kept, but reading the record back failed: ${error instanceof Error ? error.message : String(error)} Read it again before the next change.`);
+      }
       const item = page?.items?.[0];
       return item === undefined ? null : plainRecord(item);
     },
   };
+}
+
+/**
+ * The idempotency key a batch is written under. A view's own writeKey makes it the same key
+ * every time the view sends that batch, so a batch whose answer was lost (a timeout, a
+ * reconnect) is kept once however often it is sent; the package is part of the key, so one
+ * package's key never answers for another's. Without a writeKey each call is a new batch.
+ */
+function batchKey(params: Params, packageId: string): string {
+  const writeKey = params.writeKey;
+  if (writeKey === undefined || writeKey === null) return `view-${crypto.randomUUID()}`;
+  if (typeof writeKey !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(writeKey))
+    throw invalid('writeKey must be 1 to 64 letters, digits, - or _.');
+  return `view-${packageId}-${writeKey}`;
 }
 
 /**
@@ -539,7 +561,7 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
       const label = optionalText(params, 'label', 80);
       const body = {
         writes, ...(label === undefined ? {} : { label }),
-        idempotencyKey: `view-${crypto.randomUUID()}`, actor: `extension:${context.packageId}`,
+        idempotencyKey: batchKey(params, context.packageId), actor: `extension:${context.packageId}`,
       };
       if (JSON.stringify(body).length > batchCharacters)
         throw new WorkbenchHostError('too-large', 'This batch is too large to send at once; split it into smaller batches.');

@@ -86,9 +86,9 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
   },
   'records.batch': {
     call: 'nendo.records.batch(writes, options?)',
-    params: 'writes is a list of 1 to 200 record writes, each {op: \'create\', entityId, recordId?, values, targetVersions?}, {op: \'update\', entityId, recordId, version, values, targetVersions?} or {op: \'delete\', entityId, recordId, version}. options is {label?}: what History calls the revision, 1 to 80 characters.',
+    params: 'writes is a list of 1 to 200 record writes, each {op: \'create\', entityId, recordId?, values, targetVersions?}, {op: \'update\', entityId, recordId, version, values, targetVersions?} or {op: \'delete\', entityId, recordId, version}. options is {label?, writeKey?}: label is what History calls the revision, 1 to 80 characters; writeKey, 1 to 64 letters, digits, - or _, names this batch so that sending it again is kept once.',
     answer: '{records, revision}: each record {entityId, recordId, version} in the order written, version null for a deleted record, and the revision the batch wrote, which records.undo takes.',
-    note: 'One revision: every write commits or none does. A record appears at most once. A reference to a record the batch creates or updates earlier needs no target version. A move is not part of a batch; set a tree\'s parent and order fields in an update instead, or use records.move.',
+    note: 'One revision: every write commits or none does. A record appears at most once. A reference to a record the batch creates or updates earlier needs no target version. A move is not part of a batch; set a tree\'s parent and order fields in an update instead, or use records.move. When a batch fails with host-timeout or disconnected it may have been kept: send the same writes again under the same writeKey, which answers as the first did if it was kept and writes it once if not. The same writeKey with other writes is refused.',
   },
   'records.undo': {
     call: 'nendo.records.undo(revision, options?)',
@@ -387,7 +387,9 @@ export function viewApiReference() {
       'state-too-large': 'A key, a value or the package\'s state is past its bound.',
       'actor-not-allowed': 'The file does not carry this view\'s package any more.',
       'unknown-method': 'Not a method this Nendo answers. Check nendo.has first.',
-      disconnected: 'Nendo reconnected the view while the request waited. Send it again.',
+      disconnected: 'Nendo reconnected the view before it answered. Send a read again. A write may have been kept: read before writing again, or send a batch again under its writeKey.',
+      'host-timeout': 'Nendo did not answer in time. A write may have been kept, as with disconnected.',
+      'written-not-read': 'The write was kept, but reading the record back failed. Do not write it again; read the record.',
       'not-framed': 'The page was opened on its own, outside Nendo.',
       'unknown-event': 'nendo.on was given a name that is not an event.',
       failed: 'The answer could not be sent, or the failure had no code of its own.',

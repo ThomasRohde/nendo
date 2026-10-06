@@ -187,7 +187,7 @@ type BatchWrite =
   | { op: 'create'; entityId: string; recordId?: string; values: WriteValues; targetVersions?: TargetVersions }
   | { op: 'update'; entityId: string; recordId: string; version: number; values: WriteValues; targetVersions?: TargetVersions }
   | { op: 'delete'; entityId: string; recordId: string; version: number };
-type BatchOptions = { label?: string };
+type BatchOptions = { label?: string; writeKey?: string };
 type BatchAnswer = { records: { entityId: string; recordId: string; version: number | null }[]; revision: string | null };
 type UndoOptions = { label?: string };
 type MoveTarget = { parentRecordId: string | null; parentVersion?: number; beforeRecordId?: string | null };
@@ -290,7 +290,7 @@ function install(host: Window & { nendo?: unknown }): void {
     if (typeof data !== 'object' || data === null || data.nendo !== 'connect' || event.ports.length !== 1 ||
         !isContext(data.context)) return;
     for (const entry of waiting.values())
-      entry.reject(new NendoError('disconnected', 'The Workbench reconnected this view; send the request again.'));
+      entry.reject(new NendoError('disconnected', 'The Workbench reconnected this view before Nendo answered. A read can be sent again; a write may have been kept, so read before writing again, or send a batch again under its writeKey.'));
     waiting.clear();
     port?.close();
     port = event.ports[0];
@@ -509,10 +509,17 @@ function install(host: Window & { nendo?: unknown }): void {
        * entry, named by options.label. A record appears at most once. A reference to a record
        * created or updated earlier in the batch needs no target version: Nendo checks it against
        * the version that write leaves. Answers each record's new version, in the order written,
-       * and null for a deleted one.
+       * and null for a deleted one. options.writeKey (1 to 64 letters, digits, - or _) names the
+       * batch: sent again with the same key and the same writes, after a timeout or a reconnect
+       * left its outcome unknown, it is kept once and answers as it did; with other writes it is
+       * refused. Without a key a batch sent again is a new batch.
        */
       batch: (writes: BatchWrite[], options?: BatchOptions): Promise<BatchAnswer> =>
-        call<BatchAnswer>('records.batch', { writes, ...(options?.label === undefined ? {} : { label: options.label }) }),
+        call<BatchAnswer>('records.batch', {
+          writes,
+          ...(options?.label === undefined ? {} : { label: options.label }),
+          ...(options?.writeKey === undefined ? {} : { writeKey: options.writeKey }),
+        }),
       /**
        * Undoes a revision this view wrote since it opened, named by the batch's answer, as a new
        * revision (ADR-0023): updates put back, deletes restored, creates deleted. A record changed,

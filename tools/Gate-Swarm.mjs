@@ -67,6 +67,17 @@ async page => {
   const blockedBefore = await batches(); await command('save-behaviour');
   assert(await batches() === blockedBefore, 'An external change was overwritten by the old draft.');
   await frame.getByRole('button', { name: 'Reload saved' }).click(); await frame.waitForFunction(() => !window.swarm.dirty);
+  // A save kept but not read back says so, never that nothing was saved (review R-011).
+  const speciesId = await frame.evaluate(() => window.swarm.model.species.id);
+  await frame.getByLabel('Speed', { exact: true }).fill('2.6'); await frame.getByLabel('Speed', { exact: true }).dispatchEvent('change');
+  await page.evaluate(() => window.broker.fail('records.query', { code: 'host-timeout', message: 'The Desktop host did not respond.' }, 1));
+  await command('save-behaviour');
+  await frame.waitForFunction(() => !document.querySelector('#problem').hidden);
+  const unread = await frame.evaluate(() => document.querySelector('#problem').textContent);
+  assert(/saved, but reading it back failed/.test(unread) && !/not saved/.test(unread), `A kept save must not be called unsaved: ${unread}`);
+  assert((await record('sw.species', speciesId)).values['sw.species.speed'] === 2.6, 'The batch before the failed read must be kept.');
+  assert(!(await frame.evaluate(() => window.swarm.dirty)), 'A kept save is no longer a draft.');
+  await frame.getByRole('button', { name: 'Reload saved' }).click(); await frame.waitForFunction(() => !window.swarm.dirty && document.querySelector('#problem').hidden);
   // The custom palette and context-pad connection must edit the real graph.
   const nodeIds = await frame.evaluate(() => window.swarm.model.nodes.map(n => n.id));
   await frame.getByRole('button', { name: '+ Action', exact: true }).click();
@@ -86,6 +97,25 @@ async page => {
   await frame.locator('.djs-context-pad.open [data-action="remove"]').click();
   await frame.waitForFunction(id => !window.swarm.model.nodes.some(n => n.id === id) && !window.swarm.model.links.some(l => l.target === id), addedId, { timeout: 3000 }).catch(async () => { throw Error('Remove left the temporary node or its transition behind: ' + JSON.stringify(await frame.evaluate(id => ({ addedId: id, nodes: window.swarm.model.nodes.map(n => n.id), links: window.swarm.model.links.map(l => [l.source, l.target]), inspector: document.querySelector('#inspector').textContent }), addedId))); });
   await frame.getByRole('button', { name: 'Reload saved' }).click(); await frame.waitForFunction(() => !window.swarm.dirty);
+  // An unsaved behaviour outlasts the view (review R-001): started again, it comes back, unsaved.
+  await frame.getByLabel('Speed', { exact: true }).fill('2.9'); await frame.getByLabel('Speed', { exact: true }).dispatchEvent('change');
+  await page.waitForTimeout(400);
+  const keptBefore = await batches();
+  await page.evaluate(() => window.broker.remount());
+  await page.waitForTimeout(350);
+  let restarted = null;
+  for (let i = 0; i < 100 && !restarted; i++) { await page.waitForTimeout(50); restarted = page.frames().find(f => f.url().startsWith(origin + '/') && f !== frame); }
+  await restarted.waitForFunction(() => window.swarm?.model?.species);
+  const recovered = await restarted.evaluate(() => ({ dirty: window.swarm.dirty, speed: window.swarm.model.species.speed, field: document.getElementById('speed').value, status: document.getElementById('status').textContent }));
+  assert(recovered.dirty && recovered.speed === 2.9 && recovered.field === '2.9' && /kept from before/.test(recovered.status), `The unsaved behaviour must come back when the view starts again: ${JSON.stringify(recovered)}`);
+  assert(await batches() === keptBefore && (await record('sw.species', speciesId)).values['sw.species.speed'] !== 2.9, 'Keeping a draft must never save it.');
+  await restarted.getByRole('button', { name: 'Reload saved' }).click(); await restarted.waitForFunction(() => !window.swarm.dirty);
+  await page.evaluate(() => window.broker.remount());
+  await page.waitForTimeout(350);
+  let clean = null;
+  for (let i = 0; i < 100 && !clean; i++) { await page.waitForTimeout(50); clean = page.frames().find(f => f.url().startsWith(origin + '/') && f !== frame && f !== restarted); }
+  await clean.waitForFunction(() => window.swarm?.model?.species);
+  assert(!(await clean.evaluate(() => window.swarm.dirty)), 'Reload saved must discard the kept draft.');
   // Reloading the frame keeps saved records and replays the same result.
   await page.evaluate(() => window.broker.remount());
   await page.waitForTimeout(350);
@@ -112,5 +142,5 @@ async page => {
   assert(narrow.diagramTop > narrow.habitatBottom && narrow.overflow <= 1, `Narrow panes must stack without overflow: ${JSON.stringify(narrow)}`);
   await page.screenshot({ path: '__OUTPUT__/narrow.png', fullPage: true });
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
-  return { complete: true, opened, narrow, colours, pausedStep: paused, checks: ['paused opening', 'geometry', 'play/pause', 'disturbance', 'graph changes motion', 'one-batch save', 'captured replay', 'refused save retains draft', 'external change blocks overwrite', 'add/connect/remove', 'invalid graph refusal', 'reopen', 'Light/Dark', 'narrow layout'], errors };
+  return { complete: true, opened, narrow, colours, pausedStep: paused, checks: ['paused opening', 'geometry', 'play/pause', 'disturbance', 'graph changes motion', 'one-batch save', 'captured replay', 'refused save retains draft', 'external change blocks overwrite', 'kept save not called unsaved', 'draft outlasts the view', 'add/connect/remove', 'invalid graph refusal', 'reopen', 'Light/Dark', 'narrow layout'], errors };
 }

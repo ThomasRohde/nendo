@@ -26,7 +26,31 @@ function toolbar() {
 }
 function markDirty() {
   if (importing || replayMode) return;
-  dirty = true; $('draft-state').textContent = 'Unsaved behaviour'; toolbar();
+  dirty = true; $('draft-state').textContent = 'Unsaved behaviour'; toolbar(); keepSoon();
+}
+// The behaviour being edited outlasts the view: Nendo stops a view when the person goes to another
+// screen and starts it again on return. The draft waits in the view's own storage, which Nendo
+// gives each package in each file, never in the file, until it is saved or Reload saved drops it.
+const draftKey = () => `swarm.draft.v1.${api.context.viewId ?? 'swarm'}`;
+const DRAFT_CHARACTERS = 256 * 1024;
+let keepTimer = null, recovering = true;
+const baseOf = species => JSON.stringify([records.species.find(r => r.recordId === species)?.version ?? null,
+  ...records.nodes.filter(r => r.values['sw.node.species'] === species).map(r => [r.recordId, r.version]),
+  ...records.links.filter(r => r.values['sw.link.species'] === species).map(r => [r.recordId, r.version])]);
+function keepDraft() {
+  clearTimeout(keepTimer); keepTimer = null;
+  try {
+    if (!dirty || replayMode || !model || !records) { localStorage.removeItem(draftKey()); return; }
+    const text = JSON.stringify({ species: selectedSpecies, base: baseOf(selectedSpecies), model });
+    if (text.length <= DRAFT_CHARACTERS) localStorage.setItem(draftKey(), text);
+  } catch { /* A window with no storage keeps the draft only while the view runs. */ }
+}
+const keepSoon = () => { if (keepTimer === null) keepTimer = setTimeout(keepDraft, 250); };
+function keptDraft() {
+  try {
+    const kept = JSON.parse(localStorage.getItem(draftKey()) ?? 'null');
+    return kept && typeof kept.species === 'string' && kept.model?.species && Array.isArray(kept.model.nodes) && Array.isArray(kept.model.links) ? kept : null;
+  } catch { return null; }
 }
 function refreshPalette() {
   const style = getComputedStyle(document.documentElement);
@@ -137,11 +161,20 @@ async function load() {
   try {
     records = await readAll();
     if (!records.species.length || !records.habitats.length) throw new Error('This Swarm file needs a species and a habitat. Restore the seeded app or add records in Studio.');
+    const kept = recovering ? keptDraft() : null;
+    if (kept && records.species.some(r => r.recordId === kept.species)) selectedSpecies = kept.species;
     if (!records.species.some(r => r.recordId === selectedSpecies)) selectedSpecies = records.species.find(r => r.recordId === 'sw_species_murmuration')?.recordId ?? records.species[0].recordId;
     selectedHabitat ??= records.habitats[0].recordId;
     model = fromRecords(records, selectedSpecies, selectedHabitat); dirty = false; externalChange = false; replayMode = false;
+    const restored = kept && kept.species === selectedSpecies;
+    if (restored) { model = { ...kept.model, habitat: model.habitat }; dirty = true; externalChange = kept.base !== baseOf(selectedSpecies); }
+    recovering = false;
+    keepDraft();
     await loadDiagram(); sim = new Simulation(model); controls(); redraw(true); updateMetrics(); renderExperiments();
-    $('workspace').setAttribute('aria-busy', 'false'); clearProblem(); notice('Ready. Edit the behaviour, or press Play and startle a group.');
+    $('workspace').setAttribute('aria-busy', 'false'); clearProblem();
+    notice(!restored ? 'Ready. Edit the behaviour, or press Play and startle a group.'
+      : externalChange ? 'Your unsaved behaviour was kept from before, but the saved behaviour changed since. Reload saved discards the draft.'
+        : 'Your unsaved behaviour was kept from before. Save behaviour keeps it in the file; Reload saved discards it.');
   } catch (e) { sim = null; problem(e); }
   finally { loading = false; toolbar(); if (pendingReload) { pendingReload = false; await load(); } }
 }
@@ -184,8 +217,18 @@ async function saveBehaviour() {
   saving = true; playing = false; toolbar();
   try {
     const writes = writesForDraft();
-    if (writes.length) await api.records.batch(writes, { label: `Swarm: save ${model.species.name} behaviour` });
-    records = await readAll(); dirty = false; externalChange = false; $('draft-state').textContent = 'Saved behaviour'; clearProblem(); notice('Behaviour saved in one revision. Reset to run it from the seed.');
+    try {
+      if (writes.length) await api.records.batch(writes, { label: `Swarm: save ${model.species.name} behaviour` });
+    } catch (e) {
+      // Only a refusal says nothing was kept; a timeout or a reconnect leaves it unknown.
+      problem(['host-timeout', 'disconnected'].includes(e.code)
+        ? `Nendo did not answer whether the behaviour was saved. Your draft is kept. Reload saved shows what the file holds now. ${e.message}`
+        : `The behaviour was not saved. Your draft is kept. ${e.message}`);
+      return;
+    }
+    dirty = false; externalChange = false; keepDraft(); $('draft-state').textContent = 'Saved behaviour';
+    try { records = await readAll(); } catch (e) { problem(`The behaviour was saved, but reading it back failed. Reload saved to see it. ${e.message}`); return; }
+    clearProblem(); notice('Behaviour saved in one revision. Reset to run it from the seed.');
   } catch (e) { problem(`The behaviour was not saved. Your draft is kept. ${e.message}`); }
   finally { saving = false; toolbar(); }
 }
@@ -301,7 +344,7 @@ async function boot() {
     else load();
   }));
   const resize = new ResizeObserver(() => redraw(true)); resize.observe($('habitat-stage'));
-  window.addEventListener('pagehide', () => { unsubscribe.forEach(fn => fn()); resize.disconnect(); diagram.destroy(); });
+  window.addEventListener('pagehide', () => { keepDraft(); unsubscribe.forEach(fn => fn()); resize.disconnect(); diagram.destroy(); });
   refreshPalette(); await load(); requestAnimationFrame(animate);
   // A compact read-only measurement surface: no storage or privileged host access.
   window.swarm = { get model() { return structuredClone(model); }, get metrics() { return structuredClone(sim?.metrics); }, get tick() { return sim?.tick; }, get dirty() { return dirty; }, get snapshot() { return sim?.snapshot(); }, get digest() { return sim?.digest(); } };

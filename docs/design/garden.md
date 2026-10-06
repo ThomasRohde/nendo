@@ -107,6 +107,11 @@ cannot disagree with the parser.
 - **The view never asks with a dialog.** A draft left behind when the person moves to
   another note is kept in the view and marked in the tree, because a modal blocks the
   measurement lane and a dialog is the wrong answer to "I clicked the wrong note".
+  Drafts are also kept in the view's own storage (`drafts.mjs`), because Nendo ends a view
+  when the person goes to another screen: they come back when the view starts again
+  (review R-001). One save at a time, with what it sends fixed when it starts, so typing
+  during a save stays a draft (R-005); an unanswered save goes again under its `writeKey`
+  (R-011).
 - **Own Markdown renderer.** The Workbench's `markdown.ts` cannot be loaded by a package and
   knows no wikilinks. Tables, footnotes, embeds and images are out of scope.
 - **The in-host check is owner-reported.** `tools/Review-FileView.mjs` needs the C# journey's
@@ -128,7 +133,8 @@ cannot disagree with the parser.
   Markdown, `[[` autocomplete,
   one-batch save deriving a stub, a link with context, a tag and a task, link removal keeping
   Manual rows, checkbox done by key, undo, a refused save keeping the draft, an external change
-  blocking a save, a 32 KiB body refused, Light and Dark measured, the Backlinks panel opening
+  blocking a save, typing during a slow save kept as a draft, a double Save writing once, the
+  last note opened winning, an unanswered save kept once, two drafts surviving a restart, a 32 KiB body refused, Light and Dark measured, the Backlinks panel opening
   its source once; on the Graph screen, with a real pointer, every note and one edge per linked
   pair, a spread layout, hover dimming all but the neighbours, a drag that moves a note and
   opens nothing, the wheel zooming, a click opening a note once, Find, tags as nodes and the
