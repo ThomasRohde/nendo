@@ -331,7 +331,7 @@ internal static class NendoAuthoringExamples
         "define-a-command",
         "One button that sets several fields at once.",
         [
-            "A recordCommand root takes commandStep children. There is no effectKind property in contract version 3; that was the version 2 shape.",
+            "A recordCommand root takes commandStep children.",
             "Each commandStep names one fieldId on the same record type and a valueKind of literal, today, now or null. literal carries value; today and now resolve when the button runs, not when the definition compiles.",
             "The commandId that nendo.data.execute_command takes is this root's node ID, and nendo://application/surfaces states it under applications[].surfaces as commandId.",
             "Every step of a command lands in one mutation against one expected record version, so the button applies whole or not at all.",
@@ -831,7 +831,7 @@ internal static class NendoAuthoringExamples
         "several-views-tabs-and-a-calendar",
         "Two lists, a board with totals, a tabbed record page and a month calendar on one record type.",
         [
-            "An entity owns up to eight recordList, boardSurface, calendarSurface and recordCommand roots. Each root is one view Use offers by its own title, so a list and a board are no longer a mode to switch between. maxRootsPerEntity in nendo://application/vocabulary states the ceiling for every kind.",
+            "An entity owns up to eight recordList, boardSurface, calendarSurface and recordCommand roots. Each root is one view Use offers by its own title, so a list and a board on one record type are two separate views. maxRootsPerEntity in nendo://application/vocabulary states the ceiling for every kind.",
             "A summaryTile on a recordList or boardSurface counts every matching record, on every page. scope group narrows it to one board column and is accepted only on a direct child of a boardSurface; summaryScopes in the vocabulary states the values, the default and that restriction.",
             "effectiveFilters states how many filters one query may compose, counting the ones the host adds: a board column tile pays for the board clauses, its own, and the column predicate, and a calendar month reserves two date bounds so it carries at most six declared clauses.",
             "A tabGroup contains sections and nothing else: each section is one tab, named by its existing required title. Nested tab groups are refused, including through an intervening section.",
@@ -1106,7 +1106,7 @@ internal static class NendoAuthoringExamples
             "A RelatedAggregate names the field it works over with a key of its own: predicateFieldId for FilteredCount, valueFieldId for Sum, and none for Count. The vocabulary's behaviour.bindings lists every key each shape takes; a key outside that list is refused by name where the operation is sent, before it can cost the draft. A Sum totals a required field, because a member with no value is an error rather than a zero.",
             "A calculation reads another calculation with a SameRecordCalculation binding rather than repeating its work. Cycles are refused before installation.",
             "An action step writes through the same typed record operations a person's edit uses. target ReferencedRecord follows one declared reference from the record that raised the event; EventRecord writes to that record itself.",
-            "An assignment's bindings resolve against the record the step WRITES TO, not the record that raised the event. A step targeting ReferencedRecord can read the referenced record and can assign a literal; it cannot read the event record's fields. Binding the event record's entity there refuses nothing at install and then fails on the first save that fires it.",
+            "An assignment's bindings resolve against the record the step writes to, not the record that raised the event. A step targeting ReferencedRecord can read the referenced record and can assign a literal; it cannot read the event record's fields. Binding the event record's entity there refuses nothing at install and then fails on the first save that fires it.",
             "Installing an action is authoring. Running it is consent: a file whose actions run automatically cannot be edited at all until the person at this device approves it. Below Unattended access there is no MCP route to that approval; at Unattended, nendo.change_set.accept records it for the actions that the accepted proposal installs.",
         ],
         [

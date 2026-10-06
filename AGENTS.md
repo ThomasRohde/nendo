@@ -46,9 +46,8 @@ make a task easier.
 - Complete authorized work and routine reversible decisions without repeated
   permission pauses. Ask when missing information materially changes scope, or
   when an action needs authority not already given.
-- Search paths and symbols before opening files. Load the matching skill and the
-  sections you need once; do not preload every skill and ADR. Batch independent
-  reads; keep dependent mutations sequential.
+- Load the matching skill and the ADR sections you need, once; do not preload
+  every skill and ADR.
 - Keep one concise checkpoint for sustained work: objective, decisions, changed
   paths, exact evidence, remaining work. Never drop required acceptance evidence
   to save tokens.
@@ -61,8 +60,9 @@ make a task easier.
   keep the shared workflow here and in `docs/dogfooding.md` so it cannot drift
   into different instructions for the two clients.
 - At session start, in this order: read [`docs/dogfooding.md`](docs/dogfooding.md),
-  read the Work records, take the Now lane and then Next, and read that item's
-  **Decision standing** before anything else. Name the item you are on by its
+  read the Work records, choose the item by the rule in
+  [`.claude/commands/next.md`](.claude/commands/next.md) (status first: Doing, then
+  Ready by horizon), and read that item's **Decision standing** before anything else. Name the item you are on by its
   Reference and title.
 - **Standing is the authority gate.** *Needs decision/ADR* means no `src/` change
   until the owner accepts an entry, however obvious the implementation looks. The
@@ -225,9 +225,8 @@ than the defect. Say so, and write the one that would have failed.
 ## Workspace
 
 `workspace/` holds the real `.nendo` files this project works in.
-`workspace/Planner.nendo` is the live Nendo Development planner, and
-`workspace/Nendo.nendo` the planner it replaced on 2026-09-29, kept as the archive;
-the others are demo and test files kept because they are worth reopening. Never delete,
+`workspace/Planner.nendo` is the live Nendo Development planner; the others are
+demo and test files kept because they are worth reopening. Never delete,
 overwrite, reset or use one as a failure fixture. Leave active host-owned
 sidecars to Nendo — `.gitignore` already keeps every `-wal`, `-shm`, journal and
 write-owner file out of git. Use host-owned backup/copy flows for these files;

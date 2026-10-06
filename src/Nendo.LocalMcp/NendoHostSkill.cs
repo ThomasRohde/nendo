@@ -181,7 +181,7 @@ internal static class NendoHostSkill
         text.Append("Every refusal begins with a `NENDO_` code and says what to do; a tool refusal also carries the same code and sentence as an object in the result's `_meta` ");
         text.Append("under `io.github.thomasrohde.nendo/refusal`. A write refused for an ID a pending proposal creates names that proposal. ");
         text.Append("`NENDO_RECORD_VERSION_CONFLICT` means read the record and carry its current version. `NENDO_BEHAVIOUR_NOT_APPROVED` means the file's automatic actions wait for the person's approval in Nendo. ");
-        text.Append("A proposal answered `stale` was overtaken by another acceptance: reject it and begin again against the current revision.\n\n");
+        text.Append("A proposal answered `stale` was overtaken by another acceptance: `nendo.change_set.revalidate` validates the same operations at the current revision, and a draft that no longer validates stays open to `amend`.\n\n");
         text.Append("## The rules\n\n");
         foreach (var rule in NendoAuthoringOperations.Rules)
         {

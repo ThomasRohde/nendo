@@ -163,7 +163,7 @@ internal sealed class NendoDataTools(
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Set one field on one record using an exact expected record version.")]
+    [Description("Set one field on one record as one Data revision, at an exact expected record version. If the record has moved on, the write is refused as NENDO_RECORD_VERSION_CONFLICT and nothing changes: read the record and carry its current version. A reference value also needs expectedTargetRecordVersion, and a calculated field cannot be written. recordVersion in the result is the version the record holds now, and alsoChanged lists the records the file's automatic actions changed. For several fields of one record in one revision, use nendo.data.update_record.")]
     public Task<NendoDataApplyResult> SetFieldAsync(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
@@ -356,7 +356,7 @@ internal sealed class NendoDataTools(
 
     [McpServerTool(Name = "nendo.data.set_kept_in_new_files", Title = "Keep a record in new files, or leave it out", Destructive = true,
         Idempotent = true, OpenWorld = false, ReadOnly = false, UseStructuredContent = true)]
-    [Description("Say whether a new file of this application keeps one record (ADR-0022): kept true, left out false, or null to follow its record type's keptInNewFiles, which schema.setKeptInNewFiles sets in a change set. Keep what the application ships with, such as a lookup's entries or its top-level folders; leave the person's work out. A kept record may point only at kept records, or the person cannot make a new file: nendo://application/describe lists any under newFile.conflicts. The mark is a fact about the record, not a value: no field or record version changes and no automatic action runs. One Data revision, undone from History.")]
+    [Description("Say whether a new file of this application keeps one record: kept true, left out false, or null to follow its record type's keptInNewFiles, which schema.setKeptInNewFiles sets in a change set. Keep what the application ships with, such as a lookup's entries or its top-level folders; leave the person's work out. A kept record may point only at kept records, or the person cannot make a new file: nendo://application/describe lists any under newFile.conflicts. The mark is a fact about the record, not a value: no field or record version changes and no automatic action runs. One Data revision, undone from History.")]
     public Task<NendoDataApplyResult> SetKeptInNewFilesAsync(RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
         [Description(NendoParameterDescriptions.LeaseId)] string leaseId,

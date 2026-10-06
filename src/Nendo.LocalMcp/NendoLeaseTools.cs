@@ -71,7 +71,7 @@ internal sealed class NendoLeaseTools(NendoAgentAuthority authority)
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Release the current application handle's edit lease.")]
+    [Description("Release this handle's edit lease so another agent can acquire it. Change sets begun under the handle and never validated are discarded; validated proposals stay waiting for the person, and nendo.lease.acquire with resumeApplicationHandle takes them back on this host run. Repeating the call with the same leaseId and handle answers released again.")]
     public Task<NendoLeaseRelease> ReleaseAsync(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,

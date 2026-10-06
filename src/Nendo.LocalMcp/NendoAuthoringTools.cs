@@ -17,7 +17,7 @@ internal sealed class NendoAuthoringTools(
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Begin a bounded application change-set draft at the current definition revision.")]
+    [Description("Begin a private change-set draft for this handle at the file's current definition revision and return its changeSetId, which add_operations, amend, validate, preview and reject take. title is what the person sees on the proposal. A session holds at most limits.draftsPerSession open drafts (nendo://application/vocabulary); one more is refused as NENDO_DRAFT_LIMIT. outstandingProposals and advisory report other change sets open against the file: accepting any one advances the definition revision and leaves the rest stale. A draft never validated is discarded when the lease ends; a validated proposal stays. An exact retry under the same idempotencyKey returns the same draft.")]
     public Task<NendoChangeSetBeginResult> BeginAsync(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
@@ -55,7 +55,7 @@ internal sealed class NendoAuthoringTools(
         schema.createEntity), and limits the bounds. nendo://application/examples carries complete change sets you can
         send as they stand.
         A failed validate leaves the draft open: correct it with nendo.change_set.amend rather than starting again.
-        Active data remains unchanged until the person accepts the validated proposal in Nendo.
+        Nothing in the draft touches the active file until its validated proposal is accepted: by the person in Nendo or, at Unattended only, by nendo.change_set.accept.
         """)]
     public Task<NendoChangeSetAddResult> AddOperationsAsync(
         RequestContext<CallToolRequestParams> context,
@@ -120,7 +120,7 @@ internal sealed class NendoAuthoringTools(
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Validate an owned draft on a private clone without changing the active file. A valid draft freezes and becomes a proposal for the person to review. An invalid draft is not consumed: its clone is discarded, the draft stays open, and the returned diagnostics say what to correct with nendo.change_set.amend before validating again.")]
+    [Description("Validate an owned draft on a private clone without changing the active file. A valid draft freezes and becomes a proposal: the person reviews it in Nendo, or at Unattended nendo.change_set.accept applies it. An invalid draft is not consumed: its clone is discarded, the draft stays open, and the returned diagnostics say what to correct with nendo.change_set.amend before validating again.")]
     public Task<NendoAgentProposalPreview> ValidateAsync(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
@@ -191,7 +191,7 @@ internal sealed class NendoAuthoringTools(
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Reject this handle's draft or preview without changing the active file.")]
+    [Description("Reject this handle's draft or validated proposal without changing the active file. A proposal leaves nendo://application/proposals and its private clone is discarded; a draft is dropped with its operations. An exact retry under the same idempotencyKey replays the first result. For a proposal that went stale, nendo.change_set.revalidate keeps the operations instead.")]
     public Task<NendoChangeSetRejectResult> RejectAsync(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
