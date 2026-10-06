@@ -194,7 +194,7 @@ would edit. The worktree-relative artifact path does not decide this.
 Since 2026-10-05 (W-160, [ADR-0024](decisions/0024-a-file-carries-its-own-agent-skill.md))
 the planner carries the rules for working in it as a skill package, `dev.nendo.planner`.
 A client that speaks the Skills extension lists it beside `nendo-authoring` and reads it
-at `skill://dev.nendo.planner/SKILL.md`; any client can read that resource. It covers the
+at `skill://dev.nendo.planner/planner/SKILL.md`; any client can read that resource. It covers the
 record types, finding a record by its Reference, leaving Reference empty on a create,
 decision standing, the lanes, the `pl.cmd.*` commands, the evidence rules, the lease and
 what a handoff writes. **Read it there rather than here**: this document keeps the

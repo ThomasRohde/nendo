@@ -58,12 +58,13 @@ public sealed class FileSkillTests
         Assert.HasCount(2, skills);
         Assert.AreEqual("skill://nendo-authoring/SKILL.md", skills[0].GetProperty("uri").GetString());
         var skill = skills[1];
-        Assert.AreEqual($"skill://{PackageId}/SKILL.md", skill.GetProperty("uri").GetString());
+        SkillConformance.AssertEntry(skill, SkillMarkdown);
+        Assert.AreEqual($"skill://{PackageId}/tasks/SKILL.md", skill.GetProperty("uri").GetString());
         Assert.AreEqual("tasks", skill.GetProperty("frontmatter").GetProperty("name").GetString());
         Assert.AreEqual("How to work this file's task list.", skill.GetProperty("frontmatter").GetProperty("description").GetString());
         var manifest = skill.GetProperty("resources").EnumerateArray().ToArray();
         CollectionAssert.AreEqual(
-            new[] { $"skill://{PackageId}/SKILL.md", $"skill://{PackageId}/images/flow.png", $"skill://{PackageId}/references/statuses.md" },
+            new[] { $"skill://{PackageId}/tasks/SKILL.md", $"skill://{PackageId}/tasks/images/flow.png", $"skill://{PackageId}/tasks/references/statuses.md" },
             manifest.Select(file => file.GetProperty("uri").GetString()).ToArray());
 
         // Every file: the digest and size are those of the bytes a read returns.
@@ -81,18 +82,22 @@ public sealed class FileSkillTests
             Assert.AreEqual(bytes.LongLength, file.GetProperty("size").GetInt64(), uri);
             Assert.AreEqual(TimeSpan.Zero, read.TimeToLive, uri);
         }
-        Assert.IsInstanceOfType<BlobResourceContents>((await client.ReadResourceAsync($"skill://{PackageId}/images/flow.png")).Contents.Single());
-        Assert.AreEqual(SkillMarkdown, await ProtocolResourceTests.ReadTextAsync(client, $"skill://{PackageId}/SKILL.md"));
+        Assert.IsInstanceOfType<BlobResourceContents>((await client.ReadResourceAsync($"skill://{PackageId}/tasks/images/flow.png")).Contents.Single());
+        Assert.AreEqual(SkillMarkdown, await ProtocolResourceTests.ReadTextAsync(client, $"skill://{PackageId}/tasks/SKILL.md"));
+        SkillConformance.AssertEntry(skills[0],await ProtocolResourceTests.ReadTextAsync(client, "skill://nendo-authoring/SKILL.md"));
 
         // By URI, both; the file's skill is never cached, the host's keeps its hour.
-        var got = (await LatestProtocolTests.Send(http, "skills/get", new() { ["uri"] = $"skill://{PackageId}/SKILL.md" })).GetProperty("result");
+        var got = (await LatestProtocolTests.Send(http, "skills/get", new() { ["uri"] = $"skill://{PackageId}/tasks/SKILL.md" })).GetProperty("result");
         Assert.AreEqual(skill.GetRawText(), got.GetProperty("skill").GetRawText());
         Assert.AreEqual("private", got.GetProperty("cacheScope").GetString());
         var hostSkill = (await LatestProtocolTests.Send(http, "skills/get", new() { ["uri"] = "skill://nendo-authoring/SKILL.md" })).GetProperty("result");
         Assert.AreEqual("public", hostSkill.GetProperty("cacheScope").GetString());
-        var missing = await LatestProtocolTests.Send(http, "resources/read", new() { ["uri"] = $"skill://{PackageId}/secrets.md" });
+        var missing = await LatestProtocolTests.Send(http, "resources/read", new() { ["uri"] = $"skill://{PackageId}/tasks/secrets.md" });
         Assert.IsTrue(missing.TryGetProperty("error", out var error), missing.GetRawText());
         StringAssert.Contains(error.GetProperty("message").GetString(), "has no file secrets.md", StringComparison.Ordinal);
+        var unnamed = await LatestProtocolTests.Send(http, "resources/read", new() { ["uri"] = $"skill://{PackageId}/SKILL.md" });
+        Assert.IsTrue(unnamed.TryGetProperty("error", out var unnamedError), unnamed.GetRawText());
+        StringAssert.Contains(unnamedError.GetProperty("message").GetString(), $"under skill://{PackageId}/tasks/", StringComparison.Ordinal);
 
         // The package list says what it is, and that it has no entry point.
         var listed = JsonSerializer.Deserialize<NendoMcpExtensionPackage[]>(
@@ -164,7 +169,7 @@ public sealed class FileSkillTests
 
         var skills = (await LatestProtocolTests.Send(http, "skills/list", new())).GetProperty("result").GetProperty("skills").EnumerateArray().ToArray();
         Assert.AreEqual("skill://nendo-authoring/SKILL.md", skills.Single().GetProperty("uri").GetString(), "A view package was offered as a skill.");
-        var read = await LatestProtocolTests.Send(http, "resources/read", new() { ["uri"] = "skill://org.example.hello/SKILL.md" });
+        var read = await LatestProtocolTests.Send(http, "resources/read", new() { ["uri"] = "skill://org.example.hello/hello/SKILL.md" });
         Assert.IsTrue(read.TryGetProperty("error", out var error), read.GetRawText());
         StringAssert.Contains(error.GetProperty("message").GetString(), "no skill package org.example.hello", StringComparison.Ordinal);
     }

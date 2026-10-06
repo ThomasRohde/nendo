@@ -58,7 +58,8 @@ public sealed class HostSkillTests
 
         // The frontmatter in the file is the entry's, field for field, and the directory is the name.
         var markdown = ((TextResourceContents)(await client.ReadResourceAsync("skill://nendo-authoring/SKILL.md")).Contents.Single()).Text;
-        StringAssert.StartsWith(markdown, "---\nname: nendo-authoring\ndescription: " + skill.GetProperty("frontmatter").GetProperty("description").GetString() + "\n---\n", StringComparison.Ordinal);
+        SkillConformance.AssertEntry(skill, markdown);
+        StringAssert.StartsWith(markdown, "---\nname: nendo-authoring\ndescription: \"" + skill.GetProperty("frontmatter").GetProperty("description").GetString() + "\"\n---\n", StringComparison.Ordinal);
         StringAssert.Contains(markdown, "`nendo.change_set.begin`", StringComparison.Ordinal);
         StringAssert.Contains(markdown, "`validate`", StringComparison.Ordinal);
         StringAssert.Contains(markdown, "`schema.createEntity` takes entityId, displayName", StringComparison.Ordinal);

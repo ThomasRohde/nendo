@@ -294,7 +294,7 @@ accepted, reversed, imported and exported as every package is.
   so no earlier digest moves.
 
 The local MCP host lists each skill package in `skills/list` after its own
-`nendo-authoring` skill, and serves its files under `skill://{packageId}/{+path}` with
+`nendo-authoring` skill, and serves its files under `skill://{packageId}/{name}/` with
 the digests of the stored bytes ([MCP interface](mcp-interface.md)). The Desktop host
 lists a skill package with no origin, so nothing serves it to a frame, and it cannot be
 developed from a folder.

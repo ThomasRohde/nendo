@@ -67,7 +67,7 @@ internal static class NendoAuthoringExamples
         [
             "extension.setPackage with kind \"skill\" and no entryPoint creates a skill package; extension.putFile puts its SKILL.md at the root, and any supporting files beside it. The person reads every line before accepting, as for a view's code.",
             "SKILL.md opens with frontmatter: a line ---, name: the last segment of the packageId, description: what the skill is for and when to use it, and a closing ---. A missing file or frontmatter, or another name, does not validate, and the diagnostic (NPROP012) names the file.",
-            "Once accepted, skills/list returns the host's nendo-authoring skill and this one, at skill://{packageId}/SKILL.md, with every file's digest and size. Nothing in a skill package runs, and a view cannot name one.",
+            "Once accepted, skills/list returns the host's nendo-authoring skill and this one, at skill://{packageId}/{name}/SKILL.md, with every file's digest and size. Nothing in a skill package runs, and a view cannot name one.",
             "Write what the file knows and a host build cannot: its record types' meaning, its commands and when to use them, the order work goes in.",
         ],
         [

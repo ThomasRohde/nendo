@@ -18,9 +18,16 @@ internal static class NendoFileSkills
 {
     private const string Scheme = "skill://";
 
-    internal static string SkillUri(string packageId) => $"{Scheme}{packageId}/{NendoAgentSkill.FileName}";
+    /// <summary>
+    /// The skill's directory: the package ID, then the skill's name. The Skills extension
+    /// requires the segment before <c>SKILL.md</c> to be the frontmatter name, and allows the
+    /// segments before it as the server's prefix, so two packages with one name stay apart.
+    /// </summary>
+    internal static string Root(string packageId) => $"{Scheme}{packageId}/{NendoAgentSkill.NameFor(packageId)}";
 
-    internal static string FileUri(string packageId, string path) => $"{Scheme}{packageId}/{path}";
+    internal static string SkillUri(string packageId) => FileUri(packageId, NendoAgentSkill.FileName);
+
+    internal static string FileUri(string packageId, string path) => $"{Root(packageId)}/{path}";
 
     /// <summary>
     /// Every skill package whose <c>SKILL.md</c> reads, by package ID. Validation refuses a
@@ -42,14 +49,19 @@ internal static class NendoFileSkills
     /// <summary>
     /// One file of a skill package, as a resource read returns it: text when its type is text
     /// and its bytes are UTF-8, base64 otherwise. Either way a client that hashes what it
-    /// received gets the digest the manifest lists.
+    /// received gets the digest the manifest lists. <paramref name="skillPath"/> is everything
+    /// after the package ID: the skill's name, then the file's path in the package.
     /// </summary>
     internal static async Task<ResourceContents> ReadFileAsync(
-        NendoApplicationService application, string packageId, string path, CancellationToken cancellationToken)
+        NendoApplicationService application, string packageId, string skillPath, CancellationToken cancellationToken)
     {
         var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
         if (!snapshot.ExtensionPackages.Any(package => package.PackageId == packageId && package.IsSkill))
             throw new NendoValidationException($"This file carries no skill package {packageId}; skills/list names every skill this host serves.");
+        var prefix = NendoAgentSkill.NameFor(packageId) + "/";
+        if (!skillPath.StartsWith(prefix, StringComparison.Ordinal))
+            throw new NendoValidationException($"The skill {packageId} serves its files under {Root(packageId)}/; its manifest in skills/list names every file it holds.");
+        var path = skillPath[prefix.Length..];
         var file = await application.ReadExtensionFileAsync(packageId, path, cancellationToken)
             ?? throw new NendoValidationException($"The skill {packageId} has no file {path}; its manifest in skills/list names every file it holds.");
         var uri = FileUri(packageId, path);

@@ -54,8 +54,10 @@ package that carries no code, and a listing that reaches it.
 `extension.setPackage` takes a `kind`: `view` (the default, today's packages) or `skill`. A
 skill package holds a `SKILL.md` at its root and any supporting files, and no entry point.
 It is written, reviewed and accepted as every package is, enters History as a definition
-revision, and is served under its package ID as `skill://{packageId}/SKILL.md` and
-`skill://{packageId}/{path}`, with the host's own skill listed beside it in `skills/list`.
+revision, and is served under its package ID and its name as `skill://{packageId}/{name}/SKILL.md`
+and `skill://{packageId}/{name}/{path}`, with the host's own skill listed beside it in `skills/list`.
+(Amended 2026-10-06: the name segment was added because SEP-2640 requires the segment before
+`SKILL.md` to be the frontmatter name, which MCP Inspector reported as `name-path-mismatch`.)
 The Workbench shows a skill package in Studio's package list, as text, and never runs it.
 
 Benefits: one package model, one review, one proposal path, one storage ladder, and the

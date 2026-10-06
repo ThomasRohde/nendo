@@ -116,7 +116,8 @@ internal static class NendoHostSkill
     private static string SkillMarkdown()
     {
         var text = new StringBuilder();
-        text.Append("---\nname: ").Append(Name).Append("\ndescription: ").Append(DescriptionText).Append("\n---\n\n");
+        // Double-quoted, because the description holds ": " and a plain YAML scalar cannot.
+        text.Append("---\nname: ").Append(Name).Append("\ndescription: ").Append(YamlQuoted(DescriptionText)).Append("\n---\n\n");
         text.Append("# Authoring a Nendo file over MCP\n\n");
         text.Append("A Nendo file holds record types and records, screens, calculated fields, reusable functions and automatic actions. ");
         text.Append("Records are written directly with the `nendo.data.*` tools. Everything else is authored as a change set: `nendo.change_set.begin`, ");
@@ -188,6 +189,10 @@ internal static class NendoHostSkill
         }
         return text.ToString();
     }
+
+    /// <summary>A YAML double-quoted scalar: only the backslash and the quote need escaping in one line of text.</summary>
+    internal static string YamlQuoted(string value) =>
+        "\"" + value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
 
     internal sealed record SkillFile(string Uri, string MimeType, byte[] Bytes)
     {

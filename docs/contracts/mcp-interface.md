@@ -105,10 +105,12 @@ size equal to a read of the file, and the frontmatter equal to the entry's.
 Since 2026-10-05 (W-160, [ADR-0024](../decisions/0024-a-file-carries-its-own-agent-skill.md))
 a file may carry its own skill: a package of kind `skill`, accepted by its person like any
 package ([custom-view contract](custom-views.md#skill-packages)). `skills/list` lists each
-one after the host's, by package ID, at `skill://{packageId}/SKILL.md`, its frontmatter read
+one after the host's, by package ID, at `skill://{packageId}/{name}/SKILL.md`, its frontmatter read
 from that file (`name` is the package ID's last segment) and its manifest the stored SHA-256
-and size of every file, `SKILL.md` first. Its files are the template
-`skill://{packageId}/{+path}` (`nendo.application.skill.file`): text as text and anything else as a
+and size of every file, `SKILL.md` first. The segment before `SKILL.md` is the skill's name,
+as SEP-2640 requires, and the package ID before it keeps two packages with one name apart.
+Its files are the template `skill://{packageId}/{+path}`, the path being the name and then the
+file's path in the package (`nendo.application.skill.file`): text as text and anything else as a
 blob, so the digest of what a client receives is the one listed; a package that is not a
 skill, or a path it does not hold, is refused. The template also answers the host skill's
 own URIs with the same bytes. Because the list follows the open file, `skills/list` is
