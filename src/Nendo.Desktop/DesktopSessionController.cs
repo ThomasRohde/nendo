@@ -397,6 +397,16 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
     internal Task<NendoPage<NendoTreeNode>> TreeRecordsAsync(NendoTreeQuery query, CancellationToken cancellationToken) =>
         QueryAsync(service => service.TreeRecordsAsync(query, cancellationToken), cancellationToken);
 
+    /// <summary>A full-text search over the file's text fields (ADR-0028).</summary>
+    internal Task<NendoPage<NendoSearchHit>> SearchRecordsAsync(NendoSearchQuery query, CancellationToken cancellationToken) =>
+        QueryAsync(service => service.SearchRecordsAsync(query, cancellationToken), cancellationToken);
+
+    /// <summary>Builds the file's search index, or builds it again; the person asks for it in Ctrl K or Studio.</summary>
+    internal async Task<DesktopMutationView> BuildSearchIndexAsync(string idempotencyKey, CancellationToken cancellationToken) =>
+        await MutateAsync(
+            service => service.BuildSearchIndexAsync(new NendoRequestContext("desktop.search", idempotencyKey, "studio"), cancellationToken),
+            cancellationToken);
+
     internal Task<NendoPage<NendoRevisionSummary>> QueryHistoryAsync(NendoHistoryQuery query, CancellationToken cancellationToken) =>
         QueryAsync(service => service.QueryHistoryAsync(query, cancellationToken), cancellationToken);
 

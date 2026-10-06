@@ -164,6 +164,8 @@ It calls named, validated operations such as:
 
 ```text
 data.queryRecords
+data.searchRecords
+data.buildSearchIndex
 data.createRecord
 data.setField
 data.setFields
@@ -171,6 +173,13 @@ data.moveRecord
 data.deleteRecord
 data.executeCommand
 ```
+
+`data.searchRecords` backs the *Search text* box in the per-type table's filter bar
+([ADR-0028](../decisions/0028-full-text-search-in-the-file.md)). It finds that type's records by
+any word in their text, best match first, and lists them under the bar with an excerpt. The table
+and its filter stay as they are, and a result opens the record. While the file has no index, the
+box offers *Build the search index*: `data.buildSearchIndex`, one host-owned Definition revision
+that changes no record. The same search lists records under the commands in Ctrl K.
 
 The bridge has no bulk-paste or saved-table-view method.
 

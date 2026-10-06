@@ -8,6 +8,7 @@ import {
   type PreviewFixtureName,
 } from './preview-fixtures';
 import { WorkbenchHostError, emptySession, isObject } from './host-types';
+import { previewSearch } from './search-text';
 
 /**
  * The in-memory host behind ?preview=1.
@@ -99,6 +100,12 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         break;
       case 'data.treeRecords':
         result = this.treeRecords(payload);
+        break;
+      case 'data.searchRecords':
+        result = previewSearch(this.session, payload);
+        break;
+      case 'data.buildSearchIndex':
+        result = { session: this.session, notice: null };
         break;
       case 'data.executeCommand':
         result = this.executeCommand(payload);

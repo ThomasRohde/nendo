@@ -34,6 +34,39 @@ public sealed partial class NendoWriteCoordinator
         finally { _gate.Release(); }
     }
 
+    /// <summary>A full-text search over the file's text fields (ADR-0028).</summary>
+    public async Task<NendoPage<NendoSearchHit>> SearchRecordsAsync(
+        NendoSearchQuery query, CancellationToken cancellationToken = default)
+    {
+        SearchSemantics.Validate(query);
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed || _replacementRetired, this);
+            if (_readOnlySnapshot is not null)
+            {
+                if (!Capabilities.ReadData) throw new NendoPreconditionException("data-unavailable", "Data cannot be safely interpreted for this file.");
+                return await Storage.SqliteNendoStore.SearchSnapshotAsync(query, _queryCursors, _readOnlySnapshot.Manifest,
+                    _readOnlySnapshot.Entities, _readOnlySnapshot.Records, cancellationToken);
+            }
+            return await GetStore().SearchRecordsAsync(query, _queryCursors, cancellationToken);
+        }
+        catch (NendoRecoveryRequiredException) { EnterRecovery(); throw; }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>Where the file's search index differs from its records; empty when it is in step.</summary>
+    internal async Task<IReadOnlyList<string>> SearchIndexDriftAsync(CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed || _replacementRetired, this);
+            return _readOnlySnapshot is not null ? [] : await GetStore().SearchIndexDriftAsync(cancellationToken);
+        }
+        finally { _gate.Release(); }
+    }
+
     public async Task<NendoRecordCount> CountRecordsAsync(
         NendoRecordCountQuery query, CancellationToken cancellationToken = default)
     {

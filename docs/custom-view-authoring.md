@@ -332,6 +332,18 @@ const all = await nendo.records.queryAll({ entityId: 'task' }, { max: 5000 });
 - `records.queryAll(query, {max})` follows the cursor to the end, 200 records at a
   time, up to `max` (10,000 by default). If the file changes between pages, it
   reads again from the top, at most three times.
+- `records.search(text, {entityIds, fieldIds, limit, cursor})` finds records by any
+  word in their text fields, best match first
+  ([ADR-0028](decisions/0028-full-text-search-in-the-file.md)):
+  - **Syntax:** every word is required, and words may sit in different fields. Text in
+    double quotes is a phrase, `-word` leaves records out, and the last word also matches
+    as a prefix.
+  - **Answer:** each hit is `{entityId, recordId, version, label, score, fields}`, and each
+    field `{fieldId, snippet, ranges}`: a plain-text excerpt with the matched words as
+    `{start, length}`.
+  - **Before an index exists:** a file is refused with `search-index-missing` until it has
+    an index, which the person builds once in Studio or Ctrl K. Check
+    `nendo.has('records.search')` and keep a fallback for an older Nendo.
 
 A **record** is:
 

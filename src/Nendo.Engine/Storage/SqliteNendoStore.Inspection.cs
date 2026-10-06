@@ -141,7 +141,9 @@ internal sealed partial class SqliteNendoStore
             {
                 if (++objects > 512)
                     throw new NendoPreconditionException("write-ceiling-schema", "This write would exceed the storage-object open limit. Nothing was changed, so the file still opens.");
-                if (rows.GetString(0) == "table") tables.Add(rows.GetString(1));
+                // The search index holds a row per record and text field, so it is bounded by the
+                // records and the file size rather than by the per-table row ceiling (ADR-0028).
+                if (rows.GetString(0) == "table" && !IsSearchStorage(rows.GetString(1))) tables.Add(rows.GetString(1));
             }
         }
         foreach (var table in tables)
@@ -316,6 +318,8 @@ internal sealed partial class SqliteNendoStore
             }
 
             var findings = new List<NendoOpenFinding>();
+            if (layout.Contains("-search-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.SearchMinimumHostVersion))
+                return Unreadable("layout-version-mismatch", "A search index requires the declared search-capable host version.", observedAt);
             if (layout.Contains("-linkrule-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.LinkRuleMinimumHostVersion))
                 return Unreadable("layout-version-mismatch", "A link rule requires the declared link-rule-capable host version.", observedAt);
             if (layout.Contains("-skill-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.SkillPackageMinimumHostVersion))
@@ -778,6 +782,8 @@ internal sealed partial class SqliteNendoStore
         var parts = new List<string>();
         while (await reader.ReadAsync(cancellationToken))
         {
+            // FTS5 writes its own tables' DDL; the layout is the index's own statement (ADR-0028).
+            if (SearchShadowTables.Contains(reader.GetString(1))) continue;
             if (parts.Count >= 128)
             {
                 throw new NendoValidationException("Too many protected schema objects.");
@@ -832,6 +838,9 @@ internal sealed partial class SqliteNendoStore
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(LinkRuleSchemaSql, null, CancellationToken.None);
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(SearchSchemaSql, null, CancellationToken.None);
+        layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-search-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync("DROP TABLE __nendo_search; DROP TABLE __nendo_search_doc;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_link_rule;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_extension_kind;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_new_file_label; DROP TABLE __nendo_new_file_rule;", null, CancellationToken.None);
@@ -898,6 +907,8 @@ internal sealed partial class SqliteNendoStore
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(LinkRuleSchemaSql, null, CancellationToken.None);
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(SearchSchemaSql, null, CancellationToken.None);
+        layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-search-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         return layouts;
     }
 

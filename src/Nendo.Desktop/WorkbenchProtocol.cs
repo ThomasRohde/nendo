@@ -34,6 +34,8 @@ internal static partial class WorkbenchMethods
     internal const string DataBucketAggregateRecords = "data.bucketAggregateRecords";
     internal const string DataCellAggregateRecords = "data.cellAggregateRecords";
     internal const string DataTreeRecords = "data.treeRecords";
+    internal const string DataSearchRecords = "data.searchRecords";
+    internal const string DataBuildSearchIndex = "data.buildSearchIndex";
     internal const string DataMoveRecord = "data.moveRecord";
     internal const string DataWriteRecords = "data.writeRecords";
     internal const string DataUndoRecordWrites = "data.undoRecordWrites";
@@ -399,6 +401,8 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.DataBucketAggregateRecords => await _session.BucketAggregateRecordsAsync(Deserialize<NendoRecordDateBucketQuery>(payload), cancellationToken),
                     WorkbenchMethods.DataCellAggregateRecords => await _session.CellAggregateRecordsAsync(Deserialize<NendoRecordCellAggregateQuery>(payload), cancellationToken),
                     WorkbenchMethods.DataTreeRecords => await _session.TreeRecordsAsync(Deserialize<NendoTreeQuery>(payload), cancellationToken),
+                    WorkbenchMethods.DataSearchRecords => await _session.SearchRecordsAsync(Deserialize<NendoSearchQuery>(payload), cancellationToken),
+                    WorkbenchMethods.DataBuildSearchIndex => await _session.BuildSearchIndexAsync(RequiredString(payload, "idempotencyKey", 200), cancellationToken),
                     WorkbenchMethods.HealthVerify => await _session.VerifyIntegrityAsync(cancellationToken),
                     WorkbenchMethods.HistoryCompensate => await CompensateRevisionAsync(payload, cancellationToken),
                     WorkbenchMethods.HistoryFoldPreview => await _session.PreviewHistoryFoldAsync(cancellationToken),

@@ -62,6 +62,51 @@ The Engine implements this contract in `RecordQuerySemantics.cs` and
 `CursorCodecTests` and `WorkbenchDeclaredQueryPagingTests` test it. This file does
 not map each rule to a test case.
 
+## Search
+
+A **search** ([ADR-0028](../decisions/0028-full-text-search-in-the-file.md)) is a separate
+read, not a filter operator. Declared filters still have no free-text operator (ADR-0004).
+`NendoSearchQuery` takes what the person typed, an optional list of record types and of
+fields, a page of 1 to 100 records (20 by default) and a cursor. It returns
+`NendoPage<NendoSearchHit>`.
+
+**What it reads.** It reads the file's full-text index: every active Text field that is not a
+choice, on every active record type. A file has an index once
+`application.buildSearchIndex` has run. Before that, a writable file refuses a search with
+`search-index-missing`. A file open read-only is searched from its records instead.
+
+**The syntax:**
+
+- **Words:** every word is required, matched per record, so one word may sit in the title and
+  another in the body.
+- **Phrases:** text in double quotes is a phrase.
+- **Leaving out:** `-word` leaves out every record that contains it.
+- **Prefix:** the last word also matches as a prefix, unless a space follows it.
+- **Folding:** case and accents are folded.
+- **Nothing else:** every term reaches FTS5 quoted, so `title:x`, `NEAR(…)`, `AND`, `*` and an
+  unclosed quote are text, or ignored when they hold no letter or digit. A search of more than
+  256 characters or 16 terms is refused (`search-too-long`, `search-too-many-terms`).
+- **Unknown names:** an unknown record type is refused with `entity-not-found`, and a field of
+  none of the named types with `field-not-found`.
+
+**The order.** Records rank by BM25, by their best-matching field, then by record type and
+record ID.
+
+**A hit** carries:
+
+- the record's version;
+- a label: its first searched field, the first line, at most 200 characters;
+- a score, where higher is better and which compares only within one answer;
+- for each matching field, a plain-text excerpt with the matched words as UTF-16
+  `{start, length}` ranges. An excerpt is never markup.
+
+**Paging** is by position. The cursor binds the scope and the change sequence as every record
+cursor does, so a write between pages makes it stale.
+
+The Engine implements search in `Search.cs` and `Storage/SqliteNendoStore.Search.cs`;
+`SearchIndexTests` tests it, including a drift check that compares the index with the records
+after every kind of write.
+
 Read-only snapshots use the same typed filtered set for pages, counts, numeric
 aggregates, groups, date buckets and cells. Stored, calculated and `descendantOf`
 predicates apply before folding. `ReviewStorageRegressionTests` compares all five

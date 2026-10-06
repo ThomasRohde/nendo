@@ -20,6 +20,7 @@ import { announce, content, requiredElement, rerender, setBusy, showError } from
 import { recordTypeProposal, renameSchemaProposal } from './studio';
 import { type ColumnWidths, nextSort, queryStatusText, rememberWidths, rememberedWidths, sortOf, withFilter, withSort } from './studio-columns';
 import { StudioHeader, type StudioHeaderOptions } from './studio-header';
+import { studioSearchFieldMarkup, studioSearchResultsMarkup, wireStudioSearch } from './studio-search';
 import { type StudioLayout, captureOutlineRead, outlineErrorIsCurrent, outlines, readOutlineLevel, refreshOutline, studioLayouts, studioOutlineErrors } from './studio-outline';
 import { recordPagerMarkup } from './surface-markup';
 import { choiceStyle } from './tones';
@@ -454,12 +455,14 @@ export function studioQueryMarkup(entity: EntitySnapshot): string {
     .filter(field => storageLabel(field.storageKind) !== 'Unsupported')
     .map(field => `<option value="${escapeAttribute(field.fieldId)}" ${selected === field.fieldId ? 'selected' : ''}>${escapeHtml(field.displayName)}</option>`).join('');
   const nameOf = (fieldId: string): string => [...entity.fields, ...(entity.derivedFields ?? [])].find(field => field.fieldId === fieldId)?.displayName ?? fieldId;
-  return `<form id="studio-query" class="studio-query" aria-label="Filter records">
+  return `<form id="studio-query" class="studio-query" aria-label="Search and filter records">
+    ${studioSearchFieldMarkup(entity)}
     <label>Filter field<select name="field"><option value="">All records</option>${options(query?.fieldId)}</select></label>
     <label>Match<select name="operator">${[['contains','Contains text'],['eq','Equals'],['ne','Does not equal'],['lt','Less than'],['le','At most'],['gt','Greater than'],['ge','At least'],['isNull','Not set'],['isNotNull','Has a value']].map(([op,label])=>`<option value="${op}" ${query?.operator === op ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
     <label>Value<input name="value" type="text" value="${escapeAttribute(query?.text ?? '')}" /></label>
     <button class="secondary-button" data-action type="submit">Apply</button><button id="clear-query" class="text-button" data-action type="button" ${query ? '' : 'hidden'}>Clear</button>
     <p class="query-status" role="status">${escapeHtml(queryStatusText(query, nameOf))}</p>
+    ${studioSearchResultsMarkup()}
   </form>`;
 }
 
@@ -489,6 +492,7 @@ export function wireStudioQuery(entity: EntitySnapshot): void {
     } catch (error) { showError(messageFor(error)); }
   });
   requiredElement<HTMLButtonElement>('#clear-query').addEventListener('click', () => void applyStudioQuery(entity.entityId, null));
+  wireStudioSearch(entity);
 }
 
 export async function applyStudioQuery(entityId: string, query: StudioQuery | null, message?: string): Promise<void> {

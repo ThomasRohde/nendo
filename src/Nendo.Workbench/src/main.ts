@@ -412,7 +412,7 @@ for (const button of themeButtons) {
 requiredElement<HTMLElement>('#palette-icon').innerHTML = icon('search');
 requiredElement<HTMLElement>('#command-palette-icon').innerHTML = icon('search');
 const paletteOpen = requiredElement<HTMLButtonElement>('#palette-open');
-paletteOpen.addEventListener('click', openPalette);
+paletteOpen.addEventListener('click', () => openPalette());
 
 /**
  * Whether every shortcut is drawn beside its control.

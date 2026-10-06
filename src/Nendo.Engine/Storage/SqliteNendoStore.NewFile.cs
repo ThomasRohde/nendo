@@ -390,6 +390,9 @@ internal sealed partial class SqliteNendoStore
                 clear.Parameters.AddWithValue("@record", recordId);
                 await clear.ExecuteNonQueryAsync(ct);
             }
+            // The records left out were deleted outside any mutation, so the index is built again
+            // from the records the new file keeps (ADR-0028).
+            if (await SearchLayoutExistsAsync(transaction, ct)) await RebuildSearchIndexAsync(transaction, ct);
             // A view keeps what it wrote about this file's records; a new file has other records.
             if (await TableExistsAsync("__nendo_extension_state", transaction, ct))
                 await NonQueryAsync("DELETE FROM __nendo_extension_state;", transaction, ct);

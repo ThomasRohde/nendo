@@ -61,6 +61,11 @@ A page query is read as a set: `cursor` and `limit` in either order, and an empt
 `cursor=` as the first page. A parameter the template does not declare, or one
 given twice, is refused naming the parameters it takes.
 
+`SearchRecordsAsync` (ADR-0028) is a bounded read of 1–100 records in one SQLite read
+transaction over the file's FTS5 index. It ranks with BM25 and pages by position under the same
+authenticated cursor. In a read-only session it indexes the snapshot's records into a private
+in-memory database and answers from that.
+
 Read-only recovery uses the immutable inspection snapshot that is already
 classified, and bounded projections of that snapshot. It cannot claim a
 streaming recovery open. Sort/filter/search controls stay separate

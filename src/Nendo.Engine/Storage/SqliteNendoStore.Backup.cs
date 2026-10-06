@@ -59,6 +59,9 @@ internal sealed partial class SqliteNendoStore
                 {
                     throw new NendoValidationException("The file exceeds the bounded storage-object inspection limit.");
                 }
+                // The search index is derived from the rows hashed here, and two of FTS5's tables
+                // have no rowid to order by; a file and its indexed twin hold the same content (ADR-0028).
+                if (IsSearchStorage(rows.GetString(1)) || IsSearchStorage(rows.GetString(2))) continue;
                 WriteStorageRow(writer, rows);
                 if (rows.GetString(0) == "table") tables.Add(rows.GetString(1));
             }

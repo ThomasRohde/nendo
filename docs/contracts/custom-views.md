@@ -608,6 +608,7 @@ Workbench suite, pins the table name by name.
 | `schema.describe` | none | The Workbench's own session snapshot | [The schema](#records-and-the-schema) |
 | `records.query` | `entityId`, `limit` (1–200, default 100), `cursor`, `filters`, `sortFieldId`, `descending` | `data.queryRecords` | `{items, nextCursor, changeSequence}` |
 | `records.get` | `entityId`, `recordId` | `data.queryRecords` for that one record | A record, or null |
+| `records.search` | `text` (1–256 characters), `limit` (1–100, default 20), `cursor`, `entityIds`, `fieldIds` (each at most 64 IDs) | `data.searchRecords` | `{items: [{entityId, recordId, version, label, score, fields: [{fieldId, snippet, ranges}]}], nextCursor, changeSequence}`, best match first ([ADR-0028](../decisions/0028-full-text-search-in-the-file.md)); refused with `search-index-missing` until the file has an index |
 | `records.tree` | `entityId`, `rootRecordId` (optional), `depth` (1–32, default 1), `limit`, `cursor` | `data.treeRecords` | `{items: [{record, parentRecordId, depth, childCount}], nextCursor, changeSequence}`, depth-first ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)) |
 | `records.count` | `entityId`, `filters` | `data.countRecords` | The host's count |
 | `records.aggregate` | `entityId`, `aggregate`, `fieldId`, `filters` | `data.aggregateRecords` | The host's exact aggregate |

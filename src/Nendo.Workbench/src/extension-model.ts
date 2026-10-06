@@ -5,7 +5,7 @@ import type { DesktopSessionView, EntitySnapshot, RecordSnapshot, UiNodeSnapshot
 import {
   apiVersion,
   type Json, type SchemaDescription, type SchemaEntity, type SchemaField, type ViewBindings, type ViewCalculation,
-  type ViewContext, type ViewPage, type ViewPlacement, type ViewRecord, type ViewTheme, type ViewTreePage,
+  type ViewContext, type ViewPage, type ViewPlacement, type ViewRecord, type ViewSearchPage, type ViewTheme, type ViewTreePage,
 } from './extension-api/protocol';
 
 /**
@@ -75,6 +75,30 @@ export function plainPage(page: { items?: RecordSnapshot[]; nextCursor?: string 
     items: (page.items ?? []).map(plainRecord),
     nextCursor: typeof page.nextCursor === 'string' ? page.nextCursor : null,
     changeSequence: typeof page.changeSequence === 'number' ? page.changeSequence : 0,
+  };
+}
+
+/** A page of search hits (ADR-0028), rebuilt key by key so only the documented shape reaches a view. */
+export function plainSearchPage(page: {
+  items?: Array<{
+    entityId?: unknown; recordId?: unknown; version?: unknown; label?: unknown; score?: unknown;
+    fields?: Array<{ fieldId?: unknown; snippet?: unknown; ranges?: Array<{ start?: unknown; length?: unknown }> }>;
+  }>;
+  nextCursor?: string | null; changeSequence?: number;
+} | null): ViewSearchPage {
+  const text = (value: unknown): string => typeof value === 'string' ? value : '';
+  const number = (value: unknown): number => typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return {
+    items: (page?.items ?? []).map((hit) => ({
+      entityId: text(hit.entityId), recordId: text(hit.recordId), version: number(hit.version),
+      label: typeof hit.label === 'string' ? hit.label : null, score: number(hit.score),
+      fields: (hit.fields ?? []).map((field) => ({
+        fieldId: text(field.fieldId), snippet: text(field.snippet),
+        ranges: (field.ranges ?? []).map((range) => ({ start: number(range.start), length: number(range.length) })),
+      })),
+    })),
+    nextCursor: typeof page?.nextCursor === 'string' ? page.nextCursor : null,
+    changeSequence: typeof page?.changeSequence === 'number' ? page.changeSequence : 0,
   };
 }
 

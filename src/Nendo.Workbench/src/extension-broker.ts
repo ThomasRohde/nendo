@@ -1,4 +1,4 @@
-import { plainJson, plainPage, plainRecord, plainTreePage } from './extension-model';
+import { plainJson, plainPage, plainRecord, plainSearchPage, plainTreePage } from './extension-model';
 import { WorkbenchHostError, type RecordSnapshot } from './host-types';
 import {
   apiVersion, extensionLimits, hostKeys, utf8Length,
@@ -146,6 +146,27 @@ function pageLimit(params: Params): number {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > extensionLimits.maximumPageLimit)
     throw invalid(`limit must be a whole number from 1 to ${extensionLimits.maximumPageLimit}.`);
   return value;
+}
+
+/** A search's page size: 1 to 100, 20 when the view names none (ADR-0028). */
+function searchLimit(params: Params): number {
+  const value = params.limit;
+  if (value === undefined || value === null) return extensionLimits.defaultSearchLimit;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > extensionLimits.maximumSearchLimit)
+    throw invalid(`limit must be a whole number from 1 to ${extensionLimits.maximumSearchLimit}.`);
+  return value;
+}
+
+/** A list of IDs a search is narrowed to, rebuilt one ID at a time. */
+function idList(params: Params, key: string): string[] {
+  const value = params[key];
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > extensionLimits.searchScope)
+    throw invalid(`${key} must be a list of at most ${extensionLimits.searchScope} IDs.`);
+  return value.map((id: unknown) => {
+    if (typeof id !== 'string' || id.length === 0 || id.length > 200) throw invalid(`Each of ${key} is an ID of 1 to 200 characters.`);
+    return id;
+  });
 }
 
 /** A query's clauses, rebuilt key by key: nothing a view adds to a clause reaches the host. */
@@ -514,6 +535,11 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
       const item = (result as { items?: RecordSnapshot[] } | null)?.items?.[0];
       return item === undefined ? null : plainRecord(item);
     }),
+  // A full-text search over the file's text fields, best match first (ADR-0028).
+  'records.search': read('data.searchRecords', (p) => ({
+    text: textParam(p, 'text', extensionLimits.searchCharacters), limit: searchLimit(p), cursor: optionalText(p, 'cursor', 4096) ?? null,
+    entityIds: idList(p, 'entityIds'), fieldIds: idList(p, 'fieldIds'),
+  }), (result) => plainSearchPage(result as Parameters<typeof plainSearchPage>[0])),
   // A window of a declared hierarchy, depth-first (ADR-0019).
   'records.tree': read('data.treeRecords', (p) => ({
     entityId: textParam(p, 'entityId'), rootRecordId: optionalText(p, 'rootRecordId', 200) ?? null, depth: treeDepth(p),

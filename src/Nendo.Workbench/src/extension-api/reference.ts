@@ -36,6 +36,12 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
     params: 'The record type and the record\'s ID.',
     answer: 'The record, or null when there is none.',
   },
+  'records.search': {
+    call: 'nendo.records.search(text, options?)',
+    params: 'What the person typed, and {entityIds?, fieldIds?, limit?, cursor?}. Words are all required and may sit in different fields of a record; "a phrase" in double quotes is matched as one; -word leaves out the records that contain it; the last word also matches as a prefix unless a space follows it. Nothing else is syntax. limit is 1 to 100, 20 by default.',
+    answer: '{items, nextCursor, changeSequence}, best match first. Each item is {entityId, recordId, version, label, score, fields}: label is the record\'s first text field, as a title; each field is {fieldId, snippet, ranges}, a plain-text excerpt with the matched words as {start, length}.',
+    note: 'It searches every active text field that is not a choice. A file needs a search index first, and is refused with search-index-missing until it has one: Nendo builds it when the person asks, and keeps it current from then on. Check nendo.has(\'records.search\') before calling it on an older Nendo.',
+  },
   'records.tree': {
     call: 'nendo.records.tree(query)',
     params: '{entityId, rootRecordId?, depth?, limit?, cursor?}: the records under rootRecordId, or from the top level, down to depth levels (1 to 32, 1 by default).',

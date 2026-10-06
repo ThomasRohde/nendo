@@ -156,7 +156,7 @@ A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
 what a file can contain. `1.11.0` is for composable surfaces. After it, each
 version adds one capability, usually a widened semantic shape. The highest version
-is `1.45.0`, for a link rule (ADR-0026, W-105). `1.44.0` is for a text field shown as Markdown
+is `1.46.0`, for a full-text index (ADR-0028). `1.45.0` is for a link rule (ADR-0026, W-105). `1.44.0` is for a text field shown as Markdown
 (W-173), and `1.43.0` for a package of kind skill (ADR-0024, W-160). `1.42.0` is for a custom view
 as a screen of the file (`extensionView`, ADR-0013 Phase 5, W-106). `1.34.0` is for a custom view defined by rules that earlier hosts refused
 (ADR-0013, 2026-09-25). `1.33.0` is for custom-view packages carried in the file, `1.32.0` a
@@ -205,6 +205,22 @@ A package's Markdown files under `help/` are the file's own help pages
 for the Workbench with `help.readPages`, and Help shows them first under *About this app*,
 rendered by the Workbench's escaping Markdown renderer. They are ordinary package files, so
 storage, review and serving are unchanged.
+
+A file may carry a full-text index of its text fields
+([ADR-0028](decisions/0028-full-text-search-in-the-file.md)). The index is the ladder's
+`-search-` rung: `__nendo_search_doc` maps each record and searched field to a row of
+`__nendo_search`, an FTS5 table.
+
+- **Created by** `application.buildSearchIndex`, never at file creation.
+- **Kept current by** `MaintainSearchIndexAsync`, at the end of every mutation in both choke
+  points: a written record is indexed again from its row, and a record type whose searched
+  fields changed is indexed again whole.
+- **Derived, so left out of the checks:** the content digest leaves the index out. The layout
+  signature skips the five tables FTS5 writes itself, and a test pins their DDL. The commit's
+  per-table row ceiling skips the index tables.
+- **Damage:** a damaged index fails `PRAGMA integrity_check` at open.
+- **One read for every client:** the Workbench's Ctrl K and Studio, custom views
+  (`records.search`) and MCP use the same search.
 
 **Cloud sync is unsupported.** Where practical, the host detects known
 sync-managed paths (OneDrive, Dropbox, Google Drive) and shows a warning. The

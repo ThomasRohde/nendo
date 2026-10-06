@@ -41,6 +41,12 @@ export const extensionLimits = {
   /** A page of records: 1 to 200, 100 when the view names no limit. */
   maximumPageLimit: 200,
   defaultPageLimit: 100,
+  /** A search (ADR-0028): at most this many characters, and a page of 1 to 100 records, 20 by default. */
+  searchCharacters: 256,
+  maximumSearchLimit: 100,
+  defaultSearchLimit: 20,
+  /** The most record types, or fields, one search may name. */
+  searchScope: 64,
   /**
    * A view's toolbar in Nendo's chrome (2026-09-28, W-090): at most this many controls in the
    * row, buttons in a group, options in a choice or a select, and items in a menu.
@@ -243,6 +249,26 @@ export interface ViewRecord {
 
 export interface ViewPage {
   items: ViewRecord[];
+  nextCursor: string | null;
+  changeSequence: number;
+}
+
+/**
+ * One record a search found (ADR-0028), best first. `label` is the record's first searched field,
+ * as a title to show. `fields` are the fields that matched, each with a plain-text excerpt and the
+ * matched words as `{start, length}` ranges into it; an excerpt is never markup.
+ */
+export interface ViewSearchHit {
+  entityId: string;
+  recordId: string;
+  version: number;
+  label: string | null;
+  score: number;
+  fields: { fieldId: string; snippet: string; ranges: { start: number; length: number }[] }[];
+}
+
+export interface ViewSearchPage {
+  items: ViewSearchHit[];
   nextCursor: string | null;
   changeSequence: number;
 }

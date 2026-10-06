@@ -131,6 +131,7 @@ internal static class CanonicalChangeSetRequestCompiler
                 Long(request.Payload, "expectedDefinitionRevision")),
             "schema.removeLinkRule" => new RemoveLinkRuleOperation(request.OperationId, String(request.Payload, "entityId"),
                 Long(request.Payload, "expectedDefinitionRevision")),
+            "application.buildSearchIndex" => new BuildSearchIndexOperation(request.OperationId),
             "application.setLook" => new SetApplicationLookOperation(request.OperationId,
                 OptionalString(request.Payload, "tone", 16), OptionalString(request.Payload, "letter", 8),
                 Long(request.Payload, "expectedDefinitionRevision")),

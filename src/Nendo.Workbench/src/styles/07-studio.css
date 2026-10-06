@@ -398,6 +398,17 @@ code {
 .studio-query button { padding: 8px 12px; }
 .query-status { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--muted); }
 
+/* Search on the per-type table (ADR-0028): the box leads the bar, and its results list under it. */
+.studio-query .studio-search-field { flex: 2 1 200px; }
+.studio-search-results { display: grid; flex-basis: 100%; gap: 4px; max-height: 240px; overflow: auto; }
+.studio-search-results[hidden] { display: none; }
+.studio-search-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.studio-query .studio-search-hit { display: grid; gap: 2px; width: 100%; padding: 6px 8px; text-align: left; color: inherit; background: transparent; border: 0; border-radius: var(--radius-control); cursor: pointer; }
+.studio-search-hit:hover, .studio-search-hit:focus-visible { background: var(--surface-soft); }
+.studio-search-snippet { overflow: hidden; font-size: 12px; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.studio-search-field-name { color: var(--ink); }
+.studio-search-snippet mark { color: var(--ink); background: var(--cobalt-soft); border-radius: 2px; }
+
 .data-toolbar {
   display: flex;
   align-items: center;

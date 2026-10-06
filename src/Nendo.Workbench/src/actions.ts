@@ -434,6 +434,31 @@ export async function foldHistory(): Promise<void> {
   }
 }
 
+/**
+ * Builds the file's search index, or builds it again from the records (ADR-0028). It changes no
+ * record; from then on every save keeps the index current. Answers whether it was built.
+ */
+export async function buildSearchIndex(): Promise<boolean> {
+  if (state.actionInFlight) return false;
+  state.actionInFlight = true;
+  setBusy(true);
+  clearError();
+  try {
+    await client.request('data.buildSearchIndex', { idempotencyKey: `search-index-${crypto.randomUUID()}` });
+    state.session = await client.request<DesktopSessionView>('session.getSnapshot');
+    await refreshDerived();
+    rerender();
+    announce('This file can now be searched by any word in its records. Nendo keeps the search index current from now on.');
+    return true;
+  } catch (error) {
+    showError(messageFor(error));
+    return false;
+  } finally {
+    state.actionInFlight = false;
+    setBusy(false);
+  }
+}
+
 function confirmFold(preview: HistoryFoldPreview): Promise<boolean> {
   const day = (value: string | null) => value === null ? '' : new Date(value).toLocaleDateString();
   return confirmDialog({

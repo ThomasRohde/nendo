@@ -15,7 +15,7 @@ import { resolveClauseValue } from '../record-window';
 import {
   apiVersion, chordOf, extensionLimits, hostKeys, normalizeKeys, utf8Length, viewEventNames,
   type ConnectMessage, type HelloMessage, type Json, type KeyEventLike, type PortMessage, type SchemaDescription, type SchemaField,
-  type ViewContext, type ViewEventName, type ViewGraph, type ViewPage, type ViewRecord, type ViewTheme, type ViewTreeNode, type ViewTreePage,
+  type ViewContext, type ViewEventName, type ViewGraph, type ViewPage, type ViewRecord, type ViewSearchPage, type ViewTheme, type ViewTreeNode, type ViewTreePage,
 } from './protocol';
 
 type Listener = (data: never) => void;
@@ -483,6 +483,15 @@ function install(host: Window & { nendo?: unknown }): void {
        * its parent, its depth below the root and its child count. treeAll reads every page.
        */
       tree: (query: Query): Promise<ViewTreePage> => call<ViewTreePage>('records.tree', query),
+      /**
+       * A full-text search over the file's text fields, best match first (ADR-0028): what the person
+       * typed, and { entityIds?, fieldIds?, limit? (1 to 100, 20 by default), cursor? }. Words are all
+       * required and may sit in different fields; "a phrase" in quotes, -word to leave records out, and
+       * the last word also matches as a prefix. Refused with search-index-missing until the file has
+       * an index; Nendo builds one when the person asks.
+       */
+      search: (text: string, options: Query = {}): Promise<ViewSearchPage> =>
+        call<ViewSearchPage>('records.search', { ...options, text }),
       treeAll,
       /**
        * Writes, as the person's own edit makes them (ADR-0013 Phase 3). Each is checked against the

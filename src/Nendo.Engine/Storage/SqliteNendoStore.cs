@@ -149,6 +149,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                     (!newEntityIds.Contains(field.EntityId) || field.Presentation is not null || field.Options.Count != 0));
             await RequireSupportedWritableLayoutAsync(transaction, cancellationToken);
             await RequireRoomToGrowAsync(transaction, cancellationToken);
+            var searchedBefore = await CaptureSearchedFieldsAsync(mutation.Operations, transaction, cancellationToken);
             var evidence = new List<OperationEvidence>(mutation.Operations.Count);
             foreach (var operation in mutation.Operations)
             {
@@ -176,6 +177,8 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                 cancellationToken);
             // ADR-0026: the mutation as a whole, automatic actions included, before it is recorded.
             await RequireAllowedLinksAsync(evidence, transaction, cancellationToken);
+            // ADR-0028: the index follows everything the mutation wrote, generated writes included.
+            await MaintainSearchIndexAsync(evidence, searchedBefore, transaction, cancellationToken);
 
             var lane = mutation.Operations[0].Lane;
             if (lane == NendoRevisionLane.Definition) await ValidateRetiredBindingsAsync(transaction, cancellationToken);
@@ -379,6 +382,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                     var behaviourBefore = expansion is null
                         ? new Dictionary<RecordKey, IReadOnlyDictionary<string, JsonElement>?>()
                         : await CaptureBehaviourBeforeAsync(mutation.Operations, transaction, cancellationToken);
+                    var searchedBefore = await CaptureSearchedFieldsAsync(mutation.Operations, transaction, cancellationToken);
                     var evidence = new List<OperationEvidence>(mutation.Operations.Count);
                     for (var operationIndex = 0; operationIndex < mutation.Operations.Count; operationIndex++)
                     {
@@ -405,6 +409,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                         transaction,
                         cancellationToken);
                     await RequireAllowedLinksAsync(evidence, transaction, cancellationToken);
+                    await MaintainSearchIndexAsync(evidence, searchedBefore, transaction, cancellationToken);
 
                     var lane = mutation.Operations[0].Lane;
                     var definitionAfter = running.DefinitionRevision +

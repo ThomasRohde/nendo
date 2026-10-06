@@ -156,6 +156,11 @@ public sealed partial class NendoApplicationService
         NendoRecordQuery query, CancellationToken cancellationToken = default) =>
         _coordinator.QueryRecordsAsync(query, cancellationToken);
 
+    /// <summary>A full-text search over the file's text fields (ADR-0028).</summary>
+    public Task<NendoPage<NendoSearchHit>> SearchRecordsAsync(
+        NendoSearchQuery query, CancellationToken cancellationToken = default) =>
+        _coordinator.SearchRecordsAsync(query, cancellationToken);
+
     /// <summary>A window of a declared hierarchy, depth-first (ADR-0019).</summary>
     public Task<NendoPage<NendoTreeNode>> TreeRecordsAsync(
         NendoTreeQuery query, CancellationToken cancellationToken = default) =>
@@ -623,6 +628,19 @@ public sealed partial class NendoApplicationService
             [new SetRecordKeptInNewFilesOperation(
                 NendoCanonical.DeterministicId("operation", context.IdempotencyScope, context.IdempotencyKey, 0),
                 entityId, recordId, kept)]), cancellationToken);
+    }
+
+    /// <summary>
+    /// Builds the file's search index, or builds it again from the records (ADR-0028). One
+    /// Definition revision that changes no record; every later commit keeps the index current.
+    /// </summary>
+    public Task<NendoApplyResult> BuildSearchIndexAsync(NendoRequestContext context, CancellationToken cancellationToken = default)
+    {
+        RequireContext(context);
+        return _coordinator.ApplyAsync(new NendoMutation(context.IdempotencyScope, context.IdempotencyKey, context.Origin,
+            "Build the search index",
+            [new BuildSearchIndexOperation(NendoCanonical.DeterministicId("operation", context.IdempotencyScope, context.IdempotencyKey, 0))]),
+            cancellationToken);
     }
 
     public Task<NendoApplyResult> CompensateRevisionAsync(

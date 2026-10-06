@@ -311,7 +311,14 @@ public static class NendoFormat
     /// </summary>
     public const string LinkRuleMinimumHostVersion = "1.45.0";
 
-    public const string CurrentHostVersion = LinkRuleMinimumHostVersion;
+    /// <summary>
+    /// The file's full-text index (ADR-0028): protected FTS5 tables an older host does not know,
+    /// stated by the build operation's evidence and by the layout rung at open. A file that never
+    /// built one keeps the rung it had.
+    /// </summary>
+    public const string SearchMinimumHostVersion = "1.46.0";
+
+    public const string CurrentHostVersion = SearchMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

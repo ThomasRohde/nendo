@@ -228,6 +228,35 @@ kbd,
   font-size: 0.86rem;
 }
 
+/* A record the search found (ADR-0028): its title, and under it the words that matched. */
+.command-palette-list li.command-record {
+  align-items: flex-start;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.command-record-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.command-snippet {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-snippet mark {
+  color: var(--ink);
+  background: var(--cobalt-soft);
+  border-radius: 2px;
+}
+
 .command-palette-empty {
   margin: 0;
   padding: 18px 16px;
