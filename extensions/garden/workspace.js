@@ -12,6 +12,7 @@ import { readRelated, readTags, drawRelated } from './related.mjs';
 import { buildGraph } from './graph-data.mjs';
 import { createGraph } from './graph.js';
 import { localDate, uncertain, readDrafts, writeDrafts } from './drafts.mjs';
+import { bodyExcerpt, createFinder, excerptNodes, localMatch } from './search.mjs';
 
 const STAGE_TONES = { Seed: 'amber', Growing: 'teal', Evergreen: 'green' };
 const TASK_LINE = /^(\s*[-*+]\s+\[)( |x|X)(\])/;
@@ -33,7 +34,10 @@ export async function startWorkspace(nendo, context, kit) {
   // State the probe reads through window.garden.
   const state = { ready: false, index: [], byId: new Map(), links: [], note: null, draft: null, dirty: false, external: false, problem: null,
     mode: 'read', width: 'full', undo: [], redo: [], filter: '', tags: [], related: null, stubs: [], local: null,
-    saving: false, unanswered: null, restored: 0 };
+    saving: false, unanswered: null, restored: 0,
+    // Find: the index's hits by record ID once they arrive, or null while the view matches what it
+    // holds; and which of the two answered the last search ('index', or why the index did not).
+    hits: null, findSource: 'local' };
   const expose = () => { window.garden = state; };
 
   // ---- The index: every note, the links between them, and the tree they make.
@@ -50,6 +54,29 @@ export async function startWorkspace(nendo, context, kit) {
     state.tags = tags;
     drawTree();
     declareToolbar();
+    // The notes changed under a search: ask the index again, as it now reads.
+    if (state.filter.trim() !== '') finder.find(state.filter);
+  }
+
+  // ---- Find. What is typed is matched at once against the notes the view holds (title, slug and
+  // body), and then searched in the file's own index (ADR-0028), whose hits replace the first
+  // answer when they arrive: ranked by Nendo, with the line of the body that matched.
+  const finder = createFinder(nendo, {
+    entityId: 'gd.note',
+    onResult(hits, text, source) {
+      if (text !== state.filter.trim()) return;
+      state.hits = hits;
+      state.findSource = source;
+      drawTree();
+      expose();
+    },
+  });
+  function setFilter(value) {
+    state.filter = value ?? '';
+    state.hits = null;
+    state.findSource = 'local';
+    drawTree();
+    finder.find(state.filter);
   }
 
   // ---- The tree. A branch folds away with the arrow beside its note, or with Left and Right; what
@@ -71,7 +98,7 @@ export async function startWorkspace(nendo, context, kit) {
       children.get(key).push(note);
     }
     for (const list of children.values()) list.sort((a, b) => (a.values[F.note.order] ?? Infinity) - (b.values[F.note.order] ?? Infinity) || a.title.localeCompare(b.title));
-    const matches = note => !filter || note.title.toLowerCase().includes(filter) || note.slug.includes(filter);
+    const matches = note => !filter || (state.hits !== null ? state.hits.has(note.recordId) : localMatch(note, filter, F.note.body));
     const build = parent => {
       const list = document.createElement('ul');
       list.setAttribute('role', parent === null ? 'tree' : 'group');
@@ -100,8 +127,18 @@ export async function startWorkspace(nendo, context, kit) {
         name.className = 'name';
         name.textContent = note.title;
         row.append(twisty, dot, name);
+        // A note Find found is marked, so it reads apart from the branch above it kept for context.
+        if (filter !== '' && matches(note)) row.classList.add('match');
         const count = filter !== '' ? below.childElementCount : kids;
         if (count) { const n = document.createElement('span'); n.className = 'n'; n.textContent = String(count); row.append(n); }
+        // Found by its body, not its title: the line of the body that matched, under the name.
+        const excerpt = filter !== '' && state.hits !== null ? bodyExcerpt(state.hits.get(note.recordId), F.note.title) : null;
+        if (excerpt !== null) {
+          const hit = document.createElement('span');
+          hit.className = 'hit';
+          hit.append(...excerptNodes(document, excerpt));
+          row.append(hit);
+        }
         row.addEventListener('click', event => {
           if (kids > 0 && event.target.closest('.twisty')) fold(note.recordId, !collapsed.has(note.recordId));
           else open(note.recordId);
@@ -723,7 +760,7 @@ export async function startWorkspace(nendo, context, kit) {
   async function command(id, value) {
     if (id.startsWith('width-')) { setWidth(id.slice('width-'.length)); declareToolbar(); expose(); return; }
     switch (id) {
-      case 'find': state.filter = value ?? ''; find.value = state.filter; drawTree(); break;
+      case 'find': setFilter(value); find.value = state.filter; break;
       case 'new': startNew(); break;
       case 'daily': await daily(); break;
       case 'mode': if (state.draft) setMode(value === 'edit' ? 'edit' : 'read'); else declareToolbar(); break;
@@ -754,7 +791,7 @@ export async function startWorkspace(nendo, context, kit) {
     const button = event.target.closest('button[data-command]');
     if (button) command(button.dataset.command, button.dataset.value ?? null);
   });
-  find.addEventListener('input', () => { state.filter = find.value; drawTree(); });
+  find.addEventListener('input', () => setFilter(find.value));
   document.addEventListener('keydown', event => {
     const ctrl = (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey;
     if (ctrl && event.key.toLowerCase() === 's') { event.preventDefault(); save(); }

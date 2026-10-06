@@ -58,6 +58,12 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 #tree .row .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #tree .row .n { color: var(--muted); font-size: 12px; }
 #tree .row.draft .name::after { content: ' •'; color: var(--warning); }
+/* Find (ADR-0028): a note it found reads in bold, apart from the branch kept around it, and a note
+   found by its body shows the line that matched under its name. */
+#tree .row.match .name { font-weight: 600; }
+#tree .row:has(.hit) { flex-wrap: wrap; row-gap: 0; }
+#tree .row .hit { flex: 1 0 100%; padding-left: 32px; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+#tree .row .hit mark { color: var(--ink); background: var(--accent-soft); border-radius: 2px; }
 #tree-empty { margin: 12px; color: var(--muted); }
 
 #main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }

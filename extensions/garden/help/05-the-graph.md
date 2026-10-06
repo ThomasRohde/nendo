@@ -18,7 +18,7 @@ The **Graph** screen draws the whole garden as it really is: each dot a note, ea
 
 The row above the graph has:
 
-- **Find**, to pick out a note by name.
+- **Find**, to pick out the notes that hold what you type, in their names or their text.
 - **Colour** by stage (Seed, Growing, Evergreen) or by kind.
 - **Tags**, to add every tag as a small grey dot linked to its notes.
 - **Orphans**, to show or hide the notes with no links.

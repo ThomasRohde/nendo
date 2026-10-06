@@ -30,7 +30,11 @@ Calculated on a note: `gd.note.linksOut`, `gd.note.linksIn` (backlinks), `gd.not
 One read, never a page through the type:
 `nendo://application/entity/gd.note/records?filter=` and the percent-encoded
 `[{"fieldId":"gd.note.slug","op":"eq","value":"start-here"}]`. By title use `gd.note.title`
-with `eq`; to search, `contains` on the title or the body. A note's backlinks are
+with `eq`. To find notes by what they say, read
+`nendo://application/search?q=compost%20worms&entity=gd.note`: every word must be in the note,
+in any field, best match first, each hit with the line that matched; a file without a search
+index refuses with `NENDO_SEARCH_INDEX_MISSING`, and then `contains` on the title or the body
+still works. A note's backlinks are
 `gd.link` records where `gd.link.to` `eq` its record ID; its tags are `gd.noteTag` where
 `gd.noteTag.note` `eq` it; its tasks `gd.task` where `gd.task.note` `eq` it. A count or a
 grouped count is one read of `entity/{entityId}/aggregate`. Prefer `gd.note.summary` to the

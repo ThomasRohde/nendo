@@ -437,6 +437,12 @@ async page => {
   await page.waitForFunction(() => window.broker.toolbars.at(-1).items.find(i => i.id === 'about')?.pressed === true, null, { timeout: 2000 })
     .catch(async () => { throw Error('Nendo\'s row must show the guide as open: ' + JSON.stringify((await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'about'))); });
   await page.waitForTimeout(700);
+  // The stage bars grow over a 0.6 s transition, which a busy or hidden browser runs late: wait for
+  // them to fill their track rather than for a fixed time, and let the assertion below say if they never do.
+  await frame.waitForFunction(() => {
+    const bars = [...document.querySelectorAll('.stage-bar')].reduce((sum, bar) => sum + bar.getBoundingClientRect().width, 0);
+    return Math.abs(bars - document.querySelector('.guide-stages').getBoundingClientRect().width) <= 2;
+  }, null, { timeout: 3000 }).catch(() => {});
   const guideOpen = await frame.evaluate(() => { const box = document.getElementById('guide').getBoundingClientRect();
     const stat = name => Number(document.querySelector(`[data-stat=${name}]`).textContent.replace(/\D/g, ''));
     const bars = [...document.querySelectorAll('.stage-bar')].reduce((sum, bar) => sum + bar.getBoundingClientRect().width, 0);
@@ -450,6 +456,12 @@ async page => {
   const keysLink = await frame.locator('.guide-toc a[href="#guide-keys"]').boundingBox();
   await page.mouse.click(keysLink.x + keysLink.width / 2, keysLink.y + keysLink.height / 2);
   await page.waitForTimeout(700);
+  // A smooth scroll a busy browser runs late: wait for it to arrive, and let the assertion say if it never does.
+  await frame.waitForFunction(() => {
+    const scroller = document.querySelector('.guide-body'), body = scroller.getBoundingClientRect(), keys = document.getElementById('guide-keys').getBoundingClientRect();
+    const atEnd = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop <= 1;
+    return scroller.scrollTop > 0 && (Math.abs(keys.top - body.top) <= 8 || (atEnd && keys.top >= body.top - 1 && keys.bottom <= body.bottom + 1));
+  }, null, { timeout: 3000 }).catch(() => {});
   const scrolled = await frame.evaluate(() => { const body = document.querySelector('.guide-body').getBoundingClientRect(), keys = document.getElementById('guide-keys').getBoundingClientRect();
     const scroller = document.querySelector('.guide-body');
     return { offset: keys.top - body.top, scrollTop: scroller.scrollTop, atEnd: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop <= 1, inView: keys.top >= body.top - 1 && keys.bottom <= body.bottom + 1 }; });
@@ -583,6 +595,42 @@ async page => {
   assert(await editorText() === 'REVIEW unsaved E', 'The second draft must come back too.');
   assert(await requests('records.batch') === batchesBeforeRemount, 'Keeping drafts must never save them.');
   checks.push('drafts outlast the view');
+
+  // 17. Find searches the file's own index (ADR-0028): a word that only one note's body says finds
+  // that note and no other, marked, with the line of the body that matched under its name; and
+  // with no index the view still finds it in the bodies it holds, without an excerpt.
+  await page.evaluate(fixture => { window.broker.offerSearch(true); window.broker.setFixture(fixture); window.broker.remount(); }, fixture);
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.waitForFunction(() => window.garden?.ready === true, null, { timeout: 15000 });
+  const seedNotesNow = await records('gd.note');
+  const tokensOf = value => String(value ?? '').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const holders = word => seedNotesNow.filter(n => Object.values(n.values).some(v => typeof v === 'string' && tokensOf(v).some(t => t.startsWith(word))));
+  const plainly = word => seedNotesNow.filter(n => `${n.values['gd.note.title'] ?? ''}\n${n.values[F.slug] ?? ''}\n${n.values[F.body] ?? ''}`.toLowerCase().includes(word));
+  const bodyWord = [...new Set(seedNotesNow.flatMap(n => tokensOf(n.values[F.body])))].filter(w => w.length >= 6 && /^\p{L}+$/u.test(w))
+    .find(w => holders(w).length === 1 && plainly(w).length === 1 &&
+      !`${holders(w)[0].values['gd.note.title']}\n${holders(w)[0].values[F.slug]}`.toLowerCase().includes(w));
+  assert(bodyWord, 'The seed must hold a word that only one note body says.');
+  const holder = holders(bodyWord)[0].recordId;
+  const searchesBefore = await requests('records.search');
+  await command('find', bodyWord);
+  await frame.waitForFunction(() => window.garden.findSource === 'index', null, { timeout: 3000 })
+    .catch(async () => { throw Error(`Find must be answered by the index: ${await frame.evaluate(() => window.garden.findSource)}.`); });
+  const found = await frame.evaluate(() => ({ matches: [...document.querySelectorAll('#tree .row.match')].map(r => r.dataset.id),
+    hit: document.querySelector('#tree .row.match .hit')?.innerHTML ?? null }));
+  assert(found.matches.length === 1 && found.matches[0] === holder, `Find "${bodyWord}" must mark ${holder} alone: ${JSON.stringify(found.matches)}.`);
+  assert(found.hit !== null && found.hit.toLowerCase().includes(`<mark>${bodyWord}</mark>`), `The note found by its body must show the line that matched: ${found.hit}.`);
+  assert(await requests('records.search') > searchesBefore, 'Find must ask Nendo to search.');
+  await page.evaluate(() => window.broker.fail('records.search', { code: 'search-index-missing', message: 'This file has no search index yet.' }, 5));
+  await command('find', '');
+  await command('find', bodyWord);
+  await frame.waitForFunction(() => window.garden.findSource === 'search-index-missing', null, { timeout: 3000 })
+    .catch(async () => { throw Error(`A file without an index must leave Find to the view: ${await frame.evaluate(() => window.garden.findSource)}.`); });
+  const local = await frame.evaluate(() => ({ matches: [...document.querySelectorAll('#tree .row.match')].map(r => r.dataset.id), hits: document.querySelectorAll('#tree .row .hit').length }));
+  assert(local.matches.length === 1 && local.matches[0] === holder && local.hits === 0,
+    `Without an index, Find must still find ${holder} by its body, with no excerpt: ${JSON.stringify(local)}.`);
+  await command('find', '');
+  checks.push('find searches the index, and the bodies without one');
 
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, colours, narrow, checks, errors };

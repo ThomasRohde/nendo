@@ -16,7 +16,7 @@
 
 import crypto from 'node:crypto';
 import { target, withLease, fail } from './archi-mcp.mjs';
-import { STAGES, STAGE_ORDER, CALL_CHARACTERS, NEW_FILE_LABEL, SKILL_PACKAGE_ID, PACKAGE_ID, PACKAGE_FOLDER, RETIRED_GRAPH_PACKAGE_ID, FRONT_TITLE, FRONT_DESCRIPTION, seedRecords, packageFiles } from './garden/definition.mjs';
+import { STAGES, STAGE_ORDER, CALL_CHARACTERS, NEW_FILE_LABEL, SKILL_PACKAGE_ID, PACKAGE_ID, PACKAGE_FOLDER, RETIRED_GRAPH_PACKAGE_ID, FRONT_TITLE, FRONT_DESCRIPTION, seedRecords, packageFiles, hasSearchIndex, skillPackage } from './garden/definition.mjs';
 
 const TARGET_FILE_NAME = process.env.NENDO_GARDEN_TARGET || 'Garden.nendo';
 
@@ -144,6 +144,17 @@ async function upgrade(file, dryRun) {
     }
   }
   for (const [path, sha256] of held) if (!files.some(f => f.path === path)) operations.push(op('extension.removeFile', { packageId: PACKAGE_ID, path, expectedSha256: sha256 }));
+  // The Garden skill: its SKILL.md and version, when the folder's differ from the file's.
+  const heldSkill = listing.find(p => p.packageId === SKILL_PACKAGE_ID);
+  if (heldSkill) {
+    const { manifest: skillManifest, skill } = await skillPackage(file.manifest.applicationId);
+    const heldText = heldSkill.files.find(f => f.path === 'SKILL.md')?.sha256 ?? 'absent';
+    const wantedText = crypto.createHash('sha256').update(skill, 'utf8').digest('hex');
+    if (heldSkill.version !== skillManifest.version || heldText.toLowerCase() !== wantedText) {
+      operations.push(op('extension.setPackage', { packageId: SKILL_PACKAGE_ID, kind: 'skill', title: skillManifest.title, version: skillManifest.version, description: skillManifest.description }));
+      if (heldText.toLowerCase() !== wantedText) operations.push(op('extension.putFile', { packageId: SKILL_PACKAGE_ID, path: 'SKILL.md', text: skill, expectedSha256: heldText }));
+    }
+  }
   const retired = listing.find(p => p.packageId === RETIRED_GRAPH_PACKAGE_ID);
   if (retired) {
     operations.push(op('ui.setProperty', { surfaceId: 'garden', nodeId: 'gd.note.graph', propertyName: 'packageId', value: PACKAGE_ID }));
@@ -154,7 +165,10 @@ async function upgrade(file, dryRun) {
   const front = (await file.read.json('nendo://application/surfaces')).overview;
   if (front && front.properties.title !== FRONT_TITLE) operations.push(op('ui.setProperty', { surfaceId: 'garden', nodeId: 'gd.front', propertyName: 'title', value: FRONT_TITLE }));
   if (front && front.properties.description !== FRONT_DESCRIPTION) operations.push(op('ui.setProperty', { surfaceId: 'garden', nodeId: 'gd.front', propertyName: 'description', value: FRONT_DESCRIPTION }));
-  if (operations.length === 0) { console.log('Nothing to upgrade: the file carries the Garden package in this folder.'); return true; }
+  // Find reads the file's search index (ADR-0028): build it with the upgrade when the file has none,
+  // as its own mutation, since it is a definition change with nothing to undo.
+  const buildIndex = !(await hasSearchIndex(file.read));
+  if (operations.length === 0 && !buildIndex) { console.log('Nothing to upgrade: the file carries the Garden package in this folder.'); return true; }
   const mutations = [];
   for (const operation of operations) {
     const size = JSON.stringify(operation).length, last = mutations.at(-1);
@@ -162,6 +176,7 @@ async function upgrade(file, dryRun) {
     mutations.at(-1).operations.push(operation);
     mutations.at(-1).size += size;
   }
+  if (buildIndex) mutations.push({ description: 'Build the search index', operations: [op('application.buildSearchIndex', {})], size: 0 });
   return runChangeSet(file, 'upgrade', `Garden: bring the file up to the package ${manifest.version} and its definition`,
     mutations.map(({ description, operations: o }) => ({ description, operations: o })), dryRun);
 }

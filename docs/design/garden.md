@@ -46,7 +46,10 @@ the graph to be dynamic and interactive, drawn with a common library as Obsidian
 - **The tree folds, and its edge drags** (owner, 2026-10-06, as gardens grow). A note with notes
   under it carries an arrow; a click on the arrow folds the branch away and opens nothing, and
   Right and Left unfold, step in, step up and fold. A folded branch is not drawn, so the keys and
-  the rows only meet what shows. Find shows every branch holding a match, folded or not; going to
+  the rows only meet what shows. Find shows every branch holding a match, folded or not, and searches what the notes say
+  through the file's search index (ADR-0028, Garden 0.9.0): a found note is in bold, and one found
+  by its body shows the matched line under its name. Until the index answers, and in a file without
+  one, the view matches titles, slugs and bodies itself; going to
   a note unfolds the branches above it, but reading the same note again (a change elsewhere)
   leaves the tree alone. Expand all and Collapse all are in the menu. The line between the tree
   and the page drags (160 px to 60% of the window, at most 720), moves 16 px with the arrow keys
@@ -168,7 +171,9 @@ cannot disagree with the parser.
   its source once; on the Graph screen, with a real pointer, every note and one edge per linked
   pair, a spread layout, hover dimming all but the neighbours, a drag that moves a note and
   opens nothing, the wheel zooming, a click opening a note once, Find, tags as nodes and the
-  stage tones in both themes; and the narrow layout.
+  stage tones in both themes; the narrow layout; and Find on a fixture broker that offers
+  `records.search`: a word only one body holds marks that note alone with its matched line, and
+  with the search refused for want of an index the view still finds it in the bodies.
 - `node tools/Build-Garden.mjs` then `compare` against `workspace/Garden.nendo`;
   `Test-Repository.ps1` and `Test-Production.ps1 -SkipRestore`.
 - Owner-reported: the file opens on the Garden view in the installed host.

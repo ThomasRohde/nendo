@@ -26,7 +26,7 @@ export function createGraph(host, { kit, colour = () => 'var(--nendo-tone-grey)'
 
   let nodes = [], links = [], neighbours = new Map(), focus = null, hovered = null, dragging = false;
   let transform = d3.zoomIdentity, width = 300, height = 200, firstLayout = true;
-  const options = { arrows: false, spread: 'normal', query: '' };
+  const options = { arrows: false, spread: 'normal', query: '', ids: null };
 
   const simulation = d3.forceSimulation()
     .force('link', d3.forceLink().id(d => d.id).distance(l => (l.type === 'tag' ? 45 : 75) * SPREAD[options.spread]).strength(0.5))
@@ -162,11 +162,15 @@ export function createGraph(host, { kit, colour = () => 'var(--nendo-tone-grey)'
     fadeLabels();
   }
 
-  function search(query) {
+  // ids, when given, are the notes Nendo's search found (ADR-0028): a note matches by being among
+  // them, so a word in its body counts; a tag, and every node without them, matches by its name.
+  function search(query, ids = options.ids) {
     options.query = query ?? '';
+    options.ids = ids ?? null;
     const words = options.query.trim().toLowerCase();
     svg.classed('searching', words.length > 0);
-    nodeLayer.selectAll('g.node').classed('match', d => words.length > 0 && d.title.toLowerCase().includes(words));
+    nodeLayer.selectAll('g.node').classed('match', d => words.length > 0 &&
+      (options.ids !== null && d.type !== 'tag' ? options.ids.has(d.id) : d.title.toLowerCase().includes(words)));
     fadeLabels();
     return nodeLayer.selectAll('g.node.match').size();
   }

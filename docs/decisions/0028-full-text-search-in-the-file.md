@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-06
-- **Delivery:** Stages 1 (the Engine, at host 1.46.0), 2 (Desktop and the view API), 3 (Ctrl K and Studio) and 4 (MCP) done 2026-10-06; stage 5 (Garden) follows. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24), with the owner choosing, on 2026-10-06, that the index lives inside the file rather than beside it
+- **Delivery:** All five stages done 2026-10-06 at host 1.46.0: the Engine, Desktop and the view API, Ctrl K and Studio, MCP, and Garden 0.9.0. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24), with the owner choosing, on 2026-10-06, that the index lives inside the file rather than beside it
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** `tests/Nendo.Engine.Tests/SearchIndexTests.cs`; the falsification in Evidence below
@@ -151,7 +151,7 @@ A history fold changes no record and needs nothing.
 3. **Ctrl K and Studio** (done 2026-10-06): records in the command palette, a search box on Studio's per-type table, and
    building the index from there.
 4. **MCP** (done 2026-10-06): a `search` resource for agents, and the build operation in the authoring union.
-5. **Garden:** Find searches note bodies through the service, and the package proposal builds the index.
+5. **Garden** (done 2026-10-06, Garden 0.9.0): Find searches note bodies through the service, matching title, slug and body itself until the answer arrives or where there is no index; the graph's Find uses the same hits; `Build-Garden.mjs` builds the index in its `search` stage and in `upgrade`.
 
 ## Evidence and validation obligations
 
@@ -169,6 +169,12 @@ A history fold changes no record and needs nothing.
 - The digest test drops the index from a copy and shows the digest unchanged. The damaged-index test
   shows `integrity-failed` at open. The pinned-DDL test fails if SQLite writes FTS5's tables
   differently.
+- `tools/Review-Garden.ps1` runs Find against a fixture broker that offers `records.search`. A
+  word that only one note's body says marks that note alone, with its matched line. With the
+  search refused for want of an index, the view still finds the note in the bodies it holds.
+  **Falsified** 2026-10-06 with the finder told search is unavailable: the unit test failed
+  ("a pause in typing sends one search, of the latest text") and so did the browser check ("Find
+  must be answered by the index: unavailable").
 - **Not measured:** the row-ceiling exemption, because the ceiling is 100,000 rows. It is covered by
   review of `IsSearchStorage`.
 

@@ -401,8 +401,7 @@ export const STAGES = {
     needs: ENTITIES,
     appliedWhen: async read => (await read.json('nendo://application/extensions')).some(p => p.packageId === SKILL_PACKAGE_ID),
     mutations: async ({ applicationId = '(read nendo://application/manifest)' } = {}) => {
-      const manifest = JSON.parse(await fs.readFile(path.join(SKILL_FOLDER, 'nendo-package.json'), 'utf8'));
-      const skill = (await fs.readFile(path.join(SKILL_FOLDER, 'SKILL.md'), 'utf8')).replaceAll('__APPLICATION_ID__', applicationId);
+      const { manifest, skill } = await skillPackage(applicationId);
       return [{ description: 'Put the Garden skill into the file', operations: [
         op('extension.setPackage', { packageId: SKILL_PACKAGE_ID, kind: 'skill', title: manifest.title, version: manifest.version, description: manifest.description }),
         op('extension.putFile', { packageId: SKILL_PACKAGE_ID, path: 'SKILL.md', text: skill, expectedSha256: 'absent' }),
@@ -423,9 +422,28 @@ export const STAGES = {
     appliedWhen: async read => ((await read.json('nendo://application/describe?include=newFile')).newFile?.types ?? []).some(t => t.kept > 0),
     mutations: () => chunk(seedRecords().map(r => op('data.setKeptInNewFiles', { entityId: r.entityId, recordId: r.recordId, kept: true })), 'Keep the first notes in a new garden'),
   },
+  // ADR-0028: Find searches the notes' text through the file's own index, which this builds once;
+  // every save keeps it current after that. Its own mutation: it changes nothing to undo.
+  search: {
+    title: 'Garden: build the search index, so Find reads the text of every note',
+    needs: ENTITIES,
+    appliedWhen: async read => hasSearchIndex(read),
+    mutations: () => [{ description: 'Build the search index', operations: [op('application.buildSearchIndex', {})] }],
+  },
 };
 
-export const STAGE_ORDER = ['schema', 'colour', 'behaviour', 'notes', 'others', 'front', 'garden', 'graph', 'skill', 'seed', 'keep'];
+/** Whether the file can be searched: the search read answers, rather than refusing for want of an index. */
+export async function hasSearchIndex(read) {
+  try {
+    await read.json('nendo://application/search?q=garden&limit=1');
+    return true;
+  } catch (error) {
+    if (/SEARCH_INDEX_MISSING/.test(error?.message ?? '')) return false;
+    throw error;
+  }
+}
+
+export const STAGE_ORDER = ['schema', 'colour', 'behaviour', 'notes', 'others', 'front', 'garden', 'graph', 'skill', 'seed', 'keep', 'search'];
 
 // ---- Seeds: the notes a new garden starts with. Their links, tags and tasks come from the same
 // parse and sync the view uses on save, so the seed cannot disagree with the parser.
@@ -605,6 +623,13 @@ export function fixture() {
 }
 
 // ---- Packages: a folder's files as extension operations, in parts a call can carry.
+
+/** The Garden skill as the file carries it: its manifest, and its SKILL.md with the application ID filled in. */
+export async function skillPackage(applicationId) {
+  const manifest = JSON.parse(await fs.readFile(path.join(SKILL_FOLDER, 'nendo-package.json'), 'utf8'));
+  const skill = (await fs.readFile(path.join(SKILL_FOLDER, 'SKILL.md'), 'utf8')).replaceAll('__APPLICATION_ID__', applicationId);
+  return { manifest, skill };
+}
 
 export async function packageFiles(folder) {
   const manifest = JSON.parse(await fs.readFile(path.join(folder, 'nendo-package.json'), 'utf8'));

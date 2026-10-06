@@ -3,6 +3,7 @@
 // a right-click offers its neighbourhood. The file's changes flow in without losing the layout.
 import { buildGraph } from './graph-data.mjs';
 import { createGraph } from './graph.js';
+import { createFinder } from './search.mjs';
 
 const $ = id => document.getElementById(id);
 
@@ -11,7 +12,7 @@ export async function startGraphScreen(nendo, context, kit) {
   screen.hidden = false;
   document.body.classList.add('graph-mode');
   const can = name => typeof nendo.has === 'function' && nendo.has(name);
-  const options = { colour: 'stage', tags: false, orphans: true, arrows: false, spread: 'normal', query: '', focus: null, about: false };
+  const options = { colour: 'stage', tags: false, orphans: true, arrows: false, spread: 'normal', query: '', ids: null, focus: null, about: false };
   const state = { ready: false, data: null, options, records: null };
   const expose = () => { window.gardenGraph = { ...state, graph, state: () => graph.state() }; };
 
@@ -63,7 +64,7 @@ export async function startGraphScreen(nendo, context, kit) {
     if (!state.records) return;
     state.data = buildGraph(state.records, { showTags: options.tags, showOrphans: options.orphans, focus: options.focus, depth: 2 });
     graph.update(state.data, { focus: options.focus, refit });
-    graph.setOptions({ arrows: options.arrows, spread: options.spread, query: options.query });
+    graph.setOptions({ arrows: options.arrows, spread: options.spread, query: options.query, ids: options.ids });
     const notes = state.data.nodes.filter(n => n.type === 'note').length;
     const text = `${notes} ${notes === 1 ? 'note' : 'notes'} · ${state.data.links.filter(l => l.type === 'link').length} links${options.focus ? ' · neighbourhood' : ''}${state.data.hidden ? ` · ${state.data.hidden} to notes not shown` : ''}`;
     summaryLine.textContent = text;
@@ -102,7 +103,8 @@ export async function startGraphScreen(nendo, context, kit) {
   }
   function command(id, value) {
     switch (id) {
-      case 'find': options.query = value ?? ''; graph.search(options.query); break;
+      // Names match at once; the notes Nendo's search finds by their text follow (ADR-0028).
+      case 'find': options.query = value ?? ''; options.ids = null; graph.search(options.query, null); finder.find(options.query); break;
       case 'colour': options.colour = value === 'kind' ? 'kind' : 'stage'; draw(); return;
       case 'tags': options.tags = typeof value === 'boolean' ? value : !options.tags; load({ refit: true }); return;
       case 'orphans': options.orphans = typeof value === 'boolean' ? value : !options.orphans; draw({ refit: true }); return;
@@ -121,6 +123,15 @@ export async function startGraphScreen(nendo, context, kit) {
   $('graph-toolbar').addEventListener('click', event => {
     const button = event.target.closest('[data-command]');
     if (button) command(button.dataset.command, button.dataset.value ?? null);
+  });
+  const finder = createFinder(nendo, {
+    entityId: 'gd.note',
+    onResult(hits, text) {
+      if (text !== options.query.trim()) return;
+      options.ids = hits === null ? null : new Set(hits.keys());
+      graph.search(options.query, options.ids);
+      expose();
+    },
   });
   $('graph-find').addEventListener('input', event => command('find', event.target.value));
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && options.about) command('about', false); });

@@ -42,6 +42,9 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
 //                                               connect on (W-090); toolbars and menus record them,
 //                                               and chromeRefusals what Nendo's rules refused (W-091)
 //   pickNext(pick), command(id, value, source)  the next menu's answer; a press on the toolbar
+//   offerSearch(on)                             offer records.search from the next connect on (ADR-0028):
+//                                               every word in any text value of a record, the last
+//                                               word also as a prefix, a field's excerpt with ranges
 //   offerPlaces(on), places, pushPlace(place),   ui.setPlace from the next connect on (W-127): what
 //   startAt(place)                              the view declared, Back or Forward handing it a
 //                                               place, and the place the next connect starts at
@@ -67,6 +70,10 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
   // refused, and only an undo puts it back. The batches this frame wrote, and their undos and redos,
   // each with what it did, so an undo reverses it as the Engine compensates a revision.
   let deletedIds = new Map(), revisions = new Map(), nextRevision = 1;
+  // A search of the file's text (ADR-0028), offered only when a probe asks, so the lanes that pin the
+  // methods a view is offered keep measuring what they always measured.
+  const SEARCH = ['records.search'];
+  let searchOffered = false;
   // A view's place in Back and Forward (W-127), offered only when a probe asks.
   const PLACES = ['ui.setPlace'];
   let placesOffered = false, startPlace = null;
@@ -117,7 +124,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     return {
       apiVersion: config.apiVersion, packageId: config.packageId, configuration: {}, locale: 'en', readOnly: false,
       ...clone(context), theme: themeOf(context.theme ?? 'light'),
-      methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : []), ...(placesOffered ? PLACES : [])],
+      methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : []), ...(placesOffered ? PLACES : []), ...(searchOffered ? SEARCH : [])],
       ...(placesOffered ? { place: clone(startPlace) } : {}),
     };
   }
@@ -169,6 +176,33 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
         const all = fixture.records[entityId] ?? [];
         const end = Math.min(all.length, start + limit);
         return { items: clone(all.slice(start, end)), nextCursor: end < all.length ? `${fixture.changeSequence}:${end}` : null, changeSequence: fixture.changeSequence };
+      }
+      case 'records.search': {
+        // The Engine's search, as plainly as a fixture can: every word must sit in some text value
+        // of the record, the last as a prefix; a hit names each text field that holds a word, with
+        // the whole value as its excerpt and the words found as ranges. Folded for case only.
+        const query = text(params, 'text');
+        const entityIds = Array.isArray(params.entityIds) && params.entityIds.length > 0 ? params.entityIds : Object.keys(fixture.records);
+        const words = query.toLowerCase().replaceAll('"', ' ').split(/\s+/).filter(word => /[\p{L}\p{N}]/u.test(word));
+        const required = words.filter(word => !word.startsWith('-'));
+        const excluded = words.filter(word => word.startsWith('-')).map(word => word.slice(1));
+        const tokens = value => [...String(value).matchAll(/[\p{L}\p{N}]+/gu)].map(match => ({ word: match[0].toLowerCase(), start: match.index, length: match[0].length }));
+        const hits = [];
+        for (const entityId of entityIds) {
+          for (const record of fixture.records[entityId] ?? []) {
+            const fields = Object.entries(record.values).filter(([, value]) => typeof value === 'string' && value.length > 0);
+            const hitsIn = word => fields.some(([, value]) => tokens(value).some(token => word === required.at(-1) && !query.endsWith(' ') ? token.word.startsWith(word) : token.word === word));
+            if (required.length === 0 || !required.every(hitsIn) || excluded.some(hitsIn)) continue;
+            const matched = fields.map(([fieldId, value]) => ({ fieldId, snippet: value,
+              ranges: tokens(value).filter(token => required.some(word => word === required.at(-1) ? token.word.startsWith(word) : token.word === word)).map(({ start, length }) => ({ start, length })) }))
+              .filter(field => field.ranges.length > 0);
+            hits.push({ entityId, recordId: record.recordId, version: record.version, label: fields[0]?.[1] ?? null, score: matched.length, fields: matched });
+          }
+        }
+        hits.sort((a, b) => b.score - a.score || a.recordId.localeCompare(b.recordId));
+        const limit = params.limit ?? 20;
+        const start = typeof params.cursor === 'string' ? Number(params.cursor) : 0;
+        return { items: clone(hits.slice(start, start + limit)), nextCursor: start + limit < hits.length ? String(start + limit) : null, changeSequence: fixture.changeSequence };
       }
       case 'records.tree': {
         // A declared hierarchy as the Engine walks it (ADR-0019): siblings by the order field, a
@@ -636,6 +670,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     offerChrome(on) { chrome = on === true; return chrome; },
     offerWrites(on) { writes = on === true; return writes; },
     offerPlaces(on) { placesOffered = on === true; return placesOffered; },
+    offerSearch(on) { searchOffered = on === true; return searchOffered; },
     places,
     /** Back or Forward moved the person to this place of the view's. */
     pushPlace(place) { emit('place', clone(place)); return events.length; },
