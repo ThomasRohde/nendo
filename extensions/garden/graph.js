@@ -199,12 +199,13 @@ export function createGraph(host, { kit, colour = () => 'var(--nendo-tone-grey)'
     if (next.query !== undefined) search(next.query);
   }
 
-  /** Frames every node, with a margin, at most at twice the natural size. */
+  /** Frames every node, with a margin, at most at twice the natural size; the compact drawing at
+   *  most a third over it, so a few notes in a tall box keep labels the size of the page's text. */
   function fit(animate = true) {
     if (nodes.length === 0) return;
     const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
     const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-    const k = Math.min(2, 0.9 / Math.max((x1 - x0 + 80) / width, (y1 - y0 + 80) / height));
+    const k = Math.min(compact ? 1.35 : 2, 0.9 / Math.max((x1 - x0 + 80) / width, (y1 - y0 + 80) / height));
     const target = d3.zoomIdentity.scale(k).translate(-(x0 + x1) / 2, -(y0 + y1) / 2);
     (animate && !reduced() ? svg.transition().duration(450) : svg).call(zoom.transform, target);
   }

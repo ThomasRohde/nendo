@@ -92,8 +92,9 @@ the graph to be dynamic and interactive, drawn with a common library as Obsidian
   now runs the Garden package) shows the whole garden, with Find, colour by stage or kind,
   tags as nodes, orphans, arrows, spread and fit in Nendo's row; a right-click shows a note's
   neighbourhood. The **local graph** under a note while reading shows it and every note one
-  link away, in a 220 px box beside the rows of links in and out (the Connections card), so a
-  few notes fill it rather than float in a full-width band. The Dependency graph package the Graph screen ran before is taken out of the file.
+  link away, in a box beside the rows of links in and out (the Connections card), as tall as
+  those rows and at least 220 px, zoomed to fit at most 1.35 times so labels stay the size of
+  the page's text, rather than a few notes floating in a full-width band. The Dependency graph package the Graph screen ran before is taken out of the file.
 - **Why SVG and not a canvas.** The node count of a personal garden stays in the hundreds,
   where SVG keeps up; SVG lets the theme colour every mark through CSS, lets the keyboard
   traverse the nodes with the view kit, and lets the lane measure what it draws.

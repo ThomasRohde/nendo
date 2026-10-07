@@ -83,11 +83,13 @@ async page => {
     const host = rect('local-graph'), rows = rect('connections-lists');
     const boxes = [...document.querySelectorAll('#local-graph .node')].map(node => node.getBoundingClientRect());
     const drawn = { w: Math.max(...boxes.map(b => b.right)) - Math.min(...boxes.map(b => b.left)), h: Math.max(...boxes.map(b => b.bottom)) - Math.min(...boxes.map(b => b.top)) };
-    return { width: Math.round(host.width), height: Math.round(host.height), filled: +(drawn.w * drawn.h / (host.width * host.height)).toFixed(3),
+    const label = Math.max(...[...document.querySelectorAll('#local-graph .node .label')].map(text => text.getBoundingClientRect().height));
+    return { width: Math.round(host.width), height: Math.round(host.height), rows: Math.round(rows.height), label: Math.round(label), filled: +(drawn.w * drawn.h / (host.width * host.height)).toFixed(3),
       beside: host.left >= rows.right - 1 && host.top < rows.bottom };
   });
-  assert(room.beside && room.height <= 240 && room.width <= 900 && room.filled >= 0.15,
-    `The local graph must sit beside the link rows in a box at most 900 by 240 px that its notes fill at least 15% of: ${JSON.stringify(room)}.`);
+  // As tall as the rows beside it (the owner's second report, 2026-10-07), and never under 220 px.
+  assert(room.beside && room.width >= 520 && room.width <= 900 && room.height >= 220 && room.height >= room.rows - 2 && room.filled >= 0.1 && room.label <= 22,
+    `The local graph must sit beside the link rows, 520 to 900 px wide, as tall as the rows and at least 220 px, with its notes filling at least 10% of it and labels no taller than 22 px: ${JSON.stringify(room)}.`);
   checks.push('local graph');
 
   // Hovering a wikilink previews the note it names.
