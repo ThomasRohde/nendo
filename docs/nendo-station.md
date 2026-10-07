@@ -16,9 +16,11 @@ Components, Feeds, Readings, Incidents, Maintenance, Experiments, Crew), about
 500 records, and every kind of screen this host compiles.
 
 **The file is an output.** `tools/Build-NendoStation.mjs` is the source. It
-authors the whole application over local MCP in stages. Each stage is a change
-set that the script validates into a proposal, and the owner accepts the
-proposal. The script never accepts a proposal.
+authors the whole application over local MCP in stages. Each schema, behaviour
+and screen stage is a change set that the script validates into a proposal, and
+the owner accepts the proposal. The script never accepts a proposal. The data
+stages write records directly, through the data lane: no proposal, nothing to
+accept.
 
 ```bash
 node tools/Build-NendoStation.mjs --list     # the stages, in order
@@ -32,7 +34,7 @@ does not guess which open Nendo was intended.
 To rebuild from empty:
 
 1. In Nendo, select File → New.
-2. Run the stages in order, and accept each proposal.
+2. Run the stages in order, and accept each proposal that a stage makes.
 3. When the CSV stage tells you to, import `artifacts/station/readings.csv` into
    Readings.
 4. The `lens-in-file` stage puts the Systems Lens code into the file from
@@ -54,11 +56,11 @@ Components in Use. Its [README](../extensions/systems-lens/README.md) describes
 what it draws, the take-out what-if, and the line that separates structural
 exposure from a prediction of failure.
 
-The tracked `workspace/Nendo Station.nendo` was built before views ran from the
-file, on 2026-09-24. It names the package and does not carry it, so the lens says
-that its package is not in this file and offers **Add package to file…**. Import
-`extensions/systems-lens/` there, or run the `lens-in-file` stage, and accept the
-proposal. Do it in a Duplicate to keep the tracked file as it is.
+The tracked `workspace/Nendo Station.nendo` carries the package: Systems Lens
+1.2.0 since 2026-09-28 (W-092). When `extensions/systems-lens/` holds a newer
+version, import it in **Studio › Surfaces › Custom views › Import package…**, or
+run the `lens-in-file` stage, and accept the proposal. Do it in a Duplicate to keep
+the tracked file as it is.
 
 ## The demonstration
 

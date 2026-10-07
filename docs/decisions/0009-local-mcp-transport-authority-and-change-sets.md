@@ -164,8 +164,10 @@ accept it, and cause it to run before anybody reads it. That is a real loss, and
 it is the purpose of the level. Three things bound it, and nothing else does:
 
 - the level is off by default, and only the file the person chose it for comes
-  back at it: this device remembers it for that file, and another file, a copy of
-  it, or a read-only or recovery open begins at Off (2026-09-29);
+  back at it: this device remembers it for that file, and another file, a
+  Duplicate or Fork of it, or a read-only or recovery open begins at Off
+  (2026-09-29). A copy made outside Nendo keeps the instance ID, so on this device
+  it is the same file, as a moved one is;
 - the person confirms the level before it takes effect;
 - every acceptance is an ordinary History revision, so a person can read
   afterwards what was done, although nobody read it before.
@@ -289,8 +291,9 @@ services, at a static loopback address, with no credential.
   the listener starts, and the mode is immutable for the listener's lifetime. A
   change of mode restarts the listener. Since 2026-09-29 the mode is remembered
   for each file on this device: a file opens again at the level last chosen for
-  it, and another file, a copy (a new instance), and a read-only or recovery open
-  begin at Off. Choosing Off forgets it.
+  it, and another file, a Duplicate or Fork (a new instance), and a read-only or
+  recovery open begin at Off. A copy made outside Nendo keeps the instance ID and
+  is not told apart from the file. Choosing Off forgets it.
 - `nendo.lease.acquire` mints a random 256-bit `applicationHandle` and a distinct
   lease ID. Every owned data, proposal, renew and release operation supplies
   both. The handle is a capability: whoever holds it can use it across
@@ -449,5 +452,7 @@ services, at a static loopback address, with no credential.
   reopened days later is Unattended again without a fresh confirmation. The
   confirmation happened when the person chose the level for that file; the Agent
   page says the level is remembered, and the status bar shows it from the first
-  screen. A copy, a Duplicate or a Fork has a new instance and begins at Off, so a
-  file that travels does not carry the level, and a file never stores it.
+  screen. A Duplicate or a Fork has a new instance and begins at Off, and the level
+  is device state, so a file that travels does not carry it and a file never stores
+  it. A copy made outside Nendo keeps the instance ID, so on this device it opens at
+  the remembered level, as the moved or renamed file would.

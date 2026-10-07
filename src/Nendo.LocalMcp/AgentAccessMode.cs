@@ -21,7 +21,8 @@ public enum AgentAccessMode
     /// This is the level at which a shape change and an action can reach the active file
     /// with nobody having read either. It exists because building a new file to order is
     /// the one situation where the review it removes was not protecting anything. It is
-    /// never the default and never persisted: every file session begins Disabled.
+    /// never the default. Like every level it is remembered for the file it was chosen for
+    /// (2026-09-29 amendment); another instance and a read-only or recovery open begin Disabled.
     /// </para>
     /// </summary>
     Unattended,

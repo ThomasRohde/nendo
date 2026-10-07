@@ -69,7 +69,8 @@ A board groups cards into columns by one field, which you name in
   count and the limit. The reference field must be bound to a target type.
 
 Both kinds have an **Ungrouped** column for records with no value. Dragging a
-card writes the grouping field. A tile on a board can count the whole board or
+card to a named column writes the grouping field; Ungrouped is not a drop target,
+so clear the field on the record's form. A tile on a board can count the whole board or
 one column (`scope: group`).
 
 ### Calendar and timeline

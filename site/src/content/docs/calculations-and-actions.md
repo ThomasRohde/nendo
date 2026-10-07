@@ -260,6 +260,6 @@ A file that carries a trigger cannot be edited until a person approves its actio
 
 **What it covers.** An approval names the application, this copy of the file, the exact rules, the behaviour contract version, the definition revision, and the kinds of change the actions can make. Any accepted change to the definition asks again, also one that adds only a screen.
 
-**Where it lives.** Approval is stored on this computer, under `%LocalAppData%\Nendo`, never in the `.nendo` file. A file cannot carry its own permission. A copy, a Duplicate, a Fork, a restored backup, or the same file on another computer asks again. A missing or damaged approval record approves nothing.
+**Where it lives.** Approval is stored on this computer, under `%LocalAppData%\Nendo`, never in the `.nendo` file. A file cannot carry its own permission. A Duplicate, a Fork, or the same file on another computer asks again. A copy made in Explorer and a restored backup keep the file's identity, so on this computer the approval still covers them while their rules and definition revision are the ones you approved. A missing or damaged approval record approves nothing.
 
 **The Unattended exception.** At the Unattended access level, accepting a change set over MCP also records this computer's approval for the actions that the change installs. The person can withdraw it under Agent or Health. Below Unattended, no MCP tool or resource can reach the approval. See [Agents](/nendo/docs/agents).

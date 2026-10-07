@@ -8,9 +8,10 @@ namespace Nendo.Desktop;
 /// <para>
 /// Every file session began at Off, so a person who works with an agent set the level again on
 /// each open. Now the level a person chooses for a file is kept here, and the same file opens at
-/// it again. Keyed by the application ID, and kept with the file's instance ID: a copy, a
-/// Duplicate or a Fork is a new instance and begins at Off, so the level stays with the file the
-/// person chose it for and never travels. Device state only: the file never carries it.
+/// it again. Keyed by the application ID, and kept with the file's instance ID: a Duplicate or
+/// a Fork is a new instance and begins at Off, so the level stays with the file the person chose
+/// it for and never travels. A copy made outside Nendo keeps the instance ID, and is the same
+/// file here, as a moved one is. Device state only: the file never carries it.
 /// </para>
 /// </summary>
 internal sealed class DesktopAgentModeStore(string root)

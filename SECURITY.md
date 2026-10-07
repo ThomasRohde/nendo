@@ -29,8 +29,13 @@ vulnerability:
 | Custom view to Workbench | A view is a cross-origin frame on an origin of its own, `https://{package}-{key}.example`, in a renderer process of its own. It reaches the file only through the broker's closed method table in `window.nendo`, never the Workbench's document, the host bridge, SQL, a path, another file or a device setting. It cannot navigate the Workbench away, load the Workbench in a frame, or accept a proposal |
 
 *Unattended* access is the one level where an agent accepts its own proposal. It
-is off by default, confirmed before it takes effect, never persisted, and ends
-when the level drops or the file closes. That it can change a file with nobody
+is off by default and confirmed before it takes effect. Like every level, this
+device remembers it for the file it was chosen for, so that file reopens at
+Unattended until the level is lowered to Off. A Duplicate or a Fork, a restore
+from Health and a read-only or recovery open begin at Off. A copy made outside
+Nendo keeps the file's identity, so on this device it opens at the same level
+([ADR-0009](docs/decisions/0009-local-mcp-transport-authority-and-change-sets.md),
+2026-09-29 amendment). That it can change a file with nobody
 reading the diff is the documented point of it, not a defect.
 
 **Custom views are code, and a file carries them.** Since 2026-09-25

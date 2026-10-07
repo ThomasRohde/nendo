@@ -28,8 +28,8 @@ internal sealed class NendoUnattendedTools(
         UseStructuredContent = true)]
     [Description("""
         Accept a proposal this session validated, applying it to the open file without asking anyone.
-        Available only at the Unattended access level, which the person chooses per file session and which
-        is never remembered; below it this tool is not served and acceptance is theirs.
+        Available only at the Unattended access level, which the person chooses per file and this device
+        remembers for that file; below it this tool is not served and acceptance is theirs.
         It replays the validated operations against the active file through the same service the person's own
         Accept button calls, pinned to the proposal's reviewed operation digest, so every staleness and
         digest check still applies. applied=false is an ordinary answer, not a failure: state says whether the

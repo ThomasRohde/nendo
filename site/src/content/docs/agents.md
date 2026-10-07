@@ -32,7 +32,7 @@ There is no credential. While access is on, any program on this computer can con
 
 ## Access levels
 
-You set the level on the Agent page. Each level includes everything that the levels before it allow. This computer remembers the level for each file: a file opens at the level you last chose for it. A new file, or a copy of one, opens at Off, and choosing Off forgets it.
+You set the level on the Agent page. Each level includes everything that the levels before it allow. This computer remembers the level for each file: a file opens at the level you last chose for it. A new file, a Duplicate or Fork of one, a backup restored from Health, and a read-only or recovery open begin at Off, and choosing Off forgets it. A copy made in Explorer keeps the file's identity, so on this computer it opens at the same level, as a moved or renamed file does.
 
 | Level | What the agent may do | What it gets |
 | --- | --- | --- |
@@ -42,7 +42,7 @@ You set the level on the Agent page. Each level includes everything that the lev
 | Shape app | Propose changes to record types, fields, screens, calculations and automatic actions. Proposals wait for you. | Adds 7 tools: `nendo.change_set.begin`, `add_operations`, `amend`, `validate`, `revalidate`, `preview` and `reject`. |
 | Unattended | Accept its own proposals, and let the automatic actions they install run. | Adds 1 tool: `nendo.change_set.accept`. |
 
-At every level below Unattended, `nendo.change_set.accept` does not exist. A client that calls it by name gets an unknown-tool error. At those levels, only you accept a proposal.
+At every level below Unattended, `nendo.change_set.accept` is not in the tool list. A client that calls it by name is refused with `NENDO_UNATTENDED_REQUIRED` (JSON-RPC `-32602`), which names the level it needs. At those levels, only you accept a proposal.
 
 ## The lease
 
@@ -145,13 +145,13 @@ A change set may contain 36 operation types, and nothing else:
 - `data.*` (6): create, change and delete records, mark one for a new file, fill a value on a retired field, and convert an old text reference, carried in the same proposal.
 - `extension.*` (4): put a custom view's code into the file as a package and its files, and take them out again. See [Custom views](/nendo/docs/custom-views).
 
-Restoring a deleted record and changing a file's identity are not available to an agent. `nendo://application/vocabulary` lists every operation with the fields it takes. `nendo://application/examples` holds 19 complete change sets, from a record type with required fields to a calculation with an automatic action and a custom view whose code the file carries. `nendo://application/view-api` is for an agent writing a custom view's code, and only then: every call the view's page can make, with a whole view to start from. For what a screen can contain, see [Screens](/nendo/docs/screens).
+Restoring a deleted record and changing a file's identity are not available to an agent, and a custom view's kept values (`extension.setState`) are written only by the view itself, through `window.nendo`. `nendo://application/vocabulary` lists every operation with the fields it takes. `nendo://application/examples` holds 19 complete change sets, from a record type with required fields to a calculation with an automatic action and a custom view whose code the file carries. `nendo://application/view-api` is for an agent writing a custom view's code, and only then: every call the view's page can make, with a whole view to start from. For what a screen can contain, see [Screens](/nendo/docs/screens).
 
 ## Unattended
 
 Unattended removes your review. The agent accepts its own proposals, and Nendo records this computer's approval for the automatic actions they install, so those actions run. Nobody reads a change before the file takes it.
 
-When you select Unattended, Nendo asks you to confirm. The level is never remembered. It ends when you lower the level or close the file. Every change still appears in History, and you can withdraw the approval of automatic actions under Health.
+When you select Unattended, Nendo asks you to confirm. Like every level, this computer remembers it for that file: the file opens at Unattended again, without asking, until you choose Off. A Duplicate or Fork, a backup restored from Health, and a read-only or recovery open begin at Off; a copy made in Explorer does not. Every change still appears in History, and you can withdraw the approval of automatic actions under Health.
 
 Use it while an agent builds a new file from nothing, where there is nothing yet to protect. Do not leave it on.
 
@@ -179,7 +179,7 @@ A refused call returns `CODE: message`. The code is stable. The message names wh
 ```text
 NENDO_SHAPE_APP_REQUIRED: nendo.change_set.begin is served from Shape app, and this file session is at Edit data. Ask the person to raise agent access to Shape app on the Agent page in Nendo.
 NENDO_INVALID_REQUEST: nendo.data.create_records was not called. records[0] does not take 'expectedTargetVersionz'; a record takes recordId and values, and optionally expectedTargetVersions, keptInNewFiles and references.
-NENDO_UNKNOWN_OPERATION: Operation type 'sql.execute' is not one this host implements; nendo://application/vocabulary lists the 35 it accepts under operations.
+NENDO_UNKNOWN_OPERATION: Operation type 'sql.execute' is not one this host implements; nendo://application/vocabulary lists the 36 it accepts under operations.
 ```
 
 The last one is the same for SQL as for a typing error. There is no other way in.

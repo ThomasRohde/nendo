@@ -810,8 +810,9 @@ a data write that was refused for lack of it. The mode gives up a real protectio
 purpose: a shape change and an action can reach the active file when nobody has
 read either. The mode is off by default, and the host confirms it before it takes
 effect. It ends when the level is lowered or the file closes, and since 2026-09-29
-this device remembers it for that file: the same file opens again at it, and a copy
-or another file begins at Off
+this device remembers it for that file: the same file opens again at it, and a
+Duplicate, a Fork or another file begins at Off (a copy made outside Nendo keeps
+the instance ID, so it opens at the same level)
 ([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md),
 2026-09-22).
 

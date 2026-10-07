@@ -35,7 +35,7 @@ export const conceptHelp: HelpProvider = () => [
     { heading: 'How a file opens', paragraphs: ['Nendo classifies a file before anything else runs, and the status pill says which state it is in.'], terms: [
       { term: 'Normal', meaning: 'Everything works: editing, screens, agents and history.' },
       { term: 'Read-only', meaning: 'The file or its folder does not allow writes. You can inspect, read history, export and create a backup. The status pill reads “Read-only”.' },
-      { term: 'Recovery required', meaning: 'Nendo found a problem it will not paper over: an integrity failure, a change made outside Nendo, or an interrupted replacement. Custom screens, commands and agent editing are off. Health explains what was found and carries the way out. The status pill reads “Recovery required”.' },
+      { term: 'Recovery required', meaning: 'Nendo found a problem it will not paper over: inconsistent internal references, a change made outside Nendo, or an interrupted replacement. A file that fails SQLite’s own integrity check does not open at all. Custom screens, commands and agent editing are off. Health explains what was found and carries the way out. The status pill reads “Recovery required”.' },
       { term: 'Incompatible', meaning: 'The file needs a newer Nendo than this one. It is refused outright rather than opened in part. Opening an older file never rewrites it.' },
       { term: 'Approval needed', meaning: 'A healthy file whose automatic actions this device has not yet approved. Reading works; editing waits for your approval under Health or on the Agent page.' },
     ] },
@@ -136,7 +136,7 @@ export const conceptHelp: HelpProvider = () => [
       'When you save a record and a trigger fires, the save and every change the action makes are one unit: all of it is stored, or none of it is. If an action cannot complete, nothing is saved and your typing stays on screen with the reason. History records which trigger produced each change, and the save result names every other record that changed.',
     ] },
     { heading: 'Approval belongs to this device', paragraphs: [
-      'A file that carries a trigger cannot be edited until you have approved what its actions may do to your data — add records, change records, delete records. The approval names the exact rules, so a changed definition asks again. It is stored on this computer, never in the file: a copy, a Duplicate, a Fork, a restored backup or another computer asks again.',
+      'A file that carries a trigger cannot be edited until you have approved what its actions may do to your data — add records, change records, delete records. The approval names the exact rules, so a changed definition asks again. It is stored on this computer, never in the file: a Duplicate, a Fork or another computer asks again. A copy made in Explorer or a restored backup keeps the file’s identity, so here the approval still covers it while its rules are the ones you approved.',
       'Until then the file still opens, reads, calculates, exports and backs up, and the status pill reads “Approval needed”. Approve or withdraw with “Approve automatic actions” and “Withdraw approval” under Health or on the Agent page. Nothing runs when a file opens, when a screen draws or when you approve — only when a record changes.',
     ] },
     { heading: 'Agents can write rules but not run them', paragraphs: [
@@ -149,7 +149,7 @@ export const conceptHelp: HelpProvider = () => [
       'Creating, editing and deleting records, pasting and importing write straight to the file, one history entry per save. Every record carries a version. An edit made against an old version is refused rather than merged, so two edits never silently overwrite each other. A request repeated with the same key returns the original outcome instead of running again.',
     ] },
     { heading: 'The application lane', paragraphs: [
-      'Record types, fields, screens, calculations and commands change through a proposal. A proposal is a set of typed operations — twenty kinds exist, and nothing else can change the shape of an app. Nendo applies them to a private physical copy of your file, validates the result there, and shows you a readable diff.',
+      'Record types, fields, screens, calculations and commands change through a proposal. A proposal is a set of typed operations from a closed list — an agent can use thirty-six kinds — and nothing else can change the shape of an app. Nendo applies them to a private physical copy of your file, validates the result there, and shows you a readable diff.',
       'When you accept, the same validated operations are replayed onto your real file after checking that nothing moved underneath them. The private copy never replaces your file, and rejecting leaves the file byte for byte as it was.',
     ] },
     { heading: 'What a review shows', paragraphs: [
@@ -166,9 +166,9 @@ export const conceptHelp: HelpProvider = () => [
       'Changes to the app’s shape advance the definition revision; changes to records advance the data revision; both share one change sequence, so History shows them in order. Every record also carries its own version, which is what a save checks before it applies.',
     ] },
     { heading: 'Reversibility is declared, not assumed', terms: [
-      { term: 'Reversible', meaning: 'Nendo can produce the exact inverse: a field set back to its earlier value, a created record removed.' },
-      { term: 'Compensatable with retained state', meaning: 'Nendo kept what it needs to restore — a deleted record’s values, a cleared reference, a retired definition — and can restore it while the current state still allows.' },
-      { term: 'Not compensatable', meaning: 'There is no inverse: a new record type or field, a conversion, a change of the file’s identity, a raised minimum version. Make a backup first if that matters.' },
+      { term: 'Reversible', meaning: 'Nendo can produce the exact inverse: a screen node added, a field’s presentation changed, a value a custom view keeps.' },
+      { term: 'Compensatable with retained state', meaning: 'Nendo kept what it needs to restore — a field’s earlier value, a deleted record’s values, a retired definition — and can restore it while the current state still allows.' },
+      { term: 'Not compensatable', meaning: 'There is no inverse: a created record, a new record type or field, a conversion, a change of the file’s identity, a raised minimum version. Make a backup first if that matters. A created record is the one exception History makes: compensating it deletes the record.' },
     ], paragraphs: ['The class is shown before you accept a proposal and again in History. A backup does not make an irreversible change reversible; it gives you an older file to return to.'] },
     { heading: 'Compensate, not rewind', paragraphs: [
       'Compensate applies a proven inverse as a new history entry. History is never rewritten and nothing disappears from it. A restored record gets a new version. If something changed in between — a referenced record is gone, a field is now required — Nendo refuses rather than overwrites. Reversing a save that fired an automatic action reverses the whole entry, the action’s changes included. This is not universal undo.',

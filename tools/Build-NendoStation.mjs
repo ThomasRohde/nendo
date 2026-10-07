@@ -8,7 +8,8 @@
 // lands, its screen is added here and the station is rebuilt. See
 // docs/design/nendo-station-plan.md.
 //
-// One stage is one change set, validated into a proposal. This script never
+// A schema, behaviour or screen stage is one change set, validated into a
+// proposal; the data stages write records directly (see DATA_STAGES). This script never
 // accepts one: it prints the exact title and stops, because acceptance is the
 // person's act and the whole point of the review path. Each stage builds on the
 // definition revision the last one left, so the next stage refuses until the

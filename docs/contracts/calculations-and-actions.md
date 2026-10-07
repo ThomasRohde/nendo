@@ -785,7 +785,7 @@ or to a reusable function.
 | --- | --- | --- |
 | `+` `-` `*` `%` | two numbers | whole number, or decimal if either side is |
 | `/` | two numbers | **always decimal**, including whole ÷ whole |
-| `=` `<>` | two values of the same kind | true/false |
+| `==` `!=` | two values of the same kind | true/false |
 | `<` `<=` `>` `>=` | two numbers, dates or texts | true/false |
 | `and` `or` | true/false | true/false, short-circuiting |
 | `not` `-` (unary) | true/false, number | the same kind |

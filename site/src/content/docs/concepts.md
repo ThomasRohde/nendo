@@ -139,7 +139,8 @@ or an agent runs it.
 
 A calculated field is computed from other fields of the record when it is read.
 Nobody types into it. The formula language is small and closed: arithmetic,
-comparisons, a fixed set of functions, today's date and the current time. A
+comparisons and a fixed set of functions. It has no clock, so a formula cannot
+read today's date or the current time. A
 **function** is a named, reusable formula that calculations call. See
 [Calculations and actions](/nendo/docs/calculations-and-actions).
 
@@ -224,9 +225,10 @@ access**. Setting access to Off, closing the file or switching files ends it. Se
 
 ### Safe mode
 
-Nendo inspects a file before it grants any capability. If the file fails an
-integrity check or was changed by another program, Nendo opens it in safe mode:
-a restricted Studio. The status pill reads **Recovery required**. Custom screens, commands and agent editing are off,
+Nendo inspects a file before it grants any capability. If the file's tables,
+revisions or references no longer agree with its definition, for example because
+another program changed it, Nendo opens it in safe mode: a restricted Studio. The status pill reads **Recovery required**. Custom screens, commands and agent editing are off,
 and you can still read the data and its history. Health says what Nendo found
-and how to recover. Nendo never guesses a repair. A file that needs a newer
-version of Nendo does not open at all.
+and how to recover. Nendo never guesses a repair. A file that fails SQLite's
+integrity check, or needs a newer version of Nendo, does not open at all; open a
+backup instead.
