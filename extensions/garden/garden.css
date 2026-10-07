@@ -61,7 +61,9 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 /* Find (ADR-0028): a note it found reads in bold, apart from the branch kept around it. The words
    themselves are marked in the note, below. */
 #tree .row.match .name { font-weight: 600; }
-::highlight(garden-find) { color: var(--ink); background-color: var(--accent-soft); }
+/* A muted yellow from the theme's amber tone, so Find's marks read as a highlighter in Light and Dark. */
+:root { --find-mark: color-mix(in srgb, var(--nendo-tone-amber, #a37608) 30%, transparent); }
+::highlight(garden-find) { color: var(--ink); background-color: var(--find-mark); }
 #tree-empty { margin: 12px; color: var(--muted); }
 
 #main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
@@ -118,7 +120,7 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 #editing #editor { position: relative; z-index: 1; }
 #editor-wrap .find-backdrop { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 #editor-wrap .find-layer { box-sizing: border-box; padding: 14px 16px; font: 14px/1.65 Consolas, "Cascadia Code", monospace; tab-size: 2; white-space: pre-wrap; overflow-wrap: break-word; color: transparent; }
-#editor-wrap .find-layer mark { color: transparent; background: var(--accent-soft); border-radius: 2px; }
+#editor-wrap .find-layer mark { color: transparent; background: var(--find-mark); border-radius: 2px; }
 #splitter { cursor: col-resize; position: relative; touch-action: none; }
 #splitter::before { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; border-radius: 1px; background: var(--line); transition: background .15s; }
 #splitter:hover::before, #splitter.dragging::before, #splitter:focus-visible::before { background: var(--accent); width: 3px; left: 3px; }
