@@ -1,5 +1,5 @@
 // Finding notes by what they say. Nendo searches the file's own full-text index (ADR-0028), so a
-// word that sits only in a note's body is found, ranked, with a line of it to show. Until the
+// word that sits only in a note's body is found, ranked. Until the
 // answer arrives, and on a Nendo without search or a file without an index, the notes the view
 // already holds are matched here instead: title, slug and body, as plain text.
 
@@ -46,25 +46,4 @@ export function createFinder(nendo, { entityId, onResult, pauseMs = 150, max = 5
       }, pauseMs);
     },
   };
-}
-
-/** The excerpt to show under a note found by its body: the first matching field that is not the title. */
-export function bodyExcerpt(hit, titleFieldId) {
-  return hit?.fields?.find(field => field.fieldId !== titleFieldId && field.snippet) ?? null;
-}
-
-/** An excerpt as nodes: the text, with each matched range in a <mark>. Never parsed as markup. */
-export function excerptNodes(document, excerpt) {
-  const nodes = [];
-  let at = 0;
-  for (const range of [...excerpt.ranges].sort((a, b) => a.start - b.start)) {
-    if (range.start < at || range.start + range.length > excerpt.snippet.length) continue;
-    if (range.start > at) nodes.push(document.createTextNode(excerpt.snippet.slice(at, range.start)));
-    const mark = document.createElement('mark');
-    mark.textContent = excerpt.snippet.slice(range.start, range.start + range.length);
-    nodes.push(mark);
-    at = range.start + range.length;
-  }
-  if (at < excerpt.snippet.length) nodes.push(document.createTextNode(excerpt.snippet.slice(at)));
-  return nodes;
 }

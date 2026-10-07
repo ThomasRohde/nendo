@@ -47,8 +47,10 @@ the graph to be dynamic and interactive, drawn with a common library as Obsidian
   under it carries an arrow; a click on the arrow folds the branch away and opens nothing, and
   Right and Left unfold, step in, step up and fold. A folded branch is not drawn, so the keys and
   the rows only meet what shows. Find shows every branch holding a match, folded or not, and searches what the notes say
-  through the file's search index (ADR-0028, Garden 0.9.0): a found note is in bold, and one found
-  by its body shows the matched line under its name. Until the index answers, and in a file without
+  through the file's search index (ADR-0028, Garden 0.9.0): a found note is in bold in the tree, and
+  in the open note the words are highlighted, in the reading view and preview with the CSS Custom
+  Highlight API and in the editor on a layer behind the textarea laid out as the textarea lays out
+  its text (Garden 0.9.1); opening a found note starts the page at the first of them. Until the index answers, and in a file without
   one, the view matches titles, slugs and bodies itself; going to
   a note unfolds the branches above it, but reading the same note again (a change elsewhere)
   leaves the tree alone. Expand all and Collapse all are in the menu. The line between the tree
@@ -172,7 +174,9 @@ cannot disagree with the parser.
   pair, a spread layout, hover dimming all but the neighbours, a drag that moves a note and
   opens nothing, the wheel zooming, a click opening a note once, Find, tags as nodes and the
   stage tones in both themes; the narrow layout; and Find on a fixture broker that offers
-  `records.search`: a word only one body holds marks that note alone with its matched line, and
+  `records.search`: a word only one body holds marks that note alone in the tree, opened it is highlighted in
+  the reading view, in the preview and behind the editor (with the layer's font, padding and width
+  measured against the textarea's), an empty Find clears every mark, and
   with the search refused for want of an index the view still finds it in the bodies.
 - `node tools/Build-Garden.mjs` then `compare` against `workspace/Garden.nendo`;
   `Test-Repository.ps1` and `Test-Production.ps1 -SkipRestore`.

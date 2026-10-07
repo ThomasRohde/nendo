@@ -97,6 +97,8 @@ async page => {
   // A wikilink followed while reading opens its note and declares a place.
   await frame.locator('#reading-body a.wikilink[data-id="gd.note.how-links-work"]').first().click();
   await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.how-links-work');
+  // The place is declared once the note is shown, a moment after it is chosen: wait for it, then assert.
+  await page.waitForFunction(() => window.broker.places.some(p => p.place.noteId === 'gd.note.how-links-work'), null, { timeout: 3000 }).catch(() => {});
   const places = await page.evaluate(() => window.broker.places);
   assert(places.some(p => p.place.noteId === 'gd.note.how-links-work' && p.label === 'How links work' && !p.replace), 'Following a wikilink must declare a new place named after the note: ' + JSON.stringify(places));
   checks.push('wikilink navigation and places');
@@ -597,8 +599,9 @@ async page => {
   checks.push('drafts outlast the view');
 
   // 17. Find searches the file's own index (ADR-0028): a word that only one note's body says finds
-  // that note and no other, marked, with the line of the body that matched under its name; and
-  // with no index the view still finds it in the bodies it holds, without an excerpt.
+  // that note and no other, in bold in the tree; opened, the note shows the word highlighted in the
+  // reading view, and in Edit on the layer behind the editor, laid out as the editor lays out its
+  // text; and with no index the view still finds the note in the bodies it holds.
   await page.evaluate(fixture => { window.broker.offerSearch(true); window.broker.setFixture(fixture); window.broker.remount(); }, fixture);
   await page.waitForTimeout(300);
   frame = await mounted();
@@ -617,20 +620,52 @@ async page => {
   await frame.waitForFunction(() => window.garden.findSource === 'index', null, { timeout: 3000 })
     .catch(async () => { throw Error(`Find must be answered by the index: ${await frame.evaluate(() => window.garden.findSource)}.`); });
   const found = await frame.evaluate(() => ({ matches: [...document.querySelectorAll('#tree .row.match')].map(r => r.dataset.id),
-    hit: document.querySelector('#tree .row.match .hit')?.innerHTML ?? null }));
-  assert(found.matches.length === 1 && found.matches[0] === holder, `Find "${bodyWord}" must mark ${holder} alone: ${JSON.stringify(found.matches)}.`);
-  assert(found.hit !== null && found.hit.toLowerCase().includes(`<mark>${bodyWord}</mark>`), `The note found by its body must show the line that matched: ${found.hit}.`);
+    excerpts: document.querySelectorAll('#tree .row mark, #tree .row .hit').length }));
+  assert(found.matches.length === 1 && found.matches[0] === holder && found.excerpts === 0,
+    `Find "${bodyWord}" must mark ${holder} alone in the tree, with no excerpt there: ${JSON.stringify(found)}.`);
   assert(await requests('records.search') > searchesBefore, 'Find must ask Nendo to search.');
+  await frame.locator(`#tree .row[data-id="${holder}"]`).click();
+  await frame.waitForFunction(id => window.garden.note?.recordId === id && window.garden.findMarks.text > 0, holder, { timeout: 3000 })
+    .catch(async () => { throw Error(`Opening ${holder} must mark "${bodyWord}" in the note: ${JSON.stringify(await frame.evaluate(() => window.garden.findMarks))}.`); });
+  const reading = await frame.evaluate(() => {
+    const highlight = CSS.highlights.get('garden-find');
+    const ranges = highlight ? [...highlight] : [];
+    const body = document.getElementById('reading-body').getBoundingClientRect();
+    const first = ranges[0]?.getBoundingClientRect();
+    return { words: ranges.map(range => range.toString().toLowerCase()), inReading: ranges.every(range => document.getElementById('reading-body').contains(range.startContainer) || document.getElementById('preview').contains(range.startContainer)),
+      visible: first !== undefined && first.width > 0 && first.top >= 0 && first.bottom <= innerHeight && first.left >= body.left - 1 };
+  });
+  assert(reading.words.length > 0 && reading.words.every(word => word.startsWith(bodyWord)) && reading.inReading && reading.visible,
+    `The reading view must highlight "${bodyWord}" and bring it into sight: ${JSON.stringify(reading)}.`);
+  await command('mode', 'edit');
+  await frame.waitForFunction(() => window.garden.mode === 'edit' && window.garden.findMarks.editor > 0, null, { timeout: 3000 })
+    .catch(async () => { throw Error(`Edit must mark "${bodyWord}" in the editor: ${JSON.stringify(await frame.evaluate(() => window.garden.findMarks))}.`); });
+  const editing = await frame.evaluate(() => {
+    const editor = document.getElementById('editor'), layer = document.querySelector('#editor-wrap .find-layer');
+    const a = getComputedStyle(editor), b = getComputedStyle(layer);
+    const same = ['fontFamily', 'fontSize', 'lineHeight', 'letterSpacing', 'tabSize', 'paddingTop', 'paddingLeft', 'paddingRight', 'whiteSpace', 'overflowWrap'].filter(key => a[key] !== b[key] && !(key === 'whiteSpace' && a[key] === 'pre-wrap' && b[key] === 'pre-wrap'));
+    const editorBox = editor.getBoundingClientRect(), layerBox = layer.getBoundingClientRect();
+    return { words: [...layer.querySelectorAll('mark')].map(mark => mark.textContent.toLowerCase()), differ: same.map(key => `${key}: ${a[key]} / ${b[key]}`),
+      width: Math.round(layerBox.width) - editor.clientWidth, left: Math.round(layerBox.left - editorBox.left), behind: Number(getComputedStyle(editor).zIndex) > 0,
+      textareaClear: a.backgroundColor === 'rgba(0, 0, 0, 0)', textInLayer: layer.textContent === editor.value + '\n',
+      previewMarks: [...(CSS.highlights.get('garden-find') ?? [])].filter(range => document.getElementById('preview').contains(range.startContainer)).length };
+  });
+  assert(editing.words.length > 0 && editing.words.every(word => word.startsWith(bodyWord)) && editing.differ.length === 0 && Math.abs(editing.width) <= 1
+    && Math.abs(editing.left) <= 1 && editing.behind && editing.textareaClear && editing.textInLayer && editing.previewMarks > 0,
+    `Edit must mark "${bodyWord}" behind the editor, laid out as the editor lays out its text, and in the preview: ${JSON.stringify(editing)}.`);
+  await command('mode', 'read');
   await page.evaluate(() => window.broker.fail('records.search', { code: 'search-index-missing', message: 'This file has no search index yet.' }, 5));
   await command('find', '');
   await command('find', bodyWord);
   await frame.waitForFunction(() => window.garden.findSource === 'search-index-missing', null, { timeout: 3000 })
     .catch(async () => { throw Error(`A file without an index must leave Find to the view: ${await frame.evaluate(() => window.garden.findSource)}.`); });
-  const local = await frame.evaluate(() => ({ matches: [...document.querySelectorAll('#tree .row.match')].map(r => r.dataset.id), hits: document.querySelectorAll('#tree .row .hit').length }));
-  assert(local.matches.length === 1 && local.matches[0] === holder && local.hits === 0,
-    `Without an index, Find must still find ${holder} by its body, with no excerpt: ${JSON.stringify(local)}.`);
+  const local = await frame.evaluate(() => ({ matches: [...document.querySelectorAll('#tree .row.match')].map(r => r.dataset.id), marks: window.garden.findMarks.text }));
+  assert(local.matches.length === 1 && local.matches[0] === holder && local.marks > 0,
+    `Without an index, Find must still find ${holder} by its body and mark the word in it: ${JSON.stringify(local)}.`);
   await command('find', '');
-  checks.push('find searches the index, and the bodies without one');
+  const cleared = await frame.evaluate(() => ({ marks: window.garden.findMarks, highlight: CSS.highlights.has('garden-find') }));
+  assert(cleared.marks.text === 0 && cleared.marks.editor === 0 && !cleared.highlight, `An empty Find must clear every mark: ${JSON.stringify(cleared)}.`);
+  checks.push('find searches the index and marks the words in the note, and the bodies without one');
 
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, colours, narrow, checks, errors };

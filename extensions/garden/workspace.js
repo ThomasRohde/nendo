@@ -12,7 +12,8 @@ import { readRelated, readTags, drawRelated } from './related.mjs';
 import { buildGraph } from './graph-data.mjs';
 import { createGraph } from './graph.js';
 import { localDate, uncertain, readDrafts, writeDrafts } from './drafts.mjs';
-import { bodyExcerpt, createFinder, excerptNodes, localMatch } from './search.mjs';
+import { createFinder, localMatch } from './search.mjs';
+import { createFindMarks, searchTerms } from './findmarks.mjs';
 
 const STAGE_TONES = { Seed: 'amber', Growing: 'teal', Evergreen: 'green' };
 const TASK_LINE = /^(\s*[-*+]\s+\[)( |x|X)(\])/;
@@ -37,7 +38,9 @@ export async function startWorkspace(nendo, context, kit) {
     saving: false, unanswered: null, restored: 0,
     // Find: the index's hits by record ID once they arrive, or null while the view matches what it
     // holds; and which of the two answered the last search ('index', or why the index did not).
-    hits: null, findSource: 'local' };
+    hits: null, findSource: 'local',
+    // How many words Find marked in the open note: in the reading view and preview, and in the editor.
+    findMarks: { text: 0, editor: 0 } };
   const expose = () => { window.garden = state; };
 
   // ---- The index: every note, the links between them, and the tree they make.
@@ -76,7 +79,17 @@ export async function startWorkspace(nendo, context, kit) {
     state.hits = null;
     state.findSource = 'local';
     drawTree();
+    markFinds();
     finder.find(state.filter);
+  }
+  // The words Find holds, marked in the open note: highlighted in the reading view and the preview,
+  // and on the layer behind the editor. Opening a note while Find holds words brings the first into sight.
+  const marks = createFindMarks(document, { editor });
+  function markFinds({ reveal = false } = {}) {
+    const terms = state.filter.trim() === '' ? [] : searchTerms(state.filter);
+    const { count, first } = marks.mark([readingBody, preview], terms);
+    state.findMarks = { text: count, editor: marks.markEditor(terms, { reveal: reveal && state.mode === 'edit' }) };
+    if (reveal && first !== null && state.mode === 'read') first.startContainer.parentElement?.scrollIntoView({ block: 'center' });
   }
 
   // ---- The tree. A branch folds away with the arrow beside its note, or with Left and Right; what
@@ -131,14 +144,6 @@ export async function startWorkspace(nendo, context, kit) {
         if (filter !== '' && matches(note)) row.classList.add('match');
         const count = filter !== '' ? below.childElementCount : kids;
         if (count) { const n = document.createElement('span'); n.className = 'n'; n.textContent = String(count); row.append(n); }
-        // Found by its body, not its title: the line of the body that matched, under the name.
-        const excerpt = filter !== '' && state.hits !== null ? bodyExcerpt(state.hits.get(note.recordId), F.note.title) : null;
-        if (excerpt !== null) {
-          const hit = document.createElement('span');
-          hit.className = 'hit';
-          hit.append(...excerptNodes(document, excerpt));
-          row.append(hit);
-        }
         row.addEventListener('click', event => {
           if (kids > 0 && event.target.closest('.twisty')) fold(note.recordId, !collapsed.has(note.recordId));
           else open(note.recordId);
@@ -250,6 +255,7 @@ export async function startWorkspace(nendo, context, kit) {
     storeDrafts();
     await showNote();
     if (ticket !== openTicket) return;
+    if (state.filter.trim() !== '') markFinds({ reveal: true });
     tree.querySelector('.row[aria-current=true]')?.scrollIntoView({ block: 'nearest' });
     if (!fromPlace && can('ui.setPlace')) nendo.ui.setPlace({ noteId: recordId }, { label: state.draft.title.slice(0, 80) || 'Note', replace: state.firstPlace !== false }).catch(() => undefined);
     state.firstPlace = false;
@@ -324,6 +330,7 @@ export async function startWorkspace(nendo, context, kit) {
     readingTitle.textContent = state.draft.title.trim() || 'Untitled';
     readingBody.innerHTML = render(state.draft.body, { resolve, interactive: true });
     if (state.mode === 'edit' && state.split < 100) preview.innerHTML = render(state.draft.body, { resolve });
+    markFinds();
   }
 
   // ---- Reading: links follow, tags open, a task's box saves, a link previews its note.

@@ -76,7 +76,8 @@ controls.
 
 Everything arrives through `window.nendo`: `records.queryAll` for the notes, the links and the
 tags, `records.search` for Find (ADR-0028; the view matches title, slug and body itself until it
-answers, and wherever it cannot), `records.get` for one note, `records.query` with `eq` filters for a note's links, tags
+answers, and wherever it cannot; the words found are highlighted in the open note with the CSS
+Custom Highlight API, and in the editor on a layer behind the textarea), `records.get` for one note, `records.query` with `eq` filters for a note's links, tags
 and tasks, `records.batch`, `records.undo` and `records.redo`, `commands.run` for Mark
 evergreen, `schema.describe` for the choices' tones, `ui.openRecord`, `ui.openScreen`,
 `ui.setToolbar`, `ui.showMenu`, `ui.setPlace`, `ui.setHeight` on a record page, and the

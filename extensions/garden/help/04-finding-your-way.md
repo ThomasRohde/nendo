@@ -29,7 +29,7 @@ Hover a link to preview the note it names without leaving the page. Follow it, a
 
 ## Find a note
 
-**Find** in the row above the page searches what your notes say as you type: their titles, slugs and everything in their bodies. The notes it finds are in bold. A note found by its body shows the line that matched under its name, with the words picked out. The tree keeps the branches that hold a match, open or folded.
+**Find** in the row above the page searches what your notes say as you type: their titles, slugs and everything in their bodies. The notes it finds are in bold. Open one and the words you typed are highlighted in it, when you read it and when you edit it, and the page starts at the first of them. The tree keeps the branches that hold a match, open or folded.
 
 Every word you type must be in the note, though not in the same place, so `compost worms` finds a note titled *Compost* that mentions worms further down. Put words in double quotes to find them together, and put a minus before a word to leave out the notes that contain it. The last word also finds longer words that start with it, so you can stop typing early.
 

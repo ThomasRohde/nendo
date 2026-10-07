@@ -170,7 +170,8 @@ A history fold changes no record and needs nothing.
   shows `integrity-failed` at open. The pinned-DDL test fails if SQLite writes FTS5's tables
   differently.
 - `tools/Review-Garden.ps1` runs Find against a fixture broker that offers `records.search`. A
-  word that only one note's body says marks that note alone, with its matched line. With the
+  word that only one note's body says marks that note alone; opened, the word is highlighted in the
+  reading view, the preview and behind the editor (Garden 0.9.1). With the
   search refused for want of an index, the view still finds the note in the bodies it holds.
   **Falsified** 2026-10-06 with the finder told search is unavailable: the unit test failed
   ("a pause in typing sends one search, of the latest text") and so did the browser check ("Find

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { bodyExcerpt, createFinder, excerptNodes, localMatch } from '../../extensions/garden/search.mjs';
+import { createFinder, localMatch } from '../../extensions/garden/search.mjs';
+import { searchTerms, textRanges } from '../../extensions/garden/findmarks.mjs';
 
 const BODY = 'gd.note.body';
 const note = { title: 'Kitchen garden', slug: 'kitchen-garden', values: { [BODY]: 'Beans and leeks, and a café by the shed.' } };
@@ -47,16 +48,19 @@ test('the finder answers only the latest text, and stands aside when the index c
   assert.deepEqual(older, ['unavailable'], 'an older Nendo leaves Find to the view at once');
 });
 
-test('an excerpt becomes text and marks, never markup', () => {
-  const made = [];
-  const document = {
-    createTextNode: text => ({ text }),
-    createElement: name => { const element = { name, textContent: '' }; made.push(element); return element; },
-  };
-  const nodes = excerptNodes(document, { snippet: '<b>beans</b> and leeks', ranges: [{ start: 3, length: 5 }, { start: 17, length: 5 }, { start: 40, length: 2 }] });
-  assert.deepEqual(nodes.map(node => node.text ?? `[${node.textContent}]`), ['<b>', '[beans]', '</b> and ', '[leeks]']);
-  assert.equal(made.every(element => element.name === 'mark'), true);
-  assert.deepEqual(bodyExcerpt({ fields: [{ fieldId: 'gd.note.title', snippet: 'x', ranges: [] }, { fieldId: BODY, snippet: 'y', ranges: [] }] }, 'gd.note.title'),
-    { fieldId: BODY, snippet: 'y', ranges: [] });
-  assert.equal(bodyExcerpt({ fields: [{ fieldId: 'gd.note.title', snippet: 'x', ranges: [] }] }, 'gd.note.title'), null, 'a title match shows no excerpt');
+test('the words Find marks: every word, a phrase as its words, not a left-out word, the last as a prefix', () => {
+  assert.deepEqual(searchTerms('compost worm'), [{ word: 'compost', prefix: false }, { word: 'worm', prefix: true }]);
+  assert.deepEqual(searchTerms('compost worm '), [{ word: 'compost', prefix: false }, { word: 'worm', prefix: false }], 'a space ends the last word');
+  assert.deepEqual(searchTerms('"by the shed" -leeks Café'), [
+    { word: 'by', prefix: false }, { word: 'the', prefix: false }, { word: 'shed', prefix: false }, { word: 'cafe', prefix: true }]);
+  assert.deepEqual(searchTerms('* - ( "'), []);
+});
+
+test('marks fall on whole words in the original text, accents folded', () => {
+  const text = 'Worms turn kitchen scraps into soil; a café by the wormery.';
+  const words = ranges => ranges.map(({ start, end }) => text.slice(start, end));
+  assert.deepEqual(words(textRanges(text, searchTerms('worm'))), ['Worms', 'wormery'], 'a prefix matches the start of a word');
+  assert.deepEqual(words(textRanges(text, searchTerms('worm '))), [], 'a whole word matches only itself');
+  assert.deepEqual(words(textRanges(text, searchTerms('cafe soil'))), ['soil', 'café']);
+  assert.deepEqual(textRanges(text, []), []);
 });

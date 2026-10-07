@@ -58,12 +58,10 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 #tree .row .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #tree .row .n { color: var(--muted); font-size: 12px; }
 #tree .row.draft .name::after { content: ' •'; color: var(--warning); }
-/* Find (ADR-0028): a note it found reads in bold, apart from the branch kept around it, and a note
-   found by its body shows the line that matched under its name. */
+/* Find (ADR-0028): a note it found reads in bold, apart from the branch kept around it. The words
+   themselves are marked in the note, below. */
 #tree .row.match .name { font-weight: 600; }
-#tree .row:has(.hit) { flex-wrap: wrap; row-gap: 0; }
-#tree .row .hit { flex: 1 0 100%; padding-left: 32px; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-#tree .row .hit mark { color: var(--ink); background: var(--accent-soft); border-radius: 2px; }
+::highlight(garden-find) { color: var(--ink); background-color: var(--accent-soft); }
 #tree-empty { margin: 12px; color: var(--muted); }
 
 #main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
@@ -115,6 +113,12 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 #editor-wrap { position: relative; display: flex; min-height: 0; }
 #editing #editor { width: 100%; height: 100%; min-height: 0; resize: none; font: 14px/1.65 Consolas, "Cascadia Code", monospace; tab-size: 2; padding: 14px 16px; border: 0; border-radius: 0; background: transparent; }
 #editing #editor:focus-visible { outline: none; }
+/* Find's words in the editor: a layer behind the textarea, laid out exactly as the textarea lays out
+   its text, with only the marks coloured. The textarea above it stays transparent. */
+#editing #editor { position: relative; z-index: 1; }
+#editor-wrap .find-backdrop { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+#editor-wrap .find-layer { box-sizing: border-box; padding: 14px 16px; font: 14px/1.65 Consolas, "Cascadia Code", monospace; tab-size: 2; white-space: pre-wrap; overflow-wrap: break-word; color: transparent; }
+#editor-wrap .find-layer mark { color: transparent; background: var(--accent-soft); border-radius: 2px; }
 #splitter { cursor: col-resize; position: relative; touch-action: none; }
 #splitter::before { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; border-radius: 1px; background: var(--line); transition: background .15s; }
 #splitter:hover::before, #splitter.dragging::before, #splitter:focus-visible::before { background: var(--accent); width: 3px; left: 3px; }
