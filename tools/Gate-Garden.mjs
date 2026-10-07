@@ -473,7 +473,13 @@ async page => {
         fill: getComputedStyle(plant.querySelector('circle')).fill, opacity: Number(getComputedStyle(count).opacity) };
     });
     const tops = [...document.querySelectorAll('.guide-stats > div')].map(d => Math.round(d.getBoundingClientRect().top));
-    return { notes: stat('notes'), links: stat('links'), tags: stat('tags'), stages, statRow: tops.length === 4 && new Set(tops).size === 1,
+    // Each first move's words hang beside its number: where the text starts, and how many lines it takes.
+    const steps = [...document.querySelectorAll('#guide-start .guide-steps li')].map(li => {
+      const box = li.getBoundingClientRect(), range = document.createRange(); range.selectNodeContents(li);
+      const left = Math.min(...[...range.getClientRects()].filter(r => r.width > 0).map(r => r.left));
+      return { indent: Math.round(left - box.left), lines: Math.round(box.height / parseFloat(getComputedStyle(li).lineHeight)) };
+    });
+    return { notes: stat('notes'), links: stat('links'), tags: stat('tags'), stages, steps, statRow: tops.length === 4 && new Set(tops).size === 1,
       old: document.querySelectorAll('#guide .stage-bar, #guide .guide-toc, #guide .guide-kicker').length,
       topics: document.querySelectorAll('#guide details.guide-topic').length, open: [...document.querySelectorAll('#guide details.guide-topic[open]')].map(d => d.id),
       focus: document.activeElement?.id, right: innerWidth - box.right, width: box.width,
@@ -489,6 +495,8 @@ async page => {
     `Each stage's count (${byStage.join(', ')}) must stand under its plant, and a stage with none be drawn as an outline: ${JSON.stringify(guideOpen.stages)}.`);
   assert(guideOpen.statRow && guideOpen.old === 0 && guideOpen.topics === 6 && JSON.stringify(guideOpen.open) === '["guide-start"]',
     `Notes, links, tags and unlinked notes are one row, and the guide's topics open in place with Start open: ${JSON.stringify(guideOpen)}.`);
+  assert(guideOpen.steps.length === 4 && guideOpen.steps.every(s => s.indent >= 16 && s.lines <= 4),
+    `Each first move must read as a paragraph beside its number, not a word per line: ${JSON.stringify(guideOpen.steps)}.`);
   // Keys, near the end, opens under a real pointer, and Start closes: one topic at a time.
   await frame.locator('#guide-keys > summary').scrollIntoViewIfNeeded();
   const keysTopic = await frame.locator('#guide-keys > summary').boundingBox();
@@ -497,6 +505,8 @@ async page => {
   const topicOpen = await frame.evaluate(() => ({ open: [...document.querySelectorAll('#guide details.guide-topic[open]')].map(d => d.id),
     keys: Math.round(document.querySelector('#guide-keys .guide-keys').getBoundingClientRect().height) }));
   assert(JSON.stringify(topicOpen.open) === '["guide-keys"]' && topicOpen.keys >= 100, `Keys must open in place and close Start: ${JSON.stringify(topicOpen)}.`);
+  // The pictures show Start open, where the first moves are.
+  await frame.evaluate(() => { document.getElementById('guide-start').open = true; });
   const guideColours = {};
   for (const mode of ['dark', 'light']) {
     await page.evaluate(mode => window.broker.pushTheme(mode), mode); await page.waitForTimeout(150);

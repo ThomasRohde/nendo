@@ -289,8 +289,10 @@ h2 { font-size: 12px; margin: 0 0 6px; color: var(--muted); text-transform: uppe
 .guide-more { margin: 16px 0 0; }
 .guide-aside { color: var(--muted); font-size: 13px; }
 .guide-steps { margin: 0 0 10px; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 8px; }
-.guide-steps li { display: grid; grid-template-columns: 22px minmax(0, 1fr); counter-increment: step; }
-.guide-steps li::before { content: counter(step); color: var(--muted); font-variant-numeric: tabular-nums; }
+/* A hanging number, not a grid: in a grid every run of text between the step's tags is a cell of
+   its own, and the words after the bold lead fall into the number's column one per line. */
+.guide-steps li { position: relative; padding-left: 22px; counter-increment: step; }
+.guide-steps li::before { content: counter(step); position: absolute; left: 0; top: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 .guide-table { width: 100%; border-collapse: collapse; margin: 0 0 10px; font-size: 13px; }
 .guide-table th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); padding: 0 8px 6px 0; }
 .guide-table td { vertical-align: top; padding: 7px 8px 7px 0; border-top: 1px solid var(--line); }
