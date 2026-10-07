@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildGraph, radius } from '../../extensions/garden/graph-data.mjs';
+import { buildGraph, radius, branchesOf, branchTones, BRANCH_TONES } from '../../extensions/garden/graph-data.mjs';
 
 const note = (id, stage = 'Seed') => ({ recordId: id, values: { 'gd.note.title': id.toUpperCase(), 'gd.note.stage': stage, 'gd.note.kind': 'Note' } });
 const link = (from, to, source = 'Body', kind = 'Mentions') => ({ recordId: `${from}-${to}-${source}`, values: { 'gd.link.from': from, 'gd.link.to': to, 'gd.link.source': source, 'gd.link.kind': kind } });
@@ -38,8 +38,28 @@ test('a focus keeps what lies within depth steps, either way along a link', () =
 });
 
 test('a node grows with the root of its links, within bounds', () => {
-  assert.equal(radius({ type: 'note', degree: 0 }), 5);
+  assert.equal(radius({ type: 'note', degree: 0 }), 4);
   assert.ok(radius({ type: 'note', degree: 9 }) > radius({ type: 'note', degree: 1 }));
-  assert.equal(radius({ type: 'note', degree: 10000 }), 18);
+  assert.equal(radius({ type: 'note', degree: 10000 }), 11);
   assert.equal(radius({ type: 'tag', degree: 40 }), 3.5);
+});
+
+test('the local graph draws its dots smaller, so a dense garden leaves the names readable', () => {
+  assert.equal(radius({ type: 'note', degree: 0 }, { compact: true }), 4);
+  assert.equal(radius({ type: 'note', degree: 10000 }, { compact: true }), 9);
+  assert.ok(radius({ type: 'note', degree: 25 }, { compact: true }) < radius({ type: 'note', degree: 25 }));
+});
+
+test('a branch is the note just under a top-level note, and branches take tones in tree order', () => {
+  const placed = (id, parent, order) => ({ recordId: id, values: { 'gd.note.title': id, 'gd.note.parent': parent, 'gd.note.order': order } });
+  const notes = [placed('root', null, 0), placed('second', 'root', 2048), placed('first', 'root', 1024), placed('deep', 'leaf', 0),
+    placed('leaf', 'first', 0), placed('alone', null, 1024), placed('stray', 'missing', 0)];
+  const branch = branchesOf(notes);
+  assert.deepEqual(Object.fromEntries(branch), { root: null, second: 'second', first: 'first', deep: 'first', leaf: 'first', alone: null, stray: null },
+    'a top-level note, and a note whose parent is not in the garden, is in no branch');
+  assert.deepEqual([...branchTones(notes)], [['first', BRANCH_TONES[0]], ['second', BRANCH_TONES[1]]]);
+  assert.equal(buildGraph({ notes }).nodes.find(n => n.id === 'deep').branch, 'first');
+  assert.equal(branchTones(records.notes).size, 0, 'a garden with no tree has no branches');
+  const many = [placed('top', null, 0), ...Array.from({ length: 9 }, (_, i) => placed(`s${i}`, 'top', i))];
+  assert.equal(branchTones(many).get('s7'), BRANCH_TONES[0], 'the tones come round again past the last');
 });

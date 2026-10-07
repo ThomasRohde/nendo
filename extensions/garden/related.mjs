@@ -56,15 +56,17 @@ export function none(text) {
   return item;
 }
 
-/** Fills the lists a note's page shows; the links out only where `lists` has a place for them.
+/** Fills the lists a note's page shows; the links in and out only where `lists` has a place for them.
  *  `open(entityId, recordId)` is what a row does. */
 export function drawRelated({ backlinks, links = [], noteTags, tasks }, lists, open, index, tagNames = null) {
   const linkRows = (rows, end, empty) => rows.length ? rows.map(link =>
     row(labelOf(link, end, index), () => open('gd.note', link.values[end]),
       [link.values[F.link.kind], plainText(link.values[F.link.context])].filter(Boolean).join(' · ')))
     : [none(empty)];
-  lists.backlinks.replaceChildren(...linkRows(backlinks, F.link.from, 'Nothing links here yet.'));
-  lists.backlinksCount.textContent = backlinks.length ? String(backlinks.length) : '';
+  if (lists.backlinks) {
+    lists.backlinks.replaceChildren(...linkRows(backlinks, F.link.from, 'Nothing links here yet.'));
+    lists.backlinksCount.textContent = backlinks.length ? String(backlinks.length) : '';
+  }
   if (lists.outlinks) {
     lists.outlinks.replaceChildren(...linkRows(links, F.link.to, 'Links to nothing yet.'));
     lists.outlinksCount.textContent = links.length ? String(links.length) : '';

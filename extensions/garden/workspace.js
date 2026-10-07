@@ -1,6 +1,7 @@
 // The Garden workspace, the screen the file opens on: the notes as a tree on the left and one
 // note in the middle, in one of two modes: View, the page, and Edit (Ctrl E toggles them), its
-// Markdown with the preview beside it. The page is Narrow, Medium or Full, as the person picks. Under the note are its backlinks, its local graph, its tags and its tasks.
+// Markdown with the preview beside it. The page is Narrow, Medium or Full, as the person picks. Under the note are its local
+// graph, folded away until opened, then the tags written by hand and the tasks, each only when the note has some.
 // Save derives the note's links, tags and tasks from its body and writes everything as one
 // records.batch (sync.mjs), which the view can undo; ticking a task while reading saves it at
 // once. Nendo draws the controls where it offers its toolbar; otherwise the view draws its own.
@@ -9,7 +10,7 @@ import { parse, slugify } from './parse.mjs';
 import { render } from './render.mjs';
 import { plan, resolveTarget, F } from './sync.mjs';
 import { readRelated, readTags, drawRelated } from './related.mjs';
-import { buildGraph } from './graph-data.mjs';
+import { buildGraph, branchTones } from './graph-data.mjs';
 import { createGraph } from './graph.js';
 import { localDate, uncertain, readDrafts, writeDrafts } from './drafts.mjs';
 import { createFinder, localMatch } from './search.mjs';
@@ -25,7 +26,7 @@ export async function startWorkspace(nendo, context, kit) {
   const title = $('title'), meta = $('meta'), editor = $('editor'), preview = $('preview'), autocomplete = $('autocomplete');
   const readingTitle = $('reading-title'), readingMeta = $('reading-meta'), readingBody = $('reading-body');
   const ownSummary = $('own-summary'), guide = $('guide'), hoverCard = $('hover-card');
-  const lists = { backlinks: $('backlinks'), backlinksCount: $('backlinks-count'), outlinks: $('outlinks'), outlinksCount: $('outlinks-count'), tags: $('note-tags'), tasks: $('note-tasks'), tasksCount: $('tasks-count') };
+  const lists = { tags: $('note-tags'), tasks: $('note-tasks'), tasksCount: $('tasks-count') };
   app.hidden = false;
 
   const can = name => typeof nendo.has === 'function' && nendo.has(name);
@@ -295,7 +296,12 @@ export async function startWorkspace(nendo, context, kit) {
       if (ticket !== openTicket || state.note !== shown) return;
       state.related = related;
     }
-    drawRelated(state.related, lists, openRecord, state.byId, new Map(state.tags.map(tag => [tag.recordId, { title: tag.values[F.tag.name] }])));
+    // The links are in the page and the local graph, and the body's tags are pills in it: under the
+    // note are only the tags written by hand and the tasks, each card only when the note has some.
+    const handTags = state.related.noteTags.filter(row => row.values[F.noteTag.source] !== 'Body');
+    drawRelated({ ...state.related, noteTags: handTags }, lists, openRecord, state.byId, new Map(state.tags.map(tag => [tag.recordId, { title: tag.values[F.tag.name] }])));
+    $('tags-card').hidden = handTags.length === 0;
+    $('tasks-card').hidden = state.related.tasks.length === 0;
     drawLocalGraph();
     drawTree();
     setStatus();
@@ -402,24 +408,52 @@ export async function startWorkspace(nendo, context, kit) {
   hoverCard.addEventListener('pointerenter', () => clearTimeout(hideTimer));
   hoverCard.addEventListener('pointerleave', () => { hideTimer = setTimeout(hideHover, 150); });
 
-  // ---- Connections: the links in and out as rows, and beside them the local graph, the note and
-  // every note one link away either way. One card, so the graph is as large as its few notes need.
-  const colour = node => node.type === 'tag' ? 'var(--nendo-muted, #5d5d5d)' : `var(--nendo-tone-${STAGE_TONES[node.stage] ?? 'grey'})`;
+  // ---- The local graph: the note and every note one link away either way, folded away under the
+  // note until it is opened, and then the full width of the page. Whether it is open is this
+  // person's, so it stays in this browser; a folded graph is not drawn.
+  // A note takes its branch's tone, the section of the garden it grows in, so a link across
+  // sections shows; a garden with no branches colours by stage, as the tree does.
+  let tones = new Map();
+  const colour = node => node.type === 'tag' ? 'var(--nendo-muted, #5d5d5d)'
+    : `var(--nendo-tone-${tones.size ? tones.get(node.branch) ?? 'grey' : STAGE_TONES[node.stage] ?? 'grey'})`;
   let localGraph = null;
+  const connections = $('connections');
+  try { connections.open = localStorage.getItem('garden.localGraph') === 'open'; } catch { /* a private window keeps none */ }
+  connections.addEventListener('toggle', () => {
+    try { localStorage.setItem('garden.localGraph', connections.open ? 'open' : 'closed'); } catch { /* a private window keeps none */ }
+    drawLocalGraph();
+    expose();
+  });
   $('local-open-graph').addEventListener('click', () => command('graph'));
   function drawLocalGraph() {
     const card = $('local-graph-card');
-    if (state.note === null) { card.hidden = true; $('local-count').textContent = ''; return; }
+    if (state.note === null) { connections.hidden = true; $('local-count').textContent = ''; return; }
+    connections.hidden = false;
     const data = buildGraph({ notes: state.index, links: state.links }, { focus: state.note.recordId, depth: 1 });
-    $('local-count').textContent = data.nodes.length > 1 ? String(data.nodes.length - 1) : '';
+    const near = data.nodes.length - 1;
+    $('local-count').textContent = near > 0 ? `${near} ${near === 1 ? 'note' : 'notes'} one link away` : 'nothing linked yet';
+    if (!connections.open) { state.local = null; return; }
     card.hidden = false;
     $('local-open-graph').hidden = !can('ui.openScreen');
     try {
       localGraph ??= createGraph($('local-graph'), { kit, colour, compact: true, label: 'This note and its neighbours',
         onOpen: node => open(node.id) });
     } catch (error) { card.hidden = true; return; }
+    tones = branchTones(state.index);
     localGraph.update(data, { focus: state.note.recordId, refit: true });
-    state.local = { nodes: data.nodes.length, links: data.links.length };
+    drawLegend(data);
+    state.local = { nodes: data.nodes.length, links: data.links.length, branches: $('local-legend').children.length };
+  }
+  // The branches the local graph shows, each with its tone, in the order the tree shows them.
+  function drawLegend(data) {
+    const shown = new Set(data.nodes.map(node => node.branch).filter(Boolean));
+    const items = [...tones].filter(([id]) => shown.has(id)).map(([id, tone]) => {
+      const item = chip(state.byId.get(id)?.values[F.note.title] ?? id, 'branch', tone);
+      item.dataset.branch = id;
+      return item;
+    });
+    $('local-legend').replaceChildren(...items);
+    $('local-legend').hidden = items.length === 0;
   }
 
   // ---- The divider between the editor and the preview: dragged, or moved with the arrow keys.

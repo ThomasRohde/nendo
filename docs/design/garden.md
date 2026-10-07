@@ -91,14 +91,56 @@ the graph to be dynamic and interactive, drawn with a common library as Obsidian
   for a label). The wheel and a drag on the background zoom and pan, a drag on a note moves it
   and the rest follow, hovering a note lights it and its neighbours and dims the rest, labels
   fade in as you zoom, and a click opens the note. Nodes grow with the square root of their
-  links and take their stage's tone, or their kind's.
+  links and take their stage's tone, their kind's, or their branch's: the note just under a
+  top-level note on their way up, so each section of the garden has a tone of its own (owner,
+  2026-10-07: a garden of Evergreen notes was one green). The tones go round in the order the
+  tree shows the branches; a top-level note is grey.
 - **Two places draw it.** The Graph screen (`gd.note.graph`, an `extensionGraphSurface` that
-  now runs the Garden package) shows the whole garden, with Find, colour by stage or kind,
-  tags as nodes, orphans, arrows, spread and fit in Nendo's row; a right-click shows a note's
+  now runs the Garden package) shows the whole garden, with Find, colour by stage, kind or branch,
+  tag dots, orphans, arrows, spread and fit in Nendo's row, the tags to highlight by beside it; a right-click shows a note's
   neighbourhood. The **local graph** under a note while reading shows it and every note one
-  link away, in a box beside the rows of links in and out (the Connections card), as tall as
-  those rows and at least 220 px, zoomed to fit at most 1.35 times so labels stay the size of
-  the page's text, rather than a few notes floating in a full-width band. The Dependency graph package the Graph screen ran before is taken out of the file.
+  link away, coloured by branch with a legend of the branches it shows. It is stretched to its box, each
+  axis on its own, rather than zoomed, so a wide box is used across its width while the dots
+  (smaller here, 4 to 9 px) and names keep the page's size; it frames itself again when the
+  layout settles, until the person zooms or drags. It is seen almost settled (owner, 2026-10-07:
+  it took long to settle and then snapped to the centre): d3's own `simulation.tick` runs the
+  layout out of sight down to alpha 0.15 and it is framed there, and it counts as settled at
+  alpha 0.02 (`alphaMin`) rather than 0.001. The lane measured a note travelling 391 px from
+  the first frame and still moving after two seconds before, 21 px and still after. The Graph
+  screen settles the same way (owner, 2026-10-07): framed when it is first seen and again when it
+  settles, unless the person has zoomed, panned or dragged; 136 px and still moving before, 26 px
+  and still after. It is
+  folded away until opened (owner, 2026-10-07: in a dense garden the graph needs more room, and
+  the rows of links in and out said again what the page and the graph say), and opened it takes
+  the page's width and 360 to 680 px of height. A folded graph is not drawn; whether it is open
+  is this person's and stays in this browser. Under it are only the tags written by hand (the
+  body's tags are pills in the text, so a second list of them was the same thing twice) and the
+  tasks, each card only when the note has some. The Dependency graph package the Graph screen ran before is taken out of the file.
+- **A dense garden on the Graph screen** (owner, 2026-10-07: a hundred notes were big dots under a
+  mesh of names and lines). Dots are 4 to 11 px in radius rather than 5 to 18; the layout is
+  shaped to the window, its axes stretched against each other by at most 2.25 to 1 so a wide
+  window draws a wide garden, and framed at most 1.5 times; the most linked tenth of the notes
+  (at least five) keep their names at any zoom, the rest fade in from 1.1; a garden of more than
+  150 links draws them light. It opens coloured by branch when the garden has a tree, with a
+  legend of what the colours mean in its lower left corner. The lane draws 102 notes and 576
+  links and measures the drawing centred, wider than tall, inside the screen, its dots and its
+  named notes.
+- **Highlight by tag** (owner, 2026-10-07: click the tags to highlight their notes; what if a note
+  has several?). A highlight is membership, not colour, so a note with several tags is never in
+  doubt: it is picked out when what is chosen asks for one of its tags, and keeps its branch's
+  colour. A panel beside the Graph screen lists every tag with the notes that carry it, the most
+  carried first, an order that stays put while the person clicks. Two tags or more ask for all of
+  them, so each click narrows, with **Any of them** a click away; while narrowing, each other tag
+  counts the highlighted notes that carry it and a tag that would leave nothing is greyed, so a
+  dead end is seen before it is clicked, and an empty result says so and offers Any. A colour in
+  the legend is a button too and narrows the same way (a colour and tags: the notes that are
+  both), and Find narrows it as well. The camera does not move: picking out is a question asked of
+  the layout the person already knows. The picked notes keep their names and the links among them,
+  the rest fade; hovering a note shows its own neighbourhood over the highlight. A click on a tag
+  dot picks its tag (opening it moved to the right-click menu), Esc and **Clear the highlight**
+  end it, and the panel hides behind a **Tags** button, kept per browser and closed by default
+  under 900 px. The toggle that draws tags as dots is called **Tag dots**, so it is not taken for
+  the panel.
 - **Why SVG and not a canvas.** The node count of a personal garden stays in the hundreds,
   where SVG keeps up; SVG lets the theme colour every mark through CSS, lets the keyboard
   traverse the nodes with the view kit, and lets the lane measure what it draws.
@@ -164,7 +206,7 @@ cannot disagree with the parser.
   Garden package, the seeds say what their bodies say, the kit copy is the kit.
 - `pwsh ./tools/Review-Garden.ps1` (in `Test-Production.ps1`): mount with Nendo's toolbar
   accepted by the Workbench's own rules; a note opening for reading in a readable column; the
-  local graph drawing the note and its neighbours, beside the link rows in a box they fill; a hover previewing a linked note; a tick
+  local graph folded and undrawn until opened, then drawing the note and its neighbours across the page's width and kept open; no link rows and no second list of the body's tags under the note; a hover previewing a linked note; a tick
   while reading saved as one batch; wikilink navigation with places, Edit swapping in the
   Markdown, `[[` autocomplete,
   one-batch save deriving a stub, a link with context, a tag and a task, link removal keeping

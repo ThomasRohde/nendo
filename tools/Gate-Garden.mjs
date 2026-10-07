@@ -1,9 +1,12 @@
 async page => {
+  // A failure names the last check that passed, so a timeout says where it happened.
+  const checks = [];
+  try { return await (async () => {
   const assert = (ok, message) => { if (!ok) throw Error(message); };
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   // Leaving a dirty note asks the person; the probe always says yes.
   page.on('dialog', dialog => dialog.accept());
-  const checks = [];
+  let settle = null;
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('__BROKER_URL__');
   const fixture = '__GARDEN_FIXTURE__';
@@ -39,7 +42,12 @@ async page => {
   assert(await frame.locator('#reading-title').textContent() === 'Start here', 'Reading shows the title as the page heading.');
   const seedLinks = fixture.records['gd.link'].filter(l => l.values[F.from] === 'gd.note.start-here' && l.values[F.source] === 'Body').length;
   assert(await frame.locator('#reading-body a.wikilink[data-id]').count() === seedLinks, `Reading must resolve the ${seedLinks} wikilinks of Start here.`);
-  assert(await frame.locator('#backlinks li button').count() === fixture.records['gd.link'].filter(l => l.values[F.to] === 'gd.note.start-here').length, 'Backlinks under the note must match the link rows into it.');
+  // Under the note, nothing the page already says (the owner, 2026-10-07): no rows of links in and out,
+  // and no second list of the body's tags, which are pills in the text. Its tasks are listed.
+  assert(await frame.locator('#backlinks, #outlinks, #connections-lists').count() === 0, 'Under the note there must be no rows of links: the page and the local graph say them.');
+  assert(await frame.locator('#reading-body a.tag').count() > 0 && await frame.locator('#tags-card').isHidden(), 'The body\'s tags are pills in the text, not a second list under the note.');
+  const startTasks = fixture.records['gd.task'].filter(t => t.values['gd.task.note'] === 'gd.note.start-here').length;
+  assert(startTasks > 0 && await frame.locator('#tasks-card').isVisible() && await frame.locator('#note-tasks li button').count() === startTasks, `The note's ${startTasks} tasks must be listed under it.`);
   // Width, three levels: Full fills the view, Narrow and Medium keep a centred column.
   const sheet = () => frame.evaluate(() => { const r = document.getElementById('reading').getBoundingClientRect(), m = document.getElementById('note').getBoundingClientRect();
     return { width: r.width, left: r.left - m.left, right: m.right - r.right, note: m.width }; });
@@ -70,30 +78,57 @@ async page => {
   // The local graph: the note and every note one link away, either way.
   const near = new Set(['gd.note.start-here']);
   for (const l of fixture.records['gd.link']) { if (l.values[F.from] === 'gd.note.start-here') near.add(l.values[F.to]); if (l.values[F.to] === 'gd.note.start-here') near.add(l.values[F.from]); }
+  // Folded until opened, and a folded graph is not drawn (the owner, 2026-10-07: in a dense garden the
+  // graph needs room, so it waits behind an expander and opens to the page's width).
+  assert(await frame.evaluate(() => !document.getElementById('connections').open) && await frame.locator('#local-graph .node').count() === 0, 'The local graph must be folded, and not drawn, until it is opened.');
+  const localCount = await frame.locator('#local-count').textContent();
+  assert(localCount === `${near.size - 1} notes one link away`, `The folded graph must say how many notes are one link away: "${localCount}".`);
+  await frame.locator('#connections > summary').click();
   await frame.waitForFunction(count => document.querySelectorAll('#local-graph .node').length === count, near.size, { timeout: 5000 }).catch(async () => { throw Error(`The local graph must draw ${near.size} notes, drew ${await frame.locator('#local-graph .node').count()}.`); });
+  // Seen almost where it settles (the owner, 2026-10-07: it took long to settle, then snapped to the
+  // centre): most of the layout runs before it is drawn and it is framed then, so from the first
+  // frame to the settled drawing no note travels far and the drawing ends within two seconds.
+  const where = () => frame.evaluate(() => Object.fromEntries([...document.querySelectorAll('#local-graph .node')].map(node => { const b = node.getBoundingClientRect(); return [node.dataset.id, [b.x, b.y]]; })));
+  const seen = await where(); await page.waitForTimeout(2000); const still = await where(); await page.waitForTimeout(300); const later = await where();
+  const travel = (a, b) => Math.round(Math.max(...Object.keys(a).map(id => Math.hypot(a[id][0] - b[id][0], a[id][1] - b[id][1]))));
+  settle = { travelled: travel(seen, still), afterTwoSeconds: travel(still, later) };
+  assert(settle.travelled <= 80 && settle.afterTwoSeconds <= 2, `The local graph must be seen near where it settles and be still within two seconds: ${JSON.stringify(settle)}.`);
   assert(await frame.locator('#local-graph .node.current[data-id="gd.note.start-here"]').count() === 1, 'The local graph marks the note it is about.');
-  // Connections: the links out are listed beside the links in, and the graph sits beside the rows in a
-  // box its notes fill, not a full-width band of empty grey (the owner's report, 2026-10-07).
-  const outOf = fixture.records['gd.link'].filter(l => l.values[F.from] === 'gd.note.start-here').length;
-  assert(await frame.locator('#outlinks li button').count() === outOf, `Links to must list the ${outOf} links out of Start here.`);
+  assert(await frame.evaluate(() => localStorage.getItem('garden.localGraph')) === 'open', 'Opening the local graph must be kept in this browser.');
   assert(await frame.locator('#local-open-graph').isHidden(), 'A host that offers no ui.openScreen gets no Open the graph button.');
   await page.waitForTimeout(900);
   const room = await frame.evaluate(() => {
     const rect = id => document.getElementById(id).getBoundingClientRect();
-    const host = rect('local-graph'), rows = rect('connections-lists');
+    const host = rect('local-graph'), about = rect('about');
     const boxes = [...document.querySelectorAll('#local-graph .node')].map(node => node.getBoundingClientRect());
     const drawn = { w: Math.max(...boxes.map(b => b.right)) - Math.min(...boxes.map(b => b.left)), h: Math.max(...boxes.map(b => b.bottom)) - Math.min(...boxes.map(b => b.top)) };
     const label = Math.max(...[...document.querySelectorAll('#local-graph .node .label')].map(text => text.getBoundingClientRect().height));
-    return { width: Math.round(host.width), height: Math.round(host.height), rows: Math.round(rows.height), label: Math.round(label), filled: +(drawn.w * drawn.h / (host.width * host.height)).toFixed(3),
-      beside: host.left >= rows.right - 1 && host.top < rows.bottom };
+    const dot = Math.max(...[...document.querySelectorAll('#local-graph .node circle')].map(circle => circle.getBoundingClientRect().width));
+    return { width: Math.round(host.width), about: Math.round(about.width), height: Math.round(host.height), label: Math.round(label), dot: Math.round(dot),
+      across: +(drawn.w / host.width).toFixed(2), down: +(drawn.h / host.height).toFixed(2),
+      inside: boxes.every(b => b.left >= host.left - 1 && b.right <= host.right + 1 && b.top >= host.top - 1 && b.bottom <= host.bottom + 1) };
   });
-  // As tall as the rows beside it (the owner's second report, 2026-10-07), and never under 220 px.
-  assert(room.beside && room.width >= 520 && room.width <= 900 && room.height >= 220 && room.height >= room.rows - 2 && room.filled >= 0.1 && room.label <= 22,
-    `The local graph must sit beside the link rows, 520 to 900 px wide, as tall as the rows and at least 220 px, with its notes filling at least 10% of it and labels no taller than 22 px: ${JSON.stringify(room)}.`);
+  // Opened, it takes the page's width and at least 360 px of height, and the notes are spread over
+  // it, across more than down (the owner, 2026-10-07: stretched to the room, not a ball in the
+  // middle), with dots small enough to leave the names readable and every note inside the box.
+  assert(room.width >= room.about - 40 && room.height >= 360 && room.inside && room.label <= 22 && room.dot <= 20 && room.across >= 0.55 && room.down >= 0.4,
+    `The opened local graph must take the page's width, be at least 360 px tall, spread its notes over at least 55% of its width and 40% of its height, hold every note inside it, keep dots at most 20 px and labels no taller than 22 px: ${JSON.stringify(room)}.`);
+  // Each note takes the tone of its branch, the section of the garden it grows in, and the legend names them.
+  const tones = await frame.evaluate(() => {
+    const token = name => { const e = document.createElement('i'); e.style.color = `var(--nendo-${name})`; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; };
+    const fill = id => getComputedStyle(document.querySelector(`#local-graph .node[data-id="${id}"] circle`)).fill;
+    return { first: fill('gd.note.how-links-work'), blue: token('tone-blue'), root: fill('gd.note.start-here'), grey: token('tone-grey'),
+      legend: [...document.querySelectorAll('#local-legend .chip')].map(chip => chip.textContent) };
+  });
+  assert(tones.first === tones.blue && tones.root === tones.grey && JSON.stringify(tones.legend) === JSON.stringify(['How links work', 'Daily notes', 'Tags and tasks', 'For agents']),
+    `The local graph colours each note by its branch, the top-level note grey, and names the branches it shows in tree order: ${JSON.stringify(tones)}.`);
+  await frame.locator('#connections').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: '__OUTPUT__/local-graph.png', fullPage: true });
   checks.push('local graph');
 
   // Hovering a wikilink previews the note it names.
   const hoverLink = frame.locator('#reading-body a.wikilink[data-id="gd.note.how-links-work"]').first();
+  await hoverLink.scrollIntoViewIfNeeded();
   const linkBox = await hoverLink.boundingBox();
   await page.mouse.move(linkBox.x + linkBox.width / 2, linkBox.y + linkBox.height / 2);
   await frame.waitForFunction(() => !document.getElementById('hover-card').hidden, { timeout: 3000 }).catch(() => { throw Error('Hovering a wikilink must preview its note.'); });
@@ -368,6 +403,13 @@ async page => {
   await page.waitForTimeout(300);
   frame = await mounted();
   await frame.waitForFunction(() => window.gardenGraph?.ready === true, { timeout: 15000 });
+  assert(await frame.evaluate(() => window.gardenGraph.options.colour) === 'branch', 'A garden with a tree must open its graph coloured by branch.');
+  // The Graph screen too is seen almost where it settles, framed there, and still within two seconds.
+  const placed = () => frame.evaluate(() => Object.fromEntries([...document.querySelectorAll('#graph-canvas .node')].map(node => { const b = node.getBoundingClientRect(); return [node.dataset.id, [b.x, b.y]]; })));
+  const shown = await placed(); await page.waitForTimeout(2000); const rested = await placed(); await page.waitForTimeout(300); const resting = await placed();
+  const moved = (a, b) => Math.round(Math.max(...Object.keys(a).map(id => Math.hypot(a[id][0] - b[id][0], a[id][1] - b[id][1]))));
+  settle.screen = { travelled: moved(shown, rested), afterTwoSeconds: moved(rested, resting) };
+  assert(settle.screen.travelled <= 80 && settle.screen.afterTwoSeconds <= 2, `The Graph screen must be seen near where it settles and be still within two seconds: ${JSON.stringify(settle.screen)}.`);
   const pairs = new Set(fixture.records['gd.link'].filter(l => l.values[F.from] !== l.values[F.to]).map(l => `${l.values[F.from]}>${l.values[F.to]}`));
   assert(await frame.locator('#graph-canvas .node').count() === seedNotes, `The graph draws every note: ${seedNotes}.`);
   assert(await frame.locator('#graph-canvas line.edge').count() === pairs.size, `The graph draws one edge per linked pair and direction: ${pairs.size}.`);
@@ -418,6 +460,10 @@ async page => {
   await command('tags', true);
   await frame.waitForFunction(count => document.querySelectorAll('#graph-canvas .node').length === count, seedNotes + fixture.records['gd.tag'].length, { timeout: 5000 })
     .catch(async () => { throw Error(`Tags must add the ${fixture.records['gd.tag'].length} tags as nodes: ${await frame.locator('#graph-canvas .node').count()}.`); });
+  await command('colour', 'stage');
+  await page.waitForTimeout(150);
+  const stageLegend = await frame.evaluate(() => [...document.querySelectorAll('#graph-legend .chip')].map(chip => chip.textContent));
+  assert(JSON.stringify(stageLegend) === JSON.stringify(['Growing', 'Evergreen']), `The legend must name the stages the graph shows, in their order: ${JSON.stringify(stageLegend)}.`);
   const graphColours = {};
   for (const mode of ['light', 'dark']) {
     await page.evaluate(mode => window.broker.pushTheme(mode), mode); await page.waitForTimeout(150);
@@ -431,6 +477,110 @@ async page => {
     await page.screenshot({ path: '__OUTPUT__/graph-' + mode + '.png', fullPage: true });
   }
   assert(graphColours.light.evergreen !== graphColours.dark.evergreen, 'The graph follows the theme.');
+  // Colour by Branch: each note in its section's tone, the top-level note grey.
+  await command('colour', 'branch');
+  await page.waitForTimeout(150);
+  const byBranch = await frame.evaluate(() => {
+    const token = name => { const e = document.createElement('i'); e.style.color = `var(--nendo-${name})`; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; };
+    const fill = id => getComputedStyle(document.querySelector(`#graph-canvas .node[data-id="${id}"] circle`)).fill;
+    return { first: fill('gd.note.how-links-work'), blue: token('tone-blue'), second: fill('gd.note.daily-notes'), teal: token('tone-teal'), root: fill('gd.note.start-here'), grey: token('tone-grey') };
+  });
+  assert(byBranch.first === byBranch.blue && byBranch.second === byBranch.teal && byBranch.root === byBranch.grey, `Colour by Branch must draw each note in its branch's tone: ${JSON.stringify(byBranch)}`);
+  const branchLegend = await frame.evaluate(() => [...document.querySelectorAll('#graph-legend .chip')].map(chip => chip.textContent));
+  assert(JSON.stringify(branchLegend) === JSON.stringify(['How links work', 'Daily notes', 'Tags and tasks', 'For agents', 'Daily note template']), `The legend must name the branches in tree order: ${JSON.stringify(branchLegend)}.`);
+
+  // Highlight by tag (the owner, 2026-10-07): the tags beside the graph, most carried first; a click
+  // picks out the notes that carry a tag and fades the rest, the camera staying where it is; two tags
+  // ask for all of them unless the person says any, and the counts beside the other tags say what is
+  // left; a colour in the legend narrows it further; a tag dot picks its tag; Esc clears it.
+  await page.mouse.move(2, 2); await page.waitForTimeout(200);
+  const tagRows = () => frame.evaluate(() => [...document.querySelectorAll('#graph-tags-list button')].map(b => [b.firstChild.textContent, b.querySelector('.count').textContent, b.getAttribute('aria-pressed') === 'true', b.classList.contains('empty')]));
+  const picked = () => frame.evaluate(() => ({ notes: [...document.querySelectorAll('#graph-canvas .node.match')].map(n => n.dataset.id).filter(id => id.startsWith('gd.note.')).sort(),
+    result: document.getElementById('graph-tags-result').textContent, summary: document.getElementById('graph-summary').textContent,
+    searching: document.querySelector('#graph-canvas svg').classList.contains('searching'), k: window.gardenGraph.state().k,
+    matchedEdges: document.querySelectorAll('#graph-canvas line.edge.match').length }));
+  assert(await frame.locator('#graph-tags').isVisible(), 'A wide window shows the tags beside the graph.');
+  const firstRows = await tagRows();
+  assert(JSON.stringify(firstRows.map(r => [r[0], r[1]])) === JSON.stringify([['#garden', '5'], ['#howto', '4'], ['#agents', '1'], ['#tasks', '1']]),
+    `The tags are listed by how many notes carry each, then by name: ${JSON.stringify(firstRows)}.`);
+  const beforePick = await picked();
+  await frame.locator('#graph-tags-list button[data-tag="gd.tag.howto"]').click();
+  const howto = await picked();
+  const howtoNotes = ['gd.note.daily-notes', 'gd.note.how-links-work', 'gd.note.start-here', 'gd.note.tags-and-tasks'];
+  assert(howto.searching && JSON.stringify(howto.notes) === JSON.stringify(howtoNotes) && howto.result === '4 notes highlighted.' && howto.summary.includes('4 highlighted') && howto.matchedEdges > 0 && howto.k === beforePick.k,
+    `A tag must pick out the notes that carry it, keep the links among them, say how many, and leave the camera where it was: ${JSON.stringify(howto)}.`);
+  await page.waitForTimeout(250);
+  const faded = await frame.evaluate(() => Number(getComputedStyle(document.querySelector('#graph-canvas .node[data-id="gd.note.for-agents"]')).opacity));
+  assert(faded < 0.5, `A note without the tag fades: ${faded}.`);
+  await page.screenshot({ path: '__OUTPUT__/graph-tag-picked.png', fullPage: true });
+  const narrowed = Object.fromEntries((await tagRows()).map(r => [r[0], r]));
+  assert(narrowed['#garden'][1] === '4' && narrowed['#tasks'][1] === '1' && narrowed['#agents'][1] === '0' && narrowed['#agents'][3] === true && narrowed['#howto'][2] === true,
+    `With a tag chosen, the others count the highlighted notes that carry them, and one that would leave nothing says so: ${JSON.stringify(narrowed)}.`);
+  await frame.locator('#graph-tags-list button[data-tag="gd.tag.agents"]').click();
+  const none = await picked();
+  assert(none.notes.length === 0 && none.result === 'No note carries all of these. Try Any of them.' && await frame.locator('#graph-tags-match').isVisible(),
+    `Two tags no note carries together must say so, and offer Any: ${JSON.stringify(none)}.`);
+  await frame.locator('#graph-tags-match button[data-match="any"]').click();
+  const either = await picked();
+  assert(either.notes.length === 5 && either.result === '5 notes highlighted.', `Any must pick out the notes that carry either tag: ${JSON.stringify(either)}.`);
+  await frame.locator('#graph-legend button[data-value="gd.note.for-agents"]').click();
+  const both = await picked();
+  assert(JSON.stringify(both.notes) === JSON.stringify(['gd.note.for-agents']) && await frame.locator('#graph-legend button[data-value="gd.note.for-agents"]').getAttribute('aria-pressed') === 'true',
+    `A colour in the legend narrows the highlight to the notes that are both: ${JSON.stringify(both)}.`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(100);
+  const tagCleared = await picked();
+  assert(!tagCleared.searching && tagCleared.notes.length === 0 && (await tagRows()).every(r => !r[2]) && tagCleared.result === 'Click a tag to highlight the notes that carry it.',
+    `Esc must clear the highlight: ${JSON.stringify(tagCleared)}.`);
+  const openedBeforeTag = (await page.evaluate(() => window.broker.opened())).length;
+  const dotAt = await centre('gd.tag.agents');
+  await page.mouse.click(dotAt.x, dotAt.y);
+  await page.waitForTimeout(150);
+  const byDot = await picked();
+  assert(JSON.stringify(byDot.notes) === JSON.stringify(['gd.note.for-agents']) && (await page.evaluate(() => window.broker.opened())).length === openedBeforeTag
+    && (await tagRows()).find(r => r[0] === '#agents')[2] === true, `A click on a tag dot must pick its tag, and open nothing: ${JSON.stringify(byDot)}.`);
+  await frame.locator('#graph-tags-clear').click();
+  await frame.locator('#graph-tags-hide').click();
+  assert(await frame.locator('#graph-tags').isHidden() && await frame.locator('#graph-tags-show').isVisible() && await frame.evaluate(() => localStorage.getItem('garden.graphTags')) === 'closed',
+    'Hiding the tags must leave a button to show them, and be kept in this browser.');
+  await frame.locator('#graph-tags-show').click();
+  assert(await frame.locator('#graph-tags').isVisible(), 'The tags come back.');
+  await page.mouse.move(2, 2);
+  await page.screenshot({ path: '__OUTPUT__/graph-tags.png', fullPage: true });
+  checks.push('highlight by tag');
+
+  // A dense garden (the owner, 2026-10-07: a hundred notes were big dots under a mesh of names and
+  // lines): the layout takes the window's shape, dots stay small, only the landmarks are named until
+  // the person zooms in, and the links are drawn light.
+  const baseNote = fixture.records['gd.note'].find(r => r.recordId === 'gd.note.how-links-work');
+  const baseLink = fixture.records['gd.link'].find(r => r.values[F.source] === 'Body');
+  const sections = ['how-links-work', 'daily-notes', 'tags-and-tasks', 'for-agents'].map(slug => `gd.note.${slug}`);
+  const bigNotes = Array.from({ length: 96 }, (_, i) => ({ ...baseNote, recordId: `gd.note.dense-${i}`,
+    values: { ...baseNote.values, 'gd.note.title': `Dense note ${i}`, [F.slug]: `dense-${i}`, 'gd.note.parent': sections[i % 4], 'gd.note.order': i } }));
+  const bigLinks = bigNotes.flatMap((n, i) => [1, 2, 5, 11, 23].map(step => ({ ...baseLink, recordId: `gd.link.dense-${i}-${step}`,
+    values: { ...baseLink.values, [F.from]: n.recordId, [F.to]: `gd.note.dense-${(i + step) % 96}` } })).concat({ ...baseLink, recordId: `gd.link.dense-${i}-up`,
+    values: { ...baseLink.values, [F.from]: n.recordId, [F.to]: sections[i % 4] } }));
+  const dense = { ...fixture, records: { ...fixture.records, 'gd.note': [...fixture.records['gd.note'], ...bigNotes], 'gd.link': [...fixture.records['gd.link'], ...bigLinks] }, context: graphContext };
+  await page.evaluate(dense => { window.broker.setFixture(dense); window.broker.remount(); }, dense);
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.waitForFunction(() => window.gardenGraph?.ready === true, { timeout: 15000 });
+  await page.mouse.move(2, 2);
+  await page.waitForTimeout(2500);
+  const crowd = await frame.evaluate(() => {
+    const canvas = document.getElementById('graph-canvas').getBoundingClientRect();
+    const circles = [...document.querySelectorAll('#graph-canvas .node circle')].map(c => c.getBoundingClientRect());
+    const left = Math.min(...circles.map(b => b.left)), right = Math.max(...circles.map(b => b.right)), top = Math.min(...circles.map(b => b.top)), bottom = Math.max(...circles.map(b => b.bottom));
+    const named = [...document.querySelectorAll('#graph-canvas .node .label')].filter(label => Number(getComputedStyle(label).opacity) > 0.5).length;
+    return { notes: circles.length, k: +window.gardenGraph.state().k.toFixed(2), named, dot: Math.round(Math.max(...circles.map(b => b.width))),
+      shape: +((right - left) / (bottom - top)).toFixed(2), off: +(Math.max(Math.abs((left + right) / 2 - (canvas.left + canvas.right) / 2) / canvas.width, Math.abs((top + bottom) / 2 - (canvas.top + canvas.bottom) / 2) / canvas.height)).toFixed(3),
+      inside: left >= canvas.left - 1 && right <= canvas.right + 1 && top >= canvas.top - 1 && bottom <= canvas.bottom + 1,
+      dense: document.querySelector('#graph-canvas svg').classList.contains('dense') };
+  });
+  assert(crowd.notes === 102 && crowd.dense && crowd.inside && crowd.off <= 0.05 && crowd.shape >= 1.3 && crowd.dot <= 30 && (crowd.named <= 12 || crowd.k >= 1.6),
+    `A dense garden must be drawn centred, inside the screen, wider than tall in a wide window, with dots at most 30 px, light links and names only on its landmarks: ${JSON.stringify(crowd)}.`);
+  settle.dense = crowd;
+  await page.screenshot({ path: '__OUTPUT__/graph-dense.png', fullPage: true });
   checks.push('graph screen');
 
   // 13. Narrow: the sidebar stacks above the editor and nothing scrolls sideways.
@@ -722,5 +872,7 @@ async page => {
   checks.push('find searches the index and marks the words in the note, and the bodies without one');
 
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
-  return { complete: true, colours, narrow, checks, errors };
+  return { complete: true, colours, narrow, settle, checks, errors };
+
+  })(); } catch (error) { throw Error(`${error.message} [after: ${checks.at(-1) ?? 'nothing'}]`); }
 }

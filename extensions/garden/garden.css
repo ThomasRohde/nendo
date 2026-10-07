@@ -150,14 +150,24 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 
 #about { width: 100%; display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: row dense; gap: 12px; border-top: 1px solid var(--line); padding-top: 18px; }
 .editing-mode #about { max-width: none; grid-template-columns: repeat(3, 1fr); }
-/* Connections: the rows take the room, the graph beside them is as tall as they are and never
-   shorter than 220 px; on a narrow sheet it wraps under the rows and takes the width. */
-#connections { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 12px 20px; padding-right: 10px; }
-#connections-lists { flex: 999 1 280px; min-width: 0; }
-#connections h3 { font-size: 12px; font-weight: 600; margin: 10px 0 2px; color: var(--muted); }
-#local-graph-card { flex: 1 1 560px; min-width: 0; position: relative; display: flex; flex-direction: column; }
+/* The local graph folds away under the note; opened, it takes the page's width and room for a
+   dense neighbourhood, never less than 360 px tall. */
+#connections { grid-column: 1 / -1; }
+#connections[hidden] { display: none; }
+#connections > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; border-radius: 6px; }
+#connections > summary::-webkit-details-marker { display: none; }
+#connections > summary::before { content: ""; width: 0; height: 0; border-left: 5px solid var(--muted); border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: transform .12s; }
+#connections[open] > summary::before { transform: rotate(90deg); }
+#connections > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#connections > summary h2 { margin: 0; }
+#connections[open] > summary { margin-bottom: 8px; }
+#connections h2 .count { text-transform: none; letter-spacing: 0; }
+#local-graph-card { min-width: 0; position: relative; display: flex; flex-direction: column; }
 #local-graph-card[hidden] { display: none; }
-#local-graph-card .graph-host.local { flex: 1; height: auto; min-height: 220px; }
+#local-graph-card .graph-host.local { height: clamp(360px, 60vh, 680px); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.legend[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { #connections > summary::before { transition: none; } }
 #local-graph-card .corner { position: absolute; top: 6px; right: 8px; padding: 2px 8px; border: 0; border-radius: 6px; background: none; color: var(--accent); font-size: 12px; }
 #local-graph-card .corner:hover { background: var(--panel); }
 .card, #panel section { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; background: var(--panel); }
@@ -188,6 +198,8 @@ h2 { font-size: 12px; margin: 0 0 6px; color: var(--muted); text-transform: uppe
 .graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
 .graph-svg:active { cursor: grabbing; }
 .graph-svg .edge { stroke: var(--line-strong); stroke-width: 1.2; stroke-opacity: .9; transition: stroke-opacity .15s, stroke .15s; }
+/* A dense garden draws its links lighter, so the notes stand out of them; hovering still lights a note's. */
+.graph-svg.dense .edge { stroke-width: 1; stroke-opacity: .32; }
 .graph-svg .edge.manual { stroke-dasharray: 4 3; }
 .graph-svg .edge.tag { stroke-dasharray: 1 3; }
 .graph-svg .arrow-head { fill: var(--line-strong); }
@@ -202,15 +214,45 @@ h2 { font-size: 12px; margin: 0 0 6px; color: var(--muted); text-transform: uppe
 .graph-svg .node:focus-visible circle { stroke: var(--accent); stroke-width: 3; }
 .graph-svg.focusing .node:not(.lit) { opacity: .16; }
 .graph-svg.focusing .edge:not(.lit) { stroke-opacity: .08; }
-.graph-svg.focusing .edge.lit { stroke: var(--accent); stroke-width: 1.8; }
+.graph-svg.focusing .edge.lit { stroke: var(--accent); stroke-width: 1.8; stroke-opacity: 1; }
 .graph-svg.searching:not(.focusing) .node:not(.match) { opacity: .22; }
+/* What is found or picked out keeps the links among it; the others fade further than the notes. */
+.graph-svg.searching:not(.focusing) .edge:not(.match) { stroke-opacity: .06; }
+.graph-svg.searching:not(.focusing) .edge.match { stroke-opacity: .8; }
 .graph-svg .node.match circle { stroke: var(--accent); stroke-width: 3; }
 
 #graph-screen { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
 #graph-toolbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 #graph-summary { color: var(--muted); margin-left: auto; font-size: 12px; }
 #graph-problem { margin: 8px 12px; padding: 8px 10px; border: 1px solid var(--danger); border-radius: 8px; color: var(--danger); background: var(--panel); }
-#graph-canvas { flex: 1; min-height: 0; }
+#graph-body { flex: 1; min-height: 0; display: flex; position: relative; }
+#graph-canvas { flex: 1; min-width: 0; height: 100%; }
+/* What the colours mean, over the graph's lower left corner; a colour is a button that highlights its notes. */
+#graph-legend { position: absolute; left: 12px; bottom: 12px; max-width: min(70%, 900px); margin: 0; padding: 6px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 82%, transparent); }
+#graph-legend button.chip { cursor: pointer; font: inherit; font-size: 12px; }
+#graph-legend button.chip:hover { border-color: var(--line-strong); }
+#graph-legend button.chip[aria-pressed=true] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+#graph-legend.picking button.chip[aria-pressed=false] { opacity: .55; }
+/* The tags beside the graph: a list to highlight by, kept in the order of how many notes carry each. */
+#graph-tags { width: 236px; flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px 10px 12px 12px; border-left: 1px solid var(--line); background: var(--bg); overflow: auto; }
+#graph-tags[hidden] { display: none; }
+.graph-tags-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.graph-tags-head h2 { margin: 0; }
+#graph-tags-hide { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 6px; }
+#graph-tags-hide:hover { background: var(--panel); color: var(--ink); }
+#graph-tags-show { position: absolute; top: 10px; right: 12px; }
+#graph-tags-match { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+#graph-tags-match[hidden] { display: none; }
+#graph-tags-match button { flex: 1; border: 0; border-radius: 0; background: none; padding: 3px 6px; font-size: 12px; color: var(--muted); }
+#graph-tags-match button[aria-pressed=true] { background: var(--accent-soft); color: var(--accent); }
+#graph-tags-result { margin: 0; color: var(--muted); font-size: 12px; }
+#graph-tags-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+#graph-tags-list button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 8px; border: 1px solid transparent; border-radius: 999px; background: none; color: var(--ink); text-align: left; font-size: 12px; }
+#graph-tags-list button:hover { background: var(--panel); }
+#graph-tags-list button[aria-pressed=true] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+#graph-tags-list button.empty { color: var(--muted); }
+#graph-tags-list .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+#graph-tags-clear { align-self: flex-start; }
 
 /* ---- The Garden guide: a sheet at the right that leaves the page usable beside it. It opens on
    a drawing that is also the chart of this garden: a seed, a sprout and an evergreen, each with

@@ -23,9 +23,10 @@ A custom view for a garden of notes, in three places:
 
 ## Reading
 
-The title is the page heading and the body is set in a readable column. Under it are the
-note's connections, one card holding the links in and out with the sentence that links and,
-beside them, its local graph (the note and every note one link away), then its tags and its tasks. A wikilink opens its note in place; hovering one previews
+The title is the page heading and the body is set in a readable column, its tags pills in the
+text. Under it is the note's local graph (the note and every note one link away), folded until
+opened and then the page's width, then any tags written by hand and the tasks, each only when
+the note has some. The links in are on the Backlinks panel and the Graph screen. A wikilink opens its note in place; hovering one previews
 the note it names. Ticking a task saves the tick at once, as one batch.
 
 ## What a save does
@@ -58,7 +59,10 @@ d3's force simulation lays the notes out. The wheel and a drag on the background
 pan; a drag on a note moves it and its neighbours follow; hovering a note lights it and its
 neighbours and dims the rest; labels fade in as you zoom; a click opens the note, and a
 right-click offers its neighbourhood. A note's size follows the square root of its links and
-its colour is its stage's tone, or its kind's. Manual links are dashed, tag links dotted.
+its colour is its stage's tone, its kind's, or its branch's (the section of the garden it grows
+in: the note just under a top-level note on its way up). Manual links are dashed, tag links dotted.
+The local graph under a note is coloured by branch, with a legend of the branches it shows, and
+is stretched to its box rather than zoomed, so its dots and names keep the page's size.
 The keyboard moves between notes with the arrows and opens one with Enter, and a screen reader
 reads every note with its neighbours as a list.
 
@@ -69,7 +73,7 @@ Find (Ctrl Shift F), New note (also Nendo's Add), Today, View or Edit, the width
 (Narrow, Medium, Full; words on a Nendo without those icons),
 Save (Ctrl S), Undo and Redo, the Garden guide, and a menu with Open record page, Graph of the
 garden, Mark evergreen, Expand all and Collapse all. Following a wikilink declares a place, so Back and Forward move
-between notes. The Graph screen declares Find, Colour by stage or kind, Tags, Orphans,
+between notes. The Graph screen declares Find, Colour by stage, kind or branch, Tags, Orphans,
 Arrows, Spread, zoom and Fit (Ctrl 0), and About. On an older Nendo the views show their own
 controls.
 

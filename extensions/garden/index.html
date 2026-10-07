@@ -53,16 +53,12 @@
           </div>
         </div>
         <div id="about">
-          <section class="card" id="connections" aria-labelledby="connections-heading">
-            <div id="connections-lists">
-              <h2 id="connections-heading">Connections <span id="local-count" class="count"></span></h2>
-              <h3>Linked from <span id="backlinks-count" class="count"></span></h3><ul id="backlinks" class="rows"></ul>
-              <h3>Links to <span id="outlinks-count" class="count"></span></h3><ul id="outlinks" class="rows"></ul>
-            </div>
-            <div id="local-graph-card"><div id="local-graph" class="graph-host local"></div><button type="button" id="local-open-graph" class="corner">Open the graph</button></div>
-          </section>
-          <section class="card"><h2>Tags</h2><ul id="note-tags" class="rows chips"></ul></section>
-          <section class="card"><h2>Tasks <span id="tasks-count" class="count"></span></h2><ul id="note-tasks" class="rows"></ul></section>
+          <details class="card" id="connections">
+            <summary><h2 id="connections-heading">Local graph <span id="local-count" class="count"></span></h2></summary>
+            <div id="local-graph-card"><div id="local-graph" class="graph-host local"></div><button type="button" id="local-open-graph" class="corner">Open the graph</button><div id="local-legend" class="legend" aria-label="Colours: the sections of the garden" hidden></div></div>
+          </details>
+          <section class="card" id="tags-card" hidden><h2>Tags written by hand</h2><ul id="note-tags" class="rows chips"></ul></section>
+          <section class="card" id="tasks-card" hidden><h2>Tasks <span id="tasks-count" class="count"></span></h2><ul id="note-tasks" class="rows"></ul></section>
         </div>
       </div>
     </section>
@@ -80,15 +76,30 @@
     <input id="graph-find" type="search" placeholder="Find…" aria-label="Find a note">
     <button type="button" data-command="colour" data-value="stage">Stage</button>
     <button type="button" data-command="colour" data-value="kind">Kind</button>
-    <button type="button" data-command="tags" data-toggle="1" aria-pressed="false">Tags</button>
+    <button type="button" data-command="colour" data-value="branch">Branch</button>
+    <button type="button" data-command="tags" data-toggle="1" aria-pressed="false">Tag dots</button>
     <button type="button" data-command="orphans" data-toggle="1" aria-pressed="true">Orphans</button>
     <button type="button" data-command="arrows" data-toggle="1" aria-pressed="false">Arrows</button>
     <button type="button" data-command="fit">Fit</button>
     <span id="graph-summary"></span>
   </div>
   <p id="graph-problem" role="alert" hidden></p>
-  <div id="graph-canvas" class="graph-host"></div>
-  <p id="about-graph" class="hint" hidden>Each dot is a note, sized by how many links it has, coloured by its stage or kind. Drag the background to pan, the wheel to zoom, a note to move it. Hover a note to light it and its neighbours. Click to open it; right-click for its neighbourhood. Tags shows tags as small grey dots.</p>
+  <div id="graph-body">
+    <div id="graph-canvas" class="graph-host"></div>
+    <div id="graph-legend" class="legend" role="group" aria-label="What the colours mean; click one to highlight its notes" hidden></div>
+    <button type="button" id="graph-tags-show" hidden>Tags</button>
+    <aside id="graph-tags" aria-labelledby="graph-tags-title" hidden>
+      <div class="graph-tags-head"><h2 id="graph-tags-title">Highlight by tag</h2><button type="button" id="graph-tags-hide" aria-label="Hide the tags" title="Hide the tags">×</button></div>
+      <div id="graph-tags-match" role="group" aria-label="Highlight the notes that carry" hidden>
+        <button type="button" data-match="all" aria-pressed="true">All of them</button>
+        <button type="button" data-match="any" aria-pressed="false">Any of them</button>
+      </div>
+      <p id="graph-tags-result" role="status"></p>
+      <ul id="graph-tags-list" aria-label="Tags"></ul>
+      <button type="button" id="graph-tags-clear" hidden>Clear the highlight</button>
+    </aside>
+  </div>
+  <p id="about-graph" class="hint" hidden>Each dot is a note, sized by how many links it has, coloured by its stage, its kind or its branch, the section of the garden it grows in. Drag the background to pan, the wheel to zoom, a note to move it. Hover a note to light it and its neighbours. Click to open it; right-click for its neighbourhood. Click a tag, or a colour in the legend, to highlight its notes; several tags highlight the notes that carry all of them, or any. Esc clears it. Tag dots shows the tags as small grey dots, and clicking one highlights its notes too.</p>
 </div>
 <aside id="guide" aria-labelledby="guide-title" tabindex="-1" hidden>
   <header class="guide-head">
@@ -135,7 +146,7 @@
             <li><strong>Plant a note.</strong> New note opens a blank page in Edit. Give it a title and a few lines.</li>
             <li><strong>Link it.</strong> Type <code>[[</code> and pick a note from the list, or name one that does not exist yet: saving plants it as a Seed.</li>
             <li><strong>Save.</strong> <kbd>Ctrl</kbd> <kbd>S</kbd> turns links, tags and tasks into records in one step, and Undo takes the whole step back.</li>
-            <li><strong>Watch it grow.</strong> The note's connections, the links in and out with a small graph of them, appear under it while you read, and the Graph shows the whole garden.</li>
+            <li><strong>Watch it grow.</strong> Under the note, while you read, its local graph opens to show every note one link away, and the Graph shows the whole garden.</li>
           </ol>
           <p class="guide-aside">Keeping a journal? <button type="button" data-guide="daily" class="link-like">Today</button> opens today's note, made from the note whose kind is Template.</p>
         </div>

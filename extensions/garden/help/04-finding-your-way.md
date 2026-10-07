@@ -21,8 +21,8 @@ To move a note under another, or change its order, use the **Tree** screen and d
 
 Under every note, while you read:
 
-- **Connections**: every note that links here and every note this one links to, each with the sentence that does it, and beside them the local graph: this note and every note one link away. Click a dot to go there.
-- **Tags** and **Tasks** the note carries.
+- **Local graph**, folded until you open it: this note and every note one link away, either way, across the width of the page, each dot in the colour of the section it grows in, named under the graph. Click a dot to go there. It stays open or folded as you left it.
+- **Tasks** the note carries, when it has any, and any tags written on the note by hand. The tags in the body are the pills in the text itself.
 
 Hover a link to preview the note it names without leaving the page. Follow it, and Nendo's **Back** brings you back.
 
