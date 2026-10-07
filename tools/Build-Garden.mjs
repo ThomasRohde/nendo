@@ -18,7 +18,7 @@
 
 import crypto from 'node:crypto';
 import { target, withLease, fail } from './archi-mcp.mjs';
-import { STAGES, STAGE_ORDER, CALL_CHARACTERS, NEW_FILE_LABEL, SKILL_PACKAGE_ID, PACKAGE_ID, PACKAGE_FOLDER, RETIRED_GRAPH_PACKAGE_ID, FRONT_TITLE, FRONT_DESCRIPTION, seedRecords, packageFiles, hasSearchIndex, skillPackage } from './garden/definition.mjs';
+import { STAGES, STAGE_ORDER, CALL_CHARACTERS, NEW_FILE_LABEL, SKILL_PACKAGE_ID, PACKAGE_ID, PACKAGE_FOLDER, RETIRED_GRAPH_PACKAGE_ID, HOME_VIEW, HOME_TITLE, RETIRED_FRONT, seedRecords, packageFiles, hasSearchIndex, skillPackage } from './garden/definition.mjs';
 
 const TARGET_FILE_NAME = process.env.NENDO_GARDEN_TARGET || 'Garden.nendo';
 
@@ -99,7 +99,8 @@ async function compare(file) {
   const packages = (describe.extensions ?? []).map(p => p.packageId);
   for (const id of [PACKAGE_ID, SKILL_PACKAGE_ID]) if (!packages.includes(id)) problems.push(`package ${id} is not in the file`);
   const overview = (await file.read.json('nendo://application/surfaces')).overview;
-  if (overview?.properties.title !== FRONT_TITLE) problems.push(`the front page is titled ${overview?.properties.title}, not ${FRONT_TITLE}: run upgrade`);
+  if (overview) problems.push(`the file still has a native front page (${overview.nodeId ?? overview.properties?.title}), which the ${HOME_TITLE} view replaced: run upgrade`);
+  if (!await file.read.hasNode(HOME_VIEW)) problems.push(`the file has no ${HOME_TITLE} view (${HOME_VIEW}): run upgrade`);
   if (packages.includes(RETIRED_GRAPH_PACKAGE_ID)) problems.push(`${RETIRED_GRAPH_PACKAGE_ID} is still in the file: run upgrade`);
   const garden = (describe.extensions ?? []).find(p => p.packageId === PACKAGE_ID);
   const { manifest: wanted, files: wantedFiles } = await packageFiles(PACKAGE_FOLDER);
@@ -124,7 +125,8 @@ async function compare(file) {
 /**
  * One change set that brings a built file up to this folder: the Garden package's changed files
  * (each put names the content it replaces, so a newer package is never overwritten), the Graph
- * screen moved onto the Garden package, and the retired Dependency graph package taken out.
+ * screen moved onto the Garden package, the retired Dependency graph package taken out, and the
+ * native front page replaced by the Overview view, which then opens the file.
  */
 async function upgrade(file, dryRun, skipIndex = false) {
   const listing = await file.read.json('nendo://application/extensions');
@@ -163,10 +165,15 @@ async function upgrade(file, dryRun, skipIndex = false) {
     for (const f of retired.files) operations.push(op('extension.removeFile', { packageId: RETIRED_GRAPH_PACKAGE_ID, path: f.path, expectedSha256: f.sha256 }));
     operations.push(op('extension.removePackage', { packageId: RETIRED_GRAPH_PACKAGE_ID }));
   }
-  // The front page was first titled Garden, the Garden view's own name, so Use listed two.
+  // The Overview (0.16) is a view of the package that replaced the native front page: the tiles and
+  // lists go, the view goes in before the Garden view, and the file opens on it instead.
   const front = (await file.read.json('nendo://application/surfaces')).overview;
-  if (front && front.properties.title !== FRONT_TITLE) operations.push(op('ui.setProperty', { surfaceId: 'garden', nodeId: 'gd.front', propertyName: 'title', value: FRONT_TITLE }));
-  if (front && front.properties.description !== FRONT_DESCRIPTION) operations.push(op('ui.setProperty', { surfaceId: 'garden', nodeId: 'gd.front', propertyName: 'description', value: FRONT_DESCRIPTION }));
+  if (front && (front.nodeId ?? RETIRED_FRONT) === RETIRED_FRONT) operations.push(op('ui.removeNode', { surfaceId: 'garden', nodeId: RETIRED_FRONT }));
+  if (!await file.read.hasNode(HOME_VIEW)) {
+    operations.push(op('ui.setProperty', { surfaceId: 'garden', nodeId: 'gd.garden', propertyName: 'opensFile', value: false }));
+    operations.push(op('ui.addNode', { surfaceId: 'garden', nodeId: HOME_VIEW, parentNodeId: null, kind: 'extensionView', beforeNodeId: 'gd.garden',
+      properties: { definitionVersion: 3, title: HOME_TITLE, packageId: PACKAGE_ID, entityId: 'gd.note', opensFile: true } }));
+  }
   // Find reads the file's search index (ADR-0028): build it with the upgrade when the file has none,
   // as its own mutation, since it is a definition change with nothing to undo.
   const buildIndex = !skipIndex && !(await hasSearchIndex(file.read));

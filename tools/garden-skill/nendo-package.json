@@ -2,6 +2,6 @@
   "packageId": "dev.nendo.garden",
   "title": "Working a Garden file",
   "kind": "skill",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "How an agent reads and writes a Garden of notes: find a note by its slug, write Markdown whose [[links]], #tags and - [ ] tasks the Garden view derives, write links, tags and tasks by hand as Manual rows, and read backlinks and counts from the file."
 }

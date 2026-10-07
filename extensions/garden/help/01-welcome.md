@@ -15,14 +15,14 @@ A garden is a place where ideas grow by being linked. Write a note, name another
 
 | Place | What it is for |
 | --- | --- |
-| **Garden** | The view the file opens on: the tree of notes on the left, one note to read or edit on the right. |
-| **Overview** | The front page: notes and seeds, what is pinned, what you tended lately, how the garden grows, open tasks and tags. |
+| **Overview** | The front page, which the file opens on: the whole garden as a graph, a box to find a note or name a new one, the seeds that wait, what is pinned, what you tended lately, the tasks due next and the tags. Pick a note there and it opens in the Garden view. |
+| **Garden** | Where notes are read and written: the tree of notes on the left, one note to read or edit on the right. |
 | **Graph** | Every note as a dot and every link as a line. Drag, zoom, hover and click. |
 | **Tree**, **By stage**, **Maps**, **Daily**, **Orphans** | The notes as an outline, a board, a gallery, a calendar and a list of the notes nothing links to. |
 | **Tasks**, **Tags**, **Links** | Every task, tag and link the notes carry, on screens of their own. |
 
 ## What makes this garden different
 
-Links, tags and tasks are not only text in a note: each is a record of its own. That is why the backlinks appear without any searching, why the front page can count the seeds waiting to grow, and why an agent can ask the garden who links where instead of reading every note.
+Links, tags and tasks are not only text in a note: each is a record of its own. That is why the backlinks appear without any searching, why the Overview can count the seeds waiting to grow, and why an agent can ask the garden who links where instead of reading every note.
 
 The pages that follow cover writing, growing, finding your way, the graph, daily notes and tasks, the keys, and working with an agent.

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { STAGES, STAGE_ORDER, seedRecords, seedOperations, seedNotes, fixture, PACKAGE_FOLDER, SKILL_FOLDER, SKILL_PACKAGE_ID } from './definition.mjs';
+import { STAGES, STAGE_ORDER, seedRecords, seedOperations, seedNotes, fixture, PACKAGE_FOLDER, SKILL_FOLDER, SKILL_PACKAGE_ID, HOME_VIEW } from './definition.mjs';
 import { parse } from '../../extensions/garden/parse.mjs';
 import { F } from '../../extensions/garden/sync.mjs';
 
@@ -77,7 +77,7 @@ test('the graph screen runs the Garden package, and no stage carries the retired
   assert.ok(STAGE_ORDER.indexOf('garden') < STAGE_ORDER.indexOf('graph'), 'the package is in the file before the graph names it');
 });
 
-test('no two entries in Use share a name: the front page, the views of the file and the record types', async () => {
+test('no two entries in Use share a name: the views of the file and the record types', async () => {
   const ops = await allOps();
   const names = [
     ...ops.filter(o => o.operationType === 'ui.addNode' && o.payload.parentNodeId === null && ['overviewSurface', 'extensionView'].includes(o.payload.kind)).map(o => o.payload.properties.title),
@@ -86,10 +86,13 @@ test('no two entries in Use share a name: the front page, the views of the file 
   assert.deepEqual(names.filter((name, index) => names.indexOf(name) !== index), [], `Use would list a name twice: ${names.join(', ')}`);
 });
 
-test('one view opens the file, one front page, one page per record type, at most eight roots per kind', async () => {
+test('the Overview opens the file, no native front page, one page per record type, at most eight roots per kind', async () => {
   const roots = (await allOps()).filter(o => o.operationType === 'ui.addNode' && o.payload.parentNodeId === null).map(o => o.payload);
-  assert.equal(roots.filter(r => r.kind === 'extensionView' && r.properties.opensFile === true).length, 1, 'exactly one extensionView must open the file');
-  assert.equal(roots.filter(r => r.kind === 'overviewSurface').length, 1);
+  const opens = roots.filter(r => r.kind === 'extensionView' && r.properties.opensFile === true);
+  assert.deepEqual(opens.map(r => [r.nodeId, r.properties.title, r.properties.packageId]), [[HOME_VIEW, 'Overview', 'org.nendo.garden']], 'the Overview, and only it, opens the file');
+  const views = roots.filter(r => r.kind === 'extensionView').map(r => r.nodeId);
+  assert.deepEqual(views, [HOME_VIEW, 'gd.garden'], 'Use lists the Overview before the Garden view');
+  assert.equal(roots.filter(r => r.kind === 'overviewSurface').length, 0, 'the Overview replaced the native front page');
   const perKind = new Map();
   for (const r of roots) {
     const key = `${r.properties.entityId ?? 'file'}/${r.kind}`;
@@ -116,7 +119,7 @@ test('every reference is bound, every FilteredCount predicate and the pinned fla
       if (b.kind === 'SameRecordCalculation') assert.ok(fields.get(b.entityId).has(b.calculationId.replace('gd.calc.', 'gd.note.')) || true);
     }
   }
-  assert.equal(fields.get('gd.note').get(F.note.pinned).required, true, 'pinned must be required: the front page filters eq true');
+  assert.equal(fields.get('gd.note').get(F.note.pinned).required, true, 'pinned must be required: the Overview and the Garden view read it as true or false');
   assert.equal(fields.get('gd.task').get(F.task.done).required, true);
   assert.ok(schema.some(o => o.operationType === 'schema.setFieldUnique' && o.payload.fieldId === F.note.slug), 'the slug must be unique');
   assert.ok(!schema.some(o => o.operationType === 'schema.setKeptInNewFiles'), 'no record type is kept whole: the person\'s notes must not travel into every new garden');

@@ -1,9 +1,13 @@
-// The Garden package's three places: on a screen of the file it is the workspace, on the notes'
-// graph screen it is the living graph, and on a note's record page it is the Backlinks panel.
-// Each reads the file through window.nendo (ADR-0013) and nothing else.
+// The Garden package's four places: the Overview, a screen of the file led by the garden's graph;
+// the Garden view, the workspace where notes are read and written; the notes' Graph screen; and
+// on a note's record page the Backlinks panel. Each reads the file through window.nendo
+// (ADR-0013) and nothing else.
 import { startWorkspace } from './workspace.js';
 import { startPanel } from './panel.js';
 import { startGraphScreen } from './graphscreen.js';
+import { startHome } from './home.js';
+
+export const HOME_VIEW = 'gd.home';
 
 (async () => {
   const nendo = window.nendo;
@@ -22,5 +26,6 @@ import { startGraphScreen } from './graphscreen.js';
   kit.installFocusRing(document);
   if (context.placement === 'recordPage') await startPanel(nendo, context, kit);
   else if (context.kind === 'extensionGraphSurface') await startGraphScreen(nendo, context, kit);
+  else if (context.viewId === HOME_VIEW) await startHome(nendo, context, kit);
   else await startWorkspace(nendo, context, kit);
 })();

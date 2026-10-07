@@ -20,7 +20,7 @@ carries its own agent skill). No host change is required.
   the Tree screen is the outline and `gd.note.path` and `gd.note.beneath` are calculations.
   There are no folders.
 - **A note has a stage**: Seed, Growing, Evergreen. A wikilink to a note that is not there
-  yet plants a Seed in the same batch, so `gd.link.to` stays required and the front page
+  yet plants a Seed in the same batch, so `gd.link.to` stays required and the Overview
   counts what waits to grow. `gd.note.isOrphan` is a calculation over the link counts.
 - **Daily notes** carry a date and the kind Daily; they sit on a calendar, and Today in the
   view plants one from the Template note.
@@ -148,9 +148,9 @@ the graph to be dynamic and interactive, drawn with a common library as Obsidian
 ## The file
 
 `workspace/Garden.nendo`, built by `tools/Build-Garden.mjs` from `tools/garden/definition.mjs`,
-one change set per stage: `schema`, `colour`, `behaviour`, `notes`, `others`, `front`, `garden`
-(the Garden package, the `extensionView` the file opens on, and the Backlinks
-`extensionRecordPanel`), `graph` (the Graph screen over `gd.link`, run by the same package),
+one change set per stage: `schema`, `colour`, `behaviour`, `notes`, `others`, `garden`
+(the Garden package, the Overview `extensionView` the file opens on, the Garden view, and the
+Backlinks `extensionRecordPanel`), `graph` (the Graph screen over `gd.link`, run by the same package),
 `skill`, `seed` and `keep`. The builder finds the file by name in the host's discovery folder, refuses a
 development planner and a non-empty file, keeps every stage under 128 operations and every
 mutation under 16, and accepts its own proposal only at Unattended. `compare` reads the file
@@ -167,9 +167,17 @@ cannot disagree with the parser.
 
 ## Choices
 
-- **The front page is Overview.** Use lists the front page, then the views of the file, then
-  the record types, so the front page cannot share the Garden view's name; a test refuses any
-  two entries with one name.
+- **The Overview is a view, led by the graph** (W-179, 0.16.0). The native front page of tiles
+  and lists said the garden in rows of text; the owner asked for a page that draws people in, and
+  chose the graph-first direction from six. A native overview cannot draw the graph, so the
+  Overview is a view of the file in the Garden package (`gd.home`), listed before the Garden view
+  and opening the file; `upgrade` removes the native `gd.front` and moves `opensFile` from the
+  Garden view to it. Its graph is coloured by stage, as the buttons beside it that pick a stage
+  out. A note picked there opens in the Garden view rather than on its record page: a view cannot
+  set another view's place, so the request goes through the package's own storage, which both
+  frames share because they share the package's origin, taken once and only within 15 seconds.
+  Use lists the views of the file, then the record types; a test refuses two entries with one
+  name.
 
 - **No triggers.** Calculations give every count. A trigger would put the file behind device
   behaviour consent and refuse an agent's writes until approved.
@@ -179,8 +187,8 @@ cannot disagree with the parser.
   reserved (ADR-0023), so a link removed and written again cannot reuse an ID; sync matches
   links by (from, to), note tags by (note, tag) and tasks by the key of their text. Tags are
   never deleted by a save.
-- **Required `slug`, `pinned` and `done`.** A `FilteredCount` errors on a null member and a
-  front-page tile filters `pinned eq true`; the view, the seeds and the skill always write
+- **Required `slug`, `pinned` and `done`.** A `FilteredCount` errors on a null member, and the
+  Overview and the Garden view read `pinned` as true or false; the view, the seeds and the skill always write
   them. Nendo's own Add form asks for a slug; the view and agents generate one.
 - **The view never asks with a dialog.** A draft left behind when the person moves to
   another note is kept in the view and marked in the tree, because a modal blocks the
@@ -229,7 +237,15 @@ cannot disagree with the parser.
   with the search refused for want of an index the view still finds it in the bodies.
 - `node tools/Build-Garden.mjs` then `compare` against `workspace/Garden.nendo`;
   `Test-Repository.ps1` and `Test-Production.ps1 -SkipRestore`.
-- Owner-reported: the file opens on the Garden view in the installed host.
+- The Overview, on the fixture broker with `ui.openScreen` offered: the graph at the top, the
+  largest thing on the page, at least 55% of its width and 380 px tall, every note and linked
+  pair inside it and each dot its stage's colour; the counts beside it; no table; Evergreen
+  picks out exactly its notes under a real pointer and Esc lets them go; the cards carry a title
+  and a line; Find lists How links work first and offers a new note only for a title no note
+  has; a card hands its note to the Garden view, opens that screen and not the record page, and
+  the Garden view started next opens that note and clears the request; the theme's tokens in
+  Light and Dark; at 700 px the side stacks over a full-width graph with no sideways scroll.
+- Owner-reported: the file opens on the Overview in the installed host.
 
 ## Build and handoff
 

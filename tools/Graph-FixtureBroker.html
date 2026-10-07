@@ -76,6 +76,10 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
   let searchOffered = false;
   // A view's place in Back and Forward (W-127), offered only when a probe asks.
   const PLACES = ['ui.setPlace'];
+  // Opening another screen of the file (ui.openScreen), offered only when a probe asks, so the lanes
+  // that measure a view on a host without it keep measuring that.
+  const SCREENS = ['ui.openScreen'];
+  let screensOffered = false;
   let placesOffered = false, startPlace = null;
   const places = [];
   const toolbars = [], menus = [], chromeRefusals = [];
@@ -124,7 +128,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     return {
       apiVersion: config.apiVersion, packageId: config.packageId, configuration: {}, locale: 'en', readOnly: false,
       ...clone(context), theme: themeOf(context.theme ?? 'light'),
-      methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : []), ...(placesOffered ? PLACES : []), ...(searchOffered ? SEARCH : [])],
+      methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : []), ...(placesOffered ? PLACES : []), ...(searchOffered ? SEARCH : []), ...(screensOffered ? SCREENS : [])],
       ...(placesOffered ? { place: clone(startPlace) } : {}),
     };
   }
@@ -244,6 +248,10 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
       case 'ui.openRecord':
         text(params, 'entityId');
         text(params, 'recordId');
+        return { opened: true };
+      case 'ui.openScreen':
+        if (!screensOffered) throw refusal('unknown-method', 'ui.openScreen is not a method this fixture answers.');
+        text(params, 'surfaceId');
         return { opened: true };
       case 'ui.setToolbar':
         if (!chrome) throw refusal('unknown-method', 'ui.setToolbar is not a method this fixture answers.');
@@ -671,6 +679,8 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     offerWrites(on) { writes = on === true; return writes; },
     offerPlaces(on) { placesOffered = on === true; return placesOffered; },
     offerSearch(on) { searchOffered = on === true; return searchOffered; },
+    offerScreens(on) { screensOffered = on === true; return screensOffered; },
+    screensOpened() { return requests.filter(request => request.m === 'ui.openScreen').map(request => request.p.surfaceId); },
     places,
     /** Back or Forward moved the person to this place of the view's. */
     pushPlace(place) { emit('place', clone(place)); return events.length; },

@@ -82,8 +82,8 @@ has no automatic actions, so a schema change never asks the device for behaviour
 
 ## Screens
 
-Use opens on the **Garden** view, where notes are written. The front page counts notes, seeds
-and orphans and lists what was pinned and tended lately. Notes have a Tree, All notes, Orphans,
+Use opens on the **Overview**, led by the garden's graph, with the pinned and lately tended
+notes, the tasks due next and the tags; notes are written in the **Garden** view. Notes have a Tree, All notes, Orphans,
 By stage, a Daily calendar, Maps and a Graph (`gd.note.graph`); tasks have Open, By source, a
 Due calendar and All tasks. A note's page shows its links out, backlinks, tags and tasks, and
 the Backlinks panel with each backlink's sentence.

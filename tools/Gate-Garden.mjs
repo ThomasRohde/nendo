@@ -871,6 +871,108 @@ async page => {
   assert(cleared.marks.text === 0 && cleared.marks.editor === 0 && !cleared.highlight, `An empty Find must clear every mark: ${JSON.stringify(cleared)}.`);
   checks.push('find searches the index and marks the words in the note, and the bodies without one');
 
+  // 20. The Overview (W-179): the garden's front page is led by its graph, not by lists of text. The
+  // graph is the largest thing on the page and draws every note; the stages pick notes out on it;
+  // the notes are cards with their first line; a note picked there opens in the Garden view.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const homeContext = { ...fixture.context, viewId: 'gd.home', title: 'Overview' };
+  await page.evaluate(({ fixture, homeContext }) => { window.broker.offerScreens(true); window.broker.setFixture({ ...fixture, context: homeContext }); window.broker.pushTheme('light'); window.broker.remount(); }, { fixture, homeContext });
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.waitForFunction(() => window.gardenHome?.ready === true, { timeout: 15000 })
+    .catch(async () => { throw Error(`The Overview must start on gd.home: ${JSON.stringify(await frame.evaluate(() => ({ home: !!window.gardenHome, garden: !!window.garden, shown: !document.getElementById('home')?.hidden })))}.`); });
+  await page.waitForTimeout(1600);
+  const homePairs = new Set(fixture.records['gd.link'].filter(l => l.values[F.from] !== l.values[F.to]).map(l => `${l.values[F.from]}>${l.values[F.to]}`));
+  const hero = await frame.evaluate(() => {
+    const box = id => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, area: r.width * r.height }; };
+    const graph = box('home-graph'), page = box('home');
+    const others = ['home-side', 'home-pinned-section', 'home-lately-section', 'home-tasks-card', 'home-tags-card'].map(id => [id, box(id)]);
+    const circles = [...document.querySelectorAll('#home-graph .node circle')].map(c => c.getBoundingClientRect());
+    const inside = circles.every(c => c.x >= graph.x - 1 && c.right <= graph.x + graph.w + 1 && c.y >= graph.y - 1 && c.bottom <= graph.y + graph.h + 1);
+    return { graph, page, larger: others.filter(([, b]) => b.area >= graph.area).map(([id]) => id), nodes: circles.length, edges: document.querySelectorAll('#home-graph line.edge').length, inside,
+      notes: document.getElementById('home-notes').textContent, links: document.getElementById('home-links').textContent,
+      lists: document.querySelectorAll('#home table, #home .recent-list').length, top: graph.y < 120 };
+  });
+  assert(hero.nodes === seedNotes && hero.edges === homePairs.size && hero.inside, `The Overview's graph must draw every note (${seedNotes}) and linked pair (${homePairs.size}) inside its box: ${JSON.stringify(hero)}.`);
+  assert(hero.larger.length === 0 && hero.top && hero.graph.w >= hero.page.w * 0.55 && hero.graph.h >= 380,
+    `The graph must lead the Overview: at the top, the largest thing on it, at least 55% of its width and 380 px tall: ${JSON.stringify(hero)}.`);
+  assert(hero.notes === String(seedNotes) && hero.links === String(homePairs.size), `Beside the graph, the notes and links it draws: ${JSON.stringify(hero)}.`);
+  assert(hero.lists === 0, 'The Overview holds no table or list of records.');
+  // The dots take their stage's colour, as the buttons beside them that pick a stage out do.
+  const dotTones = await frame.evaluate(stages => {
+    const tone = name => { const e = document.createElement('i'); e.style.color = `var(--nendo-tone-${name})`; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; };
+    const want = { Seed: tone('amber'), Growing: tone('teal'), Evergreen: tone('green') };
+    return [...document.querySelectorAll('#home-graph .node')].filter(n => getComputedStyle(n.querySelector('circle')).fill !== want[stages[n.dataset.id]]).map(n => [n.dataset.id, stages[n.dataset.id], getComputedStyle(n.querySelector('circle')).fill]);
+  }, Object.fromEntries(fixture.records['gd.note'].map(n => [n.recordId, n.values[F.stage]])));
+  assert(dotTones.length === 0, `Every dot on the Overview's graph must be its stage's colour: ${JSON.stringify(dotTones)}.`);
+  // A stage picks its notes out on the graph, with a real pointer; Esc lets them go.
+  const evergreen = fixture.records['gd.note'].filter(n => n.values[F.stage] === 'Evergreen').map(n => n.recordId).sort();
+  const stageButtons = await frame.evaluate(() => [...document.querySelectorAll('#home-stages button')].map(b => [b.dataset.stage, b.querySelector('b').textContent]));
+  assert(JSON.stringify(stageButtons) === JSON.stringify([['Seed', '0'], ['Growing', String(seedNotes - evergreen.length)], ['Evergreen', String(evergreen.length)]]), `The stages and their counts, in order: ${JSON.stringify(stageButtons)}.`);
+  await frame.locator('#home-stages button[data-stage="Evergreen"]').click();
+  const stagePicked = await frame.evaluate(() => ({ searching: document.querySelector('#home-graph svg').classList.contains('searching'), match: [...document.querySelectorAll('#home-graph .node.match')].map(n => n.dataset.id).sort(),
+    pressed: document.querySelector('#home-stages button[data-stage="Evergreen"]').getAttribute('aria-pressed') }));
+  assert(stagePicked.searching && stagePicked.pressed === 'true' && JSON.stringify(stagePicked.match) === JSON.stringify(evergreen), `Evergreen must pick out its ${evergreen.length} notes on the graph: ${JSON.stringify(stagePicked)}.`);
+  await page.keyboard.press('Escape');
+  assert(await frame.evaluate(() => document.querySelectorAll('#home-graph .node.match').length === 0 && !document.querySelector('#home-graph svg').classList.contains('searching')), 'Esc must let the picked notes go.');
+  // The notes are cards: a title and the first line of what they say, never a bare row of names.
+  const cards = await frame.evaluate(() => [...document.querySelectorAll('#home .home-card')].map(c => { const r = c.getBoundingClientRect(); return { id: c.dataset.id, title: c.querySelector('.home-card-title').textContent, text: c.querySelector('.home-card-text').textContent, w: r.width, h: r.height }; }));
+  const pinnedSeeds = fixture.records['gd.note'].filter(n => n.values['gd.note.pinned']).length;
+  assert(cards.length >= pinnedSeeds + 1 && cards.every(c => c.title && c.text && c.text !== 'Nothing written yet.' && c.w >= 200 && c.h >= 90), `Pinned and lately tended notes must be cards with their first line: ${JSON.stringify(cards)}.`);
+  await page.screenshot({ path: '__OUTPUT__/overview.png', fullPage: true });
+  // Find: titles light up and are listed; Enter on words no note is titled offers a new one.
+  await frame.locator('#home-find').click();
+  await page.keyboard.type('links');
+  await frame.waitForFunction(() => !document.getElementById('home-found').hidden);
+  const foundLinks = await frame.evaluate(() => ({ options: [...document.querySelectorAll('#home-found li')].map(li => li.textContent), match: document.querySelectorAll('#home-graph .node.match').length }));
+  assert(foundLinks.options[0]?.includes('How links work') && foundLinks.match >= 1 && foundLinks.options.at(-1).startsWith('New note'), `Find must list How links work first, light it on the graph and offer a new note: ${JSON.stringify(foundLinks)}.`);
+  await frame.locator('#home-find').fill('');
+  await page.keyboard.type('How links work');
+  await frame.waitForFunction(() => [...document.querySelectorAll('#home-found li')].length > 0);
+  assert(!(await frame.evaluate(() => [...document.querySelectorAll('#home-found li')].some(li => li.textContent.startsWith('New note')))), 'A title a note already has offers no new note.');
+  // A card opens its note in the Garden view: the Overview hands the note over and opens that screen,
+  // and the Garden view, started on it, opens the note rather than its pinned map.
+  await frame.locator('#home-find').fill('');
+  const target = cards.find(c => c.id !== 'gd.note.start-here');
+  const recordPagesBefore = (await page.evaluate(() => window.broker.opened())).length;
+  await frame.locator(`#home .home-card[data-id="${target.id}"]`).click();
+  const screens = await page.evaluate(() => window.broker.screensOpened());
+  const handed = await frame.evaluate(() => JSON.parse(localStorage.getItem('garden.handover.v1') ?? 'null'));
+  assert(screens.at(-1) === 'gd.garden' && handed?.open === target.id, `A card must hand ${target.id} to the Garden view and open it: ${JSON.stringify({ screens, handed })}.`);
+  assert((await page.evaluate(() => window.broker.opened())).length === recordPagesBefore, 'A card opens the Garden view, not the note\'s record page.');
+  await page.evaluate(fixture => { window.broker.setFixture(fixture); window.broker.remount(); }, fixture);
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.waitForFunction(() => window.garden?.ready === true, { timeout: 15000 });
+  await frame.waitForFunction(id => window.garden.note?.recordId === id, target.id, { timeout: 3000 })
+    .catch(async () => { throw Error(`The Garden view must open ${target.id}, the note the Overview handed over: ${await frame.evaluate(() => window.garden.note?.recordId)}.`); });
+  assert(await frame.evaluate(() => localStorage.getItem('garden.handover.v1') === null), 'The hand-over is taken once.');
+  checks.push('overview led by the graph, its picks and cards, and a note handed to the Garden view');
+  // Dark uses the theme's tokens; at a narrow width the side stacks over the graph with no sideways scroll.
+  await page.evaluate(({ fixture, homeContext }) => { window.broker.setFixture({ ...fixture, context: homeContext }); window.broker.remount(); }, { fixture, homeContext });
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.waitForFunction(() => window.gardenHome?.ready === true, { timeout: 15000 });
+  const homeColours = {};
+  for (const mode of ['dark', 'light']) {
+    await page.evaluate(mode => window.broker.pushTheme(mode), mode); await page.waitForTimeout(150);
+    homeColours[mode] = await frame.evaluate(() => {
+      const token = name => { const e = document.createElement('i'); e.style.background = `var(--nendo-${name})`; document.body.append(e); const c = getComputedStyle(e).backgroundColor; e.remove(); return c; };
+      return { hero: getComputedStyle(document.getElementById('home-hero')).backgroundColor, raised: token('surface-raised'), graph: getComputedStyle(document.getElementById('home-graph')).backgroundColor, soft: token('surface-soft'),
+        primary: getComputedStyle(document.querySelector('.home-actions .primary')).backgroundColor, cobalt: token('cobalt') };
+    });
+    assert(homeColours[mode].hero === homeColours[mode].raised && homeColours[mode].graph === homeColours[mode].soft && homeColours[mode].primary === homeColours[mode].cobalt, `${mode}: the Overview must use the theme's tokens: ${JSON.stringify(homeColours[mode])}.`);
+    if (mode === 'dark') await page.screenshot({ path: '__OUTPUT__/overview-dark.png', fullPage: true });
+  }
+  assert(homeColours.dark.hero !== homeColours.light.hero, 'The theme must change the Overview.');
+  await page.setViewportSize({ width: 700, height: 900 });
+  await page.waitForTimeout(400);
+  const stacked = await frame.evaluate(() => { const s = document.getElementById('home-side').getBoundingClientRect(), g = document.getElementById('home-graph').getBoundingClientRect();
+    return { sideBottom: s.bottom, graphTop: g.top, graphWidth: g.width, width: innerWidth, scroll: document.scrollingElement.scrollWidth }; });
+  assert(stacked.sideBottom <= stacked.graphTop + 1 && stacked.graphWidth >= stacked.width - 40 && stacked.scroll <= stacked.width, `At 700 px the side must stack over a full-width graph, with no sideways scroll: ${JSON.stringify(stacked)}.`);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  checks.push('overview in Light and Dark and at a narrow width');
+
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, colours, narrow, settle, checks, errors };
 

@@ -15,6 +15,7 @@ import { createGraph } from './graph.js';
 import { localDate, uncertain, readDrafts, writeDrafts } from './drafts.mjs';
 import { createFinder, localMatch } from './search.mjs';
 import { createFindMarks, searchTerms } from './findmarks.mjs';
+import { takeHandover, HANDOVER_KEY } from './handover.mjs';
 
 const STAGE_TONES = { Seed: 'amber', Growing: 'teal', Evergreen: 'green' };
 const TASK_LINE = /^(\s*[-*+]\s+\[)( |x|X)(\])/;
@@ -953,10 +954,23 @@ export async function startWorkspace(nendo, context, kit) {
   await loadIndex();
   state.ready = true;
   expose();
-  // The garden opens on the place Back left, or on its first pinned map, or on its first note.
+  // What the Overview asked for when it opened this screen: a note, a new note, or today's.
+  async function takeRequest() {
+    const request = takeHandover();
+    if (request === null) return false;
+    if (typeof request.open === 'string' && state.byId.has(request.open)) await open(request.open);
+    else if (typeof request.plant === 'string') startNew(request.plant.trim() ? { [F.note.title]: request.plant.trim() } : {});
+    else if (request.daily === true) await daily();
+    else return false;
+    return true;
+  }
+  // A frame that kept running hears the request as it is made.
+  window.addEventListener('storage', event => { if (event.key === HANDOVER_KEY && event.newValue !== null && state.ready) takeRequest(); });
+  // Otherwise the garden opens on the place Back left, or on its first pinned map, or on its first note.
   const pinned = state.index.find(note => note.values[F.note.pinned] && note.values[F.note.kind] === 'Map') ?? state.index.find(note => note.values[F.note.pinned]);
   const start = context.place?.noteId && state.byId.has(context.place.noteId) ? context.place.noteId : pinned?.recordId ?? null;
-  if (start) await open(start, { fromPlace: !!context.place?.noteId });
+  if (await takeRequest()) { /* the Overview chose */ }
+  else if (start) await open(start, { fromPlace: !!context.place?.noteId });
   else setStatus('');
   if (state.restored > 0) setStatus(`${state.restored === 1 ? 'An unsaved draft was' : `${state.restored} unsaved drafts were`} kept from before; the tree marks ${state.restored === 1 ? 'its note' : 'their notes'}.`);
 }

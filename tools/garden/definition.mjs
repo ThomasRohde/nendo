@@ -1,4 +1,4 @@
-// The shape of workspace/Garden.nendo: record types, calculations, screens, the front page, the
+// The shape of workspace/Garden.nendo: record types, calculations, screens, the Overview, the
 // commands, the two packages, the skill and the seed notes, one stage per change set.
 // tools/Build-Garden.mjs sends them; this file only says what they are. docs/design/garden.md
 // gives the reason for each choice.
@@ -22,9 +22,11 @@ export const PACKAGE_FOLDER = path.resolve(here, '..', '..', 'extensions', 'gard
 export const SKILL_FOLDER = path.resolve(here, '..', 'garden-skill');
 export const NEW_FILE_LABEL = 'garden';
 export const SEED_DATE = '2026-10-06';
-// Use lists the front page beside the Garden view, so the two need different names.
-export const FRONT_TITLE = 'Overview';
-export const FRONT_DESCRIPTION = 'What is growing, what is pinned, what was tended lately, and the tasks the notes carry. Notes are read and written in the Garden view.';
+// The Overview is a view of the file in the Garden package, led by the garden's graph, and the
+// file opens on it. It replaced a native front page (gd.front), which upgrade takes out.
+export const HOME_VIEW = 'gd.home';
+export const HOME_TITLE = 'Overview';
+export const RETIRED_FRONT = 'gd.front';
 
 const op = (operationType, payload) => ({ operationType, payload });
 const text = (entityId, fieldId, displayName, required = false, presentation = 'singleLine') =>
@@ -324,51 +326,6 @@ export const STAGES = {
     },
   },
 
-  front: {
-    title: 'Garden: the front page',
-    needs: ENTITIES,
-    appliedWhen: async read => read.hasNode('gd.front'),
-    mutations: () => {
-      const t = tree();
-      const front = t.add('gd.front', 'overviewSurface', null, { definitionVersion: 3, title: FRONT_TITLE, description: FRONT_DESCRIPTION });
-      const tabs = t.add('gd.front.tabs', 'tabGroup', front, { title: 'Garden' });
-
-      const tending = t.add('gd.front.tending', 'section', tabs, { title: 'Tending' });
-      t.add('gd.front.tending.notes', 'summaryTile', tending, { entityId: 'gd.note', aggregate: 'count', title: 'Notes' });
-      const seeds = t.add('gd.front.tending.seeds', 'summaryTile', tending, { entityId: 'gd.note', aggregate: 'count', title: 'Seeds to grow' });
-      t.where(seeds, 'seed', F.note.stage, 'eq', 'Seed');
-      const orphans = t.add('gd.front.tending.orphans', 'summaryTile', tending, { entityId: 'gd.note', aggregate: 'count', title: 'Orphans' });
-      t.where(orphans, 'orphan', 'gd.note.isOrphan', 'eq', true);
-      const pinned = t.add('gd.front.tending.pinned', 'recentList', tending, { entityId: 'gd.note', title: 'Pinned', limit: 10, orderByFieldId: F.note.title, orderDirection: 'ascending' });
-      t.bindings(pinned, [F.note.title, F.note.kind, F.note.stage]);
-      t.where(pinned, 'pinned', F.note.pinned, 'eq', true);
-      const lately = t.add('gd.front.tending.lately', 'recentList', tending, { entityId: 'gd.note', title: 'Tended lately', limit: 10, orderByFieldId: F.note.touched, orderDirection: 'descending' });
-      t.bindings(lately, [F.note.title, F.note.stage, 'gd.note.linksIn']);
-
-      const growth = t.add('gd.front.growth', 'section', tabs, { title: 'Growth' });
-      t.add('gd.front.growth.stage', 'breakdownChart', growth, { entityId: 'gd.note', aggregate: 'count', groupByFieldId: F.note.stage, title: 'Notes by stage' });
-      t.add('gd.front.growth.kind', 'breakdownChart', growth, { entityId: 'gd.note', aggregate: 'count', groupByFieldId: F.note.kind, title: 'Notes by kind' });
-      t.add('gd.front.growth.days', 'activityGrid', growth, { entityId: 'gd.note', dateFieldId: F.note.touched, range: 'thisYear', title: 'Days tended' });
-      t.add('gd.front.growth.months', 'trendChart', growth, { entityId: 'gd.note', dateFieldId: F.note.touched, bucket: 'month', range: 'last12Months', aggregate: 'count', title: 'Notes tended by month' });
-
-      const tasks = t.add('gd.front.tasks', 'section', tabs, { title: 'Tasks' });
-      const open = t.add('gd.front.tasks.open', 'summaryTile', tasks, { entityId: 'gd.task', aggregate: 'count', title: 'Open' });
-      t.where(open, 'open', F.task.done, 'eq', false);
-      const done = t.add('gd.front.tasks.done', 'progressTile', tasks, { entityId: 'gd.task', title: 'Done' });
-      t.where(done, 'done', F.task.done, 'eq', true);
-      const next = t.add('gd.front.tasks.next', 'recentList', tasks, { entityId: 'gd.task', title: 'Due next', limit: 10, orderByFieldId: F.task.due, orderDirection: 'ascending' });
-      t.bindings(next, [F.task.title, F.task.note, F.task.due]);
-      t.where(next, 'open', F.task.done, 'eq', false);
-      t.where(next, 'dated', F.task.due, 'isNotNull');
-
-      const tags = t.add('gd.front.tags', 'section', tabs, { title: 'Tags' });
-      t.add('gd.front.tags.count', 'summaryTile', tags, { entityId: 'gd.tag', aggregate: 'count', title: 'Tags' });
-      const tagList = t.add('gd.front.tags.list', 'recentList', tags, { entityId: 'gd.tag', title: 'Tags', limit: 10, orderByFieldId: F.tag.name, orderDirection: 'ascending' });
-      t.bindings(tagList, [F.tag.name, 'gd.tag.noteCount']);
-      return t.asMutations('The front page');
-    },
-  },
-
   graph: {
     title: 'Garden: the living graph of the notes',
     needs: ENTITIES,
@@ -383,14 +340,15 @@ export const STAGES = {
   },
 
   garden: {
-    title: 'Garden: the Garden view, which the file opens on, and the Backlinks panel',
+    title: 'Garden: the Overview, which the file opens on, the Garden view and the Backlinks panel',
     needs: ENTITIES,
     appliedWhen: async read => read.hasNode('gd.garden'),
     mutations: async () => {
       const files = await packageMutations(PACKAGE_FOLDER, PACKAGE_ID, 'Put the Garden package into the file');
       // The panel sits after the Note tab's three bindings, which the notes stage made.
       const t = tree({ 'gd.note.page.note': 3 });
-      t.add('gd.garden', 'extensionView', null, { definitionVersion: 3, title: 'Garden', packageId: PACKAGE_ID, entityId: 'gd.note', opensFile: true });
+      t.add(HOME_VIEW, 'extensionView', null, { definitionVersion: 3, title: HOME_TITLE, packageId: PACKAGE_ID, entityId: 'gd.note', opensFile: true });
+      t.add('gd.garden', 'extensionView', null, { definitionVersion: 3, title: 'Garden', packageId: PACKAGE_ID, entityId: 'gd.note' });
       t.add('gd.note.page.backlinks', 'extensionRecordPanel', 'gd.note.page.note', { title: 'Backlinks', packageId: PACKAGE_ID, labelFieldId: F.note.title });
       return [...files, ...t.asMutations('Show the Garden view and the Backlinks panel')];
     },
@@ -443,7 +401,7 @@ export async function hasSearchIndex(read) {
   }
 }
 
-export const STAGE_ORDER = ['schema', 'colour', 'behaviour', 'notes', 'others', 'front', 'garden', 'graph', 'skill', 'seed', 'keep', 'search'];
+export const STAGE_ORDER = ['schema', 'colour', 'behaviour', 'notes', 'others', 'garden', 'graph', 'skill', 'seed', 'keep', 'search'];
 
 // ---- Seeds: the notes a new garden starts with. Their links, tags and tasks come from the same
 // parse and sync the view uses on save, so the seed cannot disagree with the parser.
@@ -461,7 +419,7 @@ export function seedNotes() {
       '- [[daily-notes]]: one note a day, on a calendar.',
       '- [[for-agents]]: how an agent reads and writes this file.',
       '',
-      'A note has a **stage**: Seed, Growing or Evergreen. Mark a note evergreen when it says what it means. The front page counts the seeds that are waiting to grow.',
+      'A note has a **stage**: Seed, Growing or Evergreen. Mark a note evergreen when it says what it means. The Overview counts the seeds that are waiting to grow.',
       '',
       '- [ ] Plant your first note with **New note**',
       '- [ ] Link it to this one',

@@ -174,7 +174,7 @@
         <summary><span><b>The life of a note</b><small>Seed, growing, evergreen</small></span></summary>
         <div class="guide-topic-body">
           <ol class="guide-life">
-            <li><i class="tone seed"></i><div><strong>Seed</strong> A name and little else, often planted by a link. The front page counts the seeds that wait.</div></li>
+            <li><i class="tone seed"></i><div><strong>Seed</strong> A name and little else, often planted by a link. The Overview counts the seeds that wait.</div></li>
             <li><i class="tone growing"></i><div><strong>Growing</strong> Being written and linked. Most notes live here.</div></li>
             <li><i class="tone evergreen"></i><div><strong>Evergreen</strong> Says what it means and is worth linking to. Mark it evergreen from the menu.</div></li>
           </ol>
@@ -220,6 +220,36 @@
     <p class="guide-aside guide-more">The whole guide, eight pages from first steps to the graph, is in Nendo's <b>Help</b>, under <b>About this app</b>.</p>
   </div>
 </aside>
+<div id="home" hidden>
+  <p id="home-problem" role="alert" hidden></p>
+  <section id="home-hero" aria-labelledby="home-title">
+    <div id="home-side">
+      <div class="home-head">
+        <h1 id="home-title"><span id="home-notes">0</span> <span id="home-notes-word">notes</span>,<br><span id="home-links">0</span> <span id="home-links-word">links</span></h1>
+        <p class="home-lede">Every dot is a note. The more notes link to it, the bigger it is.</p>
+      </div>
+      <div class="home-find">
+        <label for="home-find">Find a note, or name a new one</label>
+        <input id="home-find" type="search" autocomplete="off" spellcheck="false" placeholder="Title or any word…" role="combobox" aria-expanded="false" aria-controls="home-found" aria-autocomplete="list">
+        <ul id="home-found" role="listbox" aria-label="Notes found" hidden></ul>
+      </div>
+      <div id="home-stages" role="group" aria-label="Pick out on the graph"></div>
+      <button type="button" id="home-unlinked" class="link-like" aria-pressed="false" hidden></button>
+      <div class="home-actions">
+        <button type="button" class="primary" data-home="new">New note</button>
+        <button type="button" data-home="daily">Today</button>
+        <button type="button" id="home-graph-action" data-home="graph">Open the graph</button>
+      </div>
+    </div>
+    <div id="home-graph" class="graph-host"></div>
+  </section>
+  <section id="home-pinned-section" class="home-row" aria-labelledby="home-pinned-title" hidden><h2 id="home-pinned-title">Pinned</h2><ul id="home-pinned" class="home-cards"></ul></section>
+  <section id="home-lately-section" class="home-row" aria-labelledby="home-lately-title" hidden><h2 id="home-lately-title">Tended lately</h2><ul id="home-lately" class="home-cards"></ul></section>
+  <div class="home-pair">
+    <section class="card" id="home-tasks-card" aria-labelledby="home-tasks-title"><h2 id="home-tasks-title">Due next <span id="home-tasks-count" class="count"></span></h2><ul id="home-tasks" class="rows"></ul></section>
+    <section class="card" id="home-tags-card" aria-labelledby="home-tags-title" hidden><h2 id="home-tags-title">Tags</h2><ul id="home-tags" class="home-tags"></ul></section>
+  </div>
+</div>
 <p id="not-framed" hidden>This view runs inside Nendo.</p>
 <script src="/_nendo/api.js"></script>
 <script src="vendor/d3.min.js"></script>
