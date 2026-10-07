@@ -36,6 +36,7 @@ internal static class DesktopJumpList
     /// three files from the menu would see seven and never the older ones underneath.
     /// </summary>
     internal const int Considered = MaximumEntries + 8;
+    private const string Extension = ".nendo";
     private const uint CLSCTX_INPROC_SERVER = 1;
 
     private static readonly Guid CLSID_DestinationList = new("77f10cf0-3db5-4966-b520-b7c54fd35ed6");
@@ -53,9 +54,11 @@ internal static class DesktopJumpList
     /// <param name="removed">Full paths the person has taken off this menu.</param>
     /// <param name="slots">How many rows the shell says it has room for.</param>
     /// <remarks>
-    /// Two files can share a name and often do — a backup beside its original. Where
-    /// that happens the folder is added to both, because a menu offering "Work.nendo"
-    /// twice tells a person nothing about which one they are about to open.
+    /// A row names the file without ".nendo": every row in Nendo's own menu is one,
+    /// so the extension says nothing. Two files can share a name and often do — a
+    /// backup beside its original. Where that happens the folder is added to both,
+    /// because a menu offering "Work" twice tells a person nothing about which one
+    /// they are about to open.
     /// </remarks>
     internal static IReadOnlyList<DesktopJumpListEntry> Plan(
         IReadOnlyList<DesktopShellRecentFile> files,
@@ -73,16 +76,21 @@ internal static class DesktopJumpList
             candidates.Add(file);
         }
         var ambiguous = candidates
-            .GroupBy(file => file.FileName, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(file => NameOf(file.FileName), StringComparer.OrdinalIgnoreCase)
             .Where(group => group.Count() > 1)
             .Select(group => group.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         return candidates
-            .Select(file => new DesktopJumpListEntry(file.Path, ambiguous.Contains(file.FileName)
-                ? $"{file.FileName} — {FolderOf(file.Path)}"
-                : file.FileName))
+            .Select(file => new DesktopJumpListEntry(file.Path, ambiguous.Contains(NameOf(file.FileName))
+                ? $"{NameOf(file.FileName)} — {FolderOf(file.Path)}"
+                : NameOf(file.FileName)))
             .ToArray();
     }
+
+    private static string NameOf(string fileName) =>
+        fileName.Length > Extension.Length && fileName.EndsWith(Extension, StringComparison.OrdinalIgnoreCase)
+            ? fileName[..^Extension.Length]
+            : fileName;
 
     private static string FolderOf(string path)
     {

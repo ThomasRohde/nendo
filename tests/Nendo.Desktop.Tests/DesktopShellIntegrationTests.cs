@@ -184,7 +184,7 @@ public sealed class DesktopJumpListPlanTests
     {
         var plan = DesktopJumpList.Plan(
             [File(@"C:\a\Old.nendo", 9), File(@"C:\a\New.nendo", 1), File(@"C:\a\Middle.nendo", 4)], [], 10);
-        CollectionAssert.AreEqual(new[] { "New.nendo", "Middle.nendo", "Old.nendo" }, plan.Select(entry => entry.Title).ToArray());
+        CollectionAssert.AreEqual(new[] { "New", "Middle", "Old" }, plan.Select(entry => entry.Title).ToArray());
     }
 
     [TestMethod]
@@ -205,7 +205,7 @@ public sealed class DesktopJumpListPlanTests
         // the whole menu is then lost rather than one row.
         var plan = DesktopJumpList.Plan(
             [File(@"C:\a\Kept.nendo"), File(@"C:\a\Gone.nendo")], [@"c:\A\GONE.NENDO"], 10);
-        CollectionAssert.AreEqual(new[] { "Kept.nendo" }, plan.Select(entry => entry.Title).ToArray());
+        CollectionAssert.AreEqual(new[] { "Kept" }, plan.Select(entry => entry.Title).ToArray());
     }
 
     [TestMethod]
@@ -214,7 +214,7 @@ public sealed class DesktopJumpListPlanTests
         var plan = DesktopJumpList.Plan(
             [File(@"C:\work\Plan.nendo", 1), File(@"C:\backups\Plan.nendo", 2), File(@"C:\work\Other.nendo", 3)], [], 10);
         CollectionAssert.AreEqual(
-            new[] { "Plan.nendo — work", "Plan.nendo — backups", "Other.nendo" },
+            new[] { "Plan — work", "Plan — backups", "Other" },
             plan.Select(entry => entry.Title).ToArray());
     }
 
@@ -223,7 +223,18 @@ public sealed class DesktopJumpListPlanTests
     {
         var plan = DesktopJumpList.Plan([File(@"C:\a\Work.nendo", 1), File(@"C:\a\Work.nendo", 3)], [], 10);
         Assert.HasCount(1, plan);
-        Assert.AreEqual("Work.nendo", plan[0].Title);
+        Assert.AreEqual("Work", plan[0].Title);
+    }
+
+    [TestMethod]
+    public void ARowNamesTheFileWithoutItsExtension()
+    {
+        // Every row in Nendo's menu is a .nendo file, so the extension only costs width.
+        // Only that extension goes: a dotted name keeps its dots, and the case of the
+        // extension on disk does not matter.
+        var plan = DesktopJumpList.Plan(
+            [File(@"C:\Work.v2.nendo", 1), File(@"C:\LOUD.NENDO", 2), File(@"C:\.nendo", 3)], [], 10);
+        CollectionAssert.AreEqual(new[] { "Work.v2", "LOUD", ".nendo" }, plan.Select(entry => entry.Title).ToArray());
     }
 
     [TestMethod]
