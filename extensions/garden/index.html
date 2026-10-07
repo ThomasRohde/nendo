@@ -53,8 +53,14 @@
           </div>
         </div>
         <div id="about">
-          <section class="card"><h2>Backlinks <span id="backlinks-count" class="count"></span></h2><ul id="backlinks" class="rows"></ul></section>
-          <section class="card" id="local-graph-card"><h2>Local graph <span id="local-count" class="count"></span></h2><div id="local-graph" class="graph-host local"></div></section>
+          <section class="card" id="connections" aria-labelledby="connections-heading">
+            <div id="connections-lists">
+              <h2 id="connections-heading">Connections <span id="local-count" class="count"></span></h2>
+              <h3>Linked from <span id="backlinks-count" class="count"></span></h3><ul id="backlinks" class="rows"></ul>
+              <h3>Links to <span id="outlinks-count" class="count"></span></h3><ul id="outlinks" class="rows"></ul>
+            </div>
+            <div id="local-graph-card"><div id="local-graph" class="graph-host local"></div><button type="button" id="local-open-graph" class="corner">Open the graph</button></div>
+          </section>
           <section class="card"><h2>Tags</h2><ul id="note-tags" class="rows chips"></ul></section>
           <section class="card"><h2>Tasks <span id="tasks-count" class="count"></span></h2><ul id="note-tasks" class="rows"></ul></section>
         </div>
@@ -125,7 +131,7 @@
         <li><strong>Plant a note.</strong> New note opens a blank page in Edit. Give it a title and a few lines. <button type="button" data-guide="new">Plant one now</button></li>
         <li><strong>Link it.</strong> Type <code>[[</code> and pick a note from the list, or name one that does not exist yet: saving plants it as a Seed.</li>
         <li><strong>Save.</strong> <kbd>Ctrl</kbd> <kbd>S</kbd> turns links, tags and tasks into records in one step, and Undo takes the whole step back.</li>
-        <li><strong>Watch it grow.</strong> The note's backlinks and local graph appear under it while you read, and the Graph shows the whole garden. <button type="button" data-guide="graph">Open the graph</button></li>
+        <li><strong>Watch it grow.</strong> The note's connections, the links in and out with a small graph of them, appear under it while you read, and the Graph shows the whole garden. <button type="button" data-guide="graph">Open the graph</button></li>
       </ol>
       <p class="guide-aside">Keeping a journal? <button type="button" data-guide="daily" class="link-like">Today</button> opens today's note, made from the note whose kind is Template.</p>
     </section>

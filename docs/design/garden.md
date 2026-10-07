@@ -92,7 +92,8 @@ the graph to be dynamic and interactive, drawn with a common library as Obsidian
   now runs the Garden package) shows the whole garden, with Find, colour by stage or kind,
   tags as nodes, orphans, arrows, spread and fit in Nendo's row; a right-click shows a note's
   neighbourhood. The **local graph** under a note while reading shows it and every note one
-  link away. The Dependency graph package the Graph screen ran before is taken out of the file.
+  link away, in a 220 px box beside the rows of links in and out (the Connections card), so a
+  few notes fill it rather than float in a full-width band. The Dependency graph package the Graph screen ran before is taken out of the file.
 - **Why SVG and not a canvas.** The node count of a personal garden stays in the hundreds,
   where SVG keeps up; SVG lets the theme colour every mark through CSS, lets the keyboard
   traverse the nodes with the view kit, and lets the lane measure what it draws.
@@ -158,7 +159,7 @@ cannot disagree with the parser.
   Garden package, the seeds say what their bodies say, the kit copy is the kit.
 - `pwsh ./tools/Review-Garden.ps1` (in `Test-Production.ps1`): mount with Nendo's toolbar
   accepted by the Workbench's own rules; a note opening for reading in a readable column; the
-  local graph drawing the note and its neighbours; a hover previewing a linked note; a tick
+  local graph drawing the note and its neighbours, beside the link rows in a box they fill; a hover previewing a linked note; a tick
   while reading saved as one batch; wikilink navigation with places, Edit swapping in the
   Markdown, `[[` autocomplete,
   one-batch save deriving a stub, a link with context, a tag and a task, link removal keeping

@@ -150,7 +150,14 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 
 #about { width: 100%; display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: row dense; gap: 12px; border-top: 1px solid var(--line); padding-top: 18px; }
 .editing-mode #about { max-width: none; grid-template-columns: repeat(3, 1fr); }
-#local-graph-card { grid-column: 1 / -1; }
+/* Connections: the rows take the room, the graph keeps a box its few notes fill; on a narrow sheet
+   the graph wraps under the rows and takes the width. */
+#connections { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 12px 20px; padding-right: 10px; }
+#connections-lists { flex: 999 1 280px; min-width: 0; }
+#connections h3 { font-size: 12px; font-weight: 600; margin: 10px 0 2px; color: var(--muted); }
+#local-graph-card { flex: 1 1 440px; min-width: 0; position: relative; align-self: flex-start; }
+#local-graph-card .corner { position: absolute; top: 6px; right: 8px; padding: 2px 8px; border: 0; border-radius: 6px; background: none; color: var(--accent); font-size: 12px; }
+#local-graph-card .corner:hover { background: var(--panel); }
 .card, #panel section { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; background: var(--panel); }
 h2 { font-size: 12px; margin: 0 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .count { font-weight: 400; }
@@ -175,7 +182,7 @@ h2 { font-size: 12px; margin: 0 0 6px; color: var(--muted); text-transform: uppe
 
 /* ---- The graph: d3 draws circles and lines; the theme colours them. */
 .graph-host { position: relative; width: 100%; overflow: hidden; touch-action: none; user-select: none; }
-.graph-host.local { height: 300px; border-radius: 8px; background: var(--soft); }
+.graph-host.local { height: 220px; border-radius: 8px; background: var(--soft); }
 .graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
 .graph-svg:active { cursor: grabbing; }
 .graph-svg .edge { stroke: var(--line-strong); stroke-width: 1.2; stroke-opacity: .9; transition: stroke-opacity .15s, stroke .15s; }

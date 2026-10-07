@@ -21,8 +21,7 @@ To move a note under another, or change its order, use the **Tree** screen and d
 
 Under every note, while you read:
 
-- **Backlinks**: every note that links here, with the sentence that does it.
-- **Local graph**: this note and every note one link away. Click a dot to go there.
+- **Connections**: every note that links here and every note this one links to, each with the sentence that does it, and beside them the local graph: this note and every note one link away. Click a dot to go there.
 - **Tags** and **Tasks** the note carries.
 
 Hover a link to preview the note it names without leaving the page. Follow it, and Nendo's **Back** brings you back.

@@ -72,6 +72,22 @@ async page => {
   for (const l of fixture.records['gd.link']) { if (l.values[F.from] === 'gd.note.start-here') near.add(l.values[F.to]); if (l.values[F.to] === 'gd.note.start-here') near.add(l.values[F.from]); }
   await frame.waitForFunction(count => document.querySelectorAll('#local-graph .node').length === count, near.size, { timeout: 5000 }).catch(async () => { throw Error(`The local graph must draw ${near.size} notes, drew ${await frame.locator('#local-graph .node').count()}.`); });
   assert(await frame.locator('#local-graph .node.current[data-id="gd.note.start-here"]').count() === 1, 'The local graph marks the note it is about.');
+  // Connections: the links out are listed beside the links in, and the graph sits beside the rows in a
+  // box its notes fill, not a full-width band of empty grey (the owner's report, 2026-10-07).
+  const outOf = fixture.records['gd.link'].filter(l => l.values[F.from] === 'gd.note.start-here').length;
+  assert(await frame.locator('#outlinks li button').count() === outOf, `Links to must list the ${outOf} links out of Start here.`);
+  assert(await frame.locator('#local-open-graph').isHidden(), 'A host that offers no ui.openScreen gets no Open the graph button.');
+  await page.waitForTimeout(900);
+  const room = await frame.evaluate(() => {
+    const rect = id => document.getElementById(id).getBoundingClientRect();
+    const host = rect('local-graph'), rows = rect('connections-lists');
+    const boxes = [...document.querySelectorAll('#local-graph .node')].map(node => node.getBoundingClientRect());
+    const drawn = { w: Math.max(...boxes.map(b => b.right)) - Math.min(...boxes.map(b => b.left)), h: Math.max(...boxes.map(b => b.bottom)) - Math.min(...boxes.map(b => b.top)) };
+    return { width: Math.round(host.width), height: Math.round(host.height), filled: +(drawn.w * drawn.h / (host.width * host.height)).toFixed(3),
+      beside: host.left >= rows.right - 1 && host.top < rows.bottom };
+  });
+  assert(room.beside && room.height <= 240 && room.width <= 900 && room.filled >= 0.15,
+    `The local graph must sit beside the link rows in a box at most 900 by 240 px that its notes fill at least 15% of: ${JSON.stringify(room)}.`);
   checks.push('local graph');
 
   // Hovering a wikilink previews the note it names.

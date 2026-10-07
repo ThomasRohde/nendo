@@ -56,13 +56,19 @@ export function none(text) {
   return item;
 }
 
-/** Fills the three lists a note's page shows. `open(entityId, recordId)` is what a row does. */
-export function drawRelated({ backlinks, noteTags, tasks }, lists, open, index, tagNames = null) {
-  lists.backlinks.replaceChildren(...(backlinks.length ? backlinks.map(link =>
-    row(labelOf(link, F.link.from, index), () => open('gd.note', link.values[F.link.from]),
+/** Fills the lists a note's page shows; the links out only where `lists` has a place for them.
+ *  `open(entityId, recordId)` is what a row does. */
+export function drawRelated({ backlinks, links = [], noteTags, tasks }, lists, open, index, tagNames = null) {
+  const linkRows = (rows, end, empty) => rows.length ? rows.map(link =>
+    row(labelOf(link, end, index), () => open('gd.note', link.values[end]),
       [link.values[F.link.kind], plainText(link.values[F.link.context])].filter(Boolean).join(' · ')))
-    : [none('Nothing links here yet.')]));
+    : [none(empty)];
+  lists.backlinks.replaceChildren(...linkRows(backlinks, F.link.from, 'Nothing links here yet.'));
   lists.backlinksCount.textContent = backlinks.length ? String(backlinks.length) : '';
+  if (lists.outlinks) {
+    lists.outlinks.replaceChildren(...linkRows(links, F.link.to, 'Links to nothing yet.'));
+    lists.outlinksCount.textContent = links.length ? String(links.length) : '';
+  }
   lists.tags.replaceChildren(...(noteTags.length ? noteTags.map(noteTag =>
     row(`#${labelOf(noteTag, F.noteTag.tag, tagNames)}`, () => open('gd.tag', noteTag.values[F.noteTag.tag]), null, { className: 'chip' }))
     : [none('No tags.')]));

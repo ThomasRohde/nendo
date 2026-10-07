@@ -23,8 +23,8 @@ A custom view for a garden of notes, in three places:
 ## Reading
 
 The title is the page heading and the body is set in a readable column. Under it are the
-note's backlinks with the sentence that links, its local graph (the note and every note one
-link away), its tags and its tasks. A wikilink opens its note in place; hovering one previews
+note's connections, one card holding the links in and out with the sentence that links and,
+beside them, its local graph (the note and every note one link away), then its tags and its tasks. A wikilink opens its note in place; hovering one previews
 the note it names. Ticking a task saves the tick at once, as one batch.
 
 ## What a save does

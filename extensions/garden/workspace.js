@@ -25,7 +25,7 @@ export async function startWorkspace(nendo, context, kit) {
   const title = $('title'), meta = $('meta'), editor = $('editor'), preview = $('preview'), autocomplete = $('autocomplete');
   const readingTitle = $('reading-title'), readingMeta = $('reading-meta'), readingBody = $('reading-body');
   const ownSummary = $('own-summary'), guide = $('guide'), hoverCard = $('hover-card');
-  const lists = { backlinks: $('backlinks'), backlinksCount: $('backlinks-count'), tags: $('note-tags'), tasks: $('note-tasks'), tasksCount: $('tasks-count') };
+  const lists = { backlinks: $('backlinks'), backlinksCount: $('backlinks-count'), outlinks: $('outlinks'), outlinksCount: $('outlinks-count'), tags: $('note-tags'), tasks: $('note-tasks'), tasksCount: $('tasks-count') };
   app.hidden = false;
 
   const can = name => typeof nendo.has === 'function' && nendo.has(name);
@@ -402,20 +402,23 @@ export async function startWorkspace(nendo, context, kit) {
   hoverCard.addEventListener('pointerenter', () => clearTimeout(hideTimer));
   hoverCard.addEventListener('pointerleave', () => { hideTimer = setTimeout(hideHover, 150); });
 
-  // ---- The local graph: the note and what it links to and from, one step out.
+  // ---- Connections: the links in and out as rows, and beside them the local graph, the note and
+  // every note one link away either way. One card, so the graph is as large as its few notes need.
   const colour = node => node.type === 'tag' ? 'var(--nendo-muted, #5d5d5d)' : `var(--nendo-tone-${STAGE_TONES[node.stage] ?? 'grey'})`;
   let localGraph = null;
+  $('local-open-graph').addEventListener('click', () => command('graph'));
   function drawLocalGraph() {
     const card = $('local-graph-card');
-    if (state.note === null) { card.hidden = true; return; }
+    if (state.note === null) { card.hidden = true; $('local-count').textContent = ''; return; }
+    const data = buildGraph({ notes: state.index, links: state.links }, { focus: state.note.recordId, depth: 1 });
+    $('local-count').textContent = data.nodes.length > 1 ? String(data.nodes.length - 1) : '';
     card.hidden = false;
+    $('local-open-graph').hidden = !can('ui.openScreen');
     try {
       localGraph ??= createGraph($('local-graph'), { kit, colour, compact: true, label: 'This note and its neighbours',
         onOpen: node => open(node.id) });
     } catch (error) { card.hidden = true; return; }
-    const data = buildGraph({ notes: state.index, links: state.links }, { focus: state.note.recordId, depth: 1 });
     localGraph.update(data, { focus: state.note.recordId, refit: true });
-    $('local-count').textContent = String(data.nodes.length - 1);
     state.local = { nodes: data.nodes.length, links: data.links.length };
   }
 
