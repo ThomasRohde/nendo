@@ -87,7 +87,9 @@ export async function startWorkspace(nendo, context, kit) {
   const marks = createFindMarks(document, { editor });
   function markFinds({ reveal = false } = {}) {
     const terms = state.filter.trim() === '' ? [] : searchTerms(state.filter);
-    const { count, first } = marks.mark([readingBody, preview], terms);
+    // The title and the slug are where a note found by its name matched, so they are marked too.
+    const slugChip = readingMeta.querySelector('.chip.slug');
+    const { count, first } = marks.mark([readingTitle, ...(slugChip ? [slugChip] : []), readingBody, preview], terms);
     state.findMarks = { text: count, editor: marks.markEditor(terms, { reveal: reveal && state.mode === 'edit' }) };
     if (reveal && first !== null && state.mode === 'read') first.startContainer.parentElement?.scrollIntoView({ block: 'center' });
   }

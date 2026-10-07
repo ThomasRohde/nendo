@@ -632,11 +632,27 @@ async page => {
     const ranges = highlight ? [...highlight] : [];
     const body = document.getElementById('reading-body').getBoundingClientRect();
     const first = ranges[0]?.getBoundingClientRect();
-    return { words: ranges.map(range => range.toString().toLowerCase()), inReading: ranges.every(range => document.getElementById('reading-body').contains(range.startContainer) || document.getElementById('preview').contains(range.startContainer)),
+    return { words: ranges.map(range => range.toString().toLowerCase()), inReading: ranges.every(range => ['reading-title', 'reading-meta', 'reading-body', 'preview'].some(id => document.getElementById(id).contains(range.startContainer))),
       visible: first !== undefined && first.width > 0 && first.top >= 0 && first.bottom <= innerHeight && first.left >= body.left - 1 };
   });
   assert(reading.words.length > 0 && reading.words.every(word => word.startsWith(bodyWord)) && reading.inReading && reading.visible,
     `The reading view must highlight "${bodyWord}" and bring it into sight: ${JSON.stringify(reading)}.`);
+  // A note found by its name (owner, 2026-10-07: "one page is clearly highlighted but another is
+  // not"): a word only the title holds is marked in the title, not lost because the body lacks it.
+  const titleNote = seedNotesNow.find(n => tokensOf(n.values['gd.note.title']).some(w => w.length >= 4 && !tokensOf(n.values[F.body]).some(b => b.startsWith(w))));
+  assert(titleNote, 'The seed must hold a note whose title has a word its body lacks.');
+  const titleWord = tokensOf(titleNote.values['gd.note.title']).find(w => w.length >= 4 && !tokensOf(titleNote.values[F.body]).some(b => b.startsWith(w)));
+  await command('find', titleWord);
+  await frame.waitForFunction(id => document.querySelector(`#tree .row.match[data-id="${id}"]`) !== null, titleNote.recordId, { timeout: 3000 })
+    .catch(() => { throw Error(`Find "${titleWord}" must find ${titleNote.recordId} by its title.`); });
+  await frame.locator(`#tree .row[data-id="${titleNote.recordId}"]`).click();
+  await frame.waitForFunction(id => window.garden.note?.recordId === id, titleNote.recordId, { timeout: 3000 });
+  const byTitle = await frame.evaluate(() => [...(CSS.highlights.get('garden-find') ?? [])]
+    .filter(range => document.getElementById('reading-title').contains(range.startContainer)).map(range => range.toString().toLowerCase()));
+  assert(byTitle.length > 0 && byTitle.every(word => word.startsWith(titleWord)), `A note found by its title must show "${titleWord}" marked in the title: ${JSON.stringify(byTitle)}.`);
+  await command('find', bodyWord);
+  await frame.locator(`#tree .row[data-id="${holder}"]`).click();
+  await frame.waitForFunction(id => window.garden.note?.recordId === id && window.garden.findMarks.text > 0, holder, { timeout: 3000 });
   await command('mode', 'edit');
   await frame.waitForFunction(() => window.garden.mode === 'edit' && window.garden.findMarks.editor > 0, null, { timeout: 3000 })
     .catch(async () => { throw Error(`Edit must mark "${bodyWord}" in the editor: ${JSON.stringify(await frame.evaluate(() => window.garden.findMarks))}.`); });
