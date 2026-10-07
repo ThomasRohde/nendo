@@ -10,7 +10,7 @@ Every note has a stage, shown as a coloured dot in the tree, on the note and in 
 
 ## Moving a note along
 
-Open a note's menu in the Garden view and choose **Mark evergreen**. On the note's record page you will also find **Mark growing**, **Tended today**, **Pin** and **Unpin**. Mark evergreen, Mark growing and Tended today record today as the day the note was tended, which is what **Tended lately** on the Overview shows.
+Open a note's menu in the Garden view and choose **Mark evergreen**. On the note's record page you will also find **Mark growing**, **Tended today**, **Pin** and **Unpin**. Mark evergreen, Mark growing and Tended today record today as the day the note was tended, which the pinned cards on the Overview show.
 
 ## Seeds waiting to grow
 

@@ -1,27 +1,25 @@
 // What the Overview shows, from records as the view reads them. Pure, so it is tested in Node.
 //
-//   overview({ notes, links, tasks, tags, noteTags }, { stages }) -> {
-//     counts: { notes, links, unlinked, openTasks }, stages: [{ id, label, count }], unlinked: [noteId],
-//     pinned: [card], lately: [card], due: [task], tags: [{ id, name, count, size }] }
+//   overview({ notes, links, tags, noteTags }, { stages }) -> {
+//     counts: { notes, links, unlinked }, stages: [{ id, label, count }], unlinked: [noteId],
+//     pinned: [card], tags: [{ id, name, count, size }] }
 //   excerpt(values) -> the note's summary, or its first line of prose, as plain text
 //   whenTended(date, today) -> today, yesterday, a weekday within the week, or the day and month
 //   findNotes(notes, text, ids) -> { notes: up to six, exact }
 //
 // The links are counted as the graph draws them, one per linked pair and direction, so the number
 // beside the graph is the number of lines on it. A card is { id, title, stage, touched, excerpt,
-// linksIn, linksOut }; the lately tended leave out what is pinned, so no note is shown twice.
+// linksIn, linksOut }.
 
 import { buildGraph } from './graph-data.mjs';
 import { plainText } from './related.mjs';
 import { localMatch } from './search.mjs';
 import { F } from './sync.mjs';
 
-export const LATELY = 4;
 export const PINNED = 8;
-export const DUE = 5;
 export const TAGS = 12;
 
-export function overview({ notes = [], links = [], tasks = [], tags = [], noteTags = [] } = {}, { stages = [] } = {}) {
+export function overview({ notes = [], links = [], tags = [], noteTags = [] } = {}, { stages = [] } = {}) {
   const graph = buildGraph({ notes, links });
   const degree = new Map(graph.nodes.map(node => [node.id, node.degree]));
   const linksIn = new Map(), linksOut = new Map();
@@ -34,23 +32,11 @@ export function overview({ notes = [], links = [], tasks = [], tags = [], noteTa
   const byTitle = (a, b) => String(a.values[F.note.title] ?? '').localeCompare(String(b.values[F.note.title] ?? ''));
 
   const pinnedNotes = notes.filter(note => note.values[F.note.pinned] === true).sort(byTitle);
-  const pinnedIds = new Set(pinnedNotes.map(note => note.recordId));
-  const lately = notes.filter(note => !pinnedIds.has(note.recordId) && note.values[F.note.touched])
-    .sort((a, b) => String(b.values[F.note.touched]).localeCompare(String(a.values[F.note.touched])) || byTitle(a, b))
-    .slice(0, LATELY);
 
   const counted = new Map();
   for (const note of notes) { const stage = note.values[F.note.stage]; if (stage) counted.set(stage, (counted.get(stage) ?? 0) + 1); }
   const known = stages.map(choice => ({ id: choice.id, label: choice.displayName ?? choice.id, count: counted.get(choice.id) ?? 0 }));
   for (const [id, count] of counted) if (!known.some(stage => stage.id === id)) known.push({ id, label: id, count });
-
-  const open = tasks.filter(task => task.values[F.task.done] !== true);
-  const due = [...open].sort((a, b) => {
-    const da = a.values[F.task.due] ?? null, db = b.values[F.task.due] ?? null;
-    if (da !== db) return da === null ? 1 : db === null ? -1 : String(da).localeCompare(String(db));
-    return String(a.values[F.task.title] ?? '').localeCompare(String(b.values[F.task.title] ?? ''));
-  }).slice(0, DUE).map(task => ({ id: task.recordId, title: String(task.values[F.task.title] ?? task.recordId), due: task.values[F.task.due] ?? null,
-    noteId: task.values[F.task.note] ?? null, note: task.labels?.[F.task.note] ?? null, version: task.version }));
 
   const carriers = new Map();
   for (const row of noteTags) {
@@ -65,9 +51,9 @@ export function overview({ notes = [], links = [], tasks = [], tags = [], noteTa
 
   const unlinked = graph.nodes.filter(node => node.degree === 0).map(node => node.id);
   return {
-    counts: { notes: notes.length, links: graph.links.length, unlinked: unlinked.length, openTasks: open.length },
+    counts: { notes: notes.length, links: graph.links.length, unlinked: unlinked.length },
     stages: known, unlinked, degree,
-    pinned: pinnedNotes.slice(0, PINNED).map(card), lately: lately.map(card), due, tags: ranked,
+    pinned: pinnedNotes.slice(0, PINNED).map(card), tags: ranked,
   };
 }
 

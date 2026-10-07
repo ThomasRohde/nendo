@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { overview, excerpt, whenTended, findNotes, LATELY } from '../../extensions/garden/home-data.mjs';
+import { overview, excerpt, whenTended, findNotes } from '../../extensions/garden/home-data.mjs';
 import { handOver, takeHandover, HANDOVER_KEY } from '../../extensions/garden/handover.mjs';
 import { fixture } from './definition.mjs';
 
@@ -12,12 +12,12 @@ test('the Overview counts notes, links as the graph draws them, stages in their 
   const notes = [note('a', { 'gd.note.stage': 'Evergreen' }), note('b', { 'gd.note.stage': 'Growing' }), note('c', { 'gd.note.stage': 'Seed' }), note('d', { 'gd.note.stage': 'Growing' })];
   // Two records say a links to b: one line on the graph. A link to itself is none.
   const view = overview({ notes, links: [link('a', 'b'), link('a', 'b'), link('b', 'a'), link('c', 'a'), link('d', 'd')] }, { stages });
-  assert.deepEqual(view.counts, { notes: 4, links: 3, unlinked: 1, openTasks: 0 });
+  assert.deepEqual(view.counts, { notes: 4, links: 3, unlinked: 1 });
   assert.deepEqual(view.stages.map(s => [s.id, s.count]), [['Seed', 1], ['Growing', 2], ['Evergreen', 1]]);
   assert.deepEqual(view.unlinked, ['d']);
 });
 
-test('pinned notes come by title; the lately tended leave them out, newest first, and stop at four', () => {
+test('pinned notes come by title, with their links in and out', () => {
   const notes = [
     note('p2', { 'gd.note.title': 'Zebra', 'gd.note.pinned': true, 'gd.note.touched': '2026-10-07' }),
     note('p1', { 'gd.note.title': 'Apple', 'gd.note.pinned': true }),
@@ -26,19 +26,14 @@ test('pinned notes come by title; the lately tended leave them out, newest first
   ];
   const view = overview({ notes, links: [link('n1', 'p2'), link('n2', 'p2')] });
   assert.deepEqual(view.pinned.map(c => c.title), ['Apple', 'Zebra']);
-  assert.deepEqual(view.lately.map(c => c.id), ['n1', 'n3', 'n2', 'n4']);
-  assert.equal(view.lately.length, LATELY);
-  assert.deepEqual([view.pinned[1].linksIn, view.pinned[1].linksOut, view.lately[0].linksOut], [2, 0, 1]);
+  assert.deepEqual([view.pinned[1].linksIn, view.pinned[1].linksOut], [2, 0]);
+  assert.equal(view.pinned.length, 2, 'only what is pinned is a card');
 });
 
-test('due next: open tasks by date, undated last; tags by how many notes carry them, sized one to four', () => {
-  const task = (id, values) => ({ recordId: id, version: 3, values: { 'gd.task.title': id, 'gd.task.done': false, 'gd.task.note': 'a', ...values }, labels: { 'gd.task.note': 'Note A' } });
+test('tags by how many notes carry them, sized one to four', () => {
   const tags = ['x', 'y', 'z', 'empty'].map(id => ({ recordId: id, values: { 'gd.tag.name': id } }));
   const noteTags = [['a', 'x'], ['b', 'x'], ['c', 'x'], ['a', 'x'], ['a', 'y'], ['b', 'y'], ['c', 'z']].map(([n, t], i) => ({ recordId: `nt${i}`, values: { 'gd.noteTag.note': n, 'gd.noteTag.tag': t } }));
-  const view = overview({ tasks: [task('later', { 'gd.task.due': '2026-11-01' }), task('none', {}), task('done', { 'gd.task.done': true, 'gd.task.due': '2026-01-01' }), task('soon', { 'gd.task.due': '2026-10-08' })], tags, noteTags });
-  assert.deepEqual(view.due.map(t => t.id), ['soon', 'later', 'none']);
-  assert.equal(view.due[0].note, 'Note A');
-  assert.equal(view.counts.openTasks, 3);
+  const view = overview({ tags, noteTags });
   assert.deepEqual(view.tags.map(t => [t.name, t.count, t.size]), [['x', 3, 4], ['y', 2, 3], ['z', 1, 1]]);
 });
 
@@ -71,10 +66,10 @@ test('find lists titles that start with the words first, by the index when it an
 
 test('the seed garden gives the Overview something on every row', () => {
   const f = fixture(), r = f.records;
-  const view = overview({ notes: r['gd.note'], links: r['gd.link'], tasks: r['gd.task'], tags: r['gd.tag'], noteTags: r['gd.noteTag'] },
+  const view = overview({ notes: r['gd.note'], links: r['gd.link'], tags: r['gd.tag'], noteTags: r['gd.noteTag'] },
     { stages: f.schema.entities[0].fields.find(x => x.fieldId === 'gd.note.stage').choices });
-  assert.ok(view.counts.links > 0 && view.stages.length === 3 && view.pinned.length + view.lately.length > 0 && view.due.length > 0 && view.tags.length > 0, JSON.stringify(view.counts));
-  assert.ok([...view.pinned, ...view.lately].every(c => c.excerpt.length > 0), 'every seed card has a line to show');
+  assert.ok(view.counts.links > 0 && view.stages.length === 3 && view.pinned.length > 0 && view.tags.length > 0, JSON.stringify(view.counts));
+  assert.ok(view.pinned.every(c => c.excerpt.length > 0), 'every seed card has a line to show');
 });
 
 test('a hand-over is taken once, only while fresh, and only when it asks for something', () => {

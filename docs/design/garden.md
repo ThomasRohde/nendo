@@ -176,6 +176,8 @@ cannot disagree with the parser.
   out. A note picked there opens in the Garden view rather than on its record page: a view cannot
   set another view's place, so the request goes through the package's own storage, which both
   frames share because they share the package's origin, taken once and only within 15 seconds.
+  In 0.16.1 the owner took out Tended lately and Due next, and put the tags in the hero's side
+  under the stages, where the side had room; the pinned notes are the only cards.
   Use lists the views of the file, then the record types; a test refuses two entries with one
   name.
 
@@ -240,8 +242,10 @@ cannot disagree with the parser.
 - The Overview, on the fixture broker with `ui.openScreen` offered: the graph at the top, the
   largest thing on the page, at least 55% of its width and 380 px tall, every note and linked
   pair inside it and each dot its stage's colour; the counts beside it; no table; Evergreen
-  picks out exactly its notes under a real pointer and Esc lets them go; the cards carry a title
-  and a line; Find lists How links work first and offers a new note only for a title no note
+  picks out exactly its notes under a real pointer and Esc lets them go; the pinned notes, and
+  only they, are cards with a title and a line; no Tended lately or Due next; the tags sit in the
+  side between the stages and the buttons, the graph keeps the side's height, and a tag picks
+  out exactly the notes that carry it; Find lists How links work first and offers a new note only for a title no note
   has; a card hands its note to the Garden view, opens that screen and not the record page, and
   the Garden view started next opens that note and clears the request; the theme's tokens in
   Light and Dark; at 700 px the side stacks over a full-width graph with no sideways scroll.

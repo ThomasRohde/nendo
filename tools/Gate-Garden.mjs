@@ -886,7 +886,7 @@ async page => {
   const hero = await frame.evaluate(() => {
     const box = id => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, area: r.width * r.height }; };
     const graph = box('home-graph'), page = box('home');
-    const others = ['home-side', 'home-pinned-section', 'home-lately-section', 'home-tasks-card', 'home-tags-card'].map(id => [id, box(id)]);
+    const others = ['home-side', 'home-pinned-section'].map(id => [id, box(id)]);
     const circles = [...document.querySelectorAll('#home-graph .node circle')].map(c => c.getBoundingClientRect());
     const inside = circles.every(c => c.x >= graph.x - 1 && c.right <= graph.x + graph.w + 1 && c.y >= graph.y - 1 && c.bottom <= graph.y + graph.h + 1);
     return { graph, page, larger: others.filter(([, b]) => b.area >= graph.area).map(([id]) => id), nodes: circles.length, edges: document.querySelectorAll('#home-graph line.edge').length, inside,
@@ -918,7 +918,26 @@ async page => {
   // The notes are cards: a title and the first line of what they say, never a bare row of names.
   const cards = await frame.evaluate(() => [...document.querySelectorAll('#home .home-card')].map(c => { const r = c.getBoundingClientRect(); return { id: c.dataset.id, title: c.querySelector('.home-card-title').textContent, text: c.querySelector('.home-card-text').textContent, w: r.width, h: r.height }; }));
   const pinnedSeeds = fixture.records['gd.note'].filter(n => n.values['gd.note.pinned']).length;
-  assert(cards.length >= pinnedSeeds + 1 && cards.every(c => c.title && c.text && c.text !== 'Nothing written yet.' && c.w >= 200 && c.h >= 90), `Pinned and lately tended notes must be cards with their first line: ${JSON.stringify(cards)}.`);
+  assert(cards.length === pinnedSeeds && cards.every(c => c.title && c.text && c.text !== 'Nothing written yet.' && c.w >= 200 && c.h >= 90), `The pinned notes, and only they, must be cards with their first line: ${JSON.stringify(cards)}.`);
+  // The owner, 2026-10-07: no Tended lately and no Due next, and the tags sit in the hero's side,
+  // under the stages and over the buttons, where the side had room; the graph keeps the side's height.
+  const side = await frame.evaluate(() => {
+    const box = selector => { const e = document.querySelector(selector); if (!e || e.hidden) return null; const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, h: r.height }; };
+    return { stages: box('#home-stages'), tags: box('#home-tags-card'), actions: box('.home-actions'), side: box('#home-side'), graph: box('#home-graph'),
+      inSide: !!document.querySelector('#home-side #home-tags'), tagButtons: document.querySelectorAll('#home-tags button').length,
+      gone: ['#home-lately', '#home-tasks', '#home-lately-section', '#home-tasks-card'].filter(s => document.querySelector(s)),
+      headings: [...document.querySelectorAll('#home h2')].map(h => h.textContent.trim()) };
+  });
+  assert(side.gone.length === 0 && !side.headings.some(h => /Tended lately|Due next/.test(h)), `The Overview has no Tended lately and no Due next: ${JSON.stringify(side)}.`);
+  assert(side.inSide && side.tags && side.tagButtons > 0 && side.tags.top >= side.stages.bottom && side.tags.bottom <= side.actions.top && side.tags.left >= side.side.left && side.tags.right <= side.side.right,
+    `The tags must sit in the hero's side, under the stages and over the buttons: ${JSON.stringify(side)}.`);
+  assert(Math.abs(side.graph.h - side.side.h) <= 1, `The graph must keep the side's height: ${JSON.stringify(side)}.`);
+  const firstTag = fixture.records['gd.tag'].find(tag => fixture.records['gd.noteTag'].some(row => row.values[F.noteTagTag] === tag.recordId));
+  const carriersOf = [...new Set(fixture.records['gd.noteTag'].filter(row => row.values[F.noteTagTag] === firstTag.recordId).map(row => row.values[F.noteTagNote]))].sort();
+  await frame.locator(`#home-tags button[data-tag="${firstTag.recordId}"]`).click();
+  const tagPicked = await frame.evaluate(() => [...document.querySelectorAll('#home-graph .node.match')].map(n => n.dataset.id).sort());
+  assert(JSON.stringify(tagPicked) === JSON.stringify(carriersOf), `A tag must pick out the notes that carry it: ${JSON.stringify({ tagPicked, carriersOf })}.`);
+  await page.keyboard.press('Escape');
   await page.screenshot({ path: '__OUTPUT__/overview.png', fullPage: true });
   // Find: titles light up and are listed; Enter on words no note is titled offers a new one.
   await frame.locator('#home-find').click();
@@ -936,6 +955,8 @@ async page => {
   const target = cards.find(c => c.id !== 'gd.note.start-here');
   const recordPagesBefore = (await page.evaluate(() => window.broker.opened())).length;
   await frame.locator(`#home .home-card[data-id="${target.id}"]`).click();
+  // The screen is opened through the host, an answer later than the click.
+  await page.waitForFunction(() => window.broker.screensOpened().length > 0, null, { timeout: 2000 }).catch(() => undefined);
   const screens = await page.evaluate(() => window.broker.screensOpened());
   const handed = await frame.evaluate(() => JSON.parse(localStorage.getItem('garden.handover.v1') ?? 'null'));
   assert(screens.at(-1) === 'gd.garden' && handed?.open === target.id, `A card must hand ${target.id} to the Garden view and open it: ${JSON.stringify({ screens, handed })}.`);
@@ -947,7 +968,7 @@ async page => {
   await frame.waitForFunction(id => window.garden.note?.recordId === id, target.id, { timeout: 3000 })
     .catch(async () => { throw Error(`The Garden view must open ${target.id}, the note the Overview handed over: ${await frame.evaluate(() => window.garden.note?.recordId)}.`); });
   assert(await frame.evaluate(() => localStorage.getItem('garden.handover.v1') === null), 'The hand-over is taken once.');
-  checks.push('overview led by the graph, its picks and cards, and a note handed to the Garden view');
+  checks.push('overview led by the graph, its picks, tags in its side and pinned cards, and a note handed to the Garden view');
   // Dark uses the theme's tokens; at a narrow width the side stacks over the graph with no sideways scroll.
   await page.evaluate(({ fixture, homeContext }) => { window.broker.setFixture({ ...fixture, context: homeContext }); window.broker.remount(); }, { fixture, homeContext });
   await page.waitForTimeout(300);

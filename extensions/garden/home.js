@@ -1,7 +1,7 @@
 // The Overview: the garden's front page, led by its graph. Beside the graph, how many notes and
-// links there are, a box that finds a note or names a new one, the stages and the unlinked notes,
-// each a button that picks its notes out on the graph. Under it, the pinned notes and the notes
-// tended lately as cards with their first line, the tasks due next and the tags.
+// links there are, a box that finds a note or names a new one, the stages, the unlinked notes and
+// the tags, each a button that picks its notes out on the graph. Under it, the pinned notes as
+// cards with their first line.
 //
 // A note picked here opens in the Garden view, not on its record page: the request is handed over
 // through the package's storage (handover.mjs) and the Garden screen is opened. A host without
@@ -162,15 +162,6 @@ export async function startHome(nendo, context, kit) {
 
     $('home-pinned-section').hidden = view.pinned.length === 0;
     $('home-pinned').replaceChildren(...view.pinned.map(card));
-    $('home-lately-section').hidden = view.lately.length === 0;
-    $('home-lately').replaceChildren(...view.lately.map(card));
-
-    $('home-tasks-count').textContent = view.counts.openTasks ? `· ${view.counts.openTasks} open` : '';
-    $('home-tasks').replaceChildren(...(view.due.length ? view.due.map(task => element('li', {},
-      element('button', { type: 'button', className: 'home-task', 'data-note': task.noteId ?? '', disabled: !task.noteId },
-        element('span', { className: 'home-task-title', text: task.title }),
-        element('span', { className: 'home-task-meta', text: [task.due ? whenDue(task.due) : null, task.note].filter(Boolean).join(' · ') }))))
-      : [element('li', { className: 'none', text: 'No open tasks. A line that starts with - [ ] in a note is one.' })]));
 
     $('home-tags-card').hidden = view.tags.length === 0;
     $('home-tags').replaceChildren(...view.tags.map(tag => element('li', {},
@@ -178,13 +169,6 @@ export async function startHome(nendo, context, kit) {
         `#${tag.name}`, element('span', { className: 'count', text: String(tag.count) })))));
     applyPicks();
   }
-  const whenDue = date => {
-    const days = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today()}T00:00:00Z`)) / 86_400_000);
-    if (days < 0) return `overdue since ${whenTended(date, today(), locale)}`;
-    if (days === 0) return 'due today';
-    if (days === 1) return 'due tomorrow';
-    return `due ${new Date(Date.parse(`${date}T00:00:00Z`)).toLocaleDateString(locale, { weekday: days < 7 ? 'long' : undefined, day: days < 7 ? undefined : 'numeric', month: days < 7 ? undefined : 'short', timeZone: 'UTC' })}`;
-  };
 
   $('home-stages').addEventListener('click', event => {
     const button = event.target.closest('button[data-stage]');
@@ -200,8 +184,7 @@ export async function startHome(nendo, context, kit) {
     state.tagPicked = state.tagPicked === button.dataset.tag ? null : button.dataset.tag;
     applyPicks();
   });
-  for (const id of ['home-pinned', 'home-lately']) $(id).addEventListener('click', event => { const button = event.target.closest('button[data-id]'); if (button) openNote(button.dataset.id); });
-  $('home-tasks').addEventListener('click', event => { const button = event.target.closest('button[data-note]'); if (button?.dataset.note) openNote(button.dataset.note); });
+  $('home-pinned').addEventListener('click', event => { const button = event.target.closest('button[data-id]'); if (button) openNote(button.dataset.id); });
   home.addEventListener('click', event => {
     const action = event.target.closest('[data-home]')?.dataset.home;
     if (action === 'graph') openGraph();
@@ -221,14 +204,13 @@ export async function startHome(nendo, context, kit) {
 
   async function load({ refit = false } = {}) {
     try {
-      const [notes, links, tasks, tags, noteTags] = await Promise.all([
+      const [notes, links, tags, noteTags] = await Promise.all([
         nendo.records.queryAll({ entityId: 'gd.note' }, { max: 10000 }),
         nendo.records.queryAll({ entityId: 'gd.link' }, { max: 10000 }),
-        nendo.records.queryAll({ entityId: 'gd.task' }, { max: 10000 }),
         nendo.records.queryAll({ entityId: 'gd.tag' }, { max: 5000 }),
         nendo.records.queryAll({ entityId: 'gd.noteTag' }, { max: 10000 }),
       ]);
-      state.records = { notes, links, tasks, tags, noteTags };
+      state.records = { notes, links, tags, noteTags };
       showProblem('');
     } catch (error) {
       showProblem(`The garden could not be read: ${error.message}`);

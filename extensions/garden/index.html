@@ -235,6 +235,7 @@
       </div>
       <div id="home-stages" role="group" aria-label="Pick out on the graph"></div>
       <button type="button" id="home-unlinked" class="link-like" aria-pressed="false" hidden></button>
+      <section id="home-tags-card" aria-labelledby="home-tags-title" hidden><h2 id="home-tags-title">Tags</h2><ul id="home-tags" class="home-tags"></ul></section>
       <div class="home-actions">
         <button type="button" class="primary" data-home="new">New note</button>
         <button type="button" data-home="daily">Today</button>
@@ -244,11 +245,6 @@
     <div id="home-graph" class="graph-host"></div>
   </section>
   <section id="home-pinned-section" class="home-row" aria-labelledby="home-pinned-title" hidden><h2 id="home-pinned-title">Pinned</h2><ul id="home-pinned" class="home-cards"></ul></section>
-  <section id="home-lately-section" class="home-row" aria-labelledby="home-lately-title" hidden><h2 id="home-lately-title">Tended lately</h2><ul id="home-lately" class="home-cards"></ul></section>
-  <div class="home-pair">
-    <section class="card" id="home-tasks-card" aria-labelledby="home-tasks-title"><h2 id="home-tasks-title">Due next <span id="home-tasks-count" class="count"></span></h2><ul id="home-tasks" class="rows"></ul></section>
-    <section class="card" id="home-tags-card" aria-labelledby="home-tags-title" hidden><h2 id="home-tags-title">Tags</h2><ul id="home-tags" class="home-tags"></ul></section>
-  </div>
 </div>
 <p id="not-framed" hidden>This view runs inside Nendo.</p>
 <script src="/_nendo/api.js"></script>

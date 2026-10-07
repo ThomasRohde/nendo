@@ -4,10 +4,9 @@ A custom view for a garden of notes, in four places:
 
 - **The Overview**, the screen `workspace/Garden.nendo` opens on (`gd.home`, an `extensionView`
   with `opensFile`): the garden's graph leads it, coloured by stage, beside the number of notes
-  and links, a box that finds a note or names a new one, the stages and the unlinked notes, each
-  a button that picks its notes out on the graph. Under it, the pinned and lately tended notes
-  as cards with their first line, the tasks due next and the tags, which pick out their notes
-  too. A note picked there opens in the Garden view: the Overview hands it over through the
+  and links, a box that finds a note or names a new one, the stages, the unlinked notes and the
+  tags, each a button that picks its notes out on the graph. Under it, the pinned notes as cards
+  with their first line. A note picked there opens in the Garden view: the Overview hands it over through the
   package's storage (`handover.mjs`) and opens that screen. It replaced a native front page of
   tiles and lists (0.16.0).
 - **The Garden view** (`gd.garden`, an `extensionView`): the notes as a tree on the left and one note in the middle, in View or Edit.

@@ -388,12 +388,14 @@ body.home-mode { overflow: auto; height: auto; min-height: 100vh; }
 #home-stages button b { font-weight: 600; font-variant-numeric: tabular-nums; }
 #home-unlinked { align-self: flex-start; padding: 2px 0; border: 0; background: none; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 #home-unlinked[aria-pressed=true] { font-weight: 600; }
+#home-tags-card h2 { margin-bottom: 8px; font-size: 13px; color: var(--muted); font-weight: 400; }
 .home-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
 .home-actions button { min-height: 38px; padding: 6px 14px; }
 .home-actions button.primary { border-color: var(--accent); background: var(--accent); color: var(--bg); font-weight: 600; }
 .home-actions button.primary:hover { filter: brightness(1.08); }
 /* The graph is the largest thing on the page: the rest of the hero's width, most of the window's height. */
-#home-graph { flex: 999 1 480px; min-width: 0; height: clamp(380px, 64vh, 640px); background: var(--soft); }
+/* It stretches to the side's height when the tags make the side the taller of the two. */
+#home-graph { flex: 999 1 480px; min-width: 0; min-height: clamp(380px, 64vh, 640px); background: var(--soft); }
 #home-graph .graph-svg .node .label { stroke: var(--soft); }
 .home-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
 .home-card { width: 100%; height: 100%; display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; text-align: left; border-radius: 10px; }
@@ -402,17 +404,12 @@ body.home-mode { overflow: auto; height: auto; min-height: 100vh; }
 .home-card-text { font-size: 13px; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .home-card-text.none { color: var(--muted); }
 .home-card-links { margin-top: auto; font-size: 12px; color: var(--muted); }
-.home-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; align-items: start; }
-#home .card { padding: 14px 16px; }
-.home-task { width: 100%; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; padding: 4px 0; border: 0; background: none; text-align: left; }
-.home-task:hover .home-task-title { color: var(--accent); }
-.home-task-meta { color: var(--muted); font-size: 12px; }
 .home-tags { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
 .home-tag { display: inline-flex; align-items: baseline; gap: 5px; padding: 3px 9px; border-color: transparent; background: var(--soft); }
-.home-tag .count { color: var(--muted); font-size: 12px; }
-.home-tag.size-1 { font-size: 13px; } .home-tag.size-2 { font-size: 14px; } .home-tag.size-3 { font-size: 16px; } .home-tag.size-4 { font-size: 18px; }
+.home-tag .count { color: var(--muted); font-size: 11px; }
+.home-tag.size-1 { font-size: 12px; } .home-tag.size-2 { font-size: 13px; } .home-tag.size-3 { font-size: 14px; } .home-tag.size-4 { font-size: 16px; }
 @media (max-width: 760px) {
   #home { padding: 12px 16px 32px; }
   #home-side { max-width: none; border-right: 0; border-bottom: 1px solid var(--line); }
-  #home-graph { height: 360px; }
+  #home-graph { min-height: 360px; }
 }

@@ -1,7 +1,7 @@
 {
   "packageId": "org.nendo.garden",
   "title": "Garden",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "entryPoint": "index.html",
   "description": "An Overview led by the living graph of the garden, which the file opens on; a notes workspace that opens notes for reading, with an editor a key away; [[wikilinks]], #tags and - [ ] tasks become Link, Tag and Task records when a note is saved; a living d3 graph of the garden and of each note's neighbours; and a Backlinks panel for a note's page."
 }
