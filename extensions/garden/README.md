@@ -9,9 +9,10 @@ A custom view for a garden of notes, in three places:
   folds the preview away. Narrow, Medium or Full sets the page's width. A note with notes under
   it has an arrow that folds its branch away (Left and Right do the same), and the line between
   the tree and the page drags too.
-- **The Garden guide**, a sheet beside the page: the garden in numbers, a seed to grow next and
-  a note to link up, four first moves with buttons that do them, what Markdown becomes, the life
-  of a note, finding your way, the keys, and agents.
+- **The Garden guide**, a sheet beside the page: a drawing of the garden by stage with its counts,
+  the other numbers in one row, a seed to grow next and a note to link up, and topics that open in
+  place: four first moves, what Markdown becomes, the life of a note, finding your way, the keys,
+  and agents.
 - **The Graph screen** (`extensionGraphSurface` over `gd.link`): the whole garden as a living
   d3 graph.
 - **The Backlinks panel** on a note's record page (`extensionRecordPanel`).

@@ -450,54 +450,64 @@ async page => {
   // writes nothing more, a note gone to meanwhile is not replaced, and a note read late never lands.
   await page.setViewportSize({ width: 1440, height: 900 });
 
-  // The Garden guide: Nendo's row toggles it; it opens beside the page with focus on it, counts this
-  // garden, scrolls to a section from its contents, follows the theme, closes on Esc, and a way in acts.
+  // The Garden guide: Nendo's row toggles it; it opens beside the page with focus on it. Its drawing
+  // is the chart of this garden: each stage's count stands under its plant, and a stage with no notes
+  // is drawn as an outline. The other numbers are one ruled row, the topics open one at a time under a
+  // real pointer, it is drawn in the theme's tokens, closes on Esc, and New note acts.
   await command('about', true);
   await frame.waitForFunction(() => !document.getElementById('guide').hidden, null, { timeout: 2000 }).catch(() => { throw Error('Garden guide must open from Nendo\'s row.'); });
   await page.waitForFunction(() => window.broker.toolbars.at(-1).items.find(i => i.id === 'about')?.pressed === true, null, { timeout: 2000 })
     .catch(async () => { throw Error('Nendo\'s row must show the guide as open: ' + JSON.stringify((await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'about'))); });
-  await page.waitForTimeout(700);
-  // The stage bars grow over a 0.6 s transition, which a busy or hidden browser runs late: wait for
-  // them to fill their track rather than for a fixed time, and let the assertion below say if they never do.
-  await frame.waitForFunction(() => {
-    const bars = [...document.querySelectorAll('.stage-bar')].reduce((sum, bar) => sum + bar.getBoundingClientRect().width, 0);
-    return Math.abs(bars - document.querySelector('.guide-stages').getBoundingClientRect().width) <= 2;
-  }, null, { timeout: 3000 }).catch(() => {});
-  const guideOpen = await frame.evaluate(() => { const box = document.getElementById('guide').getBoundingClientRect();
+  // The plants sprout and the counts rise in over about 1.5 s, which a busy or hidden browser runs
+  // late: wait for the guide's animations to finish rather than for a fixed time.
+  await frame.waitForFunction(() => document.getElementById('guide').getAnimations({ subtree: true }).every(a => a.playState === 'finished'), null, { timeout: 4000 }).catch(() => {});
+  const guideOpen = await frame.evaluate(() => {
+    const guide = document.getElementById('guide'), box = guide.getBoundingClientRect(), art = document.querySelector('.guide-art').getBoundingClientRect();
     const stat = name => Number(document.querySelector(`[data-stat=${name}]`).textContent.replace(/\D/g, ''));
-    const bars = [...document.querySelectorAll('.stage-bar')].reduce((sum, bar) => sum + bar.getBoundingClientRect().width, 0);
-    return { sections: document.querySelectorAll('#guide .guide-section').length, notes: stat('notes'), links: stat('links'), tags: stat('tags'),
-      focus: document.activeElement?.id, right: innerWidth - box.right, width: box.width, bars, track: document.querySelector('.guide-stages').getBoundingClientRect().width,
-      picks: document.querySelectorAll('#guide-picks li button').length, note: window.garden.note?.recordId }; });
-  const notesNow = (await records('gd.note')).length, linksNow = (await records('gd.link')).length, tagsNow = (await records('gd.tag')).length;
-  assert(guideOpen.sections >= 7 && guideOpen.notes === notesNow && guideOpen.links === linksNow && guideOpen.tags === tagsNow && guideOpen.focus === 'guide' && Math.abs(guideOpen.right) <= 1
-    && guideOpen.width >= 400 && Math.abs(guideOpen.bars - guideOpen.track) <= 2 && guideOpen.picks >= 1 && guideOpen.note === 'gd.note.start-here',
+    const centre = e => { const r = e.getBoundingClientRect(); return r.left + r.width / 2; };
+    const stages = ['Seed', 'Growing', 'Evergreen'].map(stage => {
+      const plant = document.querySelector(`.guide-art .plant[data-stage=${stage}]`), count = document.querySelector(`.guide-stages [data-stage=${stage}]`);
+      if (!plant || !count?.querySelector('dd')) return { stage, plant: !!plant, count: count?.textContent ?? null };
+      return { stage, count: Number(count.querySelector('dd').textContent.replace(/\D/g, '')), offset: Math.round(Math.abs(centre(plant) - centre(count))),
+        below: count.getBoundingClientRect().top >= art.bottom - 1, outline: plant.classList.contains('is-empty'),
+        fill: getComputedStyle(plant.querySelector('circle')).fill, opacity: Number(getComputedStyle(count).opacity) };
+    });
+    const tops = [...document.querySelectorAll('.guide-stats > div')].map(d => Math.round(d.getBoundingClientRect().top));
+    return { notes: stat('notes'), links: stat('links'), tags: stat('tags'), stages, statRow: tops.length === 4 && new Set(tops).size === 1,
+      old: document.querySelectorAll('#guide .stage-bar, #guide .guide-toc, #guide .guide-kicker').length,
+      topics: document.querySelectorAll('#guide details.guide-topic').length, open: [...document.querySelectorAll('#guide details.guide-topic[open]')].map(d => d.id),
+      focus: document.activeElement?.id, right: innerWidth - box.right, width: box.width,
+      picks: document.querySelectorAll('#guide-picks li').length, note: window.garden.note?.recordId };
+  });
+  const noteRows = await records('gd.note'), notesNow = noteRows.length, linksNow = (await records('gd.link')).length, tagsNow = (await records('gd.tag')).length;
+  const growing = noteRows.filter(note => note.values['gd.note.kind'] !== 'Template');
+  const byStage = ['Seed', 'Growing', 'Evergreen'].map(stage => growing.filter(note => (note.values[F.stage] ?? 'Seed') === stage).length);
+  assert(guideOpen.notes === notesNow && guideOpen.links === linksNow && guideOpen.tags === tagsNow && guideOpen.focus === 'guide' && Math.abs(guideOpen.right) <= 1
+    && guideOpen.width >= 400 && guideOpen.picks >= 1 && guideOpen.note === 'gd.note.start-here',
     `The guide must open beside the page and count this garden (${notesNow} notes, ${linksNow} links, ${tagsNow} tags): ${JSON.stringify(guideOpen)}.`);
-  const keysLink = await frame.locator('.guide-toc a[href="#guide-keys"]').boundingBox();
-  await page.mouse.click(keysLink.x + keysLink.width / 2, keysLink.y + keysLink.height / 2);
-  await page.waitForTimeout(700);
-  // A smooth scroll a busy browser runs late: wait for it to arrive, and let the assertion say if it never does.
-  await frame.waitForFunction(() => {
-    const scroller = document.querySelector('.guide-body'), body = scroller.getBoundingClientRect(), keys = document.getElementById('guide-keys').getBoundingClientRect();
-    const atEnd = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop <= 1;
-    return scroller.scrollTop > 0 && (Math.abs(keys.top - body.top) <= 8 || (atEnd && keys.top >= body.top - 1 && keys.bottom <= body.bottom + 1));
-  }, null, { timeout: 3000 }).catch(() => {});
-  const scrolled = await frame.evaluate(() => { const body = document.querySelector('.guide-body').getBoundingClientRect(), keys = document.getElementById('guide-keys').getBoundingClientRect();
-    const scroller = document.querySelector('.guide-body');
-    return { offset: keys.top - body.top, scrollTop: scroller.scrollTop, atEnd: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop <= 1, inView: keys.top >= body.top - 1 && keys.bottom <= body.bottom + 1 }; });
-  // Keys sits near the end: it either reaches the top, or the guide scrolls to its end with Keys whole in view.
-  assert(scrolled.scrollTop > 0 && (Math.abs(scrolled.offset) <= 8 || (scrolled.atEnd && scrolled.inView)), `The contents must scroll the guide to Keys: ${JSON.stringify(scrolled)}.`);
+  assert(guideOpen.stages.every((s, i) => s.count === byStage[i] && s.offset <= 2 && s.below && s.opacity === 1 && s.outline === (s.count === 0) && (s.fill === 'none') === s.outline),
+    `Each stage's count (${byStage.join(', ')}) must stand under its plant, and a stage with none be drawn as an outline: ${JSON.stringify(guideOpen.stages)}.`);
+  assert(guideOpen.statRow && guideOpen.old === 0 && guideOpen.topics === 6 && JSON.stringify(guideOpen.open) === '["guide-start"]',
+    `Notes, links, tags and unlinked notes are one row, and the guide's topics open in place with Start open: ${JSON.stringify(guideOpen)}.`);
+  // Keys, near the end, opens under a real pointer, and Start closes: one topic at a time.
+  await frame.locator('#guide-keys > summary').scrollIntoViewIfNeeded();
+  const keysTopic = await frame.locator('#guide-keys > summary').boundingBox();
+  await page.mouse.click(keysTopic.x + keysTopic.width / 2, keysTopic.y + keysTopic.height / 2);
+  await frame.waitForFunction(() => document.getElementById('guide-keys').open, null, { timeout: 2000 }).catch(() => {});
+  const topicOpen = await frame.evaluate(() => ({ open: [...document.querySelectorAll('#guide details.guide-topic[open]')].map(d => d.id),
+    keys: Math.round(document.querySelector('#guide-keys .guide-keys').getBoundingClientRect().height) }));
+  assert(JSON.stringify(topicOpen.open) === '["guide-keys"]' && topicOpen.keys >= 100, `Keys must open in place and close Start: ${JSON.stringify(topicOpen)}.`);
   const guideColours = {};
   for (const mode of ['dark', 'light']) {
     await page.evaluate(mode => window.broker.pushTheme(mode), mode); await page.waitForTimeout(150);
     guideColours[mode] = await frame.evaluate(() => {
       const token = name => { const e = document.createElement('i'); e.style.color = `var(--nendo-${name})`; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; };
-      const guide = document.getElementById('guide');
-      return { background: getComputedStyle(guide).backgroundColor, raised: (() => { const e = document.createElement('i'); e.style.color = 'var(--nendo-surface-raised)'; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; })(),
-        ink: getComputedStyle(guide).color, evergreen: getComputedStyle(document.querySelector('.stage-bar.evergreen')).backgroundColor, green: token('tone-green') };
+      const guide = document.getElementById('guide'), crown = getComputedStyle(document.querySelector('.guide-art .evergreen .crown'));
+      return { background: getComputedStyle(guide).backgroundColor, raised: token('surface-raised'), ink: getComputedStyle(guide).color,
+        evergreen: crown.fill === 'none' ? crown.stroke : crown.fill, green: token('tone-green') };
     });
     assert(guideColours[mode].background === guideColours[mode].raised && guideColours[mode].evergreen === guideColours[mode].green, `${mode}: the guide is drawn in the theme's tokens: ${JSON.stringify(guideColours[mode])}`);
-    await frame.locator('.guide-body').evaluate(body => { body.style.scrollBehavior = 'auto'; body.scrollTop = 0; body.style.scrollBehavior = ''; });
+    await frame.locator('.guide-body').evaluate(body => { body.scrollTop = 0; });
     await page.waitForTimeout(150);
     await page.screenshot({ path: '__OUTPUT__/guide-' + mode + '.png', fullPage: true });
   }
@@ -511,7 +521,7 @@ async page => {
   const plant = await frame.locator('#guide button[data-guide="new"]').first().boundingBox();
   await page.mouse.click(plant.x + plant.width / 2, plant.y + plant.height / 2);
   await frame.waitForFunction(() => document.getElementById('guide').hidden && window.garden.note === null && window.garden.mode === 'edit', null, { timeout: 2000 })
-    .catch(async () => { throw Error('Plant one now must close the guide and open a new note in Edit: ' + JSON.stringify(await frame.evaluate(() => ({ hidden: document.getElementById('guide').hidden, mode: window.garden.mode, note: window.garden.note?.recordId ?? null })))); });
+    .catch(async () => { throw Error('New note must close the guide and open a new note in Edit: ' + JSON.stringify(await frame.evaluate(() => ({ hidden: document.getElementById('guide').hidden, mode: window.garden.mode, note: window.garden.note?.recordId ?? null })))); });
   checks.push('Garden guide');
 
   await frame.evaluate(() => localStorage.clear());

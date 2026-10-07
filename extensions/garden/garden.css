@@ -212,72 +212,94 @@ h2 { font-size: 12px; margin: 0 0 6px; color: var(--muted); text-transform: uppe
 #graph-problem { margin: 8px 12px; padding: 8px 10px; border: 1px solid var(--danger); border-radius: 8px; color: var(--danger); background: var(--panel); }
 #graph-canvas { flex: 1; min-height: 0; }
 
-/* ---- The Garden guide: a sheet at the right that leaves the page usable beside it. */
+/* ---- The Garden guide: a sheet at the right that leaves the page usable beside it. It opens on
+   a drawing that is also the chart of this garden: a seed, a sprout and an evergreen, each with
+   its count under it, and a stage with no notes drawn as an outline. */
 #guide { position: fixed; top: 0; right: 0; bottom: 0; z-index: 25; width: min(480px, 100vw); display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--line-strong); box-shadow: var(--shadow); animation: guide-in .22s ease-out; }
 #guide:focus { outline: none; }
 @keyframes guide-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
-.guide-head { position: relative; padding: 18px 20px 12px; background: linear-gradient(180deg, color-mix(in srgb, var(--nendo-tone-green, #2f7d4f) 12%, transparent), transparent); }
-.guide-art { display: block; width: 100%; max-width: 260px; height: auto; margin-bottom: 6px; overflow: visible; }
-.guide-art .soil { stroke: var(--line-strong); stroke-width: 2; stroke-linecap: round; fill: none; }
-.guide-art .vine { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 220; stroke-dashoffset: 220; animation: vine-draw 1.1s .25s ease-out forwards; }
-.guide-art .vine.late { stroke-dasharray: 4 4; stroke: var(--muted); stroke-dashoffset: 0; opacity: 0; animation: fade-in .6s 1.2s ease-out forwards; }
-.guide-art .stem { stroke: var(--nendo-tone-green, #2f7d4f); stroke-width: 2.5; stroke-linecap: round; fill: none; }
-.guide-art .plant { transform-box: fill-box; transform-origin: 50% 100%; animation: sprout .5s ease-out both; }
-.guide-art .seed { animation-delay: .05s; } .guide-art .growing { animation-delay: .25s; } .guide-art .evergreen { animation-delay: .45s; }
-.guide-art .seed circle { fill: var(--nendo-tone-amber, #b7791f); }
-.guide-art .growing circle, .guide-art .growing .leaf { fill: var(--nendo-tone-teal, #1f7a7a); }
-.guide-art .evergreen .crown, .guide-art .evergreen circle { fill: var(--nendo-tone-green, #2f7d4f); }
-.guide-art .evergreen circle { stroke: var(--panel); stroke-width: 2; }
-@keyframes sprout { from { transform: scale(.2); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes vine-draw { to { stroke-dashoffset: 0; } }
-@keyframes fade-in { to { opacity: .8; } }
-.guide-kicker { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--nendo-tone-green, #2f7d4f); }
-#guide-title { margin: 2px 0 6px; font-size: 22px; line-height: 1.25; letter-spacing: -0.01em; color: var(--ink); text-transform: none; }
-.guide-intro p:last-child { margin: 0; color: var(--muted); }
-.guide-close { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; padding: 0; border-radius: 8px; background: transparent; border-color: transparent; color: var(--muted); font-size: 14px; }
+.guide-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 48px; padding: 0 12px 0 24px; flex: none; }
+#guide-title { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); }
+.guide-close { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border-radius: 6px; background: transparent; border-color: transparent; color: var(--muted); }
+.guide-close svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
 .guide-close:hover { background: var(--soft); color: var(--ink); border-color: var(--line); }
-.guide-toc { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 20px 12px; border-bottom: 1px solid var(--line); }
-.guide-toc a { padding: 2px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); text-decoration: none; font-size: 12px; background: var(--bg); }
-.guide-toc a:hover { border-color: var(--accent); color: var(--accent); }
-.guide-body { flex: 1; min-height: 0; overflow: auto; padding: 4px 20px 28px; scroll-behavior: smooth; }
-.guide-section { padding: 16px 0 6px; border-top: 1px solid var(--line); scroll-margin-top: 4px; }
-.guide-section:first-child { border-top: 0; }
-.guide-more { margin: 4px 0 0; padding-top: 14px; border-top: 1px solid var(--line); }
-.guide-section h3 { margin: 0 0 10px; font-size: 15px; }
-.guide-section p { margin: 0 0 10px; }
+.guide-body { flex: 1; min-height: 0; overflow: auto; padding: 0 24px 28px; }
 #guide code, #guide kbd { font: 12px/1.4 Consolas, "Cascadia Code", monospace; }
 #guide code { background: var(--soft); padding: 1px 5px; border-radius: 4px; }
 #guide kbd { display: inline-block; min-width: 20px; padding: 1px 6px; text-align: center; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 5px; background: var(--bg); color: var(--ink); }
-.guide-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 0 0 12px; }
-.guide-stats div { padding: 8px 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); text-align: center; }
-.guide-stats dt { font-size: 11px; color: var(--muted); line-height: 1.2; }
-.guide-stats dd { margin: 2px 0 0; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.guide-stages { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--soft); }
-.stage-bar { flex: 0 0 auto; width: 0; transition: width .6s ease-out; }
-.tone, .stage-bar { background: var(--nendo-tone-grey, #677080); }
-.seed.stage-bar, .tone.seed { background: var(--nendo-tone-amber, #b7791f); }
-.growing.stage-bar, .tone.growing { background: var(--nendo-tone-teal, #1f7a7a); }
-.evergreen.stage-bar, .tone.evergreen { background: var(--nendo-tone-green, #2f7d4f); }
-.tone { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
-.guide-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 10px; font-size: 12px; color: var(--muted); }
-.guide-legend span { display: inline-flex; align-items: center; }
-.guide-legend b { margin-left: 4px; color: var(--ink); }
-.guide-picks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.guide-picks li { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--accent-soft); }
-.guide-picks li span { flex: 1; min-width: 0; }
-.guide-picks li button { flex: none; }
-.guide-steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 10px; }
-.guide-steps li { position: relative; padding-left: 36px; counter-increment: step; }
-.guide-steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--bg); font-size: 12px; font-weight: 600; }
-.guide-steps li button { display: block; margin-top: 6px; }
-#guide button[data-guide] { border-color: var(--accent); color: var(--accent); }
-#guide button[data-guide]:hover { background: var(--accent-soft); }
-#guide button.link-like { display: inline; margin: 0; padding: 0 2px; border: 0; background: none; text-decoration: underline; }
+
+.guide-garden { padding-top: 8px; }
+.guide-art { display: block; width: 100%; height: auto; overflow: visible; }
+.guide-art .soil { stroke: var(--line-strong); stroke-width: 1; fill: none; }
+.guide-art .vine { fill: none; stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 220; stroke-dashoffset: 220; animation: vine-draw 1.1s .25s ease-out forwards; }
+.guide-art .vine.late { stroke-dasharray: 3 3; stroke: var(--muted); stroke-dashoffset: 0; opacity: 0; animation: fade-in .6s 1.2s ease-out forwards; }
+.guide-art .stem { stroke: var(--nendo-tone-green, #1f8a52); stroke-width: 2; stroke-linecap: round; fill: none; }
+.guide-art .plant { --tone: var(--nendo-tone-grey, #677080); transform-box: fill-box; transform-origin: 50% 100%; animation: sprout .5s ease-out both; }
+.guide-art .seed { --tone: var(--nendo-tone-amber, #a37608); animation-delay: .05s; }
+.guide-art .growing { --tone: var(--nendo-tone-teal, #16837e); animation-delay: .25s; }
+.guide-art .evergreen { --tone: var(--nendo-tone-green, #1f8a52); animation-delay: .45s; }
+.guide-art .seed circle, .guide-art .growing circle, .guide-art .growing .leaf, .guide-art .evergreen .crown, .guide-art .evergreen circle { fill: var(--tone); }
+.guide-art .evergreen circle { stroke: var(--panel); stroke-width: 1.5; }
+/* A stage with no notes: its plant as a dashed outline in its tone, and its count muted. */
+.guide-art .plant.is-empty * { fill: none; stroke: var(--tone); stroke-width: 1.2; stroke-dasharray: 2.5 2; }
+@keyframes sprout { from { transform: scale(.2); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes vine-draw { to { stroke-dashoffset: 0; } }
+@keyframes fade-in { to { opacity: .8; } }
+@keyframes rise { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+/* Each count stands under its plant: the plants sit at 40, 110 and 182 of the drawing's 220. */
+.guide-stages { position: relative; height: 60px; margin: 8px 0 0; }
+.guide-stages div { position: absolute; top: 0; display: flex; flex-direction: column-reverse; align-items: center; transform: translateX(-50%); animation: rise .45s ease-out both; }
+.guide-stages .seed { left: 18.18%; animation-delay: .7s; }
+.guide-stages .growing { left: 50%; animation-delay: .85s; }
+.guide-stages .evergreen { left: 82.73%; animation-delay: 1s; }
+.guide-stages dt { font-size: 12px; color: var(--muted); }
+.guide-stages dd { margin: 0; font-size: 28px; line-height: 1.1; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.guide-stages .is-empty dd { color: var(--muted); }
+.guide-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 16px 0 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.guide-stats div { display: flex; flex-direction: column; padding: 10px 0 10px 14px; border-left: 1px solid var(--line); }
+.guide-stats div:first-child { padding-left: 0; border-left: 0; }
+.guide-stats dt { font-size: 12px; color: var(--muted); }
+.guide-stats dd { margin: 0; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.guide-status { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.guide-picks { flex: 1; min-width: 0; list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; color: var(--muted); }
+.guide-picks b { color: var(--ink); font-weight: 600; }
+.guide-actions { flex: none; display: flex; gap: 8px; }
+.guide-actions button { height: 32px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--panel); color: var(--ink); }
+.guide-actions button.primary { border-color: var(--accent); background: var(--accent); color: var(--bg); }
+.guide-actions button:hover { border-color: var(--accent); }
+.guide-actions button.primary:hover { filter: brightness(1.08); }
+#guide button.link-like { display: inline; margin: 0; padding: 0 2px; border: 0; background: none; color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+
+.guide-topics { margin-top: 28px; }
+.guide-topics h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.guide-lede { margin: 0 0 12px; }
+.guide-topic { border-top: 1px solid var(--line); }
+.guide-topic:last-of-type { border-bottom: 1px solid var(--line); }
+.guide-topic summary { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 4px; cursor: pointer; list-style: none; border-radius: 6px; }
+.guide-topic summary::-webkit-details-marker { display: none; }
+.guide-topic summary:hover { background: var(--soft); }
+.guide-topic summary > span { flex: 1; min-width: 0; }
+.guide-topic summary b { display: block; font-weight: 600; }
+.guide-topic summary small { display: block; font-size: 12px; color: var(--muted); }
+.guide-topic summary::after { content: ''; flex: none; width: 7px; height: 7px; margin: 0 6px 4px 0; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg); transition: transform .15s; }
+.guide-topic[open] summary::after { margin-bottom: -4px; transform: rotate(-135deg); }
+.guide-topic-body { padding: 2px 4px 16px; }
+.guide-topic-body p { margin: 0 0 10px; }
+.guide-topic-body > :last-child { margin-bottom: 0; }
+.guide-more { margin: 16px 0 0; }
 .guide-aside { color: var(--muted); font-size: 13px; }
+.guide-steps { margin: 0 0 10px; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 8px; }
+.guide-steps li { display: grid; grid-template-columns: 22px minmax(0, 1fr); counter-increment: step; }
+.guide-steps li::before { content: counter(step); color: var(--muted); font-variant-numeric: tabular-nums; }
 .guide-table { width: 100%; border-collapse: collapse; margin: 0 0 10px; font-size: 13px; }
-.guide-table th { text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding: 0 8px 6px 0; }
+.guide-table th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); padding: 0 8px 6px 0; }
 .guide-table td { vertical-align: top; padding: 7px 8px 7px 0; border-top: 1px solid var(--line); }
 .guide-table td:first-child { width: 42%; white-space: nowrap; }
+.tone { background: var(--nendo-tone-grey, #677080); }
+.tone.seed { background: var(--nendo-tone-amber, #a37608); }
+.tone.growing { background: var(--nendo-tone-teal, #16837e); }
+.tone.evergreen { background: var(--nendo-tone-green, #1f8a52); }
+.tone { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
 .guide-life { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
 .guide-life li { display: flex; align-items: flex-start; gap: 4px; }
 .guide-life .tone { margin-top: 6px; }
@@ -289,7 +311,6 @@ h2 { font-size: 12px; margin: 0 0 6px; color: var(--muted); text-transform: uppe
 
 @media (max-width: 760px) {
   #tree-splitter { display: none; }
-  .guide-stats { grid-template-columns: repeat(3, 1fr); }
   #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   #sidebar { border-right: 0; border-bottom: 1px solid var(--line); max-height: 34vh; }
   #panes, .editing-mode #about, #about { grid-template-columns: 1fr; }

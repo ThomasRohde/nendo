@@ -67,12 +67,16 @@ the graph to be dynamic and interactive, drawn with a common library as Obsidian
 - **The Garden guide** (owner, 2026-10-06: more elaborate and more exciting) replaces the one
   paragraph About. It is a sheet at the right, beside the page rather than over it, opened by an
   info toggle in Nendo's row (or the view's own Guide button, or from the empty page), and closed
-  by Esc or its close button, which hand focus back. It opens on this garden in numbers (notes,
-  links, tags, seeds, lonely notes, a bar by stage) and two ways in: the seed most linked to and a
-  note with no links. Then four first moves, two with buttons that do them; a table of what
-  Markdown becomes on save; the life of a note; finding your way (folding, both dividers, width,
-  previews, Find); the keys; and agents. A small drawing of a seed, a sprout and an evergreen
-  joined by a link grows as it opens, in the stage tones, and stands still under reduced motion.
+  by Esc or its close button, which hand focus back. It opens on a drawing that is the chart of
+  this garden (owner, 2026-10-07: the first guide was simplistic and childish, but the animation
+  good; direction C of six, W-177): a seed, a sprout and an evergreen joined by a link grow as it
+  opens, in the stage tones, each with its count of notes under it, and a stage with no notes is
+  a dashed outline. Under it one ruled row of notes, links, tags and unlinked notes, then the two
+  ways in, the seed most linked to and a note with no links, each name opening its note, beside
+  Graph and New note. Then how the garden works, as topics that open in place one at a time: four
+  first moves; a table of what Markdown becomes on save; the life of a note; finding your way
+  (folding, both dividers, width, previews, Find); the keys; and agents. The drawing stands still
+  under reduced motion.
 - **Flush with Nendo.** The view is drawn on Nendo's own surface colour from edge to edge, with
   no paper-coloured margin, and in Edit the title, editor and preview are unboxed and meet the
   view's edges, divided by lines. The sheet is 100% wide and capped, never sized by its
@@ -169,9 +173,10 @@ cannot disagree with the parser.
   last note opened winning, an unanswered save kept once, two drafts surviving a restart, a 32 KiB body refused, Light and Dark measured,
   the tree folding under a real pointer and the keys, kept, and unfolded by going to a note inside it;
   the tree's edge dragged 150 px with a real pointer to 400 px, moved by the keys and reset by a
-  double-click; the guide opening from Nendo's row with focus on it, counting the garden, scrolling to
-  Keys from its contents, drawn in the theme's tokens in Light and Dark, closing on Esc and planting
-  a note from its first move; the Backlinks panel opening
+  double-click; the guide opening from Nendo's row with focus on it, counting the garden, each stage's
+  count under its plant and an empty stage drawn as an outline, the other numbers one row, Keys opening
+  in place under a real pointer and closing Start, drawn in the theme's tokens in Light and Dark,
+  closing on Esc and planting a note from New note; the Backlinks panel opening
   its source once; on the Graph screen, with a real pointer, every note and one edge per linked
   pair, a spread layout, hover dimming all but the neighbours, a drag that moves a note and
   opens nothing, the wheel zooming, a click opening a note once, Find, tags as nodes and the

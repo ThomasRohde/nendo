@@ -848,15 +848,14 @@ export async function startWorkspace(nendo, context, kit) {
     const seeds = notes.filter(note => stageOf(note) === 'Seed');
     const lonely = notes.filter(note => !linked.has(note.recordId));
     const stats = { notes: state.index.length, links: state.links.length, tags: state.tags.length, seeds: seeds.length, orphans: lonely.length };
-    for (const [name, value] of Object.entries(stats)) guide.querySelector(`[data-stat=${name}]`).textContent = value.toLocaleString();
+    for (const name of ['notes', 'links', 'tags', 'orphans']) guide.querySelector(`[data-stat=${name}]`).textContent = stats[name].toLocaleString();
     state.guide = stats;
+    // The drawing is the chart: each stage's count stands under its plant, and a stage with no
+    // notes is drawn as an outline.
     for (const stage of ['Seed', 'Growing', 'Evergreen']) {
       const count = notes.filter(note => stageOf(note) === stage).length;
-      guide.querySelector(`[data-stage-count=${stage}]`).textContent = String(count);
-      // Drawn from nothing on the next frame, so the bar grows as the guide opens.
-      const bar = guide.querySelector(`.stage-bar[data-stage=${stage}]`);
-      bar.style.width = '0';
-      requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = notes.length ? `${count / notes.length * 100}%` : '0'; }));
+      guide.querySelector(`[data-stage-count=${stage}]`).textContent = count.toLocaleString();
+      for (const part of guide.querySelectorAll(`[data-stage=${stage}]`)) part.classList.toggle('is-empty', count === 0);
     }
     // Two ways in: the seed most asked for, and a note nothing links to yet.
     const wanted = [...seeds].sort((a, b) => (into.get(b.recordId) ?? 0) - (into.get(a.recordId) ?? 0) || a.title.localeCompare(b.title))[0];
@@ -867,24 +866,24 @@ export async function startWorkspace(nendo, context, kit) {
       picks.push(['Grow next: ', wanted, asked ? `, asked for by ${asked} ${asked === 1 ? 'link' : 'links'}.` : ', still a seed.']);
     }
     if (alone) picks.push(['Link up: ', alone, ' has no links in or out yet.']);
-    if (!picks.length) picks.push(['Every note is linked and nothing waits to grow. Plant something new.', null, '']);
+    if (!picks.length) picks.push(['Nothing waits to grow, and every note has a link.', null, '']);
+    // The note named in a way in is itself the way to open it.
     $('guide-picks').replaceChildren(...picks.map(([before, note, after]) => {
       const item = document.createElement('li');
-      const words = document.createElement('span');
-      words.append(before);
-      if (note) { const name = document.createElement('b'); name.textContent = note.title; words.append(name); }
-      words.append(after);
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.dataset.guide = note ? `open:${note.recordId}` : 'new';
-      button.textContent = note ? 'Open' : 'New note';
-      item.append(words, button);
+      item.append(before);
+      if (note) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'link-like';
+        button.dataset.guide = `open:${note.recordId}`;
+        button.textContent = note.title;
+        item.append(button);
+      }
+      item.append(after);
       return item;
     }));
   }
   guide.addEventListener('click', async event => {
-    const link = event.target.closest('.guide-toc a');
-    if (link) { event.preventDefault(); guide.querySelector(link.getAttribute('href'))?.scrollIntoView({ block: 'start' }); return; }
     if (event.target.closest('#guide-close')) { showGuide(false); return; }
     const button = event.target.closest('button[data-guide]');
     if (!button) return;
