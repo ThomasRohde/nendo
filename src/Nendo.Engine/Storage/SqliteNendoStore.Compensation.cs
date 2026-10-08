@@ -17,6 +17,43 @@ internal sealed partial class SqliteNendoStore
     private static bool IsRecordOperation(string type) => type is
         "data.setField" or "data.backfillRetiredField" or "data.deleteRecord" or "data.createRecord" or "data.restoreDeletedRecord";
 
+    /// <summary>
+    /// A record change a revision of record writes may carry: a record operation, or a record's
+    /// keep mark (ADR-0022), which a batch can set beside the create and which moves no version.
+    /// </summary>
+    private static bool IsRecordChange(string type) => IsRecordOperation(type) || type == "data.setKeptInNewFiles";
+
+    private static bool? KeptMark(JsonElement element) =>
+        element.ValueKind is JsonValueKind.True or JsonValueKind.False ? element.GetBoolean() : null;
+
+    /// <summary>
+    /// Refuses to undo a keep mark that has changed since the revision set it: putting the
+    /// previous mark back would overwrite the later one without a word.
+    /// </summary>
+    private async Task RequireMarksAsLeftAsync(
+        IReadOnlyList<(string Type, string Reversibility, string Canonical, string Evidence)> operations,
+        CancellationToken cancellationToken)
+    {
+        var left = new Dictionary<(string Entity, string Record), bool?>();
+        foreach (var operation in operations.Where(operation => operation.Type == "data.setKeptInNewFiles"))
+        {
+            using var canonical = JsonDocument.Parse(operation.Canonical);
+            using var evidence = JsonDocument.Parse(operation.Evidence);
+            var payload = canonical.RootElement.GetProperty("payload");
+            left[(payload.GetProperty("entityId").GetString()!, payload.GetProperty("recordId").GetString()!)] =
+                KeptMark(evidence.RootElement.GetProperty("appliedKept"));
+        }
+        if (left.Count == 0) return;
+        var marks = await ReadRecordMarksAsync(null, cancellationToken);
+        foreach (var (key, applied) in left)
+        {
+            bool? current = marks.TryGetValue(key, out var mark) ? mark : null;
+            if (current != applied)
+                throw new NendoCompensationNotSupportedException(
+                    $"Whether record {key.Record} is kept in new files changed after the selected revision, so it is not undone.");
+        }
+    }
+
     internal async Task<NendoMutation> CreateCompensationMutationAsync(
         string revisionId,
         string idempotencyKey,
@@ -121,7 +158,7 @@ internal sealed partial class SqliteNendoStore
                 operations.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
             }
         }
-        var recordChanges = operations.Count >= 1 && operations.All(operation => IsRecordOperation(operation.Type));
+        var recordChanges = operations.Count >= 1 && operations.All(operation => IsRecordChange(operation.Type));
         // A compensation of record changes can itself be compensated: that is redo, and undo
         // again after it (ADR-0023). Anything else a compensation reversed stays where it is.
         if (isCompensation && !recordChanges)
@@ -142,6 +179,7 @@ internal sealed partial class SqliteNendoStore
             // Read as the file stood when an exact retry's compensation was first made, so the
             // retry rebuilds it byte for byte.
             var carried = await TakenBackLaterVersionsAsync(changeSequence, compensatedAt, cancellationToken);
+            if (!exactReplay) await RequireMarksAsLeftAsync(operations, cancellationToken);
             var named = caller is null
                 ? $"Compensate {description}"
                 : caller.Label ?? (caller.Redo ? "Redo " : "Undo ") + StepName(description, isCompensation);
@@ -199,7 +237,6 @@ internal sealed partial class SqliteNendoStore
             "application.setLook" => CreateLookInverse(original.Evidence, idempotencyKey),
             "application.setNewFileLabel" => CreateNewFileLabelInverse(original.Evidence, idempotencyKey),
             "schema.setKeptInNewFiles" => CreateKeptDefaultInverse(original.Canonical, original.Evidence, idempotencyKey),
-            "data.setKeptInNewFiles" => await CreateRecordKeptInverseAsync(original.Canonical, original.Evidence, idempotencyKey, exactReplay, cancellationToken),
             "schema.declareHierarchy" => CreateDeclareHierarchyInverse(original.Canonical, original.Evidence, idempotencyKey),
             "schema.declareLinkRule" => CreateDeclareLinkRuleInverse(original.Canonical, original.Evidence, idempotencyKey),
             "schema.removeLinkRule" => CreateRemoveLinkRuleInverse(original.Canonical, original.Evidence, idempotencyKey),
@@ -272,19 +309,21 @@ internal sealed partial class SqliteNendoStore
                 throw new NendoCompensationNotSupportedException(
                     $"{operation.Type} in this revision declares itself irreversible, so the revision cannot be reversed as a whole.");
             }
-            if (!IsRecordOperation(operation.Type))
+            if (!IsRecordChange(operation.Type))
             {
                 throw new NendoCompensationNotSupportedException(
                     $"Compensating a revision of several operations covers record changes; this one also contains {operation.Type}.");
             }
         }
+        // A keep mark moves no version, so it has no place in the version arithmetic below.
+        var versioned = operations.Where(operation => IsRecordOperation(operation.Type)).ToArray();
 
         // What each record was left at by the revision being reversed. Record IDs are
         // unique across the file, so a reference's target is found by its ID alone.
         var versions = new Dictionary<(string Entity, string Record), long>();
         var touched = new Dictionary<string, (string Entity, string Record)>(StringComparer.Ordinal);
         var deleted = new HashSet<(string Entity, string Record)>();
-        foreach (var operation in operations)
+        foreach (var operation in versioned)
         {
             using var canonical = JsonDocument.Parse(operation.Canonical);
             using var evidence = JsonDocument.Parse(operation.Evidence);
@@ -318,6 +357,14 @@ internal sealed partial class SqliteNendoStore
             var recordId = payload.GetProperty("recordId").GetString()!;
             var key = (entityId, recordId);
             var operationId = NendoCanonical.DeterministicId("operation", scope, idempotencyKey, ordinal++);
+
+            if (operation.Type == "data.setKeptInNewFiles")
+            {
+                // Its previous mark goes back; RequireMarksAsLeftAsync has refused a mark changed since.
+                inverses.Add(new SetRecordKeptInNewFilesOperation(operationId, entityId, recordId,
+                    KeptMark(evidence.RootElement.GetProperty("previousKept"))));
+                continue;
+            }
 
             if (operation.Type is "data.createRecord" or "data.restoreDeletedRecord")
             {

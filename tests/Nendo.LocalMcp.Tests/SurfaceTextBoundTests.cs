@@ -51,10 +51,18 @@ public sealed class SurfaceTextBoundTests
                      "keep its applicationHandle private",
                      "Save receiptContext",
                      "no SQL, file, process or network access",
+                     "nendo.read.list",
                  })
         {
             StringAssert.Contains(viaClient, required, $"At {mode} the instructions no longer say it.");
         }
+        // How to read without resources/read is said before a client's list cuts the text: one
+        // showed 150 characters, and its agent opened the file's storage instead (2026-10-08).
+        const string readTool = "nendo.read.resource";
+        var named = viaClient.IndexOf(readTool, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, named, $"At {mode} the instructions do not name {readTool}.");
+        Assert.IsLessThanOrEqualTo(150, named + readTool.Length,
+            $"At {mode} the read tool is named by character {named + readTool.Length}, past the 150 a client shows: {viaClient[..150]}");
         if (mode >= AgentAccessMode.Unattended)
         {
             StringAssert.Contains(viaClient, "nendo.change_set.accept applies your own validated proposal");
@@ -81,7 +89,7 @@ public sealed class SurfaceTextBoundTests
 
         var findings = new List<string>();
         var tools = await client.ListToolsAsync();
-        Assert.HasCount(25, tools, "Unattended serves every tool, so every description is measured.");
+        Assert.HasCount(27, tools, "Unattended serves every tool, so every description is measured.");
         foreach (var tool in tools)
         {
             Measure(findings, tool.Name, tool.Description);

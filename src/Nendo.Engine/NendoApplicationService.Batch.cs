@@ -13,7 +13,9 @@ public enum NendoRecordWriteKind
 
 /// <summary>
 /// One record's part of a batch: a create with its values, an update of some fields against the
-/// version the caller read, or a delete against that version.
+/// version the caller read, or a delete against that version. <c>KeptInNewFiles</c> marks a
+/// created or updated record in the same revision (ADR-0022): true keeps it in a new file, false
+/// leaves it out, and null changes nothing, so a create follows its record type.
 /// </summary>
 public sealed record NendoRecordWrite(
     NendoRecordWriteKind Kind,
@@ -21,7 +23,8 @@ public sealed record NendoRecordWrite(
     string RecordId,
     IReadOnlyDictionary<string, object?>? Values = null,
     long? ExpectedRecordVersion = null,
-    IReadOnlyDictionary<string, long>? ExpectedTargetVersions = null);
+    IReadOnlyDictionary<string, long>? ExpectedTargetVersions = null,
+    bool? KeptInNewFiles = null);
 
 /// <summary>
 /// Several records written as one revision. <c>Label</c> is what History calls the revision; a
@@ -139,6 +142,8 @@ public sealed partial class NendoApplicationService
                 case NendoRecordWriteKind.Delete:
                     if (write.Values is not null || write.ExpectedTargetVersions is not null)
                         throw new NendoValidationException($"Write {index} deletes a record and carries no values.");
+                    if (write.KeptInNewFiles is not null)
+                        throw new NendoValidationException($"Write {index} deletes a record, which no new file can keep.");
                     operations.Add(new DeleteRecordOperation(NextOperationId(), write.EntityId, write.RecordId,
                         RequireWriteVersion(write, index)));
                     versions.Remove((write.EntityId, write.RecordId));
@@ -146,6 +151,9 @@ public sealed partial class NendoApplicationService
                 default:
                     throw new NendoValidationException($"Write {index} is not a create, an update or a delete.");
             }
+            // The mark is a fact about the record, not a value: it moves no version (ADR-0022).
+            if (write.KeptInNewFiles is { } kept)
+                operations.Add(new SetRecordKeptInNewFilesOperation(NextOperationId(), write.EntityId, write.RecordId, kept));
             written.Add(new NendoWrittenRecord(write.EntityId, write.RecordId,
                 versions.TryGetValue((write.EntityId, write.RecordId), out var version) ? version : null));
         }

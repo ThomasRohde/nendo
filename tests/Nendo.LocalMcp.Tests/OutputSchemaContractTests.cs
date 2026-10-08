@@ -52,6 +52,12 @@ public sealed class OutputSchemaContractTests
             structured.Deserialize<T>(NendoMcpJson.Options)
             ?? throw new AssertFailedException($"The structured result was not a {typeof(T).Name}.");
 
+        // The two reads a tool-only client has: the list, and one address read through it.
+        var listed = Result<NendoReadList>(await CallAsync("nendo.read.list"));
+        Assert.IsTrue(listed.Reads.Any(read => read.Uri.StartsWith("nendo://application/describe", StringComparison.Ordinal)));
+        var read = Result<NendoResourceRead>(await CallAsync("nendo.read.resource", new() { ["uri"] = "nendo://application/manifest" }));
+        Assert.AreEqual("nendo://application/manifest", read.Uri);
+
         // The very first call of any session, and the one the review could not get past.
         var lease = Result<NendoLeaseGrant>(await CallAsync("nendo.lease.acquire"));
         var owned = new Dictionary<string, object?>

@@ -68,10 +68,10 @@ public sealed class LeaseProtocolTests
     }
 
     [TestMethod]
-    [DataRow(AgentAccessMode.ReadOnly, 0)]
-    [DataRow(AgentAccessMode.DataMutation, 17)]
-    [DataRow(AgentAccessMode.ApplicationAuthoring, 24)]
-    [DataRow(AgentAccessMode.Unattended, 25)]
+    [DataRow(AgentAccessMode.ReadOnly, 2)]
+    [DataRow(AgentAccessMode.DataMutation, 19)]
+    [DataRow(AgentAccessMode.ApplicationAuthoring, 26)]
+    [DataRow(AgentAccessMode.Unattended, 27)]
     public async Task OfficialClientSeesOnlyModeAllowlistedLeaseTools(
         AgentAccessMode mode,
         int expectedCount)
@@ -97,10 +97,10 @@ public sealed class LeaseProtocolTests
         Assert.HasCount(expectedCount, tools);
         var expectedNames = expectedCount switch
         {
-            0 => [],
-            17 => DataToolNames,
-            24 => DataToolNames.Concat(AuthoringToolNames).Order(StringComparer.Ordinal).ToArray(),
-            25 => DataToolNames.Concat(AuthoringToolNames).Concat(UnattendedToolNames).Order(StringComparer.Ordinal).ToArray(),
+            2 => ReadToolNames,
+            19 => ReadToolNames.Concat(DataToolNames).Order(StringComparer.Ordinal).ToArray(),
+            26 => ReadToolNames.Concat(DataToolNames).Concat(AuthoringToolNames).Order(StringComparer.Ordinal).ToArray(),
+            27 => ReadToolNames.Concat(DataToolNames).Concat(AuthoringToolNames).Concat(UnattendedToolNames).Order(StringComparer.Ordinal).ToArray(),
             _ => throw new AssertFailedException($"Unexpected tool count {expectedCount}."),
         };
         CollectionAssert.AreEqual(
@@ -136,14 +136,16 @@ public sealed class LeaseProtocolTests
         "nendo.data.get_receipt" => ["receiptContext", "idempotencyKey", "proposalId"],
         // Needs no lease and takes no argument: an integrity scan is a question
         // about the file, not an edit to it.
-        "nendo.health.verify_integrity" => [],
+        "nendo.health.verify_integrity" => ["applicationHandle"],
+        "nendo.read.resource" => ["uri"],
+        "nendo.read.list" => [],
         "nendo.data.delete_record" => ["leaseId", "entityId", "recordId", "expectedRecordVersion", "idempotencyKey"],
         "nendo.lease.acquire" => ["idempotencyKey", "resumeApplicationHandle"],
         "nendo.lease.status" => ["applicationHandle"],
         "nendo.lease.renew" or "nendo.lease.release" => ["leaseId"],
         "nendo.data.create_record" =>
             ["leaseId", "entityId", "recordId", "values", "idempotencyKey", "expectedTargetVersions", "keptInNewFiles", "references"],
-        "nendo.data.set_kept_in_new_files" => ["leaseId", "entityId", "recordId", "kept", "idempotencyKey"],
+        "nendo.data.set_kept_in_new_files" => ["leaseId", "kept", "idempotencyKey", "entityId", "recordId", "records"],
         "nendo.data.update_record" =>
             ["leaseId", "entityId", "recordId", "expectedRecordVersion", "values", "idempotencyKey", "expectedTargetVersions", "references"],
         "nendo.data.apply_writes" => ["leaseId", "writes", "idempotencyKey", "label"],
@@ -169,6 +171,13 @@ public sealed class LeaseProtocolTests
             ["leaseId", "entityId", "format", "idempotencyKey", "csv", "columnMappings", "csvProfile", "emptyIsNull", "records"],
         _ => throw new AssertFailedException($"Unexpected tool {toolName}."),
     };
+
+    // Served from Inspect up: every read, for a client that has tools and no resources/read.
+    private static string[] ReadToolNames { get; } =
+    [
+        "nendo.read.list",
+        "nendo.read.resource",
+    ];
 
     private static string[] DataToolNames { get; } =
     [

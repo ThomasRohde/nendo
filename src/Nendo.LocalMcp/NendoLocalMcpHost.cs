@@ -56,6 +56,12 @@ public sealed record NendoLocalMcpHostOptions(string DiscoveryRoot)
     /// </summary>
     public TimeSpan RequestTimeout { get; init; } = NendoRequestGate.DefaultTimeout;
 
+    /// <summary>
+    /// How long a request past the in-flight bound waits for a place before it is refused
+    /// <c>NENDO_BUSY</c>: the published <c>limits.requestQueueSeconds</c> unless a test shortens it.
+    /// </summary>
+    public TimeSpan RequestQueueWait { get; init; } = NendoRequestGate.DefaultQueueWait;
+
     public static NendoLocalMcpHostOptions CreateDefault() => new(
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -139,6 +145,8 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
 
     /// <summary>Requests past the perimeter and not yet answered.</summary>
     internal int InFlightRequests => _requests.InFlight;
+
+    internal int WaitingRequests => _requests.Waiting;
 
     /// <summary>
     /// Who holds the lease, read under the authority's gate. Once the host is disposed every
@@ -312,7 +320,8 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         agentAuthority.SetLeaseEndedHandler(authoring.DiscardSessionAsync);
         var discoveryStore = new NendoDiscoveryStore(options.DiscoveryRoot);
         var queries = NendoResourceQuery.ForDeclaredResources();
-        var requests = new NendoRequestGate(NendoRequestGate.DefaultMaximum, options.RequestTimeout);
+        var requests = new NendoRequestGate(
+            NendoRequestGate.DefaultMaximum, options.RequestTimeout, options.RequestQueueWait, NendoRequestGate.DefaultMaximumWaiting);
         var failures = new NendoFailureRecord(options.RecordFailure);
         // What a listen stream is told (W-151): a commit moves the manifest and may stale
         // every proposal; the queue changes when one joins, is promoted or is rejected.
@@ -373,6 +382,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                 builder.Services.AddSingleton(authoring);
                 builder.Services.AddSingleton(authority.Cursors);
                 builder.Services.AddSingleton(discoveryStore);
+                builder.Services.AddSingleton(queries);
                 builder.Services.AddSingleton<NendoResourceProjection>();
 
                 var mcp = builder.Services
@@ -545,19 +555,6 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                 foreach (var (tools, minimum) in NendoToolBoundary.ToolClasses)
                 {
                     if (mode >= minimum) WithNendoTools(mcp, tools);
-                }
-                if (mode < AgentAccessMode.DataMutation)
-                {
-                    // Installed clients may initialize every configured server with tools/list.
-                    // Keep Inspect's allowlist genuinely empty while returning a successful page,
-                    // and answer a call so the boundary can name the level it needs.
-                    mcp.WithListToolsHandler((_, _) => ValueTask.FromResult(new ListToolsResult
-                    {
-                        Tools = [],
-                    }));
-                    mcp.WithCallToolHandler((_, _) => throw new McpProtocolException(
-                        "NENDO_TOOL_UNAVAILABLE: Inspect serves no tools.",
-                        McpErrorCode.InvalidParams));
                 }
 
                 var application = builder.Build();

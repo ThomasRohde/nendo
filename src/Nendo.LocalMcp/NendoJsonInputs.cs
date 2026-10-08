@@ -99,6 +99,7 @@ internal static class NendoJsonInputs
         typeof(NendoRecordInput),
         typeof(NendoReferenceInput),
         typeof(NendoRecordWriteInput),
+        typeof(NendoRecordKeyInput),
         typeof(NendoCsvColumnMapping),
         typeof(NendoAgentMutationInput),
         typeof(NendoAgentOperationInput),

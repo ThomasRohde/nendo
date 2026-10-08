@@ -278,3 +278,10 @@ waiting proposals and every device-local approval.
   changes became a new file of 1,160 KiB with 81 records, in 352 ms. The first run left 3,492 KiB:
   the stage kept every earlier package version the history held, which a folded history can no
   longer restore. New now drops package content no current file uses.
+- 2026-10-08 — amended after an outside review: an agent that built a skeleton with one
+  `apply_writes` batch then marked its 134 records one call and one revision each. Each
+  `apply_writes` write takes `keptInNewFiles` beside its create or update, in the batch's
+  revision, and `nendo.data.set_kept_in_new_files` takes several records of any types as one
+  revision. A revision of record changes may now hold marks and is undone from History as a
+  whole: each mark goes back to the one before it, and one changed since refuses the undo, as
+  for a single mark. Measured in `BatchWriteToolTests`.

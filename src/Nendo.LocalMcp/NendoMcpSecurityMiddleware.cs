@@ -68,16 +68,26 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
             return;
         }
         // Counted before the body is read: a request still sending its body holds a place,
-        // which is what stops a client from opening requests without ever finishing them.
-        if (!gate.TryEnter())
+        // which is what stops a client from opening requests without ever finishing them. One
+        // past the bound waits for a place before it is refused (NendoRequestGate).
+        bool admitted;
+        try
+        {
+            admitted = await gate.EnterAsync(context.RequestAborted);
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            return;
+        }
+        if (!admitted)
         {
             context.Response.Headers.RetryAfter = "1";
             await RejectAsync(
                 context,
                 StatusCodes.Status429TooManyRequests,
                 "NENDO_BUSY",
-                $"{gate.Maximum} requests to this file are already in progress, the most this host serves at once. " +
-                "Retry when one of them has answered.");
+                $"{gate.Maximum} requests to this file were in progress for {(int)gate.QueueWait.TotalSeconds} seconds, the most " +
+                "this host serves at once, and this one waited for a place that did not come. Retry when one of them has answered.");
             return;
         }
         var aborted = context.RequestAborted;

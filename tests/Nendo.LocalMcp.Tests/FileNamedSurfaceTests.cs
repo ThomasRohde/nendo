@@ -23,7 +23,7 @@ public sealed class FileNamedSurfaceTests
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
 
         Assert.AreEqual("Nendo · fixture", client.ServerInfo.Title);
-        StringAssert.StartsWith(client.ServerInstructions ?? string.Empty, "This is the Nendo file fixture.nendo: record types");
+        StringAssert.StartsWith(client.ServerInstructions ?? string.Empty, "This is the Nendo file fixture.nendo. If your client");
 
         var grant = await client.CallToolAsync("nendo.lease.acquire");
         Assert.AreNotEqual(true, grant.IsError);
@@ -55,12 +55,12 @@ public sealed class FileNamedSurfaceTests
         // A name and never a location, whatever the caller hands in.
         Assert.AreEqual("Nendo · Plan", NendoFileLabel.Title(@"C:\work\Plan.nendo"));
         var fromPath = NendoServerInstructions.For(AgentAccessMode.ReadOnly, null, @"C:\work\Plan.nendo");
-        StringAssert.StartsWith(fromPath, "This is the Nendo file Plan.nendo: ");
+        StringAssert.StartsWith(fromPath, "This is the Nendo file Plan.nendo. ");
         Assert.DoesNotContain(@"C:\work", fromPath, StringComparison.Ordinal);
 
         // No file to name keeps the sentence and the title this surface had before.
         Assert.AreEqual("Nendo", NendoFileLabel.Title(null));
         Assert.AreEqual("Nendo", NendoFileLabel.Title("   "));
-        StringAssert.StartsWith(NendoServerInstructions.For(AgentAccessMode.ReadOnly, null), "This is a Nendo file: record types");
+        StringAssert.StartsWith(NendoServerInstructions.For(AgentAccessMode.ReadOnly, null), "This is a Nendo file. If your client");
     }
 }

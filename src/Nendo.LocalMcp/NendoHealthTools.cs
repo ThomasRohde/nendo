@@ -26,6 +26,9 @@ internal sealed class NendoHealthTools(
     [Description("Request an integrity scan of the open file and read the result measured now. Needs no lease and changes nothing. A file that has not changed since the last scan is not rescanned: rescanned is false and the recorded result already describes it, so calling this in a loop costs nothing. A scan that fails puts the host into recovery, which is the file being protected, not this call failing.")]
     public async Task<NendoMcpIntegrityCheck> VerifyIntegrityAsync(
         RequestContext<CallToolRequestParams> context,
+        // Accepted and not read: an agent that sends its handle on every call was refused here
+        // for it, and spent a round trip learning that this call is the one that needs none.
+        [Description("Optional and not needed: this call needs no lease. Accepted so a client that sends its handle on every call is not refused.")] string? applicationHandle = null,
         CancellationToken cancellationToken = default)
     {
         try

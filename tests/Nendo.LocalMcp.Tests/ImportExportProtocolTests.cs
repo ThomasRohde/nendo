@@ -495,7 +495,7 @@ public sealed class ImportExportProtocolTests
     }
 
     [TestMethod]
-    public async Task InspectSeesTheExportAndStillHasNoTools()
+    public async Task InspectSeesTheExportAndOnlyTheReadTools()
     {
         await using var workspace = new LocalMcpTestWorkspace();
         await PrepareAsync(workspace);
@@ -505,9 +505,9 @@ public sealed class ImportExportProtocolTests
             new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
 
-        // Reading is a resource in this product, which is what keeps the level that can
-        // only read genuinely unable to change anything.
-        Assert.IsEmpty(await client.ListToolsAsync());
+        // The level that can only read serves only the two read tools, which keeps it
+        // genuinely unable to change anything.
+        await ProtocolResourceTests.AssertOnlyReadToolsAsync(client);
         var page = ProtocolResourceTests.Deserialize<NendoMcpCsvPage>(
             await ProtocolResourceTests.ReadTextAsync(client, "nendo://application/entity/notes/export"));
         Assert.AreEqual(3, page.RecordCount);

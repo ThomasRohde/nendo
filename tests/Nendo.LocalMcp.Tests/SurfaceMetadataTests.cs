@@ -36,7 +36,7 @@ public sealed class SurfaceMetadataTests
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
 
         var tools = await client.ListToolsAsync();
-        Assert.HasCount(25, tools);
+        Assert.HasCount(27, tools);
         var untitled = tools.Where(tool => string.IsNullOrWhiteSpace(tool.ProtocolTool.Title)).Select(tool => tool.Name).ToList();
         var resources = await client.ListResourcesAsync();
         var templates = await client.ListResourceTemplatesAsync();

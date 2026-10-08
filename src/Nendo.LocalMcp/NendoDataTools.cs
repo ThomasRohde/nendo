@@ -235,7 +235,7 @@ internal sealed class NendoDataTools(
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Create, update and delete records across record types as one revision, all or nothing: the batch the Workbench's forms commit. Up to limits.recordWritesPerCall writes, each a create (values), an update (expectedRecordVersion and up to limits.fieldsPerRecordUpdate values) or a delete (expectedRecordVersion), one write per record. A write may point at a record an earlier write in the batch created; the host supplies that target's version. The result names every record with the version it holds now; label is what History calls the revision.")]
+    [Description("Create, update and delete records across record types as one revision, all or nothing: the batch the Workbench's forms commit. Up to limits.recordWritesPerCall writes, each a create (values), an update (expectedRecordVersion and up to limits.fieldsPerRecordUpdate values) or a delete (expectedRecordVersion), one write per record. An update advances its record one version per field written, so four fields take version 5 to 9. A write may point at a record an earlier write in the batch created or updated; the host supplies that target's version. keptInNewFiles on a create or update marks the record for new files in the same revision. The result names every record with the version it holds now. Give label, what History calls the revision: it is how the person reviews your work.")]
     public Task<NendoDataWritesResult> ApplyWritesAsync(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
@@ -356,17 +356,18 @@ internal sealed class NendoDataTools(
 
     [McpServerTool(Name = "nendo.data.set_kept_in_new_files", Title = "Keep a record in new files, or leave it out", Destructive = true,
         Idempotent = true, OpenWorld = false, ReadOnly = false, UseStructuredContent = true)]
-    [Description("Say whether a new file of this application keeps one record: kept true, left out false, or null to follow its record type's keptInNewFiles, which schema.setKeptInNewFiles sets in a change set. Keep what the application ships with, such as a lookup's entries or its top-level folders; leave the person's work out. A kept record may point only at kept records, or the person cannot make a new file: nendo://application/describe lists any under newFile.conflicts. The mark is a fact about the record, not a value: no field or record version changes and no automatic action runs. One Data revision, undone from History.")]
+    [Description("Say whether a new file of this application keeps a record: kept true, left out false, or null to follow its record type's keptInNewFiles, which schema.setKeptInNewFiles sets in a change set. Name one record with entityId and recordId, or up to limits.recordWritesPerCall of any types with records, as one revision. Keep what the application ships with, such as a lookup's entries or its top-level folders; leave the person's work out. A kept record may point only at kept records, or the person cannot make a new file: nendo://application/describe lists any under newFile.conflicts. To mark records as you create them, use keptInNewFiles on the create or on an nendo.data.apply_writes write instead. The mark is a fact about the record, not a value: no field or record version changes and no automatic action runs. One Data revision, undone from History.")]
     public Task<NendoDataApplyResult> SetKeptInNewFilesAsync(RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
         [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
-        [Description("Stable entity ID.")] string entityId,
-        [Description("Stable record ID.")] string recordId,
-        [Description("true to keep the record in a new file, false to leave it out, null to follow its record type.")] bool? kept,
+        [Description("true to keep the records in a new file, false to leave them out, null to follow their record types.")] bool? kept,
         [Description(NendoParameterDescriptions.IdempotencyKey)] string idempotencyKey,
+        [Description("One record: its stable entity ID. Give it with recordId, or give records instead.")] string? entityId = null,
+        [Description("One record: its stable record ID. Give it with entityId, or give records instead.")] string? recordId = null,
+        [Description("Several records, of any types, each named once, marked as one revision.")] IReadOnlyList<NendoRecordKeyInput>? records = null,
         CancellationToken cancellationToken = default) => ExecuteAsync(context, "nendo.data.set_kept_in_new_files",
-            () => mutations.SetKeptInNewFilesAsync(applicationHandle, leaseId, entityId, recordId, kept, idempotencyKey, cancellationToken),
-            entityId);
+            () => mutations.SetKeptInNewFilesAsync(applicationHandle, leaseId, entityId, recordId, records, kept, idempotencyKey, cancellationToken),
+            [entityId, .. records?.Select(record => record?.EntityId) ?? []]);
 
     [McpServerTool(Name = "nendo.data.delete_record", Title = "Delete a record", Destructive = true, Idempotent = true,
         OpenWorld = false, ReadOnly = false, UseStructuredContent = true)]

@@ -1014,6 +1014,8 @@ public sealed record NendoAuthoringLimits(
         RecordValueBytes = 32 * 1024,
         RecordValuesBytes = 64 * 1024,
         RequestBodyBytes = 256 * 1024,
+        RequestsInFlight = 16,
+        RequestQueueSeconds = 30,
     };
 
     /// <summary>
@@ -1032,6 +1034,16 @@ public sealed record NendoAuthoringLimits(
     /// client sees a refusal rather than a transport failure.
     /// </summary>
     public int RequestBodyBytes { get; init; }
+
+    /// <summary>
+    /// How many requests the local agent endpoint serves at once. A request past it waits for a
+    /// place, up to <see cref="RequestQueueSeconds"/>, rather than being refused: a client that
+    /// sent thirty calls at once read eleven HTTP 429s as a broken connection.
+    /// </summary>
+    public int RequestsInFlight { get; init; }
+
+    /// <summary>The longest a request past <see cref="RequestsInFlight"/> waits for a place before it is refused as busy.</summary>
+    public int RequestQueueSeconds { get; init; }
 
     /// <summary>
     /// The bounds an agent import keeps (W-149): the rows one call carries, bounded by the

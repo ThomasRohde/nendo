@@ -167,6 +167,8 @@ export function activityLabel(activity: AgentActivity): string {
     'nendo.lease.renew': 'Renewed edit access',
     'nendo.lease.release': 'Gave back edit access',
     'nendo.data.get_receipt': 'Read the outcome of a write',
+    'nendo.read.resource': 'Read workspace details',
+    'nendo.read.list': 'Listed what it can read',
     'nendo.data.create_record': 'Created a record',
     'nendo.data.create_records': 'Created records',
     'nendo.data.import_records': 'Imported records',

@@ -145,7 +145,7 @@ public sealed class DiscoveryLifecycleTests
         Assert.AreNotEqual(firstRun, second.HostRunId);
         Assert.AreEqual(AgentAccessMode.ReadOnly, second.Mode);
         await using var secondClient = await ProtocolResourceTests.ConnectAsync(second);
-        Assert.IsEmpty(await secondClient.ListToolsAsync());
+        await ProtocolResourceTests.AssertOnlyReadToolsAsync(secondClient);
     }
 
     [TestMethod]

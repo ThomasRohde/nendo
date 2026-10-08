@@ -610,24 +610,54 @@ public sealed partial class NendoApplicationService
     /// Says whether a new file of this application keeps one record (ADR-0022): true or false, or
     /// null to follow its record type. One Data revision; the record's values and version stay.
     /// </summary>
-    public async Task<NendoApplyResult> SetRecordKeptInNewFilesAsync(
-        string entityId, string recordId, bool? kept, NendoRequestContext context, CancellationToken cancellationToken = default)
+    public Task<NendoApplyResult> SetRecordKeptInNewFilesAsync(
+        string entityId, string recordId, bool? kept, NendoRequestContext context, CancellationToken cancellationToken = default) =>
+        SetRecordsKeptInNewFilesAsync([(entityId, recordId)], kept, context, cancellationToken);
+
+    /// <summary>
+    /// Says the same of several records, of any types, as one Data revision: marking a skeleton
+    /// an agent built took one call and one History entry per record (ADR-0022). Up to
+    /// <see cref="MaximumRecordWrites"/> records, each named once.
+    /// </summary>
+    public async Task<NendoApplyResult> SetRecordsKeptInNewFilesAsync(
+        IReadOnlyList<(string EntityId, string RecordId)> records, bool? kept, NendoRequestContext context,
+        CancellationToken cancellationToken = default)
     {
-        RequireIdentity(entityId, "entity ID");
-        RequireIdentity(recordId, "record ID");
+        ArgumentNullException.ThrowIfNull(records);
         RequireContext(context);
-        var entity = await RequireEntityAsync(entityId, cancellationToken);
-        return await _coordinator.ApplyAsync(new NendoMutation(context.IdempotencyScope, context.IdempotencyKey, context.Origin,
-            // Names the record, not only its type: "Keep Folders in new files" read as the type's default.
-            kept switch
+        if (records.Count is < 1 or > MaximumRecordWrites)
+            throw new NendoValidationException($"A keep mark names 1-{MaximumRecordWrites} records; this one names {records.Count}.");
+        var entities = new Dictionary<string, NendoEntitySnapshot>(StringComparer.Ordinal);
+        var seen = new HashSet<(string, string)>();
+        foreach (var (entityId, recordId) in records)
+        {
+            RequireIdentity(entityId, "entity ID");
+            RequireIdentity(recordId, "record ID");
+            if (!seen.Add((entityId, recordId)))
+                throw new NendoValidationException($"Record {recordId} is named twice; name each record once.");
+            if (!entities.ContainsKey(entityId)) entities[entityId] = await RequireEntityAsync(entityId, cancellationToken);
+        }
+        var (firstEntity, firstRecord) = records[0];
+        var name = entities[firstEntity].DisplayName;
+        // Names the record, not only its type: "Keep Folders in new files" read as the type's default.
+        var description = records.Count == 1
+            ? kept switch
             {
-                true => $"Keep {entity.DisplayName} record {recordId} in new files",
-                false => $"Leave {entity.DisplayName} record {recordId} out of new files",
-                null => $"{entity.DisplayName} record {recordId} follows its type in new files",
-            },
-            [new SetRecordKeptInNewFilesOperation(
-                NendoCanonical.DeterministicId("operation", context.IdempotencyScope, context.IdempotencyKey, 0),
-                entityId, recordId, kept)]), cancellationToken);
+                true => $"Keep {name} record {firstRecord} in new files",
+                false => $"Leave {name} record {firstRecord} out of new files",
+                null => $"{name} record {firstRecord} follows its type in new files",
+            }
+            : kept switch
+            {
+                true => $"Keep {records.Count} records in new files",
+                false => $"Leave {records.Count} records out of new files",
+                null => $"{records.Count} records follow their types in new files",
+            };
+        return await _coordinator.ApplyAsync(new NendoMutation(context.IdempotencyScope, context.IdempotencyKey, context.Origin,
+            description,
+            [.. records.Select((record, index) => (NendoOperation)new SetRecordKeptInNewFilesOperation(
+                NendoCanonical.DeterministicId("operation", context.IdempotencyScope, context.IdempotencyKey, index),
+                record.EntityId, record.RecordId, kept))]), cancellationToken);
     }
 
     /// <summary>

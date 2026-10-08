@@ -37,10 +37,12 @@ You set the level on the Agent page. Each level includes everything that the lev
 | Level | What the agent may do | What it gets |
 | --- | --- | --- |
 | Off | Nothing. Nendo does not listen, and every lease ends. | No connection. |
-| Inspect | Read the whole file: structure, records, screens, history, health and waiting proposals. | The 25 resources. The tool list is empty. |
+| Inspect | Read the whole file: structure, records, screens, history, health and waiting proposals. | The 25 resources, and 2 read-only tools that reach them: `nendo.read.resource` and `nendo.read.list`. |
 | Edit data | Create, change, delete, import, move and undo records, and run a screen's command. Writes go straight into the file and appear in History. | Adds 17 tools: `nendo.lease.*` (4), `nendo.data.*` (12) and `nendo.health.verify_integrity`. |
 | Shape app | Propose changes to record types, fields, screens, calculations and automatic actions. Proposals wait for you. | Adds 7 tools: `nendo.change_set.begin`, `add_operations`, `amend`, `validate`, `revalidate`, `preview` and `reject`. |
 | Unattended | Accept its own proposals, and let the automatic actions they install run. | Adds 1 tool: `nendo.change_set.accept`. |
+
+Some MCP clients call tools and cannot read resources; GitHub Copilot CLI is one. An agent in such a client reads with `nendo.read.resource`, which takes any address a resource serves and returns exactly what reading it would, and `nendo.read.list`, which names every address and every skill, the file's own included. Nendo's instructions to the agent say so in their first sentence.
 
 At every level below Unattended, `nendo.change_set.accept` is not in the tool list. A client that calls it by name is refused with `NENDO_UNATTENDED_REQUIRED` (JSON-RPC `-32602`), which names the level it needs. At those levels, only you accept a proposal.
 
@@ -53,7 +55,7 @@ Only one agent writes at a time. To write, an agent calls `nendo.lease.acquire`.
 
 Every write and every change-set call takes both. The agent must keep the handle private. If a second agent tries to acquire the lease, it gets `NENDO_LEASE_HELD`.
 
-The grant also carries a **receipt context**, an unprivileged value the agent saves before it writes, so it can read the outcome of a write whose answer was lost. An agent that sends an `idempotencyKey` with `nendo.lease.acquire` can repeat the call after a lost answer and receive the same grant instead of being refused against itself. One that released its lease, or lost it, takes it again under its earlier handle with `resumeApplicationHandle`: the proposals it validated, its pseudonym and its receipts are its own once more. A handle lasts while Nendo runs; after a restart it is unknown.
+The grant also states the write limits, such as how many writes one batch carries and how many fields one update writes, and the reads to make before writing. It carries a **receipt context**, an unprivileged value the agent saves before it writes, so it can read the outcome of a write whose answer was lost. An agent that sends an `idempotencyKey` with `nendo.lease.acquire` can repeat the call after a lost answer and receive the same grant instead of being refused against itself. One that released its lease, or lost it, takes it again under its earlier handle with `resumeApplicationHandle`: the proposals it validated, its pseudonym and its receipts are its own once more. A handle lasts while Nendo runs; after a restart it is unknown.
 
 By default the lease has no expiry. It ends when the agent releases it, when you select **Revoke edit access**, when you set access to Off, or when you close or switch the file. Closing the agent does not release it. If you want leases to lapse, turn on **Lease expiry** under **Agent › Connection** and set a time from 15 to 86,400 seconds. The agent must then call `nendo.lease.renew` within that time.
 
@@ -101,10 +103,10 @@ At Edit data and above, the agent changes records with these tools:
 | `nendo.data.import_records` | Imports up to 500 rows from CSV text or JSON, committed 50 to a revision. If a later batch is refused, `NENDO_IMPORT_PARTIAL` names the committed and remaining counts, the first uncommitted row and the committed revisions. Retry the identical call and key to replay earlier batches without duplicates. Invalid CSV mappings or a mixed CSV/JSON payload are refused before writing. A column that Nendo numbers, such as a Reference, may be left out: every row receives the next code. |
 | `nendo.data.set_field` | Sets one field on one record. |
 | `nendo.data.update_record` | Sets up to 64 fields of one record as one revision, the way a form saves. |
-| `nendo.data.apply_writes` | Creates, updates and deletes up to 200 records across record types as one revision, all or nothing. A write may point at a record an earlier write in the same batch created. |
+| `nendo.data.apply_writes` | Creates, updates and deletes up to 200 records across record types as one revision, all or nothing. A write may point at a record an earlier write in the same batch created, and a create or update may say whether a new file keeps the record. A `label` names the revision in History. |
 | `nendo.data.undo_revision` | Undoes one record revision the agent's own session committed, as the compensation History makes: a new linked revision, nothing rewound. Undoing the compensation is redo. |
 | `nendo.data.move_record` | Moves a record in a record type that is kept as a tree: under another parent, to the top level, or before a sibling. When the siblings leave no room, the few around the new place are renumbered, and the answer names every record written. |
-| `nendo.data.set_kept_in_new_files` | Says whether a new file of the application keeps one record, leaves it out, or follows its record type. |
+| `nendo.data.set_kept_in_new_files` | Says whether a new file of the application keeps a record, leaves it out, or follows its record type: one record, or up to 200 of any types as one revision. |
 | `nendo.data.delete_record` | Deletes one record. Refused while other records refer to it. |
 | `nendo.data.execute_command` | Runs a command that a screen defines. |
 | `nendo.data.get_receipt` | Reads the outcome of an earlier write, an import batch by batch, or an acceptance by its proposal. |

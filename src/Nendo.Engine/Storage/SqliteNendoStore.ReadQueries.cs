@@ -495,11 +495,12 @@ internal sealed partial class SqliteNendoStore
                 ))
                 OR
                 -- Record changes are reversed as a whole, creates and restores by a delete, and a
-                -- compensation of record changes can be compensated again: redo (ADR-0023).
+                -- compensation of record changes can be compensated again: redo (ADR-0023). A
+                -- record's keep mark is one of them (ADR-0022): a batch may set it beside a create.
                 (COUNT(o.operation_id) BETWEEN 1 AND 12800
                     AND MIN(CASE WHEN o.operation_type IN (
                         'data.setField', 'data.backfillRetiredField', 'data.deleteRecord',
-                        'data.createRecord', 'data.restoreDeletedRecord') THEN 1 ELSE 0 END) = 1)
+                        'data.createRecord', 'data.restoreDeletedRecord', 'data.setKeptInNewFiles') THEN 1 ELSE 0 END) = 1)
                 THEN 1 ELSE 0 END
             FROM page r LEFT JOIN __nendo_operation o ON o.revision_id = r.revision_id
             GROUP BY r.revision_id ORDER BY r.change_sequence {order};

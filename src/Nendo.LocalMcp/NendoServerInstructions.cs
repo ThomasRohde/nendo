@@ -18,16 +18,22 @@ internal static class NendoServerInstructions
     // someone building an HTTP client is gone; server/discover and the MCP contract carry it.
     // It names the file as well: with two Nendo windows open, an agent registered with both
     // read the same sentence from each and could not say which file it was about to change.
+    // How to read comes next, inside the first 150 characters: a client that lists servers
+    // cut this text there, and its agent, whose client had tools and no resources/read, read
+    // the file's storage instead because nothing it saw said how else (2026-10-08).
     internal static string For(AgentAccessMode mode, TimeSpan? leaseTtl, string? fileName = null) =>
-        (NendoFileLabel.Short(fileName) is { } name ? $"This is the Nendo file {name}: " : "This is a Nendo file: ") +
-        "record types and records, screens (lists, boards, calendars, record pages and " +
+        (NendoFileLabel.Short(fileName) is { } name ? $"This is the Nendo file {name}. " : "This is a Nendo file. ") +
+        "If your client cannot read MCP resources, read them with the tool nendo.read.resource; start with " +
+        "nendo://application/describe, and nendo.read.list names every address. " +
+        "The file holds record types and records, screens (lists, boards, calendars, record pages and " +
         "commands), calculated fields, reusable functions, and automatic actions that run on a trigger. " +
         "Records are written directly; everything else is authored as a change set (begin, add_operations, " +
         "validate), and calculations, functions, actions and triggers are its behaviour.setDefinition operation. " +
         "For the whole application and every read path, read nendo://application/describe; for one record type, " +
         "manifest and nendo://application/entity/{entityId} are smaller. " +
         "nendo://application/proposals lists what waits for the person, a predecessor session's work included: " +
-        "read it before beginning. skill://nendo-authoring/SKILL.md (skills/list) says which read answers which question. " +
+        "read it before beginning. skill://nendo-authoring/SKILL.md says which read answers which question; a skill " +
+        "the file carries, listed by nendo.read.list and skills/list, says how to work this file: read it before writing. " +
         "To write, call nendo.lease.acquire, keep its applicationHandle private, and pass it with leaseId on " +
         "every owned call. " +
         (leaseTtl is { } ttl

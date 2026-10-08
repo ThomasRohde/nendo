@@ -49,6 +49,13 @@ public sealed record NendoReferenceInput
     public string? Value { get; init; }
 }
 
+/// <summary>One record named by its type and ID, as <c>nendo.data.set_kept_in_new_files</c> takes several.</summary>
+public sealed record NendoRecordKeyInput(
+    [property: Description("Stable entity ID of the record's type.")]
+    string EntityId,
+    [property: Description("Stable record ID.")]
+    string RecordId);
+
 /// <summary>One record write of a batch (W-147): a create, an update or a delete.</summary>
 public sealed record NendoRecordWriteInput(
     [property: Description("create, update or delete.")]
@@ -69,6 +76,9 @@ public sealed record NendoRecordWriteInput(
 
     [property: Description("Reference targets named by record ID or by a unique field's value, keyed by field ID, resolved by the host as on nendo.data.create_records. A target an earlier write in this batch creates or updates is found there first.")]
     public IReadOnlyDictionary<string, NendoReferenceInput>? References { get; init; }
+
+    [property: Description("create and update, optional: true keeps the record in a new file of this application, false leaves it out, in this same revision; omitted, a create follows its record type and an update leaves the mark as it is. A kept record may point only at kept records.")]
+    public bool? KeptInNewFiles { get; init; }
 }
 
 /// <summary>What a tool committed, for the activity entry: every data result names its revision.</summary>

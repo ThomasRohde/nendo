@@ -326,7 +326,9 @@ services, at a static loopback address, with no credential.
 ### Semantic contract
 
 - Resources and tools expose semantic manifests, schema, records, surfaces,
-  history and health through bounded typed projections. They expose no SQL,
+  history and health through bounded typed projections. Every resource is also
+  reachable through two read-only tools served from Inspect,
+  `nendo.read.resource` and `nendo.read.list` (2026-10-08 amendment). They expose no SQL,
   SQLite type or handle, physical identifier, database path, process, network,
   filesystem or generic host invocation.
 - Data writes are canonical typed operations with explicit versions and
@@ -443,6 +445,21 @@ services, at a static loopback address, with no credential.
 - 2026-10-04 — amended (W-151, W-152): subscriptions/listen pushes the manifest, the
   proposal queue and the close; validate, import and the integrity scan run as
   tasks for a client that declares the Tasks extension. Authority unchanged.
+- 2026-10-08 — amended after an outside review from GitHub Copilot CLI, whose MCP
+  client calls tools and cannot read resources. Its agent could read nothing through
+  Nendo — no ID, version, limit or the file's skill — and opened the file's storage
+  instead, the one route this decision exists to close. Every read is now also a tool:
+  `nendo.read.resource` hands an address to the same SDK resource `resources/read`
+  matches and returns its text unchanged, and `nendo.read.list` names every address and
+  skill. Both are `readOnlyHint` and served from Inspect, which until now listed no tools;
+  Inspect still changes nothing. It is not a generic invocation: it reaches only the
+  declared resources, with their bounds, through the same projections. The server
+  instructions name the read tool within their first 150 characters, and the lease grant
+  carries the write limits and first reads. A request past the in-flight bound now waits
+  up to 30 seconds for a place rather than being refused at once with HTTP 429, which a
+  client reported as a transport failure. Authority unchanged. What it gives up: Inspect
+  can no longer be described as "an empty tool list", and a reviewer of a tool list now
+  sees reads in it.
 - 2026-09-29 — amended at the owner's request (W-126, after F-212): the access
   level is remembered for each file on this device. Device state
   (`agent-modes.json`) keeps, per application ID, the level and the file's

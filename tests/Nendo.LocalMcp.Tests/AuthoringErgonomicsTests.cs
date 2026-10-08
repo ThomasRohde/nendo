@@ -140,7 +140,7 @@ public sealed class AuthoringErgonomicsTests
         // now: it pushed the sentences an agent needs past a client's 2,048-character cut,
         // and server/discover and the MCP contract already carry it (W-082).
         var instructions = client.ServerInstructions ?? string.Empty;
-        StringAssert.StartsWith(instructions, "This is the Nendo file fixture.nendo: record types");
+        StringAssert.StartsWith(instructions, "This is the Nendo file fixture.nendo. If your client");
         StringAssert.Contains(instructions, "calculated fields");
         StringAssert.Contains(instructions, "behaviour.setDefinition");
         Assert.DoesNotContain("Mcp-Method", instructions, StringComparison.Ordinal);

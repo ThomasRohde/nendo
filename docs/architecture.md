@@ -821,9 +821,10 @@ the instance ID, so it opens at the same level)
 the profile that the person's own Export writes. `nendo.data.import_records` takes
 CSV text or typed JSON at *Edit data*. It commits the rows through the same
 `CreateRecordsAsync` that a single create uses: fifty rows to a revision, and up to
-five hundred rows in a call. Export is a resource and not a tool, so that Inspect
-keeps an empty tool list. Neither export nor import carries a path, in either
-direction.
+five hundred rows in a call. Export is a resource and not a tool, like every read;
+a client that calls tools and cannot read resources reaches it, and every other read,
+through `nendo.read.resource`, one of the two read-only tools Inspect serves since
+2026-10-08. Neither export nor import carries a path, in either direction.
 
 The security boundary is this computer, at the owner's chosen access level. While
 a file is open with access on, any process on the machine can connect, under any

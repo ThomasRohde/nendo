@@ -151,8 +151,13 @@ public sealed class HostHardeningTests
         Assert.HasCount(1, host.GetPendingProposals());
     }
 
+    /// <summary>
+    /// A request past the bound waits for a place and is answered once one frees, rather than
+    /// refused: a client that sent thirty calls in parallel read eleven immediate HTTP 429s as
+    /// a broken connection (2026-10-08).
+    /// </summary>
     [TestMethod]
-    public async Task TheRequestPastTheBoundIsRefusedByNameWhileTheOthersComplete()
+    public async Task TheRequestPastTheBoundWaitsForAPlaceAndIsAnswered()
     {
         await using var workspace = new LocalMcpTestWorkspace();
         await workspace.CreateEmptyAsync();
@@ -160,6 +165,50 @@ public sealed class HostHardeningTests
             workspace.Service,
             AgentAccessMode.ReadOnly,
             new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        var held = new List<PartialRequest>();
+        try
+        {
+            for (var index = 0; index < NendoRequestGate.DefaultMaximum; index++)
+            {
+                held.Add(await PartialRequest.OpenAsync(host.Endpoint, Initialize($"held-{index}")));
+            }
+            await WaitUntilAsync(() => host.InFlightRequests == NendoRequestGate.DefaultMaximum, "the held requests to arrive");
+
+            using var http = LatestProtocolTests.Client(host);
+            var waiting = http.PostAsync(http.BaseAddress, new ByteArrayContent(Initialize("one-past-the-bound"))
+            {
+                Headers = { ContentType = new("application/json") },
+            });
+            await WaitUntilAsync(() => host.WaitingRequests == 1, "the request past the bound to wait");
+            await Task.Delay(200);
+            Assert.IsFalse(waiting.IsCompleted, "The request past the bound was answered while every place was held.");
+
+            Assert.AreEqual(200, await held[0].FinishAsync(), "A held request did not complete once its body arrived.");
+            using var answered = await waiting;
+            Assert.AreEqual(HttpStatusCode.OK, answered.StatusCode,
+                $"The waiting request was not served once a place freed: {await answered.Content.ReadAsStringAsync()}");
+
+            foreach (var request in held.Skip(1))
+            {
+                Assert.AreEqual(200, await request.FinishAsync(), "A held request did not complete once its body arrived.");
+            }
+            await WaitUntilAsync(() => host.InFlightRequests == 0 && host.WaitingRequests == 0, "every place to be given back");
+        }
+        finally
+        {
+            foreach (var request in held) request.Dispose();
+        }
+    }
+
+    [TestMethod]
+    public async Task ARequestThatWaitsPastTheQueueTimeIsRefusedByNameWhileTheOthersComplete()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service,
+            AgentAccessMode.ReadOnly,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot) { RequestQueueWait = TimeSpan.FromMilliseconds(300) });
         var held = new List<PartialRequest>();
         try
         {
@@ -178,8 +227,9 @@ public sealed class HostHardeningTests
             using var answer = JsonDocument.Parse(await refused.Content.ReadAsStringAsync());
             Assert.AreEqual("NENDO_BUSY", answer.RootElement.GetProperty("error").GetString());
             StringAssert.Contains(answer.RootElement.GetProperty("message").GetString(),
-                $"{NendoRequestGate.DefaultMaximum} requests to this file are already in progress");
+                $"{NendoRequestGate.DefaultMaximum} requests to this file were in progress");
             Assert.IsNotNull(refused.Headers.RetryAfter, "The refusal says when to retry.");
+            Assert.AreEqual(0, host.WaitingRequests, "A refused request still holds a place in the queue.");
 
             foreach (var request in held)
             {

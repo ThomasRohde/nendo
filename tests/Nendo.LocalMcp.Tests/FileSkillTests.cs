@@ -84,6 +84,19 @@ public sealed class FileSkillTests
         }
         Assert.IsInstanceOfType<BlobResourceContents>((await client.ReadResourceAsync($"skill://{PackageId}/tasks/images/flow.png")).Contents.Single());
         Assert.AreEqual(SkillMarkdown, await ProtocolResourceTests.ReadTextAsync(client, $"skill://{PackageId}/tasks/SKILL.md"));
+
+        // A client with tools only finds the same skill and reads the same bytes (2026-10-08).
+        var readList = (await client.CallToolAsync("nendo.read.list")).StructuredContent!.Value.Deserialize<NendoReadList>(NendoMcpJson.Options)!;
+        CollectionAssert.AreEqual(
+            new[] { "skill://nendo-authoring/SKILL.md", $"skill://{PackageId}/tasks/SKILL.md" },
+            readList.Skills.Select(entry => entry.Uri).ToArray());
+        Assert.IsTrue(readList.Skills[1].FromFile);
+        Assert.AreEqual("How to work this file's task list.", readList.Skills[1].Description);
+        var viaTool = await client.CallToolAsync("nendo.read.resource", new Dictionary<string, object?> { ["uri"] = $"skill://{PackageId}/tasks/SKILL.md" });
+        Assert.AreEqual(SkillMarkdown, viaTool.Content.OfType<TextContentBlock>().Single().Text);
+        var imageViaTool = await client.CallToolAsync("nendo.read.resource", new Dictionary<string, object?> { ["uri"] = $"skill://{PackageId}/tasks/images/flow.png" });
+        var embedded = (BlobResourceContents)imageViaTool.Content.OfType<EmbeddedResourceBlock>().Single().Resource;
+        CollectionAssert.AreEqual(image, embedded.DecodedData.ToArray());
         SkillConformance.AssertEntry(skills[0],await ProtocolResourceTests.ReadTextAsync(client, "skill://nendo-authoring/SKILL.md"));
 
         // By URI, both; the file's skill is never cached, the host's keeps its hour.

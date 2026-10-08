@@ -45,6 +45,52 @@ public sealed record NendoLeaseGrant(
     /// </summary>
     [Description("The name of the open file this lease edits, as Nendo shows it: a name, never a location. Null when the host has none to say.")]
     public string? FileName { get; init; }
+
+    /// <summary>
+    /// The bounds a write plans against, from the one call every agent makes first. An agent
+    /// in a client that could not read resources never saw them anywhere else (2026-10-08).
+    /// </summary>
+    [Description("The bounds to plan writes against. Every other limit is under limits in nendo://application/vocabulary.")]
+    public NendoLeaseLimits? Limits { get; init; }
+
+    [Description("The reads to make before writing, by address: read each with resources/read, or with nendo.read.resource from a client that has only tools. nendo.read.list names every address and the skills this file carries.")]
+    public IReadOnlyList<NendoMcpRead>? Reads { get; init; }
+}
+
+/// <summary>The bounds a lease grant states; the vocabulary publishes them with the rest.</summary>
+public sealed record NendoLeaseLimits(
+    [property: Description("Writes one nendo.data.apply_writes call carries.")]
+    int RecordWritesPerCall,
+    [property: Description("Records one nendo.data.create_records call creates.")]
+    int RecordsPerCreateBatch,
+    [property: Description("Fields one update writes.")]
+    int FieldsPerRecordUpdate,
+    [property: Description("Characters a label, what History calls a revision, may hold.")]
+    int RecordWritesLabelCharacters,
+    [property: Description("UTF-8 bytes one field value may hold, counted as stored.")]
+    int RecordValueBytes,
+    [property: Description("UTF-8 bytes one write's values may hold together.")]
+    int RecordValuesBytes,
+    [property: Description("Bytes one request body may hold.")]
+    int RequestBodyBytes,
+    [property: Description("Requests this host serves at once. One past it waits up to requestQueueSeconds for a place, then is refused NENDO_BUSY.")]
+    int RequestsInFlight,
+    [property: Description("Seconds a request past requestsInFlight waits for a place.")]
+    int RequestQueueSeconds,
+    [property: Description("Records one page of a records read holds at most.")]
+    int MaximumPageLimit)
+{
+    internal static NendoLeaseLimits From(NendoAuthoringLimits limits) => new(
+        limits.RecordWritesPerCall,
+        limits.RecordsPerCreateBatch,
+        limits.FieldsPerRecordUpdate,
+        limits.RecordWritesLabelCharacters,
+        limits.RecordValueBytes,
+        limits.RecordValuesBytes,
+        limits.RequestBodyBytes,
+        limits.RequestsInFlight,
+        limits.RequestQueueSeconds,
+        limits.MaximumPageLimit);
 }
 
 public sealed record NendoLeaseRelease(

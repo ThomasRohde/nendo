@@ -27,10 +27,13 @@ internal static class NendoToolBoundary
     /// <summary>
     /// Each tool class and the lowest level that serves it. The listener registers from this
     /// table and the boundary refuses from it, so the two cannot disagree. The one tool that
-    /// exists only at Unattended is a class and a row of its own (ADR-0009, 2026-09-22).
+    /// exists only at Unattended is a class and a row of its own (ADR-0009, 2026-09-22). The two
+    /// read tools are served from Inspect, since they read what the resources already serve
+    /// there (ADR-0009, 2026-10-08).
     /// </summary>
     internal static readonly IReadOnlyList<(Type Tools, AgentAccessMode Minimum)> ToolClasses =
     [
+        (typeof(NendoReadTools), AgentAccessMode.ReadOnly),
         (typeof(NendoLeaseTools), AgentAccessMode.DataMutation),
         (typeof(NendoDataTools), AgentAccessMode.DataMutation),
         (typeof(NendoHealthTools), AgentAccessMode.DataMutation),
@@ -45,6 +48,7 @@ internal static class NendoToolBoundary
         [typeof(NendoRecordInput)] = "A record",
         [typeof(NendoReferenceInput)] = "A reference target",
         [typeof(NendoRecordWriteInput)] = "A record write",
+        [typeof(NendoRecordKeyInput)] = "A record key",
         [typeof(NendoCsvColumnMapping)] = "A column mapping",
         [typeof(NendoAgentMutationInput)] = "A mutation",
         [typeof(NendoAgentOperationInput)] = "An operation",
@@ -187,6 +191,19 @@ internal static class NendoToolBoundary
             $"A tool takes a {type.Name}, which the argument contract cannot describe. Give it a shape here.");
     }
 
+    /// <summary>
+    /// The keys a custom view's <c>records.batch</c> uses for what a record write here calls
+    /// otherwise. An agent that learned the write shape from a view's code sent <c>op</c> and
+    /// was told only what is taken; the refusal now names the key it meant (2026-10-08).
+    /// </summary>
+    private static readonly IReadOnlyDictionary<(string Owner, string Key), string> ViewApiNames =
+        new Dictionary<(string, string), string>
+        {
+            [("A record write", "op")] = "kind",
+            [("A record write", "version")] = "expectedRecordVersion",
+            [("A record write", "targetVersions")] = "expectedTargetVersions",
+        };
+
     private static void CheckMembers(
         string owner,
         IReadOnlyList<Member> members,
@@ -201,7 +218,8 @@ internal static class NendoToolBoundary
             var member = members.FirstOrDefault(candidate => string.Equals(candidate.Name, key, StringComparison.Ordinal));
             if (member is null)
             {
-                problems.Add($"{path ?? "It"} does not take '{NendoText.Bounded(key, 60)}'; {Takes(owner, members)}");
+                var named = ViewApiNames.TryGetValue((owner, key), out var here) ? $", the view API's name for {here}" : string.Empty;
+                problems.Add($"{path ?? "It"} does not take '{NendoText.Bounded(key, 60)}'{named}; {Takes(owner, members)}");
                 continue;
             }
             Check(value, member.Shape, path is null ? member.Name : $"{path}.{member.Name}", problems);

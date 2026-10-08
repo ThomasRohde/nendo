@@ -211,30 +211,6 @@ internal sealed partial class SqliteNendoStore
             evidence.RootElement.GetProperty("appliedDefinitionRevision").GetInt64());
     }
 
-    /// <summary>
-    /// Puts a record's previous mark back, provided the mark is still the one the change left.
-    /// A mark changed since is not overwritten: the undo is refused and says so.
-    /// </summary>
-    private async Task<SetRecordKeptInNewFilesOperation> CreateRecordKeptInverseAsync(
-        string canonicalJson, string evidenceJson, string key, bool exactReplay, CancellationToken ct)
-    {
-        using var canonical = JsonDocument.Parse(canonicalJson);
-        using var evidence = JsonDocument.Parse(evidenceJson);
-        var payload = canonical.RootElement.GetProperty("payload");
-        var entityId = payload.GetProperty("entityId").GetString()!;
-        var recordId = payload.GetProperty("recordId").GetString()!;
-        static bool? Mark(JsonElement element) => element.ValueKind is JsonValueKind.True or JsonValueKind.False ? element.GetBoolean() : null;
-        if (!exactReplay)
-        {
-            bool? current = (await ReadRecordMarksAsync(null, ct, entityId)).TryGetValue((entityId, recordId), out var mark) ? mark : null;
-            if (current != Mark(evidence.RootElement.GetProperty("appliedKept")))
-                throw new NendoCompensationNotSupportedException(
-                    $"Whether record {recordId} is kept in new files changed after the selected revision, so it is not undone.");
-        }
-        return new(NendoCanonical.DeterministicId("operation", "studio.p2.compensation", key, 0),
-            entityId, recordId, Mark(evidence.RootElement.GetProperty("previousKept")));
-    }
-
     /// <summary>A stored label is one a file may carry.</summary>
     private static bool NewFileLabelIsValid(string? label) => label is null || NendoNewFile.IsLabel(label);
 

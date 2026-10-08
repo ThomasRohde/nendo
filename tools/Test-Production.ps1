@@ -290,7 +290,9 @@ try {
         'nendo.lease.acquire',
         'nendo.lease.release',
         'nendo.lease.renew',
-        'nendo.lease.status'
+        'nendo.lease.status',
+        'nendo.read.list',
+        'nendo.read.resource'
     )
     # Resources are named for what they describe. Almost all of them describe the open
     # application; nendo.host.instances describes the device, because which Nendos are
@@ -332,7 +334,7 @@ try {
         }
     }
     $helpToolNames = @(
-        [regex]::Matches($helpAgentsSource, '\bnendo\.(?:lease|data|health|change_set)\.[a-z_]+\b') |
+        [regex]::Matches($helpAgentsSource, '\bnendo\.(?:read|lease|data|health|change_set)\.[a-z_]+\b') |
             ForEach-Object { $_.Value } |
             Sort-Object -Unique
     )

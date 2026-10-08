@@ -124,6 +124,9 @@ internal static class NendoHostSkill
         text.Append("`add_operations` (or `amend` to replace a tail), `validate`, and then a person accepts the proposal in Nendo, or ");
         text.Append("`nendo.change_set.accept` applies your own at the Unattended level. Nothing reaches the file from a change set before acceptance.\n\n");
         text.Append("## Which read answers which question\n\n");
+        text.Append("A client that cannot read MCP resources reads every address below with the tool `nendo.read.resource`, which returns ");
+        text.Append("exactly what `resources/read` would, and `nendo.read.list` names every address and every skill, this file's own included. ");
+        text.Append("Never open the file itself: its storage is not the application, and the host's lease does not cover it.\n\n");
         text.Append("| Question | Read |\n| --- | --- |\n");
         text.Append("| What is this file, and every read path this host serves | `nendo://application/describe` (or `describe?include=manifest,entities` for the record types without the screens) |\n");
         text.Append("| One record type: its fields, record count and screens | `nendo://application/entity/{entityId}` |\n");
@@ -147,7 +150,10 @@ internal static class NendoHostSkill
         text.Append("Call `nendo.lease.acquire` with an `idempotencyKey`; keep `applicationHandle` private and pass it with `leaseId` on every owned call. ");
         text.Append("Save `receiptContext`: after a lost response, `nendo.data.get_receipt` reads the original outcome, and an unresolved receipt is not permission to resubmit under a new key. ");
         text.Append("Release the lease when finished; to take it again later under the same handle, pass `resumeApplicationHandle`. ");
-        text.Append("Every write carries the record's current version; every result returns the version it left.\n\n");
+        text.Append("Every write carries the record's current version; every result returns the version it left. ");
+        text.Append("Give each `nendo.data.apply_writes` a short `label`: History names the revision by it, and History is how the person reviews your work. ");
+        text.Append("Mark records a new file should keep as you create them, with `keptInNewFiles` on the create or on each write of a batch, ");
+        text.Append("rather than one call and one revision per record afterwards; `nendo.data.set_kept_in_new_files` takes several `records` at once.\n\n");
         text.Append("## The operations a change set takes\n\n");
         foreach (var lane in NendoAuthoringOperations.All.GroupBy(operation => operation.Lane))
         {
@@ -173,6 +179,8 @@ internal static class NendoHostSkill
             .Append(", an update ").Append(limits.FieldsPerRecordUpdate).Append(" fields, an import ").Append(limits.Import!.RowsPerCall).Append(" rows. ");
         text.Append("One field value holds at most ").Append(limits.RecordValueBytes).Append(" bytes and one write's values ").Append(limits.RecordValuesBytes)
             .Append(", counted as UTF-8 text as stored; a request body at most ").Append(limits.RequestBodyBytes).Append(" bytes. ");
+        text.Append("The host serves ").Append(limits.RequestsInFlight).Append(" requests at once, and one past that waits up to ")
+            .Append(limits.RequestQueueSeconds).Append(" seconds for a place before it is refused `NENDO_BUSY`; a batch is cheaper than parallel calls. ");
         text.Append("Every limit is published under `limits` in the vocabulary and echoed by the result that meets it.\n\n");
         text.Append("## The examples\n\n");
         foreach (var example in NendoAuthoringExamples.Description().Examples)

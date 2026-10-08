@@ -492,9 +492,9 @@ internal sealed class NendoResourceProjection(
     /// One page of a record type as faithful Nendo CSV, in the same profile the native
     /// import and export use.
     /// <para>
-    /// A resource rather than a tool, because reading is a resource in this product and
-    /// because Inspect must keep an empty tool list -- a level that cannot change anything
-    /// is worth being able to say plainly. The pages are the ordinary 1 to 100 and carry
+    /// A resource rather than a tool, because reading is a resource in this product: a level
+    /// that cannot change anything is worth being able to say plainly, and the only tools
+    /// Inspect serves read resources (nendo.read.resource). The pages are the ordinary 1 to 100 and carry
     /// the same revision-bound cursor as every other page here, so a file that moves
     /// mid-export refuses the continuation rather than stitching two states together.
     /// </para>

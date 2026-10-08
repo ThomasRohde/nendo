@@ -312,6 +312,169 @@ public sealed class BatchWriteToolTests
     }
 
     /// <summary>Projects with a unique code; tasks with a title, an estimate, a flag and a required project.</summary>
+    /// <summary>
+    /// A batch marks its records for new files in its own revision. An agent that built a
+    /// skeleton with one batch spent 134 calls and 134 History entries marking its records
+    /// afterwards, one each (2026-10-08). History undoes the batch, marks and all.
+    /// </summary>
+    [TestMethod]
+    public async Task ABatchMarksItsRecordsForNewFilesInItsOwnRevisionAndHistoryUndoesIt()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareAsync(workspace);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        var before = (await workspace.Service.GetHistoryAsync()).Count;
+
+        var written = await CallAsync<NendoDataWritesResult>(client, "nendo.data.apply_writes", new(session)
+        {
+            ["writes"] = new object[]
+            {
+                new { kind = "create", entityId = "projects", recordId = "p2", values = new { name = "Second", code = "P2" }, keptInNewFiles = true },
+                new { kind = "create", entityId = "tasks", recordId = "t2", values = new { title = "Kept", project = "p2" }, keptInNewFiles = true },
+                new { kind = "update", entityId = "tasks", recordId = "t1", expectedRecordVersion = 1L, values = new { title = "Left out" }, keptInNewFiles = false },
+            },
+            ["idempotencyKey"] = "batch-kept",
+            ["label"] = "Plant the skeleton",
+        });
+        Assert.HasCount(before + 1, await workspace.Service.GetHistoryAsync(), "The marks are not in the batch's one revision.");
+        var records = (await workspace.Service.GetSnapshotAsync()).Records;
+        Assert.IsTrue(records.Single(record => record.RecordId == "p2").KeptInNewFiles);
+        Assert.IsTrue(records.Single(record => record.RecordId == "t2").KeptInNewFiles);
+        Assert.IsFalse(records.Single(record => record.RecordId == "t1").KeptInNewFiles);
+        Assert.AreEqual(2L, written.Records.Single(record => record.RecordId == "t1").RecordVersion, "A mark moved a version.");
+
+        var item = (await workspace.Service.QueryHistoryAsync(new())).Items.Single(entry => entry.RevisionId == written.RevisionId);
+        Assert.AreEqual("Plant the skeleton", item.Description);
+        Assert.IsTrue(item.CanRequestCompensation, "History does not offer to undo a batch that marks its records.");
+        await workspace.Service.CompensateRevisionAsync(written.RevisionId, "undo-batch-kept");
+        records = (await workspace.Service.GetSnapshotAsync()).Records;
+        Assert.IsFalse(records.Any(record => record.RecordId is "p2" or "t2"));
+        var first = records.Single(record => record.RecordId == "t1");
+        Assert.IsNull(first.KeptInNewFiles);
+
+        // A delete leaves nothing a new file could keep.
+        var refused = await client.CallToolAsync("nendo.data.apply_writes", new Dictionary<string, object?>(session)
+        {
+            ["writes"] = new object[] { new { kind = "delete", entityId = "tasks", recordId = "t1", expectedRecordVersion = 3L, keptInNewFiles = true } },
+            ["idempotencyKey"] = "batch-delete-kept",
+        });
+        Assert.IsTrue(refused.IsError);
+        StringAssert.Contains(Text(refused), "which no new file can keep");
+    }
+
+    /// <summary>Several records of several types take one mark as one revision, undone from History as one.</summary>
+    [TestMethod]
+    public async Task SeveralRecordsOfSeveralTypesAreMarkedAsOneRevision()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareAsync(workspace);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        var before = (await workspace.Service.GetHistoryAsync()).Count;
+
+        var marked = await CallAsync<NendoDataApplyResult>(client, "nendo.data.set_kept_in_new_files", new(session)
+        {
+            ["records"] = new object[] { new { entityId = "projects", recordId = "p1" }, new { entityId = "tasks", recordId = "t1" } },
+            ["kept"] = true,
+            ["idempotencyKey"] = "mark-two",
+        });
+        Assert.HasCount(before + 1, await workspace.Service.GetHistoryAsync(), "Two marks are not one revision.");
+        CollectionAssert.AreEqual(new[] { "p1", "t1" }, marked.RecordIds.ToArray());
+        var records = (await workspace.Service.GetSnapshotAsync()).Records;
+        Assert.IsTrue(records.Single(record => record.RecordId == "p1").KeptInNewFiles);
+        Assert.IsTrue(records.Single(record => record.RecordId == "t1").KeptInNewFiles);
+        var item = (await workspace.Service.QueryHistoryAsync(new())).Items.Single(entry => entry.RevisionId == marked.RevisionId);
+        Assert.AreEqual("Keep 2 records in new files", item.Description);
+        Assert.IsTrue(item.CanRequestCompensation);
+        await workspace.Service.CompensateRevisionAsync(marked.RevisionId, "undo-mark-two");
+        records = (await workspace.Service.GetSnapshotAsync()).Records;
+        Assert.IsNull(records.Single(record => record.RecordId == "p1").KeptInNewFiles);
+        Assert.IsNull(records.Single(record => record.RecordId == "t1").KeptInNewFiles);
+
+        // A mark changed since is not overwritten by undoing the revision that set it.
+        var again = await CallAsync<NendoDataApplyResult>(client, "nendo.data.set_kept_in_new_files", new(session)
+        {
+            ["records"] = new object[] { new { entityId = "projects", recordId = "p1" }, new { entityId = "tasks", recordId = "t1" } },
+            ["kept"] = true,
+            ["idempotencyKey"] = "mark-two-again",
+        });
+        await CallAsync<NendoDataApplyResult>(client, "nendo.data.set_kept_in_new_files", new(session)
+        {
+            ["entityId"] = "tasks",
+            ["recordId"] = "t1",
+            ["kept"] = false,
+            ["idempotencyKey"] = "mark-one-out",
+        });
+        var changed = await Assert.ThrowsExactlyAsync<NendoCompensationNotSupportedException>(() =>
+            workspace.Service.CompensateRevisionAsync(again.RevisionId, "undo-mark-two-again"));
+        StringAssert.Contains(changed.Message, "changed after");
+
+        // One form or the other, never both and never neither.
+        foreach (var arguments in new Dictionary<string, object?>[]
+                 {
+                     new(session) { ["entityId"] = "tasks", ["recordId"] = "t1", ["records"] = new object[] { new { entityId = "projects", recordId = "p1" } }, ["kept"] = true, ["idempotencyKey"] = "both" },
+                     new(session) { ["kept"] = true, ["idempotencyKey"] = "neither" },
+                 })
+        {
+            var refused = await client.CallToolAsync("nendo.data.set_kept_in_new_files", arguments);
+            Assert.IsTrue(refused.IsError, JsonSerializer.Serialize(refused));
+            StringAssert.Contains(Text(refused), "not both and not neither");
+        }
+    }
+
+    /// <summary>
+    /// The refusals an agent met while learning the write shapes name what to send: the view
+    /// API's key it meant, the write, field and target missing a version, and the handle that
+    /// a call needing none no longer refuses (2026-10-08).
+    /// </summary>
+    [TestMethod]
+    public async Task TheRefusalsAnAgentMetNameWhatToSendInstead()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await PrepareAsync(workspace);
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+
+        var viewShape = await client.CallToolAsync("nendo.data.apply_writes", new Dictionary<string, object?>(session)
+        {
+            ["writes"] = new object[] { new { op = "update", entityId = "tasks", recordId = "t1", version = 1L, values = new { title = "x" } } },
+            ["idempotencyKey"] = "view-shape",
+        });
+        Assert.IsTrue(viewShape.IsError);
+        StringAssert.Contains(Text(viewShape), "'op', the view API's name for kind");
+        StringAssert.Contains(Text(viewShape), "'version', the view API's name for expectedRecordVersion");
+
+        var unversioned = await client.CallToolAsync("nendo.data.apply_writes", new Dictionary<string, object?>(session)
+        {
+            ["writes"] = new object[]
+            {
+                new { kind = "create", entityId = "projects", recordId = "p3", values = new { name = "Third", code = "P3" } },
+                new { kind = "create", entityId = "tasks", recordId = "t3", values = new { title = "Under the first", project = "p1" } },
+            },
+            ["idempotencyKey"] = "unversioned-target",
+        });
+        Assert.IsTrue(unversioned.IsError);
+        var text = Text(unversioned);
+        StringAssert.Contains(text, "NENDO_TARGET_VERSION_REQUIRED");
+        StringAssert.Contains(text, "writes[1] sets project to p1");
+        StringAssert.Contains(text, "expectedTargetVersions");
+        StringAssert.Contains(text, "references");
+        Assert.IsFalse((await workspace.Service.GetSnapshotAsync()).Records.Any(record => record.RecordId == "p3"), "A refused batch wrote part of itself.");
+
+        var scanned = await CallAsync<NendoMcpIntegrityCheck>(client, "nendo.health.verify_integrity", new()
+        {
+            ["applicationHandle"] = session["applicationHandle"],
+        });
+        Assert.IsNotNull(scanned.Health);
+    }
+
     private static async Task PrepareAsync(LocalMcpTestWorkspace workspace)
     {
         await workspace.CreateEmptyAsync();

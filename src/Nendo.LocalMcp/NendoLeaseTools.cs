@@ -16,18 +16,18 @@ internal sealed class NendoLeaseTools(NendoAgentAuthority authority)
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Acquire the single edit lease and a private application handle for this open file. They are two things: the handle addresses this open file for the rest of your session and stays private; the lease is the edit authority, held by one agent at a time and revocable by the person. Owned calls take both. The lease lasts until you release it, the person revokes it, access is lowered or the file is closed or switched; closing your client does not end it. When the person has turned expiry on it also lapses unless renewed before expiresAt, and endsOn says which applies. Save receiptContext from the grant before writing. Pass idempotencyKey so a retry after a lost response returns the same grant instead of NENDO_LEASE_HELD against yourself. Pass resumeApplicationHandle, your handle from an earlier lease on this host run, to take the lease again under it: the proposals you validated, your pseudonym and your receipt scope are yours once more.")]
+    [Description("Acquire the single edit lease and a private application handle for this open file; the grant also states the write limits and the reads to make first. They are two things: the handle addresses this open file for the rest of your session and stays private; the lease is the edit authority, held by one agent at a time and revocable by the person. Owned calls take both. The lease lasts until you release it, the person revokes it, access is lowered or the file is closed or switched; closing your client does not end it. When the person has turned expiry on it also lapses unless renewed before expiresAt, and endsOn says which applies. Save receiptContext from the grant before writing. Pass idempotencyKey so a retry after a lost response returns the same grant instead of NENDO_LEASE_HELD against yourself. Pass resumeApplicationHandle, your handle from an earlier lease on this host run, to take the lease again under it: the proposals you validated, your pseudonym and your receipt scope are yours once more.")]
     public Task<NendoLeaseGrant> AcquireAsync(
         RequestContext<CallToolRequestParams> context,
         [Description("Optional stable key for this acquire. An exact retry under it returns the grant it made while that lease is held.")] string? idempotencyKey = null,
         [Description("Optional applicationHandle from an earlier grant on this host run. Grants a new lease under that handle, with the proposals, pseudonym and receipt scope it owned; a handle this run never minted is NENDO_HANDLE_UNKNOWN.")] string? resumeApplicationHandle = null,
-        CancellationToken cancellationToken = default) => TranslateAsync(() =>
-        authority.AcquireAsync(
+        CancellationToken cancellationToken = default) => TranslateAsync(async () => Essentials(
+        await authority.AcquireAsync(
             Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)).ToLowerInvariant(),
             NendoTransportIdentity.DisplayName(context.Server.ClientInfo),
             idempotencyKey,
             resumeApplicationHandle,
-            cancellationToken));
+            cancellationToken)));
 
     [McpServerTool(
         Name = "nendo.lease.status",
@@ -57,11 +57,11 @@ internal sealed class NendoLeaseTools(NendoAgentAuthority authority)
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
         [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
-        CancellationToken cancellationToken = default) => TranslateAsync(() =>
-        authority.RenewAsync(
+        CancellationToken cancellationToken = default) => TranslateAsync(async () => Essentials(
+        await authority.RenewAsync(
             leaseId,
             applicationHandle,
-            cancellationToken));
+            cancellationToken)));
 
     [McpServerTool(
         Name = "nendo.lease.release",
@@ -81,6 +81,28 @@ internal sealed class NendoLeaseTools(NendoAgentAuthority authority)
             leaseId,
             applicationHandle,
             cancellationToken));
+
+    /// <summary>The reads a grant names: what to read before a first write, each by address.</summary>
+    private static readonly IReadOnlySet<string> FirstReads = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "nendo.application.describe",
+        "nendo.application.entity",
+        "nendo.application.entity.records",
+        "nendo.application.vocabulary",
+        "nendo.application.proposals",
+        "nendo.application.history",
+        "nendo.host.skill",
+    };
+
+    /// <summary>
+    /// The limits and first reads beside the lease. The call every agent makes first is the one
+    /// place an agent whose client cannot read resources is sure to look (2026-10-08).
+    /// </summary>
+    private static NendoLeaseGrant Essentials(NendoLeaseGrant grant) => grant with
+    {
+        Limits = NendoLeaseLimits.From(Nendo.Engine.NendoAuthoringLimits.Current),
+        Reads = [.. NendoMcpReadIndex.All.Where(read => FirstReads.Contains(read.Name))],
+    };
 
     private static async Task<T> TranslateAsync<T>(Func<Task<T>> action)
     {

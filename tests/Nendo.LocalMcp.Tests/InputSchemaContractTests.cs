@@ -31,7 +31,7 @@ public sealed class InputSchemaContractTests
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
 
         var tools = await client.ListToolsAsync();
-        Assert.HasCount(24, tools);
+        Assert.HasCount(26, tools);
         var unconstrained = new List<string>();
         var schemas = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
         foreach (var tool in tools)
@@ -94,7 +94,7 @@ public sealed class InputSchemaContractTests
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
 
         var tools = await client.ListToolsAsync();
-        Assert.HasCount(25, tools);
+        Assert.HasCount(27, tools);
         var findings = new List<string>();
         var nullableMembers = 0;
         foreach (var tool in tools)

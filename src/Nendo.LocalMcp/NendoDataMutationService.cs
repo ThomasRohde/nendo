@@ -218,6 +218,36 @@ internal sealed class NendoDataMutationService(
         return targets;
     }
 
+    /// <summary>
+    /// Refuses a reference value whose target's version the write does not carry, naming the
+    /// write, the field and the target and saying the two ways to give it. The Engine refuses
+    /// the same write later, in words written for a person choosing a target in a form; an
+    /// agent that read them could not tell which write or field they meant. A target an
+    /// earlier write of the batch creates or updates needs nothing: the Engine supplies it.
+    /// </summary>
+    private static void RequireTargetVersions(
+        int index,
+        IReadOnlyDictionary<string, NendoEntitySnapshot> entities,
+        string entityId,
+        IReadOnlyDictionary<string, object?>? values,
+        IReadOnlyDictionary<string, long>? targets,
+        IReadOnlyList<BatchWritten> earlier)
+    {
+        if (values is null || !entities.TryGetValue(entityId, out var entity)) return;
+        foreach (var (fieldId, value) in values)
+        {
+            if (value is not JsonElement { ValueKind: JsonValueKind.String } element || targets?.ContainsKey(fieldId) == true) continue;
+            var field = entity.Fields.FirstOrDefault(candidate => candidate.FieldId == fieldId);
+            if (field is not { StorageKind: NendoStorageKind.Reference, Reference: { } reference }) continue;
+            var target = element.GetString()!;
+            if (earlier.Any(written => written.EntityId == reference.TargetEntityId && written.RecordId == target && written.Values is not null)) continue;
+            throw new NendoPreconditionException("target-version-required",
+                $"writes[{index}] sets {fieldId} to {NendoText.Bounded(target, 200)}, a {reference.TargetEntityId} record this batch does not " +
+                $"create or update, without its current version. Pass expectedTargetVersions {{\"{fieldId}\": <its version>}}, or name it " +
+                $"under references by record ID or a unique field and the host reads the version.");
+        }
+    }
+
     /// <summary>A record an earlier write of the same batch left in place, with the values it wrote; Values is null for a delete.</summary>
     private sealed record BatchWritten(string EntityId, string RecordId, IReadOnlyDictionary<string, object?>? Values);
 
@@ -321,6 +351,8 @@ internal sealed class NendoDataMutationService(
                     context, writes.Any(write => write?.References is { Count: > 0 }), cancellationToken);
                 var mapped = new List<NendoRecordWrite>(writes.Count);
                 var earlier = new List<BatchWritten>(writes.Count);
+                var entities = (await application.GetDefinitionSnapshotAsync(cancellationToken)).Entities
+                    .ToDictionary(entity => entity.EntityId, StringComparer.Ordinal);
                 for (var index = 0; index < writes.Count; index++)
                 {
                     var write = writes[index] ?? throw new NendoValidationException($"Write {index} is missing.");
@@ -345,7 +377,9 @@ internal sealed class NendoDataMutationService(
                     {
                         throw new NendoValidationException($"Write {index} names references and no values; put the reference fields in values or omit both.");
                     }
-                    mapped.Add(new NendoRecordWrite(kind, write.EntityId, write.RecordId, map, write.ExpectedRecordVersion, targets));
+                    RequireTargetVersions(index, entities, write.EntityId, map, targets, earlier);
+                    mapped.Add(new NendoRecordWrite(kind, write.EntityId, write.RecordId, map, write.ExpectedRecordVersion, targets,
+                        write.KeptInNewFiles));
                     earlier.Add(new BatchWritten(write.EntityId, write.RecordId, kind == NendoRecordWriteKind.Delete ? null : map));
                 }
                 var result = await application.ApplyRecordWritesAsync(
@@ -494,14 +528,31 @@ internal sealed class NendoDataMutationService(
             owner);
     }
 
-    /// <summary>A record's own mark for a new file of the application (ADR-0022); its version does not move.</summary>
-    internal Task<NendoDataApplyResult> SetKeptInNewFilesAsync(string applicationHandle, string leaseId, string entityId, string recordId,
-        bool? kept, string idempotencyKey, CancellationToken cancellationToken) =>
+    /// <summary>
+    /// A record's own mark for a new file of the application (ADR-0022), or the same mark on
+    /// several records of any types as one revision; no version moves.
+    /// </summary>
+    internal Task<NendoDataApplyResult> SetKeptInNewFilesAsync(string applicationHandle, string leaseId, string? entityId, string? recordId,
+        IReadOnlyList<NendoRecordKeyInput>? records, bool? kept, string idempotencyKey, CancellationToken cancellationToken) =>
         AdmitAsync(leaseId, applicationHandle,
-            async _ => Touched(
-                await application.SetRecordKeptInNewFilesAsync(entityId, recordId, kept, Context(applicationHandle, idempotencyKey), cancellationToken),
-                entityId, [recordId],
-                null),
+            async _ =>
+            {
+                var single = entityId is not null || recordId is not null;
+                if (single == records is not null)
+                    throw new NendoValidationException(
+                        "Name one record with entityId and recordId, or several, of any types, with records; not both and not neither.");
+                IReadOnlyList<(string EntityId, string RecordId)> named = single
+                    ? [(entityId ?? throw new NendoValidationException("recordId needs its entityId."),
+                        recordId ?? throw new NendoValidationException("entityId needs the recordId of the record to mark."))]
+                    : [.. records!.Select((record, index) => (
+                        (record ?? throw new NendoValidationException($"records[{index}] is missing.")).EntityId,
+                        record.RecordId))];
+                var types = named.Select(record => record.EntityId).Distinct(StringComparer.Ordinal).ToArray();
+                return Touched(
+                    await application.SetRecordsKeptInNewFilesAsync(named, kept, Context(applicationHandle, idempotencyKey), cancellationToken),
+                    types.Length == 1 ? types[0] : null, [.. named.Select(record => record.RecordId)],
+                    null);
+            },
             cancellationToken);
 
     internal Task<NendoDataApplyResult> DeleteRecordAsync(string applicationHandle, string leaseId, string entityId, string recordId,

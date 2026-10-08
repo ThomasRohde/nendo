@@ -95,7 +95,7 @@ public sealed class ProtocolResourceTests
         Assert.AreEqual(NendoProduct.Version, client.ServerInfo.Version);
         Assert.IsNotNull(client.ServerCapabilities.Resources);
         Assert.IsNotNull(client.ServerCapabilities.Tools);
-        Assert.IsEmpty(await client.ListToolsAsync());
+        await AssertOnlyReadToolsAsync(client);
 
         var resources = await client.ListResourcesAsync();
         var templates = await client.ListResourceTemplatesAsync();
@@ -269,6 +269,23 @@ public sealed class ProtocolResourceTests
         Assert.IsFalse(
             new Regex(@"(?i)\bsql(?:ite)?\b|[A-Z]:\\|file://|\\\\").IsMatch(protocolSurface),
             "The protocol exposed storage or filesystem vocabulary.");
+    }
+
+    /// <summary>
+    /// Inspect serves the two read tools and nothing else, each marked read-only, so a client
+    /// may run them without asking (ADR-0009, 2026-10-08). Until then it served no tool at all.
+    /// </summary>
+    internal static async Task AssertOnlyReadToolsAsync(McpClient client)
+    {
+        var tools = await client.ListToolsAsync();
+        CollectionAssert.AreEqual(
+            new[] { "nendo.read.list", "nendo.read.resource" },
+            tools.Select(tool => tool.Name).Order(StringComparer.Ordinal).ToArray());
+        foreach (var tool in tools)
+        {
+            Assert.IsTrue(tool.ProtocolTool.Annotations?.ReadOnlyHint, $"{tool.Name} is not marked readOnlyHint.");
+            Assert.AreNotEqual(true, tool.ProtocolTool.Annotations?.DestructiveHint, $"{tool.Name} is marked destructive.");
+        }
     }
 
     internal static async Task<McpClient> ConnectAsync(NendoLocalMcpHost host)
