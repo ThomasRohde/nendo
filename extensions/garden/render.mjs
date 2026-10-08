@@ -60,19 +60,17 @@ export function render(body, { resolve = () => null, interactive = false } = {})
   return out.join('\n');
 }
 
-/** Inline markup over one run of text: code spans first, so nothing inside them is read. */
+/** Inline markup over one run of text: code spans first, so nothing inside them is read. A code
+ * span is held in place rather than cut out, so emphasis around it, as in **`name`**, still pairs. */
 export function inline(text, resolve) {
-  const parts = String(text).split(/(`[^`\n]*`)/);
-  return parts.map((part, index) => {
-    if (index % 2 === 1) return `<code>${escape(part.slice(1, -1))}</code>`;
-    return spans(part, resolve);
-  }).join('');
-}
-
-function spans(text, resolve) {
   // Structural tokens are replaced by placeholders before escaping, so their markup survives it.
   const holds = [];
   const hold = html => { holds.push(html); return `\u0000${holds.length - 1}\u0000`; };
+  const work = String(text).replace(/`([^`\n]*)`/g, (_, code) => hold(`<code>${escape(code)}</code>`));
+  return spans(work, resolve, holds, hold);
+}
+
+function spans(text, resolve, holds, hold) {
   let work = text.replace(WIKILINK, (_, target, alias) => {
     const name = target.trim(), label = alias?.trim() || null;
     const found = resolve(name);

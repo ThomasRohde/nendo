@@ -44,6 +44,13 @@ test('tags become anchors, headings do not, and inline code keeps its text', () 
   assert.ok(!html.includes('href="javascript:') && html.includes('[bad](javascript:alert(1))'), 'an unsafe scheme is never an href: it stays text');
 });
 
+test('emphasis pairs across inline code, and markup inside the code stays text', () => {
+  const html = render('- **`src/Nendo.Engine`**: storage. *`a`* and ~~`b`~~ and `**not bold**`');
+  assert.ok(html.includes('<li><strong><code>src/Nendo.Engine</code></strong>: storage.'), html);
+  assert.ok(html.includes('<em><code>a</code></em>') && html.includes('<del><code>b</code></del>'), html);
+  assert.ok(html.includes('<code>**not bold**</code>') && !html.replace('<code>**not bold**</code>', '').includes('**'), 'no asterisks are left outside code');
+});
+
 test('a body is text, never markup', () => {
   const html = render('<script>alert(1)</script> [[<b>x</b>]] #<i>');
   assert.ok(!html.includes('<script>'));
