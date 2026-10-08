@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Codemap D · Repository brief</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.cm{--canvas:#f9f9fa;--surface:#ffffff;--raised:#ffffff;--soft:#f3f3f4;--ink:#1b1b1b;--muted:#5d5d5d;--line:#e5e5e5;--line-strong:#d1d1d1;--cobalt:#005fb8;--cobalt-soft:#e5eff9;--mica:#eef1f6;--on-accent:#ffffff;--warn:#8a5300;--warn-soft:#fff1cc;--ok:#0f7b0f;--ok-soft:#dff6dd;--hatch:rgba(27,27,27,.18);font-family:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;font-size:14px;color:var(--ink);line-height:1.4}
+.cm.dark{--canvas:#272829;--surface:#2d2e30;--raised:#323335;--soft:#38393b;--ink:#ffffff;--muted:#c5c5c5;--line:#3b3c3e;--line-strong:#4b4c4f;--cobalt:#60cdff;--cobalt-soft:#1f3a4a;--mica:#1e2024;--on-accent:#272829;--warn:#fce100;--warn-soft:#433519;--ok:#6ccb5f;--ok-soft:#1f3a24;--hatch:rgba(255,255,255,.2)}
+.mono{font-family:"Cascadia Mono",Consolas,ui-monospace,monospace}
+.ico{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.nav{width:40px;height:36px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--ink);position:relative;background:transparent;border:0;padding:0}
+.nav.on{background:var(--soft)}
+.nav.on::before{content:"";position:absolute;left:0;top:10px;width:3px;height:16px;border-radius:2px;background:var(--cobalt)}
+.btn{height:32px;box-sizing:border-box;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:4px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.ghost{height:32px;width:32px;border:0;background:transparent;color:var(--ink);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:4px;overflow:hidden;height:32px;box-sizing:border-box}
+.seg button{border:0;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;padding:0 10px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--cobalt-soft);font-weight:600}
+.lbl{font-size:12px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:11px;background:var(--soft);font-size:12px;color:var(--ink);white-space:nowrap}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.tab{height:36px;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 12px;border-radius:8px 8px 0 0;font-size:13px;color:var(--muted);border:0;background:transparent}
+.tab.on{background:var(--canvas);color:var(--ink)}
+.kbd{font-size:12px;color:var(--muted);border:1px solid var(--line-strong);border-radius:4px;padding:0 5px}
+.area{box-sizing:border-box;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;text-align:left;font:inherit;color:var(--ink);cursor:pointer;min-width:0;height:118px}
+.area.on{border:2px solid var(--cobalt);padding:9px 11px}
+.tile{position:absolute;box-sizing:border-box;border-radius:3px;overflow:hidden;padding:5px 7px}
+.hatch{position:absolute;inset:0;background-image:repeating-linear-gradient(135deg,transparent 0 6px,var(--hatch) 6px 8px);pointer-events:none}
+.h2{font-size:15px;font-weight:600;margin:0}
+.clip2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;color:var(--muted)}
+</style>
+</helmet>
+<div class="cm {{themeCls}}" style="width:1440px;height:900px;background:var(--mica);position:relative;overflow:hidden;display:flex;flex-direction:column">
+
+<div style="height:48px;display:flex;align-items:center;flex:none">
+<div style="display:flex;align-items:center;gap:10px;padding:0 12px 0 16px">
+<div style="width:20px;height:20px;border-radius:5px;background:#0b7a75;color:#ffffff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">C</div>
+<span style="font-size:13px;font-weight:600">Codemap.nendo</span>
+<button class="btn" style="height:28px;border-color:transparent;background:transparent">File</button>
+</div>
+<div style="display:flex;align-items:flex-end;align-self:flex-end;gap:2px;padding-left:8px">
+<button class="tab on"><svg class="ico" viewBox="0 0 16 16"><path d="M3 2h10v12H3z"></path><path d="M5.5 5h5M5.5 8h5M5.5 11h3"></path></svg>Brief · nendo</button>
+<button class="tab"><svg class="ico" viewBox="0 0 16 16"><path d="M2 7l6-5 6 5v7H2z"></path></svg>Overview</button>
+<button class="ghost" aria-label="New tab"><svg class="ico" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"></path></svg></button>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;color:var(--ink)">
+<div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center"><svg class="ico" viewBox="0 0 16 16"><path d="M3 8h10"></path></svg></div>
+<div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center"><svg class="ico" viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9"></rect></svg></div>
+<div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center"><svg class="ico" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"></path></svg></div>
+</div>
+</div>
+
+<div style="flex:1;display:flex;min-height:0">
+<div style="width:56px;flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:4px">
+<button class="nav" aria-label="Fold navigation"><svg class="ico" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12"></path></svg></button>
+<div style="height:8px"></div>
+<button class="nav" aria-label="Overview"><svg class="ico" viewBox="0 0 16 16"><path d="M2 7l6-5 6 5v7H2z"></path></svg></button>
+<button class="nav on" aria-label="Brief"><svg class="ico" viewBox="0 0 16 16"><path d="M3 2h10v12H3z"></path><path d="M5.5 5h5M5.5 8h5M5.5 11h3"></path></svg></button>
+<button class="nav" aria-label="Repositories"><svg class="ico" viewBox="0 0 16 16"><path d="M2 4h4l1.5 1.5H14v7H2z"></path></svg></button>
+<button class="nav" aria-label="Units"><svg class="ico" viewBox="0 0 16 16"><path d="M8 2l6 3-6 3-6-3z"></path><path d="M2 8.5l6 3 6-3"></path><path d="M2 11.5l6 3 6-3"></path></svg></button>
+<button class="nav" aria-label="Questions"><svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M6.3 6.2a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.9.7-.9 1.3"></path><path d="M8 11.3v.1"></path></svg></button>
+<button class="nav" aria-label="Tours"><svg class="ico" viewBox="0 0 16 16"><circle cx="4" cy="4" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><path d="M5.8 4C12 4 4 12 10.2 12"></path></svg></button>
+<button class="nav" aria-label="Passes"><svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 5v3l2 2"></path></svg></button>
+<div style="flex:1"></div>
+<button class="nav" aria-label="Studio"><svg class="ico" viewBox="0 0 16 16"><ellipse cx="8" cy="4" rx="5" ry="2"></ellipse><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4"></path><path d="M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"></path></svg></button>
+<button class="nav" aria-label="Agent"><svg class="ico" viewBox="0 0 16 16"><path d="M6 2v3M10 2v3M4 5h8v3a4 4 0 0 1-8 0zM8 12v2"></path></svg></button>
+<button class="nav" aria-label="Help" style="margin-bottom:6px"><svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M6.3 6.2a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.9.7-.9 1.3"></path><path d="M8 11.3v.1"></path></svg></button>
+</div>
+
+<div style="flex:1;min-width:0;background:var(--canvas);border-top-left-radius:8px;border-top:1px solid var(--line);border-left:1px solid var(--line);display:flex;flex-direction:column">
+<div style="height:44px;flex:none;display:flex;align-items:center;gap:4px;padding:0 12px;border-bottom:1px solid var(--line)">
+<button class="ghost" aria-label="Back"><svg class="ico" viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"></path></svg></button>
+<button class="ghost" aria-label="Forward" style="color:var(--muted)"><svg class="ico" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"></path></svg></button>
+<div style="display:flex;align-items:center;gap:2px;font-size:13px;margin-left:4px">
+<span style="padding:0 6px;color:var(--muted)">Codemap</span><span style="color:var(--muted)">›</span>
+<button class="btn" style="height:28px;border-color:transparent;background:transparent">Brief<svg class="ico" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="M4 6l4 4 4-4"></path></svg></button><span style="color:var(--muted)">›</span>
+<button class="btn" style="height:28px;border-color:transparent;background:transparent;font-weight:600">nendo<svg class="ico" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="M4 6l4 4 4-4"></path></svg></button>
+</div>
+<div style="flex:1"></div>
+<div style="width:320px;height:32px;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:4px;background:var(--surface);display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--muted);font-size:13px"><svg class="ico" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5L14 14"></path></svg><span style="flex:1">Search or run a command</span><span class="kbd">Ctrl K</span></div>
+</div>
+
+<div style="height:48px;flex:none;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line)">
+<button class="btn"><svg class="ico" viewBox="0 0 16 16"><path d="M2 4h4l1.5 1.5H14v7H2z"></path></svg>nendo<span class="chip" style="height:18px">Code</span><svg class="ico" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="M4 6l4 4 4-4"></path></svg></button>
+<button class="btn"><svg class="ico" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="7"></rect><rect x="9" y="2" width="5" height="4"></rect><rect x="9" y="8" width="5" height="6"></rect><rect x="2" y="11" width="5" height="3"></rect></svg>Open the map</button>
+<button class="btn"><svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M6.3 6.2a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.9.7-.9 1.3"></path><path d="M8 11.3v.1"></path></svg>Ask about nendo</button>
+<div style="flex:1"></div>
+<span class="lbl">Written by Claude Code from the map · 8 Oct</span>
+</div>
+
+<div style="flex:1;min-height:0;padding:18px 24px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px;overflow:hidden">
+<div style="display:flex;gap:24px;align-items:flex-start">
+<div style="flex:1;min-width:0">
+<div style="display:flex;align-items:center;gap:10px"><span style="font-size:28px;font-weight:600;line-height:1.1">nendo</span><span class="chip">Code</span><span class="chip">C# · TypeScript · Markdown</span></div>
+<div style="font-size:15px;margin-top:6px;max-width:780px">A personal, local-first Windows app in which each .nendo file is an application: record types, screens and custom views that agents author over local MCP and the person accepts.</div>
+</div>
+<div class="card" style="width:340px;padding:10px 14px;display:flex;flex-direction:column;gap:4px;flex:none">
+<div style="display:flex;align-items:center;gap:6px;font-size:13px"><span style="width:8px;height:8px;border-radius:4px;background:var(--ok)"></span><b>Up to date</b><span class="lbl">mapped at <span class="mono">7890b05</span>, 8 Oct 17:40</span></div>
+<div style="font-size:13px">1,302 files · 298.8k lines · 28 units</div>
+<div style="display:flex;gap:6px"><span class="chip warn">4 stale summaries</span><span class="chip">1 open question</span></div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px">
+<sc-for list="{{cards}}" as="c" hint-placeholder-count="7">
+<button class="area {{c.cls}}" onClick="{{c.pick}}">
+<span style="display:flex;align-items:baseline;gap:6px"><span style="font-weight:700">{{c.name}}</span><span class="lbl">{{c.lines}}</span></span>
+<span style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:1px;background:var(--line)"><sc-for list="{{c.strip}}" as="s" hint-placeholder-count="4"><span style="flex:{{s.f}} 1 0;background:{{s.bg}}"></span></sc-for></span>
+<span class="clip2">{{c.sum}}</span>
+<span class="lbl">{{c.files}} files</span>
+</button>
+</sc-for>
+</div>
+
+<div style="flex:1;min-height:0;display:flex;gap:16px">
+<div style="width:800px;flex:none;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;gap:8px"><span class="h2">Inside {{sel}}</span><span class="lbl">sized by lines, coloured by file changes in the last 30 days</span></div>
+<div style="position:relative;width:800px;height:268px;background:var(--line);border-radius:6px">
+<sc-for list="{{tiles}}" as="t" hint-placeholder-count="5">
+<div class="tile" style="left:{{t.x}}px;top:{{t.y}}px;width:{{t.w}}px;height:{{t.h}}px;background:{{t.bg}};color:{{t.fg}}">
+<sc-if value="{{t.stale}}" hint-placeholder-val="{{false}}"><span class="hatch"></span></sc-if>
+<sc-if value="{{t.show}}" hint-placeholder-val="{{true}}"><div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative">{{t.name}}</div><div style="font-size:12px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative">{{t.meta}}</div></sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:12px">
+<div>
+<div class="h2" style="margin-bottom:6px">Hotspots</div>
+<div class="card" style="overflow:hidden">
+<sc-for list="{{hot}}" as="h" hint-placeholder-count="5"><div style="display:flex;align-items:center;gap:10px;padding:5px 10px;border-bottom:1px solid var(--line);font-size:13px"><span class="lbl" style="width:14px">{{h.n}}</span><span style="width:10px;height:10px;border-radius:3px;background:{{h.bg}};box-shadow:0 0 0 1px var(--line-strong)"></span><span style="flex:1;font-weight:600">{{h.name}}</span><sc-if value="{{h.stale}}" hint-placeholder-val="{{false}}"><span class="chip warn" style="height:18px">stale</span></sc-if><span class="lbl">{{h.ch}} changes</span></div></sc-for>
+</div>
+</div>
+<div>
+<div class="h2" style="margin-bottom:6px">Questions</div>
+<div class="card" style="padding:8px 10px;display:flex;flex-direction:column;gap:6px;font-size:13px">
+<div style="display:flex;gap:8px;align-items:flex-start"><span class="chip warn" style="height:20px">Open</span><span style="flex:1"><b>Which files would I touch to add a chart kind?</b> <span class="lbl">Nendo.Workbench · waits for the next pass</span></span></div>
+<div style="display:flex;gap:8px;align-items:flex-start"><span class="chip ok" style="height:20px">Answered</span><span style="flex:1"><b>Where does a data write check the lease?</b> <span class="lbl">Nendo.LocalMcp</span></span></div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="display:flex;gap:12px;align-items:stretch;height:58px;flex:none">
+<div class="card" style="flex:1;display:flex;align-items:center;gap:12px;padding:0 14px"><svg class="ico" viewBox="0 0 16 16" style="color:var(--cobalt)"><circle cx="4" cy="4" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><path d="M5.8 4C12 4 4 12 10.2 12"></path></svg><span style="font-weight:600">How a write reaches the database</span><span class="lbl">6 steps · Nendo.LocalMcp → Nendo.Engine → Nendo.Workbench</span><span style="flex:1"></span><button class="btn">Walk it</button></div>
+<div style="width:300px;flex:none;border:1px dashed var(--line-strong);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--muted);font-size:13px"><svg class="ico" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"></path></svg>Ask the agent for a tour</div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="height:28px;flex:none;display:flex;align-items:center;gap:14px;padding:0 14px;font-size:12px;color:var(--muted)">
+<div style="width:14px;height:14px;border-radius:4px;background:#0b7a75;color:#ffffff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1">C</div>
+<span>Codemap.nendo</span>
+<span>4 repositories · 7 record types</span>
+<span style="flex:1"></span>
+<span class="chip" style="height:20px"><span style="width:6px;height:6px;border-radius:3px;background:var(--ok)"></span>Agent: Edit data · 127.0.0.1:41775</span>
+<span class="chip" style="height:20px">Healthy</span>
+<span>System</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  areas() {
+    return [
+      ['src', 493, 'The product: Engine, MCP server, Desktop host and Workbench.', [['Nendo.Workbench', 45591, 124, false], ['Nendo.Engine', 34716, 58, false], ['Nendo.LocalMcp', 13046, 78, false], ['Nendo.Desktop', 11946, 51, false]]],
+      ['tests', 262, 'Engine, MCP server and host tests, journeys included.', [['Nendo.Engine.Tests', 28665, 52, false], ['Nendo.LocalMcp.Tests', 15398, 68, false], ['Nendo.Desktop.Tests', 8799, 46, false]]],
+      ['tools', 177, 'Gates, builders, bundlers and the installer pipeline.', [['tools (scripts)', 25451, 150, false], ['archi', 17658, 28, false], ['bcm-atlas', 4692, 13, true], ['garden', 3038, 17, false], ['swarm, view-kit, skills', 1064, 14, false]]],
+      ['extensions', 107, 'Custom-view packages: Archi, Garden, the Atlas and others.', [['archi', 14051, 31, false], ['garden', 12516, 26, false], ['work-dependencies', 8110, 7, false], ['bcm-atlas', 3927, 11, false], ['swarm', 2798, 2, true], ['three small views', 1998, 16, false]]],
+      ['docs', 132, 'Vision, architecture, ADRs, contracts and design.', [['decisions', 9020, 86, false], ['contracts', 6941, 122, false], ['design', 4179, 73, false], ['reviews', 4126, 105, true], ['docs (top)', 3567, 89, false]]],
+      ['site', 63, 'The public website and its hand-written guides.', [['site (top)', 5769, 4, false], ['site/src', 4735, 100, false]]],
+      ['other', 47, 'Prototypes, vendored skills and the top-level files.', [['prototypes', 3605, 1, true], ['.agents/skills', 2450, 1, false], ['(top files)', 933, 36, false]]]
+    ];
+  }
+  sq(items, x, y, w, h) {
+    const total = items.reduce((s, i) => s + i.value, 0);
+    const scale = (w * h) / total;
+    const nodes = items.map(i => ({ item: i, area: i.value * scale }));
+    const out = [];
+    let rect = { x: x, y: y, w: w, h: h };
+    let row = [];
+    const worst = (r, side) => {
+      const s = r.reduce((a, n) => a + n.area, 0);
+      let mx = 0, mn = Infinity;
+      r.forEach(n => { mx = Math.max(mx, n.area); mn = Math.min(mn, n.area); });
+      return Math.max(side * side * mx / (s * s), (s * s) / (side * side * mn));
+    };
+    const place = (r) => {
+      const s = r.reduce((a, n) => a + n.area, 0);
+      if (rect.w >= rect.h) {
+        const cw = s / rect.h; let cy = rect.y;
+        r.forEach(n => { const hh = n.area / cw; out.push(Object.assign({}, n.item, { x: rect.x, y: cy, w: cw, h: hh })); cy += hh; });
+        rect = { x: rect.x + cw, y: rect.y, w: rect.w - cw, h: rect.h };
+      } else {
+        const rh = s / rect.w; let cx = rect.x;
+        r.forEach(n => { const ww = n.area / rh; out.push(Object.assign({}, n.item, { x: cx, y: rect.y, w: ww, h: rh })); cx += ww; });
+        rect = { x: rect.x, y: rect.y + rh, w: rect.w, h: rect.h - rh };
+      }
+    };
+    let i = 0;
+    while (i < nodes.length) {
+      const side = Math.min(rect.w, rect.h);
+      const n = nodes[i];
+      if (row.length === 0 || worst(row.concat([n]), side) <= worst(row, side)) { row.push(n); i++; }
+      else { place(row); row = []; }
+    }
+    if (row.length) place(row);
+    return out;
+  }
+  fmt(n) { return n >= 10000 ? (n / 1000).toFixed(1) + 'k' : n.toLocaleString('en-GB'); }
+  renderVals() {
+    const dark = (this.props.theme || 'light') === 'dark';
+    const st = this.state || {};
+    const sel = st.sel || 'src';
+    const heat = dark ? ['#3b4048', '#594633', '#7f5631', '#bd7433', '#e98a3d'] : ['#dde5ee', '#f5dfc4', '#efbf89', '#dd8b47', '#a64b1b'];
+    const heatInk = dark ? ['#ffffff', '#ffffff', '#ffffff', '#1b1b1b', '#1b1b1b'] : ['#1b1b1b', '#1b1b1b', '#1b1b1b', '#1b1b1b', '#ffffff'];
+    const bucket = c => c >= 100 ? 4 : c >= 60 ? 3 : c >= 30 ? 2 : c >= 10 ? 1 : 0;
+    const A = this.areas();
+    const cards = A.map(a => {
+      const total = a[3].reduce((s, k) => s + k[1], 0);
+      return { name: a[0], lines: this.fmt(total) + ' lines', files: a[1], sum: a[2], cls: a[0] === sel ? 'on' : '',
+        strip: a[3].map(k => ({ f: k[1], bg: heat[bucket(k[2])] })), pick: () => this.setState({ sel: a[0] }) };
+    });
+    const area = A.filter(a => a[0] === sel)[0];
+    const kids = area[3].map(k => ({ name: k[0], lines: k[1], ch: k[2], stale: k[3], value: k[1] })).sort((p, q) => q.value - p.value);
+    const tiles = this.sq(kids, 0, 0, 800, 268).map(k => {
+      const b = bucket(k.ch), w = k.w - 2, h = k.h - 2;
+      return { x: (k.x + 1).toFixed(1), y: (k.y + 1).toFixed(1), w: w.toFixed(1), h: h.toFixed(1), bg: heat[b], fg: heatInk[b], stale: k.stale,
+        show: w >= 70 && h >= 40, name: k.name, meta: this.fmt(k.lines) + ' lines · ' + k.ch + ' changes' };
+    });
+    const hot = [['tools (scripts)', 150, false], ['Nendo.Workbench', 124, false], ['docs/contracts', 122, false], ['docs/reviews', 105, true], ['site/src', 100, false]]
+      .map((h, i) => ({ n: i + 1, name: h[0], ch: h[1], stale: h[2], bg: heat[bucket(h[1])] }));
+    return { themeCls: dark ? 'dark' : '', cards: cards, tiles: tiles, hot: hot, sel: sel };
+  }
+}
+</script>
+</body>
+</html>

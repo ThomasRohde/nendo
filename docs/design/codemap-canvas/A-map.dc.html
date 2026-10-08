@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Codemap A · Treemap and inspector</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.cm{--canvas:#f9f9fa;--surface:#ffffff;--raised:#ffffff;--soft:#f3f3f4;--ink:#1b1b1b;--muted:#5d5d5d;--line:#e5e5e5;--line-strong:#d1d1d1;--cobalt:#005fb8;--cobalt-soft:#e5eff9;--mica:#eef1f6;--on-accent:#ffffff;--warn:#8a5300;--warn-soft:#fff1cc;--ok:#0f7b0f;--ok-soft:#dff6dd;--hatch:rgba(27,27,27,.18);font-family:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;font-size:14px;color:var(--ink);line-height:1.4}
+.cm.dark{--canvas:#272829;--surface:#2d2e30;--raised:#323335;--soft:#38393b;--ink:#ffffff;--muted:#c5c5c5;--line:#3b3c3e;--line-strong:#4b4c4f;--cobalt:#60cdff;--cobalt-soft:#1f3a4a;--mica:#1e2024;--on-accent:#272829;--warn:#fce100;--warn-soft:#433519;--ok:#6ccb5f;--ok-soft:#1f3a24;--hatch:rgba(255,255,255,.2)}
+.mono{font-family:"Cascadia Mono",Consolas,ui-monospace,monospace}
+.ico{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.nav{width:40px;height:36px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--ink);position:relative;background:transparent;border:0;padding:0}
+.nav.on{background:var(--soft)}
+.nav.on::before{content:"";position:absolute;left:0;top:10px;width:3px;height:16px;border-radius:2px;background:var(--cobalt)}
+.btn{height:32px;box-sizing:border-box;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:4px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn.primary{background:var(--cobalt);border-color:var(--cobalt);color:var(--on-accent);font-weight:600}
+.ghost{height:32px;width:32px;border:0;background:transparent;color:var(--ink);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:4px;overflow:hidden;height:32px;box-sizing:border-box}
+.seg button{border:0;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;padding:0 10px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--cobalt-soft);font-weight:600}
+.lbl{font-size:12px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:11px;background:var(--soft);font-size:12px;color:var(--ink);white-space:nowrap}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.tab{height:36px;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 12px;border-radius:8px 8px 0 0;font-size:13px;color:var(--muted);border:0;background:transparent}
+.tab.on{background:var(--canvas);color:var(--ink)}
+.hatch{position:absolute;inset:0;background-image:repeating-linear-gradient(135deg,transparent 0 6px,var(--hatch) 6px 8px);pointer-events:none}
+.tile{position:absolute;box-sizing:border-box;border-radius:3px;overflow:hidden;cursor:pointer;border:0;padding:5px 7px;text-align:left;font:inherit;display:block;margin:0}
+.tile.sel{box-shadow:inset 0 0 0 2px var(--cobalt),inset 0 0 0 3px var(--surface)}
+.tname{display:block;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}
+.tmeta{display:block;font-size:12px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}
+.pin{position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:10px;box-sizing:border-box;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.pin.answered{background:var(--cobalt);color:var(--on-accent)}
+.pin.open{background:var(--surface);color:var(--cobalt);border:2px solid var(--cobalt)}
+.pin.note{background:var(--surface);color:var(--muted);border:1px solid var(--line-strong)}
+.sec{font-size:12px;font-weight:600;color:var(--muted);text-transform:none;margin:0 0 6px}
+.kbd{font-size:12px;color:var(--muted);border:1px solid var(--line-strong);border-radius:4px;padding:0 5px}
+textarea{font:inherit}
+</style>
+</helmet>
+<div class="cm {{themeCls}}" style="width:1440px;height:900px;background:var(--mica);position:relative;overflow:hidden;display:flex;flex-direction:column">
+
+<div style="height:48px;display:flex;align-items:center;flex:none">
+<div style="display:flex;align-items:center;gap:10px;padding:0 12px 0 16px">
+<div style="width:20px;height:20px;border-radius:5px;background:#0b7a75;color:#ffffff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">C</div>
+<span style="font-size:13px;font-weight:600">Codemap.nendo</span>
+<button class="btn" style="height:28px;border-color:transparent;background:transparent">File</button>
+</div>
+<div style="display:flex;align-items:flex-end;align-self:flex-end;gap:2px;padding-left:8px">
+<button class="tab on"><svg class="ico" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="7"></rect><rect x="9" y="2" width="5" height="4"></rect><rect x="9" y="8" width="5" height="6"></rect><rect x="2" y="11" width="5" height="3"></rect></svg>Map · nendo</button>
+<button class="tab"><svg class="ico" viewBox="0 0 16 16"><path d="M2 7l6-5 6 5v7H2z"></path></svg>Overview</button>
+<button class="tab"><svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M6.3 6.2a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.9.7-.9 1.3"></path><path d="M8 11.3v.1"></path></svg>Questions</button>
+<button class="ghost" aria-label="New tab"><svg class="ico" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"></path></svg></button>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;color:var(--ink)">
+<div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center"><svg class="ico" viewBox="0 0 16 16"><path d="M3 8h10"></path></svg></div>
+<div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center"><svg class="ico" viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9"></rect></svg></div>
+<div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center"><svg class="ico" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"></path></svg></div>
+</div>
+</div>
+
+<div style="flex:1;display:flex;min-height:0">
+<div style="width:56px;flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:4px">
+<button class="nav" aria-label="Fold navigation"><svg class="ico" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12"></path></svg></button>
+<div style="height:8px"></div>
+<button class="nav" aria-label="Overview"><svg class="ico" viewBox="0 0 16 16"><path d="M2 7l6-5 6 5v7H2z"></path></svg></button>
+<button class="nav on" aria-label="Map"><svg class="ico" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="7"></rect><rect x="9" y="2" width="5" height="4"></rect><rect x="9" y="8" width="5" height="6"></rect><rect x="2" y="11" width="5" height="3"></rect></svg></button>
+<button class="nav" aria-label="Repositories"><svg class="ico" viewBox="0 0 16 16"><path d="M2 4h4l1.5 1.5H14v7H2z"></path></svg></button>
+<button class="nav" aria-label="Units"><svg class="ico" viewBox="0 0 16 16"><path d="M8 2l6 3-6 3-6-3z"></path><path d="M2 8.5l6 3 6-3"></path><path d="M2 11.5l6 3 6-3"></path></svg></button>
+<button class="nav" aria-label="Questions"><svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M6.3 6.2a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.9.7-.9 1.3"></path><path d="M8 11.3v.1"></path></svg></button>
+<button class="nav" aria-label="Tours"><svg class="ico" viewBox="0 0 16 16"><circle cx="4" cy="4" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><path d="M5.8 4C12 4 4 12 10.2 12"></path></svg></button>
+<button class="nav" aria-label="Passes"><svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 5v3l2 2"></path></svg></button>
+<div style="flex:1"></div>
+<button class="nav" aria-label="Studio"><svg class="ico" viewBox="0 0 16 16"><ellipse cx="8" cy="4" rx="5" ry="2"></ellipse><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4"></path><path d="M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"></path></svg></button>
+<button class="nav" aria-label="Agent"><svg class="ico" viewBox="0 0 16 16"><path d="M6 2v3M10 2v3M4 5h8v3a4 4 0 0 1-8 0zM8 12v2"></path></svg></button>
+<button class="nav" aria-label="Help" style="margin-bottom:6px"><svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M6.3 6.2a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.9.7-.9 1.3"></path><path d="M8 11.3v.1"></path></svg></button>
+</div>
+
+<div style="flex:1;min-width:0;background:var(--canvas);border-top-left-radius:8px;border-top:1px solid var(--line);border-left:1px solid var(--line);display:flex;flex-direction:column">
+<div style="height:44px;flex:none;display:flex;align-items:center;gap:4px;padding:0 12px;border-bottom:1px solid var(--line)">
+<button class="ghost" aria-label="Back"><svg class="ico" viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"></path></svg></button>
+<button class="ghost" aria-label="Forward" style="color:var(--muted)"><svg class="ico" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"></path></svg></button>
+<div style="display:flex;align-items:center;gap:2px;font-size:13px;margin-left:4px">
+<span style="padding:0 6px;color:var(--muted)">Codemap</span><span style="color:var(--muted)">›</span>
+<button class="btn" style="height:28px;border-color:transparent;background:transparent">Map<svg class="ico" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="M4 6l4 4 4-4"></path></svg></button><span style="color:var(--muted)">›</span>
+<button class="btn" style="height:28px;border-color:transparent;background:transparent;font-weight:600">nendo<svg class="ico" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="M4 6l4 4 4-4"></path></svg></button>
+</div>
+<div style="flex:1"></div>
+<div style="width:320px;height:32px;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:4px;background:var(--surface);display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--muted);font-size:13px"><svg class="ico" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5L14 14"></path></svg><span style="flex:1">Search or run a command</span><span class="kbd">Ctrl K</span></div>
+</div>
+
+<div style="height:48px;flex:none;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line)">
+<button class="btn"><svg class="ico" viewBox="0 0 16 16"><path d="M2 4h4l1.5 1.5H14v7H2z"></path></svg>nendo<span class="chip" style="height:18px">Code</span><svg class="ico" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="M4 6l4 4 4-4"></path></svg></button>
+<span class="lbl" style="margin-left:8px">Colour</span>
+<div class="seg"><sc-for list="{{modes}}" as="m" hint-placeholder-count="3"><button class="{{m.cls}}" onClick="{{m.pick}}">{{m.label}}</button></sc-for></div>
+<span class="lbl" style="margin-left:8px">Size</span>
+<div class="seg"><button class="on">Lines</button><button>Files</button></div>
+<span class="lbl" style="margin-left:8px">Show</span>
+<div class="seg"><button class="on">Treemap</button><button>Sunburst</button><button>Links</button></div>
+<button class="btn" style="margin-left:8px"><svg class="ico" viewBox="0 0 16 16"><circle cx="4" cy="4" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><path d="M5.8 4C12 4 4 12 10.2 12"></path></svg>Tours<span class="chip" style="height:18px">1</span></button>
+<div style="flex:1"></div>
+<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)"><span style="width:8px;height:8px;border-radius:4px;background:var(--ok)"></span>Mapped 8 Oct, 17:40 · <span class="mono">7890b05</span> · up to date</span>
+</div>
+
+<div style="flex:1;display:flex;min-height:0">
+<div style="flex:1;min-width:0;padding:12px 16px 0;display:flex;flex-direction:column;gap:10px">
+<div style="position:relative;width:968px;height:676px;flex:none">
+<sc-for list="{{frames}}" as="f" hint-placeholder-count="7">
+<div style="position:absolute;left:{{f.x}}px;top:{{f.y}}px;width:{{f.w}}px;height:{{f.h}}px;background:var(--line);border-radius:4px;box-sizing:border-box">
+<div style="height:20px;display:flex;align-items:center;gap:6px;padding:0 6px;font-size:12px;overflow:hidden;white-space:nowrap"><span style="font-weight:700">{{f.label}}</span><span style="color:var(--muted)">{{f.total}}</span></div>
+</div>
+</sc-for>
+<sc-for list="{{tiles}}" as="t" hint-placeholder-count="28">
+<button class="tile {{t.cls}}" style="left:{{t.x}}px;top:{{t.y}}px;width:{{t.w}}px;height:{{t.h}}px;background:{{t.bg}};color:{{t.fg}}" onClick="{{t.pick}}" aria-label="{{t.aria}}">
+<sc-if value="{{t.stale}}" hint-placeholder-val="{{false}}"><span class="hatch"></span></sc-if>
+<sc-if value="{{t.showName}}" hint-placeholder-val="{{true}}"><span class="tname" style="padding-right:{{t.pad}}px">{{t.name}}</span></sc-if>
+<sc-if value="{{t.showMeta}}" hint-placeholder-val="{{true}}"><span class="tmeta">{{t.meta}}</span></sc-if>
+<sc-if value="{{t.hasPin}}" hint-placeholder-val="{{false}}"><span class="pin {{t.pinCls}}">{{t.pinNo}}</span></sc-if>
+</button>
+</sc-for>
+</div>
+<div style="display:flex;align-items:center;gap:14px;font-size:12px;color:var(--muted);height:24px">
+<span>{{legendTitle}}</span>
+<sc-for list="{{legend}}" as="l" hint-placeholder-count="5"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:14px;border-radius:3px;background:{{l.bg}};position:relative;overflow:hidden;display:inline-block"><sc-if value="{{l.hatch}}" hint-placeholder-val="{{false}}"><span class="hatch"></span></sc-if></span>{{l.label}}</span></sc-for>
+<span style="flex:1"></span>
+<span style="display:inline-flex;align-items:center;gap:5px"><span class="pin answered" style="position:static;width:16px;height:16px;font-size:12px">1</span>Answered</span>
+<span style="display:inline-flex;align-items:center;gap:5px"><span class="pin open" style="position:static;width:16px;height:16px;font-size:12px">2</span>Open</span>
+<span style="display:inline-flex;align-items:center;gap:5px"><span class="pin note" style="position:static;width:16px;height:16px;font-size:12px">4</span>Note</span>
+</div>
+</div>
+
+<div style="width:384px;flex:none;border-left:1px solid var(--line);background:var(--surface);padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+<div style="display:flex;align-items:center;gap:6px"><span class="chip">{{u.kind}}</span><span class="chip">{{u.fmt}}</span><span style="flex:1"></span><span class="chip {{u.stateCls}}">{{u.state}}</span></div>
+<div>
+<div style="font-size:20px;font-weight:600;line-height:1.2">{{u.name}}</div>
+<div class="mono" style="font-size:12px;color:var(--muted);margin-top:2px">{{u.id}}</div>
+</div>
+<div style="font-size:14px">{{u.sum}}</div>
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">
+<div class="card" style="padding:6px 8px"><div class="lbl">Files</div><div style="font-weight:600">{{u.files}}</div></div>
+<div class="card" style="padding:6px 8px"><div class="lbl">Lines</div><div style="font-weight:600">{{u.lines}}</div></div>
+<div class="card" style="padding:6px 8px"><div class="lbl">Changes</div><div style="font-weight:600">{{u.ch}}</div></div>
+<div class="card" style="padding:6px 8px"><div class="lbl">Last</div><div style="font-weight:600">{{u.last}}</div></div>
+</div>
+<sc-if value="{{u.hasLinks}}" hint-placeholder-val="{{true}}">
+<div>
+<div class="sec">Links</div>
+<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+<sc-for list="{{u.links}}" as="k" hint-placeholder-count="3"><span class="chip"><span style="color:var(--muted)">{{k.dir}}</span>{{k.name}}</span></sc-for>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{u.hasHot}}" hint-placeholder-val="{{true}}">
+<div>
+<div class="sec">Hot files</div>
+<sc-for list="{{u.hot}}" as="h" hint-placeholder-count="2"><div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0"><span class="mono" style="font-size:12px">{{h.f}}</span><span style="color:var(--muted)">{{h.c}}</span></div></sc-for>
+</div>
+</sc-if>
+<sc-if value="{{u.hasAsks}}" hint-placeholder-val="{{true}}">
+<div>
+<div class="sec">Questions and notes</div>
+<sc-for list="{{u.asks}}" as="q" hint-placeholder-count="1">
+<div class="card" style="padding:10px 12px;display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;align-items:center;gap:8px"><span class="pin {{q.pinCls}}" style="position:static">{{q.n}}</span><span class="lbl">{{q.kind}} · {{q.status}}</span></div>
+<div style="font-weight:600;font-size:14px">{{q.text}}</div>
+<sc-if value="{{q.hasAnswer}}" hint-placeholder-val="{{true}}"><div style="font-size:13px;border-left:0;background:var(--soft);border-radius:4px;padding:6px 8px">{{q.answer}}</div></sc-if>
+<div class="lbl">{{q.by}}</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<div>
+<label class="sec" for="askA" style="display:block">Ask about {{u.name}}</label>
+<textarea id="askA" rows="2" placeholder="A question for the next pass, or a note to keep here" style="width:100%;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:4px;background:var(--canvas);color:var(--ink);padding:6px 8px;resize:none;font-size:13px"></textarea>
+<div style="display:flex;align-items:center;gap:8px;margin-top:6px"><div class="seg"><button class="on">Question</button><button>Note</button></div><span style="flex:1"></span><button class="btn primary">Pin here</button></div>
+</div>
+<sc-if value="{{u.hasTour}}" hint-placeholder-val="{{false}}">
+<div style="display:flex;align-items:center;gap:8px;font-size:13px"><svg class="ico" viewBox="0 0 16 16"><circle cx="4" cy="4" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><path d="M5.8 4C12 4 4 12 10.2 12"></path></svg><span><a href="#" style="color:var(--cobalt)">How a write reaches the database</a> <span style="color:var(--muted)">· {{u.tour}}</span></span></div>
+</sc-if>
+</div>
+</div>
+</div>
+</div>
+
+<div style="height:28px;flex:none;display:flex;align-items:center;gap:14px;padding:0 14px;font-size:12px;color:var(--muted)">
+<div style="width:14px;height:14px;border-radius:4px;background:#0b7a75;color:#ffffff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1">C</div>
+<span>Codemap.nendo</span>
+<span>4 repositories · 7 record types</span>
+<span style="flex:1"></span>
+<span class="chip" style="height:20px"><span style="width:6px;height:6px;border-radius:3px;background:var(--ok)"></span>Agent: Edit data · 127.0.0.1:41775</span>
+<span class="chip" style="height:20px">Healthy</span>
+<span>System</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  areas() {
+    return [
+      { label: 'src', kids: [
+        ['src/Nendo.Workbench', 'Nendo.Workbench', 45591, 216, 124, '8 Oct', 'TypeScript', 'The web UI: Use, Studio, Help and the custom-view runtime.', false],
+        ['src/Nendo.Engine', 'Nendo.Engine', 34716, 143, 58, '8 Oct', 'C#', 'Typed application services over SQLite: records, revisions, history and calculations.', false],
+        ['src/Nendo.LocalMcp', 'Nendo.LocalMcp', 13046, 54, 78, '8 Oct', 'C#', 'The local MCP server: tools, resources, the edit lease and proposals.', false],
+        ['src/Nendo.Desktop', 'Nendo.Desktop', 11946, 80, 51, '7 Oct', 'C#', 'The WinUI host: window, WebView2, agent access and the file lifecycle.', false]] },
+      { label: 'tests', kids: [
+        ['tests/Nendo.Engine.Tests', 'Nendo.Engine.Tests', 28665, 128, 52, '6 Oct', 'C#', 'Engine tests: storage, history folding, calculations and search.', false],
+        ['tests/Nendo.LocalMcp.Tests', 'Nendo.LocalMcp.Tests', 15398, 75, 68, '8 Oct', 'C#', 'Tool, resource and protocol tests for the MCP server.', false],
+        ['tests/Nendo.Desktop.Tests', 'Nendo.Desktop.Tests', 8799, 59, 46, '7 Oct', 'C#', 'Host tests, including the journeys that drive a real window.', false]] },
+      { label: 'tools', kids: [
+        ['tools', 'tools (scripts)', 25451, 87, 150, '8 Oct', 'PowerShell', 'Gates, builders and the installer pipeline.', false],
+        ['tools/archi', 'archi', 17658, 32, 28, '6 Oct', 'JavaScript', 'The Archi definition, its canvas bundle and the relationship tables.', false],
+        ['tools/bcm-atlas', 'bcm-atlas', 4692, 28, 13, '4 Oct', 'JavaScript', 'The Capability Atlas definition and its gate.', true],
+        ['tools/garden', 'garden', 3038, 16, 17, '8 Oct', 'JavaScript', 'The Garden definition, its bundler and tests.', false],
+        ['tools/(other)', 'swarm, view-kit, skills', 1064, 14, 14, '8 Oct', 'JavaScript', 'Small builders, the view kit and two file skills.', false]] },
+      { label: 'extensions', kids: [
+        ['extensions/archi', 'archi', 14051, 15, 31, '4 Oct', 'JavaScript', 'The ArchiMate workbench view.', false],
+        ['extensions/garden', 'garden', 12516, 42, 26, '8 Oct', 'JavaScript', 'The Garden views: Overview, notes, Graph, Agenda and Tend.', false],
+        ['extensions/work-dependencies', 'work-dependencies', 8110, 10, 7, '28 Sep', 'JavaScript', 'The work dependency graph, laid out by ELK.', false],
+        ['extensions/bcm-atlas', 'bcm-atlas', 3927, 10, 11, '3 Oct', 'JavaScript', 'Capability map packing and heatmaps.', false],
+        ['extensions/swarm', 'swarm', 2798, 11, 2, '6 Oct', 'JavaScript', 'The Swarm simulation view.', true],
+        ['extensions/(other)', 'three small views', 1998, 19, 16, '3 Oct', 'JavaScript', 'Systems lens, Gantt and the dependency graph.', false]] },
+      { label: 'docs', kids: [
+        ['docs/decisions', 'decisions', 9020, 31, 86, '8 Oct', 'Markdown', 'ADRs 0000 to 0028: the architecture authority.', false],
+        ['docs/contracts', 'contracts', 6941, 13, 122, '8 Oct', 'Markdown', 'Contracts for MCP, custom views, queries and surfaces.', false],
+        ['docs/design', 'design', 4179, 17, 73, '8 Oct', 'Markdown', 'Design documents and the visual direction.', false],
+        ['docs/reviews', 'reviews', 4126, 45, 105, '6 Oct', 'Markdown', 'Review prompts and their outcomes.', true],
+        ['docs', 'docs (top)', 3567, 7, 89, '8 Oct', 'Markdown', 'Vision, architecture, roadmap and dogfooding.', false]] },
+      { label: 'site', kids: [
+        ['site', 'site (top)', 5769, 4, 4, '26 Sep', 'JSON', 'Package files and configuration.', false],
+        ['site/src', 'site/src', 4735, 55, 100, '8 Oct', 'Astro', 'The public website and its hand-written guides.', false]] },
+      { label: 'other', kids: [
+        ['prototypes', 'prototypes', 3605, 18, 1, '25 Sep', 'HTML', 'Early iframe-view prototypes.', true],
+        ['.agents/skills', '.agents/skills', 2450, 16, 1, '22 Sep', 'Markdown', 'Vendored .NET agent skills.', false],
+        ['.', '(top files)', 933, 13, 36, '8 Oct', 'Markdown', 'README, AGENTS.md, CLAUDE.md and the build properties.', false]] }
+    ];
+  }
+  asks() {
+    return {
+      'src/Nendo.LocalMcp': [{ n: 1, kind: 'Question', status: 'Answered', text: 'Where does a data write check the lease?', answer: 'NendoAgentAuthority.cs. A nendo.data.* call without the lease is refused with INVALID_LEASE, and writes queue on one authority gate. NendoDataMutationService.cs asks it first.', by: 'Answered by Claude Code · 8 Oct, at 7890b05' }],
+      'src/Nendo.Workbench': [{ n: 2, kind: 'Question', status: 'Open', text: 'Which files would I touch to add a chart kind?', answer: '', by: 'Asked 8 Oct · waits for the next pass' }],
+      'extensions/garden': [{ n: 3, kind: 'Question', status: 'Answered', text: 'What draws the Graph screen?', answer: 'graph.js and graphscreen.js, with d3 7.9.0 from vendor/. One package runs the Overview, the Garden view and the Graph screen.', by: 'Answered by Claude Code · 8 Oct' }],
+      'docs/contracts': [{ n: 4, kind: 'Note', status: 'Kept', text: 'mcp-interface.md changes most here. Read it before any MCP work.', answer: '', by: 'Your note · 8 Oct' }]
+    };
+  }
+  sq(items, x, y, w, h) {
+    const total = items.reduce((s, i) => s + i.value, 0);
+    const scale = (w * h) / total;
+    const nodes = items.map(i => ({ item: i, area: i.value * scale }));
+    const out = [];
+    let rect = { x: x, y: y, w: w, h: h };
+    let row = [];
+    const worst = (r, side) => {
+      const s = r.reduce((a, n) => a + n.area, 0);
+      let mx = 0, mn = Infinity;
+      r.forEach(n => { mx = Math.max(mx, n.area); mn = Math.min(mn, n.area); });
+      return Math.max(side * side * mx / (s * s), (s * s) / (side * side * mn));
+    };
+    const place = (r) => {
+      const s = r.reduce((a, n) => a + n.area, 0);
+      if (rect.w >= rect.h) {
+        const cw = s / rect.h; let cy = rect.y;
+        r.forEach(n => { const hh = n.area / cw; out.push(Object.assign({}, n.item, { x: rect.x, y: cy, w: cw, h: hh })); cy += hh; });
+        rect = { x: rect.x + cw, y: rect.y, w: rect.w - cw, h: rect.h };
+      } else {
+        const rh = s / rect.w; let cx = rect.x;
+        r.forEach(n => { const ww = n.area / rh; out.push(Object.assign({}, n.item, { x: cx, y: rect.y, w: ww, h: rh })); cx += ww; });
+        rect = { x: rect.x, y: rect.y + rh, w: rect.w, h: rect.h - rh };
+      }
+    };
+    let i = 0;
+    while (i < nodes.length) {
+      const side = Math.min(rect.w, rect.h);
+      const n = nodes[i];
+      if (row.length === 0 || worst(row.concat([n]), side) <= worst(row, side)) { row.push(n); i++; }
+      else { place(row); row = []; }
+    }
+    if (row.length) place(row);
+    return out;
+  }
+  fmt(n) { return n >= 10000 ? (n / 1000).toFixed(1) + 'k' : n.toLocaleString('en-GB'); }
+  renderVals() {
+    const dark = (this.props.theme || 'light') === 'dark';
+    const st = this.state || {};
+    const sel = st.sel || 'src/Nendo.LocalMcp';
+    const mode = st.mode || 'churn';
+    const heat = dark ? ['#3b4048', '#594633', '#7f5631', '#bd7433', '#e98a3d'] : ['#dde5ee', '#f5dfc4', '#efbf89', '#dd8b47', '#a64b1b'];
+    const heatInk = dark ? ['#ffffff', '#ffffff', '#ffffff', '#1b1b1b', '#1b1b1b'] : ['#1b1b1b', '#1b1b1b', '#1b1b1b', '#1b1b1b', '#ffffff'];
+    const fresh = dark ? { cur: '#29432f', stale: '#574722', none: '#3a3a3c', ink: '#ffffff' } : { cur: '#dcefe0', stale: '#f6e1b3', none: '#ececec', ink: '#1b1b1b' };
+    const bucket = c => c >= 100 ? 4 : c >= 60 ? 3 : c >= 30 ? 2 : c >= 10 ? 1 : 0;
+    const asks = this.asks();
+    const all = {};
+    const W = 968, H = 676;
+    const areas = this.areas().map(a => ({ label: a.label, value: a.kids.reduce((s, k) => s + k[2], 0), kids: a.kids }));
+    areas.sort((p, q) => q.value - p.value);
+    const frames = [], tiles = [];
+    this.sq(areas, 0, 0, W, H).forEach(a => {
+      const ax = a.x + 1.5, ay = a.y + 1.5, aw = a.w - 3, ah = a.h - 3;
+      frames.push({ label: a.label, total: this.fmt(a.value) + ' lines', x: ax.toFixed(1), y: ay.toFixed(1), w: aw.toFixed(1), h: ah.toFixed(1) });
+      const kids = a.kids.map(k => ({ id: k[0], name: k[1], lines: k[2], files: k[3], ch: k[4], last: k[5], fmt: k[6], sum: k[7], stale: k[8], value: k[2] }));
+      kids.sort((p, q) => q.value - p.value);
+      this.sq(kids, ax + 2, ay + 20, aw - 4, ah - 22).forEach(k => {
+        all[k.id] = k;
+        const q = asks[k.id] || [];
+        let bg, fg;
+        if (mode === 'churn') { const b = bucket(k.ch); bg = heat[b]; fg = heatInk[b]; }
+        else if (mode === 'fresh') { bg = k.stale ? fresh.stale : fresh.cur; fg = fresh.ink; }
+        else { bg = q.length ? 'var(--cobalt-soft)' : 'var(--soft)'; fg = 'var(--ink)'; }
+        const w = k.w - 2, h = k.h - 2;
+        tiles.push({
+          x: (k.x + 1).toFixed(1), y: (k.y + 1).toFixed(1), w: w.toFixed(1), h: h.toFixed(1), bg: bg, fg: fg,
+          cls: k.id === sel ? 'sel' : '', name: k.name, meta: this.fmt(k.lines) + ' lines · ' + k.ch + ' changes',
+          showName: w >= 56 && h >= 26, showMeta: w >= 96 && h >= 44, stale: k.stale && mode !== 'questions',
+          hasPin: q.length > 0, pinNo: q.length ? q[0].n : '', pinCls: q.length ? (q[0].kind === 'Note' ? 'note' : q[0].status === 'Open' ? 'open' : 'answered') : '',
+          pad: q.length ? 22 : 0, aria: k.id + ', ' + k.lines + ' lines, ' + k.ch + ' changes' + (k.stale ? ', stale' : ''),
+          pick: () => this.setState({ sel: k.id })
+        });
+      });
+    });
+    const linkMap = {
+      'src/Nendo.LocalMcp': [['Uses', 'Nendo.Engine'], ['Used by', 'Nendo.Desktop'], ['Tested by', 'LocalMcp.Tests']],
+      'src/Nendo.Engine': [['Used by', 'Nendo.LocalMcp'], ['Used by', 'Nendo.Desktop'], ['Tested by', 'Engine.Tests']],
+      'src/Nendo.Desktop': [['Uses', 'Nendo.Engine'], ['Uses', 'Nendo.LocalMcp'], ['Hosts', 'Nendo.Workbench']],
+      'src/Nendo.Workbench': [['Hosted by', 'Nendo.Desktop'], ['Described by', 'docs/contracts']],
+      'tools/garden': [['Builds', 'extensions/garden']], 'extensions/garden': [['Built by', 'tools/garden']],
+      'tools/archi': [['Builds', 'extensions/archi']], 'extensions/archi': [['Built by', 'tools/archi']],
+      'tests/Nendo.Engine.Tests': [['Tests', 'Nendo.Engine']], 'tests/Nendo.LocalMcp.Tests': [['Tests', 'Nendo.LocalMcp']], 'tests/Nendo.Desktop.Tests': [['Tests', 'Nendo.Desktop']]
+    };
+    const hotMap = {
+      'src/Nendo.LocalMcp': [['NendoResourceProjection.cs', '24 changes'], ['NendoMcpResources.cs', '24 changes']],
+      'src/Nendo.Workbench': [['src/help-agents.ts', '38 changes'], ['src/host-types.ts', '26 changes']],
+      'docs/contracts': [['mcp-interface.md', '66 changes'], ['custom-views.md', '55 changes']],
+      'extensions/archi': [['view.js', '26 changes'], ['nendo-package.json', '25 changes']],
+      'src/Nendo.Desktop': [['WorkbenchProtocol.cs', '25 changes']],
+      'docs/reviews': [['blackbox-prompt.md', '102 changes']]
+    };
+    const tourMap = { 'src/Nendo.LocalMcp': 'steps 1 to 3', 'src/Nendo.Engine': 'steps 4 and 5', 'src/Nendo.Workbench': 'step 6' };
+    const k = all[sel];
+    const q = asks[sel] || [];
+    const links = (linkMap[sel] || []).map(l => ({ dir: l[0], name: l[1] }));
+    const hot = (hotMap[sel] || []).map(h => ({ f: h[0], c: h[1] }));
+    const kindOf = id => id.indexOf('(') >= 0 || id === '.' || id === 'tools' || id === 'docs' || id === 'site' ? 'Folder' : (id.indexOf('src/') === 0 || id.indexOf('tests/') === 0 || id.indexOf('extensions/') === 0 ? 'Module' : 'Folder');
+    const u = {
+      id: k.id, name: k.name, sum: k.sum, fmt: k.fmt, kind: kindOf(k.id),
+      state: k.stale ? 'Stale: changed since summary' : 'Current', stateCls: k.stale ? 'warn' : 'ok',
+      files: k.files.toLocaleString('en-GB'), lines: this.fmt(k.lines), ch: k.ch, last: k.last,
+      links: links, hasLinks: links.length > 0, hot: hot, hasHot: hot.length > 0,
+      asks: q.map(a => Object.assign({}, a, { hasAnswer: !!a.answer, pinCls: a.kind === 'Note' ? 'note' : a.status === 'Open' ? 'open' : 'answered' })), hasAsks: q.length > 0,
+      hasTour: !!tourMap[sel], tour: tourMap[sel] || ''
+    };
+    const modeDefs = [['churn', 'Changes'], ['fresh', 'Freshness'], ['questions', 'Questions']];
+    const modes = modeDefs.map(m => ({ label: m[1], cls: m[0] === mode ? 'on' : '', pick: () => this.setState({ mode: m[0] }) }));
+    let legend, legendTitle;
+    if (mode === 'churn') { legendTitle = 'File changes, last 30 days'; legend = ['0–9', '10–29', '30–59', '60–99', '100+'].map((l, i) => ({ label: l, bg: heat[i], hatch: false })).concat([{ label: 'Stale summary', bg: heat[0], hatch: true }]); }
+    else if (mode === 'fresh') { legendTitle = 'Summary'; legend = [{ label: 'Current', bg: fresh.cur, hatch: false }, { label: 'Stale', bg: fresh.stale, hatch: true }, { label: 'Not summarised yet', bg: fresh.none, hatch: false }]; }
+    else { legendTitle = 'Pinned'; legend = [{ label: 'Has questions or notes', bg: 'var(--cobalt-soft)', hatch: false }, { label: 'None', bg: 'var(--soft)', hatch: false }]; }
+    return { themeCls: dark ? 'dark' : '', frames: frames, tiles: tiles, u: u, modes: modes, legend: legend, legendTitle: legendTitle };
+  }
+}
+</script>
+</body>
+</html>

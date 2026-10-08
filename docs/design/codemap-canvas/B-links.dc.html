@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Codemap B · Links and outline</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.cm{--canvas:#f9f9fa;--surface:#ffffff;--raised:#ffffff;--soft:#f3f3f4;--ink:#1b1b1b;--muted:#5d5d5d;--line:#e5e5e5;--line-strong:#d1d1d1;--cobalt:#005fb8;--cobalt-soft:#e5eff9;--mica:#eef1f6;--on-accent:#ffffff;--warn:#8a5300;--warn-soft:#fff1cc;--ok:#0f7b0f;--ok-soft:#dff6dd;--hatch:rgba(27,27,27,.18);--edge:#9aa3ad;font-family:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;font-size:14px;color:var(--ink);line-height:1.4}
+.cm.dark{--canvas:#272829;--surface:#2d2e30;--raised:#323335;--soft:#38393b;--ink:#ffffff;--muted:#c5c5c5;--line:#3b3c3e;--line-strong:#4b4c4f;--cobalt:#60cdff;--cobalt-soft:#1f3a4a;--mica:#1e2024;--on-accent:#272829;--warn:#fce100;--warn-soft:#433519;--ok:#6ccb5f;--ok-soft:#1f3a24;--hatch:rgba(255,255,255,.2);--edge:#7d838b}
+.mono{font-family:"Cascadia Mono",Consolas,ui-monospace,monospace}
+.ico{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.nav{width:40px;height:36px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--ink);position:relative;background:transparent;border:0;padding:0}
+.nav.on{background:var(--soft)}
+.nav.on::before{content:"";position:absolute;left:0;top:10px;width:3px;height:16px;border-radius:2px;background:var(--cobalt)}
+.btn{height:32px;box-sizing:border-box;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:4px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn.primary{background:var(--cobalt);border-color:var(--cobalt);color:var(--on-accent);font-weight:600}
+.ghost{height:32px;width:32px;border:0;background:transparent;color:var(--ink);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:4px;overflow:hidden;height:32px;box-sizing:border-box}
+.seg button{border:0;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;padding:0 10px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--cobalt-soft);font-weight:600}
+.lbl{font-size:12px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:11px;background:var(--soft);font-size:12px;color:var(--ink);white-space:nowrap}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.tab{height:36px;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 12px;border-radius:8px 8px 0 0;font-size:13px;color:var(--muted);border:0;background:transparent}
+.tab.on{background:var(--canvas);color:var(--ink)}
+.row{display:flex;align-items:center;gap:6px;height:28px;border:0;background:transparent;color:var(--ink);font:inherit;font-size:13px;width:100%;text-align:left;padding:0 8px 0 0;border-radius:4px;cursor:pointer;box-sizing:border-box}
+.row.sel{background:var(--cobalt-soft)}
+.pin{width:20px;height:20px;border-radius:10px;box-sizing:border-box;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.pin.answered{background:var(--cobalt);color:var(--on-accent)}
+.pin.open{background:var(--surface);color:var(--cobalt);border:2px solid var(--cobalt)}
+.sec{font-size:12px;font-weight:600;color:var(--muted);margin:0 0 6px}
+.kbd{font-size:12px;color:var(--muted);border:1px solid var(--line-strong);border-radius:4px;padding:0 5px}
+.node{cursor:pointer}
+textarea{font:inherit}
+</style>
+</helmet>
+<div class="cm {{themeCls}}" style="width:1440px;height:900px;background:var(--mica);position:relative;overflow:hidden;display:flex;flex-direction:column">
+
+<div style="height:48px;display:flex;align-items:center;flex:none">
+<div style="display:flex;align-items:center;gap:10px;padding:0 12px 0 16px">
+<div style="width:20px;height:20px;border-radius:5px;background:#0b7a75;color:#ffffff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">C</div>
+<span style="font-size:13px;font-weight:600">Codemap.nendo</span>
+<button class="btn" style="height:28px;border-color:transparent;background:transparent">File</button>
+</div>
+<div style="display:flex;align-items:flex-end;align-self:flex-end;gap:2px;padding-left:8px">
+<button class="tab on"><svg class="ico" viewBox="0 0 16 16"><circle cx="4" cy="8" r="2"></circle><circle cx="12" cy="4" r="2"></circle><circle cx="12" cy="12" r="2"></circle><path d="M5.8 7.2l4.4-2.4M5.8 8.8l4.4 2.4"></path></svg>Map · nendo</button>
+<button class="tab"><svg class="ico" viewBox="0 0 16 16"><path d="M2 7l6-5 6 5v7H2z"></path></svg>Overview</button>
+<button class="ghost" aria-label="New tab"><svg class="ico" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"></path></svg></button>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;color:var(--ink)">
+<div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center"><svg class="ico" viewBox="0 0 16 16"><path d="M3 8h10"></path></svg></div>
+<div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center"><svg class="ico" viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9"></rect></svg></div>
+<div style="width:46px;height:32px;display:flex;align-items:center;justify-content:center"><svg class="ico" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"></path></svg></div>
+</div>
+</div>
+
+<div style="flex:1;display:flex;min-height:0">
+<div style="width:56px;flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:4px">
+<button class="nav" aria-label="Fold navigation"><svg class="ico" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12"></path></svg></button>
+<div style="height:8px"></div>
+<button class="nav" aria-label="Overview"><svg class="ico" viewBox="0 0 16 16"><path d="M2 7l6-5 6 5v7H2z"></path></svg></button>
+<button class="nav on" aria-label="Map"><svg class="ico" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="7"></rect><rect x="9" y="2" width="5" height="4"></rect><rect x="9" y="8" width="5" height="6"></rect><rect x="2" y="11" width="5" height="3"></rect></svg></button>
+<button class="nav" aria-label="Repositories"><svg class="ico" viewBox="0 0 16 16"><path d="M2 4h4l1.5 1.5H14v7H2z"></path></svg></button>
+<button class="nav" aria-label="Units"><svg class="ico" viewBox="0 0 16 16"><path d="M8 2l6 3-6 3-6-3z"></path><path d="M2 8.5l6 3 6-3"></path><path d="M2 11.5l6 3 6-3"></path></svg></button>
+<button class="nav" aria-label="Questions"><svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M6.3 6.2a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.9.7-.9 1.3"></path><path d="M8 11.3v.1"></path></svg></button>
+<button class="nav" aria-label="Tours"><svg class="ico" viewBox="0 0 16 16"><circle cx="4" cy="4" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><path d="M5.8 4C12 4 4 12 10.2 12"></path></svg></button>
+<button class="nav" aria-label="Passes"><svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M8 5v3l2 2"></path></svg></button>
+<div style="flex:1"></div>
+<button class="nav" aria-label="Studio"><svg class="ico" viewBox="0 0 16 16"><ellipse cx="8" cy="4" rx="5" ry="2"></ellipse><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4"></path><path d="M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"></path></svg></button>
+<button class="nav" aria-label="Agent"><svg class="ico" viewBox="0 0 16 16"><path d="M6 2v3M10 2v3M4 5h8v3a4 4 0 0 1-8 0zM8 12v2"></path></svg></button>
+<button class="nav" aria-label="Help" style="margin-bottom:6px"><svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"></circle><path d="M6.3 6.2a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.9.7-.9 1.3"></path><path d="M8 11.3v.1"></path></svg></button>
+</div>
+
+<div style="flex:1;min-width:0;background:var(--canvas);border-top-left-radius:8px;border-top:1px solid var(--line);border-left:1px solid var(--line);display:flex;flex-direction:column">
+<div style="height:44px;flex:none;display:flex;align-items:center;gap:4px;padding:0 12px;border-bottom:1px solid var(--line)">
+<button class="ghost" aria-label="Back"><svg class="ico" viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"></path></svg></button>
+<button class="ghost" aria-label="Forward" style="color:var(--muted)"><svg class="ico" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"></path></svg></button>
+<div style="display:flex;align-items:center;gap:2px;font-size:13px;margin-left:4px">
+<span style="padding:0 6px;color:var(--muted)">Codemap</span><span style="color:var(--muted)">›</span>
+<button class="btn" style="height:28px;border-color:transparent;background:transparent">Map<svg class="ico" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="M4 6l4 4 4-4"></path></svg></button><span style="color:var(--muted)">›</span>
+<button class="btn" style="height:28px;border-color:transparent;background:transparent;font-weight:600">nendo<svg class="ico" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="M4 6l4 4 4-4"></path></svg></button>
+</div>
+<div style="flex:1"></div>
+<div style="width:320px;height:32px;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:4px;background:var(--surface);display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--muted);font-size:13px"><svg class="ico" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5L14 14"></path></svg><span style="flex:1">Search or run a command</span><span class="kbd">Ctrl K</span></div>
+</div>
+
+<div style="height:48px;flex:none;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line)">
+<button class="btn"><svg class="ico" viewBox="0 0 16 16"><path d="M2 4h4l1.5 1.5H14v7H2z"></path></svg>nendo<span class="chip" style="height:18px">Code</span><svg class="ico" viewBox="0 0 16 16" style="width:12px;height:12px"><path d="M4 6l4 4 4-4"></path></svg></button>
+<span class="lbl" style="margin-left:8px">Show</span>
+<div class="seg"><button>Treemap</button><button>Sunburst</button><button class="on">Links</button></div>
+<span class="lbl" style="margin-left:8px">Level</span>
+<div class="seg"><button class="on">Modules</button><button>Folders</button></div>
+<span class="lbl" style="margin-left:8px">Layout</span>
+<div class="seg"><button class="on">Layered</button><button>Force</button></div>
+<button class="btn" style="margin-left:8px"><svg class="ico" viewBox="0 0 16 16"><path d="M3 4h10M5 8h6M7 12h2"></path></svg>Kinds: all 4</button>
+<div style="flex:1"></div>
+<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)"><span style="width:8px;height:8px;border-radius:4px;background:var(--ok)"></span>Mapped 8 Oct, 17:40 · <span class="mono">7890b05</span> · up to date</span>
+</div>
+
+<div style="flex:1;display:flex;min-height:0">
+<div style="width:300px;flex:none;border-right:1px solid var(--line);padding:12px 8px 0 12px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;gap:8px"><span style="font-weight:600;flex:1">Units</span><span class="lbl">93 in nendo</span></div>
+<div style="height:30px;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:4px;background:var(--surface);display:flex;align-items:center;gap:6px;padding:0 8px;color:var(--muted);font-size:13px"><svg class="ico" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5L14 14"></path></svg>Find a unit</div>
+<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:0 4px 0 0"><span>Name</span><span>Lines · changes</span></div>
+<div style="display:flex;flex-direction:column">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="20">
+<button class="row {{r.cls}}" onClick="{{r.pick}}">
+<span style="width:{{r.indent}}px;flex:none"></span>
+<span style="width:12px;flex:none;color:var(--muted);font-size:12px">{{r.arrow}}</span>
+<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:{{r.weight}}">{{r.name}}</span>
+<sc-if value="{{r.stale}}" hint-placeholder-val="{{false}}"><span class="chip warn" style="height:18px;padding:0 6px">stale</span></sc-if>
+<span style="width:56px;height:6px;border-radius:3px;background:var(--soft);flex:none;position:relative;overflow:hidden"><span style="position:absolute;left:0;top:0;bottom:0;width:{{r.bar}}px;background:var(--muted)"></span></span>
+<span style="width:10px;height:10px;border-radius:5px;flex:none;background:{{r.heat}};box-shadow:0 0 0 1px var(--line-strong)"></span>
+</button>
+</sc-for>
+</div>
+</div>
+
+<div style="flex:1;min-width:0;position:relative">
+<svg width="724" height="688" viewBox="0 0 724 688" style="position:absolute;left:0;top:0">
+<defs>
+<marker id="arB" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L8 4L0 8z" style="fill:var(--edge)"></path></marker>
+<marker id="arBs" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L8 4L0 8z" style="fill:var(--cobalt)"></path></marker>
+</defs>
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="5">
+<rect x="{{g.x}}" y="{{g.y}}" width="{{g.w}}" height="{{g.h}}" rx="10" style="fill:var(--soft);stroke:var(--line)"></rect>
+<text x="{{g.tx}}" y="{{g.ty}}" style="fill:var(--muted);font-size:12px;font-weight:600">{{g.label}}</text>
+</sc-for>
+<sc-for list="{{edges}}" as="e" hint-placeholder-count="12">
+<line x1="{{e.x1}}" y1="{{e.y1}}" x2="{{e.x2}}" y2="{{e.y2}}" marker-end="{{e.marker}}" style="stroke:{{e.color}};stroke-width:{{e.width}};stroke-dasharray:{{e.dash}};opacity:{{e.op}}"></line>
+</sc-for>
+<sc-for list="{{nodes}}" as="n" hint-placeholder-count="14">
+<g class="node" onClick="{{n.pick}}" style="opacity:{{n.op}}">
+<circle cx="{{n.x}}" cy="{{n.y}}" r="{{n.r}}" style="fill:{{n.fill}};stroke:{{n.stroke}};stroke-width:{{n.sw}};stroke-dasharray:{{n.dash}}"></circle>
+<text x="{{n.x}}" y="{{n.ly}}" text-anchor="middle" style="fill:var(--ink);font-size:12px;font-weight:{{n.weight}}">{{n.name}}</text>
+</g>
+</sc-for>
+</svg>
+<div style="position:absolute;left:16px;bottom:12px;display:flex;align-items:center;gap:14px;font-size:12px;color:var(--muted);background:var(--canvas);padding:4px 6px;border-radius:4px">
+<span>Node size: lines · colour: file changes, last 30 days</span>
+<span style="display:inline-flex;align-items:center;gap:5px"><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" style="stroke:var(--edge);stroke-width:1.5"></line></svg>Uses, tests, builds, hosts</span>
+<span style="display:inline-flex;align-items:center;gap:5px"><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" style="stroke:var(--edge);stroke-width:1.5;stroke-dasharray:4 3"></line></svg>Describes</span>
+</div>
+<div style="position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:4px">
+<button class="ghost" aria-label="Zoom in" style="background:var(--surface);border:1px solid var(--line-strong)"><svg class="ico" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"></path></svg></button>
+<button class="ghost" aria-label="Zoom out" style="background:var(--surface);border:1px solid var(--line-strong)"><svg class="ico" viewBox="0 0 16 16"><path d="M3 8h10"></path></svg></button>
+<button class="ghost" aria-label="Fit" style="background:var(--surface);border:1px solid var(--line-strong)"><svg class="ico" viewBox="0 0 16 16"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"></path></svg></button>
+</div>
+</div>
+
+<div style="width:360px;flex:none;border-left:1px solid var(--line);background:var(--surface);padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+<div style="display:flex;align-items:center;gap:6px"><span class="chip">{{u.kind}}</span><span class="chip">{{u.fmt}}</span><span style="flex:1"></span><span class="chip {{u.stateCls}}">{{u.state}}</span></div>
+<div>
+<div style="font-size:20px;font-weight:600;line-height:1.2">{{u.name}}</div>
+<div class="mono" style="font-size:12px;color:var(--muted);margin-top:2px">{{u.id}}</div>
+</div>
+<div>{{u.sum}}</div>
+<div style="display:flex;gap:16px;font-size:13px"><span><b>{{u.lines}}</b> lines</span><span><b>{{u.files}}</b> files</span><span><b>{{u.ch}}</b> changes</span></div>
+<div>
+<div class="sec">Neighbours ({{u.nCount}})</div>
+<sc-if value="{{u.hasNb}}" hint-placeholder-val="{{true}}">
+<div class="card" style="overflow:hidden">
+<sc-for list="{{u.nb}}" as="k" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:13px"><span class="lbl" style="width:84px">{{k.rel}}</span><span style="flex:1;font-weight:600">{{k.name}}</span><svg class="ico" viewBox="0 0 16 16" style="color:var(--muted)"><path d="M6 3l5 5-5 5"></path></svg></div></sc-for>
+</div>
+</sc-if>
+<sc-if value="{{u.noNb}}" hint-placeholder-val="{{false}}"><div class="lbl">Not linked to another module. The agent records links between modules, and between documents in a cowork folder.</div></sc-if>
+</div>
+<sc-if value="{{u.hasAsks}}" hint-placeholder-val="{{true}}">
+<div>
+<div class="sec">Questions and notes</div>
+<sc-for list="{{u.asks}}" as="q" hint-placeholder-count="1">
+<div class="card" style="padding:10px 12px;display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;align-items:center;gap:8px"><span class="pin {{q.pinCls}}">{{q.n}}</span><span class="lbl">{{q.kind}} · {{q.status}}</span></div>
+<div style="font-weight:600">{{q.text}}</div>
+<sc-if value="{{q.hasAnswer}}" hint-placeholder-val="{{true}}"><div style="font-size:13px;background:var(--soft);border-radius:4px;padding:6px 8px">{{q.answer}}</div></sc-if>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<div>
+<label class="sec" for="askB" style="display:block">Ask about {{u.name}}</label>
+<textarea id="askB" rows="2" placeholder="A question for the next pass, or a note to keep here" style="width:100%;box-sizing:border-box;border:1px solid var(--line-strong);border-radius:4px;background:var(--canvas);color:var(--ink);padding:6px 8px;resize:none;font-size:13px"></textarea>
+<div style="display:flex;justify-content:flex-end;margin-top:6px"><button class="btn primary">Pin here</button></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="height:28px;flex:none;display:flex;align-items:center;gap:14px;padding:0 14px;font-size:12px;color:var(--muted)">
+<div style="width:14px;height:14px;border-radius:4px;background:#0b7a75;color:#ffffff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1">C</div>
+<span>Codemap.nendo</span>
+<span>4 repositories · 7 record types</span>
+<span style="flex:1"></span>
+<span class="chip" style="height:20px"><span style="width:6px;height:6px;border-radius:3px;background:var(--ok)"></span>Agent: Edit data · 127.0.0.1:41775</span>
+<span class="chip" style="height:20px">Healthy</span>
+<span>System</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  units() {
+    const u = {};
+    [
+      ['src/Nendo.Workbench', 'Nendo.Workbench', 45591, 216, 124, 'TypeScript', 'The web UI: Use, Studio, Help and the custom-view runtime.', false],
+      ['src/Nendo.Engine', 'Nendo.Engine', 34716, 143, 58, 'C#', 'Typed application services over SQLite: records, revisions, history and calculations.', false],
+      ['src/Nendo.LocalMcp', 'Nendo.LocalMcp', 13046, 54, 78, 'C#', 'The local MCP server: tools, resources, the edit lease and proposals.', false],
+      ['src/Nendo.Desktop', 'Nendo.Desktop', 11946, 80, 51, 'C#', 'The WinUI host: window, WebView2, agent access and the file lifecycle.', false],
+      ['tests/Nendo.Engine.Tests', 'Engine.Tests', 28665, 128, 52, 'C#', 'Engine tests: storage, history folding, calculations and search.', false],
+      ['tests/Nendo.LocalMcp.Tests', 'LocalMcp.Tests', 15398, 75, 68, 'C#', 'Tool, resource and protocol tests for the MCP server.', false],
+      ['tests/Nendo.Desktop.Tests', 'Desktop.Tests', 8799, 59, 46, 'C#', 'Host tests, including the journeys that drive a real window.', false],
+      ['tools', 'tools (scripts)', 25451, 87, 150, 'PowerShell', 'Gates, builders and the installer pipeline.', false],
+      ['tools/archi', 'tools/archi', 17658, 32, 28, 'JavaScript', 'The Archi definition, its canvas bundle and the relationship tables.', false],
+      ['tools/bcm-atlas', 'tools/bcm-atlas', 4692, 28, 13, 'JavaScript', 'The Capability Atlas definition and its gate.', true],
+      ['tools/garden', 'tools/garden', 3038, 16, 17, 'JavaScript', 'The Garden definition, its bundler and tests.', false],
+      ['extensions/archi', 'extensions/archi', 14051, 15, 31, 'JavaScript', 'The ArchiMate workbench view.', false],
+      ['extensions/garden', 'extensions/garden', 12516, 42, 26, 'JavaScript', 'The Garden views: Overview, notes, Graph, Agenda and Tend.', false],
+      ['docs/contracts', 'docs/contracts', 6941, 13, 122, 'Markdown', 'Contracts for MCP, custom views, queries and surfaces.', false]
+    ].forEach(r => { u[r[0]] = { id: r[0], name: r[1], lines: r[2], files: r[3], ch: r[4], fmt: r[5], sum: r[6], stale: r[7] }; });
+    return u;
+  }
+  renderVals() {
+    const dark = (this.props.theme || 'light') === 'dark';
+    const st = this.state || {};
+    const sel = st.sel || 'src/Nendo.LocalMcp';
+    const heat = dark ? ['#3b4048', '#594633', '#7f5631', '#bd7433', '#e98a3d'] : ['#dde5ee', '#f5dfc4', '#efbf89', '#dd8b47', '#a64b1b'];
+    const bucket = c => c >= 100 ? 4 : c >= 60 ? 3 : c >= 30 ? 2 : c >= 10 ? 1 : 0;
+    const U = this.units();
+    const pos = {
+      'tests/Nendo.Engine.Tests': [80, 120], 'tests/Nendo.LocalMcp.Tests': [80, 230], 'tests/Nendo.Desktop.Tests': [80, 340],
+      'src/Nendo.Desktop': [270, 340], 'src/Nendo.LocalMcp': [450, 230], 'src/Nendo.Workbench': [450, 400], 'src/Nendo.Engine': [610, 150],
+      'tools': [90, 500], 'tools/archi': [270, 560], 'tools/garden': [270, 630],
+      'extensions/archi': [460, 560], 'extensions/garden': [460, 630], 'docs/contracts': [620, 540]
+    };
+    const E = [
+      ['tests/Nendo.Engine.Tests', 'src/Nendo.Engine', 'Tests'], ['tests/Nendo.LocalMcp.Tests', 'src/Nendo.LocalMcp', 'Tests'], ['tests/Nendo.Desktop.Tests', 'src/Nendo.Desktop', 'Tests'],
+      ['src/Nendo.Desktop', 'src/Nendo.LocalMcp', 'Uses'], ['src/Nendo.Desktop', 'src/Nendo.Engine', 'Uses'], ['src/Nendo.LocalMcp', 'src/Nendo.Engine', 'Uses'],
+      ['src/Nendo.Desktop', 'src/Nendo.Workbench', 'Hosts'], ['tools', 'src/Nendo.Desktop', 'Builds'],
+      ['tools/archi', 'extensions/archi', 'Builds'], ['tools/garden', 'extensions/garden', 'Builds'],
+      ['docs/contracts', 'src/Nendo.LocalMcp', 'Describes'], ['docs/contracts', 'src/Nendo.Workbench', 'Describes']
+    ];
+    const rOf = id => 6 + Math.sqrt(U[id].lines) / 12;
+    const near = {};
+    E.forEach(e => { if (e[0] === sel) near[e[1]] = 1; if (e[1] === sel) near[e[0]] = 1; });
+    const inGraph = !!pos[sel];
+    const edges = E.map(e => {
+      const a = pos[e[0]], b = pos[e[1]];
+      const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.sqrt(dx * dx + dy * dy);
+      const ra = rOf(e[0]) + 2, rb = rOf(e[1]) + 5;
+      const on = e[0] === sel || e[1] === sel;
+      return { x1: (a[0] + dx * ra / d).toFixed(1), y1: (a[1] + dy * ra / d).toFixed(1), x2: (b[0] - dx * rb / d).toFixed(1), y2: (b[1] - dy * rb / d).toFixed(1),
+        marker: on ? 'url(#arBs)' : 'url(#arB)', color: on ? 'var(--cobalt)' : 'var(--edge)', width: on ? 2 : 1.4, dash: e[2] === 'Describes' ? '5 4' : 'none', op: !inGraph || on ? 1 : 0.35 };
+    });
+    const nodes = Object.keys(pos).map(id => {
+      const k = U[id], p = pos[id], r = rOf(id);
+      const isSel = id === sel, isNear = !!near[id];
+      return { x: p[0], y: p[1], r: r.toFixed(1), ly: (p[1] + r + 15).toFixed(1), name: k.name, fill: heat[bucket(k.ch)],
+        stroke: isSel ? 'var(--cobalt)' : k.stale ? 'var(--warn)' : 'var(--surface)', sw: isSel ? 3 : 2, dash: k.stale ? '3 2' : 'none',
+        weight: isSel ? 700 : 400, op: !inGraph || isSel || isNear ? 1 : 0.4, pick: () => this.setState({ sel: id }) };
+    });
+    const groups = [
+      { label: 'tests', x: 30, y: 78, w: 104, h: 300 }, { label: 'src', x: 214, y: 92, w: 456, h: 345 },
+      { label: 'tools', x: 30, y: 458, w: 296, h: 214 }, { label: 'extensions', x: 400, y: 518, w: 124, h: 154 }, { label: 'docs', x: 560, y: 494, w: 124, h: 96 }
+    ].map(g => Object.assign(g, { tx: g.x + 10, ty: g.y + 18 }));
+    const max = 45591;
+    const R = [
+      [0, 'nendo', null, '▾', 700], [1, 'src', null, '▾', 600], [2, 'Nendo.Workbench', 'src/Nendo.Workbench'], [2, 'Nendo.Engine', 'src/Nendo.Engine'], [2, 'Nendo.LocalMcp', 'src/Nendo.LocalMcp'], [2, 'Nendo.Desktop', 'src/Nendo.Desktop'],
+      [1, 'tests', null, '▾', 600], [2, 'Nendo.Engine.Tests', 'tests/Nendo.Engine.Tests'], [2, 'Nendo.LocalMcp.Tests', 'tests/Nendo.LocalMcp.Tests'], [2, 'Nendo.Desktop.Tests', 'tests/Nendo.Desktop.Tests'],
+      [1, 'tools', null, '▾', 600], [2, 'tools (scripts)', 'tools'], [2, 'archi', 'tools/archi'], [2, 'bcm-atlas', 'tools/bcm-atlas'], [2, 'garden', 'tools/garden'],
+      [1, 'extensions', null, '▸', 600], [1, 'docs', null, '▸', 600], [1, 'site', null, '▸', 600], [1, 'other', null, '▸', 600]
+    ];
+    const rows = R.map(r => {
+      const k = r[2] ? U[r[2]] : null;
+      return { indent: r[0] * 14, arrow: r[3] || '', name: r[1], weight: r[4] || 400, cls: k && k.id === sel ? 'sel' : '', stale: !!(k && k.stale),
+        bar: k ? Math.max(2, Math.round(56 * k.lines / max)) : 0, heat: k ? heat[bucket(k.ch)] : 'transparent',
+        pick: () => { if (k) this.setState({ sel: k.id }); } };
+    });
+    const k = U[sel];
+    const rel = { Tests: ['Tests', 'Tested by'], Uses: ['Uses', 'Used by'], Hosts: ['Hosts', 'Hosted by'], Builds: ['Builds', 'Built by'], Describes: ['Describes', 'Described by'] };
+    const nb = [];
+    E.forEach(e => { if (e[0] === sel) nb.push({ rel: rel[e[2]][0], name: U[e[1]].name }); if (e[1] === sel) nb.push({ rel: rel[e[2]][1], name: U[e[0]].name }); });
+    const asks = {
+      'src/Nendo.LocalMcp': [{ n: 1, kind: 'Question', status: 'Answered', text: 'Where does a data write check the lease?', answer: 'NendoAgentAuthority.cs. A nendo.data.* call without the lease is refused with INVALID_LEASE, and writes queue on one authority gate.' }],
+      'src/Nendo.Workbench': [{ n: 2, kind: 'Question', status: 'Open', text: 'Which files would I touch to add a chart kind?', answer: '' }]
+    }[sel] || [];
+    const u = { id: k.id, name: k.name, sum: k.sum, fmt: k.fmt, kind: k.id.indexOf('/') > 0 && k.id.indexOf('tools') !== 0 ? 'Module' : 'Folder',
+      state: k.stale ? 'Stale: changed since summary' : 'Current', stateCls: k.stale ? 'warn' : 'ok',
+      lines: k.lines.toLocaleString('en-GB'), files: k.files, ch: k.ch, nb: nb, nCount: nb.length, hasNb: nb.length > 0, noNb: nb.length === 0,
+      asks: asks.map(a => Object.assign({}, a, { hasAnswer: !!a.answer, pinCls: a.status === 'Open' ? 'open' : 'answered' })), hasAsks: asks.length > 0 };
+    return { themeCls: dark ? 'dark' : '', nodes: nodes, edges: edges, groups: groups, rows: rows, u: u };
+  }
+}
+</script>
+</body>
+</html>

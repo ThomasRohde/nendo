@@ -5,12 +5,15 @@ agents and for the owner. One `.nendo` file per machine holds the map. Claude Co
 any repository, reads that repository and writes the map over the Nendo MCP server. The owner
 opens one repository at a time and looks into it. A question or note pinned to a place on the
 map is answered there on the agent's next pass. The owner asked for it on 2026-10-08. It is initiative I-008 in the planner; this plan is
-W-185, the slices are W-186 to W-194, and the choice of direction is D-004.
+W-185, the slices are W-186 to W-194 and W-196, and the choice of direction is D-004.
 
 This document is the plan. It covers the record types, how agents write and reach the file,
 the skill the file carries, where the files live, the views, the ADRs, and the slices that
-build it. The design canvas has four directions for the main screen, A to D, in both themes:
-<https://claude.ai/artifact/M4b2TTHP6EfHBoytiS9m5r>. The canvas is private to the owner.
+build it. The design canvas drew four directions for looking into a repository, A to D, in both
+themes: <https://claude.ai/artifact/M4b2TTHP6EfHBoytiS9m5r>. The canvas is private to the owner.
+On 2026-10-08 the owner chose all four, each as a view of its own rather than as modes of one
+view (D-004). The artboards are kept in [`codemap-canvas/`](codemap-canvas/README.md), so a
+session that cannot open the canvas can still read them.
 
 Codemap stays within ADR-0013 (custom views carry their code), ADR-0019 (a declared hierarchy),
 ADR-0020 (unique fields), ADR-0022 (a new file of the application), ADR-0024 (a file carries
@@ -29,9 +32,9 @@ carries the scanner that an agent runs. It needs no other host change.
 | The skill | `dev.nendo.codemap`: how to map a repository, re-map it, answer pinned questions and write tours, with `scan.mjs`, a dependency-free scanner the agent runs |
 | Live file | `workspace/Codemap.nendo`, git-ignored like the planner, made with *File → New codemap* |
 | Demo file | `workspace/Codemap Demo.nendo`, tracked, built by `tools/Build-Codemap.mjs` from this repository and from `docs/` scanned as a cowork folder |
-| Views | Native screens for every record type. Two custom views in one package: the Overview of all repositories, which opens the file, and the Map of one repository (the canvas) |
+| Views | Native screens for every record type. Five custom views in one package: the Overview of all repositories, which opens the file, and four views of one repository, each its own screen: Map (A), Links (B), Tours (C) and Brief (D) |
 | ADRs | ADR-0029 only: a skill may carry scripts its client runs |
-| Slices | Nine, listed under [Build slices](#build-slices) |
+| Slices | Ten, listed under [Build slices](#build-slices) |
 
 ## What the file is for
 
@@ -40,13 +43,15 @@ carries the scanner that an agent runs. It needs no other host change.
   changed, then adds the judgement no scanner has: a one-line summary per unit, which modules
   depend on which, which units are hotspots, and guided tours ("How a write reaches the
   database": ordered steps, each pointing at a unit and a file).
-- **The person views.** They pick a repository. The Map draws it as a treemap or sunburst
-  (ECharts), sized by lines and coloured by recent changes, freshness or questions, and as a
-  link graph (Cytoscape.js, laid out by ELK). The Overview shows every repository together.
+- **The person views.** They pick a repository and look at it four ways, each a screen of its
+  own. The Map draws it as a treemap (ECharts), sized by lines and coloured by recent changes,
+  freshness or questions. Links draws the dependency or reference graph (Cytoscape.js, laid
+  out by ELK) beside an outline. Tours draws a sunburst and walks a tour along the bottom. The
+  Brief is a page to read. The Overview shows every repository together.
 - **The person asks; the agent answers.** A question or note pinned to a unit is a record. The
   next pass reads the open questions for its repository and writes the answer into the same
   record, so the answer appears where the question was asked. A tour is walked step by step
-  across the map.
+  in the Tours view.
 - **Two kinds of repository, one model.** A code repository has modules, imports and git
   history. A cowork folder holds documents, decks, sheets and notes. It may have no git. Units
   are folders and documents there, links are references between documents, and summaries
@@ -347,18 +352,36 @@ do.
 
 ### Custom views
 
-One package, `dev.nendo.codemap` in `extensions/codemap/`, carries two `extensionView`s of the
-file:
+One package, `dev.nendo.codemap` in `extensions/codemap/`, carries five `extensionView`s of the
+file (a file may have eight). The owner chose the canvas's four directions as four views, each
+its own screen in the navigation with its own toolbar, rather than modes of one view (D-004):
 
 - **Overview** (`cm.home`) opens the file. It shows every repository as a card: a small
   treemap, freshness, units, stale summaries and open questions. A treemap of all
-  repositories together sits above the cards. Choosing a repository opens the Map on it,
-  handed over through the package's storage as Garden's Overview does.
-- **Map** (`cm.map`) is the "look into a repository" screen of the canvas. The owner picks
-  its direction. It reads one repository's units with `queryAll` and a `cm.unit.repo`
-  filter. It draws the treemap and sunburst with ECharts and the link graph with Cytoscape.
-  It writes questions and notes with `records.create` under a `writeKey`, and listens to
-  `changes`, so an answer appears while the person looks.
+  repositories together sits above the cards. Choosing a repository opens its Map.
+- **Map** (`cm.map`), direction A: the treemap of one repository, coloured by changes,
+  freshness or questions, with stale units hatched and pins for questions, beside the
+  inspector of the picked unit (summary, totals, links, hot files, questions, the Ask box and
+  the tours through it). It is the view a repository opens on.
+- **Links** (`cm.links`), direction B: the outline of the units beside the link graph, with
+  areas as compound nodes; picking a unit lights its neighbours, and the panel lists them with
+  the unit's questions and the Ask box.
+- **Tours** (`cm.tours`), direction C: a sunburst of the repository and the tour rail along
+  the bottom. Each step lights its unit on the sunburst and shows the step's title, file and
+  text; Previous, Next and the arrow keys move along it.
+- **Brief** (`cm.brief`), direction D: a page to read: purpose, freshness, the areas as cards,
+  a treemap of the picked area, hotspots, questions and tours.
+
+The views share code and context, not screens:
+
+- One set of modules in the package reads a repository (`queryAll` with a `cm.unit.repo`
+  filter), computes the heat scale and draws the inspector, so the four views agree.
+- The repository and unit picked last are kept in the package's own storage, which all its
+  frames share, so moving from the Map to Links keeps both. A view hands a place to another
+  through that storage and `ui.openScreen`, as Garden's Overview hands a note to the Garden
+  view.
+- Each view writes questions and notes with `records.create` under a `writeKey`, and listens
+  to `changes`, so an answer appears while the person looks.
 
 An `extensionRecordPanel` on the unit page, showing where the unit sits, can follow later.
 
@@ -429,16 +452,17 @@ defect back, watch the guard fail, quote the failure text in a Finding (`AGENTS.
 | **S1** (W-186) Skill scripts are named in review | ADR-0029's host part: the proposal line and Studio's card name each script file a skill package carries, and say that it runs in the agent's client and never in Nendo; the contract and Help say so | Engine test: a skill package with `scan.mjs` validates and its review line names the file; a package with no script keeps today's line. Workbench test for the card. `Test-Production.ps1 -SkipRestore` |
 | **S2** (W-187) Definition, scanner and demo file | `tools/codemap/definition.mjs`, `scan.mjs`, `demo-summaries.mjs`, `tools/Build-Codemap.mjs`; the record types, calculations and native screens; `workspace/Codemap Demo.nendo` built from this repository and `docs/` | `node --test tools/codemap/*.test.mjs`: the granularity rules (fold under three files, depth six, the 600 cap, promotion), stable IDs, git and folder fingerprints, `--previous` printing only differences, link extraction, every field a screen names exists, each stage under 128 operations. `Build-Codemap.mjs` then `compare`. `Test-BinaryAssets.ps1` reads the tracked file. Measured: the demo's operation rows and records per repository, against the budget above |
 | **S3** (W-188) The skill and help | `tools/codemap-skill/` (SKILL.md and the `scan.mjs` copy), help pages, `Put-NendoPackage` into the demo | A test that the skill's scanner is the builder's, byte for byte, and that SKILL.md's worked example matches the scanner's output. Agent-observed: a fresh Claude Code session in another repository, registered at user scope against a copy of the demo, maps it, re-maps after a commit writing only the changed fields, and answers one pinned question. The pass record's rows are recorded as evidence |
-| **S4** (W-189) The Map view | The owner's direction from the canvas, with ECharts vendored: the treemap or sunburst, colour by changes, freshness and questions, stale hatching, pins, the inspector or brief, the repository picker, both themes | `tools/Review-Codemap.ps1` (in `Test-Production.ps1`) on the fixture broker. It measures: every unit of the fixture drawn once and inside the map; tile area in proportion to lines within 2%; the heat step of each tile; stale tiles hatched and others not; a click opening the right unit under a real pointer; the theme's tokens in Light and Dark; no sideways scroll at 700 px. The definition test checks the notices |
-| **S5** (W-190) Links | Cytoscape and ELK in the Map: areas as compound nodes, picking lights neighbours | In the same lane: one edge per link, no node outside the frame, a pick dimming exactly the non-neighbours, ELK's fallback when the worker is refused |
-| **S6** (W-191) Ask and answer | Pinning a question or note from the Map; the Questions board; the skill's answer step; the answer appearing in place | Lane: a pin creates one `cm.ask` with its unit, one write under a `writeKey`, and a fixture answer arriving through `changes` shows without a reload. Agent-observed: an answer written by a real pass |
-| **S7** (W-192) Tours | Walking a tour across the map: step, unit, file, Previous and Next | Lane: each step lights its own unit and only it, and the keys move between steps. A re-map that changes a step's unit marks the tour Stale (scanner test) |
-| **S8** (W-193) Overview of all repositories | `cm.home` opens the file: repository cards and the cross-repository treemap | Lane: one card per repository with the counts the records hold, the treemap's top level is the repositories, and a card hands its repository to the Map |
+| **S4** (W-189) The Map view (A) | `cm.map`, with ECharts vendored and the shared modules (repository read, heat scale, inspector, the picked repository and unit in package storage): the treemap, colour by changes, freshness and questions, stale hatching, pins, the inspector, the repository picker, both themes | `tools/Review-Codemap.ps1` (in `Test-Production.ps1`) on the fixture broker. It measures: every unit of the fixture drawn once and inside the map; tile area in proportion to lines within 2%; the heat step of each tile; stale tiles hatched and others not; a click opening the right unit under a real pointer; the theme's tokens in Light and Dark; no sideways scroll at 700 px. The definition test checks the notices |
+| **S5** (W-190) The Links view (B) | `cm.links`: the outline beside the Cytoscape graph laid out by ELK, areas as compound nodes, picking lights neighbours, the neighbour panel | In the same lane: one edge per link, no node outside the frame, a pick dimming exactly the non-neighbours, ELK's fallback when the worker is refused |
+| **S6** (W-191) Ask and answer | Pinning a question or note from the Map and Links; the Questions board; the skill's answer step; the answer appearing in place | Lane: a pin creates one `cm.ask` with its unit, one write under a `writeKey`, and a fixture answer arriving through `changes` shows without a reload. Agent-observed: an answer written by a real pass |
+| **S7** (W-192) The Tours view (C) | `cm.tours`: the sunburst and the tour rail; each step's unit, title, file and text; Previous, Next and the keys | Lane: the sunburst's angles in proportion to lines, each step lights its own unit and only it, and the keys move between steps. A re-map that changes a step's unit marks the tour Stale (scanner test) |
+| **S8** (W-193) Overview of all repositories | `cm.home` opens the file: repository cards and the cross-repository treemap | Lane: one card per repository with the counts the records hold, the treemap's top level is the repositories, and a card hands its repository to the Map and opens it |
+| **S10** (W-196) The Brief view (D) | `cm.brief`: purpose, freshness, the areas as cards, the picked area's treemap, hotspots, questions and tours | Lane: one card per area with the totals the records hold, the treemap shows the picked area's units, the hotspots are the units with the most recent changes in order, and a card, a hotspot or a tour hands its place to the Map or Tours view |
 | **S9** (W-194) The live file and registration | *File → New codemap*, Edit data, the fixed port, the user-scope registration, the user-level instructions, `.gitignore` for `workspace/Codemap.nendo`, and `docs/dogfooding.md`'s neighbour for Codemap | Owner-reported: Codemap open in the tray, two real repositories mapped from their own sessions (one code, one cowork), a question answered in place. The first pass's rows against the budget |
 
-The order is S2, S1, S3, then S4 once the owner has picked a direction (D-004), then S5 to S8 in any
-order, then S9. S4 to S8 change only the package, so each is an `upgrade` of the demo and
-needs one acceptance.
+The order is S2, S1, S3, then S4, which brings the shared modules and ECharts. S5 to S8 and
+S10 follow in any order. S9 can start once S3 is done. S4 to S8 and S10 change only the
+package, so each is an `upgrade` of the demo and needs one acceptance.
 
 ## Open questions
 
