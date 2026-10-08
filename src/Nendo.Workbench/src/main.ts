@@ -1,6 +1,7 @@
 // First, so that a Workbench loaded inside a frame stops before anything else has run.
 import './frame-guard';
 import { refreshAgentStatus, renderAgent, renderAgentProposal } from './view-agent';
+import { agentChatTitle, followAgentChat, renderAgentChat } from './view-agent-chat';
 import { destroyGrid, renderData } from './view-data';
 import { refreshHealth, renderHealth } from './view-health';
 import { renderHelp } from './view-help';
@@ -150,6 +151,7 @@ function render(): void {
       case 'surfaces': renderSurfaces(); break;
       case 'history': renderHistory(); break;
       case 'agent': renderAgent(); break;
+      case 'agentChat': renderAgentChat(); break;
       default: renderData(); break;
     }
   }
@@ -161,6 +163,8 @@ function render(): void {
       // A custom view's controls are the view's to disable (W-090): it is told the file is
       // read-only, and the host refuses its writes whatever it draws.
       if (control.closest('[data-view-toolbar]') !== null) continue;
+      // A conversation is not an edit to the file; the agent's writes meet the access level.
+      if (control.closest('[data-agent-chat]') !== null) continue;
       control.disabled = true;
     }
   }
@@ -234,6 +238,7 @@ function currentHeading(): { eyebrow: string; title: string } {
       case 'help': return { eyebrow: 'How it works, guides & this app', title: 'Help' };
       case 'agent': return { eyebrow: 'Local collaboration', title: 'Agent access' };
       case 'agentProposal': return { eyebrow: 'Local collaboration', title: 'Review changes' };
+      case 'agentChat': return { eyebrow: 'Local collaboration', title: agentChatTitle() };
       case 'proposal': return { eyebrow: 'Studio', title: 'Review changes' };
       case 'surfaces': return { eyebrow: 'Studio', title: 'Surfaces' };
       case 'history': return { eyebrow: 'Studio', title: 'History' };
@@ -296,7 +301,7 @@ function updateChrome(): void {
   // The file, named at the title bar's left end over the navigation (G).
   brandFile.textContent = named ? state.session.fileName!.replace(/\.nendo$/i, '') : 'Nendo';
   brandFile.title = state.session.fileName ?? '';
-  const addressIcon: IconName = state.view === 'use' ? (fileViewById(state.fileView) !== null ? viewIcon(fileViewById(state.fileView)!) : showsOverview() ? 'home' : 'box') : state.view === 'agent' || state.view === 'agentProposal' ? 'agent'
+  const addressIcon: IconName = state.view === 'use' ? (fileViewById(state.fileView) !== null ? viewIcon(fileViewById(state.fileView)!) : showsOverview() ? 'home' : 'box') : state.view === 'agent' || state.view === 'agentProposal' || state.view === 'agentChat' ? 'agent'
     : state.view === 'help' ? 'help' : state.view === 'proposal' ? 'studio' : state.view;
   // On a record type's screen the address carries that type's icon, as the navigation and the tab do.
   const typeName = state.view === 'use' && !showsOverview() && fileViewById(state.fileView) === null ? current?.entity.displayName ?? null : null;
@@ -340,7 +345,7 @@ function updateChrome(): void {
   navigation.health.disabled = client.mode === 'unavailable';
   updateHistoryControls();
   renderFileMenu();
-  const selected = state.view === 'proposal' ? state.proposalReturnView : state.view === 'agentProposal' ? 'agent' : state.view;
+  const selected = state.view === 'proposal' ? state.proposalReturnView : state.view === 'agentProposal' || state.view === 'agentChat' ? 'agent' : state.view;
   for (const [name, button] of Object.entries(navigation)) {
     button.title = name === 'use' ? 'Use application' : name === 'agent' ? 'Agent access' : capitalise(name);
     const active = name === selected;
@@ -717,6 +722,10 @@ function followTheFile(): void {
   );
 }
 
+// The launched agent's conversation moved (ADR-0030). It is read whether or not its tab is on
+// screen, so switching to the tab shows it as it is.
+client.onAgentSessionChanged?.(() => { followAgentChat(); });
+
 // Drawn by the shell itself rather than through a render pass: it must appear while a
 // request is queued behind an agent's write, which is exactly when a render cannot run.
 client.onAgentActivity?.((work) => { setAgentWork(work); });
@@ -758,7 +767,7 @@ systemDark.addEventListener('change', () => {
 
 window.setInterval(() => {
   // A re-render replaces the panel, so never poll while the owner is editing a connection field.
-  const editingConnection = content.querySelector('.agent-connection')?.contains(document.activeElement) ?? false;
+  const editingConnection = document.activeElement?.closest('.agent-connection, .agent-launch') != null;
   if (state.view === 'agent' && !state.actionInFlight && !editingConnection && state.session.hasFile) {
     // rerender, not render: this poll rebuilds the page every three seconds on its own
     // account, and the raw renderer puts back a page with an empty message slot. So the

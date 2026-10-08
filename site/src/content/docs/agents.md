@@ -7,7 +7,7 @@ order: 40
 
 An agent is an AI coding assistant that runs on your computer, such as Claude Code or Codex. Nendo lets an agent read your open file, change its records, and propose changes to its record types, fields, screens, calculations and automatic actions. You choose how much it may do, and you accept its proposals in Nendo.
 
-The agent works through the Model Context Protocol (MCP). It gets typed resources to read and typed tools to call. It never gets SQL, a file path, file-system access, a process, network access or a generic "run this" call. It learns the name of the open file, never its location. This keeps every change inside the same checked operations that the Nendo window uses, so every change is validated, recorded in History and, where possible, reversible. For the terms used here, see [Concepts](/nendo/docs/concepts).
+The agent works through the Model Context Protocol (MCP). It gets typed resources to read and typed tools to call. From Nendo, it never gets SQL, a file path, file-system access, a process, network access or a generic "run this" call. It learns the name of the open file, never its location. This keeps every change inside the same checked operations that the Nendo window uses, so every change is validated, recorded in History and, where possible, reversible. For the terms used here, see [Concepts](/nendo/docs/concepts).
 
 ## Connect an agent
 
@@ -29,6 +29,18 @@ If a file's port is taken by another program when access starts, Nendo does not 
 A script or tool that needs to find a file's address without being told can read `%LOCALAPPDATA%\Nendo\Mcp\active\`. Each running Nendo keeps one small JSON file there for every file it has open, readable only by your Windows account. It holds the `endpoint`, the file's name as `displayName` (never its folder), the file's `applicationId`, the access `mode` and the `processId`. The entry is removed when the file closes. Once connected, `nendo://host/instances` lists the same entries.
 
 There is no credential. While access is on, any program on this computer can connect at the level you chose. On your own computer that is a reasonable trade. On a shared computer it is not. Set access to **Off** when no agent is working.
+
+## Launch an agent from Nendo
+
+Nendo can also start an agent for you, in a tab beside the file. It speaks the Agent Client Protocol (ACP), which coding agents use to run inside an editor:
+
+1. Select **Agent** and choose **Inspect** or a higher level.
+2. Under **Launch an agent**, select one that Nendo found on this computer: GitHub Copilot CLI, Gemini CLI, Claude Code or Codex through their ACP adapters, or OpenCode. You can also add your own command, such as `my-agent --acp`.
+3. The agent opens in a new tab. Type to it there. The tab shows the agent's replies, the tools it calls and its plan, and asks you whenever the agent asks permission. **Stop** interrupts it, and **End** closes it.
+
+Nendo installs nothing and holds no credentials. The agent program signs in the way it does in a terminal. Nendo gives it one MCP server, this file's address, at the level you chose. It gives no file or terminal access, and the agent starts in an empty folder. Its proposals wait on the Agent page like any other agent's.
+
+It is the same program you would run in a terminal, and it keeps its own tools on this computer. Nendo does not confine it, and an agent may run its own tools without asking. Changing the level keeps it running. Choosing **Off**, closing the file or opening another file ends it and everything it started. The conversation is not saved: not in the file, and not on this computer.
 
 ## Access levels
 

@@ -9,6 +9,7 @@ import {
 } from './preview-fixtures';
 import { WorkbenchHostError, emptySession, isObject } from './host-types';
 import { previewSearch } from './search-text';
+import { PreviewAgentSession } from './preview-agent-session';
 
 /**
  * The in-memory host behind ?preview=1.
@@ -51,15 +52,22 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
   private readonly viewSwitches = { device: true, file: true };
   private packages: ExtensionPackageView[] = [];
   private packageProposal: { proposal: ProposalPreview; apply: () => void } | null = null;
+  // A launched agent (ADR-0030), played by a script so Launch and its tab can be seen here.
+  private readonly agentSession = new PreviewAgentSession(() => this.agentStatus);
 
   constructor() {
     this.fixtureName = previewFixtureName(new URLSearchParams(window.location.search).get('preview'));
     this.installFixture(previewFixture(this.fixtureName), false);
   }
 
+  onAgentSessionChanged(listener: (revision: number) => void): () => void {
+    return this.agentSession.onChanged(listener);
+  }
+
   async request<T>(method: string, payload: Record<string, unknown> = {}): Promise<T> {
     await Promise.resolve();
     let result: unknown;
+    if (method.startsWith('agentSession.')) return structuredClone(this.agentSession.handle(method, payload)) as T;
     switch (method) {
       case 'session.getSnapshot':
         result = this.session;

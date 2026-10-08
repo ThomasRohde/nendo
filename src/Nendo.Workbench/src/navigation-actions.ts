@@ -114,7 +114,7 @@ function whyPlaceIsGone(place: Place): string | null {
       : place.view === 'data' || place.view === 'structure' ? can.readData
         : place.view === 'surfaces' ? can.customSurfaces
           : place.view === 'history' ? can.readHistory
-            : place.view === 'agent' || place.view === 'agentProposal' ? can.agentAccess
+            : place.view === 'agent' || place.view === 'agentProposal' || place.view === 'agentChat' ? can.agentAccess
               : true;
   if (!permitted) return 'That screen is not available in this file any more.';
   if (place.proposalId !== null && state.proposal?.proposalId !== place.proposalId)

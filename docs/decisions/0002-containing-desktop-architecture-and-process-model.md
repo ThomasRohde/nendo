@@ -372,6 +372,27 @@ one refusal, `unsupported-protocol`, at version 7 and before anything runs.
 The 2026-09-15 amendment's remark that a renderer at 2–6 drops an unsolicited
 message is history: no such renderer is served any more.
 
+## 2026-10-08 note — the conversation with a launched agent
+
+[ADR-0030](0030-launch-the-persons-own-agent-over-acp.md) lets the Agent page start
+the person's own agent program. Its conversation reaches the Workbench through
+protocol 7, which gains nine methods and one unsolicited event. The Workbench and
+the host ship together, so the version does not change.
+
+- `agentSession.list`, `agentSession.setCommand` and `agentSession.launch` take the
+  request gate, like every Agent page request.
+- `agentSession.read`, `prompt`, `answer`, `cancel`, `authenticate` and `end` do not.
+  The conversation tab has to keep reading while an agent's own write holds the
+  file. Each of them still names its file session, and the host checks it against
+  the open one, so a renderer of a closed file is refused as `stale-file-session`.
+- All nine run away from the UI thread.
+- A request that names a custom view's actor is refused, as on every method except the
+  record writes.
+- `agentSessionChanged` carries the conversation's revision and nothing else. It is
+  a nudge, like `fileChanged`: the tab reads what changed after the revision it
+  holds and patches those entries in place. It never redraws the composer, so a
+  half-typed message survives the agent's own writes.
+
 ## Consequences
 
 ### Positive

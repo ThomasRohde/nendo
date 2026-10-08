@@ -858,10 +858,42 @@ invalidates all authority. A healthy renderer-only restart preserves it.
 
 There is no embedded agent, and the project did not adopt AG-UI
 ([ADR-0014](decisions/0014-drop-embedded-agent-mcp-is-the-agent-surface.md)).
-[ADR-0030](decisions/0030-launch-the-persons-own-agent-over-acp.md) decides that the
-Agent page may launch the person's own installed agent program over ACP, at Inspect
-or higher, with the conversation in a tab and this file's address as its only MCP
-server. It is not built: today every agent connects from outside Nendo.
+
+**The Agent page can launch the person's own agent program**
+([ADR-0030](decisions/0030-launch-the-persons-own-agent-over-acp.md), W-195). The
+host is an ACP client (`Desktop/Agents/`). It keeps no model client and no credential.
+
+- **What it offers.** `DesktopAgentCatalog` knows five programs: Copilot CLI,
+  Gemini CLI, the Claude Code and Codex ACP adapters, and OpenCode. It finds them on
+  `PATH` as a terminal would. A `.cmd` shim runs under the command interpreter. The
+  person may add one command line, which this device keeps in `agent-launch.json`.
+  Launch is offered at Inspect and above.
+- **How the program runs.** `AgentProcess` starts it in a new empty folder under
+  `agent-sessions/` in device state, with the person's own environment, inside a Job
+  Object. Closing the job's handle ends the program and everything it started.
+- **What the agent is told.** `AgentConversation` speaks ACP version 1 on the
+  program's stdio:
+  - `initialize` declares no file-system or terminal capability;
+  - `session/new` names one MCP server, this file's loopback address, as `http`;
+  - an agent that cannot connect over HTTP, or speaks another protocol version, is
+    refused by name before a session opens.
+- **What the tab shows.** Message chunks are merged into one message, tool calls are
+  updated in place, the plan is replaced whole, and all of it stays bounded text.
+- **Permission requests.** Each one waits for the person's choice. Stop cancels the
+  turn and every open request.
+- **What ends it.** Turning access Off, closing, switching or replacing the file, and
+  a listener that comes back at another address all end the agent. A new level at
+  the same address does not.
+
+The conversation reaches the tab through nine `agentSession.*` bridge methods and
+the `agentSessionChanged` nudge (ADR-0002, 2026-10-08 note). `view-agent-chat.ts`
+reads what changed and patches it in place, so the composer is never redrawn. The
+transcript lives in host memory until the file closes or another agent is launched.
+
+**What Nendo does not confine.** The program keeps every ability it has on this
+computer, including its own shell and file tools. ACP lets an agent ask permission
+but does not make it ask. Nendo gives it nothing beyond the MCP address at the
+person's level.
 
 ## File lifecycle
 
@@ -943,6 +975,7 @@ This table gives the current locations, so that you do not need to search.
 | Custom views: the Workbench | `Workbench/src/view-frames.ts` (mounts, lazy start, park and adopt, heartbeat, overlays, Stop and Reload), `view-frame-markup.ts` (placeholders, notices, overlays, the frame's attributes, the Studio panel's markup), `extension-broker.ts` (the closed method table and the caps), `extension-model.ts` (the context, records, schema and theme tokens a view is handed), `extension-ui.ts` (what a view may ask the Workbench to do), `view-packages.ts` (Studio → Surfaces → Custom views), `frame-guard.ts` (refuses to run framed). A view's controls in Nendo's chrome (W-090): `view-toolbar-model.ts` (the declaration rebuilt into closed kinds, its keys, Ctrl K's entries; `tools/Graph-FixtureServer.mjs` builds the same module for the view lanes' fixture broker, W-091), `view-toolbar-markup.ts` (the strip and the menu as markup), `view-toolbar.ts` (drawing and wiring the strip), `view-menu.ts` (Nendo's menu for a view), `styles/18-view-toolbar.css`. One row above a view (W-092): `place-pickers.ts` (the breadcrumb's record-type and view pickers, drawn by the Use page and the front page), `styles/19-one-row.css` |
 | The view API | `Workbench/src/extension-api/nendo-api.ts` (`window.nendo`) and `protocol.ts` (the messages, shapes and limits both ends share), built by `vite.api.config.ts` to `dist/_nendo/api.js` and served at `/_nendo/api.js` on every view origin |
 | What the file is for | `Engine/Storage/SqliteNendoStore.Application.cs`: a singleton row one rung below the layout ladder's last, read onto the manifest. `nendo://application/describe` leads with it. `Workbench/src/file-actions.ts` shows it on its own page, from About this file in the File menu |
+| Launched agents (ADR-0030) | `Desktop/Agents/AcpConnection.cs` (JSON-RPC on two streams, bounded lines), `AgentConversation.cs` (the ACP session, the transcript, permission requests), `AgentProcess.cs` (the program in its Job Object), `DesktopLaunchedAgent.cs` (process, folder and conversation together), `DesktopAgentCatalog.cs` (the known programs, `PATH` lookup, the person's command), `DesktopSessionController.LaunchedAgent.cs` (launch, read and the lifecycle), `WorkbenchProtocol.Agents.cs` (`agentSession.*`); `Workbench/src/agent-chat-model.ts` (merge and markup, pure), `view-agent-chat.ts` (the tab), `preview-agent-session.ts` (the preview's scripted agent), `styles/22-agent-chat.css` |
 | Agent tools and allow-list | `LocalMcp/NendoAuthoringTools.cs`, `NendoAgentAuthoringService.cs`, `NendoAuthoringOperations.cs`; the other tools are in `NendoLeaseTools.cs`, `NendoDataTools.cs`, `NendoHealthTools.cs` and `NendoUnattendedTools.cs` |
 | Resources | `LocalMcp/NendoMcpResources.cs`, `NendoResourceProjection.cs` |
 

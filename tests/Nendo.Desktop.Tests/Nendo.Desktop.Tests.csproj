@@ -24,6 +24,11 @@
     <Compile Include="..\Nendo.Engine.Tests\TestRepository.cs" Link="TestRepository.cs" />
   </ItemGroup>
 
+  <!-- The stand-in ACP agent the launched-agent tests start with Node (ADR-0030). -->
+  <ItemGroup>
+    <None Include="TestFixtures\fake-acp-agent.mjs" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Nendo.Desktop\Nendo.Desktop.csproj" />
   </ItemGroup>

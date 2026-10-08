@@ -1,10 +1,11 @@
 import { openHelp, refreshAfterOutcome, showOutcomeRefreshNotice } from './actions';
-import { state } from './app-state';
+import { fileScopedClearable, state } from './app-state';
 import { client } from './client';
 import { confirmDialog } from './confirm-dialog';
 import { type ConnectionClient, connectionClients, connectionCommand, serverNameFor } from './client-help';
 import { activityLabel, agentModeLabel, escapeAttribute, escapeHtml, formatDateTime, isAgentAccessMode, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel, shortId } from './format';
-import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type DesktopPromotionView, type ProposalPreview } from './host';
+import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type DesktopPromotionView, type LaunchableAgents, type ProposalPreview } from './host';
+import { launchAgent, openAgentChat, saveAgentCommand } from './view-agent-chat';
 import { announce, clearError, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
 import { applicationPlans, overviewPlan } from './plan-selection';
 import { addedSurfaceSentence, kindLabel } from './surface-model';
@@ -36,6 +37,33 @@ function ladderIntro(mode: AgentAccessMode): string {
       + 'when the building is done.'
     : 'Higher levels include the abilities before them. You review every proposed app '
       + 'change, unless you choose the level that stops asking.';
+}
+
+/** What Launch offers (ADR-0030), read with the status. Null where the host serves no launch. */
+let launchable: LaunchableAgents | null = null;
+fileScopedClearable({ clear(): void { launchable = null; } });
+
+const runningWords: Record<string, string> = { starting: 'starting', signIn: 'waiting for you to sign in', ready: 'running' };
+
+/**
+ * Launch an agent: the person's own installed agent programs, started in a tab beside the file
+ * at the level chosen above (ADR-0030). The sentence under the heading is the one thing a person
+ * must know before the first launch: Nendo does not confine the program.
+ */
+function launchMarkup(): string {
+  if (launchable === null) return '';
+  const offer = launchable;
+  const running = offer.running;
+  const rows = offer.agents.map((agent) => `<li><button class="launch-agent" type="button" data-launch-agent="${escapeAttribute(agent.id)}" data-action ${!agent.found || !offer.canLaunch || running !== null ? 'disabled' : ''}>
+      <span class="launch-name"><strong>${escapeHtml(agent.name)}</strong><small>${escapeHtml(agent.found ? agent.commandLine : `Not found on this computer · ${agent.commandLine}`)}</small></span>
+      <span class="launch-go" aria-hidden="true">${agent.found ? 'Launch' : ''}</span></button></li>`).join('');
+  return `<section class="agent-launch" aria-labelledby="launch-title">
+    <div class="permission-intro"><h2 id="launch-title">Launch an agent</h2><p>Start an agent you have installed, in a tab beside this file. It works at the level above and reaches this file only through Nendo. It is the program you would run in a terminal, with its own tools on this computer.</p></div>
+    ${running === null ? '' : `<div class="launch-running"><span><strong>${escapeHtml(running.name)}</strong> is ${escapeHtml(running.working ? 'working' : runningWords[running.state] ?? running.state)}.</span><button id="open-agent-chat" class="secondary-button" type="button">Open conversation</button></div>`}
+    <ul class="launch-list">${rows}</ul>
+    <label class="connection-field launch-command"><span>Your own command</span><input id="agent-command" type="text" spellcheck="false" autocomplete="off" maxlength="1000" value="${escapeAttribute(offer.customCommandLine ?? '')}" placeholder="program --acp"></label>
+    ${offer.canLaunch ? '' : `<p class="connection-note">${escapeHtml(offer.reason ?? 'An agent cannot be launched now.')}</p>`}
+  </section>`;
 }
 
 export function renderAgent(): void {
@@ -79,6 +107,7 @@ export function renderAgent(): void {
           ${modes.map((mode, index) => `<button class="permission-step" type="button" data-agent-mode="${mode.value}" aria-pressed="${status.mode === mode.value}" ${!status.available ? 'disabled' : ''}><span class="step-marker" aria-hidden="true">${index + 1}</span><span class="step-text"><strong>${mode.label}</strong><small>${mode.short}</small></span></button>`).join('')}
         </div>
       </section>
+      ${launchMarkup()}
       <section class="agent-connection" aria-labelledby="connection-title">
         <div class="permission-intro"><h2 id="connection-title">Connection</h2></div>
         <div class="connection-endpoint"><span class="presence-label">Address</span><code id="agent-endpoint">${status.endpoint === null ? 'Shown while agent access is on' : escapeHtml(status.endpoint)}</code><small>Register it with your client once, as <code>${escapeHtml(serverNameFor(state.session.fileName))}</code>.</small><div class="connection-copy">${connectionClients.map((item) => `<button class="secondary-button" data-connection-client="${item.id}" data-action type="button" ${status.endpoint === null ? 'disabled' : ''}>${escapeHtml(item.label)}</button>`).join('')}</div></div>
@@ -141,6 +170,20 @@ export function renderAgent(): void {
     button.addEventListener('click', () => void reviewAgentProposal(button.dataset.reviewAgentProposal!));
   }
   wireBehaviourApproval(content);
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-launch-agent]')) {
+    button.addEventListener('click', () => void launchAgent(button.dataset.launchAgent!));
+  }
+  content.querySelector<HTMLButtonElement>('#open-agent-chat')?.addEventListener('click', () => {
+    void openAgentChat().catch((error: unknown) => showError(messageFor(error)));
+  });
+  const command = content.querySelector<HTMLInputElement>('#agent-command');
+  command?.addEventListener('change', () => {
+    void saveAgentCommand(command.value).then((offer) => {
+      launchable = offer;
+      rerender();
+      announce(offer.customCommandLine === null ? 'Your command was removed.' : 'Your command was kept for this computer.');
+    }).catch((error: unknown) => showError(messageFor(error)));
+  });
 }
 
 // The queue names a consent step beside the size of the change, so a person sees it
@@ -418,6 +461,12 @@ export async function resolveAgentProposal(accept: boolean): Promise<void> {
 export async function refreshAgentStatus(): Promise<void> {
   if (!state.session.hasFile || client.mode === 'unavailable') return;
   state.agentStatus = await client.request<AgentStatus>('agent.getStatus');
+  try {
+    launchable = await client.request<LaunchableAgents>('agentSession.list');
+  } catch {
+    // A host without launching (the preview of an older build) shows the page without it.
+    launchable = null;
+  }
   if (state.agentStatus.state === 'recoveryRequired' && state.session.health !== 'recoveryRequired') {
     // MCP can discover outside file changes without a Workbench mutation. Its
     // revoked status must not leave the renderer advertising cached write access.

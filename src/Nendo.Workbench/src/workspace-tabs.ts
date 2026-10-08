@@ -1,4 +1,4 @@
-import { fileScopedClearable, state } from './app-state';
+import { fileScopedClearable, state, type ViewName } from './app-state';
 import { refuseWhileDirty } from './draft-guard';
 import { escapeAttribute, escapeHtml } from './format';
 import { icon, type IconName } from './icons';
@@ -8,7 +8,7 @@ import { typeGlyph } from './type-icons';
 import { revisitCurrent } from './navigation-actions';
 import { navigationTrail, type Place } from './navigation-trail';
 import { closeTabAt, switchTab, type Tab, type TabSet } from './tab-set';
-import { announce, refreshChrome, requiredElement } from './shell';
+import { announce, refreshChrome, requiredElement, rerender } from './shell';
 
 /**
  * The places a person keeps open, as tabs in the title bar (G, trial; the Mica-with-tabs canvas).
@@ -64,7 +64,7 @@ function tabIcon(place: Place | null): IconName {
   switch (place?.view) {
     case 'use': return place.showOverview === true ? 'home' : place.fileView !== null ? (fileViewById(place.fileView) === null ? 'surfaces' : viewIcon(fileViewById(place.fileView)!)) : 'box';
     case 'data': case 'structure': case 'surfaces': case 'history': case 'health': case 'help': return place.view;
-    case 'agent': case 'agentProposal': return 'agent';
+    case 'agent': case 'agentProposal': case 'agentChat': return 'agent';
     case 'proposal': return 'studio';
     default: return 'file';
   }
@@ -98,6 +98,19 @@ export function newTab(): void {
   navigationTrail.load(here === null ? { places: [], cursor: -1 } : { places: [here], cursor: 0 });
   refreshChrome();
   announce('New tab opened.');
+}
+
+/**
+ * Show `view` in a tab of its own: the tab already on it, or a new one beside this tab. For a page
+ * that is one of a kind in the window, such as a launched agent's conversation (ADR-0030).
+ */
+export async function openTabOn(view: ViewName): Promise<void> {
+  const index = set.tabs.findIndex((tab, at) => placeOf(tab, at)?.view === view);
+  if (index === set.active) { state.view = view; rerender(); return; }
+  if (index >= 0) { await activateTab(index); return; }
+  newTab();
+  state.view = view;
+  rerender();
 }
 
 export async function activateTab(index: number): Promise<void> {

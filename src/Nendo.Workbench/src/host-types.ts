@@ -236,6 +236,59 @@ export interface AgentWork {
   activity: string;
 }
 
+/** An agent the Agent page can launch (ADR-0030), and whether it was found on this computer. */
+export interface LaunchableAgent { id: string; name: string; commandLine: string; found: boolean }
+
+/** What the Agent page offers under Launch, why a launch is not possible now, and what is running. */
+export interface LaunchableAgents {
+  canLaunch: boolean;
+  reason: string | null;
+  agents: LaunchableAgent[];
+  customCommandLine: string | null;
+  running: { agentId: string; name: string; state: LaunchedAgentState; working: boolean } | null;
+}
+
+export type LaunchedAgentState = 'none' | 'starting' | 'signIn' | 'ready' | 'ended';
+export type AgentEntryKind = 'you' | 'agent' | 'thought' | 'tool' | 'plan' | 'permission' | 'notice';
+
+/**
+ * One entry of a launched agent's conversation. Everything in it is the agent's own words or
+ * data, so it is drawn as text and never as markup. `order` is where it stands; `revision` is
+ * when it last changed.
+ */
+export interface AgentTranscriptEntry {
+  id: string;
+  order: number;
+  revision: number;
+  kind: AgentEntryKind;
+  text: string;
+  title: string | null;
+  toolKind: string | null;
+  status: string | null;
+  input: string | null;
+  options: Array<{ optionId: string; name: string; kind: string }> | null;
+  answer: string | null;
+  plan: Array<{ text: string; status: string }> | null;
+}
+
+/** The conversation tab's read: the agent, its state, and what changed after the revision asked from. */
+export interface LaunchedAgentView {
+  exists: boolean;
+  agentId: string | null;
+  name: string | null;
+  commandLine: string | null;
+  endpoint: string | null;
+  level: string;
+  state: LaunchedAgentState;
+  working: boolean;
+  notice: string | null;
+  agentTitle: string | null;
+  revision: number;
+  entries: AgentTranscriptEntry[];
+  more: boolean;
+  signInMethods: Array<{ id: string; name: string; description: string | null }>;
+}
+
 /**
  * The window's title bar in CSS pixels (W-093): how tall it is, and how much of its width
  * Windows keeps for its own Minimise, Maximise and Close at the left and at the right. Nendo's
@@ -739,6 +792,11 @@ export interface WorkbenchClient {
   onTitleBarChanged?(listener: (bar: WindowTitleBar) => void): () => void;
   /** A file a view downloaded is saved; WebView2's own downloads panel is never shown (F-237). */
   onDownloadSaved?(listener: (saved: HostDownloadSaved) => void): () => void;
+  /**
+   * The agent launched from the Agent page said or asked something (ADR-0030). The host sends
+   * the conversation's revision and nothing else; the tab reads what changed after its own.
+   */
+  onAgentSessionChanged?(listener: (revision: number) => void): () => void;
   pendingMutation?(): PendingMutation | null;
   retryPendingMutation?(): Promise<DesktopOperationView | null>;
   checkPendingMutation?(): Promise<DesktopOperationView | null>;

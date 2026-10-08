@@ -84,6 +84,13 @@ public sealed partial class MainPage : Page
             WorkbenchEvents.AgentActivity,
             new AgentActivityPayload(work.Busy, work.Client, work.Activity));
 
+    /// <summary>
+    /// Tells the renderer the launched agent's conversation moved (ADR-0030), carrying its
+    /// revision. Raised on the agent's thread; marshalled here like the two above.
+    /// </summary>
+    internal void LaunchedAgentChanged(long revision) =>
+        PostWorkbenchEvent(WorkbenchEvents.AgentSessionChanged, revision);
+
     private static DesktopSessionController CreateSessionController()
     {
         // Isolated profiles use the same production services and permissions.

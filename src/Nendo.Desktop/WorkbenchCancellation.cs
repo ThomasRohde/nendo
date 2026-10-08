@@ -68,6 +68,15 @@ internal static partial class WorkbenchMethods
         BehaviourRevoke,
         ExtensionSettingsSet,
         ExtensionRemove,
+        AgentSessionList,
+        AgentSessionSetCommand,
+        AgentSessionLaunch,
+        AgentSessionRead,
+        AgentSessionPrompt,
+        AgentSessionAnswer,
+        AgentSessionCancel,
+        AgentSessionAuthenticate,
+        AgentSessionEnd,
     };
 }
 

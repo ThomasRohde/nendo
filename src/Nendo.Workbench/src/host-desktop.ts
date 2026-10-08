@@ -90,6 +90,7 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
   private readonly agentActivityListeners = new Set<(work: AgentWork) => void>();
   private readonly downloadSavedListeners = new Set<(saved: HostDownloadSaved) => void>();
   private readonly titleBarListeners = new Set<(bar: WindowTitleBar) => void>();
+  private readonly agentSessionListeners = new Set<(revision: number) => void>();
   private readonly journal = new PendingMutationJournal({
     getItem: key => window.localStorage.getItem(key),
     setItem: (key, value) => window.localStorage.setItem(key, value),
@@ -296,6 +297,11 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     return () => { this.downloadSavedListeners.delete(listener); };
   }
 
+  onAgentSessionChanged(listener: (revision: number) => void): () => void {
+    this.agentSessionListeners.add(listener);
+    return () => { this.agentSessionListeners.delete(listener); };
+  }
+
   onTitleBarChanged(listener: (bar: WindowTitleBar) => void): () => void {
     this.titleBarListeners.add(listener);
     return () => { this.titleBarListeners.delete(listener); };
@@ -373,6 +379,13 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     if (message.event === 'extensionSettingsChanged') {
       for (const listener of this.extensionSettingsListeners) {
         try { listener(); } catch { /* Another listener must still hear the switch. */ }
+      }
+      return;
+    }
+    if (message.event === 'agentSessionChanged') {
+      if (typeof message.payload !== 'number' || !Number.isSafeInteger(message.payload) || message.payload < 0) return;
+      for (const listener of this.agentSessionListeners) {
+        try { listener(message.payload as number); } catch { /* Another listener must still hear it. */ }
       }
       return;
     }

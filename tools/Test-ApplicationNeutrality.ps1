@@ -62,9 +62,10 @@ if ($browserHost -notmatch '(?m)^export const protocolVersion = 7;$') {
 $clientVocabulary = '(?i)\b(?:codex|claude)\b'
 $clientViolations = [Collections.Generic.List[string]]::new()
 foreach ($file in $sourceFiles) {
-    # Qualified-client setup instructions are content, not client-specific server behavior.
+    # Qualified-client setup instructions are content, not client-specific server behavior. So are
+    # the launch commands of the agents the Agent page knows how to start (ADR-0030).
     $relative = [IO.Path]::GetRelativePath($repoRoot, $file.FullName).Replace('\', '/')
-    if ($relative -eq 'src/Nendo.Workbench/src/client-help.ts') { continue }
+    if ($relative -in @('src/Nendo.Workbench/src/client-help.ts', 'src/Nendo.Desktop/Agents/DesktopAgentCatalog.cs')) { continue }
     $text = [IO.File]::ReadAllText($file.FullName)
     if ($text -match $clientVocabulary) {
         $clientViolations.Add([IO.Path]::GetRelativePath($repoRoot, $file.FullName).Replace('\', '/'))

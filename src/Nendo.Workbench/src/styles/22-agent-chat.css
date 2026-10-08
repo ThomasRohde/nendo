@@ -1,0 +1,445 @@
+/* A launched agent (ADR-0030): Launch on the Agent page, and the conversation in its own tab.
+   Slice 22 of styles.css; shared tokens only, so both themes follow. */
+
+/* Launch: one row per agent the page knows, found or not, under the access ladder. */
+.agent-launch .launch-list {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.launch-agent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  background: var(--surface-raised);
+  text-align: left;
+  cursor: pointer;
+}
+
+.launch-agent:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  background: var(--surface-soft);
+}
+
+.launch-agent:disabled {
+  cursor: default;
+}
+
+.launch-agent:disabled .launch-name {
+  opacity: 0.62;
+}
+
+.launch-name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.launch-name strong {
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.launch-name small {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.launch-go {
+  color: var(--cobalt);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.launch-agent:disabled .launch-go {
+  visibility: hidden;
+}
+
+.launch-running {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--healthy) 35%, var(--line));
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--healthy) 7%, var(--surface));
+  font-size: 0.82rem;
+}
+
+.agent-launch .launch-command {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+
+/* A command line, not a port: the connection fields' twelve right-aligned digits would clip it. */
+.agent-launch .launch-command input {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  text-align: left;
+  font-family: var(--mono);
+}
+
+/* The conversation: a heading, the log that scrolls, and the composer held at the foot. */
+.agent-chat {
+  display: grid;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+  padding: 22px 32px 20px;
+}
+
+.chat-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.chat-title {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.chat-title h2 {
+  margin: 0;
+  font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  font-size: 1.15rem;
+  font-weight: 680;
+  letter-spacing: -0.015em;
+}
+
+.chat-title p {
+  overflow: hidden;
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-control);
+  color: var(--cobalt);
+  background: var(--cobalt-soft);
+}
+
+/* The chip's label is not one of the Agent page's dots. */
+.chat-state-label {
+  font-weight: inherit;
+}
+
+.chat-mark svg {
+  width: 20px;
+  height: 20px;
+}
+
+.agent-ready.working,
+.agent-ready.starting,
+.agent-ready.signIn {
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--line));
+  background: color-mix(in srgb, var(--warning) 7%, var(--surface));
+}
+
+.agent-ready.working > span,
+.agent-ready.starting > span,
+.agent-ready.signIn > span {
+  background: var(--warning);
+}
+
+.chat-disclosure {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.agent-chat > .message-slot {
+  margin: 0;
+}
+
+.chat-sign-in {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  font-size: 0.85rem;
+}
+
+.chat-sign-in p {
+  margin: 0;
+}
+
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.chat-entry {
+  max-width: min(760px, 100%);
+  margin: 0;
+}
+
+.chat-who {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.chat-entry.is-you {
+  align-self: flex-end;
+}
+
+.chat-entry.is-you .chat-who {
+  text-align: right;
+}
+
+.chat-bubble {
+  padding: 9px 13px;
+  border-radius: var(--radius-panel);
+  color: var(--ink);
+  background: var(--cobalt-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-entry.is-agent .chat-markdown {
+  overflow-wrap: anywhere;
+}
+
+.chat-plain {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  overflow: auto;
+  max-height: 260px;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  background: var(--surface-soft);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-entry.is-thought {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.chat-entry.is-thought summary,
+.chat-tool-body summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.chat-entry.is-tool {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+}
+
+.chat-tool-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  background: var(--surface-soft);
+}
+
+.chat-tool-mark svg {
+  width: 15px;
+  height: 15px;
+}
+
+.chat-entry.is-tool[data-status="completed"] .chat-tool-mark {
+  color: var(--healthy);
+}
+
+.chat-entry.is-tool[data-status="failed"] .chat-tool-mark {
+  color: var(--danger);
+}
+
+.chat-tool-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.chat-tool-body strong {
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.chat-tool-body small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.chat-entry.is-plan ol {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.82rem;
+}
+
+.chat-entry.is-plan li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-plan-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--healthy);
+}
+
+.chat-plan-mark svg {
+  width: 12px;
+  height: 12px;
+}
+
+.chat-entry.is-plan li[data-status="completed"] {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.chat-entry.is-permission {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--line));
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--warning) 7%, var(--surface));
+}
+
+.chat-entry.is-permission.is-answered {
+  border-color: var(--line);
+  background: var(--surface-raised);
+}
+
+.chat-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chat-answer {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.chat-entry.is-notice {
+  align-self: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.chat-empty {
+  margin: auto;
+}
+
+.chat-composer {
+  display: grid;
+  gap: 8px;
+}
+
+.chat-composer textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 12px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+}
+
+.chat-composer textarea:disabled {
+  opacity: 0.6;
+}
+
+.chat-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.chat-actions small {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 650px) {
+  .agent-chat {
+    padding: 14px 16px;
+  }
+
+  .chat-actions small {
+    display: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .chat-bubble,
+  .chat-entry.is-permission,
+  .chat-entry.is-tool {
+    border: 1px solid CanvasText;
+  }
+}

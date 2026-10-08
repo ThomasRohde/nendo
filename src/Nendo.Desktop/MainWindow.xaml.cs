@@ -223,6 +223,7 @@ public sealed partial class MainWindow : Window
         // No notification and no tray change: a write is not an event a person is told
         // about. It goes to the renderer alone, which is the only thing that needs it.
         page.Session.FileCommitted += page.FileChanged;
+        page.Session.LaunchedAgentChanged += page.LaunchedAgentChanged;
         page.Session.ExtensionDevelopmentChanged += page.ExtensionDevelopmentChanged;
         page.Session.ExtensionSettingsChanged += page.ExtensionSettingsChanged;
         // The renderer draws the sentence; the taskbar shows the same thing to somebody

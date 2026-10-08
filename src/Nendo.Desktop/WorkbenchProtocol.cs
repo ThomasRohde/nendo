@@ -136,6 +136,13 @@ internal static class WorkbenchEvents
     /// name and its folder's name.
     /// </summary>
     internal const string DownloadSaved = "downloadSaved";
+
+    /// <summary>
+    /// The agent launched from the Agent page said something, asked something or changed state
+    /// (ADR-0030). Payload is the conversation's revision and nothing else: the tab reads what
+    /// changed after the revision it holds, with <c>agentSession.read</c>.
+    /// </summary>
+    internal const string AgentSessionChanged = "agentSessionChanged";
 }
 
 internal sealed record ExtensionFramesFailedPayload(string FileSessionId, IReadOnlyList<string> Frames);
@@ -328,6 +335,15 @@ internal sealed partial class WorkbenchProtocolHandler
             // view's package (ADR-0013 Phase 3). It is admitted on the record writes alone,
             // and becomes the origin History attributes the write to.
             var writer = ExtensionWriter(payload, method);
+
+            // The launched agent's conversation (ADR-0030) checks its own file session: the tab
+            // must keep reading while an agent's write holds the request gate. After the actor
+            // check, so a custom view's request to it is refused like any other.
+            if (WorkbenchMethods.AgentSessionMethods.Contains(method))
+            {
+                return new WorkbenchResponse(responseProtocolVersion, requestId, true,
+                    await HandleAgentSessionAsync(method, RequiredString(root, "fileSessionId", 120), payload, cancellationToken), null);
+            }
 
             // The renderer sends the opaque file generation it actually rendered, so it
             // cannot silently follow a native file switch. The controller checks this under

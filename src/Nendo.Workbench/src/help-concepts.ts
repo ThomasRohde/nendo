@@ -189,7 +189,7 @@ export const conceptHelp: HelpProvider = () => [
       'There is no universal undo. Nendo never guesses a repair. A newer file is refused by an older Nendo. Agent access is not an anti-malware boundary: while it is on, anything running on this computer can connect, so it is the wrong posture for a shared machine.',
     ] },
     { heading: 'Agents', paragraphs: [
-      'An agent never receives SQL, a file path, a process or the network. Below Unattended it cannot accept its own proposal or approve automatic actions; at Unattended it can do both for its own proposals, and you withdraw that approval under Agent. It never restores a deleted record or changes a file’s identity. Those stay with you, in Nendo.',
+      'From Nendo, an agent never receives SQL, a file path, a process or the network. Below Unattended it cannot accept its own proposal or approve automatic actions; at Unattended it can do both for its own proposals, and you withdraw that approval under Agent. It never restores a deleted record or changes a file’s identity. Those stay with you, in Nendo.',
     ] },
     { heading: 'Numbers to know', terms: [
       { term: 'CSV import', meaning: 'Up to 16 MiB, 10,000 rows, 100 columns and 65,536 characters per cell, imported in batches of at most 100 rows.' },

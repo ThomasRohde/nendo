@@ -162,17 +162,29 @@ internal sealed partial class DesktopSessionController
 
     private async Task StartAgentHostCoreAsync(NendoApplicationService service, AgentAccessMode mode, CancellationToken cancellationToken)
     {
-        await StopAgentAccessCoreAsync();
+        // A new level restarts the listener. A launched agent keeps running across it and meets
+        // the new level on its next call, unless the address itself moved (ADR-0030).
+        await StopAgentAccessCoreAsync(restarting: true);
         EnsureProposalStore();
-        _agentHost = await NendoLocalMcpHost.StartAsync(
-            service,
-            mode,
-            CurrentHostOptions(await FilePortAsync(service, cancellationToken)),
-            _agentProposals,
-            UnattendedConsent(mode),
-            cancellationToken);
+        try
+        {
+            _agentHost = await NendoLocalMcpHost.StartAsync(
+                service,
+                mode,
+                CurrentHostOptions(await FilePortAsync(service, cancellationToken)),
+                _agentProposals,
+                UnattendedConsent(mode),
+                cancellationToken);
+        }
+        catch
+        {
+            // No listener came back, so a launched agent has nothing left to talk to.
+            await EndLaunchedAgentCoreAsync("Agent access could not start again, so the agent was ended.", forget: false);
+            throw;
+        }
         _agentMode = mode;
         AttachWorkSignal(_agentHost);
+        await EndLaunchedAgentIfMovedCoreAsync();
     }
 
     /// <summary>The port this file listens on: its own kept port, or a new one each time with Fixed port off.</summary>
@@ -385,8 +397,14 @@ internal sealed partial class DesktopSessionController
         coordinator.Committed += _committedHandler;
     }
 
-    private async Task StopAgentAccessCoreAsync()
+    /// <param name="restarting">
+    /// True only when a new listener takes this one's place at once. Otherwise agent access is
+    /// ending, and the agent launched from the Agent page ends with it (ADR-0030).
+    /// </param>
+    private async Task StopAgentAccessCoreAsync(bool restarting = false)
     {
+        if (!restarting)
+            await EndLaunchedAgentCoreAsync("Agent access was turned off for this file, so the agent was ended.", forget: false);
         var host = _agentHost;
         _agentHost = null;
         _agentMode = AgentAccessMode.Disabled;
@@ -406,6 +424,7 @@ internal sealed partial class DesktopSessionController
     {
         try
         {
+            await EndLaunchedAgentCoreAsync("The file was closed, so the agent was ended.", forget: true);
             await StopAgentAccessCoreAsync();
             if (_agentProposals is not null && _service?.Capabilities.Mutate is true)
                 await _agentProposals.CloseFileSessionAsync(_service);

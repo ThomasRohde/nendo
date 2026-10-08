@@ -8,10 +8,12 @@
   and AG-UI, launched from the Agent page as a new tab when the access level allows it. The
   Agent Client Protocol specification at protocol version 1 (`initialize`, `session/new`
   with `mcpServers`, `session/update`, `session/request_permission`, `session/cancel`).
-  Gemini CLI and GitHub Copilot CLI start an ACP agent on stdio with `--acp`; Claude Code
-  and Codex speak it through published adapters. The Copilot CLI live check of 2026-10-08,
-  which drove a real agent against a Nendo file over HTTP MCP. Accepted on the owner's
-  standing pre-acceptance of ADR changes (2026-09-24). Nothing is built yet
+  GitHub Copilot CLI starts an ACP agent on stdio with `--acp`, and Gemini CLI with
+  `--experimental-acp` (0.29) or `--acp` (later); Claude Code and Codex speak it through
+  published adapters, and OpenCode with `opencode acp`. The Copilot CLI live check of
+  2026-10-08, which drove a real agent against a Nendo file over HTTP MCP. Accepted on the
+  owner's standing pre-acceptance of ADR changes (2026-09-24). Built the same day as W-195;
+  see Delivery
 - **Amends:** ADR-0014 (the Workbench gains a conversation tab; the rest stands)
 - **Depends on:** ADR-0002 process model and bridge, ADR-0009 access levels and the MCP
   boundary, ADR-0014 no model client in the host
@@ -190,6 +192,70 @@ Built in slices, each with its own Work item and acceptance criteria:
 Documentation obligations: the architecture's agent surface, the MCP contract's client
 section, the Workbench help and the site's agents guide each describe the launched agent
 when it ships, and not before.
+
+## Delivery, 2026-10-08 (W-195)
+
+The owner asked for the build after reading the decision. The pieces are listed under
+*Launched agents* in [the architecture](../architecture.md#where-things-live).
+
+How each obligation was met:
+
+1. **The ACP client.** The Desktop suite runs `DesktopLaunchedAgentTests` against a
+   stand-in agent, `tests/Nendo.Desktop.Tests/TestFixtures/fake-acp-agent.mjs`, which
+   records what it was told. The tests measure:
+   - every client capability is off;
+   - exactly one MCP server is named, and it is this file's address;
+   - the working folder is new and empty, and is not the file's folder;
+   - an agent without HTTP MCP, or on another protocol version, is refused by name;
+   - a permission request waits for the person;
+   - Stop cancels the turn;
+   - another level keeps the agent, Off ends it, and a moved address ends it with the
+     new address named;
+   - closing the file ends the agent, a child it started, and its folder;
+   - an agent that exits says why;
+   - sign-in uses only the methods the agent offered.
+
+   `WorkbenchAgentSessionProtocolTests` measures the bridge: file session, access level
+   and thread.
+2. **The bridge.** ADR-0002's 2026-10-08 note. The repository's own guard,
+   `AnActorIsRefusedOnEveryMethodButTheRecordWritesAndPreparingAProposal`, failed on the
+   first full gate run. It reported "A method other than the record writes accepted a
+   view's actor", naming all nine methods. They had been routed before the actor check;
+   they are now routed after it.
+3. **The tab and Launch.** Built without a design canvas: the owner asked for the build,
+   so it follows the Mica tokens directly. The node lane's `agent-chat.test.mjs` measures
+   the merge and that no agent or tool text becomes markup. A headless tour of the
+   preview measured these, agent-observed, in both themes:
+   - Launch is offered by level and not for a program that was not found;
+   - the conversation opens in a second tab, and Open conversation reuses it;
+   - Enter sends;
+   - a half-typed message survives the agent's replies;
+   - End disables the composer.
+4. **Finding agents and signing in.** The five known programs are on `PATH`; one command
+   of the person's own is kept in device state. `authenticate` is called only with an
+   agent-offered method.
+5. **The live check.** Agent-observed on 2026-10-08, not a lane. The setup:
+   - a Debug host on a new scratch file, with isolated device state;
+   - the Workbench driven over WebView2's debugging port: Agent → Shape app → Launch
+     GitHub Copilot CLI;
+   - Copilot 1.0.93 on `copilot --acp`.
+
+   What happened:
+   - It read the file and validated a proposal, "Add Task record type with list screen".
+   - That was accepted on the Agent page.
+   - Asked again in the same tab, it wrote two Task records. They were read back over
+     MCP: "Buy milk" (not done) and "Write report" (done).
+   - Every tool call asked permission, with Allow once, Always allow and Deny.
+   - Some calls were Copilot's own shell commands, reading its own temporary files. That
+     is the unconfined part this decision names.
+   - End and the host's exit left none of its processes behind.
+
+   **The check found one defect.** Copilot CLI sends the application handle with every
+   owned call, and the permission card showed it. ADR-0009 lets the UI show only
+   pseudonyms. The conversation now hides an `applicationHandle` or
+   `resumeApplicationHandle` value in tool input and output, plain or escaped.
+   `TheAgentsApplicationHandleIsNeverShown` guards it. With the redaction taken out, it
+   failed with "The agent's application handle reached the tab".
 
 ## Consequences
 

@@ -17,7 +17,7 @@ import type { OutlineState } from './outline-model';
  * not what is stored.
  */
 
-export type ViewName = 'use' | 'data' | 'structure' | 'surfaces' | 'history' | 'health' | 'agent' | 'proposal' | 'agentProposal' | 'help';
+export type ViewName = 'use' | 'data' | 'structure' | 'surfaces' | 'history' | 'health' | 'agent' | 'proposal' | 'agentProposal' | 'agentChat' | 'help';
 
 // A window owns the query it was opened with. Paging resends exactly those
 // arguments, because the host hashes the whole query into the cursor scope and
