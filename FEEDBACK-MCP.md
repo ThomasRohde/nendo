@@ -208,11 +208,13 @@ The full gate, `Test-Production.ps1 -SkipRestore`, ran with these results:
   (`{"travelled":36,"afterTwoSeconds":3}`), which this pass does not touch. Run alone straight
   after, the lane passed in full.
 - **Repository gate, stopped at its interlock:** `workspace/Garden.nendo is open in Nendo`, so
-  the binary-asset check and the checks after it did not run. I counted the CR bytes and BOMs of
-  every changed file myself: none.
+  the binary-asset check and the checks after it did not run.
+- **Repository gate, run again once the owner closed Nendo:** it caught the contract's opening
+  sentence still counting twenty-five tools. With that fixed it passed in full, including all 70
+  tracked binary assets read end to end, `workspace/Garden.nendo` among them, which is then
+  committed.
 
-`workspace/Garden.nendo` stays uncommitted until that check can read it. `Test-Site.ps1`
-passed.
+`Test-Site.ps1` passed.
 
 `artifacts/installer/Nendo-Setup.exe` was rebuilt, and `Test-NendoSetupIsolated.ps1` passed.
 The payload carries the read tools: both `Nendo.LocalMcp.dll` and the Workbench bundle contain
