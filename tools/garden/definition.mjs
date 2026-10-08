@@ -403,6 +403,11 @@ export const STAGES = {
   },
 };
 
+/** The architecture-decision acronym, as a reader would meet it in a note: the guard measures notes with this. */
+export function decisionReferences(text) {
+  return String(text ?? '').match(/\bADRs?\b/g) ?? [];
+}
+
 /** Whether the file can be searched: the search read answers, rather than refusing for want of an index. */
 export async function hasSearchIndex(read) {
   try {

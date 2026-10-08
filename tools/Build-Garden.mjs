@@ -18,7 +18,7 @@
 
 import crypto from 'node:crypto';
 import { target, withLease, fail } from './archi-mcp.mjs';
-import { STAGES, STAGE_ORDER, CALL_CHARACTERS, NEW_FILE_LABEL, SKILL_PACKAGE_ID, PACKAGE_ID, PACKAGE_FOLDER, RETIRED_GRAPH_PACKAGE_ID, HOME_VIEW, HOME_TITLE, RETIRED_FRONT, seedRecords, packageFiles, hasSearchIndex, skillPackage } from './garden/definition.mjs';
+import { STAGES, STAGE_ORDER, CALL_CHARACTERS, NEW_FILE_LABEL, SKILL_PACKAGE_ID, PACKAGE_ID, PACKAGE_FOLDER, RETIRED_GRAPH_PACKAGE_ID, HOME_VIEW, HOME_TITLE, RETIRED_FRONT, seedRecords, packageFiles, hasSearchIndex, skillPackage, decisionReferences } from './garden/definition.mjs';
 
 const TARGET_FILE_NAME = process.env.NENDO_GARDEN_TARGET || 'Garden.nendo';
 
@@ -110,6 +110,8 @@ async function compare(file) {
   if (differ.length) problems.push(`the file's Garden package differs from the folder in ${differ.join(', ')}: run upgrade`);
   const full = await file.read.json('nendo://application/describe?include=newFile');
   const kept = (full.newFile?.types ?? []).reduce((n, t) => n + (t.kept ?? 0), 0);
+  const named = (await file.read.records('gd.note')).filter(n => decisionReferences(`${n.values['gd.note.title']}\n${n.values['gd.note.summary'] ?? ''}\n${n.values['gd.note.body'] ?? ''}`).length > 0);
+  if (named.length) problems.push(`${named.length} notes name an architecture decision by its number (${named.slice(0, 3).map(n => n.recordId).join(', ')}): reword them`);
   const seeds = seedRecords().length;
   if (kept !== seeds) problems.push(`a new garden would keep ${kept} records, not the ${seeds} seeds (newFile: ${JSON.stringify(full.newFile)})`);
   if ((full.newFile?.conflictCount ?? 0) !== 0) problems.push(`newFile has ${full.newFile.conflictCount} conflicts`);

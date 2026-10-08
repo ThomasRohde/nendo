@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { STAGES, STAGE_ORDER, seedRecords, seedOperations, seedNotes, fixture, PACKAGE_FOLDER, SKILL_FOLDER, SKILL_PACKAGE_ID, HOME_VIEW } from './definition.mjs';
+import { STAGES, STAGE_ORDER, seedRecords, seedOperations, seedNotes, fixture, PACKAGE_FOLDER, SKILL_FOLDER, SKILL_PACKAGE_ID, HOME_VIEW, decisionReferences } from './definition.mjs';
 import { parse } from '../../extensions/garden/parse.mjs';
 import { F } from '../../extensions/garden/sync.mjs';
 
@@ -22,6 +22,18 @@ async function fieldsByEntity() {
   }
   return fields;
 }
+
+test('the notes name no architecture decision by its number', () => {
+  for (const note of seedNotes()) {
+    const found = decisionReferences(`${note.title}\n${note.summary ?? ''}\n${note.body}`);
+    assert.deepEqual(found, [], `seed note ${note.slug} names an architecture decision: ${found.join(', ')}`);
+  }
+});
+
+test('the decision guard finds the acronym and passes plain words', () => {
+  assert.deepEqual(decisionReferences('Custom views keep their code (ADR-0013).'), ['ADR']);
+  assert.deepEqual(decisionReferences('The accepted architecture decisions say so.'), []);
+});
 
 test('every stage fits one change set and every mutation one call', async () => {
   for (const name of STAGE_ORDER) {
