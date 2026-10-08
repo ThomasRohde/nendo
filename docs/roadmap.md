@@ -61,6 +61,15 @@ reached the bound after about 100 hours of active diagram editing. Since 2026-09
 folds older history into a checkpoint from History (ADR-0021, host 1.39.0), so a modelling
 file keeps accepting writes.
 
+## Later: launching the person's own agent
+
+[ADR-0030](decisions/0030-launch-the-persons-own-agent-over-acp.md) decides that the
+Agent page may start the person's own installed agent program over ACP, at Inspect or
+higher, with the conversation in a new tab. The host stays an ACP client with no model
+client and no credential, and the only MCP server it names is the file's own address.
+AG-UI is not adopted. Nothing is built; W-195 holds the five slices, starting with the
+ACP client in the Desktop host against a fake agent.
+
 ## Next: surfaces and charts
 
 The vision admitted charts and dashboards on 2026-09-14.

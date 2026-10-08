@@ -858,6 +858,10 @@ invalidates all authority. A healthy renderer-only restart preserves it.
 
 There is no embedded agent, and the project did not adopt AG-UI
 ([ADR-0014](decisions/0014-drop-embedded-agent-mcp-is-the-agent-surface.md)).
+[ADR-0030](decisions/0030-launch-the-persons-own-agent-over-acp.md) decides that the
+Agent page may launch the person's own installed agent program over ACP, at Inspect
+or higher, with the conversation in a tab and this file's address as its only MCP
+server. It is not built: today every agent connects from outside Nendo.
 
 ## File lifecycle
 

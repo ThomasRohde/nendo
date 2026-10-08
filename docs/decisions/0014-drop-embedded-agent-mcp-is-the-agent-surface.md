@@ -7,6 +7,9 @@
 - **Evidence:** P3 closure, latest-protocol qualification and the P6 closure, whose gate builds a whole application from an empty file through the local MCP interface alone
 - **Depends on:** ADR-0009 local MCP transport authority and change sets
 - **Related design:** [`../architecture.md`](../architecture.md)
+- **Amended by:** [ADR-0030](0030-launch-the-persons-own-agent-over-acp.md) (2026-10-08):
+  the Agent page may launch the person's own agent program over ACP, with the conversation
+  in a tab. The host still has no model client, and AG-UI is still not adopted
 
 ## Context
 
