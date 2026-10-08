@@ -350,12 +350,11 @@ services, at a static loopback address, with no credential.
   before writing.
 - Stable sanitized errors disclose semantic causes without paths, SQL or
   exception internals.
-- Since 2026-10-04 (W-151, W-152) the 2026-07-28 path pushes three facts over
+- Since 2026-10-04 (W-151) the 2026-07-28 path pushes three facts over
   `subscriptions/listen` (the manifest moved, the proposal queue changed, the file
-  is closing) and runs validate, import and the integrity scan as polled tasks for
-  a client that declares the Tasks extension. Neither moves authority: acceptance
-  stays in Nendo, a task never extends a lease, and a client that declares neither
-  is served exactly as before.
+  is closing). It moves no authority: acceptance stays in Nendo, and a client that
+  does not listen is served exactly as before. Every tool is answered within its
+  request; the Tasks extension is not served (2026-10-08 amendment).
 - Nendo implements no client-specific semantic branch. Opt-in installed-client
   lanes exercise both Claude Code and Codex. That is compatibility evidence. It
   is not a general parity promise.
@@ -460,7 +459,12 @@ services, at a static loopback address, with no credential.
   client reported as a transport failure. A live check with Copilot CLI 1.0.93 then found
   it could not connect at all: from 1.0.81 it opens `subscriptions/listen` on connect, and
   the acknowledgement carried no subscription id and granted no list change discover
-  advertises. Both now follow the specification. Authority unchanged. What it gives up: Inspect
+  advertises. Both now follow the specification. The same check found Copilot declaring
+  the Tasks extension and refusing the `CreateTaskResult` that validate then returned, so
+  its agent never saw a validation's diagnostics: the extension is withdrawn (it was
+  W-152), and validate, import and the integrity scan are answered within the request, as
+  every other tool is. What that gives up: a client that could poll waits on the request
+  instead, inside the five-minute request timeout. Authority unchanged. What it gives up: Inspect
   can no longer be described as "an empty tool list", and a reviewer of a tool list now
   sees reads in it.
 - 2026-09-29 — amended at the owner's request (W-126, after F-212): the access

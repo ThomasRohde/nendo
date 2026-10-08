@@ -130,23 +130,20 @@ skill says: loading it is the client's act under its own approval, and the perso
 protection is the review before acceptance. `FileSkillTests` holds the listing before and
 after acceptance, every digest and size against a read, and the refusals.
 
-Since 2026-10-04 (W-152) the host also serves the Tasks extension
-(`io.modelcontextprotocol/tasks`, SEP-2663, `ModelContextProtocol.Extensions.Tasks`
-2.2.0). A client that declares the extension on its request runs three tools as a task
-it polls with `tasks/get` and may stop with `tasks/cancel`: `nendo.change_set.validate`
-(a physical clone plus compilation), `nendo.data.import_records` (up to ten batch
-revisions) and `nendo.health.verify_integrity` (a full scan); `NendoLocalMcpHost.TaskCapableTools`
-names the three. A client that does not declare it is answered as before, and every
-other tool is answered at once whatever the client declares: a write is answered, not
-polled for. The task's result is the tool's result, refusals included. Task state is
-host memory keyed by task ID, with a thirty-minute TTL that says it dies with the
-listener. A task never extends a lease. `tasks/cancel` on a validate cancels its clone
-by the existing path, so no proposal the agent cannot reach is left behind. What the
-review asked for and this does not do: a validate task that stays `working` until the
-person accepts. A task's result is its tool's result, and acceptance is not validate's
-outcome; the wait is `subscriptions/listen` on `nendo://application/proposals` and then
-`nendo://application/proposal/{proposalId}`, which says `active` once accepted. The
-[Tasks tests](../../tests/Nendo.LocalMcp.Tests/TasksExtensionTests.cs) hold the three.
+The host does not serve the Tasks extension (`io.modelcontextprotocol/tasks`, SEP-2663):
+every tool is answered within its request, whatever the client declares, and
+`server/discover` does not offer the extension, so under SEP-2663 no `CreateTaskResult` is
+ever due. From 2026-10-04 (W-152) to 2026-10-08 it was served, and `nendo.change_set.validate`,
+`nendo.data.import_records` and `nendo.health.verify_integrity` ran as polled tasks for a
+client that declared it. GitHub Copilot CLI 1.0.93 declares it on every request and then
+refuses the task it is sent ("expected CallToolResult from tools/call, got CreateTaskResult")
+without ever polling, so in a live check its agent lost every validate's diagnostics and
+had to find each proposal by reading `nendo://application/proposals`. Each of the three
+finishes well inside the five-minute request timeout. Waiting for the person to accept is
+`subscriptions/listen` on `nendo://application/proposals`, as before. The
+[Tasks tests](../../tests/Nendo.LocalMcp.Tests/TasksExtensionTests.cs) send the three calls
+with the client capabilities Copilot sends and require a `CallToolResult`, and require
+discover not to offer the extension.
 
 The discovery document names the discover-path headers and the three
 `io.modelcontextprotocol/*` `params._meta` keys. A hand-written client therefore

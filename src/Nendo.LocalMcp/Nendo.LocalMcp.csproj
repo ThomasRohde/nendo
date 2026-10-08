@@ -3,14 +3,13 @@
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
-    <!-- The Tasks extension (SEP-2663) is experimental in SDK 2.2.0: MCPEXP001 is the specification feature, MCPEXP002 the extensibility seam it uses (W-152). -->
-    <NoWarn>$(NoWarn);MCPEXP001;MCPEXP002</NoWarn>
+    <!-- skills/list and skills/get (W-154) are request handlers the SDK marks experimental in 2.2.0: MCPEXP002. -->
+    <NoWarn>$(NoWarn);MCPEXP002</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
-    <PackageReference Include="ModelContextProtocol.Extensions.Tasks" />
   </ItemGroup>
 
   <ItemGroup>
