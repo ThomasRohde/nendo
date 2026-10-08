@@ -1,6 +1,6 @@
 # MCP interface contract
 
-This contract lists the twenty-five resources and twenty-five tools that an external
+This contract lists the twenty-five resources and twenty-seven tools that an external
 agent sees, and the authority rules behind them. `Test-Production.ps1` asserts
 both surfaces by name, and this sentence is held to the same count by
 `Test-Repository.ps1`.
