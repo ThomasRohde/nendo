@@ -91,7 +91,7 @@ Where Nendo offers its toolbar the view draws no controls of its own. The Garden
 Find (Ctrl Shift F), New note (also Nendo's Add), Today, View or Edit, the width as three icons
 (Narrow, Medium, Full; words on a Nendo without those icons),
 Save (Ctrl S), Undo and Redo, the Garden guide, and a menu with Open record page, Graph of the
-garden, Mark evergreen, Expand all and Collapse all. Following a wikilink declares a place, so Back and Forward move
+garden and Mark evergreen. Folding the tree to a level is the view's own, in Show (1, 2, 3, All) above the tree. Following a wikilink declares a place, so Back and Forward move
 between notes. The Graph screen declares Find, Colour by stage, kind or branch, Tags, Orphans,
 Arrows, Spread, zoom and Fit (Ctrl 0), and About. On an older Nendo the views show their own
 controls.

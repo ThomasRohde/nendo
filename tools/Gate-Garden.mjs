@@ -188,11 +188,59 @@ async page => {
   await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.how-links-work');
   assert(await rowCount() === seedNotes && await frame.locator('#tree .row[aria-current=true][data-id="gd.note.how-links-work"]').count() === 1,
     'Opening a note in a folded branch must unfold it and show the note as current.');
-  await command('collapse-all');
-  assert(await rowCount() === 1, 'Collapse all must fold every branch.');
-  await command('expand-all');
-  assert(await rowCount() === seedNotes, 'Expand all must unfold every branch.');
   checks.push('tree folds');
+
+  // Show, above the tree, folds it to a level (the owner, 2026-10-08: Expand all and Collapse all
+  // belong by the tree, not in the Note menu). The seeds are two levels deep, so somebody else first
+  // nests three of them four deep: Start here > Daily notes > Daily note template > Tags and tasks.
+  const nest = moves => page.evaluate(moves => {
+    for (const [id, parent] of moves) {
+      const note = window.broker.record('gd.note', id);
+      window.broker.put('gd.note', { ...note, version: note.version + 1, values: { ...note.values, 'gd.note.parent': parent } });
+    }
+    window.broker.pushChanges();
+  }, moves);
+  const nested = parent => frame.waitForFunction(parent => window.garden.index.find(n => n.recordId === 'gd.note.tags-and-tasks')?.values['gd.note.parent'] === parent, parent, { timeout: 3000 });
+  await nest([['gd.note.daily-note-template', 'gd.note.daily-notes'], ['gd.note.tags-and-tasks', 'gd.note.daily-note-template']]);
+  await nested('gd.note.daily-note-template');
+  const head = await frame.evaluate(() => {
+    const rect = id => document.getElementById(id).getBoundingClientRect();
+    const side = rect('sidebar'), top = rect('tree-head'), title = rect('tree-title'), shown = rect('levels'), tree = rect('tree');
+    const buttons = [...document.querySelectorAll('#levels button')].map(b => ({ label: b.textContent, top: b.getBoundingClientRect().top, height: b.getBoundingClientRect().height }));
+    return { labels: buttons.map(b => b.label).join(' '), inside: shown.left >= side.left && shown.right <= side.right - 4, oneRow: Math.abs((shown.top + shown.height / 2) - (title.top + title.height / 2)) < 2,
+      treeBelow: tree.top >= top.bottom - 0.5, height: Math.round(Math.min(...buttons.map(b => b.height))) };
+  });
+  assert(head.labels === '1 2 3 All' && head.inside && head.oneRow && head.treeBelow && head.height >= 20,
+    `Show must sit above the tree, beside Notes, inside the sidebar, its four buttons at least 20 px tall: ${JSON.stringify(head)}.`);
+  const more = (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(item => item.id === 'more');
+  assert(more && !more.items.some(item => /expand|collapse/i.test(`${item.id} ${item.label}`)), 'Expand all and Collapse all must leave the Note menu: ' + JSON.stringify(more?.items.map(item => item.id)));
+  const levelShown = () => frame.evaluate(() => ({ rows: document.querySelectorAll('#tree .row').length, pressed: [...document.querySelectorAll('#levels button[aria-pressed=true]')].map(b => b.dataset.level).join(), level: window.garden.level }));
+  const pickLevel = async level => {
+    const box = await frame.locator(`#levels button[data-level="${level}"]`).boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  };
+  const levelRows = { 1: 1, 2: 4, 3: 5, all: seedNotes };
+  for (const [level, rows] of Object.entries(levelRows)) {
+    await pickLevel(level);
+    const shown = await levelShown();
+    assert(shown.rows === rows && shown.pressed === level && shown.level === level, `Show ${level} must show ${rows} rows and be the one pressed: ${JSON.stringify(shown)}.`);
+  }
+  await frame.locator('#sidebar').screenshot({ path: '__OUTPUT__/tree-levels.png' });
+  const startTwisty = await frame.locator('#tree .row[data-id="gd.note.start-here"] .twisty').boundingBox();
+  await page.mouse.click(startTwisty.x + startTwisty.width / 2, startTwisty.y + startTwisty.height / 2);
+  const byHand = await levelShown();
+  assert(byHand.rows === 1 && byHand.pressed === '' && byHand.level === null, `A branch folded by hand must release the level pressed: ${JSON.stringify(byHand)}.`);
+  // A command reaches the view as an event, a moment after it is sent: wait for it, then go on.
+  const levelsDisabled = disabled => frame.waitForFunction(disabled => [...document.querySelectorAll('#levels button')].every(b => b.disabled === disabled), disabled, { timeout: 2000 });
+  await command('find', 'template');
+  await levelsDisabled(true).catch(() => { throw Error('Show must wait while Find unfolds what it found.'); });
+  await command('find', '');
+  await levelsDisabled(false).catch(() => { throw Error('Show must come back once Find is cleared.'); });
+  await nest([['gd.note.daily-note-template', 'gd.note.start-here'], ['gd.note.tags-and-tasks', 'gd.note.start-here']]);
+  await nested('gd.note.start-here');
+  await pickLevel('all');
+  assert((await levelShown()).rows === seedNotes, 'Show All must unfold every branch.');
+  checks.push('tree levels');
 
   // The line between the tree and the page drags with a real pointer, moves with the keys and resets on a double-click.
   const treeSide = () => frame.evaluate(() => ({ sidebar: document.getElementById('sidebar').getBoundingClientRect().width, mainLeft: document.getElementById('main').getBoundingClientRect().left,
@@ -371,12 +419,14 @@ async page => {
     colours[mode] = await frame.evaluate(() => {
       const token = name => { const e = document.createElement('i'); e.style.color = `var(--nendo-${name})`; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; };
       return { background: getComputedStyle(document.body).backgroundColor, ink: getComputedStyle(document.body).color,
-        wikilink: getComputedStyle(document.querySelector('#preview a.wikilink')).color, cobalt: token('cobalt') };
+        wikilink: getComputedStyle(document.querySelector('#preview a.wikilink')).color, cobalt: token('cobalt'),
+        level: getComputedStyle(document.querySelector('#levels button[aria-pressed=true]')).backgroundColor, cobaltSoft: token('cobalt-soft') };
     });
     assert(colours[mode].wikilink === colours[mode].cobalt, `${mode}: a wikilink must be the cobalt token: ${JSON.stringify(colours[mode])}`);
+    assert(colours[mode].level === colours[mode].cobaltSoft, `${mode}: the level Show presses must be the cobalt-soft token: ${JSON.stringify(colours[mode])}`);
     await page.screenshot({ path: '__OUTPUT__/' + mode + '.png', fullPage: true });
   }
-  assert(colours.light.background !== colours.dark.background && colours.light.ink !== colours.dark.ink, 'The theme must change the frame.');
+  assert(colours.light.background !== colours.dark.background && colours.light.ink !== colours.dark.ink && colours.light.level !== colours.dark.level, 'The theme must change the frame: ' + JSON.stringify(colours));
   checks.push('Light/Dark');
 
   // 10a. A ```mermaid fence is drawn as a diagram in the preview and the page, in the theme's

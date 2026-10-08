@@ -53,7 +53,13 @@ the graph to be dynamic and interactive, drawn with a common library as Obsidian
   its text (Garden 0.9.1); opening a found note starts the page at the first of them. Until the index answers, and in a file without
   one, the view matches titles, slugs and bodies itself; going to
   a note unfolds the branches above it, but reading the same note again (a change elsewhere)
-  leaves the tree alone. Expand all and Collapse all are in the menu. The line between the tree
+  leaves the tree alone. **Show** above the tree folds it to a level (owner, 2026-10-08, from four
+  placements; Garden 0.18.0): 1 folds every branch, All none, 2 and 3 unfold that many levels. The
+  level pressed is the one the tree shows, so a branch folded by hand, or unfolded by going to a
+  note, releases it; the level picked last is kept, because in a shallow tree 3 and All show the
+  same. Show is disabled while Find unfolds what it found and hidden when no note has notes under
+  it. Expand all and Collapse all left the Note menu, which now holds only what acts on the note
+  and the garden. The line between the tree
   and the page drags (160 px to 60% of the window, at most 720), moves 16 px with the arrow keys
   and resets to 250 px on a double-click. It lies over the sidebar's border, out of the grid, so
   nothing on the page measures it. The folds and the width are this person's and stay in this

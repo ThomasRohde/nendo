@@ -105,7 +105,21 @@ export async function startWorkspace(nendo, context, kit) {
   const collapsed = new Set((() => { try { const kept = JSON.parse(localStorage.getItem(collapsedKey) ?? '[]'); return Array.isArray(kept) ? kept : []; } catch { return []; } })());
   const keepCollapsed = () => { try { localStorage.setItem(collapsedKey, JSON.stringify([...collapsed])); } catch { /* a private window keeps none */ } };
   const parentOf = recordId => { const parent = state.byId.get(recordId)?.values[F.note.parent] ?? null; return state.byId.has(parent) ? parent : null; };
-  const hasChildren = recordId => state.index.some(note => parentOf(note.recordId) === recordId);
+  const depthOf = recordId => { let depth = 1; for (let at = parentOf(recordId); at !== null && depth < 1000; at = parentOf(at)) depth++; return depth; };
+  // Show, above the tree, folds it to a level: 1 folds every branch, All folds none, and 2 and 3
+  // unfold that many levels. The level pressed is the one the tree shows, so folding a branch by hand
+  // releases it. The level picked last is kept, because in a shallow tree 3 and All show the same.
+  const LEVELS = ['1', '2', '3', 'all'];
+  const levelKey = `garden.tree.level.v1.${context.viewId ?? 'workspace'}`;
+  let pickedLevel = (() => { try { const kept = localStorage.getItem(levelKey); return LEVELS.includes(kept) ? kept : null; } catch { return null; } })();
+  const levels = $('levels'), levelButtons = [...levels.querySelectorAll('button[data-level]')];
+  const foldsFor = (level, branches) => level === 'all' ? [] : [...branches].filter(id => depthOf(id) >= Number(level));
+  function levelShown(branches) {
+    const folded = [...branches].filter(id => collapsed.has(id));
+    const shows = level => { const folds = foldsFor(level, branches); return folds.length === folded.length && folds.every(id => collapsed.has(id)); };
+    if (pickedLevel !== null && shows(pickedLevel)) return pickedLevel;
+    return ['all', '1', '2', '3'].find(shows) ?? null;
+  }
   const TWISTY = '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1.5 6.5 5 3 8.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   function drawTree() {
@@ -168,6 +182,11 @@ export async function startWorkspace(nendo, context, kit) {
     if (focused !== null) tree.querySelector(`.row[data-id="${CSS.escape(focused)}"]`)?.focus();
     ownSummary.textContent = summary();
     state.collapsed = [...collapsed];
+    // Show offers nothing to a garden with no branches, and nothing while Find unfolds what it found.
+    const branches = new Set([...children.keys()].filter(id => id !== null));
+    state.level = branches.size ? levelShown(branches) : null;
+    levels.hidden = branches.size === 0;
+    for (const button of levelButtons) { button.setAttribute('aria-pressed', String(button.dataset.level === state.level)); button.disabled = filter !== ''; }
   }
   const treeKeys = kit.roving(tree, { items: '.row' });
 
@@ -178,13 +197,20 @@ export async function startWorkspace(nendo, context, kit) {
     drawTree();
     expose();
   }
-  function foldAll(shut) {
+  function showLevel(level) {
+    pickedLevel = level;
+    try { localStorage.setItem(levelKey, level); } catch { /* a private window keeps none */ }
+    const branches = new Set(state.index.map(note => parentOf(note.recordId)).filter(id => id !== null));
     collapsed.clear();
-    if (shut) for (const note of state.index) if (hasChildren(note.recordId)) collapsed.add(note.recordId);
+    for (const id of foldsFor(level, branches)) collapsed.add(id);
     keepCollapsed();
     drawTree();
     expose();
   }
+  levels.addEventListener('click', event => {
+    const button = event.target.closest('button[data-level]');
+    if (button && !button.disabled) showLevel(button.dataset.level);
+  });
   // Opening a note unfolds every branch above it, so the tree always shows where you are.
   function reveal(recordId) {
     let changed = false;
@@ -796,9 +822,6 @@ export async function startWorkspace(nendo, context, kit) {
           { id: 'open-record', label: 'Open record page', icon: 'external', disabled: state.note === null },
           { id: 'graph', label: 'Graph of the garden', icon: 'chain' },
           { id: 'evergreen', label: 'Mark evergreen', icon: 'check', disabled: state.note === null },
-          { kind: 'separator' },
-          { id: 'expand-all', label: 'Expand all', icon: 'chevronRight' },
-          { id: 'collapse-all', label: 'Collapse all', icon: 'chevronLeft' },
         ] },
       ],
       add: 'new',
@@ -824,8 +847,6 @@ export async function startWorkspace(nendo, context, kit) {
       case 'graph': if (can('ui.openScreen')) nendo.ui.openScreen('gd.note.graph').catch(error => setStatus(error.message)); break;
       case 'evergreen': await runCommand('gd.cmd.evergreen'); break;
       case 'about': showGuide(typeof value === 'boolean' ? value : !aboutShown); break;
-      case 'expand-all': foldAll(false); break;
-      case 'collapse-all': foldAll(true); break;
       default: break;
     }
     expose();

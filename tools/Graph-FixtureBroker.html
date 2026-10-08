@@ -48,6 +48,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
 //   offerPlaces(on), places, pushPlace(place),   ui.setPlace from the next connect on (W-127): what
 //   startAt(place)                              the view declared, Back or Forward handing it a
 //                                               place, and the place the next connect starts at
+//   put(entityId, record), touch(entityId, id)  somebody else writes a record, or moves its version on
 //   requests, events, hellos, refused, connects what happened, in order
 (() => {
   'use strict';
@@ -695,6 +696,14 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     commandsRun() { return requests.filter(request => request.m === 'commands.run').map(request => request.p); },
     /** A record as the fixture now holds it, to see what a command did. */
     record(entityId, recordId) { return clone((fixture.records[entityId] ?? []).find(candidate => candidate.recordId === recordId) ?? null); },
+    /** Somebody else writes a record, new or a version of one the fixture holds; pushChanges() tells the view. */
+    put(entityId, record) {
+      const list = fixture.records[entityId] ??= [];
+      const at = list.findIndex(candidate => candidate.recordId === record.recordId);
+      if (at >= 0) list[at] = clone(record); else list.push(clone(record));
+      fixture.changeSequence += 1;
+      return fixture.changeSequence;
+    },
     /** Somebody else changes a record: its version moves on under the view. */
     touch(entityId, recordId) {
       const record = (fixture.records[entityId] ?? []).find(candidate => candidate.recordId === recordId);

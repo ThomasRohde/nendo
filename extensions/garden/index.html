@@ -10,6 +10,18 @@
 <div id="app" hidden>
   <aside id="sidebar" aria-label="Notes">
     <div class="side-head own-chrome"><input id="find" type="search" placeholder="Find a note…" aria-label="Find a note"></div>
+    <div id="tree-head">
+      <span id="tree-title">Notes</span>
+      <div id="levels" role="group" aria-label="Levels of the tree to show" hidden>
+        <span class="levels-word" aria-hidden="true">Show</span>
+        <span class="levels-buttons">
+          <button type="button" data-level="1" aria-pressed="false" title="Top level only: collapse all">1</button>
+          <button type="button" data-level="2" aria-pressed="false" title="Two levels">2</button>
+          <button type="button" data-level="3" aria-pressed="false" title="Three levels">3</button>
+          <button type="button" data-level="all" aria-pressed="false" title="Every level: expand all">All</button>
+        </span>
+      </div>
+    </div>
     <ul id="tree" role="tree" aria-label="Notes by place"></ul>
     <p id="tree-empty" hidden>No notes yet. Plant one with New note.</p>
   </aside>
@@ -186,7 +198,7 @@
         <summary><span><b>Find your way</b><small>The tree, the dividers, previews and Find</small></span></summary>
         <div class="guide-topic-body">
           <ul class="guide-tips">
-            <li><strong>The tree is the outline.</strong> A note can sit under another. Click the arrow beside a note to fold its branch away, or use <kbd>←</kbd> and <kbd>→</kbd>. Expand all and Collapse all are in the Note menu. Opening a note unfolds the branch it is in.</li>
+            <li><strong>The tree is the outline.</strong> A note can sit under another. Click the arrow beside a note to fold its branch away, or use <kbd>←</kbd> and <kbd>→</kbd>. <b>Show</b>, above the tree, folds it to one, two or three levels, or unfolds <b>All</b>. Opening a note unfolds the branch it is in.</li>
             <li><strong>Make room.</strong> Drag the line between the tree and the page to widen either. In Edit, drag the line between the Markdown and the preview; drag it to the right edge to fold the preview away. A double-click resets both.</li>
             <li><strong>Read at your width.</strong> Narrow, Medium or Full, from the row above the page.</li>
             <li><strong>Peek before you jump.</strong> Hover a link to preview its note. Follow it, and Nendo's Back returns you.</li>

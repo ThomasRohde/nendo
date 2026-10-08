@@ -6,7 +6,7 @@ As a garden grows, these keep it easy to walk through.
 
 Notes nest: a note can sit under another note, so the garden is one tree rather than folders of files. Click the arrow beside a note to fold its branch away, and again to unfold it. With the keyboard, `→` unfolds a branch or steps into it, and `←` folds it or steps up to the note above.
 
-- **Expand all** and **Collapse all** are in the Note menu of the Garden view.
+- **Show**, above the tree, folds it to a level: **1** shows only the top notes, **2** and **3** show that many levels, and **All** unfolds every branch. The level the tree shows is lit; fold a branch by hand and it goes out.
 - Opening a note unfolds the branch it is in, so you always see where you are.
 - What you fold is remembered on this device.
 
