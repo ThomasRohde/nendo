@@ -237,7 +237,21 @@ export interface AgentWork {
 }
 
 /** An agent the Agent page can launch (ADR-0030), and whether it was found on this computer. */
-export interface LaunchableAgent { id: string; name: string; commandLine: string; found: boolean }
+/**
+ * An agent Launch offers. `installCommand` is what installs it and `updateCommand` (one command a
+ * line) what moves it off `renamedFrom`, a package that was renamed and no longer gets updates;
+ * both are for the person to run in a terminal. Null for the person's own command.
+ */
+export interface LaunchableAgent {
+  id: string;
+  name: string;
+  commandLine: string;
+  found: boolean;
+  package: string | null;
+  installCommand: string | null;
+  renamedFrom: string | null;
+  updateCommand: string | null;
+}
 
 /** What the Agent page offers under Launch, why a launch is not possible now, and what is running. */
 export interface LaunchableAgents {

@@ -6,6 +6,7 @@ import { type ConnectionClient, connectionClients, connectionCommand, serverName
 import { activityLabel, agentModeLabel, escapeAttribute, escapeHtml, formatDateTime, isAgentAccessMode, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel, shortId } from './format';
 import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type DesktopPromotionView, type LaunchableAgents, type ProposalPreview } from './host';
 import { launchAgent, openAgentChat, saveAgentCommand } from './view-agent-chat';
+import { launchCopyText, launchRowMarkup } from './agent-launch-model';
 import { announce, clearError, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
 import { applicationPlans, overviewPlan } from './plan-selection';
 import { addedSurfaceSentence, kindLabel } from './surface-model';
@@ -54,9 +55,7 @@ function launchMarkup(): string {
   if (launchable === null) return '';
   const offer = launchable;
   const running = offer.running;
-  const rows = offer.agents.map((agent) => `<li><button class="launch-agent" type="button" data-launch-agent="${escapeAttribute(agent.id)}" data-action ${!agent.found || !offer.canLaunch || running !== null ? 'disabled' : ''}>
-      <span class="launch-name"><strong>${escapeHtml(agent.name)}</strong><small>${escapeHtml(agent.found ? agent.commandLine : `Not found on this computer · ${agent.commandLine}`)}</small></span>
-      <span class="launch-go" aria-hidden="true">${agent.found ? 'Launch' : ''}</span></button></li>`).join('');
+  const rows = offer.agents.map((agent) => launchRowMarkup(agent, offer.canLaunch && running === null)).join('');
   return `<section class="agent-launch" aria-labelledby="launch-title">
     <div class="permission-intro"><h2 id="launch-title">Launch an agent</h2><p>Start an agent you have installed, in a tab beside this file. It works at the level above and reaches this file only through Nendo. It is the program you would run in a terminal, with its own tools on this computer.</p></div>
     ${running === null ? '' : `<div class="launch-running"><span><strong>${escapeHtml(running.name)}</strong> is ${escapeHtml(running.working ? 'working' : runningWords[running.state] ?? running.state)}.</span><button id="open-agent-chat" class="secondary-button" type="button">Open conversation</button></div>`}
@@ -172,6 +171,9 @@ export function renderAgent(): void {
   wireBehaviourApproval(content);
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-launch-agent]')) {
     button.addEventListener('click', () => void launchAgent(button.dataset.launchAgent!));
+  }
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-copy-agent]')) {
+    button.addEventListener('click', () => void copyAgentCommand(button.dataset.copyAgent!));
   }
   content.querySelector<HTMLButtonElement>('#open-agent-chat')?.addEventListener('click', () => {
     void openAgentChat().catch((error: unknown) => showError(messageFor(error)));
@@ -358,6 +360,20 @@ export async function copyConnectionCommand(target: ConnectionClient): Promise<v
     announce(`Copied. Run it once in a terminal: ${command}`);
   } catch {
     announce(`Copy failed. Run this once in a terminal: ${command}`);
+  }
+}
+
+/** Copy what installs an agent, or moves it off a renamed package, for a terminal (ADR-0030). */
+async function copyAgentCommand(agentId: string): Promise<void> {
+  const agent = launchable?.agents.find((candidate) => candidate.id === agentId);
+  const command = agent === undefined ? null : launchCopyText(agent);
+  if (command === null) return;
+  const lines = command.split('\n').join(', then ');
+  try {
+    await navigator.clipboard.writeText(command);
+    announce(`Copied. Run it in a terminal, then open this page again: ${lines}`);
+  } catch {
+    announce(`Copy failed. Run this in a terminal, then open this page again: ${lines}`);
   }
 }
 

@@ -351,6 +351,43 @@ public sealed class DesktopLaunchedAgentTests
         Assert.IsNull(DesktopAgentCatalog.Custom("   "));
     }
 
+    [TestMethod]
+    public void AnAgentFromARenamedPackageIsToldApartAndAMissingOneSaysWhatToInstall()
+    {
+        // 2026-10-08: the owner's claude-agent-acp came from @zed-industries/claude-agent-acp, which
+        // stopped at 0.23.1 when it was renamed, and refused to start. npm's shim names the package.
+        var folder = Directory.CreateTempSubdirectory("nendo-agent-shims-");
+        try
+        {
+            var shim = Path.Combine(folder.FullName, "claude-agent-acp.cmd");
+            const string NpmShim = "@ECHO off\r\nendLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & \"%_prog%\"  \"%dp0%\\node_modules\\{0}\\dist\\index.js\" %*\r\n";
+            File.WriteAllText(shim, string.Format(NpmShim, @"@zed-industries\claude-agent-acp"));
+            var agents = DesktopAgentCatalog.List(null, folder.FullName);
+            var claude = agents.Single(agent => agent.Id == "claude");
+            Assert.AreEqual(shim, claude.ResolvedPath);
+            Assert.AreEqual("@zed-industries/claude-agent-acp", claude.RenamedFrom, "The renamed package was not told apart.");
+            Assert.AreEqual("npm uninstall -g @zed-industries/claude-agent-acp\nnpm install -g @agentclientprotocol/claude-agent-acp", claude.UpdateCommand);
+
+            var gemini = agents.Single(agent => agent.Id == "gemini");
+            Assert.IsNull(gemini.ResolvedPath);
+            Assert.AreEqual("npm install -g @google/gemini-cli", gemini.InstallCommand);
+            Assert.IsNull(gemini.RenamedFrom);
+
+            File.WriteAllText(shim, string.Format(NpmShim, @"@agentclientprotocol\claude-agent-acp"));
+            claude = DesktopAgentCatalog.List(null, folder.FullName).Single(agent => agent.Id == "claude");
+            Assert.IsNull(claude.RenamedFrom, "The package that is still updated was taken for the renamed one.");
+            Assert.IsNull(claude.UpdateCommand);
+
+            var own = DesktopAgentCatalog.Custom($"\"{shim}\"", folder.FullName)!;
+            Assert.IsNull(own.InstallCommand, "The person's own command was given an install command.");
+            Assert.IsNull(own.RenamedFrom);
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
     private static string? Method(JsonElement entry) =>
         entry.TryGetProperty("method", out var method) ? method.GetString() : null;
 

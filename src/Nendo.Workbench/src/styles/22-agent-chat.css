@@ -25,9 +25,76 @@
   cursor: pointer;
 }
 
-.launch-agent:hover:not(:disabled) {
+.launch-agent:hover:not(:disabled, .is-missing) {
   border-color: var(--line-strong);
   background: var(--surface-soft);
+}
+
+/* An agent that is not installed: a row, not a button, saying what installs it. The command
+   wraps rather than being cut, since it is there to be read and copied. */
+.launch-agent.is-missing {
+  cursor: default;
+  background: var(--surface);
+}
+
+.launch-agent.is-missing .launch-name strong {
+  opacity: 0.62;
+}
+
+.launch-agent.is-missing .launch-name small {
+  overflow-wrap: anywhere;
+  white-space: normal;
+  user-select: text;
+}
+
+.launch-copy {
+  flex: none;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--cobalt);
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.launch-copy:hover {
+  background: var(--surface-soft);
+}
+
+/* An agent found from a package that was renamed and no longer gets updates. The action sits
+   under the sentence, so a package name has the row's whole width before it wraps. */
+.launch-renamed {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--warning) 26%, var(--line));
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface));
+}
+
+.launch-renamed p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+/* A package name moves to the next line whole, and breaks only when it is wider than the row. */
+.launch-renamed code {
+  display: inline-block;
+  max-width: 100%;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+}
+
+.launch-renamed .launch-copy {
+  margin-left: -8px;
 }
 
 .launch-agent:disabled {

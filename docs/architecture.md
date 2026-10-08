@@ -867,7 +867,10 @@ host is an ACP client (`Desktop/Agents/`). It keeps no model client and no crede
   Gemini CLI, the Claude Code and Codex ACP adapters, and OpenCode. It finds them on
   `PATH` as a terminal would. A `.cmd` shim runs under the command interpreter. The
   person may add one command line, which this device keeps in `agent-launch.json`.
-  Launch is offered at Inspect and above.
+  Launch is offered at Inspect and above. Each known program carries its npm package:
+  a missing one shows `npm install -g <package>`, and a found npm shim that starts a
+  package the catalog lists as renamed shows the commands that move it. The page
+  copies them for a terminal; the host runs neither.
 - **How the program runs.** `AgentProcess` starts it in a new empty folder under
   `agent-sessions/` in device state, with the person's own environment, inside a Job
   Object. Closing the job's handle ends the program and everything it started.

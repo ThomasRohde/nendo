@@ -1,4 +1,4 @@
-import { WorkbenchHostError, type AgentOption, type AgentStatus, type AgentTranscriptEntry, type LaunchableAgents, type LaunchedAgentState, type LaunchedAgentView } from './host-types';
+import { WorkbenchHostError, type AgentOption, type AgentStatus, type AgentTranscriptEntry, type LaunchableAgent, type LaunchableAgents, type LaunchedAgentState, type LaunchedAgentView } from './host-types';
 
 /**
  * A launched agent for the browser preview (ADR-0030): the same requests and the same nudges as
@@ -65,11 +65,14 @@ export class PreviewAgentSession {
 
   private list(): LaunchableAgents {
     const mode = this.status().mode;
-    const agents = [
-      { id: 'copilot', name: 'GitHub Copilot CLI', commandLine: 'copilot --acp', found: true },
-      { id: 'gemini', name: 'Gemini CLI', commandLine: 'gemini --experimental-acp', found: false },
-      { id: 'opencode', name: 'OpenCode', commandLine: 'opencode acp', found: true },
-      ...(this.customCommandLine === null ? [] : [{ id: 'custom', name: 'Your command', commandLine: this.customCommandLine, found: true }]),
+    const npm = (id: string, name: string, commandLine: string, found: boolean, pkg: string): LaunchableAgent =>
+      ({ id, name, commandLine, found, package: pkg, installCommand: `npm install -g ${pkg}`, renamedFrom: null, updateCommand: null });
+    const agents: LaunchableAgent[] = [
+      npm('copilot', 'GitHub Copilot CLI', 'copilot --acp', true, '@github/copilot'),
+      npm('gemini', 'Gemini CLI', 'gemini --experimental-acp', false, '@google/gemini-cli'),
+      npm('opencode', 'OpenCode', 'opencode acp', true, 'opencode-ai'),
+      ...(this.customCommandLine === null ? [] : [{ id: 'custom', name: 'Your command', commandLine: this.customCommandLine, found: true,
+        package: null, installCommand: null, renamedFrom: null, updateCommand: null }]),
     ];
     const running = this.agent !== null && this.state !== 'ended'
       ? { agentId: this.agent.id, name: this.agent.name, state: this.state, working: this.working }

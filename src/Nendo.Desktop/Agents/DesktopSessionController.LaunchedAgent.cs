@@ -3,8 +3,20 @@ using Nendo.LocalMcp;
 
 namespace Nendo.Desktop;
 
-/// <summary>An agent the Agent page offers, and whether it was found on this computer.</summary>
-internal sealed record DesktopLaunchableAgentView(string Id, string Name, string CommandLine, bool Found);
+/// <summary>
+/// An agent the Agent page offers, whether it was found on this computer, and what a person would
+/// run in a terminal to install it or, when it came from a renamed package, to move it to the one
+/// still updated. Nendo shows these commands and never runs them.
+/// </summary>
+internal sealed record DesktopLaunchableAgentView(
+    string Id,
+    string Name,
+    string CommandLine,
+    bool Found,
+    string? Package,
+    string? InstallCommand,
+    string? RenamedFrom,
+    string? UpdateCommand);
 
 /// <summary>The agent running for this file, as the Agent page names it.</summary>
 internal sealed record DesktopLaunchedAgentSummary(string AgentId, string Name, string State, bool Working);
@@ -223,7 +235,8 @@ internal sealed partial class DesktopSessionController
     {
         var custom = AgentLaunch().CommandLine;
         var agents = DesktopAgentCatalog.List(custom)
-            .Select(agent => new DesktopLaunchableAgentView(agent.Id, agent.Name, agent.CommandLine, agent.ResolvedPath is not null))
+            .Select(agent => new DesktopLaunchableAgentView(agent.Id, agent.Name, agent.CommandLine, agent.ResolvedPath is not null,
+                agent.Package, agent.InstallCommand, agent.RenamedFrom, agent.UpdateCommand))
             .ToArray();
         var running = _launched is { HasEnded: false } agent
             ? new DesktopLaunchedAgentSummary(agent.Command.Id, agent.Command.Name, agent.Conversation.State, agent.Conversation.Working)

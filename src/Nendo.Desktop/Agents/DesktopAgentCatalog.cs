@@ -8,18 +8,31 @@ namespace Nendo.Desktop;
 /// <summary>
 /// A program the Agent page can launch: what it is called, and the command that starts it as an
 /// ACP agent on stdio (ADR-0030). <c>ResolvedPath</c> is where it was found on this computer, or
-/// null when it was not.
+/// null when it was not. <c>Package</c> is the npm package that provides it, null for the
+/// person's own command; <c>RenamedFrom</c> is the package it was found to come from when that
+/// one was renamed to <c>Package</c> and no longer gets updates.
 /// </summary>
 internal sealed record DesktopAgentCommand(
     string Id,
     string Name,
     string Program,
     IReadOnlyList<string> Arguments,
-    string? ResolvedPath)
+    string? ResolvedPath,
+    string? Package = null,
+    string? RenamedFrom = null)
 {
     /// <summary>The command as a person would type it.</summary>
     internal string CommandLine =>
         string.Join(' ', new[] { Program }.Concat(Arguments).Select(DesktopAgentCatalog.Quote));
+
+    /// <summary>What installs it, for a person to run in a terminal. Nendo never runs it.</summary>
+    internal string? InstallCommand => Package is null ? null : $"npm install -g {Package}";
+
+    /// <summary>
+    /// What moves it to the package that is still updated, one command a line. The old package
+    /// goes first: npm refuses to put a second package's command where the first one's is.
+    /// </summary>
+    internal string? UpdateCommand => RenamedFrom is null ? null : $"npm uninstall -g {RenamedFrom}\nnpm install -g {Package}";
 
     /// <summary>
     /// How Windows starts it. A batch file, which is how npm installs a command, runs under the
@@ -50,21 +63,26 @@ internal sealed record DesktopAgentCommand(
 /// The agents Nendo knows how to start, and the one command line a person may add (ADR-0030).
 /// <para>
 /// Nendo looks for each on this computer's <c>PATH</c>, as a terminal would. It never
-/// downloads, installs or updates one, and it reads no registry over the network.
+/// downloads, installs or updates one, and it reads no registry over the network. It names the
+/// npm package that provides each, so the page can say what to install, and it reads the npm
+/// shim it found to tell when that came from a package that was renamed and left behind: the
+/// old name keeps its last version for good, and an agent that falls behind its own settings
+/// refuses to start (2026-10-08: the old Claude adapter did not know <c>defaultMode: auto</c>).
 /// </para>
 /// </summary>
 internal static class DesktopAgentCatalog
 {
     internal const string CustomId = "custom";
     internal const int MaximumCommandLineLength = 1000;
+    private const int MaximumShimBytes = 16 * 1024;
 
-    private static readonly (string Id, string Name, string Program, string[] Arguments)[] Known =
+    private static readonly (string Id, string Name, string Program, string[] Arguments, string Package, string[] Renamed)[] Known =
     [
-        ("copilot", "GitHub Copilot CLI", "copilot", ["--acp"]),
-        ("gemini", "Gemini CLI", "gemini", ["--experimental-acp"]),
-        ("claude", "Claude Code", "claude-agent-acp", []),
-        ("codex", "Codex", "codex-acp", []),
-        ("opencode", "OpenCode", "opencode", ["acp"]),
+        ("copilot", "GitHub Copilot CLI", "copilot", ["--acp"], "@github/copilot", []),
+        ("gemini", "Gemini CLI", "gemini", ["--experimental-acp"], "@google/gemini-cli", []),
+        ("claude", "Claude Code", "claude-agent-acp", [], "@agentclientprotocol/claude-agent-acp", ["@zed-industries/claude-agent-acp"]),
+        ("codex", "Codex", "codex-acp", [], "@agentclientprotocol/codex-acp", ["@zed-industries/codex-acp"]),
+        ("opencode", "OpenCode", "opencode", ["acp"], "opencode-ai", []),
     ];
 
     private static readonly string[] RunnableExtensions = [".exe", ".cmd", ".bat", ".com"];
@@ -74,10 +92,39 @@ internal static class DesktopAgentCatalog
     {
         var path = pathVariable ?? Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
         var agents = Known
-            .Select(agent => new DesktopAgentCommand(agent.Id, agent.Name, agent.Program, agent.Arguments, Resolve(agent.Program, path)))
+            .Select(agent =>
+            {
+                var resolved = Resolve(agent.Program, path);
+                return new DesktopAgentCommand(agent.Id, agent.Name, agent.Program, agent.Arguments, resolved,
+                    agent.Package, RenamedFrom(resolved, agent.Renamed));
+            })
             .ToList();
         if (Custom(customCommandLine, path) is { } custom) agents.Add(custom);
         return agents;
+    }
+
+    /// <summary>
+    /// Which of <paramref name="renamed"/> the npm shim at <paramref name="resolvedPath"/> starts,
+    /// or null. npm writes each global command as a small batch file that names its package's
+    /// script under <c>node_modules</c>; anything else, or a file too large to be one, is not read.
+    /// </summary>
+    internal static string? RenamedFrom(string? resolvedPath, IReadOnlyList<string> renamed)
+    {
+        if (resolvedPath is null || renamed.Count == 0 ||
+            !Path.GetExtension(resolvedPath).Equals(".cmd", StringComparison.OrdinalIgnoreCase)) return null;
+        string shim;
+        try
+        {
+            var file = new FileInfo(resolvedPath);
+            if (!file.Exists || file.Length > MaximumShimBytes) return null;
+            shim = File.ReadAllText(resolvedPath).Replace('/', '\\');
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+        return renamed.FirstOrDefault(package =>
+            shim.Contains($"node_modules\\{package.Replace('/', '\\')}\\", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>The person's own command line as a launchable command, or null when there is none.</summary>

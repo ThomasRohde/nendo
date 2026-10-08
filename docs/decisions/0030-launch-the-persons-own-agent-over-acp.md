@@ -99,7 +99,8 @@ provider dependency and holds no credential.
   command line the person enters. The person's choice is kept on this device, never in the
   file.
 - The host never downloads, installs or updates an agent, and it does not read the ACP
-  registry, so it still needs no network of its own.
+  registry, so it still needs no network of its own. It may say what installs one: the
+  page shows the command for a person to run in a terminal.
 
 ### When Launch is offered
 
@@ -291,6 +292,37 @@ offered A to F, and the owner chose A, a reading thread.
 - A preview tour measured the composer docked 46 px from the window's foot, the column
   at 760 px, and Light and Dark.
 
+### A refusal says why, and Launch says what to install (later on 2026-10-08)
+
+The owner launched Claude Code from the installed build. It answered "Invalid API key",
+and after the owner removed that key it "refused to start: Internal error". Two causes,
+neither in Nendo's protocol:
+
+- The installed adapter came from `@zed-industries/claude-agent-acp`, which stopped at
+  0.23.1 when it was renamed to `@agentclientprotocol/claude-agent-acp` (0.88.0 that day).
+  The old version refused `session/new` because it did not know the owner's Claude setting
+  `permissions.defaultMode: "auto"`. The Codex adapter was renamed the same way. Updating
+  under the old name changed nothing.
+- The adapter put that reason only in the JSON-RPC error's `data.details`, which Nendo
+  dropped.
+
+**What changed:**
+- A refusal now carries the reason from `data` (a string, `details` or `message`),
+  bounded, with any application handle hidden. `AnAgentThatRefusesToStartSaysWhy` guards
+  it; without the detail it failed with "String 'Your command refused to start: Internal
+  error' does not contain string 'refused to start: Internal error: Invalid
+  permissions.defaultMode: auto.'".
+- The catalog names each known program's npm package. Launch shows a missing one's
+  install command, and says when a found npm shim starts a package the catalog lists as
+  renamed, with the commands that move it. Copy puts either on the clipboard; the host
+  still runs nothing. `AnAgentFromARenamedPackageIsToldApartAndAMissingOneSaysWhatToInstall`
+  guards the shim reading (matching the package with forward slashes failed it with
+  "Expected:<@zed-industries/claude-agent-acp>. Actual:<>"), and `agent-launch.test.mjs`
+  guards the rows (dropping the note failed "The renamed package was not said.").
+- Bundling an adapter in the installer was considered and rejected: a bundled copy would
+  fall behind just as this one did, it would carry Node and a vendor's SDK, and it would
+  make one vendor's agent part of Nendo.
+
 ## Consequences
 
 ### Positive
@@ -309,6 +341,8 @@ offered A to F, and the owner chose A, a reading thread.
   is on the button.
 - ACP is young, and adapters change. A known command can stop working after an agent
   update. The host refuses an unknown protocol version by name rather than guessing.
+  Adapters also move: an old package name keeps its last version for good, and the
+  catalog's list of renamed packages needs keeping up by hand.
 - A second surface for agent output: the tab must render tool calls and permission requests
   well enough to be trusted. That is real UI work.
 - A person without an ACP-capable agent installed still has no agent.
