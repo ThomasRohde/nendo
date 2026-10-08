@@ -78,7 +78,7 @@ Reads are MCP resources. They need no lease. Start with `nendo://application/des
 | `nendo://application/entity/{entityId}/export{?cursor,limit}` | A page of records as Nendo CSV, ready to import again. |
 | `nendo://application/search{?q,entity,field,cursor,limit}` | Records found by any word in their text, best match first, each with a short excerpt. The file needs a search index first. |
 | `nendo://application/surfaces` | Every compiled screen as a node tree, with the command IDs a screen's buttons run, and where each node is kept: its surface, its parent and its position among its siblings. |
-| `nendo://application/vocabulary` | Everything this Nendo build accepts from an author: node kinds, operators, operations and their payloads, the behaviour catalogue, the authoring rules and the limits. |
+| `nendo://application/vocabulary` | Everything this Nendo build accepts from an author: node kinds, operators, operations and their payloads, the behaviour catalogue, the authoring rules and the limits. About 60 KB whole; `?include=operations,authoringRules,limits` reads just those sections. |
 | `nendo://application/examples` | Complete change sets that validate as they stand. |
 | `nendo://application/proposals` | Proposals that wait for you, each with the change set it came from and the agent that made it. |
 | `nendo://application/proposal/{proposalId}` | One proposal in full: its diff, diagnostics and what the file would hold. Its state is live: stale once the file moved under it, active once accepted. |

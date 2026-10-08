@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Nendo.LocalMcp;
 
@@ -35,6 +36,7 @@ internal static class NendoAuthoringExamples
 {
     internal static NendoAuthoringExampleSet Description() => new(
         Nendo.Engine.NendoSemanticVocabulary.ContractVersion,
+        OnePerScreen(
         [
             CreateEntityWithRequiredFields(),
             ConfigureAReference(),
@@ -55,7 +57,58 @@ internal static class NendoAuthoringExamples
             ACustomGraphFromTheFile(),
             PutACustomViewInTheFile(),
             TeachAnAgentThisFile(),
-        ]);
+        ]));
+
+    /// <summary>
+    /// Each screen of every example under a surfaceId of its own, the root's nodeId, and every
+    /// node beneath it under the same one, as the authoring rules ask. The examples are written
+    /// with one placeholder surfaceId and settled here, in one pass, because a child's screen is
+    /// its root's. Until 2026-10-08 every screen of every example shared "example", and an agent
+    /// that copied them had no way to tell what a surfaceId was for.
+    /// </summary>
+    private static IReadOnlyList<NendoAuthoringExample> OnePerScreen(IReadOnlyList<NendoAuthoringExample> examples) =>
+        [.. examples.Select(example =>
+        {
+            var surfaceOf = new Dictionary<string, string>(StringComparer.Ordinal);
+            var roots = new HashSet<string>(StringComparer.Ordinal);
+            return example with
+            {
+                Mutations = [.. example.Mutations.Select(mutation => mutation with
+                {
+                    Operations = [.. mutation.Operations.Select(operation => Settle(operation, surfaceOf, roots))],
+                })],
+            };
+        })];
+
+    private static NendoAuthoringExampleOperation Settle(
+        NendoAuthoringExampleOperation operation, Dictionary<string, string> surfaceOf, HashSet<string> roots)
+    {
+        if (!operation.OperationType.StartsWith("ui.", StringComparison.Ordinal) ||
+            JsonNode.Parse(operation.Payload.GetRawText()) is not JsonObject payload ||
+            payload["nodeId"]?.GetValue<string>() is not { } nodeId)
+        {
+            return operation;
+        }
+        string? Named(string key) => payload[key] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
+        if (operation.OperationType == "ui.addNode")
+        {
+            // A node placed beside another takes that node's parent, and so its screen.
+            var anchor = Named("beforeNodeId") ?? Named("afterNodeId");
+            var parent = Named("parentNodeId") ?? (anchor is not null && !roots.Contains(anchor) ? anchor : null);
+            if (parent is null)
+            {
+                roots.Add(nodeId);
+                surfaceOf[nodeId] = nodeId;
+            }
+            else
+            {
+                surfaceOf[nodeId] = surfaceOf.GetValueOrDefault(parent, SurfaceId);
+            }
+        }
+        if (!surfaceOf.TryGetValue(nodeId, out var surface)) return operation;
+        payload["surfaceId"] = surface;
+        return operation with { Payload = JsonSerializer.SerializeToElement(payload) };
+    }
 
     /// <summary>
     /// A file's own agent skill (ADR-0024): a package of kind skill holding a SKILL.md, which

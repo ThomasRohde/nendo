@@ -111,7 +111,6 @@ public sealed class ProtocolResourceTests
                 "nendo.application.surfaces",
                 // Read only by an agent writing a custom view's code (W-094).
                 "nendo.application.view.api",
-                "nendo.application.vocabulary",
                 // Not about the open file: which Nendos are running and what each has open.
                 "nendo.host.instances",
                 // The authoring skill's SKILL.md (W-154); its supporting files are a template below.
@@ -123,6 +122,8 @@ public sealed class ProtocolResourceTests
             {
                 // describe takes include, so it is listed as a template (W-150).
                 "nendo.application.describe",
+                // So does the vocabulary since 2026-10-08: one section at a time.
+                "nendo.application.vocabulary",
                 "nendo.application.entity",
                 "nendo.application.entity.aggregate",
                 "nendo.application.entity.export",

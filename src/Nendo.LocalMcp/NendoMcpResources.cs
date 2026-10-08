@@ -94,15 +94,41 @@ internal sealed class NendoMcpResources(
     [McpServerResource(
         Name = "nendo.application.vocabulary",
         Title = "Authoring vocabulary",
-        UriTemplate = "nendo://application/vocabulary",
+        UriTemplate = "nendo://application/vocabulary{?include}",
         MimeType = "application/json")]
-    [Description("Everything this host accepts from an authoring client: every node kind with its permitted properties, required properties, permitted children and how many roots of it one record type may own; the closed filter operators, value kinds, ordering directions and aggregates; how sibling filter clauses combine; the authoring limits; and operations — every canonical operation type with the payload fields it requires and accepts. Generated from the tables the compiler and the authoring boundary validate against, so authoring does not require probing, and a documented field is an accepted field. Static for a host build; it does not describe the open file.")]
-    public Task<string> GetVocabularyAsync(CancellationToken cancellationToken) =>
-        TranslateAsync(() => Task.FromResult(Nendo.Engine.NendoSemanticVocabulary.Description() with
+    [Description("Everything this host accepts from an authoring client: every node kind with its permitted properties, required properties, permitted children and how many roots of it one record type may own; the closed filter operators, value kinds, ordering directions and aggregates; how sibling filter clauses combine; the authoring limits; and operations — every canonical operation type with the payload fields it requires and accepts. Generated from the tables the compiler and the authoring boundary validate against, so authoring does not require probing, and a documented field is an accepted field. The whole is about 60 KB: include takes a comma-separated subset of its sections, such as operations,authoringRules,limits, and included says what came; an unknown name is refused, listing them all. Static for a host build; it does not describe the open file.")]
+    public Task<string> GetVocabularyAsync(string? include = null, CancellationToken cancellationToken = default) =>
+        TranslateTextAsync(() => Task.FromResult(Vocabulary(include)));
+
+    /// <summary>
+    /// The vocabulary, or the sections include names. An agent that read it whole got some
+    /// sixty kilobytes and grepped a saved copy for the operation it wanted (2026-10-08). The
+    /// sections are the document's own top-level names, so a section added later can be named
+    /// the day it appears.
+    /// </summary>
+    private static string Vocabulary(string? include)
+    {
+        var whole = JsonSerializer.SerializeToNode(Nendo.Engine.NendoSemanticVocabulary.Description() with
         {
             Operations = NendoAuthoringOperations.All,
             AuthoringRules = NendoAuthoringOperations.Rules,
-        }));
+        }, NendoMcpJson.Options)!.AsObject();
+        if (string.IsNullOrWhiteSpace(include)) return whole.ToJsonString(NendoMcpJson.Options);
+        var sections = whole.Select(pair => pair.Key).Where(key => key != "contractVersion").ToArray();
+        var wanted = include.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.Ordinal).ToArray();
+        var unknown = wanted.Where(name => !sections.Contains(name, StringComparer.Ordinal)).ToArray();
+        if (unknown.Length > 0)
+            throw new NendoValidationException(
+                $"include names {string.Join(", ", unknown)}; the vocabulary's sections are {string.Join(", ", sections)}, comma-separated.");
+        var part = new System.Text.Json.Nodes.JsonObject
+        {
+            ["contractVersion"] = whole["contractVersion"]?.DeepClone(),
+            ["included"] = new System.Text.Json.Nodes.JsonArray([.. wanted.Select(name => (System.Text.Json.Nodes.JsonNode?)name)]),
+        };
+        foreach (var name in wanted) part[name] = whole[name]?.DeepClone();
+        return part.ToJsonString(NendoMcpJson.Options);
+    }
 
     [McpServerResource(
         Name = "nendo.application.describe",

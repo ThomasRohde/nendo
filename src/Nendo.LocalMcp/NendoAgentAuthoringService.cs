@@ -25,6 +25,19 @@ internal sealed partial class NendoAgentAuthoringService(
     private static readonly int MaximumPropertiesPerNodeOperation = Limits.PropertiesPerNodeOperation;
     private const int MaximumPayloadBytes = 32 * 1024;
     private static readonly int PutFilePayloadBytes = Limits.Extensions!.PutFilePayloadBytes;
+
+    /// <summary>
+    /// Payload keys an author reaches for on one operation that another operation carries. A
+    /// refusal that only listed what addField takes left an agent that sent unique to find
+    /// schema.setFieldUnique in the skill's operation list (2026-10-08).
+    /// </summary>
+    private static readonly IReadOnlyDictionary<(string Operation, string Key), string> MisplacedKeys =
+        new Dictionary<(string, string), string>
+        {
+            [("schema.addField", "unique")] = "A field is made unique by schema.setFieldUnique, which may follow in the same mutation.",
+            [("schema.addField", "type")] = "The kind of value is storageKind.",
+            [("schema.createEntity", "keptInNewFiles")] = "Whether a new file keeps the type's records is schema.setKeptInNewFiles.",
+        };
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, Draft> _drafts = new(StringComparer.Ordinal);
     // The operations behind each validated proposal, kept so a proposal the file moved
@@ -1204,9 +1217,12 @@ internal sealed partial class NendoAgentAuthoringService(
         if (unknown.Length > 0)
         {
             var published = NendoAuthoringOperations.All.Single(candidate => candidate.OperationType == operation.OperationType);
+            var elsewhere = string.Concat(unknown
+                .Select(name => MisplacedKeys.TryGetValue((operation.OperationType, name), out var meant) ? $" {meant}" : null)
+                .OfType<string>());
             throw new NendoValidationException(
                 $"{operation.OperationType} does not take {string.Join(", ", unknown)}; it takes " +
-                $"{string.Join(", ", published.RequiredPayload.Concat(published.OptionalPayload))}.");
+                $"{string.Join(", ", published.RequiredPayload.Concat(published.OptionalPayload))}.{elsewhere}");
         }
         // Decode first: an exact decimal arrives as a {"$nendoNumber": "..."} object,
         // and an inline property value carrying one is a number, not an object.
