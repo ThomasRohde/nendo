@@ -19,10 +19,12 @@ To move a note under another, or change its order, use the **Tree** screen and d
 
 ## Read around a note
 
+When a note has tasks, a grey strip under its title says how many are done and holds the next one to do, with its box. Tick it there or in the text: it is the same task. **Show all** lists every task of the note, with its due date and a way to its own page.
+
 Under every note, while you read:
 
 - **Local graph**, folded until you open it: this note and every note one link away, either way, across the width of the page, each dot in the colour of the section it grows in, named under the graph. Click a dot to go there. It stays open or folded as you left it.
-- **Tasks** the note carries, when it has any, and any tags written on the note by hand. The tags in the body are the pills in the text itself.
+- Any tags written on the note by hand. The tags in the body are the pills in the text itself.
 
 Hover a link to preview the note it names without leaving the page. Follow it, and Nendo's **Back** brings you back.
 

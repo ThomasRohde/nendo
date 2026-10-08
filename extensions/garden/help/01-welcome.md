@@ -7,7 +7,7 @@ A garden is a place where ideas grow by being linked. Write a note, name another
 1. **Plant a note.** In the Garden view, choose **New note**. Give it a title and a few lines.
 2. **Link it.** Type `[[` and pick a note from the list, or name a note that does not exist yet. Saving plants it as a Seed, waiting to be written.
 3. **Save.** `Ctrl` `S` turns your links, `#tags` and `- [ ]` tasks into records in one step. Undo takes that whole step back.
-4. **Watch it grow.** Under the note, while you read, **Local graph** opens to show the note and every note one link away, and its tasks are listed when it has any. The **Graph** screen shows the whole garden.
+4. **Watch it grow.** Under the note, while you read, **Local graph** opens to show the note and every note one link away. A note with tasks shows them under its title, the next one with its box. The **Graph** screen shows the whole garden.
 
 > Keeping a journal? **Today** in the Garden view opens today's note, made from your template the first time.
 

@@ -74,10 +74,12 @@ export function drawRelated({ backlinks, links = [], noteTags, tasks }, lists, o
   lists.tags.replaceChildren(...(noteTags.length ? noteTags.map(noteTag =>
     row(`#${labelOf(noteTag, F.noteTag.tag, tagNames)}`, () => open('gd.tag', noteTag.values[F.noteTag.tag]), null, { className: 'chip' }))
     : [none('No tags.')]));
+  // The workspace shows a note's tasks in the strip under its title (tasks.mjs); the panel lists them here.
+  if (!lists.tasks) return;
   const sorted = [...tasks].sort((a, b) => Number(a.values[F.task.done]) - Number(b.values[F.task.done]));
   lists.tasks.replaceChildren(...(sorted.length ? sorted.map(task =>
-    row(task.values[F.task.title] ?? task.recordId, () => open('gd.task', task.recordId),
-      [task.values[F.task.due] ? `due ${task.values[F.task.due]}` : null, task.values[F.task.source]].filter(Boolean).join(' · '),
+    row(plainText(task.values[F.task.title] ?? task.recordId), () => open('gd.task', task.recordId),
+      [task.values[F.task.due] ? `due ${task.values[F.task.due]}` : null, task.values[F.task.source] === 'Manual' ? 'added by hand' : null].filter(Boolean).join(' · ') || null,
       { className: task.values[F.task.done] ? 'done' : '' }))
     : [none('No tasks.')]));
   const open_ = tasks.filter(task => !task.values[F.task.done]).length;

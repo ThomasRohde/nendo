@@ -17,6 +17,6 @@ A line starting with `- [ ]` is a task. Saving makes it a **Task** record that r
 | **By source** | Tasks written in notes beside those added by hand |
 | **All tasks** | Everything, done or not |
 
-Tick a box while reading and the tick is saved at once, both in the note and on the task. Give a task a due date on its own page, and it appears on the **Due** calendar.
+Tick a box while reading and the tick is saved at once, both in the note and on the task. The strip under a note's title holds the next task to do with its box, and **Show all** lists the rest, the ones added by hand too. Give a task a due date on its own page, and it appears on the **Due** calendar.
 
 > A task added by hand on the Tasks screens is marked **Manual** and is yours: no save of a note ever changes it.

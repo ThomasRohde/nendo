@@ -105,6 +105,51 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 #reading-body h1 { font-size: 24px; } #reading-body h2 { font-size: 20px; } #reading-body h3 { font-size: 17px; }
 #reading-body p, #reading-body ul, #reading-body ol, #reading-body blockquote, #reading-body pre { margin: 0 0 .9em; }
 #reading-body li.task input { cursor: pointer; }
+
+/* A note's tasks, in a grey strip under its title (the owner, 2026-10-08): how many are done, the
+   next one to do with its box, and every one under Show all. Hidden when the note has none. */
+#task-strip { margin: 0 0 20px; padding: 8px 10px 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); font-size: 14px; }
+#task-strip[hidden], #task-strip [hidden] { display: none; }
+.strip-head { display: flex; align-items: center; gap: 10px; min-height: 32px; }
+.strip-ring { flex: none; width: 22px; height: 22px; transform: rotate(-90deg); }
+.strip-ring circle { fill: none; stroke-width: 3; }
+.strip-ring .track { stroke: var(--line-strong); }
+.strip-ring .fill { stroke: var(--accent); }
+#task-count { flex: 1; color: var(--muted); font-size: 13px; }
+#task-count b { color: var(--ink); font-weight: 600; }
+#task-all { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 0 8px 0 10px; font-size: 13px; }
+#task-all svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
+#task-all[aria-expanded=true] svg { transform: rotate(180deg); }
+#task-all:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.strip-part { margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--line); }
+#task-next { display: flex; align-items: flex-start; gap: 12px; }
+#task-finished { color: var(--muted); }
+.strip-tag { flex: none; margin-top: 4px; padding: 0 6px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font-size: 11px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.strip-rows { flex: 1; min-width: 0; list-style: none; margin: 0; padding: 0; }
+.strip-task { display: flex; align-items: flex-start; gap: 8px; }
+.strip-task label { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 10px; padding: 3px 0; line-height: 1.5; cursor: pointer; overflow-wrap: anywhere; }
+.strip-task .box { margin-top: 2px; }
+.strip-task.done .text { color: var(--muted); text-decoration: line-through; }
+.strip-task code { font: 0.88em/1.5 Consolas, "Cascadia Code", monospace; background: var(--panel); padding: 1px 4px; border-radius: 4px; }
+.strip-task a { color: var(--accent); }
+.strip-task a.wikilink { text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+.strip-task a.wikilink.missing { color: var(--warning); border-bottom-style: dashed; }
+.strip-task a.tag { text-decoration: none; background: var(--accent-soft); border-radius: 999px; padding: 0 7px; font-size: .9em; }
+.strip-task .due { flex: none; margin-top: 4px; padding: 0 8px; border-radius: 999px; font-size: 12px; line-height: 18px; color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); }
+.strip-task .due.late { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.open-task { flex: none; width: 28px; height: 28px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--muted); opacity: 0; }
+.open-task svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.strip-task:hover .open-task, .open-task:focus-visible { opacity: 1; }
+.open-task:hover { background: var(--panel); color: var(--ink); }
+
+/* A task's box, in the strip and in the text: drawn from the theme's tokens and ticked in the accent. */
+.box, .markdown li.task > input[type=checkbox] { appearance: none; flex: none; box-sizing: border-box; width: 18px; height: 18px; margin: 0; border: 1.5px solid var(--muted); border-radius: 4px; background: var(--panel); display: inline-grid; place-items: center; cursor: pointer; transition: background-color .12s, border-color .12s; }
+.box:hover, .markdown li.task > input[type=checkbox]:hover:not(:disabled) { border-color: var(--accent); }
+.box:checked, .markdown li.task > input[type=checkbox]:checked { background: var(--accent); border-color: var(--accent); }
+.box:checked::after, .markdown li.task > input[type=checkbox]:checked::after { content: ""; width: 4px; height: 9px; border: solid var(--bg); border-width: 0 2px 2px 0; transform: translateY(-1px) rotate(45deg); }
+.box:focus-visible, .markdown li.task > input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.markdown li.task > input[type=checkbox]:disabled { cursor: default; }
+@media (prefers-reduced-motion: reduce) { #task-all svg, .box, .markdown li.task > input[type=checkbox] { transition: none; } }
 .meta { display: flex; gap: 6px; flex-wrap: wrap; color: var(--muted); font-size: 12px; align-items: center; margin-bottom: 18px; }
 #editing .meta { margin: 0; padding: 6px 16px; border-bottom: 1px solid var(--line); }
 .chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); font-size: 12px; color: var(--ink); }
@@ -156,7 +201,9 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 .markdown .diagram-error { margin-top: 4px; color: var(--danger); font-size: 12px; white-space: pre-wrap; }
 .markdown blockquote { margin: .5em 0; padding: 2px 14px; border-left: 3px solid var(--line-strong); color: var(--muted); }
 .markdown ul, .markdown ol { padding-left: 24px; }
-.markdown li.task { list-style: none; margin-left: -22px; }
+/* A task in the text hangs from its box, so a long one wraps under its words, not under the box. */
+.markdown li.task { list-style: none; position: relative; margin-left: -24px; padding-left: 28px; }
+.markdown li.task > input[type=checkbox] { position: absolute; left: 0; top: calc(.5lh - 9px); }
 .markdown li.task.done { color: var(--muted); text-decoration: line-through; }
 .markdown a { color: var(--accent); }
 .markdown a.wikilink { text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); }

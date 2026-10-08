@@ -30,9 +30,11 @@ A custom view for a garden of notes, in four places:
 ## Reading
 
 The title is the page heading and the body is set in a readable column, its tags pills in the
-text. Under it is the note's local graph (the note and every note one link away), folded until
-opened and then the page's width, then any tags written by hand and the tasks, each only when
-the note has some. The links in are on the Backlinks panel and the Graph screen. A wikilink opens its note in place; hovering one previews
+text. Between the title and the text, a note with tasks has a grey strip (`#task-strip`,
+`tasks.mjs`): a ring and "2 of 5 tasks done", the next open task with its box, and Show all for
+every task, each with its due date and a way to its record. A body task ticks its line; a task
+added by hand ticks its record, as one batch Undo takes back. Under the text is the note's local graph (the note and every note one link away), folded until
+opened and then the page's width, then any tags written by hand, when the note has some. The links in are on the Backlinks panel and the Graph screen. A wikilink opens its note in place; hovering one previews
 the note it names. Ticking a task saves the tick at once, as one batch.
 
 ## Diagrams
@@ -112,7 +114,7 @@ where `nendo.has` says it exists. Colours are the theme's tokens.
 
 `index.html`, `garden.js` (picks the place), `workspace.js`, `graphscreen.js`, `panel.js`,
 `graph.js` (the d3 drawing), `graph-data.mjs` (records to nodes and edges), `related.mjs` (the
-rows under a note), `parse.mjs` (links, tags, tasks, slugs, keys), `render.mjs` (Markdown to
+rows under a note), `tasks.mjs` (the strip of a note's tasks), `parse.mjs` (links, tags, tasks, slugs, keys), `render.mjs` (Markdown to
 escaped HTML), `diagrams.js` (Mermaid fences to SVG), `sync.mjs` (a save's writes), `garden.css`,
 `kit/nendo-view-kit.js` (a copy of `tools/view-kit/`), and `vendor/`: d3 7.9.0 (`d3.min.js`, ISC,
 `d3.LICENSE.txt`) and Mermaid 11.17.2 (`mermaid.min.js`, MIT, `mermaid.LICENSE.txt`), with the

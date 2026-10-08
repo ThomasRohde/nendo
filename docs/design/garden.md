@@ -120,8 +120,14 @@ the graph to be dynamic and interactive, drawn with a common library as Obsidian
   the rows of links in and out said again what the page and the graph say), and opened it takes
   the page's width and 360 to 680 px of height. A folded graph is not drawn; whether it is open
   is this person's and stays in this browser. Under it are only the tags written by hand (the
-  body's tags are pills in the text, so a second list of them was the same thing twice) and the
-  tasks, each card only when the note has some. The Dependency graph package the Graph screen ran before is taken out of the file.
+  body's tags are pills in the text, so a second list of them was the same thing twice), when the
+  note has some. A note's tasks are in a grey strip between its meta row and its text (owner,
+  2026-10-08, from four designs; Garden 0.19.0; the Tasks card under the note listed each task as a
+  link over its source, "Checkbox"): a progress ring, "N of M tasks done", the next open task with
+  its box, and Show all for every task with its due date and a way to its record. The strip is
+  hidden when the note has none. A body task comes from the draft and ticks its line, as the box
+  in the text does; a task added by hand ticks its record. The boxes in the text and the strip are
+  drawn from the theme's tokens. The Dependency graph package the Graph screen ran before is taken out of the file.
 - **A dense garden on the Graph screen** (owner, 2026-10-07: a hundred notes were big dots under a
   mesh of names and lines). Dots are 4 to 11 px in radius rather than 5 to 18; the layout is
   shaped to the window, its axes stretched against each other by at most 2.25 to 1 so a wide

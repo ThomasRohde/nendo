@@ -50,6 +50,16 @@
         <article id="reading" aria-label="Reading">
           <h1 id="reading-title"></h1>
           <div class="meta" id="reading-meta"></div>
+          <section id="task-strip" aria-label="Tasks in this note" hidden>
+            <div class="strip-head">
+              <svg class="strip-ring" viewBox="0 0 22 22" aria-hidden="true"><circle class="track" cx="11" cy="11" r="8"/><circle id="task-ring-fill" class="fill" cx="11" cy="11" r="8" pathLength="100" stroke-dasharray="0 100"/></svg>
+              <span id="task-count"></span>
+              <button type="button" id="task-all" aria-expanded="false" aria-controls="task-list"><span class="label">Show all</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.5 8 10l3.5-3.5"/></svg></button>
+            </div>
+            <div id="task-next" class="strip-part" hidden><span class="strip-tag">Next</span><ul id="task-next-row" class="strip-rows"></ul></div>
+            <p id="task-finished" class="strip-part" hidden>Every task in this note is done.</p>
+            <ul id="task-list" class="strip-part strip-rows" hidden></ul>
+          </section>
           <div id="reading-body" class="markdown"></div>
         </article>
         <div id="editing" aria-label="Editing">
@@ -70,7 +80,6 @@
             <div id="local-graph-card"><div id="local-graph" class="graph-host local"></div><button type="button" id="local-open-graph" class="corner">Open the graph</button><div id="local-legend" class="legend" aria-label="Colours: the sections of the garden" hidden></div></div>
           </details>
           <section class="card" id="tags-card" hidden><h2>Tags written by hand</h2><ul id="note-tags" class="rows chips"></ul></section>
-          <section class="card" id="tasks-card" hidden><h2>Tasks <span id="tasks-count" class="count"></span></h2><ul id="note-tasks" class="rows"></ul></section>
         </div>
       </div>
     </section>

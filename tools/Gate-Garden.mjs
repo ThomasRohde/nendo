@@ -46,8 +46,24 @@ async page => {
   // and no second list of the body's tags, which are pills in the text. Its tasks are listed.
   assert(await frame.locator('#backlinks, #outlinks, #connections-lists').count() === 0, 'Under the note there must be no rows of links: the page and the local graph say them.');
   assert(await frame.locator('#reading-body a.tag').count() > 0 && await frame.locator('#tags-card').isHidden(), 'The body\'s tags are pills in the text, not a second list under the note.');
+  // Its tasks are in a grey strip under the title (the owner, 2026-10-08, "Go with B"): how many are
+  // done and the next one with its box, its Markdown drawn; no card under the note and no "Checkbox".
+  const strip = () => frame.evaluate(() => {
+    const s = document.getElementById('task-strip'), rect = e => e.getBoundingClientRect();
+    return { shown: !s.hidden && s.getClientRects().length > 0, count: document.getElementById('task-count').textContent,
+      next: document.querySelector('#task-next:not([hidden]) .strip-task .text')?.textContent ?? null,
+      bold: document.querySelectorAll('#task-strip:not([hidden]) .strip-task .text strong').length,
+      finished: !document.getElementById('task-finished').hidden,
+      rows: document.querySelectorAll('#task-list:not([hidden]) .strip-task').length,
+      expanded: document.getElementById('task-all').getAttribute('aria-expanded'),
+      under: rect(s).top >= rect(document.getElementById('reading-meta')).bottom - 0.5 && rect(s).bottom <= rect(document.getElementById('reading-body')).top + 0.5,
+      card: document.querySelectorAll('#tasks-card, #note-tasks').length, checkbox: /\bCheckbox\b/.test(document.getElementById('note').innerText) };
+  });
   const startTasks = fixture.records['gd.task'].filter(t => t.values['gd.task.note'] === 'gd.note.start-here').length;
-  assert(startTasks > 0 && await frame.locator('#tasks-card').isVisible() && await frame.locator('#note-tasks li button').count() === startTasks, `The note's ${startTasks} tasks must be listed under it.`);
+  const firstStrip = await strip();
+  assert(startTasks === 2 && firstStrip.shown && firstStrip.under && firstStrip.count === '0 of 2 tasks done' && firstStrip.next === 'Plant your first note with New note' && firstStrip.bold === 1
+    && !firstStrip.finished && firstStrip.rows === 0 && firstStrip.expanded === 'false' && firstStrip.card === 0 && !firstStrip.checkbox,
+    `The note's ${startTasks} tasks must be in the strip between its meta row and its text, the next one with its bold drawn, with no card under the note and no "Checkbox": ${JSON.stringify(firstStrip)}.`);
   // Width, three levels: Full fills the view, Narrow and Medium keep a centred column.
   const sheet = () => frame.evaluate(() => { const r = document.getElementById('reading').getBoundingClientRect(), m = document.getElementById('note').getBoundingClientRect();
     return { width: r.width, left: r.left - m.left, right: m.right - r.right, note: m.width }; });
@@ -145,7 +161,57 @@ async page => {
   assert(ticked0?.values[F.taskDone] === true, 'The ticked task record must be done.');
   assert((await records('gd.note')).find(n => n.recordId === 'gd.note.start-here').values[F.body].includes('- [x] Plant your first note'), 'The tick must be written into the body.');
   assert(await frame.evaluate(() => window.garden.mode) === 'read', 'Ticking keeps the page in reading.');
+  const afterTick = await strip();
+  assert(afterTick.count === '1 of 2 tasks done' && afterTick.next === 'Link it to this one', `A tick in the text must move the strip on: ${JSON.stringify(afterTick)}.`);
   checks.push('tick while reading');
+
+  // The strip's box works as the text's does, under a real pointer: the line in the body is ticked
+  // and saved in one batch, and the strip says every task is done.
+  await frame.locator('#task-strip').scrollIntoViewIfNeeded();
+  const nextBox = await frame.locator('#task-next .box').boundingBox();
+  const stripBefore = await requests('records.batch');
+  await page.mouse.click(nextBox.x + nextBox.width / 2, nextBox.y + nextBox.height / 2);
+  await frame.waitForFunction(() => window.garden.undo.length === 2 && !window.garden.dirty, null, { timeout: 3000 })
+    .catch(async () => { throw Error(`The strip's box must tick and save its task: ${JSON.stringify(await strip())}.`); });
+  assert(await requests('records.batch') === stripBefore + 1, 'A tick in the strip must be exactly one records.batch.');
+  assert((await records('gd.note')).find(n => n.recordId === 'gd.note.start-here').values[F.body].includes('- [x] Link it to this one'), 'A tick in the strip must be written into the body.');
+  assert((await records('gd.task')).find(t => t.values[F.taskTitle] === 'Link it to this one')?.values[F.taskDone] === true, 'The task ticked in the strip must be done.');
+  const allDone = await strip();
+  assert(allDone.count === '2 of 2 tasks done' && allDone.finished && allDone.next === null && await frame.locator('#reading-body input[data-line]:not(:checked)').count() === 0,
+    `With every task done the strip must say so, and the text's boxes be ticked: ${JSON.stringify(allDone)}.`);
+  // A task added by hand, a day late, is listed after the body's; Show all lists every task, and its
+  // box, pressed from the keyboard, writes the task's record and keeps the focus. Undo takes it back.
+  const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); const pad = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; })();
+  await page.evaluate(due => {
+    window.broker.put('gd.task', { recordId: 'gd.task.call-the-nursery', version: 1, values: { 'gd.task.title': 'Call the nursery about `seeds`', 'gd.task.note': 'gd.note.start-here', 'gd.task.done': false, 'gd.task.source': 'Manual', 'gd.task.key': null, 'gd.task.due': due } });
+    window.broker.pushChanges();
+  }, yesterday);
+  await frame.waitForFunction(() => window.garden.taskStrip.total === 3, null, { timeout: 3000 }).catch(async () => { throw Error(`A task added by hand must join the strip: ${JSON.stringify(await strip())}.`); });
+  const added = await strip();
+  assert(added.count === '2 of 3 tasks done' && added.next === 'Call the nursery about seeds', `The task added by hand is the next one to do: ${JSON.stringify(added)}.`);
+  const showAll = await frame.locator('#task-all').boundingBox();
+  await page.mouse.click(showAll.x + showAll.width / 2, showAll.y + showAll.height / 2);
+  const listed = await frame.evaluate(() => ({ rows: [...document.querySelectorAll('#task-list .strip-task')].map(row => [row.querySelector('.text').textContent, row.classList.contains('done'), row.querySelector('.due')?.className ?? null, !!row.querySelector('.open-task')]),
+    expanded: document.getElementById('task-all').getAttribute('aria-expanded'), label: document.querySelector('#task-all .label').textContent,
+    kept: Object.entries(localStorage).find(([key]) => key.startsWith('garden.tasks.all'))?.[1] ?? null }));
+  assert(JSON.stringify(listed.rows) === JSON.stringify([['Plant your first note with New note', true, null, true], ['Link it to this one', true, null, true], ['Call the nursery about seeds', false, 'due late', true]])
+    && listed.expanded === 'true' && listed.label === 'Show less' && listed.kept === 'open', `Show all must list every task in order, with the late due date and a way to each record, and be kept: ${JSON.stringify(listed)}.`);
+  const manualBefore0 = await requests('records.batch');
+  await frame.locator('#task-list .strip-task[data-id="record:gd.task.call-the-nursery"] .box').focus();
+  await page.keyboard.press('Space');
+  await frame.waitForFunction(() => window.garden.taskStrip.done === 3, null, { timeout: 3000 }).catch(async () => { throw Error(`The box of a task added by hand must tick its record: ${JSON.stringify(await strip())}.`); });
+  assert(await requests('records.batch') === manualBefore0 + 1 && (await records('gd.task')).find(t => t.recordId === 'gd.task.call-the-nursery').values[F.taskDone] === true,
+    'A task added by hand is ticked by one records.batch that writes its record.');
+  assert(await frame.evaluate(() => document.activeElement?.dataset.id) === 'record:gd.task.call-the-nursery', 'The box ticked from the keyboard keeps the focus.');
+  await command('undo');
+  await frame.waitForFunction(() => window.garden.taskStrip.done === 2, null, { timeout: 3000 }).catch(() => { throw Error('Undo must take the tick of a task added by hand back.'); });
+  assert((await records('gd.task')).find(t => t.recordId === 'gd.task.call-the-nursery').values[F.taskDone] === false, 'Undo puts the task added by hand back to open.');
+  await command('undo');
+  await frame.waitForFunction(() => window.garden.taskStrip.done === 1 && window.garden.undo.length === 1, null, { timeout: 3000 }).catch(() => { throw Error('Undo must take the strip\'s tick in the body back.'); });
+  await frame.locator('#task-strip').screenshot({ path: '__OUTPUT__/task-strip.png' });
+  await frame.locator('#task-all').click();
+  assert((await strip()).expanded === 'false', 'Show less folds the list away again.');
+  checks.push('task strip');
 
   // A wikilink followed while reading opens its note and declares a place.
   await frame.locator('#reading-body a.wikilink[data-id="gd.note.how-links-work"]').first().click();
@@ -154,6 +220,8 @@ async page => {
   await page.waitForFunction(() => window.broker.places.some(p => p.place.noteId === 'gd.note.how-links-work'), null, { timeout: 3000 }).catch(() => {});
   const places = await page.evaluate(() => window.broker.places);
   assert(places.some(p => p.place.noteId === 'gd.note.how-links-work' && p.label === 'How links work' && !p.replace), 'Following a wikilink must declare a new place named after the note: ' + JSON.stringify(places));
+  const noTasks = await strip();
+  assert(!noTasks.shown && noTasks.card === 0 && await frame.evaluate(() => window.garden.taskStrip.total) === 0, `A note with no tasks shows no strip: ${JSON.stringify(noTasks)}.`);
   checks.push('wikilink navigation and places');
 
   // The tree folds. The arrow beside a note with notes under it folds the branch away under a real
@@ -420,13 +488,16 @@ async page => {
       const token = name => { const e = document.createElement('i'); e.style.color = `var(--nendo-${name})`; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; };
       return { background: getComputedStyle(document.body).backgroundColor, ink: getComputedStyle(document.body).color,
         wikilink: getComputedStyle(document.querySelector('#preview a.wikilink')).color, cobalt: token('cobalt'),
-        level: getComputedStyle(document.querySelector('#levels button[aria-pressed=true]')).backgroundColor, cobaltSoft: token('cobalt-soft') };
+        level: getComputedStyle(document.querySelector('#levels button[aria-pressed=true]')).backgroundColor, cobaltSoft: token('cobalt-soft'),
+        strip: getComputedStyle(document.getElementById('task-strip')).backgroundColor, surfaceSoft: token('surface-soft'),
+        box: getComputedStyle(document.querySelector('#reading-body li.task > input:checked')).backgroundColor };
     });
     assert(colours[mode].wikilink === colours[mode].cobalt, `${mode}: a wikilink must be the cobalt token: ${JSON.stringify(colours[mode])}`);
     assert(colours[mode].level === colours[mode].cobaltSoft, `${mode}: the level Show presses must be the cobalt-soft token: ${JSON.stringify(colours[mode])}`);
+    assert(colours[mode].strip === colours[mode].surfaceSoft && colours[mode].box === colours[mode].cobalt, `${mode}: the task strip must be the surface-soft token and a ticked box the cobalt token: ${JSON.stringify(colours[mode])}`);
     await page.screenshot({ path: '__OUTPUT__/' + mode + '.png', fullPage: true });
   }
-  assert(colours.light.background !== colours.dark.background && colours.light.ink !== colours.dark.ink && colours.light.level !== colours.dark.level, 'The theme must change the frame: ' + JSON.stringify(colours));
+  assert(colours.light.background !== colours.dark.background && colours.light.ink !== colours.dark.ink && colours.light.level !== colours.dark.level && colours.light.strip !== colours.dark.strip, 'The theme must change the frame: ' + JSON.stringify(colours));
   checks.push('Light/Dark');
 
   // 10a. A ```mermaid fence is drawn as a diagram in the preview and the page, in the theme's

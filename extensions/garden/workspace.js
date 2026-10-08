@@ -1,7 +1,8 @@
 // The Garden workspace, the screen the file opens on: the notes as a tree on the left and one
 // note in the middle, in one of two modes: View, the page, and Edit (Ctrl E toggles them), its
-// Markdown with the preview beside it. The page is Narrow, Medium or Full, as the person picks. Under the note are its local
-// graph, folded away until opened, then the tags written by hand and the tasks, each only when the note has some.
+// Markdown with the preview beside it. The page is Narrow, Medium or Full, as the person picks. Under its title, when
+// it has tasks, a strip says how many are done and holds the next one with its box (tasks.mjs). Under the note are its
+// local graph, folded away until opened, then the tags written by hand, when it has some.
 // Save derives the note's links, tags and tasks from its body and writes everything as one
 // records.batch (sync.mjs), which the view can undo; ticking a task while reading saves it at
 // once. Nendo draws the controls where it offers its toolbar; otherwise the view draws its own.
@@ -10,7 +11,8 @@ import { parse, slugify } from './parse.mjs';
 import { render } from './render.mjs';
 import { createDiagrams } from './diagrams.js';
 import { plan, resolveTarget, F } from './sync.mjs';
-import { readRelated, readTags, drawRelated } from './related.mjs';
+import { readRelated, readTags, drawRelated, plainText } from './related.mjs';
+import { noteTasks, drawTaskStrip } from './tasks.mjs';
 import { buildGraph, branchTones } from './graph-data.mjs';
 import { createGraph } from './graph.js';
 import { localDate, uncertain, readDrafts, writeDrafts } from './drafts.mjs';
@@ -28,7 +30,8 @@ export async function startWorkspace(nendo, context, kit) {
   const title = $('title'), meta = $('meta'), editor = $('editor'), preview = $('preview'), autocomplete = $('autocomplete');
   const readingTitle = $('reading-title'), readingMeta = $('reading-meta'), readingBody = $('reading-body');
   const ownSummary = $('own-summary'), guide = $('guide'), hoverCard = $('hover-card');
-  const lists = { tags: $('note-tags'), tasks: $('note-tasks'), tasksCount: $('tasks-count') };
+  const lists = { tags: $('note-tags') };
+  const taskStrip = $('task-strip');
   const diagrams = createDiagrams();
   app.hidden = false;
 
@@ -44,7 +47,9 @@ export async function startWorkspace(nendo, context, kit) {
     // holds; and which of the two answered the last search ('index', or why the index did not).
     hits: null, findSource: 'local',
     // How many words Find marked in the open note: in the reading view and preview, and in the editor.
-    findMarks: { text: 0, editor: 0 } };
+    findMarks: { text: 0, editor: 0 },
+    // The strip of the note's tasks under its title: how many it shows done of how many, and whether Show all is open.
+    taskStrip: { done: 0, total: 0, expanded: false } };
   const expose = () => { window.garden = state; };
 
   // ---- The index: every note, the links between them, and the tree they make.
@@ -325,12 +330,12 @@ export async function startWorkspace(nendo, context, kit) {
       if (ticket !== openTicket || state.note !== shown) return;
       state.related = related;
     }
-    // The links are in the page and the local graph, and the body's tags are pills in it: under the
-    // note are only the tags written by hand and the tasks, each card only when the note has some.
+    // The links are in the page and the local graph, the body's tags are pills in it and the tasks are
+    // in the strip under the title: under the note are only the tags written by hand, when it has some.
     const handTags = state.related.noteTags.filter(row => row.values[F.noteTag.source] !== 'Body');
     drawRelated({ ...state.related, noteTags: handTags }, lists, openRecord, state.byId, new Map(state.tags.map(tag => [tag.recordId, { title: tag.values[F.tag.name] }])));
     $('tags-card').hidden = handTags.length === 0;
-    $('tasks-card').hidden = state.related.tasks.length === 0;
+    drawTasks();
     drawLocalGraph();
     drawTree();
     setStatus();
@@ -367,6 +372,7 @@ export async function startWorkspace(nendo, context, kit) {
     readingTitle.textContent = state.draft.title.trim() || 'Untitled';
     readingBody.innerHTML = render(state.draft.body, { resolve, interactive: true });
     diagrams.draw(readingBody);
+    drawTasks();
     if (state.mode === 'edit' && state.split < 100) { preview.innerHTML = render(state.draft.body, { resolve }); diagrams.draw(preview); }
     markFinds();
   }
@@ -404,6 +410,61 @@ export async function startWorkspace(nendo, context, kit) {
     storeSoon();
     if (wasDirty) { setStatus('Ticked. Save to keep it with your other changes.'); expose(); return; }
     await save({ quiet: true });
+  }
+
+  // ---- The strip of the note's tasks under its title. A task the body says ticks as its box in the
+  // text does; one added by hand has no line, so its box writes its record, as one step Undo takes back.
+  const tasksAllKey = `garden.tasks.all.v1.${context.viewId ?? 'workspace'}`;
+  let tasksExpanded = (() => { try { return localStorage.getItem(tasksAllKey) === 'open'; } catch { return false; } })();
+  let shownTasks = [];
+  function drawTasks() {
+    if (!state.draft) return;
+    // Records read for the note shown, never those of the note the person just left.
+    const records = (state.related?.tasks ?? []).filter(row => state.note !== null && row.values[F.task.note] === state.note.recordId);
+    shownTasks = noteTasks(parse(state.draft.body).tasks, records);
+    const progress = drawTaskStrip(taskStrip, shownTasks, { resolve, expanded: tasksExpanded, today: today() });
+    state.taskStrip = { done: progress.done, total: progress.total, expanded: tasksExpanded };
+  }
+  taskStrip.addEventListener('change', event => {
+    const box = event.target.closest('input.box');
+    const task = box && shownTasks.find(candidate => candidate.id === box.dataset.id);
+    if (!task) return;
+    if (task.line !== null) toggleTask(task.line, box.checked);
+    else tickRecord(task, box.checked);
+  });
+  taskStrip.addEventListener('click', event => {
+    if (event.target.closest('#task-all')) {
+      tasksExpanded = !tasksExpanded;
+      try { localStorage.setItem(tasksAllKey, tasksExpanded ? 'open' : 'closed'); } catch { /* a private window keeps none */ }
+      drawTasks();
+      expose();
+      return;
+    }
+    const opener = event.target.closest('button.open-task');
+    if (opener) { openRecord('gd.task', opener.dataset.record); return; }
+    onLinkClick(event);
+  });
+  async function tickRecord(task, done) {
+    if (state.saving || task.version === null || !can('records.batch')) { drawTasks(); return; }
+    const label = `${done ? 'Tick' : 'Untick'} ${plainText(task.text).slice(0, 60)}`;
+    state.saving = true;
+    setStatus();
+    try {
+      const result = await nendo.records.batch([{ op: 'update', entityId: 'gd.task', recordId: task.recordId, version: task.version, values: { [F.task.done]: done } }],
+        { label, writeKey: crypto.randomUUID() });
+      state.undo.push({ revision: result.revision, label });
+      state.redo = [];
+      hideProblem();
+    } catch (error) {
+      showProblem(`The tick was refused (${error.code}): ${error.message}`);
+    } finally { state.saving = false; }
+    const shown = state.note;
+    if (shown !== null) {
+      try { const related = await readRelated(nendo, shown.recordId); if (state.note === shown) state.related = related; } catch { /* the strip keeps what it read last */ }
+    }
+    drawTasks();
+    setStatus();
+    expose();
   }
 
   let hoverTimer = null, hideTimer = null;
