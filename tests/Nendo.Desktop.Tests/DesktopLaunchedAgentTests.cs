@@ -56,6 +56,17 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     [TestMethod]
+    public async Task AnAgentThatRefusesToStartSaysWhy()
+    {
+        // claude-agent-acp 0.23.1 answered session/new with "Internal error" and its reason, a
+        // settings value it did not know, only in data.details; the owner saw no reason.
+        await using var fixture = await Fixture.StartAsync("inspect", "--refuse-session");
+        await fixture.LaunchAsync();
+        var ended = await fixture.WaitAsync(view => view.State == "ended");
+        StringAssert.Contains(ended.Notice, "refused to start: Internal error: Invalid permissions.defaultMode: auto.");
+    }
+
+    [TestMethod]
     public async Task AnAgentSpeakingAnotherProtocolVersionIsRefusedByName()
     {
         await using var fixture = await Fixture.StartAsync("inspect", "--version", "2");

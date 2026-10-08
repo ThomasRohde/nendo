@@ -11,7 +11,9 @@
 // Flags: --no-http (cannot reach HTTP MCP), --version N (speaks ACP version N), --auth (asks to
 // sign in first), --banner (prints a line that is not a message before speaking), --config (offers
 // session config options, as Copilot CLI does), --legacy (offers the older modes and models, as
-// OpenCode does). The prompt 'switch' makes the agent change its own mode.
+// OpenCode does), --refuse-session (refuses session/new as the Claude adapter does, with the bare
+// "Internal error" and the reason in data.details). The prompt 'switch' makes the agent change its
+// own mode.
 import { appendFileSync, readdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -147,6 +149,7 @@ lines.on('line', (line) => {
       break;
     case 'session/new':
       if (!signedIn) send({ id: message.id, error: { code: -32000, message: 'Authentication required' } });
+      else if (args.includes('--refuse-session')) send({ id: message.id, error: { code: -32603, message: 'Internal error', data: { details: 'Invalid permissions.defaultMode: auto.' } } });
       else send({ id: message.id, result: { sessionId: 'session-1',
         ...(args.includes('--config') ? { configOptions, modes: legacy.modes } : {}),
         ...(args.includes('--legacy') ? legacy : {}) } });

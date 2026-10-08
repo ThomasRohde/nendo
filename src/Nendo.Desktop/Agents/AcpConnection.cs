@@ -214,9 +214,8 @@ internal sealed class AcpConnection : IAsyncDisposable
                 if (root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.Object)
                 {
                     var code = error.TryGetProperty("code", out var c) && c.TryGetInt32(out var parsed) ? parsed : -32603;
-                    var message = error.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String
-                        ? Bounded(m.GetString()!) : "The agent refused.";
-                    pending.TrySetException(new AcpRemoteException(code, message));
+                    // The reason reaches the page, so a handle the agent echoes back is hidden there too.
+                    pending.TrySetException(new AcpRemoteException(code, Bounded(AgentConversation.Redact(Describe(error)))));
                 }
                 else
                 {
@@ -248,6 +247,26 @@ internal sealed class AcpConnection : IAsyncDisposable
         }
         try { await WriteAsync(reply, CancellationToken.None); }
         catch (AcpConnectionClosedException) { }
+    }
+
+    /// <summary>
+    /// A JSON-RPC error as one sentence: its message, and the reason in its data when it carries
+    /// one. Agents built on the ACP SDK answer most failures with the bare "Internal error" and put
+    /// what went wrong in <c>data.details</c>, as a string or under <c>details</c> or
+    /// <c>message</c>; without it the person sees a refusal and no reason.
+    /// </summary>
+    internal static string Describe(JsonElement error)
+    {
+        var message = error.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(m.GetString())
+            ? m.GetString()!.Trim() : "The agent refused.";
+        var detail = !error.TryGetProperty("data", out var data) ? null
+            : data.ValueKind == JsonValueKind.String ? data.GetString()
+            : data.ValueKind != JsonValueKind.Object ? null
+            : data.TryGetProperty("details", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString()
+            : data.TryGetProperty("message", out var dm) && dm.ValueKind == JsonValueKind.String ? dm.GetString()
+            : null;
+        detail = detail?.Trim();
+        return string.IsNullOrEmpty(detail) || message.Contains(detail, StringComparison.Ordinal) ? message : $"{message}: {detail}";
     }
 
     /// <summary>A sentence from the agent, kept to a length a page can show.</summary>
