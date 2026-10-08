@@ -137,6 +137,12 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 .markdown pre { background: var(--soft); padding: 10px 12px; border-radius: 8px; overflow: auto; }
 .markdown code { font: 0.88em/1.5 Consolas, "Cascadia Code", monospace; background: var(--soft); padding: 1px 4px; border-radius: 4px; }
 .markdown pre code { background: none; padding: 0; }
+/* A ```mermaid fence: its source as code until diagrams.js draws it, then the drawing alone. */
+.markdown figure.diagram { margin: .6em 0 .9em; }
+.markdown figure.diagram[data-state=drawn] > pre { display: none; }
+.markdown .diagram-svg { overflow-x: auto; text-align: center; }
+.markdown .diagram-svg svg { max-width: 100%; height: auto; }
+.markdown .diagram-error { margin-top: 4px; color: var(--danger); font-size: 12px; white-space: pre-wrap; }
 .markdown blockquote { margin: .5em 0; padding: 2px 14px; border-left: 3px solid var(--line-strong); color: var(--muted); }
 .markdown ul, .markdown ol { padding-left: 24px; }
 .markdown li.task { list-style: none; margin-left: -22px; }

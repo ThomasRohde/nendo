@@ -35,6 +35,19 @@ opened and then the page's width, then any tags written by hand and the tasks, e
 the note has some. The links in are on the Backlinks panel and the Graph screen. A wikilink opens its note in place; hovering one previews
 the note it names. Ticking a task saves the tick at once, as one batch.
 
+## Diagrams
+
+A fence whose language is `mermaid` is a diagram. `render.mjs` leaves it as a `figure.diagram`
+holding its source as code, and `diagrams.js` draws it with Mermaid in the page, the Edit
+preview and the hover preview. Mermaid (`vendor/mermaid.min.js`, about 3.5 MB) loads the first
+time a page has a diagram, never with the view. It runs at its strict security level, so its
+output passes through its own sanitizer and a diagram binds no clicks or scripts. Its colours
+are the theme's tokens resolved to colours, since Mermaid computes shades from them, and a
+theme change draws every diagram again. Drawings are cached by theme and source, so typing
+elsewhere in a note does not draw a diagram twice; a diagram being typed is drawn when the
+typing pauses. One that does not parse keeps its source with Mermaid's reason under it. An
+unclosed fence, as at the end of a hover preview, stays code.
+
 ## What a save does
 
 The body is the source. When you save, the view derives records from it and writes them
@@ -100,9 +113,12 @@ where `nendo.has` says it exists. Colours are the theme's tokens.
 `index.html`, `garden.js` (picks the place), `workspace.js`, `graphscreen.js`, `panel.js`,
 `graph.js` (the d3 drawing), `graph-data.mjs` (records to nodes and edges), `related.mjs` (the
 rows under a note), `parse.mjs` (links, tags, tasks, slugs, keys), `render.mjs` (Markdown to
-escaped HTML), `sync.mjs` (a save's writes), `garden.css`, `kit/nendo-view-kit.js` (a copy of
-`tools/view-kit/`), and `vendor/`: d3 7.9.0 (`d3.min.js`, ISC, `d3.LICENSE.txt`) with the
-notices of the modules it is built from. Refresh it with:
+escaped HTML), `diagrams.js` (Mermaid fences to SVG), `sync.mjs` (a save's writes), `garden.css`,
+`kit/nendo-view-kit.js` (a copy of `tools/view-kit/`), and `vendor/`: d3 7.9.0 (`d3.min.js`, ISC,
+`d3.LICENSE.txt`) and Mermaid 11.17.2 (`mermaid.min.js`, MIT, `mermaid.LICENSE.txt`), with the
+notices of the modules they are built from. Mermaid is most of a change set's 4 MiB of new
+package content, so a new garden takes it in a build stage of its own (`diagrams`). Refresh
+`vendor/` with:
 
 ```bash
 npm.cmd ci --prefix tools/garden

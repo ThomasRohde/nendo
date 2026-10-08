@@ -46,6 +46,9 @@ a note.
 - Write Markdown in `gd.note.body`. Name another note as `[[its-slug]]` (or `[[Its title]]`,
   or `[[its-slug|other words]]`), a tag as `#word`, and a task as a line `- [ ] what to do`
   (`- [x]` when done). Inside a code fence or inline code they mean nothing.
+- Draw a diagram as a fence whose language is `mermaid` (flowchart, sequenceDiagram,
+  classDiagram, stateDiagram-v2, erDiagram, timeline and the rest of Mermaid). The Garden view
+  draws it in the theme's colours; leave colours and `%%{init}%%` themes out of it.
 - Give every new note a `gd.note.title`, a `gd.note.slug` (lower-case letters, digits and
   hyphens, unique in the file), `gd.note.pinned` false, a `gd.note.stage` (Seed for a stub,
   Growing for work in progress, Evergreen when it says what it means) and `gd.note.touched`

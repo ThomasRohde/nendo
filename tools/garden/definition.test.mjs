@@ -28,6 +28,10 @@ test('every stage fits one change set and every mutation one call', async () => 
     const mutations = await STAGES[name].mutations({ applicationId: 'application-test' });
     const count = mutations.reduce((n, m) => n + m.operations.length, 0);
     assert.ok(count > 0 && count <= 128, `stage ${name} holds ${count} operations; a change set carries 128`);
+    // New package content in one change set is bounded at 4 MiB (custom-views.md, Limits).
+    const content = mutations.flatMap(m => m.operations).filter(o => o.operationType === 'extension.putFile')
+      .reduce((n, o) => n + (o.payload.base64 ? Buffer.from(o.payload.base64, 'base64').length : Buffer.byteLength(o.payload.text ?? '')), 0);
+    assert.ok(content <= 4 * 1024 * 1024, `stage ${name} puts ${content} bytes of package content; a change set takes 4 MiB`);
     for (const m of mutations) assert.ok(m.operations.length <= 16, `"${m.description}" holds ${m.operations.length} operations; a call carries 16`);
     for (const m of mutations) {
       const lanes = new Set(m.operations.map(o => o.operationType.startsWith('data.') ? 'data' : 'definition'));
@@ -172,13 +176,15 @@ test('the package manifest, the kit copy and the skill are what the file will ca
   assert.equal(manifest.packageId, 'org.nendo.garden');
   assert.match(manifest.packageId, /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$/);
   assert.equal(manifest.entryPoint, 'index.html');
-  for (const file of ['index.html', 'garden.js', 'garden.css', 'workspace.js', 'panel.js', 'graphscreen.js', 'graph.js', 'graph-data.mjs', 'parse.mjs', 'render.mjs', 'sync.mjs', 'related.mjs', 'kit/nendo-view-kit.js', 'vendor/d3.min.js', 'vendor/d3.LICENSE.txt', 'vendor/THIRD-PARTY-NOTICES.txt', 'LICENSE.txt']) {
+  for (const file of ['index.html', 'garden.js', 'garden.css', 'workspace.js', 'panel.js', 'graphscreen.js', 'graph.js', 'graph-data.mjs', 'parse.mjs', 'render.mjs', 'sync.mjs', 'related.mjs', 'kit/nendo-view-kit.js', 'diagrams.js', 'vendor/d3.min.js', 'vendor/d3.LICENSE.txt', 'vendor/mermaid.min.js', 'vendor/mermaid.LICENSE.txt', 'vendor/THIRD-PARTY-NOTICES.txt', 'LICENSE.txt']) {
     assert.ok(readFileSync(path.join(PACKAGE_FOLDER, file)).length > 0, `${file} is missing from the package`);
   }
   assert.match(readFileSync(path.join(PACKAGE_FOLDER, 'vendor/d3.min.js'), 'utf8').slice(0, 80), /d3js\.org v7\.9\.0/, 'the vendored d3 is the pinned 7.9.0');
+  assert.ok(readFileSync(path.join(PACKAGE_FOLDER, 'vendor/mermaid.min.js'), 'utf8').includes('version:"11.17.2"'), 'the vendored Mermaid is the pinned 11.17.2');
   const html = readFileSync(path.join(PACKAGE_FOLDER, 'index.html'), 'utf8');
+  assert.ok(!/<script[^>]*mermaid/i.test(html), 'Mermaid is loaded by diagrams.js when a page has a diagram, never by the page');
   assert.ok(html.indexOf('vendor/d3.min.js') > html.indexOf('/_nendo/api.js') && html.indexOf('vendor/d3.min.js') < html.indexOf('garden.js'), 'd3 loads after the API and before the view');
-  const sources = ['garden.js', 'workspace.js', 'panel.js', 'graphscreen.js', 'graph.js', 'graph-data.mjs', 'parse.mjs', 'render.mjs', 'sync.mjs', 'related.mjs', 'vendor/d3.min.js'].map(f => readFileSync(path.join(PACKAGE_FOLDER, f), 'utf8')).join('\n');
+  const sources = ['garden.js', 'workspace.js', 'panel.js', 'graphscreen.js', 'graph.js', 'graph-data.mjs', 'parse.mjs', 'render.mjs', 'diagrams.js', 'sync.mjs', 'related.mjs', 'vendor/d3.min.js'].map(f => readFileSync(path.join(PACKAGE_FOLDER, f), 'utf8')).join('\n');
   assert.ok(!sources.includes('chrome.' + 'webview'), 'a package never names the host bridge');
   const skill = JSON.parse(readFileSync(path.join(SKILL_FOLDER, 'nendo-package.json'), 'utf8'));
   assert.equal(skill.packageId, SKILL_PACKAGE_ID);

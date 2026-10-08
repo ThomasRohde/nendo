@@ -202,6 +202,13 @@ cannot disagree with the parser.
   (R-011).
 - **Own Markdown renderer.** The Workbench's `markdown.ts` cannot be loaded by a package and
   knows no wikilinks. Tables, footnotes, embeds and images are out of scope.
+- **Mermaid draws a `mermaid` fence** (W-180, 0.17.0). The owner asked for diagrams in notes
+  such as Architecture Overview. Mermaid 11.17.2 is vendored whole rather than a flowchart-only
+  renderer of our own, at the cost of about 3.5 MB in the package; it loads only when a page has
+  a diagram. It runs in the view's frame under ADR-0013 at Mermaid's strict security level, and
+  takes its colours from the theme's tokens. Being most of a change set's 4 MiB, it is its own
+  build stage, `diagrams`, after `garden`. Mermaid pulls in KaTeX for maths in labels, for which
+  npm reports a low-severity prototype-pollution advisory with no fix inside Mermaid 11.
 - **The in-host check is owner-reported.** `tools/Review-FileView.mjs` needs the C# journey's
   isolated profile and probe packages; the lane measures the view against the fixture broker.
 

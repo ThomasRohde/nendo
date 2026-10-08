@@ -379,6 +379,47 @@ async page => {
   assert(colours.light.background !== colours.dark.background && colours.light.ink !== colours.dark.ink, 'The theme must change the frame.');
   checks.push('Light/Dark');
 
+  // 10a. A ```mermaid fence is drawn as a diagram in the preview and the page, in the theme's
+  // tokens; one that does not parse keeps its source and says why. Mermaid loads only now.
+  assert(await frame.evaluate(() => !window.mermaid && !document.querySelector('script[src*="mermaid"]')), 'Mermaid must not load before a note has a diagram.');
+  const bodyBefore = await frame.evaluate(() => document.getElementById('editor').value);
+  const diagramBody = `${bodyBefore}\n\n\`\`\`mermaid\nflowchart LR\n  A[Seed] --> B[Growing]\n  B --> C[Evergreen]\n\`\`\`\n\n\`\`\`mermaid\nflowchart LR\n  A -->\n\`\`\`\n`;
+  await frame.evaluate(body => { const e = document.getElementById('editor'); e.value = body; e.dispatchEvent(new Event('input', { bubbles: true })); }, diagramBody);
+  const diagramState = () => frame.evaluate(() => [...document.querySelectorAll('#preview figure.diagram, #reading-body figure.diagram')].map(f => `${f.parentElement.id}:${f.dataset.state ?? 'waiting'}`));
+  await frame.waitForFunction(() => ['#preview', '#reading-body'].every(root => document.querySelector(`${root} figure.diagram[data-state=drawn] svg`) && document.querySelector(`${root} figure.diagram[data-state=error]`)), { timeout: 20000 })
+    .catch(async () => { throw Error(`A mermaid fence must be drawn in the preview and the page, and a broken one marked: ${JSON.stringify(await diagramState())}.`); });
+  const diagramColours = {};
+  for (const mode of ['light', 'dark']) {
+    const before = await frame.evaluate(() => document.querySelector('#preview figure.diagram[data-state=drawn]').dataset.theme);
+    await page.evaluate(mode => window.broker.pushTheme(mode), mode);
+    await frame.waitForFunction(before => { const f = document.querySelector('#preview figure.diagram[data-state=drawn]'); return f && f.dataset.theme !== before; }, before, { timeout: 15000 }).catch(() => {});
+    diagramColours[mode] = await frame.evaluate(() => {
+      const token = name => { const e = document.createElement('i'); e.style.color = `var(--nendo-${name})`; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; };
+      const figure = document.querySelector('#preview figure.diagram[data-state=drawn]'), svg = figure.querySelector('svg'), box = svg.getBoundingClientRect();
+      const shape = svg.querySelector('g.node rect, g.node path, g.node polygon'), label = svg.querySelector('g.node .nodeLabel, g.node text');
+      const broken = document.querySelector('#preview figure.diagram[data-state=error]');
+      return { nodes: svg.querySelectorAll('g.node').length, text: [...svg.querySelectorAll('g.node')].map(node => node.textContent.trim()).join('|'), width: box.width, height: box.height,
+        sourceHidden: getComputedStyle(figure.querySelector('pre')).display === 'none',
+        fill: getComputedStyle(shape).fill, stroke: getComputedStyle(shape).stroke, ink: getComputedStyle(label).color,
+        soft: token('cobalt-soft'), cobalt: token('cobalt'), inkToken: token('ink'),
+        // A copy of the drawing elsewhere on the page must not share its IDs, or its arrows point at hidden markers.
+        sharedIds: [...document.querySelectorAll('figure.diagram svg [id], figure.diagram svg[id]')].map(e => e.id).filter(id => document.querySelectorAll(`[id="${CSS.escape(id)}"]`).length > 1).slice(0, 3),
+        arrows: [...svg.querySelectorAll('[marker-end]')].filter(path => { const m = /url\(#([^)]+)\)/.exec(path.getAttribute('marker-end')); return m && svg.contains(document.getElementById(m[1])); }).length,
+        error: broken.querySelector('figcaption')?.textContent ?? '', brokenSource: broken.querySelector('pre').getClientRects().length > 0 ? broken.querySelector('pre').textContent : '' };
+    });
+    await page.screenshot({ path: '__OUTPUT__/diagram-' + mode + '.png' });
+    const d = diagramColours[mode];
+    assert(d.nodes === 3 && ['Seed', 'Growing', 'Evergreen'].every(word => d.text.includes(word)) && d.width > 120 && d.height > 20 && d.sourceHidden,
+      `${mode}: the diagram must draw its three nodes in place of its source: ${JSON.stringify(d)}.`);
+    assert(d.sharedIds.length === 0 && d.arrows === 2, `${mode}: each copy of a diagram must own its IDs, so its two arrows find their heads: ${JSON.stringify({ sharedIds: d.sharedIds, arrows: d.arrows })}.`);
+    assert(d.fill === d.soft && d.stroke === d.cobalt && d.ink === d.inkToken, `${mode}: the diagram must be drawn in the theme's tokens: ${JSON.stringify(d)}.`);
+    assert(d.error.startsWith('This diagram could not be drawn') && d.brokenSource.includes('A -->'), `${mode}: a diagram that does not parse must keep its source and say why: ${JSON.stringify(d)}.`);
+  }
+  assert(diagramColours.light.fill !== diagramColours.dark.fill, 'A theme change must redraw the diagram in the new colours.');
+  assert(await frame.evaluate(() => document.querySelectorAll('script[src*="mermaid"]').length === 1), 'Mermaid must load once.');
+  await frame.evaluate(body => { const e = document.getElementById('editor'); e.value = body; e.dispatchEvent(new Event('input', { bubbles: true })); }, bodyBefore);
+  checks.push('mermaid diagrams');
+
   // 11. The Backlinks panel on a note's page.
   await page.evaluate(fixture => { window.broker.setFixture({ ...fixture, context: { ...fixture.context, viewId: 'gd.note.page.backlinks', kind: 'extensionRecordPanel', placement: 'recordPage', recordId: 'gd.note.how-links-work', title: 'Backlinks' } }); window.broker.remount(); }, fixture);
   await page.waitForTimeout(300);
@@ -995,7 +1036,7 @@ async page => {
   checks.push('overview in Light and Dark and at a narrow width');
 
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
-  return { complete: true, colours, narrow, settle, checks, errors };
+  return { complete: true, colours, diagramColours, narrow, settle, checks, errors };
 
   })(); } catch (error) { throw Error(`${error.message} [after: ${checks.at(-1) ?? 'nothing'}]`); }
 }

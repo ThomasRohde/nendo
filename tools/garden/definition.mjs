@@ -19,6 +19,7 @@ export const RETIRED_GRAPH_PACKAGE_ID = 'org.nendo.dependency-graph';
 export const SKILL_PACKAGE_ID = 'dev.nendo.garden';
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PACKAGE_FOLDER = path.resolve(here, '..', '..', 'extensions', 'garden');
+export const MERMAID_FILE = 'vendor/mermaid.min.js';
 export const SKILL_FOLDER = path.resolve(here, '..', 'garden-skill');
 export const NEW_FILE_LABEL = 'garden';
 export const SEED_DATE = '2026-10-06';
@@ -344,13 +345,25 @@ export const STAGES = {
     needs: ENTITIES,
     appliedWhen: async read => read.hasNode('gd.garden'),
     mutations: async () => {
-      const files = await packageMutations(PACKAGE_FOLDER, PACKAGE_ID, 'Put the Garden package into the file');
+      const files = await packageMutations(PACKAGE_FOLDER, PACKAGE_ID, 'Put the Garden package into the file', { leave: [MERMAID_FILE] });
       // The panel sits after the Note tab's three bindings, which the notes stage made.
       const t = tree({ 'gd.note.page.note': 3 });
       t.add(HOME_VIEW, 'extensionView', null, { definitionVersion: 3, title: HOME_TITLE, packageId: PACKAGE_ID, entityId: 'gd.note', opensFile: true });
       t.add('gd.garden', 'extensionView', null, { definitionVersion: 3, title: 'Garden', packageId: PACKAGE_ID, entityId: 'gd.note' });
       t.add('gd.note.page.backlinks', 'extensionRecordPanel', 'gd.note.page.note', { title: 'Backlinks', packageId: PACKAGE_ID, labelFieldId: F.note.title });
       return [...files, ...t.asMutations('Show the Garden view and the Backlinks panel')];
+    },
+  },
+
+  // Mermaid alone is most of a change set's 4 MiB of new content, so it follows the rest of the
+  // package in a change set of its own. Until it is in, a diagram in a note shows its source.
+  diagrams: {
+    title: 'Garden: Mermaid, which draws the diagrams in notes',
+    needs: ENTITIES,
+    appliedWhen: async read => (await read.json('nendo://application/extensions')).some(p => p.packageId === PACKAGE_ID && p.files.some(f => f.path === MERMAID_FILE)),
+    mutations: async () => {
+      const { files } = await packageFiles(PACKAGE_FOLDER);
+      return fileMutations(files.filter(file => file.path === MERMAID_FILE), PACKAGE_ID, 'Put Mermaid into the Garden package');
     },
   },
 
@@ -401,7 +414,7 @@ export async function hasSearchIndex(read) {
   }
 }
 
-export const STAGE_ORDER = ['schema', 'colour', 'behaviour', 'notes', 'others', 'garden', 'graph', 'skill', 'seed', 'keep', 'search'];
+export const STAGE_ORDER = ['schema', 'colour', 'behaviour', 'notes', 'others', 'garden', 'diagrams', 'graph', 'skill', 'seed', 'keep', 'search'];
 
 // ---- Seeds: the notes a new garden starts with. Their links, tags and tasks come from the same
 // parse and sync the view uses on save, so the seed cannot disagree with the parser.
@@ -604,10 +617,15 @@ export async function packageFiles(folder) {
   return { manifest, files };
 }
 
-export async function packageMutations(folder, packageId, description) {
+export async function packageMutations(folder, packageId, description, { leave = [] } = {}) {
   const { manifest, files } = await packageFiles(folder);
   if (manifest.packageId !== packageId) throw new Error(`${folder} is ${manifest.packageId}, not ${packageId}.`);
-  const operations = [op('extension.setPackage', { packageId, title: manifest.title, entryPoint: manifest.entryPoint ?? 'index.html', version: manifest.version, description: manifest.description })];
+  const setPackage = op('extension.setPackage', { packageId, title: manifest.title, entryPoint: manifest.entryPoint ?? 'index.html', version: manifest.version, description: manifest.description });
+  return fileMutations(files.filter(file => !leave.includes(file.path)), packageId, description, [setPackage]);
+}
+
+/** Each file as extension.putFile parts of 70 KiB, new to the package, in mutations a call can carry. */
+function fileMutations(files, packageId, description, operations = []) {
   const partBytes = 70 * 1024;
   for (const file of files) {
     for (let offset = 0; offset === 0 || offset < file.bytes.length; offset += partBytes) {

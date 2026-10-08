@@ -8,6 +8,7 @@
 // Every colour is the theme's.
 import { parse, slugify } from './parse.mjs';
 import { render } from './render.mjs';
+import { createDiagrams } from './diagrams.js';
 import { plan, resolveTarget, F } from './sync.mjs';
 import { readRelated, readTags, drawRelated } from './related.mjs';
 import { buildGraph, branchTones } from './graph-data.mjs';
@@ -28,6 +29,7 @@ export async function startWorkspace(nendo, context, kit) {
   const readingTitle = $('reading-title'), readingMeta = $('reading-meta'), readingBody = $('reading-body');
   const ownSummary = $('own-summary'), guide = $('guide'), hoverCard = $('hover-card');
   const lists = { tags: $('note-tags'), tasks: $('note-tasks'), tasksCount: $('tasks-count') };
+  const diagrams = createDiagrams();
   app.hidden = false;
 
   const can = name => typeof nendo.has === 'function' && nendo.has(name);
@@ -338,7 +340,8 @@ export async function startWorkspace(nendo, context, kit) {
   function drawPreview() {
     readingTitle.textContent = state.draft.title.trim() || 'Untitled';
     readingBody.innerHTML = render(state.draft.body, { resolve, interactive: true });
-    if (state.mode === 'edit' && state.split < 100) preview.innerHTML = render(state.draft.body, { resolve });
+    diagrams.draw(readingBody);
+    if (state.mode === 'edit' && state.split < 100) { preview.innerHTML = render(state.draft.body, { resolve }); diagrams.draw(preview); }
     markFinds();
   }
 
@@ -396,6 +399,7 @@ export async function startWorkspace(nendo, context, kit) {
     $('hover-title').textContent = note.title;
     const body = note.values[F.note.summary] || String(note.values[F.note.body] ?? '').slice(0, 900);
     $('hover-body').innerHTML = body ? render(body, { resolve }) : '<p class="none">Nothing written here yet.</p>';
+    diagrams.draw($('hover-body'));
     hoverCard.hidden = false;
     const box = link.getBoundingClientRect(), card = hoverCard.getBoundingClientRect();
     const left = Math.max(8, Math.min(innerWidth - card.width - 8, box.left));

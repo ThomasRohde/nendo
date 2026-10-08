@@ -7,6 +7,7 @@
     "test": "node --test parse.test.mjs render.test.mjs sync.test.mjs graph.test.mjs definition.test.mjs"
   },
   "devDependencies": {
-    "d3": "7.9.0"
+    "d3": "7.9.0",
+    "mermaid": "11.17.2"
   }
 }

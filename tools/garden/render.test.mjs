@@ -16,6 +16,16 @@ test('blocks: headings, paragraphs, lists with checkboxes, quotes, rules and fen
   assert.ok(html.includes('<pre><code>const a = &quot;&lt;b&gt;&quot;;</code></pre>'));
 });
 
+test('a closed mermaid fence is a diagram figure holding its escaped source; other fences stay code', () => {
+  const html = render(['```mermaid', 'flowchart LR', '  A["<b>"] --> B', '```', '', '```Mermaid', 'graph TD; X-->Y', '```', '', '```text', 'flowchart LR', '```'].join('\n'));
+  assert.ok(html.includes('<figure class="diagram"><pre><code>flowchart LR\n  A[&quot;&lt;b&gt;&quot;] --&gt; B</code></pre></figure>'), html);
+  assert.ok(html.includes('<figure class="diagram"><pre><code>graph TD; X--&gt;Y</code></pre></figure>'), 'the language is read without case');
+  assert.equal(html.match(/<figure/g).length, 2, 'a text fence is not a diagram');
+  assert.ok(!render('```mermaid\nflowchart LR\nA-->B').includes('<figure'), 'an unclosed fence, as in a cut hover preview, stays code');
+  assert.ok(!render('```mermaid\n\n```').includes('<figure'), 'an empty fence is not a diagram');
+  assert.ok(!render('```mermaid\n[[note]] #tag\n```').includes('<a '), 'nothing inside a diagram is a link or a tag');
+});
+
 test('wikilinks resolve to anchors carrying the record ID, or are marked missing', () => {
   const html = render('See [[How links work]], [[how-links-work|alias]] and [[Nowhere]].', { resolve });
   assert.ok(html.includes('<a class="wikilink" href="#" data-target="How links work" data-id="gd.note.how-links-work">How links work</a>'));

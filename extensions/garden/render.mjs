@@ -1,7 +1,8 @@
 // A small Markdown renderer for a note's preview, with Garden's [[wikilinks]] and #tags as anchors.
 // Every character of the note passes through one escape, so a body is never markup. It knows
 // headings, paragraphs, emphasis, inline and fenced code, lists with checkboxes, quotes, rules and
-// http links. Tables, footnotes, embeds and images are not in it.
+// http links. Tables, footnotes, embeds and images are not in it. A closed ```mermaid fence becomes
+// a figure.diagram holding its source as code, which diagrams.js draws once the HTML is on the page.
 //
 //   render(body, { resolve, interactive })   -> HTML text. resolve(target) answers { recordId, title } or null;
 //   interactive leaves task checkboxes enabled, each naming its source line as data-line.
@@ -18,7 +19,7 @@ export function escape(text) {
 export function render(body, { resolve = () => null, interactive = false } = {}) {
   const lines = String(body ?? '').split(/\r?\n/);
   const out = [];
-  let paragraph = [], list = null, quote = [], fence = null, code = [];
+  let paragraph = [], list = null, quote = [], fence = null, language = '', code = [];
   const flushParagraph = () => { if (paragraph.length) { out.push(`<p>${inline(paragraph.join(' '), resolve)}</p>`); paragraph = []; } };
   const flushList = () => { if (list) { out.push(`<${list.tag}>${list.items.join('')}</${list.tag}>`); list = null; } };
   const flushQuote = () => { if (quote.length) { out.push(`<blockquote>${inline(quote.join(' '), resolve)}</blockquote>`); quote = []; } };
@@ -27,12 +28,13 @@ export function render(body, { resolve = () => null, interactive = false } = {})
     const opening = FENCE.exec(line);
     if (fence !== null) {
       if (opening !== null && opening[1][0] === fence[0] && opening[1].length >= fence.length) {
-        out.push(`<pre><code>${escape(code.join('\n'))}</code></pre>`);
+        const block = `<pre><code>${escape(code.join('\n'))}</code></pre>`;
+        out.push(language === 'mermaid' && code.some(text => text.trim() !== '') ? `<figure class="diagram">${block}</figure>` : block);
         fence = null; code = [];
       } else code.push(line);
       continue;
     }
-    if (opening !== null) { flushAll(); fence = opening[1]; continue; }
+    if (opening !== null) { flushAll(); fence = opening[1]; language = opening[2].toLowerCase(); continue; }
     if (line.trim() === '') { flushAll(); continue; }
     const heading = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
     if (heading !== null) { flushAll(); out.push(`<h${heading[1].length}>${inline(heading[2], resolve)}</h${heading[1].length}>`); continue; }

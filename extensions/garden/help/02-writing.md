@@ -28,6 +28,19 @@ A note opens for **reading**: the page, with its title as a heading. **Edit** (`
 
 `# Heading`, `**bold**`, `*italic*`, `> quote`, bulleted and numbered lists, `---` for a rule, and fenced code with three backticks. Tables, footnotes and images are not drawn in a note.
 
+## Diagrams
+
+A fence whose language is `mermaid` is drawn as a diagram, in the page and in the preview:
+
+~~~text
+```mermaid
+flowchart LR
+  Seed --> Growing --> Evergreen
+```
+~~~
+
+Flowcharts, sequence diagrams, class and state diagrams, timelines and the rest of [Mermaid](https://mermaid.js.org/intro/) are drawn in the garden's colours, and follow Light and Dark. While you type, a diagram is drawn again when you pause. One that Mermaid cannot read keeps its text, with the reason under it. Links and tags inside a diagram are text, as in any fence.
+
 ## Written by hand
 
 Links, tags and tasks can also be made on their own screens or by an agent. Those are marked **Manual**, may say more than a body can (a link that *Supports*, *Contradicts*, is *See also* or *Part of* another note), and a save never touches them.
