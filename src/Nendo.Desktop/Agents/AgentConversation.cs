@@ -31,7 +31,8 @@ internal sealed record AgentTranscriptEntry(
     string? Input = null,
     IReadOnlyList<AgentPermissionOptionView>? Options = null,
     string? Answer = null,
-    IReadOnlyList<AgentPlanItemView>? Plan = null);
+    IReadOnlyList<AgentPlanItemView>? Plan = null,
+    string? Origin = null);
 
 /// <summary>What a reader is told: the state, and the entries that changed after its revision.</summary>
 internal sealed record AgentConversationSnapshot(
@@ -42,7 +43,8 @@ internal sealed record AgentConversationSnapshot(
     long Revision,
     IReadOnlyList<AgentTranscriptEntry> Entries,
     bool More,
-    IReadOnlyList<AgentSignInMethodView> SignInMethods);
+    IReadOnlyList<AgentSignInMethodView> SignInMethods,
+    IReadOnlyList<AgentOptionView> Options);
 
 /// <summary>
 /// One ACP session with one agent, over whatever carries its messages (ADR-0030).
@@ -53,7 +55,7 @@ internal sealed record AgentConversationSnapshot(
 /// text, bounded, for the tab to draw.
 /// </para>
 /// </summary>
-internal sealed class AgentConversation : IAsyncDisposable
+internal sealed partial class AgentConversation : IAsyncDisposable
 {
     internal const int ProtocolVersion = 1;
     internal const int MaximumEntries = 1000;
@@ -181,6 +183,7 @@ internal sealed class AgentConversation : IAsyncDisposable
                 _sessionId = sessionId;
                 if (_state != "ended") _state = "ready";
                 _notice = null;
+                ReadOptions(session);
             }
             Raise(Touch());
         }
@@ -369,7 +372,7 @@ internal sealed class AgentConversation : IAsyncDisposable
             var more = changed.Count > limit;
             var taken = changed.Take(limit).Select(entry => entry.View()).ToArray();
             var revision = more ? taken[^1].Revision : _revision;
-            return new AgentConversationSnapshot(_state, _working, _notice, _agentTitle, revision, taken, more, _signIn);
+            return new AgentConversationSnapshot(_state, _working, _notice, _agentTitle, revision, taken, more, _signIn, _options);
         }
     }
 
@@ -407,6 +410,7 @@ internal sealed class AgentConversation : IAsyncDisposable
             permission.Entry.ToolKind = (call.ValueKind == JsonValueKind.Object ? Text(call, "kind", 40) : null) ?? known?.ToolKind;
             permission.Entry.Input = (call.ValueKind == JsonValueKind.Object ? RawInput(call) : null) ?? known?.Input;
             permission.Entry.Options = options;
+            permission.Entry.Origin = Origin(known?.Title ?? permission.Entry.Title, permission.Entry.Input);
             _permissions[permission.Entry.Id] = permission;
             revision = Touch();
         }
@@ -462,6 +466,11 @@ internal sealed class AgentConversation : IAsyncDisposable
                 case "plan":
                     ApplyPlan(update);
                     break;
+                case "config_option_update":
+                case "current_mode_update":
+                case "current_model_update":
+                    if (!ApplyOptionUpdate(kind, update)) return;
+                    break;
                 default:
                     // Commands, modes and the agent's echo of what the person typed are not drawn.
                     return;
@@ -504,6 +513,7 @@ internal sealed class AgentConversation : IAsyncDisposable
             entry.Text.Clear();
             entry.Text.Append(Redact(ToolContentText(content)));
         }
+        entry.Origin = Origin(entry.Title, entry.Input);
         entry.Revision = _revision + 1;
     }
 
@@ -651,9 +661,10 @@ internal sealed class AgentConversation : IAsyncDisposable
         internal IReadOnlyList<AgentPermissionOptionView>? Options { get; set; }
         internal string? Answer { get; set; }
         internal IReadOnlyList<AgentPlanItemView>? Plan { get; set; }
+        internal string? Origin { get; set; }
 
         internal AgentTranscriptEntry View() =>
-            new(Id, Order, Revision, Kind, Text.ToString(), Title, ToolKind, Status, Input, Options, Answer, Plan);
+            new(Id, Order, Revision, Kind, Text.ToString(), Title, ToolKind, Status, Input, Options, Answer, Plan, Origin);
     }
 
     private sealed class PendingPermission(TaskCompletionSource<string?> answer)

@@ -77,6 +77,7 @@ internal static partial class WorkbenchMethods
         AgentSessionCancel,
         AgentSessionAuthenticate,
         AgentSessionEnd,
+        AgentSessionSetOption,
     };
 }
 

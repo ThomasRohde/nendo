@@ -38,10 +38,11 @@ internal sealed record DesktopLaunchedAgentView(
     long Revision,
     IReadOnlyList<AgentTranscriptEntry> Entries,
     bool More,
-    IReadOnlyList<AgentSignInMethodView> SignInMethods)
+    IReadOnlyList<AgentSignInMethodView> SignInMethods,
+    IReadOnlyList<AgentOptionView> Options)
 {
     internal static DesktopLaunchedAgentView None(string level) =>
-        new(false, null, null, null, null, level, "none", false, null, null, 0, [], false, []);
+        new(false, null, null, null, null, level, "none", false, null, null, 0, [], false, [], []);
 }
 
 internal sealed partial class DesktopSessionController
@@ -179,6 +180,14 @@ internal sealed partial class DesktopSessionController
         return ReadLaunchedCore(agent, after);
     }
 
+    /// <summary>Set one of the agent's own options to a value it offered (ADR-0030, 2026-10-08).</summary>
+    internal async Task<DesktopLaunchedAgentView> SetLaunchedAgentOptionAsync(string fileSessionId, string optionId, string value, long after, CancellationToken cancellationToken = default)
+    {
+        var agent = RequireLaunched(fileSessionId);
+        await agent.Conversation.SetOptionAsync(optionId, value, cancellationToken);
+        return ReadLaunchedCore(agent, after);
+    }
+
     internal async Task<DesktopLaunchedAgentView> EndLaunchedAgentAsync(string fileSessionId, long after)
     {
         var agent = RequireLaunched(fileSessionId);
@@ -241,7 +250,7 @@ internal sealed partial class DesktopSessionController
         var snapshot = agent.Conversation.Read(after);
         return new DesktopLaunchedAgentView(true, agent.Command.Id, agent.Command.Name, agent.Command.CommandLine,
             agent.Endpoint.AbsoluteUri, LevelName(), snapshot.State, snapshot.Working, snapshot.Notice, snapshot.AgentTitle,
-            snapshot.Revision, snapshot.Entries, snapshot.More, snapshot.SignInMethods);
+            snapshot.Revision, snapshot.Entries, snapshot.More, snapshot.SignInMethods, snapshot.Options);
     }
 
     private string LevelName() => NendoAccessLevels.DisplayName(_agentMode);

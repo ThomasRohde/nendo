@@ -20,11 +20,12 @@ internal static partial class WorkbenchMethods
     internal const string AgentSessionCancel = "agentSession.cancel";
     internal const string AgentSessionAuthenticate = "agentSession.authenticate";
     internal const string AgentSessionEnd = "agentSession.end";
+    internal const string AgentSessionSetOption = "agentSession.setOption";
 
     internal static readonly IReadOnlySet<string> AgentSessionMethods = new HashSet<string>(StringComparer.Ordinal)
     {
         AgentSessionList, AgentSessionSetCommand, AgentSessionLaunch, AgentSessionRead, AgentSessionPrompt,
-        AgentSessionAnswer, AgentSessionCancel, AgentSessionAuthenticate, AgentSessionEnd,
+        AgentSessionAnswer, AgentSessionCancel, AgentSessionAuthenticate, AgentSessionEnd, AgentSessionSetOption,
     };
 }
 
@@ -49,6 +50,8 @@ internal sealed partial class WorkbenchProtocolHandler
             WorkbenchMethods.AgentSessionAuthenticate => _session.AuthenticateLaunchedAgent(fileSessionId,
                 RequiredString(payload, "methodId", 200), after),
             WorkbenchMethods.AgentSessionEnd => await _session.EndLaunchedAgentAsync(fileSessionId, after),
+            WorkbenchMethods.AgentSessionSetOption => await _session.SetLaunchedAgentOptionAsync(fileSessionId,
+                RequiredString(payload, "configId", 200), RequiredString(payload, "value", 300), after, cancellationToken),
             _ => throw new NendoPreconditionException("unknown-method", $"Workbench method {method} is not part of this protocol."),
         };
     }

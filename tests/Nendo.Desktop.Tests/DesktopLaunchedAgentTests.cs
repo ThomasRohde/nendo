@@ -263,6 +263,75 @@ public sealed class DesktopLaunchedAgentTests
         Assert.AreEqual("stale-file-session", refused.Code);
     }
 
+    /// <summary>
+    /// The owner asked for the agent's own options (2026-10-08). An agent that sends ACP session
+    /// config options has them shown as it offers them, groups flattened and a kind Nendo cannot
+    /// draw left out; one is set only by the person's pick, to a value the agent offered; and the
+    /// agent's own restatement is what the tab then shows.
+    /// </summary>
+    [TestMethod]
+    public async Task TheAgentsConfigOptionsAreShownAndSetOnlyAsThePersonPicks()
+    {
+        await using var fixture = await Fixture.StartAsync("editData", "--config");
+        await fixture.LaunchAsync();
+        var ready = await fixture.WaitAsync(view => view.State == "ready");
+        CollectionAssert.AreEqual(new[] { "mode", "model", "reasoning_effort", "allow_all" }, ready.Options.Select(option => option.Id).ToArray(),
+            "The options are not the agent's, in its order, without the boolean Nendo cannot draw.");
+        var model = ready.Options.Single(option => option.Id == "model");
+        Assert.AreEqual("sonnet", model.CurrentValue);
+        CollectionAssert.AreEqual(new[] { "Fast", "Smart" }, model.Values.Select(value => value.Group).ToArray(), "A grouped option lost its groups.");
+        Assert.AreEqual("thought_level", ready.Options.Single(option => option.Id == "reasoning_effort").Category);
+        Assert.IsFalse(fixture.Log().Any(entry => Method(entry) is "session/set_config_option" or "session/set_mode" or "session/set_model"),
+            "Nendo set an option nobody picked.");
+
+        await Assert.ThrowsExactlyAsync<NendoValidationException>(() =>
+            fixture.Controller.SetLaunchedAgentOptionAsync(fixture.FileSessionId, "reasoning_effort", "extreme", 0));
+        Assert.IsFalse(fixture.Log().Any(entry => Method(entry) == "session/set_config_option"), "A value the agent never offered was sent to it.");
+
+        var set = await fixture.Controller.SetLaunchedAgentOptionAsync(fixture.FileSessionId, "reasoning_effort", "high", 0);
+        Assert.AreEqual("high", set.Options.Single(option => option.Id == "reasoning_effort").CurrentValue);
+        var sent = fixture.Log().Single(entry => Method(entry) == "session/set_config_option").GetProperty("params");
+        Assert.AreEqual("reasoning_effort", sent.GetProperty("configId").GetString());
+        Assert.AreEqual("high", sent.GetProperty("value").GetString());
+        Assert.AreEqual("session-1", sent.GetProperty("sessionId").GetString());
+
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "switch", 0);
+        var switched = await fixture.WaitAsync(view => !view.Working && view.Options.Single(option => option.Id == "mode").CurrentValue == "plan");
+        Assert.AreEqual("high", switched.Options.Single(option => option.Id == "reasoning_effort").CurrentValue);
+    }
+
+    /// <summary>An older agent's modes and models (OpenCode 1.1) are shown as Mode and Model and set by their own methods.</summary>
+    [TestMethod]
+    public async Task AnOlderAgentsModesAndModelsAreShownAndSetByTheirOwnMethods()
+    {
+        await using var fixture = await Fixture.StartAsync("editData", "--legacy");
+        await fixture.LaunchAsync();
+        var ready = await fixture.WaitAsync(view => view.State == "ready");
+        CollectionAssert.AreEqual(new[] { AgentConversation.LegacyModeOption, AgentConversation.LegacyModelOption }, ready.Options.Select(option => option.Id).ToArray());
+        Assert.AreEqual("build", ready.Options[0].CurrentValue);
+
+        var set = await fixture.Controller.SetLaunchedAgentOptionAsync(fixture.FileSessionId, AgentConversation.LegacyModelOption, "small", 0);
+        Assert.AreEqual("small", set.Options[1].CurrentValue);
+        Assert.AreEqual("small", fixture.Log().Single(entry => Method(entry) == "session/set_model").GetProperty("params").GetProperty("modelId").GetString());
+
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "switch", 0);
+        await fixture.WaitAsync(view => !view.Working && view.Options[0].CurrentValue == "plan");
+    }
+
+    [TestMethod]
+    public async Task AToolSaysWhetherItWentThroughNendoOrWasTheAgentsOwn()
+    {
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "tool", 0);
+        var nendo = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Kind == "tool"));
+        Assert.AreEqual("nendo", nendo.Entries.Single(entry => entry.Kind == "tool").Origin, "nendo.read.resource was not told as Nendo's.");
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "permission", 0);
+        var asking = await fixture.WaitAsync(view => view.Entries.Any(entry => entry.Kind == "permission"));
+        Assert.AreEqual("agent", asking.Entries.Single(entry => entry.Kind == "permission").Origin, "A tool of the agent's own was told as Nendo's.");
+    }
+
     [TestMethod]
     public void ACommandLineKeepsQuotedWordsTogether()
     {

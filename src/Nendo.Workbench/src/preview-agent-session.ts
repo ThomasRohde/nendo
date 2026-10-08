@@ -1,4 +1,4 @@
-import { WorkbenchHostError, type AgentStatus, type AgentTranscriptEntry, type LaunchableAgents, type LaunchedAgentState, type LaunchedAgentView } from './host-types';
+import { WorkbenchHostError, type AgentOption, type AgentStatus, type AgentTranscriptEntry, type LaunchableAgents, type LaunchedAgentState, type LaunchedAgentView } from './host-types';
 
 /**
  * A launched agent for the browser preview (ADR-0030): the same requests and the same nudges as
@@ -16,6 +16,20 @@ export class PreviewAgentSession {
   private notice: string | null = null;
   private agent: { id: string; name: string; commandLine: string } | null = null;
   private customCommandLine: string | null = null;
+  // The options Copilot CLI 1.0.93 offered when probed on 2026-10-08, trimmed.
+  private options: AgentOption[] = [
+    { id: 'mode', name: 'Mode', description: null, category: 'mode', currentValue: 'agent', values: [
+      { value: 'agent', name: 'Agent', description: null, group: null }, { value: 'plan', name: 'Plan', description: null, group: null },
+      { value: 'autopilot', name: 'Autopilot', description: null, group: null }] },
+    { id: 'model', name: 'Model', description: null, category: 'model', currentValue: 'sonnet-4.6', values: [
+      { value: 'auto', name: 'Auto', description: null, group: null }, { value: 'sonnet-4.6', name: 'Sonnet 4.6', description: null, group: null },
+      { value: 'haiku-4.5', name: 'Haiku 4.5', description: null, group: null }, { value: 'gpt-5.4', name: 'GPT-5.4', description: null, group: null }] },
+    { id: 'reasoning_effort', name: 'Reasoning Effort', description: null, category: 'thought_level', currentValue: 'medium', values: [
+      { value: 'low', name: 'Low', description: null, group: null }, { value: 'medium', name: 'Medium', description: null, group: null },
+      { value: 'high', name: 'High', description: null, group: null }, { value: 'max', name: 'Max', description: null, group: null }] },
+    { id: 'allow_all', name: 'Allow All', description: 'Run every tool without asking', category: 'permissions', currentValue: 'off', values: [
+      { value: 'on', name: 'On', description: null, group: null }, { value: 'off', name: 'Off', description: null, group: null }] },
+  ];
 
   constructor(private readonly status: () => AgentStatus) {}
 
@@ -36,6 +50,14 @@ export class PreviewAgentSession {
       case 'agentSession.answer': return this.answer(String(payload.entryId ?? ''), payload.optionId == null ? null : String(payload.optionId), Number(payload.after ?? 0));
       case 'agentSession.cancel': return this.cancel(Number(payload.after ?? 0));
       case 'agentSession.end': return this.end('You ended the conversation.', Number(payload.after ?? 0));
+      case 'agentSession.setOption': {
+        const option = this.options.find((candidate) => candidate.id === payload.configId);
+        if (option === undefined || !option.values.some((value) => value.value === payload.value))
+          throw new WorkbenchHostError('validation', 'The agent does not offer that.');
+        option.currentValue = String(payload.value);
+        this.touch();
+        return this.read(Number(payload.after ?? 0));
+      }
       case 'agentSession.authenticate': throw new WorkbenchHostError('agent-not-signing-in', 'The agent is not waiting to sign in.');
       default: throw new WorkbenchHostError('unknown-method', `Preview does not implement ${method}.`);
     }
@@ -86,10 +108,11 @@ export class PreviewAgentSession {
       { text: 'Read the record types', status: 'in_progress' },
       { text: 'Add a record type for the request', status: 'pending' },
     ] });
-    this.later(500, () => this.add({ kind: 'tool', text: 'Two record types: Crew and Mission.', title: 'nendo.read.resource', toolKind: 'read', status: 'completed', input: '{"uri":"nendo://application/manifest"}' }));
+    this.later(500, () => this.add({ kind: 'tool', text: 'Two record types: Crew and Mission.', title: 'nendo-nendo-read-resource', toolKind: 'read', status: 'completed', input: '{"uri":"nendo://application/manifest"}', origin: 'nendo' }));
+    this.later(700, () => this.add({ kind: 'tool', text: '{ "examples": [ … ] }', title: 'Read its saved tool output', toolKind: 'execute', status: 'completed', input: '{"command":"Get-Content $env:TEMP\\\\copilot-tool-output.txt -Raw"}', origin: 'agent' }));
     this.later(900, () => {
       this.change(plan, { plan: [{ text: 'Read the record types', status: 'completed' }, { text: 'Add a record type for the request', status: 'in_progress' }] });
-      this.add({ kind: 'permission', text: '', title: 'nendo.change_set.add_operations', toolKind: 'edit', input: '{"operations":[{"operationType":"schema.createEntity"}]}',
+      this.add({ kind: 'permission', text: '', title: 'Add operations to a change set', toolKind: 'edit', origin: 'nendo', input: '{"applicationHandle":"(hidden)","operations":[{"operationType":"schema.createEntity"}]}',
         options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }, { optionId: 'reject', name: 'Reject', kind: 'reject_once' }] });
     });
     return this.read(after);
@@ -150,6 +173,7 @@ export class PreviewAgentSession {
       entries: structuredClone(changed),
       more: false,
       signInMethods: [],
+      options: this.agent === null || this.state === 'starting' ? [] : structuredClone(this.options),
     };
   }
 
@@ -157,7 +181,7 @@ export class PreviewAgentSession {
     this.order += 1;
     const entry: AgentTranscriptEntry = {
       id: `e${this.order}`, order: this.order, revision: this.revision + 1, title: null, toolKind: null, status: null,
-      input: null, options: null, answer: null, plan: null, ...fields,
+      input: null, options: null, answer: null, plan: null, origin: null, ...fields,
     };
     this.entries.push(entry);
     this.touch();

@@ -132,6 +132,8 @@ function render(): void {
   content.setAttribute('aria-busy', String(state.actionInFlight));
   // Help owns its own two scroll regions; every other view scrolls the content pane.
   content.classList.toggle('is-help', state.view === 'help');
+  // The agent's tab owns its scroll region too, so its composer stays at the foot (ADR-0030).
+  content.classList.toggle('is-fill', state.view === 'agentChat');
   if (state.view === 'help') {
     renderHelp();
   } else if (client.mode === 'unavailable') {

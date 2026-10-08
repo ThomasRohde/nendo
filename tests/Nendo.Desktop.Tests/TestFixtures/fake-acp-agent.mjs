@@ -9,7 +9,9 @@
 //   exit        writes to stderr and exits with code 3
 //   anything else is echoed back in two chunks
 // Flags: --no-http (cannot reach HTTP MCP), --version N (speaks ACP version N), --auth (asks to
-// sign in first), --banner (prints a line that is not a message before speaking).
+// sign in first), --banner (prints a line that is not a message before speaking), --config (offers
+// session config options, as Copilot CLI does), --legacy (offers the older modes and models, as
+// OpenCode does). The prompt 'switch' makes the agent change its own mode.
 import { appendFileSync, readdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -26,6 +28,19 @@ const ask = (method, params) => new Promise((resolve) => { const id = nextId++; 
 const update = (sessionId, body) => send({ method: 'session/update', params: { sessionId, update: body } });
 
 let signedIn = !args.includes('--auth');
+const configOptions = [
+  { id: 'mode', name: 'Mode', category: 'mode', type: 'select', currentValue: 'agent',
+    options: [{ value: 'agent', name: 'Agent' }, { value: 'plan', name: 'Plan' }] },
+  { id: 'model', name: 'Model', category: 'model', type: 'select', currentValue: 'sonnet',
+    options: [{ group: 'fast', name: 'Fast', options: [{ value: 'haiku', name: 'Haiku' }] }, { group: 'smart', name: 'Smart', options: [{ value: 'sonnet', name: 'Sonnet' }] }] },
+  { id: 'reasoning_effort', name: 'Reasoning Effort', category: 'thought_level', type: 'select', currentValue: 'medium',
+    options: [{ value: 'low', name: 'Low' }, { value: 'medium', name: 'Medium' }, { value: 'high', name: 'High' }] },
+  { id: 'allow_all', name: 'Allow All', category: 'permissions', type: 'select', currentValue: 'off',
+    options: [{ value: 'on', name: 'On' }, { value: 'off', name: 'Off' }] },
+  { id: 'verbose', name: 'Verbose', type: 'boolean', currentValue: false },
+];
+const legacy = { modes: { currentModeId: 'build', availableModes: [{ id: 'build', name: 'Build' }, { id: 'plan', name: 'Plan' }] },
+  models: { currentModelId: 'big', availableModels: [{ modelId: 'big', name: 'Big' }, { modelId: 'small', name: 'Small' }] } };
 let cancelTurn = null;
 log({ started: true, cwd: process.cwd(), cwdEntries: readdirSync(process.cwd()) });
 if (args.includes('--banner')) process.stdout.write('fake agent starting up\n');
@@ -87,6 +102,16 @@ async function prompt(id, params) {
     send({ id, result: { stopReason: 'end_turn' } });
     return;
   }
+  if (text === 'switch') {
+    if (args.includes('--config')) {
+      configOptions[0].currentValue = 'plan';
+      update(sessionId, { sessionUpdate: 'config_option_update', configOptions });
+    } else {
+      update(sessionId, { sessionUpdate: 'current_mode_update', currentModeId: 'plan' });
+    }
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
   if (text === 'exit') {
     process.stderr.write('fake agent gave up on purpose\n');
     setTimeout(() => process.exit(3), 50);
@@ -122,7 +147,24 @@ lines.on('line', (line) => {
       break;
     case 'session/new':
       if (!signedIn) send({ id: message.id, error: { code: -32000, message: 'Authentication required' } });
-      else send({ id: message.id, result: { sessionId: 'session-1' } });
+      else send({ id: message.id, result: { sessionId: 'session-1',
+        ...(args.includes('--config') ? { configOptions, modes: legacy.modes } : {}),
+        ...(args.includes('--legacy') ? legacy : {}) } });
+      break;
+    case 'session/set_config_option': {
+      const option = configOptions.find((candidate) => candidate.id === message.params.configId);
+      if (option === undefined || message.params.value === 'refuse') { send({ id: message.id, error: { code: -32602, message: 'No such value' } }); break; }
+      option.currentValue = message.params.value;
+      send({ id: message.id, result: { configOptions } });
+      break;
+    }
+    case 'session/set_mode':
+      legacy.modes.currentModeId = message.params.modeId;
+      send({ id: message.id, result: {} });
+      break;
+    case 'session/set_model':
+      legacy.models.currentModelId = message.params.modelId;
+      send({ id: message.id, result: {} });
       break;
     case 'session/prompt':
       void prompt(message.id, message.params);

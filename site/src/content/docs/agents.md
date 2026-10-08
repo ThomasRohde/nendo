@@ -36,7 +36,8 @@ Nendo can also start an agent for you, in a tab beside the file. It speaks the A
 
 1. Select **Agent** and choose **Inspect** or a higher level.
 2. Under **Launch an agent**, select one that Nendo found on this computer: GitHub Copilot CLI, Gemini CLI, Claude Code or Codex through their ACP adapters, or OpenCode. You can also add your own command, such as `my-agent --acp`.
-3. The agent opens in a new tab. Type to it there. The tab shows the agent's replies, the tools it calls and its plan, and asks you whenever the agent asks permission. **Stop** interrupts it, and **End** closes it.
+3. The agent opens in a new tab. Type to it there. The tab shows the agent's replies. The tools it calls and its plan fold into one line between messages, and each tool says whether it went through Nendo or was the agent's own. The tab asks you whenever the agent asks permission. **Stop** interrupts it, and **End** closes it.
+4. The agent's own settings sit beside the message box, as the agent offers them, for example its model, its reasoning effort and its mode. Anything else it offers is under **More**. These change the agent, not what it may do in your file.
 
 Nendo installs nothing and holds no credentials. The agent program signs in the way it does in a terminal. Nendo gives it one MCP server, this file's address, at the level you chose. It gives no file or terminal access, and the agent starts in an empty folder. Its proposals wait on the Agent page like any other agent's.
 

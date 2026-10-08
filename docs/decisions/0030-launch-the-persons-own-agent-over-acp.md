@@ -257,6 +257,40 @@ How each obligation was met:
    `TheAgentsApplicationHandleIsNeverShown` guards it. With the redaction taken out, it
    failed with "The agent's application handle reached the tab".
 
+### The tab as direction A, and the agent's own options (later on 2026-10-08)
+
+After using the build, the owner asked for six designs of the tab and added: "we should
+have some agent options, like model, effort, or whatever is available". The canvas
+offered A to F, and the owner chose A, a reading thread.
+
+**How the tab looks now:**
+- A heading carries the access level and the state.
+- The agent's steps between two messages fold into one line that opens.
+- Each tool says whether it went through Nendo or was the agent's own.
+- A permission request stands where the agent stopped, with Allow once first.
+
+**Options:** the agent's options sit in the composer.
+- **Where they come from.** They are the agent's ACP session config options (`model`,
+  `thought_level`, `mode`, `model_config`), set with `session/set_config_option`. An
+  older agent's `modes` and `models` are set with `session/set_mode` and
+  `session/set_model`.
+- **What the installed agents offer.** A probe of the installed agents (a session
+  opened, no prompt) found:
+  - Copilot CLI 1.0.93: config options for Mode, Model, Reasoning Effort, a custom
+    Agent and Allow All;
+  - OpenCode 1.1.36: the older modes and models.
+- **What Nendo does with them.** An option outside the four categories goes under More.
+  Nendo sends only a value the agent offered, and only when the person picks it. They
+  are the agent's settings, not Nendo's access level, which stays on the Agent page.
+
+**Checks:**
+- `DesktopLaunchedAgentTests` covers both forms and the tool origin. Removing the
+  offered-value check failed `TheAgentsConfigOptionsAreShownAndSetOnlyAsThePersonPicks`.
+- `agent-chat.test.mjs` covers the fold, the permission order and the options' place.
+  Putting every option in the composer failed it.
+- A preview tour measured the composer docked 46 px from the window's foot, the column
+  at 760 px, and Light and Dark.
+
 ## Consequences
 
 ### Positive

@@ -269,6 +269,21 @@ export interface AgentTranscriptEntry {
   options: Array<{ optionId: string; name: string; kind: string }> | null;
   answer: string | null;
   plan: Array<{ text: string; status: string }> | null;
+  /** For a tool or a permission request: `nendo` when it went through this file's MCP server, `agent` for the agent's own tool. */
+  origin: 'nendo' | 'agent' | null;
+}
+
+/**
+ * One of the agent's own settings for the session (ADR-0030, 2026-10-08): its model, effort, mode
+ * or anything else it offers, with the values it offers. `category` is the agent's word for it.
+ */
+export interface AgentOption {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  currentValue: string;
+  values: Array<{ value: string; name: string; description: string | null; group: string | null }>;
 }
 
 /** The conversation tab's read: the agent, its state, and what changed after the revision asked from. */
@@ -287,6 +302,7 @@ export interface LaunchedAgentView {
   entries: AgentTranscriptEntry[];
   more: boolean;
   signInMethods: Array<{ id: string; name: string; description: string | null }>;
+  options: AgentOption[];
 }
 
 /**
