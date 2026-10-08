@@ -35,10 +35,12 @@ make a task easier.
 - Promotion replays validated operations against the active file. It never
   replaces the active file with a proposal clone.
 - Every operation declares its reversibility class. Do not claim universal undo.
-- JavaScript that a `.nendo` file carries runs only as custom-view code under
+- JavaScript that a `.nendo` file carries runs in Nendo only as custom-view code under
   [ADR-0013](docs/decisions/0013-custom-views-with-code-in-the-file.md). It runs
   in the view's own frame and reaches the file's data only through the typed
-  services. Out of scope without an accepted ADR: expressions beyond ADR-0008's
+  services. A skill's script runs only in the client that loads it, never in Nendo
+  ([ADR-0029](docs/decisions/0029-a-skill-may-carry-scripts-its-client-runs.md)).
+  Out of scope without an accepted ADR: expressions beyond ADR-0008's
   formula language, binary and asset fields in user data, scalar multi-choice.
 
 ## Working style

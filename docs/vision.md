@@ -102,7 +102,9 @@ mode, bounded calculations and local actions, custom views that carry their own
 code in the file, with the full typed API
 ([ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md)).
 
-**Out:** general scripting in formulas, extension code that runs without a view,
+**Out:** general scripting in formulas, extension code that runs without a view
+(a skill's script runs in the agent's client, never in Nendo:
+[ADR-0029](decisions/0029-a-skill-may-carry-scripts-its-client-runs.md)),
 an embedded agent, scalar multi-choice, binary and asset fields, collaboration,
 cloud sync, background agents, other database engines, cross-platform parity.
 
