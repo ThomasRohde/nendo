@@ -457,7 +457,10 @@ services, at a static loopback address, with no credential.
   instructions name the read tool within their first 150 characters, and the lease grant
   carries the write limits and first reads. A request past the in-flight bound now waits
   up to 30 seconds for a place rather than being refused at once with HTTP 429, which a
-  client reported as a transport failure. Authority unchanged. What it gives up: Inspect
+  client reported as a transport failure. A live check with Copilot CLI 1.0.93 then found
+  it could not connect at all: from 1.0.81 it opens `subscriptions/listen` on connect, and
+  the acknowledgement carried no subscription id and granted no list change discover
+  advertises. Both now follow the specification. Authority unchanged. What it gives up: Inspect
   can no longer be described as "an empty tool list", and a reviewer of a tool list now
   sees reads in it.
 - 2026-09-29 — amended at the owner's request (W-126, after F-212): the access

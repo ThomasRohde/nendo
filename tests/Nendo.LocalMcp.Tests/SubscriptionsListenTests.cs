@@ -24,6 +24,11 @@ public sealed class SubscriptionsListenTests
         await using var stream = await ListenStream.OpenAsync(host, 11,
             "nendo://application/proposals", "nendo://application/manifest", "nendo://application/health");
         var acknowledged = await stream.NextAsync("notifications/subscriptions/acknowledged");
+        // The acknowledgement carries the listen request's id, as the id itself: a number, here.
+        // It carried none, and the later notifications carried the id as text, so GitHub Copilot
+        // CLI, which matches the acknowledgement to its request, timed out and dropped the server
+        // (2026-10-08; specification 2026-07-28, basic/patterns/subscriptions, Acknowledgment).
+        AssertSubscriptionId(acknowledged, "The acknowledgement");
         CollectionAssert.AreEqual(
             new[] { "nendo://application/manifest", "nendo://application/proposals", "nendo://application/health" },
             acknowledged.GetProperty("params").GetProperty("notifications").GetProperty("resourceSubscriptions").EnumerateArray().Select(value => value.GetString()).ToArray());
@@ -49,8 +54,7 @@ public sealed class SubscriptionsListenTests
         });
         await CallAsync<NendoAgentProposalPreview>(author, "nendo.change_set.validate", new(scoped) { ["idempotencyKey"] = "validate" });
         var queued = await stream.NextUpdateAsync("nendo://application/proposals");
-        Assert.AreEqual("11", queued.GetProperty("params").GetProperty("_meta").GetProperty("io.modelcontextprotocol/subscriptionId").ToString(),
-            "Every streamed notification carries the listen request's id.");
+        AssertSubscriptionId(queued, "A streamed notification");
 
         // The person accepts in Nendo: the manifest moved.
         var promotion = await workspace.Service.PromoteProposalAsync(host.GetPendingProposals().Single().ProposalId);
@@ -61,6 +65,50 @@ public sealed class SubscriptionsListenTests
         await host.DisposeAsync();
         await stream.NextUpdateAsync("nendo://application/health");
         Assert.IsTrue(await stream.EndedAsync(), "The stream did not end after the host closed.");
+    }
+
+    /// <summary>
+    /// A listen that asks for every list change discover advertises is granted each of them.
+    /// Discover says tools and resources may change, and GitHub Copilot CLI asks for both and
+    /// refuses a server whose acknowledgement leaves an advertised one out: "MCP server did not
+    /// accept its advertised list-change subscriptions" (2026-10-08).
+    /// </summary>
+    [TestMethod]
+    public async Task EveryListChangeDiscoverAdvertisesIsGrantedWhenAskedFor()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.ReadOnly, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        using var http = LatestProtocolTests.Client(host);
+        var capabilities = (await LatestProtocolTests.Send(http, "server/discover", new())).GetProperty("result").GetProperty("capabilities");
+        var advertised = new[] { ("tools", "toolsListChanged"), ("resources", "resourcesListChanged"), ("prompts", "promptsListChanged") }
+            .Where(pair => capabilities.TryGetProperty(pair.Item1, out var capability) &&
+                capability.TryGetProperty("listChanged", out var listChanged) && listChanged.ValueKind == JsonValueKind.True)
+            .Select(pair => pair.Item2)
+            .ToArray();
+        CollectionAssert.IsSubsetOf(new[] { "toolsListChanged", "resourcesListChanged" }, advertised,
+            "Discover no longer advertises the list changes this test was written for; check what a client now asks.");
+
+        await using var stream = await ListenStream.OpenAsync(host, 11);
+        var acknowledged = await stream.NextAsync("notifications/subscriptions/acknowledged");
+        AssertSubscriptionId(acknowledged, "The acknowledgement");
+        var granted = acknowledged.GetProperty("params").GetProperty("notifications");
+        foreach (var name in advertised)
+        {
+            Assert.IsTrue(granted.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True,
+                $"Discover advertises {name} and the acknowledgement does not grant it: {granted}");
+        }
+    }
+
+    private static void AssertSubscriptionId(JsonElement notification, string what)
+    {
+        var id = notification.GetProperty("params").TryGetProperty("_meta", out var meta) &&
+            meta.TryGetProperty("io.modelcontextprotocol/subscriptionId", out var found) ? found : default;
+        Assert.AreNotEqual(JsonValueKind.Undefined, id.ValueKind,
+            $"{what} carries no io.modelcontextprotocol/subscriptionId: {notification}");
+        Assert.AreEqual(JsonValueKind.Number, id.ValueKind, $"{what} carries the request id 11 as {id.ValueKind}: {id}");
+        Assert.AreEqual(11L, id.GetInt64());
     }
 
     [TestMethod]
@@ -75,7 +123,9 @@ public sealed class SubscriptionsListenTests
         var acknowledged = await first.NextAsync("notifications/subscriptions/acknowledged");
         var honoured = acknowledged.GetProperty("params").GetProperty("notifications");
         CollectionAssert.AreEqual(new[] { "nendo://application/proposals" }, honoured.GetProperty("resourceSubscriptions").EnumerateArray().Select(value => value.GetString()).ToArray());
-        Assert.IsFalse(honoured.TryGetProperty("toolsListChanged", out var tools) && tools.GetBoolean(), "toolsListChanged is not honoured: a level change restarts the listener.");
+        // Granted since 2026-10-08, as discover advertises it: a level change restarts the listener,
+        // so the list never changes under a stream and no notification is ever due on it.
+        Assert.IsTrue(honoured.TryGetProperty("toolsListChanged", out var tools) && tools.GetBoolean(), "toolsListChanged is advertised and not granted.");
         Assert.AreEqual(1, host.ListenerCount);
 
         // The cap: the fifth stream is refused by name, and the four stay open.
@@ -191,7 +241,8 @@ public sealed class SubscriptionsListenTests
                 jsonrpc = "2.0", id, method = "subscriptions/listen",
                 @params = new Dictionary<string, object?>
                 {
-                    ["notifications"] = new { toolsListChanged = true, resourceSubscriptions = uris },
+                    // What GitHub Copilot CLI asks for: both list changes discover advertises.
+                    ["notifications"] = new { toolsListChanged = true, resourcesListChanged = true, resourceSubscriptions = uris },
                     ["_meta"] = new Dictionary<string, object?>
                     {
                         ["io.modelcontextprotocol/protocolVersion"] = "2026-07-28",

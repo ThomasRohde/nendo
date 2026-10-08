@@ -59,9 +59,16 @@ this host pushes, `nendo://application/manifest`, `nendo://application/proposals
 carries `resources/updated` for the manifest and the proposals on every commit the
 Engine makes (a commit may stale every proposal), for the proposals when one joins the
 queue or leaves it by promotion or rejection, and for health when the file closes, after
-which the stream ends; each notification carries the listen request's id under
-`_meta/io.modelcontextprotocol/subscriptionId`. `toolsListChanged` is not honoured: a
-change of access level restarts the listener, and the stream ending is that signal. A
+which the stream ends. The acknowledgement and every notification carry the listen
+request's id under `_meta/io.modelcontextprotocol/subscriptionId`, as the id itself (a
+number stays a number), as the specification's Acknowledgment section requires.
+`toolsListChanged` and `resourcesListChanged` are granted when asked, because `server/discover`
+advertises both; no such notification is ever sent, because a change of access level
+restarts the listener and the stream ending is that signal. Until 2026-10-08 the
+acknowledgement carried no id, the id was text, and neither list change was granted:
+GitHub Copilot CLI from 1.0.81, which opens a listen stream on connect, timed out waiting
+for its acknowledgement, then refused a server "that did not accept its advertised
+list-change subscriptions", and could not connect at all. A
 stream holds one of the sixteen request-gate places for its life and is exempt from the
 request timeout; at most four are open at once, and the fifth is `NENDO_BUSY` naming the
 cap. Before, an agent at Shape app validated and had no signal when the person accepted,

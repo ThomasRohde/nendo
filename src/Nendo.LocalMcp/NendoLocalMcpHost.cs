@@ -209,13 +209,33 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                 $"NENDO_BUSY: {NendoChangeFeed.MaximumListeners} subscriptions/listen streams are already open to this file, the most this " +
                 "host holds at once. Close one, or poll nendo://application/proposals instead.",
                 McpErrorCode.InvalidParams);
-        var subscriptionId = System.Text.Json.Nodes.JsonValue.Create(request.JsonRpcRequest?.Id.Id?.ToString() ?? string.Empty);
-        System.Text.Json.Nodes.JsonObject Tagged() => new() { [MetaKeys.SubscriptionId] = subscriptionId.DeepClone() };
+        // The listen request's own JSON-RPC id, as the client sent it: a number stays a number. It
+        // was text, and the acknowledgement carried none, so a client that matches the
+        // acknowledgement to its request by this id (GitHub Copilot CLI from 1.0.81) never saw
+        // one, waited ten seconds and dropped the server (2026-10-08).
+        var subscriptionId = System.Text.Json.JsonSerializer.SerializeToNode(
+            request.JsonRpcRequest?.Id ?? default, McpJsonUtilities.DefaultOptions);
+        System.Text.Json.Nodes.JsonObject Tagged() => new() { [MetaKeys.SubscriptionId] = subscriptionId?.DeepClone() };
+        // The SDK's acknowledgement parameters have no _meta in this version, so they are written
+        // as the specification's own example has them.
         await request.Server.SendNotificationAsync(
             NotificationMethods.SubscriptionsAcknowledgedNotification,
-            new SubscriptionsAcknowledgedNotificationParams
+            new System.Text.Json.Nodes.JsonObject
             {
-                Notifications = new SubscriptionsListenNotifications { ResourceSubscriptions = honoured },
+                ["_meta"] = Tagged(),
+                ["notifications"] = System.Text.Json.JsonSerializer.SerializeToNode(
+                    new SubscriptionsListenNotifications
+                    {
+                        // Granted when asked, because discover advertises both (the SDK's listChanged),
+                        // and a client refuses a server that will not honour its own advertisement.
+                        // Honouring them costs nothing: the tool and resource lists are fixed for a
+                        // listener's life, and a change of access level restarts the listener, which
+                        // ends every stream. So no list-change notification is ever due on one.
+                        ToolsListChanged = request.Params?.Notifications?.ToolsListChanged is true ? true : null,
+                        ResourcesListChanged = request.Params?.Notifications?.ResourcesListChanged is true ? true : null,
+                        ResourceSubscriptions = honoured,
+                    },
+                    McpJsonUtilities.DefaultOptions),
             },
             cancellationToken: cancellationToken);
         try
