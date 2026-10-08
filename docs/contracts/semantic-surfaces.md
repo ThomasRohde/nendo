@@ -92,6 +92,15 @@ stable surface ID per entity; the default is the first compiled root. Resolution
 by kind returned the first root of a kind, so seven of eight lists on an entity
 could not be shown at all. Also, a board/list *mode* could not name a third view.
 
+**A record type with no screen is not a place** (W-184, 2026-10-08). The navigation and
+the breadcrumb's first picker offer a record type only when it has at least one of the
+roots above. A type whose only roots are its record page and its commands, such as a type
+whose rows join two others, is reached from a related row, a view or `ui.openRecord`, and
+never offered to be chosen. While one of its records is open, the picker still lists it, so
+it can say where Use is. Before, every type with any root was a place, and a join type's
+place opened on a bare list of rows. A type with no screen is also never the one Use shows
+by default.
+
 If the selected root is missing, Use falls back to the first eligible one
 **without erasing the remembered choice**. Thus, if one proposal removes a surface
 and the next proposal restores it, the surface comes back selected. Selection,
@@ -1358,7 +1367,7 @@ list that has since been drilled, the list returns whole. Nothing of this reache
 the `.nendo` file. The trail is bounded, belongs to the open file, and is emptied
 when another file is opened. The record type that a place names is the one on
 screen, which is not always the one that was picked. Until somebody uses the
-picker, Use shows the first compiled type while nothing is selected.
+picker, Use shows the first compiled type that has a screen while nothing is selected.
 
 If a place no longer exists, it is declined with a sentence and dropped from the
 trail. It is not resolved to a neighbouring screen and presented as the screen

@@ -1,10 +1,12 @@
 import { leaveRecordContext, state } from './app-state';
 import { escapeAttribute, escapeHtml } from './format';
 import type { CompileResult, ExtensionRuntimeView, SurfaceNodePlan } from './host';
+import type { IconName } from './icons';
 import { overviewTitle } from './overview-model';
-import { applicationPlans, overviewPlan } from './plan-selection';
+import { overviewPlan, placePlans } from './plan-selection';
 import { rerender } from './shell';
 import { viewTitle } from './view-frame-markup';
+import { typeIcon } from './type-icons';
 
 /**
  * The file's own views (ADR-0013 Phase 5, W-106): an `extensionView` root is a screen of the
@@ -42,13 +44,23 @@ export function openingFileView(definition: CompileResult | null, extensions: Ex
 
 /**
  * The options of the breadcrumb's first picker, the place Use is chosen (W-092): the front page,
- * then the file's views, then the record types, with the one in view selected.
+ * then the file's views, then the record types that have a screen, with the one in view selected.
  */
 export function showingOptionsMarkup(current: { overview: boolean; fileView: string | null; entityId: string | null }): string {
   const overview = overviewPlan();
   return (overview === null ? '' : `<option value="" ${current.overview ? 'selected' : ''}>${escapeHtml(overviewTitle(overview))}</option>`) +
     fileViews().map((view) => `<option value="${escapeAttribute(fileViewValue + view.semanticId)}" ${current.fileView === view.semanticId ? 'selected' : ''}>${escapeHtml(viewTitle(view))}</option>`).join('') +
-    applicationPlans().map((app) => `<option value="${escapeAttribute(app.entity.semanticId)}" ${current.entityId === app.entity.semanticId ? 'selected' : ''}>${escapeHtml(app.entity.displayName)}</option>`).join('');
+    placePlans(current.entityId).map((app) => `<option value="${escapeAttribute(app.entity.semanticId)}" ${current.entityId === app.entity.semanticId ? 'selected' : ''}>${escapeHtml(app.entity.displayName)}</option>`).join('');
+}
+
+/**
+ * A view's icon in the navigation, the address and its tab (W-184). The view the file opens on is
+ * its home, as a front page is, when the file has no front page. Any other view's title is guessed
+ * as a record type's name is, so Garden is a sprout; a title that suggests nothing keeps the panels.
+ */
+export function viewIcon(view: SurfaceNodePlan): IconName {
+  if (view.properties.opensFile === true && overviewPlan() === null) return 'home';
+  return typeIcon(viewTitle(view)) ?? 'surfaces';
 }
 
 /** What the first picker is called: Showing when it offers more than record types. */

@@ -278,41 +278,27 @@ export const STAGES = {
     },
   },
 
+  // Links, Note tags and Tags have a record page and no screen of their own (W-184): they are what a
+  // save derives, read on a note's page, the Overview and the graph, so Use offers them no place.
+  // Tasks keep their Due calendar; the Agenda, a view of the package, joins it in the garden stage.
   others: {
     title: 'Garden: tags, tasks and links, and the commands',
     needs: ENTITIES,
-    appliedWhen: async read => read.hasNode('gd.tag.list'),
+    appliedWhen: async read => read.hasNode('gd.tag.page'),
     mutations: () => {
       const t = tree();
-      const tagList = t.add('gd.tag.list', 'recordList', null, { definitionVersion: 3, entityId: 'gd.tag', title: 'Tags', orderByFieldId: F.tag.name, orderDirection: 'ascending' });
-      t.bindings(tagList, [F.tag.name, 'gd.tag.noteCount', F.tag.description]);
-      t.add('gd.tag.list.count', 'summaryTile', tagList, { aggregate: 'count', title: 'Tags' });
       const tagPage = t.add('gd.tag.page', 'detailSurface', null, { definitionVersion: 3, entityId: 'gd.tag', title: 'Tag', titleFieldId: F.tag.name });
       t.bindings(tagPage, [F.tag.name, F.tag.description, 'gd.tag.noteCount']);
       const tagged = t.add('gd.tag.page.notes', 'relatedList', tagPage, { targetEntityId: 'gd.noteTag', viaFieldId: F.noteTag.tag, title: 'Notes' });
       t.bindings(tagged, [F.noteTag.note, F.noteTag.source]);
 
-      const open = t.add('gd.task.open', 'recordList', null, { definitionVersion: 3, entityId: 'gd.task', title: 'Open', orderByFieldId: F.task.due, orderDirection: 'ascending' });
-      t.bindings(open, [F.task.title, F.task.note, F.task.due, F.task.source]);
-      t.where(open, 'open', F.task.done, 'eq', false);
-      t.add('gd.task.open.count', 'summaryTile', open, { aggregate: 'count', title: 'Open' });
-      const board = t.add('gd.task.board', 'boardSurface', null, { definitionVersion: 3, entityId: 'gd.task', title: 'By source', groupByFieldId: F.task.source, orderByFieldId: F.task.due, orderDirection: 'ascending' });
-      t.bindings(board, [F.task.title, F.task.note, F.task.done, F.task.due]);
       const due = t.add('gd.task.due', 'calendarSurface', null, { definitionVersion: 3, entityId: 'gd.task', title: 'Due', dateFieldId: F.task.due });
       t.bindings(due, [F.task.title, F.task.note, F.task.done]);
-      const allTasks = t.add('gd.task.all', 'recordList', null, { definitionVersion: 3, entityId: 'gd.task', title: 'All tasks', orderByFieldId: F.task.due, orderDirection: 'ascending' });
-      t.bindings(allTasks, [F.task.title, F.task.note, F.task.done, F.task.due, F.task.source]);
-      t.add('gd.task.all.byDone', 'breakdownChart', allTasks, { aggregate: 'count', groupByFieldId: F.task.source, title: 'By source' });
       const taskPage = t.add('gd.task.page', 'detailSurface', null, { definitionVersion: 3, entityId: 'gd.task', title: 'Task', titleFieldId: F.task.title });
       t.bindings(taskPage, [F.task.title, F.task.note, F.task.done, F.task.due, F.task.source, F.task.key]);
 
-      const linkList = t.add('gd.link.list', 'recordList', null, { definitionVersion: 3, entityId: 'gd.link', title: 'Links', orderByFieldId: F.link.from, orderDirection: 'ascending' });
-      t.bindings(linkList, [F.link.from, F.link.to, F.link.kind, F.link.source, F.link.context]);
-      t.add('gd.link.list.byKind', 'breakdownChart', linkList, { aggregate: 'count', groupByFieldId: F.link.kind, title: 'By kind' });
       const linkPage = t.add('gd.link.page', 'detailSurface', null, { definitionVersion: 3, entityId: 'gd.link', title: 'Link' });
       t.bindings(linkPage, [F.link.from, F.link.to, F.link.kind, F.link.context, F.link.source]);
-      const noteTagList = t.add('gd.noteTag.list', 'recordList', null, { definitionVersion: 3, entityId: 'gd.noteTag', title: 'Note tags', orderByFieldId: F.noteTag.tag, orderDirection: 'ascending' });
-      t.bindings(noteTagList, [F.noteTag.note, F.noteTag.tag, F.noteTag.source]);
       const noteTagPage = t.add('gd.noteTag.page', 'detailSurface', null, { definitionVersion: 3, entityId: 'gd.noteTag', title: 'Note tag' });
       t.bindings(noteTagPage, [F.noteTag.note, F.noteTag.tag, F.noteTag.source]);
 
@@ -341,7 +327,7 @@ export const STAGES = {
   },
 
   garden: {
-    title: 'Garden: the Overview, which the file opens on, the Garden view and the Backlinks panel',
+    title: 'Garden: the Overview, which the file opens on, the Garden view, the Backlinks panel, the Agenda and Tend',
     needs: ENTITIES,
     appliedWhen: async read => read.hasNode('gd.garden'),
     mutations: async () => {
@@ -351,7 +337,7 @@ export const STAGES = {
       t.add(HOME_VIEW, 'extensionView', null, { definitionVersion: 3, title: HOME_TITLE, packageId: PACKAGE_ID, entityId: 'gd.note', opensFile: true });
       t.add('gd.garden', 'extensionView', null, { definitionVersion: 3, title: 'Garden', packageId: PACKAGE_ID, entityId: 'gd.note' });
       t.add('gd.note.page.backlinks', 'extensionRecordPanel', 'gd.note.page.note', { title: 'Backlinks', packageId: PACKAGE_ID, labelFieldId: F.note.title });
-      return [...files, ...t.asMutations('Show the Garden view and the Backlinks panel')];
+      return [...files, ...t.asMutations('Show the Garden view and the Backlinks panel'), ...chunk(listScreenOperations(), 'Show the Agenda and Tend screens')];
     },
   },
 
@@ -402,6 +388,28 @@ export const STAGES = {
     mutations: () => [{ description: 'Build the search index', operations: [op('application.buildSearchIndex', {})] }],
   },
 };
+
+// The Agenda leads the tasks' screens and Tend follows the notes' Tree (W-184). Each is placed by
+// its neighbour rather than by a position, since a position is a sort key the stages share.
+export const LIST_SCREENS = [
+  { nodeId: 'gd.task.agenda', anchor: { beforeNodeId: 'gd.task.due' },
+    properties: { definitionVersion: 3, entityId: 'gd.task', title: 'Agenda', packageId: PACKAGE_ID, labelFieldId: F.task.title },
+    fields: [F.task.due, F.task.done, F.task.note] },
+  { nodeId: 'gd.note.tend', anchor: { afterNodeId: 'gd.note.outline' },
+    properties: { definitionVersion: 3, entityId: 'gd.note', title: 'Tend', packageId: PACKAGE_ID, labelFieldId: F.note.title, statusFieldId: F.note.stage },
+    fields: [F.note.touched, F.note.kind] },
+];
+// The list screens W-184 took out; upgrade removes each one a file still has.
+export const RETIRED_SCREENS = ['gd.tag.list', 'gd.link.list', 'gd.noteTag.list', 'gd.task.open', 'gd.task.board', 'gd.task.all'];
+
+export function listScreenOperations(screens = LIST_SCREENS) {
+  const operations = [];
+  for (const screen of screens) {
+    operations.push(op('ui.addNode', { surfaceId: SURFACE, nodeId: screen.nodeId, parentNodeId: null, kind: 'extensionRecordsSurface', ...screen.anchor, properties: screen.properties }));
+    screen.fields.forEach((fieldId, position) => operations.push(op('ui.addNode', { surfaceId: SURFACE, nodeId: `${screen.nodeId}.${fieldId}`, parentNodeId: screen.nodeId, kind: 'fieldBinding', position, properties: { fieldId } })));
+  }
+  return operations;
+}
 
 /** The architecture-decision acronym, as a reader would meet it in a note: the guard measures notes with this. */
 export function decisionReferences(text) {

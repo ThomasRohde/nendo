@@ -18,7 +18,7 @@
 
 import crypto from 'node:crypto';
 import { target, withLease, fail } from './archi-mcp.mjs';
-import { STAGES, STAGE_ORDER, CALL_CHARACTERS, NEW_FILE_LABEL, SKILL_PACKAGE_ID, PACKAGE_ID, PACKAGE_FOLDER, RETIRED_GRAPH_PACKAGE_ID, HOME_VIEW, HOME_TITLE, RETIRED_FRONT, seedRecords, packageFiles, hasSearchIndex, skillPackage, decisionReferences } from './garden/definition.mjs';
+import { STAGES, STAGE_ORDER, CALL_CHARACTERS, NEW_FILE_LABEL, SKILL_PACKAGE_ID, PACKAGE_ID, PACKAGE_FOLDER, RETIRED_GRAPH_PACKAGE_ID, HOME_VIEW, HOME_TITLE, RETIRED_FRONT, LIST_SCREENS, RETIRED_SCREENS, listScreenOperations, seedRecords, packageFiles, hasSearchIndex, skillPackage, decisionReferences } from './garden/definition.mjs';
 
 const TARGET_FILE_NAME = process.env.NENDO_GARDEN_TARGET || 'Garden.nendo';
 
@@ -101,6 +101,8 @@ async function compare(file) {
   const overview = (await file.read.json('nendo://application/surfaces')).overview;
   if (overview) problems.push(`the file still has a native front page (${overview.nodeId ?? overview.properties?.title}), which the ${HOME_TITLE} view replaced: run upgrade`);
   if (!await file.read.hasNode(HOME_VIEW)) problems.push(`the file has no ${HOME_TITLE} view (${HOME_VIEW}): run upgrade`);
+  for (const screen of LIST_SCREENS) if (!await file.read.hasNode(screen.nodeId)) problems.push(`the file has no ${screen.properties.title} screen (${screen.nodeId}): run upgrade`);
+  for (const nodeId of RETIRED_SCREENS) if (await file.read.hasNode(nodeId)) problems.push(`the file still has the list ${nodeId}, which W-184 took out: run upgrade`);
   if (packages.includes(RETIRED_GRAPH_PACKAGE_ID)) problems.push(`${RETIRED_GRAPH_PACKAGE_ID} is still in the file: run upgrade`);
   const garden = (describe.extensions ?? []).find(p => p.packageId === PACKAGE_ID);
   const { manifest: wanted, files: wantedFiles } = await packageFiles(PACKAGE_FOLDER);
@@ -127,8 +129,9 @@ async function compare(file) {
 /**
  * One change set that brings a built file up to this folder: the Garden package's changed files
  * (each put names the content it replaces, so a newer package is never overwritten), the Graph
- * screen moved onto the Garden package, the retired Dependency graph package taken out, and the
- * native front page replaced by the Overview view, which then opens the file.
+ * screen moved onto the Garden package, the retired Dependency graph package taken out, the
+ * native front page replaced by the Overview view, which then opens the file, and the lists of the
+ * derived types replaced by the Agenda and Tend screens (W-184).
  */
 async function upgrade(file, dryRun, skipIndex = false) {
   const listing = await file.read.json('nendo://application/extensions');
@@ -176,6 +179,11 @@ async function upgrade(file, dryRun, skipIndex = false) {
     operations.push(op('ui.addNode', { surfaceId: 'garden', nodeId: HOME_VIEW, parentNodeId: null, kind: 'extensionView', beforeNodeId: 'gd.garden',
       properties: { definitionVersion: 3, title: HOME_TITLE, packageId: PACKAGE_ID, entityId: 'gd.note', opensFile: true } }));
   }
+  // W-184: the derived types' lists go, so Use offers them no place, and the Agenda and Tend come in.
+  for (const nodeId of RETIRED_SCREENS) if (await file.read.hasNode(nodeId)) operations.push(op('ui.removeNode', { surfaceId: 'garden', nodeId }));
+  const missing = [];
+  for (const screen of LIST_SCREENS) if (!await file.read.hasNode(screen.nodeId)) missing.push(screen);
+  operations.push(...listScreenOperations(missing));
   // Find reads the file's search index (ADR-0028): build it with the upgrade when the file has none,
   // as its own mutation, since it is a definition change with nothing to undo.
   const buildIndex = !skipIndex && !(await hasSearchIndex(file.read));

@@ -3,6 +3,7 @@ import { refuseWhileDirty } from './draft-guard';
 import { escapeAttribute, escapeHtml } from './format';
 import { icon, type IconName } from './icons';
 import { applicationPlans } from './plan-selection';
+import { fileViewById, viewIcon } from './file-view-model';
 import { typeGlyph } from './type-icons';
 import { revisitCurrent } from './navigation-actions';
 import { navigationTrail, type Place } from './navigation-trail';
@@ -61,7 +62,7 @@ function tabGlyph(place: Place | null): string {
 
 function tabIcon(place: Place | null): IconName {
   switch (place?.view) {
-    case 'use': return place.showOverview === true ? 'home' : place.fileView !== null ? 'surfaces' : 'box';
+    case 'use': return place.showOverview === true ? 'home' : place.fileView !== null ? (fileViewById(place.fileView) === null ? 'surfaces' : viewIcon(fileViewById(place.fileView)!)) : 'box';
     case 'data': case 'structure': case 'surfaces': case 'history': case 'health': case 'help': return place.view;
     case 'agent': case 'agentProposal': return 'agent';
     case 'proposal': return 'studio';

@@ -24,7 +24,7 @@ import { backTarget, forwardTarget, goBack, goForward, placeName, recordPlace } 
 import { state } from './app-state';
 import { installViewFrames, onHostKey, parkViewFrames, releaseViewFrames, runViewKey } from './view-frames';
 import { beginPlacePickers, endPlacePickers, placePickersDrawn } from './place-pickers';
-import { fileViewById } from './file-view-model';
+import { fileViewById, viewIcon } from './file-view-model';
 import { viewTitle } from './view-frame-markup';
 import { startTitleBar } from './title-bar';
 import { lookIconMarkup } from './file-look';
@@ -296,7 +296,7 @@ function updateChrome(): void {
   // The file, named at the title bar's left end over the navigation (G).
   brandFile.textContent = named ? state.session.fileName!.replace(/\.nendo$/i, '') : 'Nendo';
   brandFile.title = state.session.fileName ?? '';
-  const addressIcon: IconName = state.view === 'use' ? (fileViewById(state.fileView) !== null ? 'surfaces' : showsOverview() ? 'home' : 'box') : state.view === 'agent' || state.view === 'agentProposal' ? 'agent'
+  const addressIcon: IconName = state.view === 'use' ? (fileViewById(state.fileView) !== null ? viewIcon(fileViewById(state.fileView)!) : showsOverview() ? 'home' : 'box') : state.view === 'agent' || state.view === 'agentProposal' ? 'agent'
     : state.view === 'help' ? 'help' : state.view === 'proposal' ? 'studio' : state.view;
   // On a record type's screen the address carries that type's icon, as the navigation and the tab do.
   const typeName = state.view === 'use' && !showsOverview() && fileViewById(state.fileView) === null ? current?.entity.displayName ?? null : null;

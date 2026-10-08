@@ -1156,6 +1156,177 @@ async page => {
   await page.setViewportSize({ width: 1440, height: 900 });
   checks.push('overview in Light and Dark and at a narrow width');
 
+  // 21. The Agenda (W-184), a screen of the tasks in the Garden package: the open tasks by when they
+  // are due, each with its box and its note. A tick on a body task writes - [x] into the note's line
+  // and the task in one batch; Undo takes both back; the note's name opens it in the Garden view.
+  const dayFrom = days => { const d = new Date(); d.setDate(d.getDate() + days); const pad = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+  const isSunday = new Date().getDay() === 0;
+  const agendaFixture = JSON.parse(JSON.stringify(fixture));
+  const plantTask = agendaFixture.records['gd.task'].find(t => t.recordId === 'gd.task.start-here-d7ea1e7b');
+  plantTask.values['gd.task.due'] = localToday();
+  const manual = (id, title, due) => ({ entityId: 'gd.task', recordId: id, version: 1, labels: {}, exact: {}, calculated: {},
+    values: { 'gd.task.title': title, 'gd.task.note': 'gd.note.daily-notes', 'gd.task.done': false, 'gd.task.source': 'Manual', 'gd.task.key': null, 'gd.task.due': due } });
+  agendaFixture.records['gd.task'].push(manual('gd.task.w184-water', 'Water the beds', dayFrom(-2)), manual('gd.task.w184-soon', 'Sow the peas', dayFrom(1)), manual('gd.task.w184-bulbs', 'Order bulbs', dayFrom(30)));
+  const agendaContext = { ...fixture.context, viewId: 'gd.task.agenda', kind: 'extensionRecordsSurface', entityId: 'gd.task', title: 'Agenda',
+    bindings: { labelFieldId: 'gd.task.title', statusFieldId: null, fields: ['gd.task.due', 'gd.task.done', 'gd.task.note'], filters: [] } };
+  await page.evaluate(({ agendaFixture, agendaContext }) => { window.broker.offerScreens(true); window.broker.setFixture({ ...agendaFixture, context: agendaContext }); window.broker.pushTheme('light'); window.broker.remount(); }, { agendaFixture, agendaContext });
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.waitForFunction(() => window.gardenAgenda?.ready === true, { timeout: 15000 })
+    .catch(async () => { throw Error(`The Agenda must start on gd.task.agenda: ${JSON.stringify(await frame.evaluate(() => ({ agenda: !!window.gardenAgenda, garden: !!window.garden, shown: !document.getElementById('agenda')?.hidden })))}.`); });
+  const agendaShown = () => frame.evaluate(() => ({
+    groups: [...document.querySelectorAll('#agenda-groups .list-group')].map(g => [g.dataset.group, [...g.querySelectorAll('.agenda-task')].map(r => r.dataset.id)]),
+    summary: document.getElementById('agenda-summary').textContent,
+    rows: [...document.querySelectorAll('.agenda-task')].map(r => ({ id: r.dataset.id, box: !!r.querySelector('input.box'), checked: r.querySelector('input.box').checked, done: r.classList.contains('done'),
+      note: r.querySelector('.note-link')?.textContent ?? null, due: r.querySelector('.due')?.textContent ?? null, late: !!r.querySelector('.due.late'), bold: r.querySelectorAll('.text strong').length })),
+  }));
+  const noteTitle = id => fixture.records['gd.note'].find(n => n.recordId === id).values['gd.note.title'];
+  const byNote = ids => ids.sort((a, b) => { const ta = agendaFixture.records['gd.task'].find(t => t.recordId === a), tb = agendaFixture.records['gd.task'].find(t => t.recordId === b);
+    return noteTitle(ta.values['gd.task.note']).localeCompare(noteTitle(tb.values['gd.task.note'])) || ta.values['gd.task.title'].localeCompare(tb.values['gd.task.title']); });
+  const wantGroups = [['overdue', ['gd.task.w184-water']], ['today', ['gd.task.start-here-d7ea1e7b']], ...(isSunday ? [] : [['week', ['gd.task.w184-soon']]]),
+    ['later', isSunday ? ['gd.task.w184-soon', 'gd.task.w184-bulbs'] : ['gd.task.w184-bulbs']], ['none', byNote(['gd.task.start-here-c3140c01', 'gd.task.tags-and-tasks-8578540f'])]];
+  const firstAgenda = await agendaShown();
+  assert(JSON.stringify(firstAgenda.groups) === JSON.stringify(wantGroups), `The Agenda must group the open tasks by when they are due, soonest first, the done one left out: ${JSON.stringify({ shown: firstAgenda.groups, want: wantGroups })}.`);
+  assert(firstAgenda.summary === '6 open tasks, 1 overdue.', `The Agenda says how many are open and overdue: ${firstAgenda.summary}.`);
+  const plantRow = firstAgenda.rows.find(r => r.id === 'gd.task.start-here-d7ea1e7b'), waterRow = firstAgenda.rows.find(r => r.id === 'gd.task.w184-water');
+  assert(firstAgenda.rows.every(r => r.box && !r.checked) && plantRow.note === 'Start here' && plantRow.due === null && plantRow.bold === 1 && waterRow.late && waterRow.note === noteTitle('gd.note.daily-notes'),
+    `Each task has a box and its note; today's says no date, an overdue one says its date late, and Markdown is drawn: ${JSON.stringify(firstAgenda.rows)}.`);
+  // A real pointer ticks the body task: one batch writes the line and the task, and the row stays, ticked.
+  const agendaBatches = await requests('records.batch');
+  await frame.locator('.agenda-task[data-id="gd.task.start-here-d7ea1e7b"] input.box').click();
+  await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.batch').length > n, agendaBatches, { timeout: 3000 });
+  await frame.waitForFunction(() => document.querySelector('.agenda-task[data-id="gd.task.start-here-d7ea1e7b"]')?.classList.contains('done'), null, { timeout: 3000 });
+  const tickedNote = await page.evaluate(() => window.broker.record('gd.note', 'gd.note.start-here'));
+  const tickedTask = await page.evaluate(() => window.broker.record('gd.task', 'gd.task.start-here-d7ea1e7b'));
+  const agendaAfterTick = await agendaShown();
+  assert(await requests('records.batch') === agendaBatches + 1, 'A tick must be exactly one records.batch.');
+  assert(tickedNote.values['gd.note.body'].includes('- [x] Plant your first note with **New note**') && tickedTask.values['gd.task.done'] === true,
+    `A tick on a body task must write - [x] into the note's line and mark the task done: ${JSON.stringify({ body: tickedNote.values['gd.note.body'].slice(0, 300), done: tickedTask.values['gd.task.done'] })}.`);
+  assert(agendaAfterTick.summary === '5 open tasks, 1 overdue.' && agendaAfterTick.groups.find(g => g[0] === 'today')?.[1][0] === 'gd.task.start-here-d7ea1e7b', `The ticked task stays in Today, ticked, and no longer counts: ${JSON.stringify(agendaAfterTick)}.`);
+  // Undo, on the line under the heading, takes both back as one step.
+  const undosBeforeAgenda = await requests('records.undo');
+  await frame.locator('#agenda-status [data-undo]').click();
+  await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.undo').length > n, undosBeforeAgenda, { timeout: 3000 });
+  await frame.waitForFunction(() => !document.querySelector('.agenda-task[data-id="gd.task.start-here-d7ea1e7b"]')?.classList.contains('done'), null, { timeout: 3000 });
+  const undoneNote = await page.evaluate(() => window.broker.record('gd.note', 'gd.note.start-here'));
+  const undoneTask = await page.evaluate(() => window.broker.record('gd.task', 'gd.task.start-here-d7ea1e7b'));
+  assert(await requests('records.undo') === undosBeforeAgenda + 1 && undoneNote.values['gd.note.body'].includes('- [ ] Plant your first note with **New note**') && undoneTask.values['gd.task.done'] === false,
+    `Undo must take the line and the task back as one records.undo: ${JSON.stringify({ done: undoneTask.values['gd.task.done'] })}.`);
+  // A task added by hand ticks its record alone.
+  const dailyBefore = (await page.evaluate(() => window.broker.record('gd.note', 'gd.note.daily-notes'))).version;
+  await frame.locator('.agenda-task[data-id="gd.task.w184-water"] input.box').click();
+  await page.waitForFunction(() => window.broker.record('gd.task', 'gd.task.w184-water')?.values['gd.task.done'] === true, null, { timeout: 3000 });
+  assert((await page.evaluate(() => window.broker.record('gd.note', 'gd.note.daily-notes'))).version === dailyBefore, 'A task added by hand must tick its record and leave its note alone.');
+  // The note's name opens it in the Garden view.
+  await frame.locator('.agenda-task[data-id="gd.task.w184-bulbs"] .note-link').click();
+  await page.waitForFunction(() => window.broker.screensOpened().at(-1) === 'gd.garden', null, { timeout: 2000 }).catch(() => undefined);
+  const agendaHanded = await frame.evaluate(() => JSON.parse(localStorage.getItem('garden.handover.v1') ?? 'null'));
+  assert((await page.evaluate(() => window.broker.screensOpened())).at(-1) === 'gd.garden' && agendaHanded?.open === 'gd.note.daily-notes', `The note's name must open it in the Garden view: ${JSON.stringify(agendaHanded)}.`);
+  await frame.evaluate(() => localStorage.removeItem('garden.handover.v1'));
+  await page.screenshot({ path: '__OUTPUT__/agenda.png', fullPage: true });
+  const listColours = async (selector) => {
+    const found = {};
+    for (const mode of ['dark', 'light']) {
+      await page.evaluate(mode => window.broker.pushTheme(mode), mode); await page.waitForTimeout(150);
+      found[mode] = await frame.evaluate(selector => {
+        const token = name => { const e = document.createElement('i'); e.style.color = `var(--nendo-${name})`; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; };
+        const group = document.querySelector(`${selector} .list-group`);
+        const bg = name => { const e = document.createElement('i'); e.style.background = `var(--nendo-${name})`; document.body.append(e); const c = getComputedStyle(e).backgroundColor; e.remove(); return c; };
+        return { group: getComputedStyle(group).backgroundColor, raised: bg('surface-raised'), body: getComputedStyle(document.body).backgroundColor, surface: bg('surface'),
+          today: document.querySelector('.group-today h2') ? getComputedStyle(document.querySelector('.group-today h2')).color : null, cobalt: token('cobalt'),
+          overdue: document.querySelector('.group-overdue h2') ? getComputedStyle(document.querySelector('.group-overdue h2')).color : null, danger: token('danger') };
+      }, selector);
+      if (mode === 'dark') await page.screenshot({ path: `__OUTPUT__/${selector.slice(1)}-dark.png`, fullPage: true });
+    }
+    return found;
+  };
+  const agendaColours = await listColours('#agenda');
+  for (const mode of ['dark', 'light']) {
+    const c = agendaColours[mode];
+    assert(c.group === c.raised && c.body === c.surface && c.today === c.cobalt && c.overdue === c.danger, `${mode}: the Agenda must use the theme's tokens: ${JSON.stringify(c)}.`);
+  }
+  assert(agendaColours.dark.group !== agendaColours.light.group, 'The theme must change the Agenda.');
+  await page.setViewportSize({ width: 600, height: 900 });
+  await page.waitForTimeout(300);
+  const agendaNarrow = await frame.evaluate(() => ({ scroll: document.scrollingElement.scrollWidth, width: innerWidth }));
+  assert(agendaNarrow.scroll <= agendaNarrow.width, `At 600 px the Agenda must not scroll sideways: ${JSON.stringify(agendaNarrow)}.`);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  checks.push('agenda: groups by due date, a real tick into the note and its Undo, a Manual tick, the note opened in the Garden view, Light and Dark');
+
+  // 22. Tend (W-184), a screen of the notes: seeds and growing notes untended for the span chosen, the
+  // longest first, and the notes not written yet. Its buttons write what the commands do, Undo takes
+  // them back, and a span is kept.
+  const tendFixture = JSON.parse(JSON.stringify(fixture));
+  for (const n of tendFixture.records['gd.note']) n.values['gd.note.touched'] = localToday();
+  const setNote = (id, values) => Object.assign(tendFixture.records['gd.note'].find(n => n.recordId === id).values, values);
+  setNote('gd.note.daily-notes', { 'gd.note.touched': dayFrom(-40) });
+  setNote('gd.note.tags-and-tasks', { 'gd.note.touched': dayFrom(-20), 'gd.note.stage': 'Seed' });
+  setNote('gd.note.for-agents', { 'gd.note.touched': dayFrom(-200) }); // evergreen: never asked for
+  tendFixture.records['gd.note'].push({ entityId: 'gd.note', recordId: 'gd.note.w184-stub', version: 1, labels: {}, exact: {}, calculated: {},
+    values: { 'gd.note.title': 'Compost', 'gd.note.slug': 'compost', 'gd.note.kind': 'Note', 'gd.note.stage': 'Seed', 'gd.note.pinned': false, 'gd.note.touched': dayFrom(-3), 'gd.note.body': null } });
+  const tendContext = { ...fixture.context, viewId: 'gd.note.tend', kind: 'extensionRecordsSurface', entityId: 'gd.note', title: 'Tend',
+    bindings: { labelFieldId: 'gd.note.title', statusFieldId: 'gd.note.stage', fields: ['gd.note.touched', 'gd.note.kind'], filters: [] } };
+  await page.evaluate(({ tendFixture, tendContext }) => { window.broker.setFixture({ ...tendFixture, context: tendContext }); window.broker.pushTheme('light'); window.broker.remount(); }, { tendFixture, tendContext });
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.evaluate(() => localStorage.removeItem('garden.tend.span.v1'));
+  await page.evaluate(() => window.broker.remount());
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.waitForFunction(() => window.gardenTend?.ready === true, { timeout: 15000 })
+    .catch(async () => { throw Error(`Tend must start on gd.note.tend: ${JSON.stringify(await frame.evaluate(() => ({ tend: !!window.gardenTend, garden: !!window.garden, shown: !document.getElementById('tend')?.hidden })))}.`); });
+  const tendShown = () => frame.evaluate(() => ({
+    quiet: [...document.querySelectorAll('#tend-quiet .tend-note')].map(r => ({ id: r.dataset.id, when: r.querySelector('.tend-when').textContent, actions: [...r.querySelectorAll('[data-action]')].map(b => b.textContent) })),
+    empty: [...document.querySelectorAll('#tend-empty .tend-note')].map(r => r.dataset.id), emptyShown: !document.getElementById('tend-empty-section').hidden,
+    spans: [...document.querySelectorAll('#tend-spans button')].map(b => [b.textContent, b.getAttribute('aria-pressed')]),
+  }));
+  const firstTend = await tendShown();
+  assert(JSON.stringify(firstTend.quiet.map(r => r.id)) === JSON.stringify(['gd.note.daily-notes', 'gd.note.tags-and-tasks']) && JSON.stringify(firstTend.empty) === JSON.stringify(['gd.note.w184-stub']) && firstTend.emptyShown,
+    `Tend must ask for the seed and growing notes untended for two weeks, the longest first, and the note not written yet: ${JSON.stringify(firstTend)}.`);
+  assert(firstTend.quiet[0].when === 'Growing · 5 weeks untended' && JSON.stringify(firstTend.quiet[0].actions) === JSON.stringify(['Tended today', 'Mark evergreen'])
+    && JSON.stringify(firstTend.quiet[1].actions) === JSON.stringify(['Tended today', 'Mark growing']), `Each note says how long it waited and offers the next stage: ${JSON.stringify(firstTend.quiet)}.`);
+  assert(JSON.stringify(firstTend.spans) === JSON.stringify([['1 week', 'false'], ['2 weeks', 'true'], ['1 month', 'false'], ['3 months', 'false']]), `Two weeks is the span to start with: ${JSON.stringify(firstTend.spans)}.`);
+  await frame.locator('#tend-spans button[data-span="30"]').click();
+  const monthTend = await tendShown();
+  assert(JSON.stringify(monthTend.quiet.map(r => r.id)) === JSON.stringify(['gd.note.daily-notes']) && await frame.evaluate(() => localStorage.getItem('garden.tend.span.v1')) === '30',
+    `A month asks for fewer, and the span is kept: ${JSON.stringify(monthTend)}.`);
+  await frame.locator('#tend-spans button[data-span="14"]').click();
+  // A real pointer marks the seed growing: one batch, the stage and today's date; it leaves the list.
+  const tendBatches = await requests('records.batch');
+  await frame.locator('.tend-note[data-id="gd.note.tags-and-tasks"] [data-action="growing"]').click();
+  await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.batch').length > n, tendBatches, { timeout: 3000 });
+  await frame.waitForFunction(() => !document.querySelector('.tend-note[data-id="gd.note.tags-and-tasks"]'), null, { timeout: 3000 });
+  const grown = await page.evaluate(() => window.broker.record('gd.note', 'gd.note.tags-and-tasks'));
+  assert(await requests('records.batch') === tendBatches + 1 && grown.values['gd.note.stage'] === 'Growing' && grown.values['gd.note.touched'] === localToday(),
+    `Mark growing must be one batch that sets the stage and tends the note today: ${JSON.stringify(grown.values)}.`);
+  const tendUndos = await requests('records.undo');
+  await frame.locator('#tend-status [data-undo]').click();
+  await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.undo').length > n, tendUndos, { timeout: 3000 });
+  await frame.waitForFunction(() => !!document.querySelector('.tend-note[data-id="gd.note.tags-and-tasks"]'), null, { timeout: 3000 });
+  const ungrown = await page.evaluate(() => window.broker.record('gd.note', 'gd.note.tags-and-tasks'));
+  assert(ungrown.values['gd.note.stage'] === 'Seed' && ungrown.values['gd.note.touched'] === dayFrom(-20), `Undo must put the stage and the date back: ${JSON.stringify(ungrown.values)}.`);
+  await frame.locator('.tend-note[data-id="gd.note.daily-notes"] [data-action="tend"]').click();
+  await page.waitForFunction(today => window.broker.record('gd.note', 'gd.note.daily-notes')?.values['gd.note.touched'] === today, localToday(), { timeout: 3000 });
+  assert((await page.evaluate(() => window.broker.record('gd.note', 'gd.note.daily-notes'))).values['gd.note.stage'] === 'Growing', 'Tended today keeps the stage.');
+  await frame.locator('.tend-note[data-id="gd.note.w184-stub"] .note-link').click();
+  await page.waitForFunction(() => window.broker.screensOpened().at(-1) === 'gd.garden', null, { timeout: 2000 }).catch(() => undefined);
+  const tendHanded = await frame.evaluate(() => JSON.parse(localStorage.getItem('garden.handover.v1') ?? 'null'));
+  assert(tendHanded?.open === 'gd.note.w184-stub', `A note's title must open it in the Garden view: ${JSON.stringify(tendHanded)}.`);
+  await frame.evaluate(() => { localStorage.removeItem('garden.handover.v1'); localStorage.removeItem('garden.tend.span.v1'); });
+  await page.screenshot({ path: '__OUTPUT__/tend.png', fullPage: true });
+  const tendColours = await listColours('#tend');
+  for (const mode of ['dark', 'light']) {
+    const c = tendColours[mode];
+    assert(c.group === c.raised && c.body === c.surface, `${mode}: Tend must use the theme's tokens: ${JSON.stringify(c)}.`);
+  }
+  assert(tendColours.dark.group !== tendColours.light.group, 'The theme must change Tend.');
+  await page.setViewportSize({ width: 600, height: 900 });
+  await page.waitForTimeout(300);
+  const tendNarrow = await frame.evaluate(() => ({ scroll: document.scrollingElement.scrollWidth, width: innerWidth }));
+  assert(tendNarrow.scroll <= tendNarrow.width, `At 600 px Tend must not scroll sideways: ${JSON.stringify(tendNarrow)}.`);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  checks.push('tend: untended seeds and growing notes by span, notes not written yet, Mark growing and its Undo, Tended today, Light and Dark');
+
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, colours, diagramColours, narrow, settle, checks, errors };
 

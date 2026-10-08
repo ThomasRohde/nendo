@@ -86,10 +86,13 @@ has no automatic actions, so a schema change never asks the device for behaviour
 ## Screens
 
 Use opens on the **Overview**, led by the garden's graph, with the stages, the tags and the
-pinned notes; notes are written in the **Garden** view. Notes have a Tree, All notes, Orphans,
-By stage, a Daily calendar, Maps and a Graph (`gd.note.graph`); tasks have Open, By source, a
-Due calendar and All tasks. A note's page shows its links out, backlinks, tags and tasks, and
-the Backlinks panel with each backlink's sentence.
+pinned notes; notes are written in the **Garden** view. Notes have a Tree, Tend (`gd.note.tend`:
+seeds and growing notes not tended lately, and notes not written yet), All notes, Orphans, By
+stage, a Daily calendar, Maps and a Graph (`gd.note.graph`); tasks have the Agenda
+(`gd.task.agenda`: open tasks by when they are due) and a Due calendar. Links, Tags and Note tags
+have record pages and no screen, so Use does not list them; read them on a note's page or over
+MCP. A note's page shows its links out, backlinks, tags and tasks, and the Backlinks panel with
+each backlink's sentence.
 
 ## Handing over
 

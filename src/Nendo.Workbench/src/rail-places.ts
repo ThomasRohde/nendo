@@ -1,12 +1,12 @@
 import { refreshDerived } from './actions';
 import { leaveRecordContext, state } from './app-state';
 import { refuseWhileDirty } from './draft-guard';
-import { fileViews, showsFileView } from './file-view-model';
+import { fileViews, showsFileView, viewIcon } from './file-view-model';
 import { escapeAttribute, escapeHtml, messageFor } from './format';
 import { icon } from './icons';
 import { typeGlyph } from './type-icons';
 import { overviewTitle } from './overview-model';
-import { activePlan, applicationPlans, overviewPlan } from './plan-selection';
+import { activePlan, overviewPlan, placePlans } from './plan-selection';
 import { requiredElement, rerender, showError } from './shell';
 import { viewTitle } from './view-frame-markup';
 import { showsOverview } from './view-overview';
@@ -26,8 +26,8 @@ function railPlaces(): RailPlace[] {
   const overview = overviewPlan();
   return [
     ...(overview === null ? [] : [{ value: 'overview', label: overviewTitle(overview), glyph: icon('home') }]),
-    ...fileViews().map((view) => ({ value: `view:${view.semanticId}`, label: viewTitle(view), glyph: icon('surfaces') })),
-    ...applicationPlans().map((plan) => ({ value: `type:${plan.entity.semanticId}`, label: plan.entity.displayName, glyph: typeGlyph(plan.entity.displayName) })),
+    ...fileViews().map((view) => ({ value: `view:${view.semanticId}`, label: viewTitle(view), glyph: icon(viewIcon(view)) })),
+    ...placePlans().map((plan) => ({ value: `type:${plan.entity.semanticId}`, label: plan.entity.displayName, glyph: typeGlyph(plan.entity.displayName) })),
   ];
 }
 

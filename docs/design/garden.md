@@ -161,8 +161,9 @@ the graph to be dynamic and interactive, drawn with a common library as Obsidian
 
 `workspace/Garden.nendo`, built by `tools/Build-Garden.mjs` from `tools/garden/definition.mjs`,
 one change set per stage: `schema`, `colour`, `behaviour`, `notes`, `others`, `garden`
-(the Garden package, the Overview `extensionView` the file opens on, the Garden view, and the
-Backlinks `extensionRecordPanel`), `graph` (the Graph screen over `gd.link`, run by the same package),
+(the Garden package, the Overview `extensionView` the file opens on, the Garden view, the
+Backlinks `extensionRecordPanel`, and the Agenda and Tend `extensionRecordsSurface` screens, each
+placed by its neighbour), `graph` (the Graph screen over `gd.link`, run by the same package),
 `skill`, `seed` and `keep`. The builder finds the file by name in the host's discovery folder, refuses a
 development planner and a non-empty file, keeps every stage under 128 operations and every
 mutation under 16, and accepts its own proposal only at Unattended. `compare` reads the file
@@ -170,7 +171,9 @@ back: every stage applied, the Garden package identical to the folder and the sk
 the retired Dependency graph absent, the seeds kept for a new garden, and a backlink count
 alive. `upgrade` brings a built file up to the folder in one change set: only the package files
 that differ, each naming the content it replaces, and, for a file built before the d3 graph,
-the Graph screen moved onto the Garden package and the Dependency graph package removed.
+the Graph screen moved onto the Garden package and the Dependency graph package removed, and, for
+a file built before W-184, the lists of Links, Tags, Note tags and the old task screens removed
+and the Agenda and Tend added.
 
 The seed notes (Start here, How links work, Daily notes, Tags and tasks, For agents, Daily note
 template) are kept in new files, so *File → New garden…* opens with the guide. Their links,
@@ -192,6 +195,19 @@ cannot disagree with the parser.
   under the stages, where the side had room; the pinned notes are the only cards.
   Use lists the views of the file, then the record types; a test refuses two entries with one
   name.
+
+- **Derived types have no screen; the Agenda and Tend do work** (W-184, 0.20.0). The owner
+  found Links, Note tags and Tags to be lists that added nothing to the data browser. Their lists
+  are gone and their record pages stay, and the host keeps a record type with no screen out of
+  the navigation (semantic-surfaces.md), so Use reads Overview, Garden, Notes and Tasks. The tasks'
+  Open, By source and All tasks gave way to the Agenda, which groups by when a task is due, the
+  question a task list answers, and ticks a body task in its note as well as on its record, since
+  a tick on the record alone would be taken back by the next save. Tend asks for the notes that
+  want a gardener, the loop no screen supported. Both are views of the package rather than native
+  lists, because a native list cannot group by a date relative to today, write a note's line with
+  its task, or open a note in the Garden view. The Garden view's icon is a sprout and the
+  Overview's a house: Use guesses a view's icon from its title, as it does a record type's, and
+  the view a file opens on is its home.
 
 - **No triggers.** Calculations give every count. A trigger would put the file behind device
   behaviour consent and refuse an agent's writes until approved.

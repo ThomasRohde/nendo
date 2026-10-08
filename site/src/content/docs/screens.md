@@ -27,7 +27,9 @@ screen can hide Studio.
 
 Most screens belong to one record type. In Use, the breadcrumb at the top names
 the record type and the screen, and each name is a picker: choose the record type,
-then the screen. Two kinds belong to the file instead: the front page and a
+then the screen. A record type with no screen, only its record page, is not offered
+there or in the navigation: its records open from a related list or a view. Two kinds
+belong to the file instead: the front page and a
 custom view of the file (see [Screens for the whole file](#screens-for-the-whole-file)).
 Which screen, tab, month or year is open is remembered for the session only and
 never written to the file.

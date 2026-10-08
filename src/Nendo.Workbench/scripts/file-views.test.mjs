@@ -10,7 +10,7 @@ import { build } from 'vite';
 // order, and what the screen of a view is made of. Only the page, the frames and the pickers'
 // slot are stand-ins.
 const root = fileURLToPath(new URL('..', import.meta.url));
-const host = { calls: [], redraws: 0, errors: [], reply: null, html: '', pickers: '', wired: 0, add: null };
+const host = { calls: [], redraws: 0, errors: [], reply: null, html: '', pickers: '', wired: 0, add: null, elements: {} };
 globalThis.fileViewHost = host;
 const stubs = {
   './client': 'export const client = { mode: "desktop", request: async (method, payload) => { const h = globalThis.fileViewHost; h.calls.push({ method, payload }); return h.reply(method, payload); } };',
@@ -19,7 +19,7 @@ const stubs = {
     export const interactionInProgress = () => false; export const rerender = () => { h().redraws += 1; };
     export const setBusy = () => {}; export const showError = (text) => { h().errors.push(text); };
     export const announce = () => {}; export const clearError = () => {}; export const refreshChrome = () => {};
-    export const showRetainedNotice = () => {}; export const requiredElement = () => ({ hidden: true, textContent: '' });
+    export const showRetainedNotice = () => {}; export const requiredElement = (selector) => (h().elements[selector] ??= { hidden: true, textContent: '', innerHTML: '', addEventListener: () => {} });
     export const focusWithoutInteraction = () => {};`,
   './place-pickers': 'export const drawPlacePickers = (markup) => { globalThis.fileViewHost.pickers = markup; return { querySelector: () => null }; };',
   './view-frames': `export const wireViewFrames = () => { globalThis.fileViewHost.wired += 1; };
@@ -33,8 +33,10 @@ const stubs = {
 const entry = [
   `export { refreshDerived, resetFileView } from ${JSON.stringify(resolve(root, 'src/actions.ts'))};`,
   `export { state, emptySession } from ${JSON.stringify(resolve(root, 'src/app-state.ts'))};`,
-  `export { openingFileView, showingOptionsMarkup, showingLabel, showsFileView } from ${JSON.stringify(resolve(root, 'src/file-view-model.ts'))};`,
+  `export { openingFileView, showingOptionsMarkup, showingLabel, showsFileView, viewIcon } from ${JSON.stringify(resolve(root, 'src/file-view-model.ts'))};`,
   `export { renderFileView } from ${JSON.stringify(resolve(root, 'src/file-views.ts'))};`,
+  `export { activePlan } from ${JSON.stringify(resolve(root, 'src/plan-selection.ts'))};`,
+  `export { drawRailPlaces } from ${JSON.stringify(resolve(root, 'src/rail-places.ts'))};`,
 ].join('\n');
 const bundle = await build({
   root, configFile: false, logLevel: 'error',
@@ -56,18 +58,18 @@ const workbench = view('workbench', 'Archi', { opensFile: true, entityId: 'tasks
 const notes = view('notes', 'Notes');
 
 /** A file opened afresh, with views running or not, whose definition holds what is given. */
-async function openFile({ views = [workbench, notes], run = true, front = true } = {}) {
+async function openFile({ views = [workbench, notes], run = true, front = true, applications = [plan] } = {}) {
   Object.assign(host, { calls: [], redraws: 0, errors: [], html: '', pickers: '', wired: 0, add: null });
   const empty = p.emptySession();
   p.state.session = {
     ...empty, fileSessionId: 'file-A', fileName: 'Archi.nendo', hasFile: true,
     capabilities: { ...empty.capabilities, readData: true, customSurfaces: true, mutate: true },
-    manifest: { changeSequence: 1 }, entities: [{ entityId: 'tasks', displayName: 'Tasks', fields: [], retired: false }],
+    manifest: { changeSequence: 1 }, entities: applications.map((app) => ({ entityId: app.entity.semanticId, displayName: app.entity.displayName, fields: [], retired: false })),
     extensions: { run, offReason: run ? null : 'device', packages: [] },
   };
   p.resetFileView();
   p.state.view = 'use';
-  const definition = { isValid: true, sourceChangeSequence: 1, applications: [plan], overview: front ? overview : null, views };
+  const definition = { isValid: true, sourceChangeSequence: 1, applications, overview: front ? overview : null, views };
   host.reply = (method) => {
     if (method === 'semantic.compile') return definition;
     if (method === 'agent.getStatus') return {};
@@ -128,4 +130,34 @@ test('the screen of a view is one frame filling Use, about the record type it na
   p.renderFileView(notes);
   assert.doesNotMatch(host.html, /data-file-view-add[^>]*hidden/, 'A view that names an Add was not given one.');
   assert.match(host.html, /data-view-entity=""/, 'A view that names no record type was handed one.');
+});
+
+test('a record type with only its record page is no place: not in Showing, not in the navigation, never the default (W-184)', async () => {
+  // Compiled order is by entity ID, so the joining type comes first, as gd.link does in Garden.
+  const page = { semanticId: 'joins.page', automationTarget: 'joins.page', kind: 'detailSurface', properties: { entityId: 'joins' }, children: [] };
+  const joins = { entity: { semanticId: 'joins', displayName: 'Joins', fields: [field], derivedFields: [] }, surfaces: [page], records: [] };
+  await openFile({ applications: [joins, plan], front: false, views: [] });
+  const options = markup => [...markup.matchAll(/<option value="([^"]*)" (selected)?/g)].map(([, value, selected]) => selected ? `*${value}` : value);
+  assert.deepEqual(options(p.showingOptionsMarkup({ overview: false, fileView: null, entityId: 'tasks' })), ['*tasks'], 'A type with only a record page was offered as a place.');
+  assert.equal(p.activePlan()?.entity.semanticId, 'tasks', 'Use opened on a type that has no screen.');
+  p.drawRailPlaces();
+  const rail = host.elements['#nav-places']?.innerHTML ?? '';
+  assert.match(rail, /data-rail-place="type:tasks"/);
+  assert.doesNotMatch(rail, /type:joins/, 'The navigation offered a type that has no screen.');
+  // Open one of its records from a related row and the picker still says where Use is.
+  p.state.selectedApplicationEntity = 'joins';
+  assert.equal(p.activePlan()?.entity.semanticId, 'joins', 'A record page of the type could not be shown.');
+  assert.deepEqual(options(p.showingOptionsMarkup({ overview: false, fileView: null, entityId: 'joins' })), ['*joins', 'tasks']);
+});
+
+test('a view’s icon: the view the file opens on is its home when it has no front page, others are guessed from their title (W-184)', async () => {
+  const home = view('home', 'Overview', { opensFile: true }), garden = view('garden', 'Garden'), archi = view('archi', 'Archi');
+  await openFile({ views: [home, garden, archi], front: false });
+  assert.deepEqual([home, garden, archi].map(p.viewIcon), ['home', 'sprout', 'surfaces'], 'Overview and Garden drew the same icon, or a title that says nothing lost the panels.');
+  await openFile({ views: [home, garden], front: true });
+  assert.equal(p.viewIcon(home), 'surfaces', 'With a front page, the front page alone is home.');
+  p.drawRailPlaces();
+  const glyphs = [...(host.elements['#nav-places']?.innerHTML ?? '').matchAll(/data-rail-place="([^"]+)"[^>]*><span class="nav-symbol" aria-hidden="true">(<svg[^]*?<\/svg>)/g)].map(([, place, svg]) => [place, svg]);
+  const of = place => glyphs.find(([value]) => value === place)?.[1];
+  assert.ok(of('view:home') && of('view:garden') && of('view:home') !== of('view:garden'), `The navigation drew the two views alike: ${JSON.stringify(glyphs.map(([place]) => place))}`);
 });

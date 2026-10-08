@@ -43,7 +43,7 @@ Flowcharts, sequence diagrams, class and state diagrams, timelines and the rest 
 
 ## Written by hand
 
-Links, tags and tasks can also be made on their own screens or by an agent. Those are marked **Manual**, may say more than a body can (a link that *Supports*, *Contradicts*, is *See also* or *Part of* another note), and a save never touches them.
+Links, tags and tasks can also be made by hand, a task with **Add Task** and a link on a note's page, or by an agent. Those are marked **Manual**, may say more than a body can (a link that *Supports*, *Contradicts*, is *See also* or *Part of* another note), and a save never touches them.
 
 ## Your drafts are safe
 

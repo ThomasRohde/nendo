@@ -267,6 +267,25 @@
   </section>
   <section id="home-pinned-section" class="home-row" aria-labelledby="home-pinned-title" hidden><h2 id="home-pinned-title">Pinned</h2><ul id="home-pinned" class="home-cards"></ul></section>
 </div>
+<div id="agenda" class="list-screen" hidden>
+  <header class="list-head">
+    <div><h1 id="agenda-title">Agenda</h1><p id="agenda-summary" class="list-lede"></p></div>
+  </header>
+  <p id="agenda-problem" class="list-problem" role="alert" hidden></p>
+  <p id="agenda-status" class="list-status" role="status"></p>
+  <div id="agenda-groups"></div>
+  <div id="agenda-empty" class="list-empty" hidden><p>Nothing to do. A line that starts with <code>- [ ]</code> in a note becomes a task here when the note is saved.</p></div>
+</div>
+<div id="tend" class="list-screen" hidden>
+  <header class="list-head">
+    <div><h1 id="tend-title">Tend</h1><p id="tend-summary" class="list-lede"></p></div>
+    <div id="tend-spans" class="segmented" role="group" aria-label="Untended for at least"></div>
+  </header>
+  <p id="tend-problem" class="list-problem" role="alert" hidden></p>
+  <p id="tend-status" class="list-status" role="status"></p>
+  <section class="list-group" aria-labelledby="tend-quiet-title"><h2 id="tend-quiet-title">Gone quiet <span id="tend-quiet-count" class="count"></span></h2><ul id="tend-quiet" class="list-rows"></ul><p id="tend-quiet-none" class="list-none" hidden></p></section>
+  <section id="tend-empty-section" class="list-group" aria-labelledby="tend-empty-title" hidden><h2 id="tend-empty-title">Not written yet <span id="tend-empty-count" class="count"></span></h2><ul id="tend-empty" class="list-rows"></ul></section>
+</div>
 <p id="not-framed" hidden>This view runs inside Nendo.</p>
 <script src="/_nendo/api.js"></script>
 <script src="vendor/d3.min.js"></script>

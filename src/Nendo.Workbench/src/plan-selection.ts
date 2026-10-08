@@ -38,6 +38,16 @@ export function applicationPlans(): ApplicationPlan[] {
 }
 
 /**
+ * The record types Use offers as places: those with a screen to show. A type whose only roots
+ * are its record page and its commands, such as the rows that join two other types, is reached
+ * from a related row or a view and is never a place of its own (W-184). `current` keeps the type
+ * on screen offered, so a picker can say where Use is while one of its records is open.
+ */
+export function placePlans(current: string | null = null): ApplicationPlan[] {
+  return applicationPlans().filter((plan) => useSurfaces(plan).length > 0 || plan.entity.semanticId === current);
+}
+
+/**
  * The file's front page, when the definition compiles and declares one. It is not
  * among the application plans: it belongs to the file rather than to a record
  * type, and Use offers it beside the types rather than among one type's surfaces.
@@ -47,7 +57,7 @@ export function overviewPlan(): OverviewPlan | null {
 }
 export function activePlan(): ApplicationPlan | null {
   const plans = applicationPlans();
-  const definition = plans.find(plan => plan.entity.semanticId === state.selectedApplicationEntity) ?? plans[0] ?? null;
+  const definition = plans.find(plan => plan.entity.semanticId === state.selectedApplicationEntity) ?? placePlans()[0] ?? plans[0] ?? null;
   if (definition === null) return null;
   // The host digest describes the compiled definition. The visible record
   // window is a separate revision-bound data projection, never cached in it —

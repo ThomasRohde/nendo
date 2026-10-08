@@ -18,8 +18,11 @@ A garden is a place where ideas grow by being linked. Write a note, name another
 | **Overview** | The front page, which the file opens on: the whole garden as a graph, a box to find a note or name a new one, the seeds that wait, the tags, and what is pinned. Pick a note there and it opens in the Garden view. |
 | **Garden** | Where notes are read and written: the tree of notes on the left, one note to read or edit on the right. |
 | **Graph** | Every note as a dot and every link as a line. Drag, zoom, hover and click. |
+| **Tend** | The notes that want you: seeds and growing notes left alone a while, and notes not written yet. |
 | **Tree**, **By stage**, **Maps**, **Daily**, **Orphans** | The notes as an outline, a board, a gallery, a calendar and a list of the notes nothing links to. |
-| **Tasks**, **Tags**, **Links** | Every task, tag and link the notes carry, on screens of their own. |
+| **Agenda**, **Due** | Every open task, by when it is due, and on a calendar. |
+
+Links and tags have no screen of their own: they are in the notes, on the graph and on the Overview, and a tag opens its own page from its pill.
 
 ## What makes this garden different
 

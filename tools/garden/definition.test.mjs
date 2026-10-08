@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { STAGES, STAGE_ORDER, seedRecords, seedOperations, seedNotes, fixture, PACKAGE_FOLDER, SKILL_FOLDER, SKILL_PACKAGE_ID, HOME_VIEW, decisionReferences } from './definition.mjs';
+import { STAGES, STAGE_ORDER, seedRecords, seedOperations, seedNotes, fixture, PACKAGE_FOLDER, SKILL_FOLDER, SKILL_PACKAGE_ID, HOME_VIEW, RETIRED_SCREENS, decisionReferences } from './definition.mjs';
 import { parse } from '../../extensions/garden/parse.mjs';
 import { F } from '../../extensions/garden/sync.mjs';
 
@@ -118,6 +118,20 @@ test('the Overview opens the file, no native front page, one page per record typ
     if (key.endsWith('/detailSurface')) assert.equal(count, 1, `${key}: one record page per type`);
     else assert.ok(count <= 8, `${key}: ${count} roots, at most 8`);
   }
+});
+
+test('Use offers only Notes and Tasks: the derived types keep their page and have no screen (W-184)', async () => {
+  const useKinds = ['recordList', 'boardSurface', 'calendarSurface', 'timelineSurface', 'gallerySurface', 'matrixSurface', 'outlineSurface', 'extensionGraphSurface', 'extensionRecordsSurface'];
+  const roots = (await allOps()).filter(o => o.operationType === 'ui.addNode' && o.payload.parentNodeId === null).map(o => o.payload);
+  const screened = [...new Set(roots.filter(r => useKinds.includes(r.kind)).map(r => r.properties.entityId))].sort();
+  assert.deepEqual(screened, ['gd.note', 'gd.task'], 'a type with a screen is a place in Use');
+  for (const entityId of ['gd.link', 'gd.tag', 'gd.noteTag'])
+    assert.ok(roots.some(r => r.kind === 'detailSurface' && r.properties.entityId === entityId), `${entityId} lost its record page`);
+  for (const nodeId of RETIRED_SCREENS) assert.ok(!roots.some(r => r.nodeId === nodeId), `${nodeId} is still built`);
+  const agenda = roots.find(r => r.nodeId === 'gd.task.agenda'), tend = roots.find(r => r.nodeId === 'gd.note.tend');
+  assert.deepEqual([agenda.kind, agenda.properties.packageId, agenda.beforeNodeId], ['extensionRecordsSurface', 'org.nendo.garden', 'gd.task.due'], 'the Agenda leads the tasks');
+  assert.deepEqual([tend.kind, tend.properties.packageId, tend.afterNodeId], ['extensionRecordsSurface', 'org.nendo.garden', 'gd.note.outline'], 'Tend follows the Tree');
+  assert.ok(STAGE_ORDER.indexOf('garden') > STAGE_ORDER.indexOf('notes') && STAGE_ORDER.indexOf('garden') > STAGE_ORDER.indexOf('others'), 'the screens they are placed by are built first');
 });
 
 test('every reference is bound, every FilteredCount predicate and the pinned flag are required Booleans', async () => {

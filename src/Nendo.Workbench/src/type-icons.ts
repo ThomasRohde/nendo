@@ -35,6 +35,7 @@ const table: Array<[IconName, string[]]> = [
   ['link', ['dependency', 'relation', 'relationship', 'link', 'connection', 'interface']],
   ['structure', ['organisation', 'organization', 'department', 'unit', 'hierarchy', 'capability', 'process', 'org']],
   ['history', ['change', 'revision', 'version', 'release', 'milestone']],
+  ['sprout', ['garden', 'plant', 'seed', 'seedling', 'sprout', 'nursery', 'crop', 'harvest']],
 ];
 
 const byWord = new Map<string, IconName>();

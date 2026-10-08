@@ -21,6 +21,18 @@ A custom view for a garden of notes, in four places:
   and agents.
 - **The Graph screen** (`extensionGraphSurface` over `gd.link`): the whole garden as a living
   d3 graph.
+- **The Agenda** (`gd.task.agenda`, an `extensionRecordsSurface` that leads the tasks' screens):
+  every open task by when it is due, Overdue, Today, This week (to Sunday), Later and No date, each
+  with its box and its note (`agenda.mjs`, `agenda.js`). A tick on a task a note's body says writes
+  `- [x]` into that line and the task in one `records.batch`, so the next save keeps it; a task
+  added by hand ticks its record alone. The line under the heading says what was done, with Undo
+  (`records.undo`, and Ctrl Z). A ticked task stays, ticked, until the screen starts again. The
+  note's name opens it in the Garden view, as the Overview does.
+- **Tend** (`gd.note.tend`, an `extensionRecordsSurface` after the Tree): seeds and growing notes
+  not tended within 1 week, 2 weeks (the start), 1 month or 3 months, the longest waiting first,
+  and notes not written yet (`tend.mjs`, `tend.js`). Daily and evergreen notes are never asked for.
+  Tended today, Mark growing and Mark evergreen write what the commands of those names write, as
+  one batch Undo takes back. The span is kept in this browser (`garden.tend.span.v1`).
 - **The Backlinks panel** on a note's record page (`extensionRecordPanel`).
 - **Help pages**: `help/*.md`, eight Markdown pages that Nendo's Help shows first under
   *About this app* ([ADR-0027](../../docs/decisions/0027-a-file-carries-its-own-help.md)):
