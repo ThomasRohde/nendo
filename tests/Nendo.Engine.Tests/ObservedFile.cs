@@ -45,7 +45,7 @@ internal static class ObservedFile
     public static string Sha256(string path) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(ReadAllBytes(path)));
 
     /// <summary>The processes Windows' Restart Manager says have the file open, for the log line only.</summary>
-    private static string Holders(string path)
+    internal static string Holders(string path)
     {
         try
         {

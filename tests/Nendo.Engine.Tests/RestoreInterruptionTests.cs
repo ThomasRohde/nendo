@@ -100,7 +100,8 @@ public sealed class RestoreInterruptionTests
         CollectionAssert.AreEqual(hashes, paths.Select(path => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(ObservedFile.ReadAllBytes(path)))).ToArray());
         CollectionAssert.AreEqual(backupBytes, await ObservedFile.ReadAllBytesAsync(backup));
         if (File.Exists(workspace.FilePath))
-            await Assert.ThrowsExactlyAsync<NendoFileOpenException>(() => NendoWriteCoordinator.OpenAsync(workspace.FilePath, "no-silent-resume"));
+            await Assert.ThrowsExactlyAsync<NendoFileOpenException>(() => LingeringHandle.OpenAsync(workspace.FilePath,
+                () => NendoWriteCoordinator.OpenAsync(workspace.FilePath, "no-silent-resume")));
         // A separate fresh process may resolve only after an explicit choice.
         // Inspection above did not grant permission or adopt the staged file.
         using var resolver = StartChild(workspace.FilePath, "ResolveRecovery", resolutionChoice:

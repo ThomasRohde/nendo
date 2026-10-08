@@ -22,9 +22,14 @@ internal sealed class EngineTestWorkspace : IAsyncDisposable
         return coordinator;
     }
 
+    /// <summary>
+    /// Open the workspace's file again. The process tests call this straight after killing a
+    /// child, so a sharing violation from a handle still on its way out is waited out
+    /// (<see cref="LingeringHandle"/>, W-198); any other refusal is the answer.
+    /// </summary>
     internal async Task<NendoWriteCoordinator> OpenAsync(string owner = "test-reopen")
     {
-        var coordinator = await NendoWriteCoordinator.OpenAsync(FilePath, owner);
+        var coordinator = await LingeringHandle.OpenAsync(FilePath, () => NendoWriteCoordinator.OpenAsync(FilePath, owner));
         _coordinators.Add(coordinator);
         return coordinator;
     }

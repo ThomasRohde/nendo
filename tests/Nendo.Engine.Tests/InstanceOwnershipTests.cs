@@ -63,7 +63,7 @@ public sealed class InstanceOwnershipTests
             if (!abrupt) Assert.AreEqual(0, child.ExitCode);
             await RestoreInterruptionTests.AssertExitedWriterReleasedAsync(workspace.FilePath);
             CollectionAssert.AreEqual(sourceBytes, await ObservedFile.ReadAllBytesAsync(workspace.FilePath));
-            await using var reopened = await NendoWriteCoordinator.OpenAsync(copyPath, "after-child-exit");
+            await using var reopened = await LingeringHandle.OpenAsync(copyPath, () => NendoWriteCoordinator.OpenAsync(copyPath, "after-child-exit"));
             Assert.IsTrue(reopened.Capabilities.Mutate);
         }
         finally
