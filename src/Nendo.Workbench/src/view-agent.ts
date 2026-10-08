@@ -6,7 +6,7 @@ import { type ConnectionClient, connectionClients, connectionCommand, serverName
 import { activityLabel, agentModeLabel, escapeAttribute, escapeHtml, formatDateTime, isAgentAccessMode, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel, shortId } from './format';
 import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type DesktopPromotionView, type LaunchableAgents, type ProposalPreview } from './host';
 import { launchAgent, openAgentChat, saveAgentCommand } from './view-agent-chat';
-import { launchCopyText, launchRowMarkup } from './agent-launch-model';
+import { type CopyFeedback, copyButtonContent, copyHintMarkup, launchCopyText, launchRowMarkup } from './agent-launch-model';
 import { announce, clearError, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
 import { applicationPlans, overviewPlan } from './plan-selection';
 import { addedSurfaceSentence, kindLabel } from './surface-model';
@@ -42,7 +42,39 @@ function ladderIntro(mode: AgentAccessMode): string {
 
 /** What Launch offers (ADR-0030), read with the status. Null where the host serves no launch. */
 let launchable: LaunchableAgents | null = null;
-fileScopedClearable({ clear(): void { launchable = null; } });
+fileScopedClearable({ clear(): void { launchable = null; lastCopy = null; } });
+
+/**
+ * The Copy that just ran on this page, keyed by its button (`agent:<id>` or `client:<id>`), and
+ * drawn there for a few seconds. It is page state, not a change to the button, because the
+ * status poll rebuilds the page every three seconds.
+ */
+let lastCopy: (CopyFeedback & { key: string }) | null = null;
+let lastCopyTimer = 0;
+const copyShownFor = 8000;
+
+function copyFor(key: string): CopyFeedback | null {
+  return lastCopy?.key === key ? lastCopy : null;
+}
+
+async function copyToClipboard(key: string, text: string, focusSelector: string): Promise<boolean> {
+  let ok = true;
+  try { await navigator.clipboard.writeText(text); } catch { ok = false; }
+  lastCopy = { key, ok, text };
+  window.clearTimeout(lastCopyTimer);
+  lastCopyTimer = window.setTimeout(() => {
+    if (lastCopy?.key !== key) return;
+    lastCopy = null;
+    // Never redraw under a half-typed field; the next redraw drops the line instead.
+    const typing = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement;
+    if (state.view === 'agent' && !typing) rerender();
+  }, copyShownFor);
+  if (state.view === 'agent') {
+    rerender();
+    content.querySelector<HTMLElement>(focusSelector)?.focus();
+  }
+  return ok;
+}
 
 const runningWords: Record<string, string> = { starting: 'starting', signIn: 'waiting for you to sign in', ready: 'running' };
 
@@ -55,7 +87,7 @@ function launchMarkup(): string {
   if (launchable === null) return '';
   const offer = launchable;
   const running = offer.running;
-  const rows = offer.agents.map((agent) => launchRowMarkup(agent, offer.canLaunch && running === null)).join('');
+  const rows = offer.agents.map((agent) => launchRowMarkup(agent, offer.canLaunch && running === null, copyFor(`agent:${agent.id}`))).join('');
   return `<section class="agent-launch" aria-labelledby="launch-title">
     <div class="permission-intro"><h2 id="launch-title">Launch an agent</h2><p>Start an agent you have installed, in a tab beside this file. It works at the level above and reaches this file only through Nendo. It is the program you would run in a terminal, with its own tools on this computer.</p></div>
     ${running === null ? '' : `<div class="launch-running"><span><strong>${escapeHtml(running.name)}</strong> is ${escapeHtml(running.working ? 'working' : runningWords[running.state] ?? running.state)}.</span><button id="open-agent-chat" class="secondary-button" type="button">Open conversation</button></div>`}
@@ -109,7 +141,7 @@ export function renderAgent(): void {
       ${launchMarkup()}
       <section class="agent-connection" aria-labelledby="connection-title">
         <div class="permission-intro"><h2 id="connection-title">Connection</h2></div>
-        <div class="connection-endpoint"><span class="presence-label">Address</span><code id="agent-endpoint">${status.endpoint === null ? 'Shown while agent access is on' : escapeHtml(status.endpoint)}</code><small>Register it with your client once, as <code>${escapeHtml(serverNameFor(state.session.fileName))}</code>.</small><div class="connection-copy">${connectionClients.map((item) => `<button class="secondary-button" data-connection-client="${item.id}" data-action type="button" ${status.endpoint === null ? 'disabled' : ''}>${escapeHtml(item.label)}</button>`).join('')}</div></div>
+        <div class="connection-endpoint"><span class="presence-label">Address</span><code id="agent-endpoint">${status.endpoint === null ? 'Shown while agent access is on' : escapeHtml(status.endpoint)}</code><small>Register it with your client once, as <code>${escapeHtml(serverNameFor(state.session.fileName))}</code>.</small><div class="connection-copy">${connectionClients.map((item) => `<button class="secondary-button${copyFor(`client:${item.id}`)?.ok === true ? ' is-copied' : ''}" data-connection-client="${item.id}" data-action type="button" ${status.endpoint === null ? 'disabled' : ''}>${copyButtonContent(item.label, copyFor(`client:${item.id}`))}</button>`).join('')}</div>${connectionClients.map((item) => copyHintMarkup(copyFor(`client:${item.id}`), ' once')).join('')}</div>
         ${status.usingPreferredPort ? '' : `<p class="connection-warning">Port ${status.portPreference} was in use. Nendo is listening on a temporary port for this session, so a pinned client address must be re-read from the connection entry.</p>`}
         <div class="connection-settings">
           <div class="connection-setting">
@@ -355,12 +387,8 @@ export async function copyConnectionCommand(target: ConnectionClient): Promise<v
   const endpoint = state.agentStatus?.endpoint;
   if (!endpoint) return;
   const command = connectionCommand(target, endpoint, serverNameFor(state.session.fileName));
-  try {
-    await navigator.clipboard.writeText(command);
-    announce(`Copied. Run it once in a terminal: ${command}`);
-  } catch {
-    announce(`Copy failed. Run this once in a terminal: ${command}`);
-  }
+  const ok = await copyToClipboard(`client:${target}`, command, `[data-connection-client="${target}"]`);
+  announce(ok ? `Copied. Run it once in a terminal: ${command}` : `Copy failed. Run this once in a terminal: ${command}`);
 }
 
 /** Copy what installs an agent, or moves it off a renamed package, for a terminal (ADR-0030). */
@@ -369,12 +397,8 @@ async function copyAgentCommand(agentId: string): Promise<void> {
   const command = agent === undefined ? null : launchCopyText(agent);
   if (command === null) return;
   const lines = command.split('\n').join(', then ');
-  try {
-    await navigator.clipboard.writeText(command);
-    announce(`Copied. Run it in a terminal, then open this page again: ${lines}`);
-  } catch {
-    announce(`Copy failed. Run this in a terminal, then open this page again: ${lines}`);
-  }
+  const ok = await copyToClipboard(`agent:${agentId}`, command, `[data-copy-agent="${CSS.escape(agentId)}"]`);
+  announce(ok ? `Copied. Run it in a terminal, then open this page again: ${lines}` : `Copy failed. Run this in a terminal, then open this page again: ${lines}`);
 }
 
 export async function revokeAgentEditing(): Promise<void> {

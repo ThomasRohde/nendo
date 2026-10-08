@@ -219,6 +219,60 @@
   font-size: 0.82rem;
 }
 
+/* A Copy that just ran, on the Agent page: the button says Copied with a check, and a line under
+   it says what to do next, or shows the text when the clipboard refused it. */
+.secondary-button.is-copied,
+.launch-copy.is-copied {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--healthy);
+}
+
+.secondary-button.is-copied {
+  border-color: color-mix(in srgb, var(--healthy) 45%, var(--line));
+}
+
+.is-copied .outline-icon,
+.copy-hint .outline-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+.copy-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px 6px;
+  margin: 6px 0 0;
+  color: var(--healthy);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.copy-hint .outline-icon {
+  margin-top: 2px;
+}
+
+.copy-hint span {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.copy-hint.is-failed {
+  color: var(--warning);
+}
+
+.copy-hint.is-failed code {
+  flex: 1 1 100%;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
 .connection-settings {
   display: grid;
   border: 1px solid var(--line);

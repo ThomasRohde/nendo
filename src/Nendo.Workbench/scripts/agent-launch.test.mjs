@@ -5,7 +5,7 @@ import { bundleOf } from './bundle-of.mjs';
 // ADR-0030: the rows under Launch on the Agent page. A missing agent says what installs it, and one
 // found from a package that was renamed and left behind says so (2026-10-08: the owner's adapter
 // had stopped at its last version under the old name and refused to start).
-const { launchCopyText, launchRowMarkup } = await bundleOf('src/agent-launch-model.ts');
+const { copyButtonContent, copyHintMarkup, launchCopyText, launchRowMarkup } = await bundleOf('src/agent-launch-model.ts');
 
 const hostile = '<img src=x onerror="alert(1)">';
 
@@ -44,8 +44,28 @@ test('an agent from the package still updated says nothing more, and waits while
   assert.equal(launchCopyText(agent({ found: false, installCommand: null })), null, 'The person\'s own command has nothing to install.');
 });
 
+test('a Copy that ran says so on its button and under it, and shows the text when it failed', () => {
+  // The owner could not tell that anything had been copied: the words went to a screen reader only.
+  const missing = agent({ found: false });
+  const copied = launchRowMarkup(missing, true, { ok: true, text: missing.installCommand });
+  assert.match(copied, /class="launch-copy is-copied"[^>]*>.*<span>Copied<\/span><\/button>/s, 'The button does not say it copied.');
+  assert.match(copied, /class="copy-hint" role="status">.*Copied to the clipboard\. Paste it into a terminal and run it, then open this page again\./s);
+
+  const failed = launchRowMarkup(missing, true, { ok: false, text: missing.installCommand });
+  assert.doesNotMatch(failed, /is-copied/);
+  assert.match(failed, /Copy failed\. Run this in a terminal, then open this page again:<\/span><code>npm install -g @new-scope\/adapter-acp<\/code>/);
+
+  const renamed = agent({ renamedFrom: '@old-scope/adapter-acp', updateCommand: 'a\nb' });
+  assert.match(launchRowMarkup(renamed, true, { ok: true, text: 'a\nb' }), /class="launch-renamed">.*Copied to the clipboard/s);
+  assert.doesNotMatch(launchRowMarkup(renamed, true), /copy-hint|Copied/, 'A row nobody copied from says it copied.');
+  assert.equal(copyHintMarkup(null, ' once'), '');
+  assert.match(copyHintMarkup({ ok: true, text: 'x' }, ' once'), /run it once\./);
+  assert.equal(copyButtonContent('Copy for <b>', null), 'Copy for &lt;b&gt;');
+});
+
 test('nothing the host names becomes markup', () => {
   const markup = launchRowMarkup(agent({ found: false, name: hostile, installCommand: `npm install -g ${hostile}` }), true)
-    + launchRowMarkup(agent({ name: hostile, package: hostile, renamedFrom: hostile, updateCommand: hostile }), true);
+    + launchRowMarkup(agent({ name: hostile, package: hostile, renamedFrom: hostile, updateCommand: hostile }), true)
+    + launchRowMarkup(agent({ found: false, installCommand: hostile }), true, { ok: false, text: hostile });
   assert.doesNotMatch(markup, /<img/);
 });
