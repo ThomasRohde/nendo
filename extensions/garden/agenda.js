@@ -19,8 +19,9 @@ export async function startAgenda(nendo, context) {
   const locale = context.locale ?? 'en';
   const state = { ready: false, records: null, view: null, kept: new Set(), problem: '' };
   const expose = () => { window.gardenAgenda = state; };
-  const writer = createWriter(nendo, { status: $('agenda-status'), problem: $('agenda-problem'), after: () => load() });
+  const writer = createWriter(nendo, { status: $('agenda-status'), problem: $('agenda-problem'), after: () => load(), retry: () => load() });
   const openNote = noteOpener(nendo, text => writer.showProblem(text));
+  state.steps = writer.steps;
 
   let index = [];
   const resolve = target => {
@@ -39,8 +40,26 @@ export async function startAgenda(nendo, context) {
       element('button', { type: 'button', className: 'open-task', 'data-record': task.recordId, title: "Open the task's record", 'aria-label': "Open the task's record", html: OPEN_ICON }));
   }
 
+  // A redraw replaces the rows: the keyboard stays on the control it was on, in the same task's row,
+  // or, when that task has gone, on the task that took its place, else on the summary.
+  function focusedControl() {
+    const active = document.activeElement, item = active?.closest?.('#agenda-groups li[data-id]');
+    if (!item) return null;
+    const control = active.matches('input.box') ? 'input.box' : active.matches('button.note-link') ? 'button.note-link' : active.matches('button.open-task') ? 'button.open-task' : 'input.box';
+    const rows = [...document.querySelectorAll('#agenda-groups li[data-id]')];
+    return { id: item.dataset.id, control, at: rows.indexOf(item) };
+  }
+  function restoreFocus(was) {
+    if (was === null) return;
+    const rows = [...document.querySelectorAll('#agenda-groups li[data-id]')];
+    const item = rows.find(row => row.dataset.id === was.id) ?? rows[Math.min(was.at, rows.length - 1)] ?? null;
+    const target = item?.querySelector(was.control) ?? item?.querySelector('input.box') ?? $('agenda-summary');
+    if (target === $('agenda-summary')) target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
+  }
+
   function draw() {
-    const view = state.view;
+    const view = state.view, was = focusedControl();
     const summary = view.open === 0 ? 'Nothing open.'
       : `${view.open} open ${view.open === 1 ? 'task' : 'tasks'}${view.overdue ? `, ${view.overdue} overdue` : ''}.`;
     $('agenda-summary').textContent = summary;
@@ -50,6 +69,7 @@ export async function startAgenda(nendo, context) {
       element('ul', { className: 'list-rows' }, ...group.tasks.map(task => row(task, group.id))))));
     $('agenda-empty').hidden = groups.length > 0;
     state.groups = groups.map(group => ({ id: group.id, tasks: group.tasks.map(task => ({ id: task.id, text: task.text, done: task.done, note: task.noteTitle, due: task.due })) }));
+    restoreFocus(was);
     expose();
   }
 
@@ -57,8 +77,9 @@ export async function startAgenda(nendo, context) {
     const note = state.records.notes.find(candidate => candidate.recordId === task.noteId) ?? null;
     const writes = tickWrites(task, note, done, today());
     const words = plainText(task.text).slice(0, 60);
-    state.kept.add(task.recordId);
     state.lastWrites = writes;
+    if (writer.busy()) { draw(); return; }
+    state.kept.add(task.recordId);
     await writer.write(writes, `${done ? 'Tick' : 'Untick'} ${words}`, `${done ? 'Ticked' : 'Unticked'} “${words}”.`);
   }
 
@@ -82,6 +103,7 @@ export async function startAgenda(nendo, context) {
     } else if (link.href && !link.classList.contains('wikilink')) window.open(link.href, '_blank', 'noopener');
   });
 
+  let readFailed = false;
   async function load() {
     try {
       const [tasks, notes, tags] = await Promise.all([
@@ -92,9 +114,13 @@ export async function startAgenda(nendo, context) {
       state.records = { tasks, notes, tags };
       index = notes.map(note => ({ recordId: note.recordId, slug: note.values[F.note.slug] ?? '', title: String(note.values[F.note.title] ?? note.recordId) }));
     } catch (error) {
-      writer.showProblem(`The tasks could not be read: ${error.message}`);
+      readFailed = true;
+      writer.showProblem(`The tasks could not be read (${error.code ?? 'error'}): ${error.message}`, { retrying: true });
+      // Never an agenda that looks empty: until the tasks have been read, it says only why not.
+      if (!state.ready) $('agenda-summary').textContent = '';
       return;
     }
+    if (readFailed) { readFailed = false; writer.showProblem(''); }
     state.view = agenda(state.records.tasks, state.records.notes, today(), { keep: state.kept });
     draw();
     state.ready = true;

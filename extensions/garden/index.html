@@ -24,6 +24,7 @@
     </div>
     <ul id="tree" role="tree" aria-label="Notes by place"></ul>
     <p id="tree-empty" hidden>No notes yet. Plant one with New note.</p>
+    <p id="tree-none" hidden><span id="tree-none-text"></span> <button type="button" id="tree-none-clear" class="link-like">Clear Find</button></p>
   </aside>
   <div id="tree-splitter" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Width of the notes beside the page" aria-controls="sidebar" aria-valuemin="160" aria-valuemax="720" aria-valuenow="250" title="Drag to resize the notes; double-click to reset"></div>
   <main id="main">
@@ -42,13 +43,14 @@
       <button type="button" data-command="about" aria-pressed="false">Guide</button>
       <span id="own-summary"></span>
     </div>
+    <p id="drafts-warning" role="status" hidden></p>
     <p id="status" role="status"></p>
     <p id="problem" role="alert" hidden></p>
     <div id="empty"><p>Pick a note on the left, or plant one with New note.</p><button type="button" data-guide="open">Open the Garden guide</button></div>
     <section id="note" class="reading-mode" hidden aria-label="Note">
       <div id="sheet">
         <article id="reading" aria-label="Reading">
-          <h1 id="reading-title"></h1>
+          <h1 id="reading-title" tabindex="-1"></h1>
           <div class="meta" id="reading-meta"></div>
           <section id="task-strip" aria-label="Tasks in this note" hidden>
             <div class="strip-head">
@@ -256,7 +258,7 @@
       </div>
       <div id="home-stages" role="group" aria-label="Pick out on the graph"></div>
       <button type="button" id="home-unlinked" class="link-like" aria-pressed="false" hidden></button>
-      <section id="home-tags-card" aria-labelledby="home-tags-title" hidden><h2 id="home-tags-title">Tags</h2><ul id="home-tags" class="home-tags"></ul></section>
+      <section id="home-tags-card" aria-labelledby="home-tags-title" hidden><h2 id="home-tags-title">Tags <span id="home-tags-count" class="count"></span></h2><ul id="home-tags" class="home-tags"></ul><button type="button" id="home-tags-more" class="link-like home-more" aria-controls="home-tags" aria-expanded="false" hidden></button></section>
       <div class="home-actions">
         <button type="button" class="primary" data-home="new">New note</button>
         <button type="button" data-home="daily">Today</button>
@@ -265,7 +267,7 @@
     </div>
     <div id="home-graph" class="graph-host"></div>
   </section>
-  <section id="home-pinned-section" class="home-row" aria-labelledby="home-pinned-title" hidden><h2 id="home-pinned-title">Pinned</h2><ul id="home-pinned" class="home-cards"></ul></section>
+  <section id="home-pinned-section" class="home-row" aria-labelledby="home-pinned-title" hidden><h2 id="home-pinned-title">Pinned <span id="home-pinned-count" class="count"></span></h2><ul id="home-pinned" class="home-cards"></ul><button type="button" id="home-pinned-more" class="link-like home-more" aria-controls="home-pinned" aria-expanded="false" hidden></button></section>
 </div>
 <div id="agenda" class="list-screen" hidden>
   <header class="list-head">

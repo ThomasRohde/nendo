@@ -3,19 +3,23 @@
 // draft says them now, each with what its record adds (the record to open, a due date); after them
 // come the tasks somebody added by hand. Everything but drawTaskStrip is pure.
 //
-//   noteTasks(parsed, records)  -> [{ id, text, done, line, recordId, version, due, manual }]
+//   noteTasks(parsed, records, { before }) -> [{ id, text, done, line, recordId, version, due, manual }]
 //   taskProgress(tasks)         -> { done, total, next }
 //   dueText(date, today, locale) -> { text, late }, a due date in words: 9 Oct, and late when it has passed
 //   drawTaskStrip(strip, tasks, { resolve, expanded, today })   fills the strip's markup in index.html
 
-import { F } from './sync.mjs';
+import { F, matchTasks } from './sync.mjs';
 import { inline } from './render.mjs';
 
-/** The body's tasks (parse(body).tasks) joined to their Checkbox records by key, then the Manual ones. */
-export function noteTasks(parsed, records = []) {
-  const byKey = new Map(records.filter(row => row.values[F.task.source] === 'Checkbox').map(row => [row.values[F.task.key], row]));
+/**
+ * The body's tasks (parse(body).tasks) joined to their Checkbox records as a save would match them
+ * (matchTasks, against `before`, the body as saved), so a reworded line keeps its due date; then the
+ * Manual ones.
+ */
+export function noteTasks(parsed, records = [], { before = '' } = {}) {
+  const matched = matchTasks(parsed, records.filter(row => row.values[F.task.source] === 'Checkbox'), { before });
   const fromBody = parsed.map(task => {
-    const row = byKey.get(task.key) ?? null;
+    const row = matched.get(task) ?? null;
     return { id: `key:${task.key}`, text: task.text, done: task.done, line: task.line,
       recordId: row?.recordId ?? null, version: row?.version ?? null, due: row?.values[F.task.due] ?? null, manual: false };
   });

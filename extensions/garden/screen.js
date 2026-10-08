@@ -47,8 +47,10 @@ export function noteOpener(nendo, onProblem) {
 /**
  * One records.batch with its label, and the line that says what it did with an Undo beside it.
  * Ctrl Z takes back the last one too. `after` reads the screen again once a write or an undo lands.
+ * One write or undo at a time: while one travels, Undo is off and asks nothing of the history, so
+ * an Undo pressed then never spends the step before. `retry`, when given, is offered beside a problem.
  */
-export function createWriter(nendo, { status, problem, after }) {
+export function createWriter(nendo, { status, problem, after, retry = null }) {
   const can = name => typeof nendo.has === 'function' && nendo.has(name);
   const steps = [];
   let busy = false;
@@ -56,10 +58,19 @@ export function createWriter(nendo, { status, problem, after }) {
     status.replaceChildren(...(text ? [element('span', { text })] : []),
       ...(undoable && can('records.undo') ? [element('button', { type: 'button', className: 'link-like', 'data-undo': '', text: 'Undo' })] : []));
   };
-  const showProblem = text => { problem.textContent = text; problem.hidden = !text; };
+  const setBusy = value => {
+    busy = value;
+    for (const button of status.querySelectorAll('[data-undo]')) button.disabled = value;
+  };
+  const showProblem = (text, { retrying = false } = {}) => {
+    problem.replaceChildren(...(text ? [element('span', { text })] : []),
+      ...(retrying && retry ? [' ', element('button', { type: 'button', className: 'link-like', 'data-retry': '', text: 'Retry' })] : []));
+    problem.hidden = !text;
+  };
+  problem.addEventListener('click', event => { if (event.target.closest('[data-retry]')) retry?.(); });
   async function write(writes, label, said) {
     if (busy || !can('records.batch')) return false;
-    busy = true;
+    setBusy(true);
     try {
       const result = await nendo.records.batch(writes, { label: label.slice(0, 80), writeKey: crypto.randomUUID() });
       steps.push({ revision: result.revision, label: label.slice(0, 80) });
@@ -70,14 +81,14 @@ export function createWriter(nendo, { status, problem, after }) {
       showProblem(`That was refused (${error.code ?? 'error'}): ${error.message}`);
       return false;
     } finally {
-      busy = false;
+      setBusy(false);
       await after();
     }
   }
   async function undo() {
+    if (busy || steps.length === 0 || !can('records.undo')) return;
     const step = steps.pop();
-    if (busy || !step || !can('records.undo')) return;
-    busy = true;
+    setBusy(true);
     try {
       await nendo.records.undo(step.revision, { label: `Undo ${step.label}`.slice(0, 80) });
       showProblem('');
@@ -86,7 +97,7 @@ export function createWriter(nendo, { status, problem, after }) {
       steps.push(step);
       showProblem(`Undo was refused (${error.code ?? 'error'}): ${error.message}`);
     } finally {
-      busy = false;
+      setBusy(false);
       await after();
     }
   }
@@ -97,5 +108,5 @@ export function createWriter(nendo, { status, problem, after }) {
       undo();
     }
   });
-  return { write, undo, showProblem, steps };
+  return { write, undo, showProblem, steps, busy: () => busy };
 }

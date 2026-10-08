@@ -213,10 +213,14 @@ cannot disagree with the parser.
   behaviour consent and refuse an agent's writes until approved.
 - **A body is at most 32 KiB.** The MCP adapter bounds one value there; the view refuses a
   longer body so every note stays rewritable by an agent.
-- **Derived rows have random IDs; tags and seeds readable ones.** A deleted record ID stays
-  reserved (ADR-0023), so a link removed and written again cannot reuse an ID; sync matches
-  links by (from, to), note tags by (note, tag) and tasks by the key of their text. Tags are
-  never deleted by a save.
+- **Derived rows have random IDs, with a readable prefix.** A deleted record ID stays
+  reserved (ADR-0023), so a link removed and written again cannot reuse an ID, and two names
+  can make one slug (`#café` and `#cafe`): tags made by a save take a random suffix too (review
+  G-004, 0.21.0). Sync matches links by (from, to), note tags by (note, tag) and tasks by the
+  key of their text, the second line with the same text keyed `-2` (G-011); a line whose words
+  changed keeps its row by its place in the body or by its words, so its due date stays (G-013).
+  Tags are never deleted by a save, and `gd.tag.name` is unique, so a stale list of tags is
+  refused rather than duplicated.
 - **Required `slug`, `pinned` and `done`.** A `FilteredCount` errors on a null member, and the
   Overview and the Garden view read `pinned` as true or false; the view, the seeds and the skill always write
   them. Nendo's own Add form asks for a slug; the view and agents generate one.
@@ -227,7 +231,12 @@ cannot disagree with the parser.
   when the person goes to another screen: they come back when the view starts again
   (review R-001). One save at a time, with what it sends fixed when it starts, so typing
   during a save stays a draft (R-005); an unanswered save goes again under its `writeKey`
-  (R-011).
+  (R-011), and is kept in storage so it does after a restart too (G-008). The review of
+  2026-10-08 (`GARDEN.md`) closed the paths where everyday navigation dropped a draft: reading
+  the open note again keeps it (G-002), a new note not saved yet waits in the tree (G-003), and
+  a draft this device cannot keep is named with a way to it (G-001). A change elsewhere to the
+  text is the person's choice, Keep mine or Discard mine, never a silent reload. Save reads the
+  note's derived rows afresh and writes nothing over rows it could not read (G-010).
 - **Own Markdown renderer.** The Workbench's `markdown.ts` cannot be loaded by a package and
   knows no wikilinks. Tables, footnotes, embeds and images are out of scope.
 - **Mermaid draws a `mermaid` fence** (W-180, 0.17.0). The owner asked for diagrams in notes
@@ -258,6 +267,11 @@ cannot disagree with the parser.
   Manual rows, checkbox done by key, undo, a refused save keeping the draft, an external change
   blocking a save, typing during a slow save kept as a draft, a double Save writing once, the
   last note opened winning, an unanswered save kept once, two drafts surviving a restart, a 32 KiB body refused, Light and Dark measured,
+  and the review's findings G-001 to G-015 each as the person meets them (draft retention named,
+  the open note read again, New note twice, Unicode tags, no-match Find, Agenda order, focus after
+  a link and a tick, a lost answer across a restart, Undo while a write travels, a failed related
+  read, repeated and reworded tasks, a garden that could not be read, Show all on the Overview,
+  and the dense graph's names measured for size and overprint over several layouts in both themes),
   the tree folding under a real pointer and the keys, kept, and unfolded by going to a note inside it;
   the tree's edge dragged 150 px with a real pointer to 400 px, moved by the keys and reset by a
   double-click; the guide opening from Nendo's row with focus on it, counting the garden, each stage's

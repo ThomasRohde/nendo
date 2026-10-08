@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { overview, excerpt, whenTended, findNotes } from '../../extensions/garden/home-data.mjs';
+import { overview, excerpt, whenTended, findNotes, PINNED, TAGS } from '../../extensions/garden/home-data.mjs';
 import { handOver, takeHandover, HANDOVER_KEY } from '../../extensions/garden/handover.mjs';
 import { fixture } from './definition.mjs';
 
@@ -35,6 +35,18 @@ test('tags by how many notes carry them, sized one to four', () => {
   const noteTags = [['a', 'x'], ['b', 'x'], ['c', 'x'], ['a', 'x'], ['a', 'y'], ['b', 'y'], ['c', 'z']].map(([n, t], i) => ({ recordId: `nt${i}`, values: { 'gd.noteTag.note': n, 'gd.noteTag.tag': t } }));
   const view = overview({ tags, noteTags });
   assert.deepEqual(view.tags.map(t => [t.name, t.count, t.size]), [['x', 3, 4], ['y', 2, 3], ['z', 1, 1]]);
+});
+
+test('every pinned note and every tag in use comes back, for the page to count and show all (G-014)', () => {
+  const notes = Array.from({ length: PINNED + 1 }, (_, i) => note(`p${i}`, { 'gd.note.title': `Pin ${String.fromCharCode(73 - i)}`, 'gd.note.pinned': true }));
+  const view = overview({ notes });
+  assert.equal(view.pinned.length, PINNED + 1, 'a ninth pin is a card too');
+  assert.equal(view.pinned[0].title, 'Pin A', 'by title');
+  const tags = Array.from({ length: TAGS + 1 }, (_, i) => ({ recordId: `t${i}`, values: { 'gd.tag.name': `tag${String(i).padStart(2, '0')}` } }));
+  const noteTags = tags.flatMap((tag, i) => Array.from({ length: TAGS + 1 - i }, (_, n) => ({ recordId: `${tag.recordId}-${n}`, values: { 'gd.noteTag.note': `n${n}`, 'gd.noteTag.tag': tag.recordId } })));
+  const tagged = overview({ tags, noteTags });
+  assert.equal(tagged.tags.length, TAGS + 1);
+  assert.deepEqual([tagged.tags[0].size, tagged.tags[TAGS - 1].size, tagged.tags[TAGS].size], [4, 1, 1], 'sized by the tags shown first');
 });
 
 test('an excerpt is the summary, or the first line of prose with its marks taken off', () => {

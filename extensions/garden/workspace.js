@@ -7,7 +7,7 @@
 // records.batch (sync.mjs), which the view can undo; ticking a task while reading saves it at
 // once. Nendo draws the controls where it offers its toolbar; otherwise the view draws its own.
 // Every colour is the theme's.
-import { parse, slugify } from './parse.mjs';
+import { parse, slugify, fnv1a } from './parse.mjs';
 import { render } from './render.mjs';
 import { createDiagrams } from './diagrams.js';
 import { plan, resolveTarget, F } from './sync.mjs';
@@ -15,7 +15,7 @@ import { readRelated, readTags, drawRelated, plainText } from './related.mjs';
 import { noteTasks, drawTaskStrip } from './tasks.mjs';
 import { buildGraph, branchTones } from './graph-data.mjs';
 import { createGraph } from './graph.js';
-import { localDate, uncertain, readDrafts, writeDrafts } from './drafts.mjs';
+import { localDate, uncertain, readDrafts, writeDrafts, readUnanswered, writeUnanswered } from './drafts.mjs';
 import { createFinder, localMatch } from './search.mjs';
 import { createFindMarks, searchTerms } from './findmarks.mjs';
 import { takeHandover, HANDOVER_KEY } from './handover.mjs';
@@ -23,6 +23,14 @@ import { takeHandover, HANDOVER_KEY } from './handover.mjs';
 const STAGE_TONES = { Seed: 'amber', Growing: 'teal', Evergreen: 'green' };
 const TASK_LINE = /^(\s*[-*+]\s+\[)( |x|X)(\])/;
 const $ = id => document.getElementById(id);
+const NOTHING_RELATED = Object.freeze({ backlinks: [], links: [], noteTags: [], tasks: [] });
+// A draft is kept by its note's record ID, or by 'new:…' for a note not saved yet ('new' alone from before 0.21).
+const isNewKey = key => key === 'new' || key.startsWith('new:');
+const blank = draft => !draft.title.trim() && !draft.body.trim();
+const textOf = record => ({ title: record.values[F.note.title] ?? '', body: record.values[F.note.body] ?? '' });
+// What a draft was written over: the note's version, and the key of its title and body then, so a
+// change elsewhere that leaves both alone (a stage, a pin) does not stand in the draft's way.
+const hashOf = ({ title, body }) => fnv1a(`${title}\u0000${body}`);
 
 export async function startWorkspace(nendo, context, kit) {
   const app = $('app'), tree = $('tree'), treeEmpty = $('tree-empty'), find = $('find');
@@ -30,6 +38,7 @@ export async function startWorkspace(nendo, context, kit) {
   const title = $('title'), meta = $('meta'), editor = $('editor'), preview = $('preview'), autocomplete = $('autocomplete');
   const readingTitle = $('reading-title'), readingMeta = $('reading-meta'), readingBody = $('reading-body');
   const ownSummary = $('own-summary'), guide = $('guide'), hoverCard = $('hover-card');
+  const treeNone = $('tree-none'), draftsWarning = $('drafts-warning');
   const lists = { tags: $('note-tags') };
   const taskStrip = $('task-strip');
   const diagrams = createDiagrams();
@@ -43,6 +52,9 @@ export async function startWorkspace(nendo, context, kit) {
   const state = { ready: false, index: [], byId: new Map(), links: [], note: null, draft: null, dirty: false, external: false, problem: null,
     mode: 'read', width: 'full', undo: [], redo: [], filter: '', tags: [], related: null, stubs: [], local: null,
     saving: false, unanswered: null, restored: 0,
+    // The unsaved new note open, by its draft key; the drafts this device could not keep, by key; and
+    // whether the garden read last is the garden as it is, without which nothing is saved.
+    newKey: null, notKept: [], indexCurrent: false,
     // Find: the index's hits by record ID once they arrive, or null while the view matches what it
     // holds; and which of the two answered the last search ('index', or why the index did not).
     hits: null, findSource: 'local',
@@ -64,6 +76,7 @@ export async function startWorkspace(nendo, context, kit) {
     state.byId = new Map(state.index.map(note => [note.recordId, note]));
     state.links = links;
     state.tags = tags;
+    state.indexCurrent = true;
     drawTree();
     declareToolbar();
     // The notes changed under a search: ask the index again, as it now reads.
@@ -179,12 +192,19 @@ export async function startWorkspace(nendo, context, kit) {
       }
       return list;
     };
-    const focused = document.activeElement?.closest?.('#tree .row')?.dataset.id ?? null;
-    tree.replaceChildren(...build(null).children);
-    treeEmpty.hidden = state.index.length > 0;
+    const focusedRow = document.activeElement?.closest?.('#tree .row') ?? null;
+    tree.replaceChildren(...unsavedRows(filter), ...build(null).children);
+    // A garden with no notes says how to plant one; a search that finds nothing says so, and offers to clear it.
+    const searching = filter !== '';
+    treeEmpty.hidden = state.index.length > 0 || searching || !state.indexCurrent;
+    treeNone.hidden = !searching || tree.querySelector('.row') !== null;
+    if (!treeNone.hidden) $('tree-none-text').textContent = `No note matches “${state.filter.trim()}”.`;
     treeKeys.refresh();
     // A redraw replaces the rows: keep the keyboard on the note it was on.
-    if (focused !== null) tree.querySelector(`.row[data-id="${CSS.escape(focused)}"]`)?.focus();
+    if (focusedRow !== null) {
+      const [attribute, value] = focusedRow.dataset.id ? ['data-id', focusedRow.dataset.id] : ['data-draft', focusedRow.dataset.draft];
+      tree.querySelector(`.row[${attribute}="${CSS.escape(value)}"]`)?.focus();
+    }
     ownSummary.textContent = summary();
     state.collapsed = [...collapsed];
     // Show offers nothing to a garden with no branches, and nothing while Find unfolds what it found.
@@ -194,6 +214,41 @@ export async function startWorkspace(nendo, context, kit) {
     for (const button of levelButtons) { button.setAttribute('aria-pressed', String(button.dataset.level === state.level)); button.disabled = filter !== ''; }
   }
   const treeKeys = kit.roving(tree, { items: '.row' });
+  // The notes started and not saved yet head the tree, marked, so a second New note never writes
+  // over the first (G-003): each waits there until it is saved.
+  function unsavedRows(filter) {
+    const unsaved = [...drafts].filter(([key]) => isNewKey(key)).map(([key, draft]) => ({ key, draft }));
+    if (state.note === null && state.newKey !== null && state.draft && !drafts.has(state.newKey)) unsaved.unshift({ key: state.newKey, draft: state.draft });
+    return unsaved.filter(({ draft }) => !filter || `${draft.title}\n${draft.body}`.toLowerCase().includes(filter)).map(({ key, draft }) => {
+      const item = document.createElement('li');
+      item.setAttribute('role', 'treeitem');
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'row draft unsaved';
+      row.dataset.draft = key;
+      row.title = 'A new note, not saved yet';
+      if (state.note === null && state.newKey === key) row.setAttribute('aria-current', 'true');
+      const twisty = document.createElement('span');
+      twisty.className = 'twisty leaf';
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.style.background = 'var(--nendo-tone-grey)';
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = draft.title.trim() || 'Untitled';
+      row.append(twisty, dot, name);
+      row.addEventListener('click', () => startNew({}, '', { key }));
+      item.append(row);
+      return item;
+    });
+  }
+  $('tree-none-clear').addEventListener('click', () => {
+    setFilter('');
+    find.value = '';
+    declareToolbar();
+    expose();
+    tree.querySelector('.row')?.focus();
+  });
 
   function fold(recordId, shut) {
     if (shut === collapsed.has(recordId)) return;
@@ -238,35 +293,76 @@ export async function startWorkspace(nendo, context, kit) {
       if (up !== null) tree.querySelector(`.row[data-id="${CSS.escape(up)}"]`)?.focus();
     }
   });
-  const summary = () => `${state.index.length} ${state.index.length === 1 ? 'note' : 'notes'}${state.note ? ` · ${state.dirty ? 'unsaved changes' : 'saved'}` : ''}`;
+  const summary = () => !state.indexCurrent && state.index.length === 0 ? '' : `${state.index.length} ${state.index.length === 1 ? 'note' : 'notes'}${state.note ? ` · ${state.dirty ? 'unsaved changes' : 'saved'}` : ''}`;
 
   // ---- One note.
   // A draft left when the person moves to another note is kept, so no dialog ever asks to discard it.
   // The drafts are kept in the view's own storage too (drafts.mjs), so a view Nendo stops when the
   // person goes to another screen, or starts again, finds them where they were left.
   const draftKey = `garden.drafts.v1.${context.viewId ?? 'workspace'}`;
+  const unansweredKey = `garden.unanswered.v1.${context.viewId ?? 'workspace'}`;
   const storage = (() => { try { return window.localStorage; } catch { return null; } })();
   const drafts = readDrafts(storage, draftKey);
   state.restored = drafts.size;
+  // A save Nendo never answered outlasts the view too, so Save after a restart sends the same batch
+  // under the same key and it is kept once, never planted twice under a new ID (G-008).
+  state.unanswered = readUnanswered(storage, unansweredKey);
+  function setUnanswered(sent) {
+    state.unanswered = sent;
+    writeUnanswered(storage, unansweredKey, sent);
+  }
+  const draftKeyNow = () => state.note?.recordId ?? state.newKey;
+  // A new note with nothing in it is no draft; anything else being written is.
+  const writing = () => state.dirty && state.draft !== null && draftKeyNow() !== null && !(state.note === null && blank(state.draft));
   function keepDraft() {
-    if (!state.dirty || !state.draft) return;
-    drafts.set(state.note?.recordId ?? 'new', { ...state.draft, version: state.note?.version ?? null, at: Date.now() });
+    const key = draftKeyNow();
+    if (key === null) return;
+    if (writing()) drafts.set(key, { ...state.draft, at: Date.now() }); else if (isNewKey(key)) drafts.delete(key);
   }
   let storeTimer = null;
   function storeDrafts() {
     clearTimeout(storeTimer);
     storeTimer = null;
     const all = new Map(drafts);
-    if (state.dirty && state.draft) all.set(state.note?.recordId ?? 'new', { ...state.draft, version: state.note?.version ?? null, at: Date.now() });
-    writeDrafts(storage, draftKey, all);
+    if (writing()) all.set(draftKeyNow(), { ...state.draft, at: Date.now() });
+    // What this device could not keep is said, with the way to each such draft (G-001): the view
+    // still holds every one, but a view started again would not.
+    const { dropped, refused } = writeDrafts(storage, draftKey, all);
+    state.notKept = dropped;
+    drawDraftsWarning(all, refused);
   }
+  function drawDraftsWarning(all, refused) {
+    const keys = state.notKept.filter(key => all.has(key));
+    draftsWarning.hidden = keys.length === 0;
+    if (keys.length === 0) { draftsWarning.replaceChildren(); return; }
+    const notes = keys.length === 1 ? 'note is' : 'notes are';
+    const why = refused ? `This device is not keeping drafts, so ${keys.length} unsaved ${notes} lost if Garden closes.`
+      : `${keys.length} unsaved ${notes} more than this device keeps, and lost if Garden closes.`;
+    const buttons = keys.map(key => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'link-like';
+      button.dataset.draft = key;
+      button.textContent = all.get(key).title.trim() || state.byId.get(key)?.title || 'Untitled';
+      return button;
+    });
+    draftsWarning.replaceChildren(`${why} Save ${keys.length === 1 ? 'it' : 'them'}: `, ...buttons.flatMap((button, index) => index ? [', ', button] : [button]), '.');
+  }
+  draftsWarning.addEventListener('click', event => {
+    const key = event.target.closest('button[data-draft]')?.dataset.draft;
+    if (!key) return;
+    if (isNewKey(key)) startNew({}, '', { key }); else open(key);
+  });
   const storeSoon = () => { if (storeTimer === null) storeTimer = setTimeout(storeDrafts, 250); };
   addEventListener('pagehide', storeDrafts);
   // Only the newest open lands: a note read late never replaces the one the person went to since.
   let openTicket = 0;
+  // The link followed from each note, so Back to that note puts the keyboard on it again.
+  const followed = new Map();
   async function open(recordId, { fromPlace = false } = {}) {
     hideHover();
     const ticket = ++openTicket;
+    const from = document.activeElement;
     let record;
     try {
       record = await nendo.records.get('gd.note', recordId);
@@ -274,43 +370,79 @@ export async function startWorkspace(nendo, context, kit) {
     if (ticket !== openTicket) return;
     if (record === null) { showProblem('That note is not in this file any more.'); return; }
     const moving = state.note?.recordId !== recordId;
-    if (moving) keepDraft();
+    if (moving) { keepDraft(); state.newKey = null; }
     state.note = record;
     // Going to a note unfolds its branch; reading the same note again leaves the tree as the person left it.
     if (moving) reveal(recordId);
-    const kept = drafts.get(recordId);
-    if (kept !== undefined) {
-      state.draft = { title: kept.title, body: kept.body };
+    // The draft over this note: the one being written, when the note is read again under it (a click
+    // on its row, a link to itself, a command, a change elsewhere), which is never replaced by what
+    // the file says (G-002); or the one kept when the person left the note.
+    const draft = !moving && state.dirty && state.draft ? state.draft : drafts.get(recordId);
+    drafts.delete(recordId);
+    const now = textOf(record), nowHash = hashOf(now);
+    if (draft !== undefined && (draft.title !== now.title || draft.body !== now.body)) {
+      // Written over this version, or over one that said the same title and body: it moves onto
+      // this version. Otherwise the note changed elsewhere under it, and the person chooses.
+      const current = draft.version === record.version || draft.hash === nowHash;
+      state.draft = moving ? { title: draft.title, body: draft.body, version: draft.version, hash: draft.hash } : draft;
+      if (current) { state.draft.version = record.version; state.draft.hash = nowHash; }
       state.dirty = true;
-      state.external = kept.version !== record.version;
+      state.external = !current;
     } else {
-      state.draft = { title: record.values[F.note.title] ?? '', body: record.values[F.note.body] ?? '' };
+      // No draft, or one that says what the note now says: it is saved.
+      state.draft = { ...now, version: record.version, hash: nowHash };
       state.dirty = false;
       state.external = false;
     }
-    drafts.delete(recordId);
     storeDrafts();
     await showNote();
     if (ticket !== openTicket) return;
-    if (state.filter.trim() !== '') markFinds({ reveal: true });
+    if (moving && state.filter.trim() !== '') markFinds({ reveal: true });
     tree.querySelector('.row[aria-current=true]')?.scrollIntoView({ block: 'nearest' });
+    // What had the keyboard went with the note left (a link in its page): the keyboard goes to the
+    // link followed from this note when Back brings the person here, else to this note's title (G-007).
+    const lost = from === null || from === document.body || !from.isConnected || from === readingTitle || readingBody.contains(from) || preview.contains(from);
+    if (moving && lost && document.hasFocus()) {
+      const back = fromPlace ? followed.get(recordId) : null;
+      const links = back ? readingBody.querySelectorAll(`a.wikilink[data-id="${CSS.escape(back.id)}"]`) : [];
+      const target = (back && (links[back.nth] ?? links[0])) || (state.mode === 'edit' ? title : readingTitle);
+      target.focus({ preventScroll: !!back });
+      state.focusedOn = target === title ? 'title' : target === readingTitle ? 'heading' : 'link';
+    }
     if (!fromPlace && can('ui.setPlace')) nendo.ui.setPlace({ noteId: recordId }, { label: state.draft.title.slice(0, 80) || 'Note', replace: state.firstPlace !== false }).catch(() => undefined);
     state.firstPlace = false;
   }
 
-  function startNew(values = {}, body = '') {
+  // A new note. The one being written is never written over (G-003): it waits in the tree until it
+  // is saved. `key` goes back to one of those; Today goes back to today's while it is unsaved, and a
+  // note planted under a title goes back to the unsaved one of that title; anything else starts afresh.
+  function startNew(values = {}, body = '', { key = null } = {}) {
     openTicket += 1;
-    if (state.note !== null) keepDraft();
+    const { [F.note.title]: named = '', ...rest } = values;
+    if (key !== null && state.note === null && state.newKey === key) { showNote().then(() => title.focus()); return; }
+    keepDraft();
+    const found = key !== null && drafts.has(key) ? key : key === null ? unsavedNote(rest, named) : null;
+    const kept = found === null ? undefined : drafts.get(found);
+    if (found !== null) drafts.delete(found);
     state.note = null;
-    const kept = drafts.get('new');
-    drafts.delete('new');
-    state.draft = kept && !values[F.note.kind] ? { title: kept.title, body: kept.body, values: kept.values ?? {} } : { title: values[F.note.title] ?? '', body, values };
+    state.newKey = found ?? `new:${crypto.randomUUID().replaceAll('-', '').slice(0, 12)}`;
+    state.draft = kept ? { title: kept.title, body: kept.body, values: kept.values ?? {}, version: null, hash: null } : { title: named, body, values: rest, version: null, hash: null };
     state.dirty = true;
     state.external = false;
-    state.related = { backlinks: [], links: [], noteTags: [], tasks: [] };
+    state.related = NOTHING_RELATED;
     storeDrafts();
     setMode('edit', { quiet: true });
     showNote().then(() => title.focus());
+  }
+  function unsavedNote(values, named) {
+    const wanted = named.trim().toLowerCase();
+    for (const [key, draft] of drafts) {
+      if (!isNewKey(key)) continue;
+      const kind = draft.values?.[F.note.kind] ?? null;
+      if (values[F.note.kind] === 'Daily' ? kind === 'Daily' && draft.values?.[F.note.date] === values[F.note.date]
+        : wanted !== '' && kind === null && draft.title.trim().toLowerCase() === wanted) return key;
+    }
+    return null;
   }
 
   async function showNote() {
@@ -324,16 +456,20 @@ export async function startWorkspace(nendo, context, kit) {
     drawPreview();
     if (state.note !== null) {
       const shown = state.note, ticket = openTicket;
-      let related;
-      try { related = await readRelated(nendo, shown.recordId); } catch (error) { related = { backlinks: [], links: [], noteTags: [], tasks: [] }; if (ticket === openTicket && state.note === shown) showProblem(error.message); }
+      let related = null;
+      try { related = await readRelated(nendo, shown.recordId); } catch (error) {
+        // Unread is not empty: Save reads them again before it plans, and says so if it still cannot.
+        if (ticket === openTicket && state.note === shown) showProblem(`This note's links, tags and tasks could not be read (${error.code ?? 'error'}): ${error.message}`, () => open(shown.recordId, { fromPlace: true }));
+      }
       // The person went to another note while these were read: they belong to a note no longer shown.
       if (ticket !== openTicket || state.note !== shown) return;
       state.related = related;
     }
     // The links are in the page and the local graph, the body's tags are pills in it and the tasks are
     // in the strip under the title: under the note are only the tags written by hand, when it has some.
-    const handTags = state.related.noteTags.filter(row => row.values[F.noteTag.source] !== 'Body');
-    drawRelated({ ...state.related, noteTags: handTags }, lists, openRecord, state.byId, new Map(state.tags.map(tag => [tag.recordId, { title: tag.values[F.tag.name] }])));
+    const related = state.related ?? NOTHING_RELATED;
+    const handTags = related.noteTags.filter(row => row.values[F.noteTag.source] !== 'Body');
+    drawRelated({ ...related, noteTags: handTags }, lists, openRecord, state.byId, new Map(state.tags.map(tag => [tag.recordId, { title: tag.values[F.tag.name] }])));
     $('tags-card').hidden = handTags.length === 0;
     drawTasks();
     drawLocalGraph();
@@ -383,6 +519,9 @@ export async function startWorkspace(nendo, context, kit) {
     if (!link) return;
     event.preventDefault();
     if (link.classList.contains('wikilink')) {
+      if (link.dataset.id && state.note !== null && readingBody.contains(link)) {
+        followed.set(state.note.recordId, { id: link.dataset.id, nth: [...readingBody.querySelectorAll(`a.wikilink[data-id="${CSS.escape(link.dataset.id)}"]`)].indexOf(link) });
+      }
       if (link.dataset.id) open(link.dataset.id);
       else setStatus(`Save this note to plant "${link.dataset.target}" as a Seed.`);
     } else if (link.classList.contains('tag')) {
@@ -421,7 +560,7 @@ export async function startWorkspace(nendo, context, kit) {
     if (!state.draft) return;
     // Records read for the note shown, never those of the note the person just left.
     const records = (state.related?.tasks ?? []).filter(row => state.note !== null && row.values[F.task.note] === state.note.recordId);
-    shownTasks = noteTasks(parse(state.draft.body).tasks, records);
+    shownTasks = noteTasks(parse(state.draft.body).tasks, records, { before: state.note?.values[F.note.body] ?? '' });
     const progress = drawTaskStrip(taskStrip, shownTasks, { resolve, expanded: tasksExpanded, today: today() });
     state.taskStrip = { done: progress.done, total: progress.total, expanded: tasksExpanded };
   }
@@ -660,6 +799,10 @@ export async function startWorkspace(nendo, context, kit) {
     state.draft.title = title.value;
     state.draft.body = editor.value;
     state.dirty = true;
+    if (state.note === null && state.newKey !== null) {
+      const row = tree.querySelector(`.row[data-draft="${CSS.escape(state.newKey)}"] .name`);
+      if (row) row.textContent = title.value.trim() || 'Untitled'; else drawTree();
+    }
     drawPreview();
     setStatus();
     storeSoon();
@@ -668,33 +811,117 @@ export async function startWorkspace(nendo, context, kit) {
   title.addEventListener('input', edited);
   editor.addEventListener('input', () => { edited(); suggest(); });
 
+  // A button that reads as a link in a line of text.
+  function linkButton(words, data, hint = null) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'link-like';
+    button.textContent = words;
+    if (hint) button.title = hint;
+    Object.assign(button.dataset, data);
+    return button;
+  }
   function setStatus(text = null) {
     status.classList.toggle('external', state.external);
-    status.textContent = text ?? (state.saving ? 'Saving…' : state.external ? 'This note changed elsewhere. Reload it before saving; your draft is kept.'
-      : state.note === null && state.draft ? 'A new note. Save plants it.' : state.dirty ? 'Unsaved changes.' : '');
+    if (text === null && state.external && !state.saving) {
+      // The note changed elsewhere under the draft: nothing is saved over that change until the
+      // person says which to keep.
+      status.replaceChildren('This note changed elsewhere since your draft began. ',
+        linkButton('Keep mine', { external: 'keep' }, 'Keep your draft, to save it over the change'), ' or ',
+        linkButton('Discard mine', { external: 'discard' }, 'Let your draft go and read the note as it is now'), '.');
+    } else {
+      status.textContent = text ?? (state.saving ? 'Saving…' : state.note === null && state.draft ? 'A new note. Save plants it.' : state.dirty ? 'Unsaved changes.' : '');
+    }
     ownSummary.textContent = summary();
     declareToolbar();
   }
-  function showProblem(text) { state.problem = text; problem.textContent = text; problem.hidden = false; expose(); }
-  function hideProblem() { state.problem = null; problem.hidden = true; expose(); }
+  status.addEventListener('click', event => {
+    const action = event.target.closest('button[data-external]')?.dataset.external;
+    if (!action || !state.external || state.note === null) return;
+    if (action === 'keep') {
+      state.draft.version = state.note.version;
+      state.draft.hash = hashOf(textOf(state.note));
+      state.external = false;
+      hideProblem();
+      storeDrafts();
+      setStatus();
+      expose();
+    } else {
+      state.dirty = false;
+      state.external = false;
+      open(state.note.recordId, { fromPlace: true });
+    }
+  });
+  let problemRetry = null;
+  function showProblem(text, retry = null) {
+    state.problem = text;
+    problemRetry = retry;
+    problem.replaceChildren(text, ...(retry ? [' ', linkButton('Retry', { retry: '' })] : []));
+    problem.hidden = false;
+    expose();
+  }
+  function hideProblem() { state.problem = null; problemRetry = null; problem.hidden = true; expose(); }
+  problem.addEventListener('click', event => {
+    if (!event.target.closest('button[data-retry]')) return;
+    const retry = problemRetry;
+    hideProblem();
+    retry?.();
+  });
 
   // ---- Save: the body becomes records, in one batch the view can undo.
   // One write at a time. What a save sends is fixed when it starts: the note, the draft it came
   // from and the text, so typing that arrives while it travels is never mistaken for what was saved.
   async function save({ quiet = false } = {}) {
     if (!state.draft || state.saving) return;
-    if (state.external) { showProblem('This note changed elsewhere, so this draft is kept and not saved. Reload the note, then make your change again.'); return; }
-    // A save Nendo never answered goes again as it was, under its key, so it is kept once whatever happened to it.
+    // A save Nendo never answered goes again as it was, under its key, so it is kept once whatever
+    // happened to it, before anything else is saved; after a restart too.
     if (state.unanswered !== null) { await send(state.unanswered); return; }
-    const body = editor.value, noteTitle = title.value;
-    const planned = plan({ note: state.note, title: noteTitle, body, parsed: parse(body), index: state.index,
-      existing: state.related ?? {}, tags: state.tags, today: today(), newId, values: state.draft.values ?? {} });
-    if (planned.problems.length) { showProblem(planned.problems.join(' ')); return; }
-    if (planned.writes.length === 0) { state.dirty = false; storeDrafts(); setStatus('Nothing changed.'); return; }
+    if (state.external) { showProblem('This note changed elsewhere since your draft began, so it is not saved over that change. Keep mine, under the note, saves it over the change; Discard mine lets it go.'); return; }
     if (!can('records.batch')) { showProblem('This Nendo does not let views write records.'); return; }
-    await send({ noteId: state.note?.recordId ?? null, draft: state.draft, title: noteTitle, body, writes: planned.writes, stubs: planned.stubs,
-      label: `Save ${noteTitle.trim().slice(0, 60) || 'note'}`, writeKey: crypto.randomUUID(), quiet });
+    if (!state.indexCurrent) { showProblem('Nothing was saved: the garden could not be read, and a save without it could plant a note twice. Your draft is kept.', retryIndex); return; }
+    const key = draftKeyNow(), note = state.note, draft = state.draft, body = editor.value, noteTitle = title.value;
+    state.saving = true;
+    setStatus();
+    expose();
+    let sent = null;
+    try {
+      // The note's links, tags and tasks, and the garden's tags, as they are now: a save planned over
+      // rows it could not read would write them all again.
+      let related, tags;
+      try {
+        [related, tags] = await Promise.all([note === null ? NOTHING_RELATED : readRelated(nendo, note.recordId), readTags(nendo)]);
+      } catch (error) {
+        showProblem(`Nothing was saved: this note's links, tags and tasks could not be read (${error.code ?? 'error'}), and a save without them could write them twice. Your draft is kept.`, () => save({ quiet }));
+        return;
+      }
+      state.tags = tags;
+      if (state.note === note && note !== null) state.related = related;
+      const planned = plan({ note, title: noteTitle, body, parsed: parse(body), index: state.index,
+        existing: related, tags, today: today(), newId, values: draft.values ?? {} });
+      if (planned.problems.length) { showProblem(planned.problems.join(' ')); return; }
+      if (planned.writes.length === 0) {
+        if (draftKeyNow() === key && state.draft.title === noteTitle && state.draft.body === body) { state.dirty = false; storeDrafts(); }
+        setStatus('Nothing changed.');
+        return;
+      }
+      sent = { draftKey: key, noteId: note?.recordId ?? null, title: noteTitle, body, writes: planned.writes, stubs: planned.stubs, removed: planned.removed,
+        label: `Save ${noteTitle.trim().slice(0, 60) || 'note'}`, writeKey: crypto.randomUUID(), quiet };
+    } finally {
+      if (sent === null) {
+        state.saving = false;
+        if (status.textContent === 'Saving…') setStatus();
+        declareToolbar();
+        expose();
+      }
+    }
+    await send(sent);
   }
+  // A save that took tasks away names them, so a task gone with its due date is never gone unseen.
+  const removedWords = removed => {
+    if (!removed?.length) return '';
+    const named = removed.slice(0, 3).map(task => `“${plainText(task.text).slice(0, 60)}”${task.due ? ` (due ${task.due})` : ''}`).join(', ');
+    return ` Removed ${removed.length === 1 ? 'the task' : `${removed.length} tasks:`} ${named}${removed.length > 3 ? ' and more' : ''}; Undo brings ${removed.length === 1 ? 'it' : 'them'} back.`;
+  };
 
   async function send(sent) {
     state.saving = true;
@@ -706,29 +933,32 @@ export async function startWorkspace(nendo, context, kit) {
         result = await nendo.records.batch(sent.writes, { label: sent.label, writeKey: sent.writeKey });
       } catch (error) {
         if (uncertain(error)) {
-          state.unanswered = sent;
+          setUnanswered(sent);
           showProblem(`Nendo did not answer whether the save was kept (${error.code}). Save again to finish it: the same save goes again and is kept once. Your draft is kept.`);
         } else {
-          state.unanswered = null;
+          setUnanswered(null);
           showProblem(`The save was refused (${error.code}): ${error.message} Your draft is kept.`);
         }
         return;
       }
-      state.unanswered = null;
+      setUnanswered(null);
       hideProblem();
       state.undo.push({ revision: result.revision, label: sent.label });
       state.redo = [];
       state.stubs = sent.stubs.map(stub => stub.recordId);
       const savedId = sent.noteId ?? result.records[0].recordId;
-      const saidSaved = sent.stubs.length ? `Saved. Planted ${sent.stubs.length} ${sent.stubs.length === 1 ? 'seed' : 'seeds'}: ${sent.stubs.map(s => s.title).join(', ')}.` : 'Saved.';
+      const saidSaved = (sent.stubs.length ? `Saved. Planted ${sent.stubs.length} ${sent.stubs.length === 1 ? 'seed' : 'seeds'}: ${sent.stubs.map(s => s.title).join(', ')}.` : 'Saved.') + removedWords(sent.removed);
       try { await loadIndex(); } catch (error) {
-        showProblem(`Saved, but the garden could not be read again (${error.code}): ${error.message} Open the note again to see it.`);
+        state.indexCurrent = false;
+        showProblem(`Saved, but the garden could not be read again (${error.code ?? 'error'}): ${error.message}`, retryIndex);
         return;
       }
       const same = draft => draft.title === sent.title && draft.body === sent.body;
       // Still on the note this save came from, or back on it.
-      const here = state.draft === sent.draft || (sent.noteId !== null && state.note?.recordId === sent.noteId);
+      const here = draftKeyNow() === sent.draftKey;
       if (here && same(state.draft)) {
+        // What is written is what was saved: reading the note again finds no draft over it.
+        state.dirty = false;
         await open(savedId, { fromPlace: true });
         setStatus(saidSaved);
         return;
@@ -739,6 +969,9 @@ export async function startWorkspace(nendo, context, kit) {
         const record = await nendo.records.get('gd.note', savedId);
         if (ticket !== openTicket || record === null) return;
         state.note = record;
+        state.newKey = null;
+        state.draft.version = record.version;
+        state.draft.hash = hashOf(textOf(record));
         state.dirty = true;
         state.external = false;
         storeDrafts();
@@ -747,10 +980,10 @@ export async function startWorkspace(nendo, context, kit) {
         return;
       }
       // The person went to another note: theirs stays put; the saved note's kept draft is spent, or moves onto the saved version.
-      const keptKey = sent.noteId ?? 'new', kept = drafts.get(keptKey);
+      const kept = drafts.get(sent.draftKey);
       if (kept !== undefined) {
-        drafts.delete(keptKey);
-        if (!same(kept)) drafts.set(savedId, { ...kept, version: state.byId.get(savedId)?.version ?? kept.version });
+        drafts.delete(sent.draftKey);
+        if (!same(kept)) drafts.set(savedId, { ...kept, version: state.byId.get(savedId)?.version ?? kept.version, hash: hashOf({ title: sent.title, body: sent.body }) });
         storeDrafts();
         drawTree();
       }
@@ -764,9 +997,8 @@ export async function startWorkspace(nendo, context, kit) {
   }
 
   async function undo() {
-    if (state.saving) return;
+    if (state.saving || state.undo.length === 0 || !can('records.undo')) return;
     const step = state.undo.pop();
-    if (!step || !can('records.undo')) return;
     state.saving = true;
     try {
       const result = await nendo.records.undo(step.revision);
@@ -776,9 +1008,8 @@ export async function startWorkspace(nendo, context, kit) {
     finally { state.saving = false; declareToolbar(); expose(); }
   }
   async function redo() {
-    if (state.saving) return;
+    if (state.saving || state.redo.length === 0 || !can('records.redo')) return;
     const step = state.redo.pop();
-    if (!step || !can('records.redo')) return;
     state.saving = true;
     try {
       const result = await nendo.records.redo(step.revision);
@@ -789,9 +1020,15 @@ export async function startWorkspace(nendo, context, kit) {
   }
   async function afterStep() {
     hideProblem();
-    await loadIndex();
+    try { await loadIndex(); } catch (error) { readFailed(error); return; }
     if (state.note && state.byId.has(state.note.recordId)) await open(state.note.recordId, { fromPlace: true });
-    else { state.note = null; state.draft = null; state.dirty = false; noteSection.hidden = true; empty.hidden = false; setStatus(''); }
+    else if (state.note !== null) {
+      // Undo took away the note open. What was being written over it waits as a new note instead.
+      if (writing()) drafts.set(`new:${crypto.randomUUID().replaceAll('-', '').slice(0, 12)}`, { ...state.draft, version: null, hash: null, at: Date.now() });
+      state.note = null; state.draft = null; state.dirty = false; state.external = false;
+      noteSection.hidden = true; empty.hidden = false;
+      storeDrafts(); drawTree(); setStatus('');
+    }
   }
 
   async function daily() {
@@ -1018,28 +1255,41 @@ export async function startWorkspace(nendo, context, kit) {
   $('empty').addEventListener('click', event => { if (event.target.closest('button[data-guide=open]')) showGuide(true); });
 
   // ---- Following the file, and Back and Forward.
+  // ---- Reading the garden, and saying when it could not be read (G-012): never a garden that looks
+  // empty, and Retry, which reads it again and carries on from there.
+  function readFailed(error) {
+    state.indexCurrent = false;
+    showProblem(`The garden could not be read (${error?.code ?? 'error'}): ${error?.message ?? error} Nothing is saved until it can be; your drafts are kept.`, retryIndex);
+    if (!state.ready) { empty.hidden = true; treeEmpty.hidden = true; }
+    ownSummary.textContent = summary();
+    expose();
+  }
+  async function retryIndex() {
+    try { await loadIndex(); } catch (error) { readFailed(error); return; }
+    hideProblem();
+    if (!state.ready) { await begin(); return; }
+    if (state.note !== null) await open(state.note.recordId, { fromPlace: true });
+  }
+
   let pending = null;
   async function changed() {
     pending = null;
     // A save on its way changes the note under the draft it came from: look again once it is answered.
     if (state.saving) { pending = setTimeout(changed, 400); return; }
     const current = state.note?.recordId ?? null, ticket = openTicket;
-    await loadIndex();
+    try { await loadIndex(); } catch (error) { readFailed(error); return; }
+    if (state.problem !== null && problemRetry === retryIndex) hideProblem();
     // The person went to another note while the garden was read: theirs wins, and its own open declares its place.
     if (current === null || ticket !== openTicket) return;
-    if (!state.dirty) { await open(current, { fromPlace: true }); return; }
-    const latest = state.byId.get(current);
-    if (latest === undefined || latest.version !== state.note.version) { state.external = true; setStatus(); expose(); }
-    drawLocalGraph();
+    // Read again under a draft too: the draft stays, and moves onto the new version unless its title
+    // or body changed (open).
+    await open(current, { fromPlace: true });
   }
   nendo.on('changes', () => { if (pending === null) pending = setTimeout(changed, 400); });
   nendo.on('context', () => { if (pending === null) pending = setTimeout(changed, 400); });
   nendo.on('place', place => { if (place?.noteId) open(place.noteId, { fromPlace: true }); });
 
   setMode('read', { quiet: true });
-  await loadIndex();
-  state.ready = true;
-  expose();
   // What the Overview asked for when it opened this screen: a note, a new note, or today's.
   async function takeRequest() {
     const request = takeHandover();
@@ -1053,10 +1303,36 @@ export async function startWorkspace(nendo, context, kit) {
   // A frame that kept running hears the request as it is made.
   window.addEventListener('storage', event => { if (event.key === HANDOVER_KEY && event.newValue !== null && state.ready) takeRequest(); });
   // Otherwise the garden opens on the place Back left, or on its first pinned map, or on its first note.
-  const pinned = state.index.find(note => note.values[F.note.pinned] && note.values[F.note.kind] === 'Map') ?? state.index.find(note => note.values[F.note.pinned]);
-  const start = context.place?.noteId && state.byId.has(context.place.noteId) ? context.place.noteId : pinned?.recordId ?? null;
-  if (await takeRequest()) { /* the Overview chose */ }
-  else if (start) await open(start, { fromPlace: !!context.place?.noteId });
-  else setStatus('');
-  if (state.restored > 0) setStatus(`${state.restored === 1 ? 'An unsaved draft was' : `${state.restored} unsaved drafts were`} kept from before; the tree marks ${state.restored === 1 ? 'its note' : 'their notes'}.`);
+  // A save Nendo never answered before the view stopped: when the file already holds what it wrote,
+  // it was kept, and its draft is spent (or, typed over since, stays a draft over the saved note);
+  // otherwise Save sends it again under its key.
+  function reconcileUnanswered() {
+    const sent = state.unanswered;
+    if (sent === null) return;
+    const noteId = sent.noteId ?? sent.writes.find(write => write.op === 'create' && write.entityId === 'gd.note')?.recordId ?? null;
+    const saved = state.byId.get(noteId);
+    if (saved === undefined || saved.values[F.note.body] !== sent.body || saved.values[F.note.title] !== sent.title.trim()) return;
+    setUnanswered(null);
+    const kept = drafts.get(sent.draftKey);
+    if (kept === undefined) return;
+    drafts.delete(sent.draftKey);
+    if (kept.title !== sent.title || kept.body !== sent.body) drafts.set(noteId, { ...kept, version: saved.version, hash: hashOf(textOf(saved)) });
+    state.restored = [...drafts.keys()].length;
+  }
+  async function begin() {
+    reconcileUnanswered();
+    state.ready = true;
+    empty.hidden = state.draft !== null;
+    expose();
+    const pinned = state.index.find(note => note.values[F.note.pinned] && note.values[F.note.kind] === 'Map') ?? state.index.find(note => note.values[F.note.pinned]);
+    const start = context.place?.noteId && state.byId.has(context.place.noteId) ? context.place.noteId : pinned?.recordId ?? null;
+    if (await takeRequest()) { /* the Overview chose */ }
+    else if (start) await open(start, { fromPlace: !!context.place?.noteId });
+    else setStatus('');
+    storeDrafts();
+    if (state.restored > 0) setStatus(`${state.restored === 1 ? 'An unsaved draft was' : `${state.restored} unsaved drafts were`} kept from before; the tree marks ${state.restored === 1 ? 'it' : 'them'}.`);
+    if (state.unanswered !== null) showProblem(`Nendo never answered whether “${state.unanswered.title.trim() || 'a note'}” was saved before Garden closed. Save again to finish it: the same save goes again and is kept once.`);
+  }
+  try { await loadIndex(); } catch (error) { readFailed(error); return; }
+  await begin();
 }

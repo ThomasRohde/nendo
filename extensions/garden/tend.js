@@ -23,7 +23,7 @@ export async function startTend(nendo, context, kit) {
   const span = (() => { try { const kept = Number(localStorage.getItem(SPAN_KEY)); return SPANS.some(s => s.days === kept) ? kept : DEFAULT_SPAN; } catch { return DEFAULT_SPAN; } })();
   const state = { ready: false, notes: null, view: null, span };
   const expose = () => { window.gardenTend = state; };
-  const writer = createWriter(nendo, { status: $('tend-status'), problem: $('tend-problem'), after: () => load() });
+  const writer = createWriter(nendo, { status: $('tend-status'), problem: $('tend-problem'), after: () => load(), retry: () => load() });
   const openNote = noteOpener(nendo, text => writer.showProblem(text));
   const tone = await stageTone(nendo, kit);
 
@@ -79,13 +79,16 @@ export async function startTend(nendo, context, kit) {
     if (note) openNote(note.dataset.note);
   });
 
+  let readFailed = false;
   async function load() {
     try {
       state.notes = await nendo.records.queryAll({ entityId: 'gd.note' }, { max: 10000 });
     } catch (error) {
-      writer.showProblem(`The notes could not be read: ${error.message}`);
+      readFailed = true;
+      writer.showProblem(`The notes could not be read (${error.code ?? 'error'}): ${error.message}`, { retrying: true });
       return;
     }
+    if (readFailed) { readFailed = false; writer.showProblem(''); }
     state.view = tend(state.notes, today(), state.span);
     draw();
     state.ready = true;

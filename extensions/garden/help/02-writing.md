@@ -47,4 +47,10 @@ Links, tags and tasks can also be made by hand, a task with **Add Task** and a l
 
 ## Your drafts are safe
 
-Move to another note with unsaved changes and the draft is kept: the tree marks the note with a dot until you save it. Drafts are also kept on this device if you leave the view or close Nendo, and come back when you return.
+Move to another note with unsaved changes and the draft is kept: the tree marks the note with a dot until you save it. A new note you have not saved yet waits at the top of the tree, in italics, so pressing **New note** again or **Today** never writes over it; click it to carry on. Clicking the note you are writing, or a link to it, keeps what you have written too.
+
+Drafts are also kept on this device if you leave the view or close Nendo, and come back when you return. The device keeps the newest fifty or so. If it cannot keep one, a line above the note says which, with a link to each, so you can open it and save it before you close Garden.
+
+If somebody changes the note's text elsewhere while you write, the line under the toolbar says so: **Keep mine** saves yours over the change, **Discard mine** lets yours go and shows the note as it is now. A change that leaves the text alone, such as a new stage, does not stop you.
+
+If Nendo never answers whether a save was kept, **Save** again finishes it, even after Garden has closed and opened again: the note is kept once.

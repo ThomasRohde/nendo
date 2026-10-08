@@ -15,9 +15,9 @@ A line starting with `- [ ]` is a task. Saving makes it a **Task** record that r
 | **Agenda** | Every open task by when it is due: Overdue, Today, This week, Later and No date, each with its box and its note |
 | **Due** | Tasks on a calendar, once they have a due date |
 
-Tick a box on the **Agenda** and it is saved at once, in the note's line as well as on the task, and **Undo** beside the message takes it back. The note's name opens the note in the Garden view.
+Tick a box on the **Agenda** and it is saved at once, in the note's line as well as on the task, and **Undo** beside the message takes it back. The note's name opens the note in the Garden view. Within one note, the tasks keep the order the note writes them, so a tutorial's steps stay in order; the ones added by hand come after.
 
-Tick a box while reading and the tick is saved at once, both in the note and on the task. The strip under a note's title holds the next task to do with its box, and **Show all** lists the rest, the ones added by hand too. Give a task a due date on its own page, and it appears on the **Due** calendar.
+Tick a box while reading and the tick is saved at once, both in the note and on the task. Two lines that say the same task are two tasks, each with its own box. Change a task's words and it stays the same task, with its due date; delete its line and the save names it, and **Undo** brings it back. The strip under a note's title holds the next task to do with its box, and **Show all** lists the rest, the ones added by hand too. Give a task a due date on its own page, and it appears on the **Due** calendar.
 
 > A task added by hand with **Add Task** is marked **Manual** and is yours: no save of a note ever changes it.
 

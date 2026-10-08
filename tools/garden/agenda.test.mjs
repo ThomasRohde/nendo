@@ -36,6 +36,16 @@ test('the open tasks fall into Overdue, Today, This week, Later and No date, soo
   assert.deepEqual([now.noteId, now.noteTitle, now.manual, now.due], ['gd.note.beds', 'Beds', true, TODAY]);
 });
 
+test('within a note the tasks keep the order its body says them; the ones added by hand come after (G-006)', () => {
+  const body = ['# Tutorial: your first file', '- [ ] Create an empty file', '- [ ] Add a record type', '- [ ] Add an optional field', '- [x] Read the welcome'].join('\n');
+  const keys = Object.fromEntries(parse(body).tasks.map(t => [t.text, t.key]));
+  const notes = [note('gd.note.tutorial', 'Tutorial: your first file', body)];
+  const checkbox = (id, text) => task(id, { 'gd.task.title': text, 'gd.task.note': 'gd.note.tutorial', 'gd.task.source': 'Checkbox', 'gd.task.key': keys[text] });
+  const tasks = [checkbox('t.c', 'Add an optional field'), task('t.m', { 'gd.task.title': 'Ask a friend', 'gd.task.note': 'gd.note.tutorial' }),
+    checkbox('t.a', 'Create an empty file'), checkbox('t.b', 'Add a record type')];
+  assert.deepEqual(agenda(tasks, notes, TODAY).groups.at(-1).tasks.map(t => t.text), ['Create an empty file', 'Add a record type', 'Add an optional field', 'Ask a friend']);
+});
+
 test('a task ticked while the Agenda is open stays in its group, ticked, and no longer counts as open', () => {
   const tasks = [task('t.a', { 'gd.task.title': 'A', 'gd.task.done': true, 'gd.task.due': TODAY }), task('t.b', { 'gd.task.title': 'B', 'gd.task.due': TODAY })];
   const view = agenda(tasks, [], TODAY, { keep: new Set(['t.a']) });

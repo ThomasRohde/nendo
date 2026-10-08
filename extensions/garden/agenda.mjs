@@ -39,11 +39,23 @@ function groupOf(due, today, end) {
 }
 
 /**
- * The open tasks in their groups, soonest first, then by note and text. `keep` names tasks ticked
- * while the Agenda was open: they stay where they were, ticked, so a slip can be unticked.
+ * The open tasks in their groups, soonest first, then by note, and within a note in the order its
+ * body says them, since a note's steps are often meant in that order; the tasks added by hand come
+ * after the body's, by their words. `keep` names tasks ticked while the Agenda was open: they stay
+ * where they were, ticked, so a slip can be unticked.
  */
 export function agenda(tasks = [], notes = [], today, { keep = new Set() } = {}) {
   const titles = new Map(notes.map(note => [note.recordId, String(note.values[F.note.title] ?? note.recordId)]));
+  // Where each task's line sits in its note, read only for the notes that have open tasks.
+  const lines = new Map();
+  const lineOf = (noteId, key) => {
+    if (noteId === null || !key) return Infinity;
+    if (!lines.has(noteId)) {
+      const body = notes.find(note => note.recordId === noteId)?.values[F.note.body] ?? '';
+      lines.set(noteId, new Map(parse(String(body)).tasks.map(task => [task.key, task.line])));
+    }
+    return lines.get(noteId).get(key) ?? Infinity;
+  };
   const end = weekEnd(today);
   const groups = GROUPS.map(group => ({ ...group, tasks: [] }));
   const byId = new Map(groups.map(group => [group.id, group]));
@@ -52,13 +64,15 @@ export function agenda(tasks = [], notes = [], today, { keep = new Set() } = {})
     if (done && !keep.has(row.recordId)) continue;
     const due = isDate(row.values[F.task.due]) ? String(row.values[F.task.due]).slice(0, 10) : null;
     const noteId = row.values[F.task.note] ?? null;
+    const manual = row.values[F.task.source] !== 'Checkbox', key = row.values[F.task.key] ?? null;
     byId.get(groupOf(due, today, end)).tasks.push({
       id: row.recordId, recordId: row.recordId, version: row.version, entityId: 'gd.task',
-      text: String(row.values[F.task.title] ?? row.recordId), done, due, key: row.values[F.task.key] ?? null,
-      manual: row.values[F.task.source] !== 'Checkbox', noteId, noteTitle: noteId === null ? null : titles.get(noteId) ?? null,
+      text: String(row.values[F.task.title] ?? row.recordId), done, due, key,
+      manual, noteId, noteTitle: noteId === null ? null : titles.get(noteId) ?? null, line: manual ? Infinity : lineOf(noteId, key),
     });
   }
-  const order = (a, b) => (a.due ?? '').localeCompare(b.due ?? '') || (a.noteTitle ?? '').localeCompare(b.noteTitle ?? '') || a.text.localeCompare(b.text);
+  const order = (a, b) => (a.due ?? '').localeCompare(b.due ?? '') || (a.noteTitle ?? '').localeCompare(b.noteTitle ?? '')
+    || (a.noteId ?? '').localeCompare(b.noteId ?? '') || (a.line === b.line ? 0 : a.line < b.line ? -1 : 1) || a.text.localeCompare(b.text);
   for (const group of groups) group.tasks.sort(order);
   const open = groups.reduce((total, group) => total + group.tasks.filter(task => !task.done).length, 0);
   return { groups, open, overdue: byId.get('overdue').tasks.filter(task => !task.done).length };

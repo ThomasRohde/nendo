@@ -1,8 +1,10 @@
 // The garden drawn as a living graph with d3 (vendor/d3.min.js, loaded before this module):
 // a force simulation lays the notes out, the wheel and a drag on the background zoom and pan,
 // a drag on a note moves it and the rest follow, hovering a note lights it and its neighbours
-// and dims the rest, and labels fade in as you zoom. Colours are the theme's tokens, so a theme
-// change needs no redraw. The same drawing is the graph screen and the local graph under a note.
+// and dims the rest, and labels fade in as you zoom. A name is never drawn smaller than LABEL_PX
+// on the screen, however far the drawing is zoomed out, and never over another name: where two
+// would meet, the one that matters less (lit, found, a landmark, then by links) waits until there
+// is room (G-015). Colours are the theme's tokens, so a theme change needs no redraw. The same drawing is the graph screen and the local graph under a note.
 // The local graph (compact) is stretched to its box rather than zoomed: each axis spreads the
 // layout over the room it has, so a wide box is used across its width and the dots and names
 // stay the size of the page's text.
@@ -14,6 +16,10 @@ import { radius } from './graph-data.mjs';
 
 const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const SPREAD = { tight: 0.7, normal: 1, loose: 1.5 };
+// The size a name is read at on the screen, in CSS pixels, and the size the stylesheet draws it at.
+export const LABEL_PX = 12;
+const DRAWN_PX = 11;
+const shortTitle = d => d.title.length > 42 ? `${d.title.slice(0, 40)}…` : d.title;
 
 export function createGraph(host, { kit, colour = () => 'var(--nendo-tone-grey)', onOpen = () => undefined, onContext = null, compact = false, label = 'Notes and their links' } = {}) {
   const d3 = window.d3;
@@ -27,7 +33,9 @@ export function createGraph(host, { kit, colour = () => 'var(--nendo-tone-grey)'
   const linkLayer = viewport.append('g').attr('class', 'links');
   const nodeLayer = viewport.append('g').attr('class', 'nodes');
 
-  let nodes = [], links = [], neighbours = new Map(), focus = null, hovered = null, dragging = false, hubs = new Set();
+  let nodes = [], links = [], neighbours = new Map(), focus = null, hovered = null, lit = null, dragging = false, hubs = new Set();
+  // The names in the order they claim room, and the size they are drawn at in the drawing's units.
+  let labelOrder = [], labelSize = DRAWN_PX;
   let transform = d3.zoomIdentity, width = 300, height = 200, firstLayout = true;
   // The stretch of each axis, from the layout's units to the drawing's; 1 on the graph screen.
   let sx = 1, sy = 1, arranged = false;
@@ -57,6 +65,7 @@ export function createGraph(host, { kit, colour = () => 'var(--nendo-tone-grey)'
     if (event.sourceEvent) arranged = true;
     transform = event.transform;
     viewport.attr('transform', transform);
+    sizeLabels();
     fadeLabels();
   });
   svg.call(zoom).on('dblclick.zoom', null);
@@ -82,6 +91,8 @@ export function createGraph(host, { kit, colour = () => 'var(--nendo-tone-grey)'
     const box = host.getBoundingClientRect();
     width = Math.max(120, box.width); height = Math.max(120, box.height);
     svg.attr('viewBox', [-width / 2, -height / 2, width, height].join(' '));
+    // A drawing shown after being hidden measures its names again: hidden, they measured nothing.
+    if (nodes.length) { sizeLabels({ again: true }); placeLabels(); }
   };
   const observer = new ResizeObserver(resize);
   observer.observe(host);
@@ -97,6 +108,7 @@ export function createGraph(host, { kit, colour = () => 'var(--nendo-tone-grey)'
       .attr('x1', d => px(d.source)).attr('y1', d => py(d.source))
       .attr('x2', d => endX(d)).attr('y2', d => endY(d));
     nodeLayer.selectAll('g.node').attr('transform', d => `translate(${px(d)},${py(d)})`);
+    placeLabels();
   }
   // With arrows, an edge stops at the rim of its target rather than its centre.
   const trim = (d, axis) => {
@@ -148,7 +160,8 @@ export function createGraph(host, { kit, colour = () => 'var(--nendo-tone-grey)'
       .classed('tag', d => d.type === 'tag')
       .classed('current', d => d.id === focus);
     all.select('circle').attr('r', d => size(d)).style('fill', d => colour(d));
-    all.select('text').attr('dy', d => size(d) + 12).text(d => d.title.length > 42 ? `${d.title.slice(0, 40)}…` : d.title);
+    all.select('text').text(shortTitle);
+    sizeLabels({ again: true });
 
     simulation.nodes(nodes);
     simulation.force('link').links(links);
@@ -183,6 +196,7 @@ export function createGraph(host, { kit, colour = () => 'var(--nendo-tone-grey)'
 
   /** Lights a node and its neighbours and dims the rest; null clears it. */
   function highlight(id) {
+    lit = id;
     const near = id === null ? null : new Set([id, ...(neighbours.get(id) ?? [])]);
     svg.classed('focusing', id !== null);
     nodeLayer.selectAll('g.node').classed('lit', d => near !== null && near.has(d.id));
@@ -215,16 +229,56 @@ export function createGraph(host, { kit, colour = () => 'var(--nendo-tone-grey)'
     return search(options.query);
   }
 
+  // A name keeps LABEL_PX on the screen: zoomed out, it is drawn larger in the drawing's units, and it
+  // sits under its dot by its own height. The local graph is stretched, not zoomed, so it keeps its size.
+  let sized = null;
+  function sizeLabels({ again = false } = {}) {
+    labelSize = compact ? DRAWN_PX : Math.max(DRAWN_PX, LABEL_PX / transform.k);
+    // A zoom past the size names keep on their own changes nothing on them.
+    if (!again && sized === labelSize) return;
+    sized = labelSize;
+    const texts = nodeLayer.selectAll('g.node').select('text');
+    if (compact) texts.attr('dy', d => size(d) + 12);
+    else texts.style('font-size', d => `${d.type === 'tag' ? labelSize * 10 / 11 : labelSize}px`).style('stroke-width', `${3 * labelSize / DRAWN_PX}px`)
+      .attr('dy', d => size(d) + labelSize * 1.05);
+    // Where each name sits around its note, as drawn: measured once for each size, not on every frame.
+    texts.each(function (d) {
+      try { const box = this.getBBox(); d.labelBox = box.width > 0 ? { x: box.x, y: box.y, width: box.width, height: box.height } : null; } catch { d.labelBox = null; }
+    });
+  }
+
   // Labels show when the drawing is near enough to read them, as Obsidian fades them in; the
-  // landmarks, and whatever is lit, found or current, always.
+  // landmarks, and whatever is lit, found or current, always, as far as there is room for them.
+  // Which claims room first: the note lit or current, its neighbours, what was found, the
+  // landmarks, then the rest by how many links they have; a name shown a moment ago keeps its place.
   function fadeLabels() {
     const small = nodes.length <= 24;
     const base = compact || small ? 1 : Math.max(0, Math.min(1, (transform.k - 1.1) / 0.5));
-    nodeLayer.selectAll('g.node').select('text').style('opacity', function (d) {
-      const node = this.parentNode;
-      if (node.classList.contains('lit') || node.classList.contains('match') || node.classList.contains('current') || hubs.has(d.id)) return 1;
-      return base;
+    const order = [];
+    nodeLayer.selectAll('g.node').each(function (d) {
+      const node = this.classList;
+      const rank = node.contains('current') || d.id === lit || d.id === hovered ? 0 : node.contains('lit') ? 1 : node.contains('match') ? 2 : hubs.has(d.id) ? 3 : 4;
+      order.push({ d, text: this.querySelector('text'), rank, opacity: rank < 4 ? 1 : base });
     });
+    order.sort((a, b) => a.rank - b.rank || (b.d.labelShown ? 1 : 0) - (a.d.labelShown ? 1 : 0) || b.d.degree - a.d.degree);
+    labelOrder = order;
+    placeLabels();
+  }
+  function placeLabels() {
+    const k = compact ? 1 : transform.k, placed = [];
+    const meets = box => placed.some(other => box.left < other.right && other.left < box.right && box.top < other.bottom && other.top < box.bottom);
+    for (const label of labelOrder) {
+      const { d, text, rank } = label;
+      let opacity = label.opacity;
+      if (opacity > 0 && d.labelBox) {
+        const x = transform.applyX(px(d)), y = transform.applyY(py(d)), b = d.labelBox;
+        const box = { left: x + b.x * k - 2, right: x + (b.x + b.width) * k + 2, top: y + b.y * k - 1, bottom: y + (b.y + b.height) * k + 1 };
+        if (rank > 0 && meets(box)) opacity = 0; else placed.push(box);
+      }
+      d.labelShown = opacity > 0;
+      // Written only when it changes: this runs on every frame of a layout.
+      if (text.style.opacity !== String(opacity)) text.style.opacity = String(opacity);
+    }
   }
 
   function setOptions(next) {

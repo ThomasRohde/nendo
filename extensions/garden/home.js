@@ -9,7 +9,7 @@
 import { buildGraph } from './graph-data.mjs';
 import { createGraph } from './graph.js';
 import { createFinder } from './search.mjs';
-import { overview, findNotes, whenTended } from './home-data.mjs';
+import { overview, findNotes, whenTended, PINNED, TAGS } from './home-data.mjs';
 import { handOver } from './handover.mjs';
 import { F } from './sync.mjs';
 
@@ -38,7 +38,9 @@ export async function startHome(nendo, context, kit) {
   document.body.classList.add('home-mode');
   const can = name => typeof nendo.has === 'function' && nendo.has(name);
   const locale = context.locale ?? 'en';
-  const state = { ready: false, records: null, view: null, picked: new Set(), unlinkedPicked: false, tagPicked: null, query: '', ids: null, found: [], active: -1, opened: [], problem: '' };
+  const state = { ready: false, records: null, view: null, picked: new Set(), unlinkedPicked: false, tagPicked: null, query: '', ids: null, found: [], active: -1, opened: [], problem: '',
+    // Whether Show all is open under the pinned cards and the tags; the rest wait behind it, counted.
+    all: { pinned: false, tags: false } };
   const expose = () => { window.gardenHome = state; };
 
   let stages = [];
@@ -48,7 +50,15 @@ export async function startHome(nendo, context, kit) {
   } catch { /* without the schema the stages come from the notes, in the order they are met */ }
   const tone = stage => stages.some(choice => choice.id === stage && choice.tone) ? kit.toneFor(stage, stages) : `var(--nendo-tone-${STAGE_TONES[stage] ?? 'grey'})`;
 
-  function showProblem(text) { state.problem = text; $('home-problem').textContent = text; $('home-problem').hidden = !text; expose(); }
+  // A read that failed says so, with Retry, rather than leaving a garden that looks empty.
+  function showProblem(text, { retry = false } = {}) {
+    state.problem = text;
+    $('home-problem').replaceChildren(...(text ? [element('span', { text })] : []),
+      ...(retry ? [' ', element('button', { type: 'button', className: 'link-like', 'data-retry': '', text: 'Retry' })] : []));
+    $('home-problem').hidden = !text;
+    expose();
+  }
+  $('home-problem').addEventListener('click', event => { if (event.target.closest('[data-retry]')) load({ refit: !state.ready }); });
 
   // ---- Going somewhere: a note in the Garden view, the Graph screen, a new note, today's note.
   async function inGarden(request, fallbackNote = null) {
@@ -71,6 +81,7 @@ export async function startHome(nendo, context, kit) {
   // ---- The graph: the whole garden, coloured by stage, as the buttons beside it that pick a stage out.
   const colour = node => tone(node.stage);
   const graph = createGraph($('home-graph'), { kit, colour, onOpen: node => openNote(node.id), label: 'The garden: notes and their links' });
+  state.graphState = () => graph.state();
 
   // What is picked out on the graph: the pressed stages, the unlinked notes, a tag, and what Find found.
   function applyPicks() {
@@ -161,14 +172,27 @@ export async function startHome(nendo, context, kit) {
     $('home-graph-action').hidden = !can('ui.openScreen');
 
     $('home-pinned-section').hidden = view.pinned.length === 0;
-    $('home-pinned').replaceChildren(...view.pinned.map(card));
+    $('home-pinned').replaceChildren(...view.pinned.slice(0, state.all.pinned ? undefined : PINNED).map(card));
+    more('pinned', view.pinned.length, PINNED, 'pinned notes');
 
     $('home-tags-card').hidden = view.tags.length === 0;
-    $('home-tags').replaceChildren(...view.tags.map(tag => element('li', {},
+    more('tags', view.tags.length, TAGS, 'tags');
+    $('home-tags').replaceChildren(...view.tags.slice(0, state.all.tags ? undefined : TAGS).map(tag => element('li', {},
       element('button', { type: 'button', className: `home-tag size-${tag.size}`, 'data-tag': tag.id, 'aria-pressed': 'false', title: `Pick out the ${tag.count} ${tag.count === 1 ? 'note' : 'notes'} tagged #${tag.name} on the graph` },
         `#${tag.name}`, element('span', { className: 'count', text: String(tag.count) })))));
     applyPicks();
   }
+
+  // Past the first few, the heading counts them all and Show all lists the rest: a ninth pin is never silently left out.
+  function more(part, total, shown, words) {
+    const over = total > shown, button = $(`home-${part}-more`);
+    $(`home-${part}-count`).textContent = over ? String(total) : '';
+    button.hidden = !over;
+    button.setAttribute('aria-expanded', String(state.all[part]));
+    button.textContent = state.all[part] ? 'Show fewer' : `Show all ${total} ${words}`;
+    state.shown = { ...state.shown, [part]: { shown: state.all[part] ? total : Math.min(total, shown), total } };
+  }
+  for (const part of ['pinned', 'tags']) $(`home-${part}-more`).addEventListener('click', () => { state.all[part] = !state.all[part]; draw(); $(`home-${part}-more`).focus(); });
 
   $('home-stages').addEventListener('click', event => {
     const button = event.target.closest('button[data-stage]');
@@ -213,9 +237,12 @@ export async function startHome(nendo, context, kit) {
       state.records = { notes, links, tags, noteTags };
       showProblem('');
     } catch (error) {
-      showProblem(`The garden could not be read: ${error.message}`);
+      showProblem(`The garden could not be read (${error.code ?? 'error'}): ${error.message}`, { retry: true });
+      // Never a garden that looks empty: until it has been read, the page shows only why not.
+      if (!state.ready) { $('home-hero').hidden = true; $('home-pinned-section').hidden = true; }
       return;
     }
+    $('home-hero').hidden = false;
     state.view = overview(state.records, { stages });
     // A tag or stage that is gone from the garden is let go.
     if (state.tagPicked && !state.view.tags.some(tag => tag.id === state.tagPicked)) state.tagPicked = null;

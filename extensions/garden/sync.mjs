@@ -6,9 +6,10 @@
 // deleted, a row it still says is kept (a task's done state and a link's context follow the body),
 // and a row somebody wrote by hand (source Manual) is never touched. Pure: it reads nothing.
 //
-//   plan({ note, title, body, parsed, index, existing, tags, today, newId }) -> { writes, problems, resolved, stubs }
+//   plan({ note, title, body, parsed, index, existing, tags, today, newId }) -> { writes, problems, resolved, stubs, removed }
+//   matchTasks(tasks, rows, { before })  -> Map from each of the body's tasks to its Checkbox row, if it has one
 
-import { slugify } from './parse.mjs';
+import { parse, slugify } from './parse.mjs';
 
 export const F = {
   note: { title: 'gd.note.title', slug: 'gd.note.slug', body: 'gd.note.body', summary: 'gd.note.summary', kind: 'gd.note.kind',
@@ -54,9 +55,10 @@ export function plan({ note = null, title, body, parsed, index = [], existing = 
   if (note === null) {
     noteId = newId('gd.note', slugify(title));
     const slug = freeSlug(slugify(title), index);
+    // What the note was started with (a Daily note's kind and date) fills in; what was written wins.
     writes.push({ op: 'create', entityId: 'gd.note', recordId: noteId, values: {
-      [F.note.title]: title.trim(), [F.note.slug]: slug, [F.note.body]: body, [F.note.kind]: 'Note', [F.note.stage]: 'Seed',
-      [F.note.pinned]: false, [F.note.touched]: today, ...values,
+      [F.note.kind]: 'Note', [F.note.stage]: 'Seed', [F.note.pinned]: false, [F.note.touched]: today, ...values,
+      [F.note.title]: title.trim(), [F.note.slug]: slug, [F.note.body]: body,
     } });
     noteRecord = { recordId: noteId, version: 1, slug, title: title.trim() };
     written.add(noteId);
@@ -98,12 +100,13 @@ export function plan({ note = null, title, body, parsed, index = [], existing = 
     resolved.set(link.target, stub);
   }
 
-  // 3. Tags the file has not got.
+  // 3. Tags the file has not got. Each new one takes an ID of its own, never one made from its name
+  // alone: #café and #cafe make the same slug, and a deleted tag's ID stays reserved (ADR-0023).
   const tagRecords = new Map(tags.map(tag => [String(tag.values?.[F.tag.name] ?? '').toLowerCase(), tag]));
   const tagFor = name => {
     let tag = tagRecords.get(name);
     if (tag === undefined) {
-      const recordId = freeId(`gd.tag.${slugify(name)}`, tags);
+      const recordId = newId('gd.tag', name);
       tag = { recordId, version: 1, values: { [F.tag.name]: name } };
       tagRecords.set(name, tag);
       writes.push({ op: 'create', entityId: 'gd.tag', recordId, values: { [F.tag.name]: name } });
@@ -146,38 +149,94 @@ export function plan({ note = null, title, body, parsed, index = [], existing = 
   }
   for (const row of bodyNoteTags) if (!wantedTags.has(row.values[F.noteTag.tag])) deletions.push({ op: 'delete', entityId: 'gd.noteTag', recordId: row.recordId, version: row.version });
 
-  // 6. Tasks from checkboxes, matched by the key their text makes, so a tick is an update, not a new task.
+  // 6. Tasks from checkboxes, each matched to its row (matchTasks), so a tick or a reworded line is an
+  // update that keeps the task's record and its due date, not a new task. A row the body no longer
+  // says is deleted, and named in `removed` so the view can say which went.
   const checkboxTasks = (existing.tasks ?? []).filter(row => row.values[F.task.source] === 'Checkbox');
-  const wantedKeys = new Set();
+  const matched = matchTasks(parsed.tasks, checkboxTasks, { before: note?.values?.[F.note.body] ?? '' });
+  const kept = new Set();
   for (const task of parsed.tasks) {
-    wantedKeys.add(task.key);
-    const row = checkboxTasks.find(row => row.values[F.task.key] === task.key);
+    const row = matched.get(task);
     if (row === undefined) {
       writes.push({ op: 'create', entityId: 'gd.task', recordId: newId('gd.task', `${noteRecord.slug}-${task.key}`), values: {
         [F.task.title]: task.text, [F.task.note]: noteId, [F.task.done]: task.done, [F.task.source]: 'Checkbox', [F.task.key]: task.key,
       }, ...targetVersions([[noteRecord, F.task.note]]) });
       continue;
     }
+    kept.add(row);
     const changed = {};
     if (row.values[F.task.done] !== task.done) changed[F.task.done] = task.done;
     if (row.values[F.task.title] !== task.text) changed[F.task.title] = task.text;
+    if (row.values[F.task.key] !== task.key) changed[F.task.key] = task.key;
     if (Object.keys(changed).length) writes.push({ op: 'update', entityId: 'gd.task', recordId: row.recordId, version: row.version, values: changed });
   }
-  for (const row of checkboxTasks) if (!wantedKeys.has(row.values[F.task.key])) deletions.push({ op: 'delete', entityId: 'gd.task', recordId: row.recordId, version: row.version });
+  const removed = [];
+  for (const row of checkboxTasks) {
+    if (kept.has(row)) continue;
+    deletions.push({ op: 'delete', entityId: 'gd.task', recordId: row.recordId, version: row.version });
+    removed.push({ recordId: row.recordId, text: String(row.values[F.task.title] ?? ''), due: row.values[F.task.due] ?? null });
+  }
 
   writes.push(...deletions);
   if (writes.length > BATCH_WRITES) problems.push(`This save needs ${writes.length} writes and a save makes at most ${BATCH_WRITES}. Split the note.`);
-  return { writes: problems.length ? [] : writes, problems, resolved, stubs };
+  return { writes: problems.length ? [] : writes, problems, resolved, stubs, removed };
+}
+
+const words = text => new Set(String(text ?? '').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
+/** How alike two lines' words are, from 0 to 1: twice the words they share over the words of both. */
+export function likeness(a, b) {
+  const x = words(a), y = words(b);
+  if (x.size + y.size === 0) return 1;
+  let shared = 0;
+  for (const word of x) if (y.has(word)) shared += 1;
+  return 2 * shared / (x.size + y.size);
+}
+export const LIKE = 0.5;
+
+/**
+ * Which Checkbox row each of the body's tasks is. A line that still says its task's words keeps its
+ * row: first one in the same place (`before` is the body as saved), then one moved, in their order,
+ * so of two lines that say the same, each keeps its own even when the words before them change. A
+ * line whose words changed then takes the row of the task its line said before, or failing that the
+ * row whose words are most like its own, at least LIKE alike. A task matched to nothing is new; a
+ * row matched to nothing is gone.
+ */
+export function matchTasks(tasks, rows, { before = '' } = {}) {
+  const matched = new Map(), used = new Set();
+  const pair = (task, row) => { matched.set(task, row); used.add(row); };
+  // The key of a task's words, without the -2, -3 its place among lines that say the same adds.
+  const textKey = key => String(key ?? '').replace(/-\d+$/, '');
+  const lineBefore = new Map(parse(before).tasks.map(task => [task.key, task.line]));
+  const oldLine = row => lineBefore.get(row.values[F.task.key]) ?? Infinity;
+  const free = () => rows.filter(row => !used.has(row));
+  for (const task of tasks) {
+    const row = free().find(row => textKey(row.values[F.task.key]) === textKey(task.key) && oldLine(row) === task.line);
+    if (row !== undefined) pair(task, row);
+  }
+  const moved = free().sort((a, b) => (oldLine(a) - oldLine(b) || 0) || String(a.values[F.task.key]).localeCompare(String(b.values[F.task.key])));
+  for (const task of tasks) {
+    if (matched.has(task)) continue;
+    const row = moved.find(row => !used.has(row) && textKey(row.values[F.task.key]) === textKey(task.key));
+    if (row !== undefined) pair(task, row);
+  }
+  const left = free();
+  if (left.length === 0) return matched;
+  const pairs = [];
+  for (const task of tasks) {
+    if (matched.has(task)) continue;
+    for (const row of left) {
+      const like = likeness(task.text, row.values[F.task.title]);
+      const inPlace = lineBefore.get(row.values[F.task.key]) === task.line;
+      if (inPlace || like >= LIKE) pairs.push({ task, row, score: (inPlace ? 2 : 0) + like });
+    }
+  }
+  pairs.sort((a, b) => b.score - a.score);
+  for (const { task, row } of pairs) if (!matched.has(task) && !used.has(row)) pair(task, row);
+  return matched;
 }
 
 function freeSlug(slug, taken) {
   const slugs = new Set(taken.map(note => note.slug));
   if (!slugs.has(slug)) return slug;
   for (let n = 2; ; n++) if (!slugs.has(`${slug}-${n}`)) return `${slug}-${n}`;
-}
-
-function freeId(id, taken) {
-  const ids = new Set(taken.map(record => record.recordId));
-  if (!ids.has(id)) return id;
-  for (let n = 2; ; n++) if (!ids.has(`${id}-${n}`)) return `${id}-${n}`;
 }

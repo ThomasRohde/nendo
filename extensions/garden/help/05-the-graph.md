@@ -36,7 +36,7 @@ Beside the graph is every tag, with how many notes carry it, the most carried fi
 - **A colour in the legend** highlights the notes of that branch, stage or kind, and together with tags, the notes that are both. **Find** narrows the highlight too.
 - Hover a note to see its own neighbours over the highlight. **Esc** or **Clear the highlight** ends it. The × hides the tags; **Tags** brings them back.
 
-> The most linked notes are always named; the other labels fade in as you zoom. Zoomed out, you see the shape of the garden; zoomed in, you read it.
+> The most linked notes are named, and the other labels fade in as you zoom. A name is never smaller than the page's small text, however far you zoom out, and never drawn over another: where two would meet, the less linked one waits until you zoom in. Zoomed out, you see the shape of the garden; zoomed in, you read it.
 
 ## Without a mouse
 

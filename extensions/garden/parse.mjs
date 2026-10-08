@@ -15,10 +15,14 @@ const INLINE_CODE = /`[^`\n]*`/g;
 export const EXCERPT_WIDTH = 200;
 export const SLUG_WIDTH = 64;
 
-/** The body's links, tags and tasks, in the order they appear, each once. */
+/**
+ * The body's links, tags and tasks, in the order they appear: a link or a tag once however often it
+ * is written, and every checkbox line, since two lines that say the same task are two tasks. Each
+ * keeps a key of its own: the key of its text, then -2, -3 for the lines after it that say it again.
+ */
 export function parse(body) {
   const links = [], tags = [], tasks = [];
-  const seenLinks = new Set(), seenTags = new Set(), seenTasks = new Set();
+  const seenLinks = new Set(), seenTags = new Set(), seenTasks = new Map();
   let fence = null;
   const lines = String(body ?? '').split(/\r?\n/);
   lines.forEach((line, number) => {
@@ -30,8 +34,9 @@ export function parse(body) {
     if (opening !== null) { fence = opening[1]; return; }
     const task = CHECKBOX.exec(line);
     if (task !== null) {
-      const text = task[2], key = fnv1a(normalise(text));
-      if (!seenTasks.has(key)) { seenTasks.add(key); tasks.push({ text, done: task[1] !== ' ', key, line: number }); }
+      const text = task[2], base = fnv1a(normalise(text)), nth = (seenTasks.get(base) ?? 0) + 1;
+      seenTasks.set(base, nth);
+      tasks.push({ text, done: task[1] !== ' ', key: nth === 1 ? base : `${base}-${nth}`, line: number });
     }
     // Inline code keeps its width, so an excerpt's window lands where the match is.
     const scan = line.replace(INLINE_CODE, code => ' '.repeat(code.length));

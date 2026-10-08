@@ -21,6 +21,15 @@ test('the body\'s tasks come in its order, as the draft says them, with what the
   assert.ok(!tasks.some(task => task.recordId === 'gd.task.gone'), 'a record the body no longer says is not shown');
 });
 
+test('a reworded line keeps its record and due date in the strip before it is saved (G-013), and repeated lines are two tasks (G-011)', () => {
+  const before = '- [ ] Call Sam';
+  const records = [record('gd.task.sam', { 'gd.task.title': 'Call Sam', 'gd.task.done': false, 'gd.task.source': 'Checkbox', 'gd.task.key': parse(before).tasks[0].key, 'gd.task.due': '2026-10-09' })];
+  const [sam] = noteTasks(parse('- [ ] Call Sam tomorrow').tasks, records, { before });
+  assert.deepEqual([sam.recordId, sam.due], ['gd.task.sam', '2026-10-09']);
+  const twice = noteTasks(parse('- [ ] Repeat\n- [x] Repeat').tasks, []);
+  assert.deepEqual([taskProgress(twice).done, taskProgress(twice).total], [1, 2]);
+});
+
 test('tasks added by hand follow the body\'s, with no line, and tick their record', () => {
   const tasks = noteTasks(parse(body).tasks, [record('gd.task.call', { 'gd.task.title': 'Call the nursery', 'gd.task.done': false, 'gd.task.source': 'Manual' })]);
   const last = tasks.at(-1);

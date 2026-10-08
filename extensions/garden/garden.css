@@ -75,7 +75,7 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 /* A muted yellow from the theme's amber tone, so Find's marks read as a highlighter in Light and Dark. */
 :root { --find-mark: color-mix(in srgb, var(--nendo-tone-amber, #a37608) 30%, transparent); }
 ::highlight(garden-find) { color: var(--ink); background-color: var(--find-mark); }
-#tree-empty { margin: 12px; color: var(--muted); }
+#tree-empty, #tree-none { margin: 12px; color: var(--muted); }
 
 #main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 #own-toolbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
@@ -84,6 +84,10 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 #status:empty { display: none; }
 #status.external { color: var(--warning); }
 #problem { margin: 0; padding: 8px 16px; border-bottom: 1px solid var(--danger); color: var(--danger); background: var(--panel); }
+#drafts-warning { margin: 0; padding: 8px 16px; border-bottom: 1px solid var(--warning); color: var(--ink); background: var(--panel); }
+#app button.link-like { display: inline; margin: 0; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+#problem button.link-like { color: inherit; }
+#tree .row.unsaved .name { font-style: italic; }
 #empty { margin: 40px; color: var(--muted); text-align: center; }
 #empty p { margin: 0 0 12px; }
 #note { flex: 1; min-height: 0; overflow: auto; padding: 16px 28px 32px; }
@@ -472,6 +476,8 @@ body.home-mode { overflow: auto; height: auto; min-height: 100vh; }
 .home-tag { display: inline-flex; align-items: baseline; gap: 5px; padding: 3px 9px; border-color: transparent; background: var(--soft); }
 .home-tag .count { color: var(--muted); font-size: 11px; }
 .home-tag.size-1 { font-size: 12px; } .home-tag.size-2 { font-size: 13px; } .home-tag.size-3 { font-size: 14px; } .home-tag.size-4 { font-size: 16px; }
+.home-more, #home-problem .link-like { padding: 0; border: 0; background: none; color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.home-more { margin-top: 10px; }
 @media (max-width: 760px) {
   #home { padding: 12px 16px 32px; }
   #home-side { max-width: none; border-right: 0; border-bottom: 1px solid var(--line); }

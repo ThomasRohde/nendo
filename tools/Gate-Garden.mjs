@@ -459,7 +459,8 @@ async page => {
   await command('save');
   await frame.waitForFunction(() => document.getElementById('problem').textContent.includes('kept'));
   assert((await state()).dirty === true, 'A refused save must keep the draft.');
-  await page.evaluate(() => { window.broker.touch('gd.note', 'gd.note.start-here'); window.broker.pushChanges(); });
+  // Somebody else changes the body: the draft is not saved over it.
+  await page.evaluate(() => { const r = window.broker.record('gd.note', 'gd.note.start-here'); r.version += 1; r.values['gd.note.body'] += '\nWritten elsewhere.'; window.broker.put('gd.note', r); window.broker.pushChanges(); });
   await frame.waitForFunction(() => document.getElementById('status').textContent.includes('changed elsewhere'));
   const blockedBefore = await requests('records.batch');
   await command('save');
@@ -711,6 +712,29 @@ async page => {
   await page.screenshot({ path: '__OUTPUT__/graph-tags.png', fullPage: true });
   checks.push('highlight by tag');
 
+  // A graph is measured once it has settled and its last framing has ended, never after a fixed
+  // time: a busy desktop runs the layout late (the Overview's and the Graph screen's graph).
+  const graphAt = which => frame.evaluate(which => { const s = which === 'home' ? window.gardenHome.graphState() : window.gardenGraph.state(); return { alpha: s.alpha, k: s.k, x: s.x, y: s.y }; }, which);
+  const settleGraph = async which => {
+    for (let i = 0; i < 80; i++) {
+      const a = await graphAt(which);
+      await page.waitForTimeout(250);
+      const b = await graphAt(which);
+      if (a.alpha < 0.02 && b.alpha < 0.02 && a.k === b.k && Math.abs(a.x - b.x) < 0.01 && Math.abs(a.y - b.y) < 0.01) return b;
+    }
+    throw Error(`The ${which} graph never settled: ${JSON.stringify(await graphAt(which))}.`);
+  };
+  // The names a graph shows: how large the smallest reads on the screen, and every pair drawn over each other.
+  const labelLayout = host => frame.evaluate(host => {
+    const shown = [...document.querySelectorAll(`${host} .node .label`)].filter(label => Number(getComputedStyle(label).opacity) > 0.5);
+    const names = shown.map(label => ({ name: label.textContent, box: label.getBoundingClientRect(), px: parseFloat(getComputedStyle(label).fontSize) * label.getScreenCTM().a }));
+    const overlaps = [];
+    for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) {
+      const a = names[i].box, b = names[j].box;
+      if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1) overlaps.push([names[i].name, names[j].name]);
+    }
+    return { shown: names.length, smallest: names.length ? +Math.min(...names.map(n => n.px)).toFixed(2) : null, overlaps };
+  }, host);
   // A dense garden (the owner, 2026-10-07: a hundred notes were big dots under a mesh of names and
   // lines): the layout takes the window's shape, dots stay small, only the landmarks are named until
   // the person zooms in, and the links are drawn light.
@@ -728,7 +752,7 @@ async page => {
   frame = await mounted();
   await frame.waitForFunction(() => window.gardenGraph?.ready === true, { timeout: 15000 });
   await page.mouse.move(2, 2);
-  await page.waitForTimeout(2500);
+  await settleGraph('graph');
   const crowd = await frame.evaluate(() => {
     const canvas = document.getElementById('graph-canvas').getBoundingClientRect();
     const circles = [...document.querySelectorAll('#graph-canvas .node circle')].map(c => c.getBoundingClientRect());
@@ -846,10 +870,24 @@ async page => {
     .catch(async () => { throw Error('New note must close the guide and open a new note in Edit: ' + JSON.stringify(await frame.evaluate(() => ({ hidden: document.getElementById('guide').hidden, mode: window.garden.mode, note: window.garden.note?.recordId ?? null })))); });
   checks.push('Garden guide');
 
-  await frame.evaluate(() => localStorage.clear());
-  await page.evaluate(fixture => { window.broker.setFixture(fixture); window.broker.remount(); }, fixture);
-  await page.waitForTimeout(300);
-  frame = await mounted();
+  // A fresh start. A Garden view keeps its drafts as it stops (pagehide), so the package's storage is
+  // cleared from a screen of the package that keeps none, the Backlinks panel, before the next one
+  // starts: storage cleared under a running Garden view would be written again as it stops.
+  const freshStart = async (fx, { context = fx.context, failFirst = null, drafts = null } = {}) => {
+    const panel = { ...fx.context, viewId: 'gd.note.page.backlinks', kind: 'extensionRecordPanel', placement: 'recordPage', recordId: 'gd.note.how-links-work', title: 'Backlinks' };
+    await page.evaluate(({ fx, panel }) => { window.broker.setFixture({ ...fx, context: panel }); window.broker.remount(); }, { fx, panel });
+    await page.waitForTimeout(300);
+    frame = await mounted();
+    await frame.evaluate(drafts => { localStorage.clear(); if (drafts) localStorage.setItem('garden.drafts.v1.gd.garden', JSON.stringify(drafts)); }, drafts);
+    await page.evaluate(({ fx, context, failFirst }) => {
+      window.broker.setFixture({ ...fx, context });
+      if (failFirst) window.broker.fail('records.query', { code: 'host-timeout', message: failFirst }, 1);
+      window.broker.remount();
+    }, { fx, context, failFirst });
+    await page.waitForTimeout(300);
+    frame = await mounted();
+  };
+  await freshStart(fixture);
   await frame.waitForFunction(() => window.garden?.ready === true && window.garden.note?.recordId === 'gd.note.start-here' && !window.garden.dirty);
   const type = text => frame.evaluate(text => { const e = document.getElementById('editor'); e.value = text; e.dispatchEvent(new Event('input', { bubbles: true })); }, text);
   const editorText = () => frame.evaluate(() => document.getElementById('editor').value);
@@ -952,9 +990,10 @@ async page => {
   // that note and no other, in bold in the tree; opened, the note shows the word highlighted in the
   // reading view, and in Edit on the layer behind the editor, laid out as the editor lays out its
   // text; and with no index the view still finds the note in the bodies it holds.
-  await page.evaluate(fixture => { window.broker.offerSearch(true); window.broker.setFixture(fixture); window.broker.remount(); }, fixture);
-  await page.waitForTimeout(300);
-  frame = await mounted();
+  // The fixture starts again, so the drafts written over the last one's notes go too: a draft is
+  // never let go by opening its note again (G-002).
+  await page.evaluate(() => window.broker.offerSearch(true));
+  await freshStart(fixture);
   await frame.waitForFunction(() => window.garden?.ready === true, null, { timeout: 15000 });
   const seedNotesNow = await records('gd.note');
   const tokensOf = value => String(value ?? '').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
@@ -1326,6 +1365,367 @@ async page => {
   assert(tendNarrow.scroll <= tendNarrow.width, `At 600 px Tend must not scroll sideways: ${JSON.stringify(tendNarrow)}.`);
   await page.setViewportSize({ width: 1440, height: 900 });
   checks.push('tend: untended seeds and growing notes by span, notes not written yet, Mark growing and its Undo, Tended today, Light and Dark');
+
+  // 23. The review of 2026-10-08 (GARDEN.md, G-001 to G-015): each finding measured where the person
+  // meets it. A failure names the finding.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const workspaceAgain = async (options = {}) => {
+    await page.evaluate(() => window.broker.pushTheme('light'));
+    await freshStart(fixture, options);
+    await frame.waitForFunction(() => window.garden?.ready === true && window.garden.note?.recordId === 'gd.note.start-here' && !window.garden.dirty, null, { timeout: 15000 });
+  };
+  // The view started again, as Nendo starts it when the person comes back to the screen.
+  const restart = async () => {
+    await page.evaluate(() => window.broker.remount());
+    await page.waitForTimeout(300);
+    frame = await mounted();
+    await frame.waitForFunction(() => window.garden?.ready === true, null, { timeout: 15000 });
+  };
+  const setTitle = text => frame.evaluate(text => { const t = document.getElementById('title'); t.value = text; t.dispatchEvent(new Event('input', { bubbles: true })); }, text);
+  // Something that makes the view read its note again, and the moment after that read.
+  const reread = async act => {
+    const before = await requests('records.get');
+    await act();
+    await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.get').length > n, before, { timeout: 3000 });
+    await page.waitForTimeout(300);
+  };
+  const draftNow = async () => ({ title: await frame.evaluate(() => document.getElementById('title').value), editor: await editorText(), ...(await state()) });
+  const unsavedRows = () => frame.evaluate(() => [...document.querySelectorAll('#tree .row.unsaved')].map(r => r.querySelector('.name').textContent));
+  const savedNow = () => frame.waitForFunction(() => window.garden.saving === false && window.garden.dirty === false, null, { timeout: 5000 });
+  const openRow = async id => { await frame.locator(`#tree .row[data-id="${id}"]`).click(); await frame.waitForFunction(id => window.garden.note?.recordId === id, id, { timeout: 5000 }); await page.waitForTimeout(200); };
+
+  // G-002: reading the open note again (its row, a link to itself, a command on it, a change
+  // elsewhere that leaves its text alone) keeps what is being written over it.
+  await workspaceAgain();
+  await command('mode', 'edit');
+  await frame.waitForFunction(() => window.garden.mode === 'edit');
+  const overSame = 'UNSAVED same note click, and [[start-here]] again';
+  await type(overSame);
+  await reread(() => frame.locator('#tree .row[data-id="gd.note.start-here"]').click());
+  let over = await draftNow();
+  assert(over.editor === overSame && over.dirty && !over.external, `G-002: activating the open note's row must keep its unsaved text: ${JSON.stringify(over)}.`);
+  await command('mode', 'view');
+  await frame.waitForFunction(() => window.garden.mode === 'read');
+  await reread(() => frame.locator('#reading-body a.wikilink[data-id="gd.note.start-here"]').click());
+  over = await draftNow();
+  assert(over.editor === overSame && over.dirty && !over.external, `G-002: a link to the open note must keep its unsaved text: ${JSON.stringify(over)}.`);
+  const stagedBefore = (await state()).version;
+  await reread(() => command('evergreen'));
+  await frame.waitForFunction(v => window.garden.note?.version > v, stagedBefore, { timeout: 3000 });
+  over = await draftNow();
+  assert(over.editor === overSame && over.dirty && !over.external, `G-002: a command on the open note must keep its unsaved text, and its stage changed under it must not block it: ${JSON.stringify(over)}.`);
+  await reread(() => page.evaluate(() => { window.broker.touch('gd.note', 'gd.note.start-here'); window.broker.pushChanges(); }));
+  over = await draftNow();
+  assert(over.editor === overSame && over.dirty && !over.external, `G-002: a change elsewhere that leaves the text alone must not block the draft: ${JSON.stringify(over)}.`);
+  await command('save');
+  await savedNow().catch(async () => { throw Error(`G-002: the draft must save over the version it moved onto: ${JSON.stringify(await draftNow())}.`); });
+  assert(await storedBody('gd.note.start-here') === overSame, 'G-002: what was written is what is stored.');
+  // A change elsewhere to the text: the person chooses, Keep mine saves over it.
+  await type('MINE, over theirs');
+  await reread(() => page.evaluate(() => { const r = window.broker.record('gd.note', 'gd.note.start-here'); r.version += 1; r.values['gd.note.body'] = 'THEIRS'; window.broker.put('gd.note', r); window.broker.pushChanges(); }));
+  assert((await state()).external && await frame.locator('#status button[data-external="keep"]').count() === 1, 'G-002: a change elsewhere to the text must offer Keep mine.');
+  await frame.locator('#status button[data-external="keep"]').click();
+  await command('save');
+  await savedNow();
+  assert(await storedBody('gd.note.start-here') === 'MINE, over theirs', 'G-002: Keep mine saves the draft over the change.');
+  checks.push('G-002 the open note read again keeps its draft');
+
+  // G-003: a second New note, or Today, never writes over a new note not saved yet: it waits in the
+  // tree, and Today goes back to today's note while it is unsaved; both outlast a restart.
+  await command('new');
+  await setTitle('Unsaved new');
+  await type('UNSAVED NEW BODY');
+  await command('new');
+  await page.waitForTimeout(200);
+  const second = { ...(await draftNow()), rows: await unsavedRows() };
+  assert(second.title === '' && second.editor === '' && second.rows.includes('Unsaved new'), `G-003: a second New note must start empty and keep the first in the tree: ${JSON.stringify(second)}.`);
+  await command('daily');
+  await frame.waitForFunction(day => document.getElementById('title').value === day, localToday(), { timeout: 3000 });
+  await type('UNSAVED DAILY');
+  await frame.locator('#tree .row.unsaved', { hasText: 'Unsaved new' }).click();
+  await frame.waitForFunction(() => document.getElementById('title').value === 'Unsaved new', null, { timeout: 3000 });
+  assert(await editorText() === 'UNSAVED NEW BODY', 'G-003: the first new note comes back as it was written.');
+  await command('daily');
+  await frame.waitForFunction(() => document.getElementById('editor').value === 'UNSAVED DAILY', null, { timeout: 3000 })
+    .catch(async () => { throw Error(`G-003: Today must go back to today's unsaved note: ${JSON.stringify(await draftNow())}.`); });
+  await restart();
+  const afterRestart = await unsavedRows();
+  assert(afterRestart.includes('Unsaved new') && afterRestart.includes(localToday()), `G-003: both unsaved new notes outlast a restart: ${JSON.stringify(afterRestart)}.`);
+  checks.push('G-003 New note and Today never write over an unsaved new note');
+
+  // G-008: a save kept but never answered is one note, not two, after the view starts again; and an
+  // existing note's lost answer leaves no stale draft.
+  await command('new');
+  await setTitle('Unanswered new');
+  await type('Kept once, across a restart.');
+  await page.evaluate(() => window.broker.drop('records.batch', { code: 'host-timeout', message: 'The Desktop host did not respond.' }));
+  await command('save');
+  await frame.waitForFunction(() => window.garden.saving === false && /did not answer/.test(window.garden.problem ?? ''), null, { timeout: 5000 });
+  await page.waitForTimeout(300);
+  await restart();
+  const lostNew = { notes: (await records('gd.note')).filter(n => n.values['gd.note.title'] === 'Unanswered new').length, rows: await unsavedRows(), unanswered: await frame.evaluate(() => window.garden.unanswered) };
+  assert(lostNew.notes === 1 && !lostNew.rows.includes('Unanswered new') && lostNew.unanswered === null, `G-008: a new note kept but unanswered must be one note after a restart, its draft spent: ${JSON.stringify(lostNew)}.`);
+  const unansweredNote = (await records('gd.note')).find(n => n.values['gd.note.title'] === 'Unanswered new');
+  await openRow(unansweredNote.recordId);
+  await type('Kept once, across a restart. And more.');
+  await command('save');
+  await savedNow();
+  assert((await records('gd.note')).filter(n => n.values['gd.note.title'] === 'Unanswered new').length === 1, 'G-008: saving the note again writes the same note.');
+  await openRow('gd.note.daily-notes');
+  await type('Daily notes, answered late.');
+  await page.evaluate(() => window.broker.drop('records.batch', { code: 'host-timeout', message: 'The Desktop host did not respond.' }));
+  await command('save');
+  await frame.waitForFunction(() => window.garden.saving === false && /did not answer/.test(window.garden.problem ?? ''), null, { timeout: 5000 });
+  await page.waitForTimeout(300);
+  await restart();
+  await openRow('gd.note.daily-notes');
+  const lostOld = await draftNow();
+  assert(lostOld.editor === 'Daily notes, answered late.' && !lostOld.dirty && !lostOld.external && lostOld.problem === null,
+    `G-008: an existing note whose save was kept unanswered must read as saved after a restart, not as changed elsewhere: ${JSON.stringify(lostOld)}.`);
+  checks.push('G-008 an unanswered save is kept once across a restart');
+
+  // G-001: drafts this device cannot keep are named, each a way back to save it: one past the count,
+  // and every one when the storage refuses.
+  await workspaceAgain({ drafts: Array.from({ length: 50 }, (_, i) => ({ id: `new:ghost${i}`, title: `Ghost ${i}`, body: 'boo', version: null, hash: null, values: {}, at: 1000 + i })) });
+  await openRow('gd.note.how-links-work');
+  await type('One draft more than this device keeps.');
+  await frame.waitForFunction(() => !document.getElementById('drafts-warning').hidden, null, { timeout: 3000 })
+    .catch(() => { throw Error('G-001: a draft past the count must be named, not let go in silence.'); });
+  const warned = await frame.evaluate(() => ({ text: document.getElementById('drafts-warning').textContent, buttons: [...document.querySelectorAll('#drafts-warning button[data-draft]')].map(b => [b.dataset.draft, b.textContent]) }));
+  assert(JSON.stringify(warned.buttons) === JSON.stringify([['new:ghost0', 'Ghost 0']]) && /lost if Garden closes/.test(warned.text), `G-001: the draft past the count must be named with a way to it: ${JSON.stringify(warned)}.`);
+  await frame.locator('#drafts-warning button[data-draft="new:ghost0"]').click();
+  await frame.waitForFunction(() => document.getElementById('title').value === 'Ghost 0' && window.garden.note === null, null, { timeout: 3000 });
+  await frame.evaluate(() => { window.reviewSetItem = Storage.prototype.setItem; Storage.prototype.setItem = function (key, value) { if (String(key).startsWith('garden.drafts')) throw new DOMException('The quota has been exceeded.', 'QuotaExceededError'); return window.reviewSetItem.call(this, key, value); }; });
+  await type('Typed while this device keeps nothing.');
+  await frame.waitForFunction(() => /not keeping drafts/.test(document.getElementById('drafts-warning').textContent), null, { timeout: 3000 })
+    .catch(async () => { throw Error(`G-001: storage that refuses must be said: ${await frame.evaluate(() => document.getElementById('drafts-warning').textContent)}.`); });
+  const refusedAll = await frame.evaluate(() => document.querySelectorAll('#drafts-warning button[data-draft]').length);
+  await frame.evaluate(() => { Storage.prototype.setItem = window.reviewSetItem; });
+  assert(refusedAll === 51, `G-001: with storage refusing, every unsaved draft is named: ${refusedAll}.`);
+  checks.push('G-001 drafts this device cannot keep are named, with a way to each');
+
+  // G-005: a search that finds nothing says so, and Clear Find brings the notes back.
+  await workspaceAgain();
+  await command('find', 'NO_NOTE_HAS_THIS_TEXT_123');
+  await frame.waitForFunction(() => !document.getElementById('tree-none').hidden, null, { timeout: 3000 })
+    .catch(() => { throw Error('G-005: a search with no match must say so.'); });
+  const noMatch = await frame.evaluate(() => ({ text: document.getElementById('tree-none').textContent, onboarding: !document.getElementById('tree-empty').hidden, rows: document.querySelectorAll('#tree .row').length }));
+  assert(noMatch.rows === 0 && /No note matches “NO_NOTE_HAS_THIS_TEXT_123”/.test(noMatch.text) && !noMatch.onboarding, `G-005: no match is not an empty garden: ${JSON.stringify(noMatch)}.`);
+  await frame.locator('#tree-none-clear').click();
+  await frame.waitForFunction(n => document.querySelectorAll('#tree .row').length === n && document.getElementById('tree-none').hidden, seedNotes, { timeout: 3000 });
+  await page.waitForFunction(() => window.broker.toolbars.at(-1).items.find(i => i.id === 'find')?.value === '', null, { timeout: 2000 })
+    .catch(() => { throw Error('G-005: Clear Find must clear Nendo\'s search box too.'); });
+  checks.push('G-005 a search with no match says so and clears');
+
+  // G-004: #café and #cafe are two tags, saved in one batch; a tag deleted elsewhere is made again under an ID of its own.
+  await openRow('gd.note.how-links-work');
+  const linksBody = await editorText();
+  await type(`${linksBody}\n\nCoffee notes #café #cafe #日本`);
+  await command('save');
+  await savedNow().catch(async () => { throw Error(`G-004: distinct tags with one slug must save: ${JSON.stringify(await draftNow())}.`); });
+  const madeTags = (await records('gd.tag')).filter(t => ['café', 'cafe', '日本'].includes(t.values[F.tagName]));
+  assert(madeTags.length === 3 && new Set(madeTags.map(t => t.recordId)).size === 3, `G-004: three tags, three IDs: ${JSON.stringify(madeTags.map(t => t.recordId))}.`);
+  const cafeId = madeTags.find(t => t.values[F.tagName] === 'cafe').recordId;
+  await reread(() => frame.evaluate(async cafeId => {
+    const cafe = (await window.nendo.records.queryAll({ entityId: 'gd.tag' }, { max: 100 })).find(t => t.recordId === cafeId);
+    const joins = (await window.nendo.records.queryAll({ entityId: 'gd.noteTag' }, { max: 200 })).filter(r => r.values['gd.noteTag.tag'] === cafeId);
+    await window.nendo.records.batch([...joins.map(r => ({ op: 'delete', entityId: 'gd.noteTag', recordId: r.recordId, version: r.version })), { op: 'delete', entityId: 'gd.tag', recordId: cafe.recordId, version: cafe.version }], { label: 'Review: a tag deleted elsewhere' });
+  }, cafeId));
+  await type(`${linksBody}\n\nCoffee notes #café #cafe #日本, again`);
+  await command('save');
+  await savedNow().catch(async () => { throw Error(`G-004: a tag deleted and written again must save: ${JSON.stringify(await draftNow())}.`); });
+  const cafeAgain = (await records('gd.tag')).find(t => t.values[F.tagName] === 'cafe');
+  assert(cafeAgain && cafeAgain.recordId !== cafeId, `G-004: the tag made again takes a new ID: ${JSON.stringify(cafeAgain)}.`);
+  checks.push('G-004 tags with one slug, and a tag made again, save');
+
+  // G-010: a related read that fails is said, and Save writes nothing until it can read them all; then the rows are the same rows.
+  const rowsOf = async id => ({ noteTags: (await records('gd.noteTag')).filter(r => r.values[F.noteTagNote] === id).map(r => r.recordId).sort(),
+    tasks: (await records('gd.task')).filter(r => r.values[F.taskNote] === id).map(r => r.recordId).sort() });
+  const tagsAndTasks = await rowsOf('gd.note.tags-and-tasks');
+  await page.evaluate(() => window.broker.fail('records.query', { code: 'host-timeout', message: 'Review: a related read refused.' }, 1));
+  await frame.locator('#tree .row[data-id="gd.note.tags-and-tasks"]').click();
+  await frame.waitForFunction(() => /could not be read/.test(window.garden.problem ?? '') && !!document.querySelector('#problem button[data-retry]'), null, { timeout: 5000 })
+    .catch(async () => { throw Error(`G-010: a related read that fails must be said, with Retry: ${await frame.evaluate(() => window.garden.problem)}.`); });
+  await type(`${await editorText()}\n\nOne harmless sentence more.`);
+  const refusedBatches = await requests('records.batch');
+  await page.evaluate(() => window.broker.fail('records.query', { code: 'host-timeout', message: 'Review: a related read refused.' }, 1));
+  await command('save');
+  await frame.waitForFunction(() => window.garden.saving === false && /Nothing was saved/.test(window.garden.problem ?? ''), null, { timeout: 5000 })
+    .catch(async () => { throw Error(`G-010: a save that could not read the note's rows must say nothing was saved, and send nothing: ${JSON.stringify({ problem: (await state()).problem, batches: await requests('records.batch') - refusedBatches })}.`); });
+  assert(await requests('records.batch') === refusedBatches, 'G-010: a save that could not read the note\'s rows must send no batch.');
+  await command('save');
+  await savedNow();
+  const afterRetry = await rowsOf('gd.note.tags-and-tasks');
+  assert(JSON.stringify(afterRetry) === JSON.stringify(tagsAndTasks), `G-010: the note's rows must be the same rows after the save: ${JSON.stringify({ before: tagsAndTasks, after: afterRetry })}.`);
+  checks.push('G-010 a failed related read never duplicates rows');
+
+  // G-011 and G-013: two lines that say the same task are two tasks, each ticked on its own; a task
+  // reworded in place keeps its record and its due date.
+  await openRow('gd.note.daily-notes');
+  await type('Twice:\n- [ ] Repeat\n- [ ] Repeat');
+  await command('save');
+  await savedNow();
+  await command('mode', 'view');
+  await frame.waitForFunction(() => window.garden.mode === 'read' && window.garden.taskStrip.total === 2, null, { timeout: 3000 })
+    .catch(async () => { throw Error(`G-011: two Repeat lines must be two tasks in the strip: ${JSON.stringify(await frame.evaluate(() => window.garden.taskStrip))}.`); });
+  await frame.locator('#reading-body input[type=checkbox][data-line="2"]').click();
+  await frame.waitForFunction(() => window.garden.taskStrip.done === 1 && window.garden.dirty === false && window.garden.saving === false, null, { timeout: 5000 });
+  const repeats = (await records('gd.task')).filter(t => t.values[F.taskNote] === 'gd.note.daily-notes' && t.values[F.taskTitle] === 'Repeat');
+  assert(repeats.length === 2 && repeats.filter(t => t.values[F.taskDone]).length === 1 && new Set(repeats.map(t => t.values['gd.task.key'])).size === 2, `G-011: two task records with their own keys, the second done: ${JSON.stringify(repeats.map(t => t.values))}.`);
+  const firstRepeat = repeats.find(t => !t.values[F.taskDone]);
+  await reread(() => page.evaluate(id => { const r = window.broker.record('gd.task', id); r.version += 1; r.values['gd.task.due'] = '2026-10-09'; window.broker.put('gd.task', r); window.broker.pushChanges(); }, firstRepeat.recordId));
+  await type('Twice:\n- [ ] Repeat with far more words now\n- [x] Repeat');
+  await command('save');
+  await savedNow();
+  const reworded = (await records('gd.task')).find(t => t.recordId === firstRepeat.recordId);
+  assert(reworded && reworded.values[F.taskTitle] === 'Repeat with far more words now' && reworded.values['gd.task.due'] === '2026-10-09',
+    `G-013: a task reworded in place keeps its record and due date: ${JSON.stringify(reworded)}.`);
+  checks.push('G-011 repeated task lines are tasks of their own; G-013 a reworded task keeps its due date');
+
+  // G-012: a garden that could not be read says so, with Retry, never as an empty garden; a refresh
+  // that fails holds Save back until Retry reads it.
+  await freshStart(fixture, { failFirst: 'Review: initial index unavailable' });
+  await frame.waitForFunction(() => /could not be read/.test(window.garden?.problem ?? ''), null, { timeout: 15000 })
+    .catch(() => { throw Error('G-012: a garden that could not be read must say so.'); });
+  const unread = await frame.evaluate(() => ({ ready: window.garden.ready, retry: !!document.querySelector('#problem button[data-retry]'), shown: !document.getElementById('problem').hidden,
+    pick: !document.getElementById('empty').hidden, onboarding: !document.getElementById('tree-empty').hidden }));
+  assert(!unread.ready && unread.retry && unread.shown && !unread.pick && !unread.onboarding, `G-012: no empty garden, an error with Retry: ${JSON.stringify(unread)}.`);
+  await frame.locator('#problem button[data-retry]').click();
+  await frame.waitForFunction(() => window.garden.ready && window.garden.note?.recordId === 'gd.note.start-here' && document.getElementById('problem').hidden, null, { timeout: 5000 });
+  await type('Typed while the garden cannot be read.');
+  await page.evaluate(() => { window.broker.fail('records.query', { code: 'host-timeout', message: 'Review: refresh unavailable' }, 1); window.broker.touch('gd.note', 'gd.note.daily-notes'); window.broker.pushChanges(); });
+  await frame.waitForFunction(() => window.garden.indexCurrent === false && !!document.querySelector('#problem button[data-retry]'), null, { timeout: 5000 });
+  const heldBack = await requests('records.batch');
+  await command('save');
+  await page.waitForTimeout(300);
+  assert(await requests('records.batch') === heldBack && /Nothing was saved/.test((await state()).problem ?? ''), 'G-012: Save must wait while the garden could not be read.');
+  await frame.locator('#problem button[data-retry]').click();
+  await frame.waitForFunction(() => window.garden.indexCurrent === true, null, { timeout: 5000 });
+  await command('save');
+  await savedNow();
+  checks.push('G-012 a garden that could not be read says so, with Retry');
+
+  // G-007: following a link from the keyboard puts the keyboard on the new note's title, and Back on the link again.
+  await workspaceAgain();
+  const followed = await frame.evaluate(() => document.querySelector('#reading-body a.wikilink[data-id]').dataset.id);
+  await frame.locator(`#reading-body a.wikilink[data-id="${followed}"]`).first().focus();
+  await page.keyboard.press('Enter');
+  await frame.waitForFunction(id => window.garden.note?.recordId === id, followed, { timeout: 5000 });
+  await frame.waitForFunction(() => document.activeElement?.id === 'reading-title', null, { timeout: 2000 })
+    .catch(async () => { throw Error(`G-007: the keyboard must land on the opened note's title: ${await frame.evaluate(() => document.activeElement?.outerHTML.slice(0, 80))}.`); });
+  await page.evaluate(() => window.broker.pushPlace({ noteId: 'gd.note.start-here' }));
+  await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here', null, { timeout: 5000 });
+  await frame.waitForFunction(id => document.activeElement?.matches?.(`#reading-body a.wikilink[data-id="${id}"]`), followed, { timeout: 2000 })
+    .catch(async () => { throw Error(`G-007: Back must put the keyboard on the link followed: ${await frame.evaluate(() => document.activeElement?.outerHTML.slice(0, 80))}.`); });
+  checks.push('G-007 following a link and Back keep the keyboard');
+
+  // G-006, G-007, G-009 and G-012 on the Agenda: a note's tasks in its own order; Space keeps the
+  // keyboard on the box; Undo pressed while a tick travels takes nothing back and spends nothing;
+  // a first read that fails says so, with Retry.
+  await freshStart(agendaFixture, { context: agendaContext, failFirst: 'Review: tasks unavailable' });
+  await frame.waitForFunction(() => !!document.querySelector('#agenda-problem button[data-retry]') && document.getElementById('agenda-summary').textContent === '', null, { timeout: 15000 })
+    .catch(() => { throw Error('G-012: an Agenda that could not be read must say so, with Retry, and no summary.'); });
+  await frame.locator('#agenda-problem button[data-retry]').click();
+  await frame.waitForFunction(() => window.gardenAgenda?.ready === true && document.getElementById('agenda-problem').hidden, null, { timeout: 5000 });
+  const water = frame.locator('.agenda-task[data-id="gd.task.w184-water"] input.box');
+  await water.focus();
+  const tickBatches = await requests('records.batch');
+  await page.keyboard.press('Space');
+  await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.batch').length > n, tickBatches, { timeout: 3000 });
+  await frame.waitForFunction(() => document.querySelector('.agenda-task[data-id="gd.task.w184-water"]')?.classList.contains('done'), null, { timeout: 3000 });
+  await frame.waitForFunction(() => document.activeElement?.matches?.('.agenda-task[data-id="gd.task.w184-water"] input.box'), null, { timeout: 2000 })
+    .catch(async () => { throw Error(`G-007: Space on a box must keep the keyboard on it: ${await frame.evaluate(() => document.activeElement?.outerHTML.slice(0, 80))}.`); });
+  await page.evaluate(() => window.broker.hold('records.batch', 1200));
+  const undosBeforeHeld = await requests('records.undo');
+  await frame.locator('.agenda-task[data-id="gd.task.w184-bulbs"] input.box').click();
+  await page.waitForTimeout(150);
+  await page.keyboard.press('Control+z');
+  await frame.evaluate(() => document.querySelector('#agenda-status [data-undo]')?.click());
+  await frame.waitForFunction(() => window.gardenAgenda.steps.length === 2, null, { timeout: 5000 })
+    .catch(async () => { throw Error(`G-009: an Undo pressed while a tick travels must spend nothing: ${await frame.evaluate(() => window.gardenAgenda.steps.length)} steps.`); });
+  assert(await requests('records.undo') === undosBeforeHeld, 'G-009: an Undo pressed while a tick travels must take nothing back.');
+  // Each Undo is waited for until it has been answered, not only until it has left the history.
+  const undoNext = async label => {
+    await frame.locator('#agenda-status [data-undo]').click();
+    await frame.waitForFunction(label => document.getElementById('agenda-status').textContent.startsWith(`Took back: ${label}.`), label, { timeout: 5000 });
+  };
+  await undoNext('Tick Order bulbs');
+  await undoNext('Tick Water the beds');
+  const undone = (await records('gd.task')).filter(t => ['gd.task.w184-water', 'gd.task.w184-bulbs'].includes(t.recordId)).map(t => t.values[F.taskDone]);
+  assert(JSON.stringify(undone) === JSON.stringify([false, false]), `G-009: both ticks are taken back, the first too: ${JSON.stringify(undone)}.`);
+  // G-006: a note's tasks in the order its body says them. Undated, Start here's two tasks share a
+  // group; its body says "Plant your first note" before "Link it to this one", which sorts first by its words.
+  await page.evaluate(({ fixture, agendaContext }) => { window.broker.setFixture({ ...fixture, context: agendaContext }); window.broker.remount(); }, { fixture, agendaContext });
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.waitForFunction(() => window.gardenAgenda?.ready === true, null, { timeout: 15000 });
+  const bodyOrder = await frame.evaluate(() => window.gardenAgenda.groups.flatMap(g => g.tasks).filter(t => t.note === 'Start here').map(t => t.text));
+  assert(JSON.stringify(bodyOrder) === JSON.stringify(['Plant your first note with **New note**', 'Link it to this one']), `G-006: a note's tasks must keep its body's order: ${JSON.stringify(bodyOrder)}.`);
+  checks.push('G-006 G-007 G-009 G-012 the Agenda keeps each note’s order and the keyboard, spends no Undo while busy, and says when it could not read');
+
+  // G-014: the Overview counts every pin and every tag in use past the first few, and Show all lists the rest.
+  const overviewFixture = JSON.parse(JSON.stringify(fixture));
+  const pinBase = overviewFixture.records['gd.note'].find(n => n.recordId === 'gd.note.how-links-work');
+  for (let i = 0; i < 7; i++) overviewFixture.records['gd.note'].push({ ...JSON.parse(JSON.stringify(pinBase)), recordId: `gd.note.pin-${i}`,
+    values: { ...pinBase.values, 'gd.note.title': `Pinned ${String.fromCharCode(65 + i)}`, [F.slug]: `pinned-${i}`, 'gd.note.pinned': true, 'gd.note.parent': null } });
+  const tagBase = overviewFixture.records['gd.tag'][0], joinBase = overviewFixture.records['gd.noteTag'][0];
+  for (let i = 0; i < 9; i++) {
+    overviewFixture.records['gd.tag'].push({ ...JSON.parse(JSON.stringify(tagBase)), recordId: `gd.tag.extra-${i}`, values: { ...tagBase.values, 'gd.tag.name': `extra${i}` } });
+    overviewFixture.records['gd.noteTag'].push({ ...JSON.parse(JSON.stringify(joinBase)), recordId: `gd.noteTag.extra-${i}`, values: { ...joinBase.values, [F.noteTagNote]: `gd.note.pin-${i % 7}`, [F.noteTagTag]: `gd.tag.extra-${i}` } });
+  }
+  const pinsInAll = overviewFixture.records['gd.note'].filter(n => n.values['gd.note.pinned'] === true).length;
+  const tagsInUse = new Set(overviewFixture.records['gd.noteTag'].map(r => r.values[F.noteTagTag])).size;
+  await page.evaluate(({ overviewFixture, homeContext }) => { window.broker.setFixture({ ...overviewFixture, context: homeContext }); window.broker.pushTheme('light'); window.broker.remount(); }, { overviewFixture, homeContext });
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.waitForFunction(() => window.gardenHome?.ready === true, null, { timeout: 15000 });
+  const homeParts = () => frame.evaluate(() => {
+    const more = id => document.getElementById(id).hidden ? null : document.getElementById(id).textContent;
+    return { pinned: document.querySelectorAll('#home-pinned .home-card').length, pinnedCount: document.getElementById('home-pinned-count').textContent, pinnedMore: more('home-pinned-more'),
+      tags: document.querySelectorAll('#home-tags button').length, tagsCount: document.getElementById('home-tags-count').textContent, tagsMore: more('home-tags-more') };
+  });
+  const homeFolded = await homeParts();
+  assert(pinsInAll === 9 && tagsInUse > 12 && homeFolded.pinned === 8 && homeFolded.pinnedCount === '9' && homeFolded.pinnedMore === 'Show all 9 pinned notes'
+    && homeFolded.tags === 12 && homeFolded.tagsCount === String(tagsInUse) && homeFolded.tagsMore === `Show all ${tagsInUse} tags`,
+    `G-014: past eight pins and twelve tags, the headings must count them all and offer Show all: ${JSON.stringify({ pinsInAll, tagsInUse, homeFolded })}.`);
+  await frame.locator('#home-pinned-more').click();
+  await frame.locator('#home-tags-more').click();
+  const homeUnfolded = await homeParts();
+  assert(homeUnfolded.pinned === 9 && homeUnfolded.tags === tagsInUse && homeUnfolded.pinnedMore === 'Show fewer' && homeUnfolded.tagsMore === 'Show fewer', `G-014: Show all must list every pin and tag: ${JSON.stringify(homeUnfolded)}.`);
+  checks.push('G-014 the Overview counts every pin and tag, and shows them all');
+
+  // G-015: on a garden as dense as the owner's (108 notes, about 1,300 links between them) at Fit,
+  // every name shown reads at 12 px or more and none is drawn over another: on the Overview over
+  // three layouts in each theme, and on the Graph screen in each theme.
+  const realFixture = JSON.parse(JSON.stringify(fixture));
+  const titles = ['Calculated fields', 'How screens work', 'Limits', 'Reversibility and compensation', 'Agent access', 'Proposals', 'Record pages', 'The formula language', 'Undo and history', 'Views with code in the file'];
+  const realNotes = Array.from({ length: 102 }, (_, i) => ({ ...JSON.parse(JSON.stringify(baseNote)), recordId: `gd.note.real-${i}`,
+    values: { ...baseNote.values, 'gd.note.title': `${titles[i % titles.length]}${i >= titles.length ? ` ${Math.floor(i / titles.length) + 1}` : ''}`, [F.slug]: `real-${i}`, 'gd.note.parent': sections[i % 4], 'gd.note.order': i } }));
+  const realLinks = realNotes.flatMap((n, i) => [1, 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37].map(step => ({ ...baseLink, recordId: `gd.link.real-${i}-${step}`,
+    values: { ...baseLink.values, [F.from]: n.recordId, [F.to]: `gd.note.real-${(i + step) % 102}` } })));
+  realFixture.records['gd.note'].push(...realNotes);
+  realFixture.records['gd.link'].push(...realLinks);
+  const measuredNames = [];
+  for (const [which, context, host, layouts] of [['home', homeContext, '#home-graph', 3], ['graph', graphContext, '#graph-canvas', 1]]) {
+    for (const theme of ['light', 'dark']) {
+      for (let layout = 1; layout <= layouts; layout++) {
+        await page.evaluate(({ realFixture, context, theme }) => { window.broker.setFixture({ ...realFixture, context }); window.broker.pushTheme(theme); window.broker.remount(); }, { realFixture, context, theme });
+        await page.waitForTimeout(300);
+        frame = await mounted();
+        await frame.waitForFunction(which => which === 'home' ? window.gardenHome?.ready === true : window.gardenGraph?.ready === true, which, { timeout: 15000 });
+        await page.mouse.move(2, 2);
+        const at = await settleGraph(which);
+        await page.waitForTimeout(300);
+        const names = await labelLayout(host);
+        measuredNames.push({ which, theme, layout, k: +at.k.toFixed(2), shown: names.shown, smallest: names.smallest, overlaps: names.overlaps.length });
+        assert(names.shown >= 5 && names.smallest >= 11.9 && names.overlaps.length === 0,
+          `G-015: on ${which} in ${theme}, layout ${layout}, the names shown must read at 12 px or more and never overprint: ${JSON.stringify({ k: at.k, ...names, overlaps: names.overlaps.slice(0, 6) })}.`);
+      }
+    }
+  }
+  settle.names = measuredNames;
+  await page.evaluate(() => window.broker.pushTheme('light'));
+  checks.push('G-015 names on a dense graph read at 12 px and never overprint');
 
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, colours, diagramColours, narrow, settle, checks, errors };

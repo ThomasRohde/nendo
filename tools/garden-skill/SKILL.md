@@ -58,8 +58,9 @@ a note.
 - A body is at most 32 KiB, the bound on one value over MCP. Split a longer note.
 - **The Garden view derives rows from the body when a person saves there**: one `gd.link` per
   `[[link]]` (kind Mentions, source Body, with the sentence as context), a `gd.tag` and a
-  `gd.noteTag` per `#tag`, and a `gd.task` per checkbox (source Checkbox, `gd.task.key` the
-  key of its text). Rows with source Body or Checkbox belong to the body: a save deletes the
+  `gd.noteTag` per `#tag`, and a `gd.task` per checkbox line (source Checkbox, `gd.task.key` the
+  key of its text; a second line with the same text is a second task, its key ending `-2`, a
+  third `-3`). Rows with source Body or Checkbox belong to the body: a save deletes the
   ones the body no longer says. When you write a body over MCP, write its Body rows yourself
   the same way, or leave them and the next save in the view will make them.
 - **Rows you write by hand are yours**: give a `gd.link`, `gd.noteTag` or `gd.task` the source

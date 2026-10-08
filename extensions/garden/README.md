@@ -6,7 +6,8 @@ A custom view for a garden of notes, in four places:
   with `opensFile`): the garden's graph leads it, coloured by stage, beside the number of notes
   and links, a box that finds a note or names a new one, the stages, the unlinked notes and the
   tags, each a button that picks its notes out on the graph. Under it, the pinned notes as cards
-  with their first line. A note picked there opens in the Garden view: the Overview hands it over through the
+  with their first line. Past eight pinned notes or twelve tags, the heading counts them all and
+  Show all lists the rest. A note picked there opens in the Garden view: the Overview hands it over through the
   package's storage (`handover.mjs`) and opens that screen. It replaced a native front page of
   tiles and lists (0.16.0).
 - **The Garden view** (`gd.garden`, an `extensionView`): the notes as a tree on the left and one note in the middle, in View or Edit.
@@ -72,7 +73,9 @@ with the note as one `records.batch`, which Undo takes back as one step:
   planted as a Seed note in the same batch. Removing the link deletes the row; the seed stays.
 - `#tag` becomes a **Tag** (`gd.tag`, made once for the file) and a **Note tag**.
 - `- [ ] text` becomes a **Task** (`gd.task`, source Checkbox) keyed by its text, so ticking
-  the box updates the same row.
+  the box updates the same row. A second line with the same text is a second task (its key ends
+  `-2`). A line whose words change keeps its row and due date, matched by its place in the body
+  or by its words; a task a save deletes is named in the status line.
 - Rows with the source **Manual**, written by hand or by an agent, are never touched.
 - Inside a code fence or inline code nothing is derived.
 - A body over 32 KiB is refused in the frame, so an agent can always rewrite the note over
@@ -83,14 +86,22 @@ survives going to another screen of Nendo or reopening the view: drafts wait in 
 storage on this device, never in the file, until saved. Typing that arrives while a save is on
 its way stays a draft; Save is off until the save is answered, and a save Nendo never answered
 is finished, not repeated, by pressing Save again. A note changed elsewhere while a draft is
-dirty blocks Save until it is reloaded. Today is your own calendar day. `[[` in the editor
+dirty blocks Save until the person chooses Keep mine or Discard mine; a change that leaves the
+title and body alone moves the draft onto the new version. Reading the open note again (its row,
+a link to itself, a command) never replaces its draft. A new note not saved yet waits at the top
+of the tree, so New note and Today never write over it. Drafts this device cannot keep (past 50,
+or 2 MiB, or when storage refuses) are named above the note, each a link to it. A save never
+answered is kept in storage too, so Save after a restart sends the same batch; one the file
+already holds is recognised as saved. Save reads the note's links, tags and tasks afresh, and
+writes nothing when they or the garden cannot be read. Today is your own calendar day. `[[` in the editor
 opens a list of notes to link.
 
 ## The graph
 
 d3's force simulation lays the notes out. The wheel and a drag on the background zoom and
 pan; a drag on a note moves it and its neighbours follow; hovering a note lights it and its
-neighbours and dims the rest; labels fade in as you zoom; a click opens the note, and a
+neighbours and dims the rest; labels fade in as you zoom, never smaller than 12 px on the
+screen and never over another (the less linked one waits); a click opens the note, and a
 right-click offers its neighbourhood. A note's size follows the square root of its links and
 its colour is its stage's tone, its kind's, or its branch's (the section of the garden it grows
 in: the note just under a top-level note on its way up). Manual links are dashed, tag links dotted.

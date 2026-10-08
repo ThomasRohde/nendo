@@ -2,7 +2,8 @@
 //
 //   overview({ notes, links, tags, noteTags }, { stages }) -> {
 //     counts: { notes, links, unlinked }, stages: [{ id, label, count }], unlinked: [noteId],
-//     pinned: [card], tags: [{ id, name, count, size }] }
+//     pinned: [card], tags: [{ id, name, count, size }] }, every pinned note and every tag in use:
+//     the page shows the first PINNED and TAGS of them and says how many more there are
 //   excerpt(values) -> the note's summary, or its first line of prose, as plain text
 //   whenTended(date, today) -> today, yesterday, a weekday within the week, or the day and month
 //   findNotes(notes, text, ids) -> { notes: up to six, exact }
@@ -16,6 +17,7 @@ import { plainText } from './related.mjs';
 import { localMatch } from './search.mjs';
 import { F } from './sync.mjs';
 
+/** How many pinned cards and tags the Overview shows before Show all. */
 export const PINNED = 8;
 export const TAGS = 12;
 
@@ -45,15 +47,16 @@ export function overview({ notes = [], links = [], tags = [], noteTags = [] } = 
     carriers.get(tag).add(note);
   }
   const ranked = tags.map(tag => ({ id: tag.recordId, name: String(tag.values[F.tag.name] ?? tag.recordId), count: carriers.get(tag.recordId)?.size ?? 0 }))
-    .filter(tag => tag.count > 0).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)).slice(0, TAGS);
-  const most = ranked[0]?.count ?? 0, least = ranked.at(-1)?.count ?? 0;
-  for (const tag of ranked) tag.size = most === least ? 2 : 1 + Math.round(3 * (tag.count - least) / (most - least));
+    .filter(tag => tag.count > 0).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  // Sized by the tags shown first, so the size says the same thing before and after Show all.
+  const most = ranked[0]?.count ?? 0, least = ranked[Math.min(TAGS, ranked.length) - 1]?.count ?? 0;
+  for (const tag of ranked) tag.size = most === least ? 2 : Math.max(1, 1 + Math.round(3 * (tag.count - least) / (most - least)));
 
   const unlinked = graph.nodes.filter(node => node.degree === 0).map(node => node.id);
   return {
     counts: { notes: notes.length, links: graph.links.length, unlinked: unlinked.length },
     stages: known, unlinked, degree,
-    pinned: pinnedNotes.slice(0, PINNED).map(card), tags: ranked,
+    pinned: pinnedNotes.map(card), tags: ranked,
   };
 }
 
