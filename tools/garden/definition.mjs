@@ -95,7 +95,7 @@ export const PURPOSE = [
   'A garden of notes. Each note is Markdown, and a note may sit under another note, so the garden is a tree',
   'rather than folders of files. A [[wikilink]] names another note by its slug or its title, a #tag names a',
   'tag, and a line that starts with - [ ] is a task. When a note is saved in the Garden view those become',
-  'records of their own: Links (one note mentions another, with the sentence that does it), Note tags and',
+  'records of their own: Links (one note mentions another, with the line that does it), Note tags and',
   'Tasks, each marked as derived from the body. Links, tags and tasks written by hand, by a person or an',
   'agent, are marked Manual and are never touched by a save.',
   '',
@@ -455,7 +455,7 @@ export function seedNotes() {
     note('how-links-work', 'How links work', 'Note', 'Evergreen', [
       '# How links work',
       '',
-      'Write `[[start-here]]` to link to a note by its slug, or `[[Start here]]` by its title, or `[[start-here|the welcome note]]` to show other words. When you save, each link becomes a **Link** record: from this note, to that one, with the sentence it sits in as its context. So [[start-here]] now has this note among its backlinks, and the **Graph** screen draws the two.',
+      'Write `[[start-here]]` to link to a note by its slug, or `[[Start here]]` by its title, or `[[start-here|the welcome note]]` to show other words. When you save, each link becomes a **Link** record: from this note, to that one, with the line it sits in as its context. So [[start-here]] now has this note among its backlinks, and the **Graph** screen draws the two.',
       '',
       'A link to a note that is not there yet plants it as a Seed, so nothing points nowhere. Remove the link and the Link record goes; the Seed stays.',
       '',

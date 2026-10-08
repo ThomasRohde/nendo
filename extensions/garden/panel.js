@@ -1,4 +1,4 @@
-// The Backlinks panel on a note's record page: what links here, with the sentence that does, the
+// The Backlinks panel on a note's record page: what links here, with the line that does, the
 // note's tags and its tasks. Each row opens its record. The panel sizes itself to its rows.
 import { readRelated, readTags, drawRelated } from './related.mjs';
 

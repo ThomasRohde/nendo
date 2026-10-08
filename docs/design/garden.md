@@ -10,7 +10,7 @@ carries its own agent skill). No host change is required.
 ## What is different from a vault of files
 
 - **Links, tags and tasks are records.** A `[[wikilink]]` in a note's body becomes a
-  `gd.link` row (from, to, kind, the sentence as context), a `#tag` a `gd.tag` and a
+  `gd.link` row (from, to, kind, the line it is on as context), a `#tag` a `gd.tag` and a
   `gd.noteTag` row, and a `- [ ]` line a `gd.task` row, when the note is saved in the Garden
   view. Every native screen, calculation, the graph and an agent's query read them; nobody
   parses text to learn who links where. Rows a person or an agent writes by hand carry the

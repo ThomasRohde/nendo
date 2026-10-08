@@ -15,7 +15,7 @@ names another, you are connected to another file.
 | Entity | What it holds |
 | --- | --- |
 | `gd.note` | A note: `gd.note.title`, `gd.note.slug` (unique, required), `gd.note.body` (Markdown), `gd.note.summary` (a paragraph for you), `gd.note.kind` (Note, Daily, Map, Source, Template), `gd.note.stage` (Seed, Growing, Evergreen), `gd.note.date` (daily notes), `gd.note.touched` (last tended), `gd.note.pinned` (required Boolean), `gd.note.parent` and `gd.note.order` (the tree) |
-| `gd.link` | `gd.link.from` mentions `gd.link.to`, with `gd.link.kind` (Mentions, Supports, Contradicts, See also, Part of), `gd.link.context` (the sentence) and `gd.link.source` (Body or Manual) |
+| `gd.link` | `gd.link.from` mentions `gd.link.to`, with `gd.link.kind` (Mentions, Supports, Contradicts, See also, Part of), `gd.link.context` (the line the link is on) and `gd.link.source` (Body or Manual) |
 | `gd.tag` | A tag by `gd.tag.name` (unique, lower-case, no `#`) |
 | `gd.noteTag` | `gd.noteTag.note` carries `gd.noteTag.tag`, with a `gd.noteTag.source` |
 | `gd.task` | `gd.task.title`, its `gd.task.note`, `gd.task.done` (required Boolean), `gd.task.due`, `gd.task.source` (Checkbox or Manual) and `gd.task.key` |
@@ -45,7 +45,7 @@ a note.
 
 - Write Markdown in `gd.note.body`. Name another note as `[[its-slug]]` (or `[[Its title]]`,
   or `[[its-slug|other words]]`), a tag as `#word`, and a task as a line `- [ ] what to do`
-  (`- [x]` when done). Inside a code fence or inline code they mean nothing.
+  (`- [x]` when done).
 - Draw a diagram as a fence whose language is `mermaid` (flowchart, sequenceDiagram,
   classDiagram, stateDiagram-v2, erDiagram, timeline and the rest of Mermaid). The Garden view
   draws it in the theme's colours; leave colours and `%%{init}%%` themes out of it.
@@ -56,19 +56,90 @@ a note.
   or a Template. Put a note under another with `gd.note.parent`, or move it with
   `nendo.data.move_record`.
 - A body is at most 32 KiB, the bound on one value over MCP. Split a longer note.
-- **The Garden view derives rows from the body when a person saves there**: one `gd.link` per
-  `[[link]]` (kind Mentions, source Body, with the sentence as context), a `gd.tag` and a
-  `gd.noteTag` per `#tag`, and a `gd.task` per checkbox line (source Checkbox, `gd.task.key` the
-  key of its text; a second line with the same text is a second task, its key ending `-2`, a
-  third `-3`). Rows with source Body or Checkbox belong to the body: a save deletes the
-  ones the body no longer says. When you write a body over MCP, write its Body rows yourself
-  the same way, or leave them and the next save in the view will make them.
+
+## The rows a body makes
+
+A save in the Garden view derives rows from the body and deletes the Body and Checkbox rows it
+no longer says. When you write a body, write its rows exactly as the view would, in the same
+batch, or the next save there rewrites them. The reference is the view's own code: read
+`nendo://application/extension/org.nendo.garden/file?path=parse.mjs`, and `path=sync.mjs`.
+
+- **Skipped:** everything inside a fence (a line opening with three or more `` ` `` or `~`,
+  indent allowed, closed by a line of the same character at least as long) and inside inline `` `code` ``.
+- **Links:** `[[target]]` or `[[target|words]]`, target trimmed. One `gd.link` per note named,
+  the first time (case-insensitive): kind Mentions, source Body, and `gd.link.context` the
+  whole line the link is on, trimmed. Only a line over 200 characters is cut, to a window around
+  the link cut between words, with `…` at each cut end. The target is the note whose slug, else
+  whose title, equals it (case-insensitive), else whose slug is `slugify(target)`. A link to the
+  note itself makes no row. A target that is no note plants one in the same batch: slug
+  `slugify(target)` (`-2`, `-3` if taken), title the target (or the words, when they make the
+  same slug), kind Note, stage Seed, pinned false, touched today.
+- **slugify:** NFKD, accents dropped, lower-case, each run of anything but `a-z` and `0-9` one
+  hyphen, hyphens trimmed from the ends, at most 64 characters, `note` when nothing is left.
+- **Tags:** `#name` at the start of a line or after whitespace, `(`, `,` or `;`. The name runs
+  over letters, digits, `_`, `-` and `/`; trailing `-` and `/` are dropped, it is lower-cased,
+  and it must hold a letter. Once per note: a `gd.tag` if the file has no tag of that name, and
+  a `gd.noteTag` with source Body.
+- **Tasks:** a line `- [ ] text`, `* [x] text` or `+ [X] text`, at any indent. One `gd.task` per
+  line: title the text trimmed, done for `x` or `X`, source Checkbox, and `gd.task.key` the
+  FNV-1a hash (32-bit, over the UTF-8 bytes) of the text lower-cased, whitespace runs made one
+  space, trimmed, as eight lower-case hex digits. The second line with the same key adds `-2`,
+  the third `-3`. A task's line is scanned for links and tags too.
+- **What a save compares:** rows are matched by what they say, never by record ID, so the IDs
+  are yours: a Body link by its target, its context updated when it differs; a note tag by its
+  tag; a task by its key (`matchTasks`), its title and done following the line.
+
+### Worked example
+
+The note `compost` with this body:
+
+````markdown
+# Compost
+
+Worms eat scraps. Keep it damp, as [[soil-life]] says, and add [[Kitchen scraps|peelings]].
+
+- [ ] Turn the heap
+- [x] Turn the heap
+- [ ] Ask whether [[Soil-Life]] covers worms
+
+Filed under #Compost and #how-to-, not #2026.
+
+```
+[[not-a-link]] #not-a-tag
+- [ ] not a task
+```
+````
+
+makes these rows, in this order. The heading, `#2026`, the second `soil-life` and the fence
+make none; if no note is Kitchen scraps, the batch plants the Seed `kitchen-scraps` first.
+
+```json
+{
+  "links": [
+    { "target": "soil-life", "context": "Worms eat scraps. Keep it damp, as [[soil-life]] says, and add [[Kitchen scraps|peelings]]." },
+    { "target": "Kitchen scraps", "context": "Worms eat scraps. Keep it damp, as [[soil-life]] says, and add [[Kitchen scraps|peelings]]." }
+  ],
+  "tags": ["compost", "how-to"],
+  "tasks": [
+    { "text": "Turn the heap", "done": false, "key": "434efef9" },
+    { "text": "Turn the heap", "done": true, "key": "434efef9-2" },
+    { "text": "Ask whether [[Soil-Life]] covers worms", "done": false, "key": "cc838afd" }
+  ]
+}
+```
+
+## Writing rows
+
 - **Rows you write by hand are yours**: give a `gd.link`, `gd.noteTag` or `gd.task` the source
   `Manual`, and a save never touches it. A Manual link may carry a kind the body cannot say:
   Supports, Contradicts, See also, Part of.
+- Write a note and its rows as one `nendo.data.apply_writes`, and give it a short `label` that
+  says what you did, such as `Wrote compost and its links`. The label is what History calls the
+  revision, and History is where the person reviews your work; `nendo.data.undo_revision`
+  takes a `label` too.
 - A reference write carries its target's current version in `expectedTargetVersions`, or
   names the target by `gd.note.slug` or `gd.tag.name` under `references`, which are unique.
-- Tags are never deleted by a save. A tag's `gd.tag.name` is lower-case without `#`.
+- A save never deletes a tag.
 
 ## Commands
 
@@ -93,7 +164,7 @@ stage, a Daily calendar, Maps and a Graph (`gd.note.graph`); tasks have the Agen
 (`gd.task.agenda`: open tasks by when they are due) and a Due calendar. Links, Tags and Note tags
 have record pages and no screen, so Use does not list them; read them on a note's page or over
 MCP. A note's page shows its links out, backlinks, tags and tasks, and the Backlinks panel with
-each backlink's sentence.
+the line each backlink is on.
 
 ## Handing over
 

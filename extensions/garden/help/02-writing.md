@@ -6,7 +6,7 @@ A note is Markdown. Most of it is ordinary writing; three small marks make it pa
 
 | Write | When you save it becomes |
 | --- | --- |
-| `[[start-here]]` or `[[Start here]]` | A **Link** to the note with that slug or title, carrying the sentence it sits in. That note now lists this one among its backlinks. |
+| `[[start-here]]` or `[[Start here]]` | A **Link** to the note with that slug or title, carrying the line it sits in. That note now lists this one among its backlinks. |
 | `[[A new idea]]` | A link, and a new **Seed** note called A new idea, planted in the same step. |
 | `#reading` | A **Tag**, made once for the whole garden, and this note filed under it. |
 | `- [ ] Call Sam` | A **Task** that knows its note. Tick it and save, and the same task is marked done. |

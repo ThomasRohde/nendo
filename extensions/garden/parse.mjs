@@ -4,7 +4,7 @@
 //   parse(body)        -> { links: [{target, label, excerpt, line}], tags: [name], tasks: [{text, done, key, line}] }
 //   slugify(text)      -> a stable lower-case address, letters, digits and hyphens, at most 64 characters
 //   fnv1a(text)        -> eight hex digits, the key a checkbox task keeps across edits of its note
-//   excerptAround(line, index, width) -> the sentence around a match, cut to width
+//   excerptAround(line, index, width) -> the line around a match, cut to width
 
 const WIKILINK = /\[\[([^[\]|]+?)(?:\|([^[\]]+?))?\]\]/g;
 const TAG = /(^|[\s(,;])#([\p{L}\p{N}_][\p{L}\p{N}_/-]*)/gu;

@@ -69,7 +69,7 @@ The body is the source. When you save, the view derives records from it and writ
 with the note as one `records.batch`, which Undo takes back as one step:
 
 - `[[slug]]`, `[[Title]]` or `[[slug|other words]]` becomes a **Link** (`gd.link`, kind
-  Mentions, source Body, the sentence as its context). A target that is not a note yet is
+  Mentions, source Body, the line it is on as its context). A target that is not a note yet is
   planted as a Seed note in the same batch. Removing the link deletes the row; the seed stays.
 - `#tag` becomes a **Tag** (`gd.tag`, made once for the file) and a **Note tag**.
 - `- [ ] text` becomes a **Task** (`gd.task`, source Checkbox) keyed by its text, so ticking

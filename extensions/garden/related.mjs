@@ -18,7 +18,7 @@ export async function readRelated(nendo, noteId) {
 
 export const readTags = nendo => nendo.records.queryAll({ entityId: 'gd.tag' }, { max: 5000 });
 
-/** A stored context sentence as reading text: Markdown marks dropped, a wikilink shown by its words. */
+/** A stored context line as reading text: Markdown marks dropped, a wikilink shown by its words. */
 export function plainText(text) {
   return String(text ?? '')
     .replace(/\[\[([^[\]|]+?)\|([^[\]]+?)\]\]/g, '$2').replace(/\[\[([^[\]]+?)\]\]/g, '$1')

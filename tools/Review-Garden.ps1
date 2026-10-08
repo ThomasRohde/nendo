@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $output = Join-Path $repoRoot 'artifacts/garden'
 [void][IO.Directory]::CreateDirectory($output)
-& node --test tools/garden/parse.test.mjs tools/garden/render.test.mjs tools/garden/sync.test.mjs tools/garden/graph.test.mjs tools/garden/definition.test.mjs tools/garden/drafts.test.mjs tools/garden/search.test.mjs tools/garden/home.test.mjs tools/garden/tasks.test.mjs tools/garden/agenda.test.mjs tools/garden/tend.test.mjs tools/view-kit/kit.test.mjs
+& node --test tools/garden/parse.test.mjs tools/garden/render.test.mjs tools/garden/sync.test.mjs tools/garden/graph.test.mjs tools/garden/definition.test.mjs tools/garden/drafts.test.mjs tools/garden/search.test.mjs tools/garden/home.test.mjs tools/garden/tasks.test.mjs tools/garden/agenda.test.mjs tools/garden/tend.test.mjs tools/garden/skill.test.mjs tools/view-kit/kit.test.mjs
 if ($LASTEXITCODE -ne 0) { throw 'Garden definition, parser, renderer and sync checks failed.' }
 # The fixture travels from node through this shell: read it as UTF-8, or an ellipsis arrives as mojibake.
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)

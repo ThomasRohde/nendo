@@ -413,7 +413,7 @@ async page => {
   assert(saved.values[F.body].includes('[[daily-notes]]') && saved.values[F.touched] === localToday(), 'The body and the touched date must be stored, as the local calendar day.');
   const links = await records('gd.link');
   const toStub = links.find(l => l.values[F.from] === 'gd.note.start-here' && l.values[F.to] === stub.recordId);
-  assert(toStub && toStub.values[F.kind] === 'Mentions' && toStub.values[F.source] === 'Body' && toStub.values[F.context].includes('[[A brand new note]]'), 'The link to the seed must carry its sentence: ' + JSON.stringify(toStub));
+  assert(toStub && toStub.values[F.kind] === 'Mentions' && toStub.values[F.source] === 'Body' && toStub.values[F.context].includes('[[A brand new note]]'), 'The link to the seed must carry its line: ' + JSON.stringify(toStub));
   assert(links.some(l => l.values[F.from] === 'gd.note.start-here' && l.values[F.to] === 'gd.note.daily-notes'), 'The autocompleted link must be a Link row.');
   const tags = await records('gd.tag');
   const planted = tags.find(t => t.values[F.tagName] === 'planted');
@@ -550,7 +550,7 @@ async page => {
   const into = fixture.records['gd.link'].filter(l => l.values[F.to] === 'gd.note.how-links-work');
   assert(await frame.locator('#panel-backlinks li button').count() === into.length, `The panel must list the ${into.length} links into How links work.`);
   const firstRow = await frame.locator('#panel-backlinks li').first().innerText();
-  assert(firstRow.includes(into[0].labels[F.from]) && firstRow.includes(into[0].values[F.context].slice(-20)), 'A backlink row names its source note and its sentence: ' + firstRow);
+  assert(firstRow.includes(into[0].labels[F.from]) && firstRow.includes(into[0].values[F.context].slice(-20)), 'A backlink row names its source note and its line: ' + firstRow);
   assert(await frame.locator('#panel-tasks li').count() === fixture.records['gd.task'].filter(t => t.values[F.taskNote] === 'gd.note.how-links-work').length || await frame.locator('#panel-tasks li.none').count() === 1, 'The panel lists the note\'s tasks or says there are none.');
   const openedBefore = (await page.evaluate(() => window.broker.opened())).length;
   await frame.locator('#panel-backlinks li button').first().click();
