@@ -354,6 +354,59 @@ options (claude, codex, custom ...). Eg, at work we only have Copilot."
   the level on one row, the gates' selectors visible on Activity, hide, Show hidden and Show,
   and focus kept through the poll; both themes were looked at.
 
+### The composer as design A, and @ to point at the file (2026-10-09, W-200)
+
+The owner compared the message box with VS Code's and Codex's, chose design A of four and
+added D's @ menu: "think about how to make this really useful in this context", and "make sure
+it scales to large nendo files". Earlier that day a launched Claude Code had stalled on "Add more
+books!" because it did not know the record type's ID or its fields.
+
+**The box:** small chips above it name the file, the access level (it opens the Agent page)
+and the agent. The agent's own options sit quietly inside it with + and one round button, Send
+or Stop. A line under it gives the keys.
+
+**What a message may carry.** @ (or +) opens a menu of what the person can point at:
+- what their other tabs show;
+- record types, fields and views;
+- records, found by name through the file's search index;
+- proposals waiting for their review.
+
+Each choice becomes a chip and an @name in the text. It travels with the message as the
+nendo:// address that reads it, with a short description: the entity, field, record and
+proposal IDs, every field's kind, choices and scale, and a record's values.
+
+- It goes as an embedded resource when the agent declared `promptCapabilities.embeddedContext`.
+- Otherwise it goes as a `resource_link`, which every ACP agent reads, with the description as
+  text.
+
+The host accepts only nendo:// addresses, at most eight items, 8,000 characters each and
+32,000 together. The person's own entry in the thread names what they pointed at.
+
+This hands the agent nothing new. The person chose it, the Workbench wrote it from what it
+shows, and the agent could read all of it through the file's address at the level it works at.
+
+**Scale:**
+- The menu matches names the Workbench already holds, folded once while it is open, one pass
+  that stops at the cap of each group.
+- Records come from the search index, six at most, once two letters are typed and the typing
+  pauses.
+- A description is written only for what is chosen, and is bounded: 60 fields, 300 characters a
+  value, 6,000 characters in all. A chosen record is read on its own.
+
+**Checks:**
+- `WhatThePersonPointsAtTravelsWithTheMessage` covers both ACP forms; sending the text alone
+  failed it with "Expected:<2>. Actual:<1>".
+- `OnlyTheFilesOwnAddressesAndBoundedTextArePointedAt` covers file and web addresses, size and
+  count.
+- `agent-context.test.mjs` covers the menu, the descriptions and a file of 2,000 record types
+  with 60 fields each. After the menu opens, a keystroke folds only its query (4.4 folds) and
+  takes 8 to 21 ms. The first matching folded every name in the file again on every key
+  (214,377 folds, about 100 ms a key) and fails the count. The guard counts rather than times,
+  because a timed one varied between 2 and 12 plain scans a key under the full lane's load.
+- A headless Edge tour of the preview measured the menu over the box with focus kept in it, a
+  choice by arrows and Enter becoming a chip, Enter then sending, and Stop taking Send's place.
+  Both themes were looked at.
+
 ## Consequences
 
 ### Positive

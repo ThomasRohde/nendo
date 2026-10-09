@@ -344,6 +344,66 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     [TestMethod]
+    public async Task WhatThePersonPointsAtTravelsWithTheMessage()
+    {
+        // W-200: the owner's "Add more books!" stalled because the agent did not know the record
+        // type's ID or fields. What the person points at with @ goes with the message.
+        var books = new AgentPromptContext("nendo://application/entity/books", "Books", "Record type \"Books\"\nentityId: `books`\n- Rating: fieldId `books.rating`");
+        await using (var fixture = await Fixture.StartAsync("editData"))
+        {
+            await fixture.LaunchAsync();
+            await fixture.WaitAsync(view => view.State == "ready");
+            fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "Rate every book in @Books", 0, [books]);
+            var done = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Kind == "agent"));
+            Assert.AreEqual("Books", done.Entries.First(entry => entry.Kind == "you").Title, "The person's message does not name what they pointed at.");
+            var prompt = fixture.Log().Single(entry => Method(entry) == "session/prompt").GetProperty("params").GetProperty("prompt");
+            Assert.AreEqual(2, prompt.GetArrayLength(), prompt.GetRawText());
+            Assert.AreEqual("Rate every book in @Books", prompt[0].GetProperty("text").GetString());
+            Assert.AreEqual("resource", prompt[1].GetProperty("type").GetString(), "An agent that reads embedded context did not get the description embedded.");
+            Assert.AreEqual(books.Uri, prompt[1].GetProperty("resource").GetProperty("uri").GetString());
+            Assert.AreEqual(books.Text, prompt[1].GetProperty("resource").GetProperty("text").GetString());
+        }
+
+        // An agent that does not read embedded context gets a link, which every ACP agent reads,
+        // and the description as text.
+        await using (var fixture = await Fixture.StartAsync("editData", "--no-embedded"))
+        {
+            await fixture.LaunchAsync();
+            await fixture.WaitAsync(view => view.State == "ready");
+            fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "Rate every book in @Books", 0, [books]);
+            await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Kind == "agent"));
+            var prompt = fixture.Log().Single(entry => Method(entry) == "session/prompt").GetProperty("params").GetProperty("prompt");
+            Assert.AreEqual("resource_link", prompt[1].GetProperty("type").GetString(), prompt.GetRawText());
+            Assert.AreEqual(books.Uri, prompt[1].GetProperty("uri").GetString());
+            Assert.AreEqual("Books", prompt[1].GetProperty("name").GetString());
+            StringAssert.Contains(prompt[2].GetProperty("text").GetString(), "entityId: `books`", "The description did not reach an agent without embedded context.");
+        }
+    }
+
+    [TestMethod]
+    public async Task OnlyTheFilesOwnAddressesAndBoundedTextArePointedAt()
+    {
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        var refused = new[]
+        {
+            new[] { new AgentPromptContext("file:///C:/Users/someone/secret.txt", "Secret", "text") },
+            new[] { new AgentPromptContext("https://example.com/nendo", "Elsewhere", "text") },
+            new[] { new AgentPromptContext("nendo://application/entity/books", "Books", new string('x', AgentConversation.MaximumContextTextCharacters + 1)) },
+            Enumerable.Range(0, AgentConversation.MaximumContextItems + 1).Select(index => new AgentPromptContext($"nendo://application/entity/t{index}", $"T{index}", "text")).ToArray(),
+            Enumerable.Range(0, 5).Select(index => new AgentPromptContext($"nendo://application/entity/t{index}", $"T{index}", new string('x', 7_000))).ToArray(),
+        };
+        foreach (var context in refused)
+        {
+            Assert.ThrowsExactly<NendoValidationException>(() => fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "Look", 0, context),
+                $"{context[0].Uri} ×{context.Length} was sent.");
+        }
+        Assert.IsFalse(fixture.Log().Any(entry => Method(entry) == "session/prompt"), "A refused message reached the agent.");
+        Assert.IsFalse((await fixture.WaitAsync(view => true)).Working, "A refused message started a turn.");
+    }
+
+    [TestMethod]
     public void ACommandLineKeepsQuotedWordsTogether()
     {
         CollectionAssert.AreEqual(new[] { "node", @"C:\Program Files\agent.mjs", "--flag" },

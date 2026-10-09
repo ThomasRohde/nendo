@@ -70,6 +70,14 @@ function tabIcon(place: Place | null): IconName {
   }
 }
 
+/** What the window's other tabs show, for pointing a launched agent at it (W-200). */
+export function placesInOtherTabs(): Place[] {
+  return set.tabs.flatMap((tab, index) => {
+    const place = index === set.active ? null : placeOf(tab, index);
+    return place === null ? [] : [place];
+  });
+}
+
 /** Draw the strip. Called with the rest of the chrome, so a tab's name follows every move. */
 export function drawTabs(): void {
   const open = state.session.fileName !== null;

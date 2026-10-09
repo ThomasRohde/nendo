@@ -12,8 +12,8 @@
 // sign in first), --banner (prints a line that is not a message before speaking), --config (offers
 // session config options, as Copilot CLI does), --legacy (offers the older modes and models, as
 // OpenCode does), --refuse-session (refuses session/new as the Claude adapter does, with the bare
-// "Internal error" and the reason in data.details). The prompt 'switch' makes the agent change its
-// own mode.
+// "Internal error" and the reason in data.details), --no-embedded (does not read context embedded
+// in a prompt). The prompt 'switch' makes the agent change its own mode.
 import { appendFileSync, readdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -138,7 +138,8 @@ lines.on('line', (line) => {
     case 'initialize':
       send({ id: message.id, result: {
         protocolVersion: Number(option('--version') ?? 1),
-        agentCapabilities: { loadSession: false, mcpCapabilities: { http: !args.includes('--no-http'), sse: false } },
+        agentCapabilities: { loadSession: false, mcpCapabilities: { http: !args.includes('--no-http'), sse: false },
+          promptCapabilities: { embeddedContext: !args.includes('--no-embedded') } },
         authMethods: args.includes('--auth') ? [{ id: 'browser', name: 'Sign in with a browser' }] : [],
         agentInfo: { name: 'fake-agent', title: 'Fake agent', version: '1.0.0' },
       } });

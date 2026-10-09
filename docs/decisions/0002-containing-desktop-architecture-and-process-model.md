@@ -388,6 +388,9 @@ the host ship together, so the version does not change.
   file. Each of them still names its file session, and the host checks it against
   the open one, so a renderer of a closed file is refused as `stale-file-session`.
 - All eleven run away from the UI thread.
+- `agentSession.prompt` may carry `context`, the things the person pointed at with @
+  (2026-10-09, W-200): up to eight `{uri, title, text}`, nendo:// addresses only, bounded
+  (ADR-0030).
 - A request that names a custom view's actor is refused, as on every method except the
   record writes.
 - `agentSessionChanged` carries the conversation's revision and nothing else. It is

@@ -185,10 +185,10 @@ internal sealed partial class DesktopSessionController
         return _launched is { } agent ? ReadLaunchedCore(agent, Math.Max(0, after)) : DesktopLaunchedAgentView.None(LevelName());
     }
 
-    internal DesktopLaunchedAgentView PromptLaunchedAgent(string fileSessionId, string text, long after)
+    internal DesktopLaunchedAgentView PromptLaunchedAgent(string fileSessionId, string text, long after, IReadOnlyList<AgentPromptContext>? pointedAt = null)
     {
         var agent = RequireLaunched(fileSessionId);
-        agent.Conversation.Prompt(text);
+        agent.Conversation.Prompt(text, pointedAt);
         return ReadLaunchedCore(agent, after);
     }
 

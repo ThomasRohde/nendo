@@ -83,6 +83,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
     private string? _workingDirectory;
     private IReadOnlyList<AgentSignInMethodView> _signIn = [];
     private MutableEntry? _openMessage;
+    private bool _embeddedContext;
 
     /// <param name="fromAgent">What the agent writes.</param>
     /// <param name="toAgent">What the agent reads.</param>
@@ -141,6 +142,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             {
                 _signIn = ReadSignIn(initialized);
                 _agentTitle = ReadAgentTitle(initialized);
+                _embeddedContext = ReadsEmbeddedContext(initialized);
             }
             await OpenSessionAsync(timeout.Token);
         }
@@ -246,14 +248,20 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         }
     }
 
-    /// <summary>Send what the person typed. The turn runs on; its end is told through <see cref="Changed"/>.</summary>
-    internal void Prompt(string text)
+    /// <summary>
+    /// Send what the person typed, with anything in the file they pointed at. The turn runs on;
+    /// its end is told through <see cref="Changed"/>.
+    /// </summary>
+    internal void Prompt(string text, IReadOnlyList<AgentPromptContext>? pointedAt = null)
     {
         var prompt = text.Trim();
+        var context = pointedAt ?? [];
         if (prompt.Length == 0) throw new Nendo.Engine.NendoValidationException("Type something for the agent first.");
         if (prompt.Length > MaximumPromptCharacters)
             throw new Nendo.Engine.NendoValidationException($"A message is at most {MaximumPromptCharacters:N0} characters.");
+        ValidateContext(context);
         string sessionId;
+        bool embedded;
         long revision;
         lock (_sync)
         {
@@ -264,16 +272,19 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             if (_working)
                 throw new Nendo.Engine.NendoPreconditionException("agent-working", "The agent is still working. Wait, or press Stop.");
             sessionId = _sessionId;
+            embedded = _embeddedContext;
             _working = true;
             _openMessage = null;
-            Add("you", prompt);
+            var said = Add("you", prompt);
+            // The person's own entry names what they pointed at, so the thread shows it.
+            if (context.Count > 0) said.Title = string.Join(" · ", context.Select(item => item.Title.Trim()));
             revision = Touch();
         }
         Raise(revision);
-        _ = Task.Run(() => RunTurnAsync(sessionId, prompt));
+        _ = Task.Run(() => RunTurnAsync(sessionId, PromptBlocks(prompt, context, embedded)));
     }
 
-    private async Task RunTurnAsync(string sessionId, string prompt)
+    private async Task RunTurnAsync(string sessionId, object[] prompt)
     {
         string? stopped = null;
         try
@@ -281,7 +292,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             var result = await _connection.RequestAsync("session/prompt", new
             {
                 sessionId,
-                prompt = new object[] { new { type = "text", text = prompt } },
+                prompt,
             }, _ending.Token);
             var reason = result.ValueKind == JsonValueKind.Object && result.TryGetProperty("stopReason", out var r) && r.ValueKind == JsonValueKind.String
                 ? r.GetString() : null;

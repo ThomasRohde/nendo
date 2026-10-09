@@ -908,6 +908,13 @@ host is an ACP client (`Desktop/Agents/`). It keeps no model client and no crede
   a listener that comes back at another address all end the agent. A new level at
   the same address does not.
 
+The message box (W-200) names the file, the level and the agent in small chips above it, and
+@ points the agent at the file's own things: what other tabs show, record types, fields, views,
+records found through the search index, and proposals waiting. `agent-context-model.ts`
+matches and describes them, cheap on a large file; `agent-mention.ts` drives the menu; the host
+sends each as an embedded resource or a resource link with its nendo:// address
+(`AgentConversation.Context.cs`), refusing any other address.
+
 The conversation reaches the tab through eleven `agentSession.*` bridge methods and
 the `agentSessionChanged` nudge (ADR-0002, 2026-10-08 note). `view-agent-chat.ts`
 reads what changed and patches it in place, so the composer is never redrawn. The

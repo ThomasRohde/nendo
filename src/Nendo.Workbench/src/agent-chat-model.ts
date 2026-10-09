@@ -199,7 +199,9 @@ export function itemMarkup(item: ThreadItem, agentName: string, expanded: Readon
   const entry = item.entry;
   switch (item.type) {
     case 'you':
-      return `<div class="chat-you" data-item="${key}">${escapeHtml(entry.text)}</div>`;
+      // The host names what the person pointed at with @ in the entry's title (W-200).
+      return `<div class="chat-you" data-item="${key}">${escapeHtml(entry.text)}${entry.title === null || entry.title === ''
+        ? '' : `<span class="chat-you-context">Pointed at ${escapeHtml(entry.title)}</span>`}</div>`;
     case 'agent':
       return `<div class="chat-agent markdown-body" data-item="${key}">${markdownMarkup(entry.text, { headingShift: 2 })}</div>`;
     case 'permission':

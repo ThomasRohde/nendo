@@ -6,6 +6,7 @@ import { icon } from './icons';
 import { composerState, emptyChat, itemMarkup, mergeChat, optionsMarkup, stateLabel, stateTone, threadItems, waitingForYou, type AgentChat } from './agent-chat-model';
 import { announce, content, rerender, showError } from './shell';
 import { openTabOn } from './workspace-tabs';
+import { clearPointedAt, mentionKey, pointedAt, resetMentions, wireMentions } from './agent-mention';
 
 /**
  * The conversation with an agent launched from the Agent page, in a tab of its own (ADR-0030),
@@ -36,6 +37,7 @@ fileScopedClearable({
     expanded.clear();
     drawn.clear();
     drawnOptions = '';
+    resetMentions();
   },
 });
 
@@ -122,10 +124,11 @@ export function renderAgentChat(): void {
   }
   drawn.clear();
   drawnOptions = '';
+  // Design A of the composer (W-200): what this conversation works on in small chips above the
+  // box, the agent's own options quietly inside it with + and Send, and the keys under it.
   content.innerHTML = `<div class="agent-chat" data-agent-chat data-chat-key="${escapeAttribute(chat.key)}" data-testid="agent-chat">
     <header class="chat-heading">
-      <div class="chat-title"><h2 id="chat-name"></h2><span id="chat-version" class="chat-version"></span></div>
-      <span id="chat-access" class="chat-pill"><span class="chat-pill-key">Access</span><strong id="chat-level"></strong></span>
+      <div class="chat-title"><h2 id="chat-name"></h2></div>
       <span id="chat-state" class="chat-pill"><span class="chat-dot" aria-hidden="true"></span><strong id="chat-state-label"></strong></span>
       <button id="end-agent" class="text-button" type="button">End</button>
     </header>
@@ -137,22 +140,35 @@ export function renderAgentChat(): void {
       </div>
     </div>
     <div class="chat-dock">
+      <div class="chat-context-row">
+        <span class="chat-chip" title="The file this conversation works on">${icon('file')}<span id="chat-file-name"></span></span>
+        <button id="chat-access" class="chat-chip is-link" type="button">${icon('health')}<span id="chat-level"></span></button>
+        <span class="chat-chip"><span class="chat-chip-dot" aria-hidden="true"></span><span id="chat-agent-name"></span></span>
+      </div>
       <form id="chat-composer" class="chat-composer">
+        <div id="chat-attachments" class="chat-attachments" hidden></div>
         <label class="visually-hidden" for="agent-prompt">Message to the agent</label>
-        <textarea id="agent-prompt" rows="2"></textarea>
+        <textarea id="agent-prompt" rows="2" aria-autocomplete="list" aria-controls="chat-mention" aria-expanded="false"></textarea>
         <div class="chat-toolbar">
+          <button id="chat-add-context" class="chat-quiet" type="button" aria-label="Point at something in this file" title="Point at something in this file (@)">${icon('plus')}</button>
           <div id="chat-options" class="chat-options"></div>
-          <span class="chat-hint">Enter sends</span>
-          <button id="stop-agent" class="chat-icon-button" type="button" aria-label="Stop" title="Stop (Esc)">${icon('stop')}</button>
-          <button id="send-prompt" class="chat-icon-button is-primary" type="submit" aria-label="Send" title="Send (Enter)">${icon('arrowUp')}</button>
+          <span class="chat-toolbar-gap"></span>
+          <button id="stop-agent" class="chat-round" type="button" aria-label="Stop" title="Stop (Esc)">${icon('stop')}</button>
+          <button id="send-prompt" class="chat-round is-primary" type="submit" aria-label="Send" title="Send (Enter)">${icon('arrowUp')}</button>
         </div>
+        <div id="chat-mention" class="chat-mention" role="listbox" aria-label="Point at something in this file" hidden></div>
       </form>
+      <div class="chat-under"><span>Enter sends · Shift+Enter for a new line · @ points at something in the file</span><span>Proposals wait for you on the Agent page</span></div>
     </div>
   </div>`;
+  const chatPage = content.querySelector<HTMLElement>('[data-agent-chat]')!;
   const prompt = content.querySelector<HTMLTextAreaElement>('#agent-prompt')!;
   prompt.value = draft;
   prompt.addEventListener('input', () => { draft = prompt.value; });
+  wireMentions(chatPage);
+  content.querySelector<HTMLButtonElement>('#chat-access')!.addEventListener('click', () => document.querySelector<HTMLButtonElement>('#nav-agent')?.click());
   prompt.addEventListener('keydown', (event) => {
+    if (mentionKey(event, chatPage, prompt)) return;
     if (event.key === 'Escape' && composerState(chat).canStop) { event.preventDefault(); void act('agentSession.cancel', {}, 'Stopping.'); return; }
     if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
     event.preventDefault();
@@ -201,10 +217,12 @@ async function send(): Promise<void> {
   const prompt = content.querySelector<HTMLTextAreaElement>('#agent-prompt');
   const text = prompt?.value.trim() ?? '';
   if (text === '' || !composerState(chat).canSend) return;
-  const sent = await act('agentSession.prompt', { text }, null);
+  const context = pointedAt();
+  const sent = await act('agentSession.prompt', context.length === 0 ? { text } : { text, context }, null);
   if (!sent) return;
   draft = '';
   if (prompt !== null) prompt.value = '';
+  clearPointedAt(content);
 }
 
 /** One of the tab's own requests. It answers with a read, merged like any other. */
@@ -234,10 +252,12 @@ function patchChat(force: boolean, only?: string): void {
     return;
   }
   page.querySelector('#chat-name')!.textContent = chat.name;
-  page.querySelector('#chat-version')!.textContent = chat.agentTitle ?? chat.commandLine ?? '';
+  // The agent as it names itself, with its version where it says one; the heading already names it.
+  page.querySelector('#chat-agent-name')!.textContent = chat.agentTitle ?? chat.name;
+  page.querySelector('#chat-file-name')!.textContent = state.session.fileName ?? '';
   page.querySelector('#chat-level')!.textContent = chat.level;
   page.querySelector<HTMLElement>('#chat-access')!.title = chat.exists
-    ? `Nendo's access level for this file. ${chat.name} reaches this file only through ${chat.endpoint ?? 'its agent address'}, and keeps its own tools on this computer.`
+    ? `Nendo's access level for this file; open the Agent page to change it. ${chat.name} reaches this file only through ${chat.endpoint ?? 'its agent address'}, and keeps its own tools on this computer.`
     : 'No agent is running for this file.';
   page.querySelector<HTMLElement>('#chat-state')!.dataset.tone = stateTone(chat);
   page.querySelector('#chat-state-label')!.textContent = stateLabel(chat);
@@ -245,8 +265,14 @@ function patchChat(force: boolean, only?: string): void {
   const prompt = page.querySelector<HTMLTextAreaElement>('#agent-prompt')!;
   prompt.placeholder = composer.placeholder;
   prompt.disabled = chat.state === 'ended' || !chat.exists;
-  page.querySelector<HTMLButtonElement>('#send-prompt')!.disabled = !composer.canSend;
-  page.querySelector<HTMLButtonElement>('#stop-agent')!.disabled = !composer.canStop;
+  // One round button: Send, or Stop while the agent works.
+  const sendButton = page.querySelector<HTMLButtonElement>('#send-prompt')!;
+  const stopButton = page.querySelector<HTMLButtonElement>('#stop-agent')!;
+  sendButton.disabled = !composer.canSend;
+  sendButton.hidden = composer.canStop;
+  stopButton.disabled = !composer.canStop;
+  stopButton.hidden = !composer.canStop;
+  page.querySelector<HTMLButtonElement>('#chat-add-context')!.disabled = chat.state === 'ended' || !chat.exists;
   page.querySelector<HTMLButtonElement>('#end-agent')!.disabled = chat.state === 'ended' || !chat.exists;
 
   const options = page.querySelector<HTMLElement>('#chat-options')!;

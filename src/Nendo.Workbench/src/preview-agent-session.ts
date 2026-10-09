@@ -54,7 +54,8 @@ export class PreviewAgentSession {
       }
       case 'agentSession.launch': return this.launch(String(payload.agentId ?? ''));
       case 'agentSession.read': return this.read(Number(payload.after ?? 0));
-      case 'agentSession.prompt': return this.sendPrompt(String(payload.text ?? ''), Number(payload.after ?? 0));
+      case 'agentSession.prompt': return this.sendPrompt(String(payload.text ?? ''), Number(payload.after ?? 0),
+        Array.isArray(payload.context) ? payload.context.map((item) => String((item as { title?: unknown }).title ?? '')).filter((title) => title !== '') : []);
       case 'agentSession.answer': return this.answer(String(payload.entryId ?? ''), payload.optionId == null ? null : String(payload.optionId), Number(payload.after ?? 0));
       case 'agentSession.cancel': return this.cancel(Number(payload.after ?? 0));
       case 'agentSession.end': return this.end('You ended the conversation.', Number(payload.after ?? 0));
@@ -111,11 +112,11 @@ export class PreviewAgentSession {
     return this.read(0);
   }
 
-  private sendPrompt(text: string, after: number): LaunchedAgentView {
+  private sendPrompt(text: string, after: number, pointedAt: string[]): LaunchedAgentView {
     if (this.state !== 'ready' || this.working) throw new WorkbenchHostError('agent-not-ready', 'The agent is not ready for a message yet.');
     if (text.trim() === '') throw new WorkbenchHostError('validation', 'Type something for the agent first.');
     this.working = true;
-    this.add({ kind: 'you', text: text.trim() });
+    this.add({ kind: 'you', text: text.trim(), title: pointedAt.length === 0 ? null : pointedAt.join(' · ') });
     const plan = this.add({ kind: 'plan', text: '', plan: [
       { text: 'Read the record types', status: 'in_progress' },
       { text: 'Add a record type for the request', status: 'pending' },
