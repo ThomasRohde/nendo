@@ -47,7 +47,7 @@ public sealed class SurfaceMetadataTests
 
         var undescribed = new List<string>();
         var described = 0;
-        foreach (var tool in tools)
+        foreach (var tool in tools.Where(tool => tool.Name != OutputSchemaContractTests.TextOnlyTool))
         {
             Assert.IsNotNull(tool.ProtocolTool.OutputSchema, tool.Name);
             described += Walk(tool.ProtocolTool.OutputSchema.Value, $"{tool.Name}:outputSchema", undescribed);

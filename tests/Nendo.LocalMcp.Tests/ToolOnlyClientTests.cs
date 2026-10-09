@@ -39,8 +39,8 @@ public sealed class ToolOnlyClientTests
             var result = await ReadAsync(client, uri);
             Assert.AreNotEqual(true, result.IsError, $"{uri}: {JsonSerializer.Serialize(result)}");
             Assert.AreEqual(expected, Text(result), $"{uri} read through the tool is not what resources/read returns.");
-            var read = result.StructuredContent!.Value.Deserialize<NendoResourceRead>(NendoMcpJson.Options)!;
-            Assert.IsTrue(read.IsText, uri);
+            // Nothing beside the text that a client could read instead of it (2026-10-09).
+            Assert.IsNull(result.StructuredContent, $"{uri}: the read carries structuredContent a client may take in place of the text.");
         }
 
         // A query in another order is the same read, as it is for resources/read.

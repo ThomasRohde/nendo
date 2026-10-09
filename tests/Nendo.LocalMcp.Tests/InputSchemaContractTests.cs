@@ -101,6 +101,7 @@ public sealed class InputSchemaContractTests
         {
             Lint(tool.ProtocolTool.InputSchema, $"{tool.Name}:inputSchema", underNot: false, findings);
             var output = tool.ProtocolTool.OutputSchema;
+            if (tool.Name == OutputSchemaContractTests.TextOnlyTool && output is null) continue;
             Assert.IsNotNull(output, $"{tool.Name} advertises no output schema.");
             Lint(output.Value, $"{tool.Name}:outputSchema", underNot: false, findings);
             nullableMembers += CountNullBranches(output.Value);

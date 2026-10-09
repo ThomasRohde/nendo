@@ -450,7 +450,9 @@ services, at a static loopback address, with no credential.
   instead, the one route this decision exists to close. Every read is now also a tool:
   `nendo.read.resource` hands an address to the same SDK resource `resources/read`
   matches and returns its text unchanged, and `nendo.read.list` names every address and
-  skill. Both are `readOnlyHint` and served from Inspect, which until now listed no tools;
+  skill. On 2026-10-09 the read tool lost the `structuredContent` it had carried beside
+  the text (the address and the media type): a client may read that in place of the
+  text, and Claude Code launched from the Agent page did, so every read looked empty. Both are `readOnlyHint` and served from Inspect, which until now listed no tools;
   Inspect still changes nothing. It is not a generic invocation: it reaches only the
   declared resources, with their bounds, through the same projections. The server
   instructions name the read tool within their first 150 characters, and the lease grant

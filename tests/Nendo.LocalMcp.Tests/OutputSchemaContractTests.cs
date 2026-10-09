@@ -17,6 +17,13 @@ namespace Nendo.LocalMcp.Tests;
 [DoNotParallelize]
 public sealed class OutputSchemaContractTests
 {
+    /// <summary>
+    /// The one tool that advertises no output schema: its result is a resource's own text, which
+    /// has no schema to declare, and a schema would invite a client to read structuredContent in
+    /// place of it (2026-10-09). Every other tool must advertise one.
+    /// </summary>
+    internal const string TextOnlyTool = "nendo.read.resource";
+
     [TestMethod]
     public async Task EveryToolResultSatisfiesItsDeclaredOutputSchema()
     {
@@ -44,6 +51,7 @@ public sealed class OutputSchemaContractTests
             Assert.IsTrue(schemas.TryGetValue(name, out var schema), $"{name} was not listed.");
             Assert.IsNotNull(schema, $"{name} advertises no output schema while returning structured content.");
             AssertSatisfies(schema.Value, schema.Value, result.StructuredContent.Value, name);
+            AssertOneMeaning(result, name);
             observed.Add(name);
             return result.StructuredContent.Value;
         }
@@ -52,11 +60,17 @@ public sealed class OutputSchemaContractTests
             structured.Deserialize<T>(NendoMcpJson.Options)
             ?? throw new AssertFailedException($"The structured result was not a {typeof(T).Name}.");
 
-        // The two reads a tool-only client has: the list, and one address read through it.
+        // The two reads a tool-only client has: the list, and one address read through it. The
+        // read is its resource's text and nothing beside it, so it advertises no schema.
         var listed = Result<NendoReadList>(await CallAsync("nendo.read.list"));
         Assert.IsTrue(listed.Reads.Any(read => read.Uri.StartsWith("nendo://application/describe", StringComparison.Ordinal)));
-        var read = Result<NendoResourceRead>(await CallAsync("nendo.read.resource", new() { ["uri"] = "nendo://application/manifest" }));
-        Assert.AreEqual("nendo://application/manifest", read.Uri);
+        var read = await client.CallToolAsync(TextOnlyTool, new Dictionary<string, object?> { ["uri"] = "nendo://application/manifest" });
+        Assert.AreNotEqual(true, read.IsError, JsonSerializer.Serialize(read));
+        AssertOneMeaning(read, TextOnlyTool);
+        Assert.IsNull(schemas[TextOnlyTool], $"{TextOnlyTool} advertises an output schema, so a client may read that instead of the text.");
+        Assert.AreEqual(await ProtocolResourceTests.ReadTextAsync(client, "nendo://application/manifest"),
+            read.Content.OfType<ModelContextProtocol.Protocol.TextContentBlock>().Single().Text);
+        observed.Add(TextOnlyTool);
 
         // The very first call of any session, and the one the review could not get past.
         var lease = Result<NendoLeaseGrant>(await CallAsync("nendo.lease.acquire"));
@@ -349,11 +363,27 @@ public sealed class OutputSchemaContractTests
         await CallAsync("nendo.lease.release", new(owned));
 
         // Every declared tool must have been exercised, or this suite silently
-        // stops covering the one that breaks next.
+        // stops covering the one that breaks next. The schema-less read is among them.
         CollectionAssert.AreEquivalent(
             schemas.Keys.ToArray(),
             observed.Distinct(StringComparer.Ordinal).ToArray(),
             "A declared tool was never exercised against its output schema.");
+    }
+
+    /// <summary>
+    /// A client may read a result's structuredContent in place of its text, as MCP allows, or the
+    /// text in place of the structure. Both must say the same thing: the text is the structure's
+    /// JSON. <c>nendo.read.resource</c> once put the resource in the text and only its address and
+    /// media type in the structure, and Claude Code, which reads the structure, saw every resource
+    /// as empty (2026-10-09).
+    /// </summary>
+    private static void AssertOneMeaning(ModelContextProtocol.Protocol.CallToolResult result, string name)
+    {
+        if (result.StructuredContent is not { } structured) return;
+        var text = string.Concat(result.Content.OfType<ModelContextProtocol.Protocol.TextContentBlock>().Select(block => block.Text));
+        Assert.IsTrue(
+            System.Text.Json.Nodes.JsonNode.DeepEquals(System.Text.Json.Nodes.JsonNode.Parse(text), System.Text.Json.Nodes.JsonNode.Parse(structured.GetRawText())),
+            $"{name}: a client that reads structuredContent gets something other than the text. Structured: {NendoText.Bounded(structured.GetRawText(), 200)}; text: {NendoText.Bounded(text, 200)}");
     }
 
     /// <summary>

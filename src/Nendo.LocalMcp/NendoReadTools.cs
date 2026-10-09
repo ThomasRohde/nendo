@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Text.Json;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -20,16 +19,20 @@ internal sealed class NendoReadTools(
     NendoApplicationService application,
     NendoActivityLog activity)
 {
+    /// <remarks>
+    /// The result is the resource's text and nothing beside it: no output schema and no
+    /// structuredContent. MCP lets a client read structuredContent in place of the text, and one
+    /// that did, launched from the Agent page on 2026-10-09, was handed only the address and the
+    /// media type, read every resource "empty", and stopped.
+    /// </remarks>
     [McpServerTool(
         Name = "nendo.read.resource",
         Title = "Read a resource by its address",
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,
-        ReadOnly = true,
-        UseStructuredContent = true,
-        OutputSchemaType = typeof(NendoResourceRead))]
-    [Description("Read any resource this host serves, for a client that calls tools but cannot read MCP resources. Pass its address, nendo://... or skill://..., with any query, and the text is exactly what resources/read returns for it, refusals included; structuredContent names the address and type. Needs no lease and changes nothing. Start with nendo://application/describe; nendo.read.list names every address, the templated ones, and the skills this file carries.")]
+        ReadOnly = true)]
+    [Description("Read any resource this host serves, for a client that calls tools but cannot read MCP resources. Pass its address, nendo://... or skill://..., with any query, and the result is exactly the text resources/read returns for it, refusals included; a binary skill file comes back as an embedded resource. Needs no lease and changes nothing. Start with nendo://application/describe; nendo.read.list names every address, the templated ones, and the skills this file carries.")]
     public Task<CallToolResult> ResourceAsync(
         RequestContext<CallToolRequestParams> context,
         [Description("The address to read, as a resource URI: nendo://application/describe, nendo://application/entity/{entityId}/records?filter=..., skill://nendo-authoring/SKILL.md and the rest nendo.read.list names. Percent-encode a query value as you would in a resources/read.")] string uri,
@@ -110,21 +113,9 @@ internal sealed class NendoReadTools(
                 TextResourceContents text => new TextContentBlock { Text = text.Text },
                 _ => new EmbeddedResourceBlock { Resource = contents },
             }],
-            StructuredContent = JsonSerializer.SerializeToElement(
-                new NendoResourceRead(contents.Uri, contents.MimeType, contents is TextResourceContents),
-                NendoMcpJson.Options),
         };
     }
 }
-
-/// <summary>What <c>nendo.read.resource</c> read; the content itself is the result's text.</summary>
-public sealed record NendoResourceRead(
-    [property: Description("The address read, its query in canonical order.")]
-    string Uri,
-    [property: Description("The content's media type: application/json for nearly every nendo:// read, text/markdown for a SKILL.md.")]
-    string? MimeType,
-    [property: Description("True when the content is the result's text; false when it is binary, carried as an embedded resource in base64.")]
-    bool IsText);
 
 /// <summary>What <c>nendo.read.list</c> answers.</summary>
 public sealed record NendoReadList(
