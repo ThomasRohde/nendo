@@ -333,6 +333,56 @@
   overflow-wrap: anywhere;
 }
 
+/* The conversation's tab says what the agent is doing (W-200): a turning ring while it works, a
+   breathing dot while it thinks, and a still amber dot when it waits for the person. */
+.tab-status {
+  flex: none;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.tab-status.is-working,
+.tab-status.is-starting {
+  border: 2px solid color-mix(in srgb, var(--cobalt) 30%, transparent);
+  border-top-color: var(--cobalt);
+  animation: tab-status-turn 0.9s linear infinite;
+}
+
+.tab-status.is-thinking {
+  background: var(--violet);
+  animation: tab-status-breathe 1.4s ease-in-out infinite;
+}
+
+.tab-status.is-waiting {
+  background: var(--warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 25%, transparent);
+}
+
+@keyframes tab-status-turn {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes tab-status-breathe {
+  50% { opacity: 0.35; transform: scale(0.75); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-status.is-working,
+  .tab-status.is-starting,
+  .tab-status.is-thinking {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .tab-status {
+    border: 2px solid CanvasText;
+    background: Highlight;
+  }
+}
+
 /* What the person pointed at with @, under their message (W-200). */
 .chat-you-context {
   display: block;

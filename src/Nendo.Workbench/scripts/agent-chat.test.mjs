@@ -6,7 +6,7 @@ import { bundleOf } from './bundle-of.mjs';
 // Reads carry only what changed and are merged by entry; a run of steps folds into one line;
 // everything an agent or a tool says is drawn as text, never as markup; and the agent's own
 // options are drawn as it offers them.
-const { composerState, emptyChat, itemMarkup, mergeChat, optionsMarkup, partitionOptions, stateLabel, stepsSummary, threadItems } =
+const { chatActivity, chatTabStatus, composerState, emptyChat, itemMarkup, mergeChat, optionsMarkup, partitionOptions, stateLabel, stepsSummary, threadItems } =
   await bundleOf('src/agent-chat-model.ts');
 
 const hostile = '<img src=x onerror="alert(1)"><script>alert(2)</script>';
@@ -131,4 +131,26 @@ test('the composer sends only to a ready agent and stops only a working one', ()
   mergeChat(chat, view({ state: 'ended', revision: 4 }), 'k');
   assert.equal(composerState(chat).canSend, false);
   assert.match(composerState(chat).placeholder, /Launch the agent again/);
+});
+
+test('the tab says whether the agent works, thinks or waits for you, and nothing when it waits for a message', () => {
+  // W-200, the owner: "indicate in the tab whether an agent is working, thinking, or wanting input".
+  const at = (fields, entries = []) => {
+    const chat = emptyChat();
+    mergeChat(chat, view({ revision: 5, entries, ...fields }), 'k');
+    return chatActivity(chat);
+  };
+  assert.equal(chatActivity(emptyChat()), 'none');
+  assert.equal(at({ state: 'starting' }), 'starting');
+  assert.equal(at({}), 'idle');
+  assert.equal(at({ working: true }, [entry({ id: 'e1', order: 1, kind: 'you' }), entry({ id: 'e2', order: 2, kind: 'tool' })]), 'working');
+  assert.equal(at({ working: true }, [entry({ id: 'e1', order: 1, kind: 'you' }), entry({ id: 'e2', order: 2, kind: 'thought', text: 'Hmm' })]), 'thinking');
+  assert.equal(at({ working: true }, [entry({ id: 'e2', order: 2, kind: 'thought' }), entry({ id: 'e3', order: 3, kind: 'agent', text: 'Done' })]), 'working',
+    'An agent that wrote after thinking is still told as thinking.');
+  assert.equal(at({ working: true }, [entry({ id: 'e1', order: 1, kind: 'permission', options: [], answer: null })]), 'waiting', 'A question for the person is not told.');
+  assert.equal(at({ state: 'signIn' }), 'waiting');
+  assert.equal(at({ state: 'ended' }), 'ended');
+  assert.deepEqual(chatTabStatus('waiting'), { kind: 'waiting', label: 'Waiting for you' });
+  assert.equal(chatTabStatus('idle'), null);
+  assert.equal(chatTabStatus('ended'), null);
 });

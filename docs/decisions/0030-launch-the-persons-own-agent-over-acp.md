@@ -407,6 +407,23 @@ shows, and the agent could read all of it through the file's address at the leve
   choice by arrows and Enter becoming a chip, Enter then sending, and Stop taking Send's place.
   Both themes were looked at.
 
+**Three nits, the same day.** The owner: More stayed open "until i click it again"; End should
+be "an icon button to create a new session. Closing the tab is already ending a session"; and
+"indicate in the tab whether an agent is working, thinking, or wanting input".
+- More closes on a press outside it, on Esc, and after a choice.
+- The heading's End is a New session icon: it ends the agent and launches it again in the
+  same tab.
+- Closing the tab ends the agent. Before this it only closed the tab and left the agent
+  running, reachable again from Launch.
+- The tab carries a mark: a turning ring while it starts or works, a slow violet pulse while
+  its newest step is a thought, an amber dot while a permission or a sign-in waits for the
+  person. An idle agent has none. The tab's name and its title say the same in words.
+- `agent-chat.test.mjs` measures the mark from the conversation. With the permission check
+  taken out, it failed with "A question for the person is not told." A headless Edge tour
+  measured More closing both ways, the mark going working → waiting → none, kept while the
+  other tab is on screen, a new session with no messages, and no agent left running after the
+  tab closed, before and after a reload.
+
 ## Consequences
 
 ### Positive

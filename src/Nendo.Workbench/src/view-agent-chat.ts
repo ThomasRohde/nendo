@@ -3,9 +3,9 @@ import { client } from './client';
 import { escapeAttribute, escapeHtml, messageFor } from './format';
 import type { LaunchableAgents, LaunchedAgentView } from './host';
 import { icon } from './icons';
-import { composerState, emptyChat, itemMarkup, mergeChat, optionsMarkup, stateLabel, stateTone, threadItems, waitingForYou, type AgentChat } from './agent-chat-model';
+import { chatActivity, chatTabStatus, composerState, emptyChat, itemMarkup, mergeChat, optionsMarkup, stateLabel, stateTone, threadItems, waitingForYou, type AgentChat, type ChatActivity } from './agent-chat-model';
 import { announce, content, rerender, showError } from './shell';
-import { openTabOn } from './workspace-tabs';
+import { drawTabs, onTabClosed, openTabOn, setTabStatus } from './workspace-tabs';
 import { clearPointedAt, mentionKey, pointedAt, resetMentions, wireMentions } from './agent-mention';
 
 /**
@@ -40,6 +40,64 @@ fileScopedClearable({
     resetMentions();
   },
 });
+
+/**
+ * The conversation's tab says what the agent is doing (W-200): starting, working, thinking or
+ * waiting for the person, so it shows from any other tab. The strip is redrawn only when that
+ * changes, not on every word the agent streams.
+ */
+let shownActivity: ChatActivity = 'none';
+setTabStatus((place) => place.view === 'agentChat' ? chatTabStatus(chatActivity(chat)) : null);
+
+function noteActivity(): void {
+  const now = chatActivity(chat);
+  if (now === shownActivity) return;
+  shownActivity = now;
+  drawTabs();
+}
+
+/** Closing the conversation's tab ends the agent, and everything it started (ADR-0030). */
+onTabClosed((place) => {
+  if (place.view !== 'agentChat' || !chat.exists || chat.state === 'ended') return;
+  void (async () => {
+    try {
+      mergeChat(chat, await client.request<LaunchedAgentView>('agentSession.end', { after: chat.revision }), chat.key);
+      noteActivity();
+      announce(`${chat.name} ended with its tab.`);
+    } catch (error) {
+      showError(messageFor(error));
+    }
+  })();
+});
+
+/**
+ * The agent's More panel closes when the person is done with it: a press anywhere else, Escape,
+ * or a choice in it. It stayed open until More was pressed again.
+ */
+document.addEventListener('pointerdown', (event) => {
+  const target = event.target instanceof Node ? event.target : null;
+  for (const more of content.querySelectorAll<HTMLDetailsElement>('[data-agent-chat] details.chat-more[open]')) {
+    if (target === null || !more.contains(target)) more.open = false;
+  }
+}, true);
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  const more = content.querySelector<HTMLDetailsElement>('[data-agent-chat] details.chat-more[open]');
+  if (more === null) return;
+  // Escape closes the panel and does nothing else: it would also stop a working agent.
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  more.open = false;
+  more.querySelector('summary')?.focus();
+}, true);
+
+/** End this conversation and start the same agent again, in this tab. */
+async function newSession(): Promise<void> {
+  const agentId = chat.agentId;
+  if (agentId === null) return;
+  if (chat.exists && chat.state !== 'ended' && !(await act('agentSession.end', {}, null))) return;
+  await launchAgent(agentId);
+}
 
 /** The key of the conversation this renderer is following: the file session and its launch. */
 function launchKey(): string {
@@ -130,7 +188,7 @@ export function renderAgentChat(): void {
     <header class="chat-heading">
       <div class="chat-title"><h2 id="chat-name"></h2></div>
       <span id="chat-state" class="chat-pill"><span class="chat-dot" aria-hidden="true"></span><strong id="chat-state-label"></strong></span>
-      <button id="end-agent" class="text-button" type="button">End</button>
+      <button id="new-agent-session" class="chat-quiet" type="button" aria-label="New session" title="New session: end this conversation and start the agent again">${icon('newChat')}</button>
     </header>
     <div class="message-slot" role="alert" hidden></div>
     <div id="chat-scroll" class="chat-scroll">
@@ -179,10 +237,13 @@ export function renderAgentChat(): void {
     void send();
   });
   content.querySelector<HTMLButtonElement>('#stop-agent')!.addEventListener('click', () => void act('agentSession.cancel', {}, 'Stopping.'));
-  content.querySelector<HTMLButtonElement>('#end-agent')!.addEventListener('click', () => void act('agentSession.end', {}, 'The conversation ended.'));
+  content.querySelector<HTMLButtonElement>('#new-agent-session')!.addEventListener('click', () => void newSession());
   content.querySelector<HTMLElement>('#chat-options')!.addEventListener('change', (event) => {
     const select = event.target instanceof HTMLSelectElement ? event.target : null;
     if (select === null || select.dataset.configId === undefined) return;
+    // A choice in More is the person done with it.
+    const more = select.closest<HTMLDetailsElement>('details.chat-more');
+    if (more !== null) more.open = false;
     const option = chat.options.find((candidate) => candidate.id === select.dataset.configId);
     void act('agentSession.setOption', { configId: select.dataset.configId, value: select.value },
       option === undefined ? null : `${option.name}: ${select.selectedOptions[0]?.text ?? select.value}.`).then((done) => {
@@ -245,6 +306,8 @@ async function act(method: string, payload: Record<string, unknown>, said: strin
  * Does nothing when the page is not shown.
  */
 function patchChat(force: boolean, only?: string): void {
+  // The tab's mark follows the chat whether or not its page is on screen.
+  noteActivity();
   const page = content.querySelector<HTMLElement>('[data-agent-chat]');
   if (page === null || page.dataset.chatKey !== chat.key) {
     // Another conversation on screen: a new launch rebuilds through the renderer.
@@ -273,7 +336,7 @@ function patchChat(force: boolean, only?: string): void {
   stopButton.disabled = !composer.canStop;
   stopButton.hidden = !composer.canStop;
   page.querySelector<HTMLButtonElement>('#chat-add-context')!.disabled = chat.state === 'ended' || !chat.exists;
-  page.querySelector<HTMLButtonElement>('#end-agent')!.disabled = chat.state === 'ended' || !chat.exists;
+  page.querySelector<HTMLButtonElement>('#new-agent-session')!.disabled = chat.agentId === null || chat.state === 'starting';
 
   const options = page.querySelector<HTMLElement>('#chat-options')!;
   const optionsHtml = chat.state === 'ended' ? '' : optionsMarkup(chat.options);

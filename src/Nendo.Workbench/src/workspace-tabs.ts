@@ -70,6 +70,22 @@ function tabIcon(place: Place | null): IconName {
   }
 }
 
+/**
+ * A mark a page may put on its own tab, such as a launched agent's activity (W-200), and what to
+ * do when a tab showing a page is closed. Registered by the page, so the strip needs no page code.
+ */
+export interface TabStatus { kind: string; label: string }
+let statusOf: (place: Place) => TabStatus | null = () => null;
+const closedListeners: Array<(place: Place) => void> = [];
+
+export function setTabStatus(provider: (place: Place) => TabStatus | null): void {
+  statusOf = provider;
+}
+
+export function onTabClosed(listener: (place: Place) => void): void {
+  closedListeners.push(listener);
+}
+
 /** What the window's other tabs show, for pointing a launched agent at it (W-200). */
 export function placesInOtherTabs(): Place[] {
   return set.tabs.flatMap((tab, index) => {
@@ -84,15 +100,24 @@ export function drawTabs(): void {
   strip.hidden = !open;
   if (!open) { strip.innerHTML = ''; return; }
   const only = set.tabs.length === 1;
+  // A redraw keeps keyboard focus on the tab it was on: a page's own mark (an agent starting to
+  // work) redraws the strip while the person may be moving along it.
+  const focused = strip.contains(document.activeElement) ? document.activeElement as HTMLElement : null;
+  const refocus = focused?.dataset.tab !== undefined ? `[data-tab="${focused.dataset.tab}"]`
+    : focused?.dataset.closeTab !== undefined ? `[data-close-tab="${focused.dataset.closeTab}"]` : null;
   strip.innerHTML = set.tabs.map((tab, index) => {
     const place = placeOf(tab, index);
     const label = tabLabel(place);
     const selected = index === set.active;
+    const status = place === null ? null : statusOf(place);
+    const said = status === null ? label : `${label}, ${status.label.toLowerCase()}`;
+    const mark = status === null ? '' : `<span class="tab-status is-${escapeAttribute(status.kind)}" aria-hidden="true"></span><span class="visually-hidden">, ${escapeHtml(status.label.toLowerCase())}</span>`;
     return `<div class="tab${selected ? ' is-active' : ''}" data-tab-index="${index}">
-      <button class="tab-main" type="button" role="tab" aria-selected="${selected}" data-tab="${index}" title="${escapeAttribute(label)}">${tabGlyph(place)}<span class="tab-label">${escapeHtml(label)}</span></button>
+      <button class="tab-main" type="button" role="tab" aria-selected="${selected}" data-tab="${index}" title="${escapeAttribute(said)}">${tabGlyph(place)}<span class="tab-label">${escapeHtml(label)}</span>${mark}</button>
       <button class="tab-close" type="button" data-close-tab="${index}" aria-label="Close ${escapeAttribute(label)}" title="Close tab (Ctrl+W)" ${only ? 'disabled' : ''}>${icon('close')}</button>
     </div>`;
   }).join('') + `<button id="tab-new" class="tab-new" type="button" aria-label="New tab" title="New tab (Ctrl+T)">${icon('plus')}</button>`;
+  if (refocus !== null) strip.querySelector<HTMLElement>(refocus)?.focus({ preventScroll: true });
 }
 
 /** Keep the place on screen in a second tab, and move to it. Nothing redraws: it is the same place. */
@@ -132,9 +157,11 @@ export async function activateTab(index: number): Promise<void> {
 export async function closeTab(index: number): Promise<void> {
   if (set.tabs.length === 1 || index < 0 || index >= set.tabs.length) return;
   if (index === set.active && (state.actionInFlight || refuseWhileDirty('switching tabs'))) return;
-  await closeTabAt(set, index, navigationTrail, revisitCurrent);
+  const closing = placeOf(set.tabs[index]!, index);
+  const closed = await closeTabAt(set, index, navigationTrail, revisitCurrent);
   refreshChrome();
   focusActiveTab();
+  if (closed && closing !== null) for (const listener of closedListeners) listener(closing);
 }
 
 function focusActiveTab(): void {

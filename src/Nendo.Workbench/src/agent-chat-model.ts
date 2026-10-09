@@ -93,6 +93,35 @@ export function stateLabel(chat: AgentChat): string {
   }
 }
 
+/**
+ * What the agent is doing, in one word, for the conversation's tab in the title bar (W-200): a
+ * person on another tab sees it working, thinking, or waiting for them without opening it.
+ * Thinking is a turn whose newest entry is the agent's own reasoning.
+ */
+export type ChatActivity = 'none' | 'starting' | 'working' | 'thinking' | 'waiting' | 'idle' | 'ended';
+
+export function chatActivity(chat: AgentChat): ChatActivity {
+  if (!chat.exists || chat.state === 'none') return 'none';
+  if (chat.state === 'ended') return 'ended';
+  if (chat.state === 'signIn' || waitingForYou(chat)) return 'waiting';
+  if (chat.state === 'starting') return 'starting';
+  if (!chat.working) return 'idle';
+  let newest: AgentTranscriptEntry | null = null;
+  for (const entry of chat.entries.values()) if (newest === null || entry.order > newest.order) newest = entry;
+  return newest?.kind === 'thought' ? 'thinking' : 'working';
+}
+
+/** The tab's mark and the words a screen reader hears with it; nothing while the agent waits for a message. */
+export function chatTabStatus(activity: ChatActivity): { kind: ChatActivity; label: string } | null {
+  switch (activity) {
+    case 'starting': return { kind: activity, label: 'Starting' };
+    case 'working': return { kind: activity, label: 'Working' };
+    case 'thinking': return { kind: activity, label: 'Thinking' };
+    case 'waiting': return { kind: activity, label: 'Waiting for you' };
+    default: return null;
+  }
+}
+
 /** The tone of the state pill: settled, busy, or quiet. */
 export function stateTone(chat: AgentChat): 'ok' | 'busy' | 'quiet' {
   if (chat.state === 'ready' && !chat.working && !waitingForYou(chat)) return 'ok';

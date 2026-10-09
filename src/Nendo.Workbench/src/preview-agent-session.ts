@@ -108,7 +108,8 @@ export class PreviewAgentSession {
     this.state = 'starting';
     this.working = false;
     this.notice = null;
-    window.setTimeout(() => { this.state = 'ready'; this.touch(); }, 400);
+    // Ended while starting stays ended, as a real agent's process does.
+    window.setTimeout(() => { if (this.state === 'starting') { this.state = 'ready'; this.touch(); } }, 400);
     return this.read(0);
   }
 
