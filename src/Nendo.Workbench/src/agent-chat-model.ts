@@ -123,6 +123,23 @@ export function chatTabStatus(activity: ChatActivity): { kind: ChatActivity; lab
 }
 
 /** The tone of the state pill: settled, busy, or quiet. */
+/**
+ * What becomes of the agent's changes, under the box: what waits for the person's review when
+ * something does, and otherwise what its access level does with a change. It once always said
+ * proposals wait on the Agent page, which at Unattended or Edit data sent the person looking for
+ * nothing (W-200).
+ */
+export function reviewHint(level: string, waiting: number): { text: string; waiting: boolean } {
+  if (waiting > 0) return { text: `${waiting} ${waiting === 1 ? 'proposal waits' : 'proposals wait'} for your review`, waiting: true };
+  switch (level) {
+    case 'Inspect': return { text: 'It can read this file, not change it', waiting: false };
+    case 'Edit data': return { text: 'Records it changes are saved at once', waiting: false };
+    case 'Shape app': return { text: 'Records are saved at once; a new shape waits for your review', waiting: false };
+    case 'Unattended': return { text: 'It may accept its own changes, with no review', waiting: false };
+    default: return { text: '', waiting: false };
+  }
+}
+
 export function stateTone(chat: AgentChat): 'ok' | 'busy' | 'quiet' {
   if (chat.state === 'ready' && !chat.working && !waitingForYou(chat)) return 'ok';
   return chat.state === 'ended' || chat.state === 'none' ? 'quiet' : 'busy';

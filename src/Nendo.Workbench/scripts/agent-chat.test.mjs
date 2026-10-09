@@ -6,7 +6,7 @@ import { bundleOf } from './bundle-of.mjs';
 // Reads carry only what changed and are merged by entry; a run of steps folds into one line;
 // everything an agent or a tool says is drawn as text, never as markup; and the agent's own
 // options are drawn as it offers them.
-const { chatActivity, chatTabStatus, composerState, emptyChat, itemMarkup, mergeChat, optionsMarkup, partitionOptions, stateLabel, stepsSummary, threadItems } =
+const { chatActivity, chatTabStatus, composerState, emptyChat, itemMarkup, mergeChat, optionsMarkup, partitionOptions, reviewHint, stateLabel, stepsSummary, threadItems } =
   await bundleOf('src/agent-chat-model.ts');
 
 const hostile = '<img src=x onerror="alert(1)"><script>alert(2)</script>';
@@ -153,4 +153,16 @@ test('the tab says whether the agent works, thinks or waits for you, and nothing
   assert.deepEqual(chatTabStatus('waiting'), { kind: 'waiting', label: 'Waiting for you' });
   assert.equal(chatTabStatus('idle'), null);
   assert.equal(chatTabStatus('ended'), null);
+});
+
+test('under the box: what waits for review when something does, and otherwise what the level does with a change', () => {
+  // The owner, at Unattended: "Proposals waiting ... i went to the agent page and could not find any proposals".
+  for (const level of ['Inspect', 'Edit data', 'Unattended']) {
+    assert.doesNotMatch(reviewHint(level, 0).text, /wait/, `${level} sends the person looking for a proposal that cannot be there.`);
+  }
+  assert.match(reviewHint('Unattended', 0).text, /accept its own/);
+  assert.match(reviewHint('Shape app', 0).text, /waits for your review/);
+  assert.deepEqual(reviewHint('Unattended', 1), { text: '1 proposal waits for your review', waiting: true });
+  assert.deepEqual(reviewHint('Edit data', 3), { text: '3 proposals wait for your review', waiting: true });
+  assert.equal(reviewHint('Off', 0).text, '');
 });

@@ -1043,6 +1043,16 @@
   font-size: 0.72rem;
 }
 
+.chat-under .chat-review-link {
+  min-height: 0;
+  padding: 0;
+  color: var(--cobalt);
+  font-size: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* The @ menu: over the box, which keeps focus and drives it. */
 .chat-mention {
   position: absolute;
@@ -1156,7 +1166,7 @@
     padding-left: 16px;
   }
 
-  .chat-under span + span,
+  .chat-under span + span:not(.is-waiting),
   .chat-chip-sub {
     display: none;
   }

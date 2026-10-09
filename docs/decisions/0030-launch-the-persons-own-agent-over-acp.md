@@ -424,6 +424,16 @@ be "an icon button to create a new session. Closing the tab is already ending a 
   other tab is on screen, a new session with no messages, and no agent left running after the
   tab closed, before and after a reload.
 
+**What waits, said where it is true.** The line under the box always said "Proposals wait for
+you on the Agent page". At Unattended the owner looked and found none: there the agent may
+accept its own, and at Inspect or Edit data it makes none. The line now follows the level, and
+when proposals do wait it is a count that opens the Agent page on Activity, in a tab of its own
+beside the conversation. The access chip opens the page the same way, rather than replacing the
+conversation in its tab. The status is read again whenever the agent's activity changes.
+`agent-chat.test.mjs` failed with "Inspect sends the person looking for a proposal that cannot
+be there." while the old sentence was put back. A headless tour measured the count, the link
+opening Activity beside the conversation, and the level's line after the proposal was rejected.
+
 ## Consequences
 
 ### Positive

@@ -5,9 +5,10 @@ import { confirmDialog } from './confirm-dialog';
 import { type ConnectionClient, connectionClients, connectionCommand, serverNameFor } from './client-help';
 import { activityLabel, agentModeLabel, escapeAttribute, escapeHtml, formatDateTime, isAgentAccessMode, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel, shortId } from './format';
 import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type DesktopPromotionView, type LaunchableAgents, type ProposalPreview } from './host';
-import { launchAgent, openAgentChat, saveAgentCommand, setAgentHidden } from './view-agent-chat';
+import { launchAgent, openAgentChat, saveAgentCommand, setAgentHidden, setAgentPageOpener } from './view-agent-chat';
 import { type AgentTab, type CopyFeedback, agentTabs, agentTabsMarkup, copyButtonContent, copyHintMarkup, launchCopyText, launchTilesMarkup } from './agent-launch-model';
 import { announce, clearError, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
+import { openTabOn } from './workspace-tabs';
 import { applicationPlans, overviewPlan } from './plan-selection';
 import { addedSurfaceSentence, kindLabel } from './surface-model';
 import { behaviourApprovalMarkup, refreshHealth, wireBehaviourApproval } from './view-health';
@@ -87,6 +88,12 @@ let agentTab: AgentTab = 'activity';
 let showHiddenAgents = false;
 fileScopedClearable({ clear(): void { agentTab = 'activity'; showHiddenAgents = false; } });
 
+// The conversation opens this page beside itself, on Activity when the person goes to review.
+setAgentPageOpener((review) => {
+  if (review) agentTab = 'activity';
+  void openTabOn('agent').then(() => refreshAgentStatus()).then(rerender).catch((error: unknown) => showError(messageFor(error)));
+});
+
 function runningAgent(): { agentId: string; name: string; label: string } | null {
   const running = launchable?.running ?? null;
   return running === null ? null
@@ -104,7 +111,7 @@ function launchMarkup(): string {
   const running = runningAgent();
   return `<p class="launch-intro">Start an agent you have installed, in a tab beside this file. It works at the level above and reaches this file only through Nendo. It is the program you would run in a terminal, with its own tools on this computer.</p>
     ${launchTilesMarkup(offer, { canLaunch: offer.canLaunch, running, showHidden: showHiddenAgents, copyFor: (id) => copyFor(`agent:${id}`) })}
-    ${running === null ? '' : `<p class="connection-note">One agent runs at a time. End ${escapeHtml(running.name)} in its tab to launch another.</p>`}
+    ${running === null ? '' : `<p class="connection-note">One agent runs at a time. Close ${escapeHtml(running.name)}'s tab to launch another.</p>`}
     ${offer.canLaunch ? '' : `<p class="connection-note">${escapeHtml(offer.reason ?? 'An agent cannot be launched now.')}</p>`}`;
 }
 

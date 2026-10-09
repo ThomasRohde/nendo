@@ -1,9 +1,9 @@
 import { fileScopedClearable, state } from './app-state';
 import { client } from './client';
 import { escapeAttribute, escapeHtml, messageFor } from './format';
-import type { LaunchableAgents, LaunchedAgentView } from './host';
+import type { AgentStatus, LaunchableAgents, LaunchedAgentView } from './host';
 import { icon } from './icons';
-import { chatActivity, chatTabStatus, composerState, emptyChat, itemMarkup, mergeChat, optionsMarkup, stateLabel, stateTone, threadItems, waitingForYou, type AgentChat, type ChatActivity } from './agent-chat-model';
+import { chatActivity, chatTabStatus, composerState, emptyChat, itemMarkup, mergeChat, optionsMarkup, reviewHint, stateLabel, stateTone, threadItems, waitingForYou, type AgentChat, type ChatActivity } from './agent-chat-model';
 import { announce, content, rerender, showError } from './shell';
 import { drawTabs, onTabClosed, openTabOn, setTabStatus } from './workspace-tabs';
 import { clearPointedAt, mentionKey, pointedAt, resetMentions, wireMentions } from './agent-mention';
@@ -54,6 +54,45 @@ function noteActivity(): void {
   if (now === shownActivity) return;
   shownActivity = now;
   drawTabs();
+  // A turn that ends, or a question, is when a proposal may have been made or accepted.
+  void checkWaiting();
+}
+
+/**
+ * The Agent page, opened in a tab of its own so the conversation keeps its tab: on Activity when
+ * the person goes to review. The page registers how, since it imports this module.
+ */
+let openAgentPage: (review: boolean) => void = () => document.querySelector<HTMLButtonElement>('#nav-agent')?.click();
+export function setAgentPageOpener(open: (review: boolean) => void): void {
+  openAgentPage = open;
+}
+
+/** What waits for review, read again when the agent's activity changes and when the tab is drawn. */
+let checking = false;
+async function checkWaiting(): Promise<void> {
+  if (checking || !state.session.hasFile || client.mode === 'unavailable') return;
+  checking = true;
+  try {
+    state.agentStatus = await client.request<AgentStatus>('agent.getStatus');
+  } catch {
+    // The last status stands; the hint is a pointer, not a promise.
+  } finally {
+    checking = false;
+  }
+  patchReview();
+}
+
+function patchReview(): void {
+  const slot = content.querySelector<HTMLElement>('[data-agent-chat] #chat-review');
+  if (slot === null) return;
+  const hint = reviewHint(chat.level, state.agentStatus?.pendingProposals.length ?? 0);
+  const html = hint.waiting
+    ? `<button id="chat-review-open" class="text-button chat-review-link" type="button">${escapeHtml(hint.text)}</button>`
+    : escapeHtml(hint.text);
+  if (slot.dataset.drawn === html) return;
+  slot.dataset.drawn = html;
+  slot.innerHTML = html;
+  slot.classList.toggle('is-waiting', hint.waiting);
 }
 
 /** Closing the conversation's tab ends the agent, and everything it started (ADR-0030). */
@@ -216,7 +255,7 @@ export function renderAgentChat(): void {
         </div>
         <div id="chat-mention" class="chat-mention" role="listbox" aria-label="Point at something in this file" hidden></div>
       </form>
-      <div class="chat-under"><span>Enter sends · Shift+Enter for a new line · @ points at something in the file</span><span>Proposals wait for you on the Agent page</span></div>
+      <div class="chat-under"><span>Enter sends · Shift+Enter for a new line · @ points at something in the file</span><span id="chat-review"></span></div>
     </div>
   </div>`;
   const chatPage = content.querySelector<HTMLElement>('[data-agent-chat]')!;
@@ -224,7 +263,10 @@ export function renderAgentChat(): void {
   prompt.value = draft;
   prompt.addEventListener('input', () => { draft = prompt.value; });
   wireMentions(chatPage);
-  content.querySelector<HTMLButtonElement>('#chat-access')!.addEventListener('click', () => document.querySelector<HTMLButtonElement>('#nav-agent')?.click());
+  content.querySelector<HTMLButtonElement>('#chat-access')!.addEventListener('click', () => openAgentPage(false));
+  content.querySelector<HTMLElement>('#chat-review')!.addEventListener('click', (event) => {
+    if (event.target instanceof Element && event.target.closest('#chat-review-open') !== null) openAgentPage(true);
+  });
   prompt.addEventListener('keydown', (event) => {
     if (mentionKey(event, chatPage, prompt)) return;
     if (event.key === 'Escape' && composerState(chat).canStop) { event.preventDefault(); void act('agentSession.cancel', {}, 'Stopping.'); return; }
@@ -271,6 +313,7 @@ export function renderAgentChat(): void {
     if (method !== null) void act('agentSession.authenticate', { methodId: method.dataset.signIn }, 'Signing in.');
   });
   patchChat(true);
+  void checkWaiting();
   if (chat.key === '' || !chat.exists) followAgentChat();
 }
 
@@ -319,6 +362,7 @@ function patchChat(force: boolean, only?: string): void {
   page.querySelector('#chat-agent-name')!.textContent = chat.agentTitle ?? chat.name;
   page.querySelector('#chat-file-name')!.textContent = state.session.fileName ?? '';
   page.querySelector('#chat-level')!.textContent = chat.level;
+  patchReview();
   page.querySelector<HTMLElement>('#chat-access')!.title = chat.exists
     ? `Nendo's access level for this file; open the Agent page to change it. ${chat.name} reaches this file only through ${chat.endpoint ?? 'its agent address'}, and keeps its own tools on this computer.`
     : 'No agent is running for this file.';
@@ -387,7 +431,7 @@ function patchChat(force: boolean, only?: string): void {
   for (const key of [...drawn.keys()]) if (!keys.has(key)) drawn.delete(key);
   if (items.length === 0) {
     thread.innerHTML = `<div class="chat-empty"><strong>${escapeHtml(chat.exists ? `${chat.name} is ${chat.state === 'starting' ? 'starting' : 'ready'}` : 'No conversation')}</strong><p>${escapeHtml(chat.exists
-      ? `Ask it to read this file, add records or shape a screen. It works at ${chat.level} through this file's address and keeps its own tools on this computer. Changes it proposes wait on the Agent page for you.`
+      ? `Ask it to read this file, add records or shape a screen. It works at ${chat.level} through this file's address and keeps its own tools on this computer. ${reviewHint(chat.level, 0).text}.`
       : 'Launch an agent from the Agent page.')}</p></div>`;
   }
   if ((force && only === undefined) || nearBottom) scroller.scrollTop = scroller.scrollHeight;
