@@ -87,6 +87,10 @@ internal static class DesktopAgentCatalog
 
     private static readonly string[] RunnableExtensions = [".exe", ".cmd", ".bat", ".com"];
 
+    /// <summary>Whether a person may hide <paramref name="agentId"/>: a known agent, or their own command.</summary>
+    internal static bool CanHide(string agentId) =>
+        agentId == CustomId || Known.Any(agent => string.Equals(agent.Id, agentId, StringComparison.Ordinal));
+
     /// <summary>Every known agent, found or not, and the person's own command when there is one.</summary>
     internal static IReadOnlyList<DesktopAgentCommand> List(string? customCommandLine, string? pathVariable = null)
     {
@@ -198,8 +202,9 @@ internal static class DesktopAgentCatalog
 }
 
 /// <summary>
-/// The one command line a person added on the Agent page, kept for this device only, never in
-/// a file (ADR-0030).
+/// What a person chose about Launch on the Agent page, kept for this device only, never in a
+/// file (ADR-0030): the one command line they added, and the agents they hid. A computer at
+/// work may have only one agent its owner uses; the others' rows are noise there (W-199).
 /// </summary>
 internal sealed class DesktopAgentLaunchStore(string root)
 {
@@ -207,22 +212,10 @@ internal sealed class DesktopAgentLaunchStore(string root)
     private readonly string _root = Path.GetFullPath(root);
     private string StatePath => Path.Combine(_root, "agent-launch.json");
 
-    internal string? CommandLine
-    {
-        get
-        {
-            try
-            {
-                var document = DesktopStateFile.Read<StoredLaunch>(StatePath, MaximumBytes, 4);
-                return document?.Version == 1 && document.CommandLine is { Length: > 0 and <= DesktopAgentCatalog.MaximumCommandLineLength } line
-                    ? line : null;
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
-            {
-                return null;
-            }
-        }
-    }
+    internal string? CommandLine => Load().CommandLine;
+
+    /// <summary>The agents this person hid, by ID, in the order they hid them.</summary>
+    internal IReadOnlyList<string> Hidden => Load().Hidden;
 
     /// <summary>Keep <paramref name="commandLine"/>, or forget the command with an empty one.</summary>
     internal void Save(string? commandLine)
@@ -230,7 +223,41 @@ internal sealed class DesktopAgentLaunchStore(string root)
         var line = commandLine?.Trim();
         if (line is { Length: > DesktopAgentCatalog.MaximumCommandLineLength })
             throw new NendoValidationException($"A command is at most {DesktopAgentCatalog.MaximumCommandLineLength} characters.");
-        if (string.IsNullOrEmpty(line))
+        Write(Load() with { CommandLine = string.IsNullOrEmpty(line) ? null : line });
+    }
+
+    /// <summary>Hide <paramref name="agentId"/> from Launch, or show it again.</summary>
+    internal void SetHidden(string agentId, bool hidden)
+    {
+        if (!DesktopAgentCatalog.CanHide(agentId))
+            throw new NendoValidationException("Choose one of the agents the Agent page offers.");
+        var current = Load();
+        var next = current.Hidden.Where(id => !string.Equals(id, agentId, StringComparison.Ordinal)).ToList();
+        if (hidden) next.Add(agentId);
+        Write(current with { Hidden = next });
+    }
+
+    private Choices Load()
+    {
+        try
+        {
+            var document = DesktopStateFile.Read<StoredLaunch>(StatePath, MaximumBytes, 4);
+            if (document?.Version != 1) return Choices.None;
+            var line = document.CommandLine is { Length: > 0 and <= DesktopAgentCatalog.MaximumCommandLineLength } kept ? kept : null;
+            // An ID this build does not know is dropped rather than trusted: the file is this
+            // device's, but an older or newer Nendo may have written it.
+            var hidden = (document.Hidden ?? []).Where(DesktopAgentCatalog.CanHide).Distinct(StringComparer.Ordinal).ToList();
+            return new Choices(line, hidden);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return Choices.None;
+        }
+    }
+
+    private void Write(Choices choices)
+    {
+        if (choices.CommandLine is null && choices.Hidden.Count == 0)
         {
             try { File.Delete(StatePath); }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
@@ -238,8 +265,13 @@ internal sealed class DesktopAgentLaunchStore(string root)
         }
         using var guard = DesktopDeviceStateLock.EnterRequired(StatePath);
         DesktopStateFile.Replace(_root, StatePath, "agent-launch",
-            stream => JsonSerializer.Serialize(stream, new StoredLaunch(1, line)));
+            stream => JsonSerializer.Serialize(stream, new StoredLaunch(1, choices.CommandLine, choices.Hidden.Count == 0 ? null : [.. choices.Hidden])));
     }
 
-    private sealed record StoredLaunch(int Version, string? CommandLine);
+    private sealed record Choices(string? CommandLine, IReadOnlyList<string> Hidden)
+    {
+        internal static readonly Choices None = new(null, []);
+    }
+
+    private sealed record StoredLaunch(int Version, string? CommandLine, string[]? Hidden = null);
 }

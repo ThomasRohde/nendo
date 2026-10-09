@@ -7,12 +7,14 @@ internal static partial class WorkbenchMethods
 {
     /// <summary>
     /// The agent launched from the Agent page and its conversation tab (ADR-0030). None of these
-    /// waits on the request gate except list, setCommand and launch: the tab keeps reading while an
-    /// agent's own write holds the file. Each still names the file session it belongs to.
+    /// waits on the request gate except list, setCommand, setHidden and launch: the tab keeps
+    /// reading while an agent's own write holds the file. Each still names the file session it
+    /// belongs to.
     /// </summary>
     internal const string AgentSessionPrefix = "agentSession.";
     internal const string AgentSessionList = "agentSession.list";
     internal const string AgentSessionSetCommand = "agentSession.setCommand";
+    internal const string AgentSessionSetHidden = "agentSession.setHidden";
     internal const string AgentSessionLaunch = "agentSession.launch";
     internal const string AgentSessionRead = "agentSession.read";
     internal const string AgentSessionPrompt = "agentSession.prompt";
@@ -24,7 +26,7 @@ internal static partial class WorkbenchMethods
 
     internal static readonly IReadOnlySet<string> AgentSessionMethods = new HashSet<string>(StringComparer.Ordinal)
     {
-        AgentSessionList, AgentSessionSetCommand, AgentSessionLaunch, AgentSessionRead, AgentSessionPrompt,
+        AgentSessionList, AgentSessionSetCommand, AgentSessionSetHidden, AgentSessionLaunch, AgentSessionRead, AgentSessionPrompt,
         AgentSessionAnswer, AgentSessionCancel, AgentSessionAuthenticate, AgentSessionEnd, AgentSessionSetOption,
     };
 }
@@ -39,6 +41,8 @@ internal sealed partial class WorkbenchProtocolHandler
             WorkbenchMethods.AgentSessionList => await _session.ListLaunchableAgentsAsync(fileSessionId, cancellationToken),
             WorkbenchMethods.AgentSessionSetCommand => await _session.SetAgentCommandAsync(fileSessionId,
                 OptionalString(payload, "commandLine", DesktopAgentCatalog.MaximumCommandLineLength), cancellationToken),
+            WorkbenchMethods.AgentSessionSetHidden => await _session.SetAgentHiddenAsync(fileSessionId,
+                RequiredString(payload, "agentId", 40), RequiredBoolean(payload, "hidden"), cancellationToken),
             WorkbenchMethods.AgentSessionLaunch => await _session.LaunchAgentAsync(fileSessionId, RequiredString(payload, "agentId", 40), cancellationToken),
             WorkbenchMethods.AgentSessionRead => _session.ReadLaunchedAgent(fileSessionId, after),
             WorkbenchMethods.AgentSessionPrompt => _session.PromptLaunchedAgent(fileSessionId,

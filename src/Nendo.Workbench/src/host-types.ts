@@ -260,6 +260,8 @@ export interface LaunchableAgents {
   agents: LaunchableAgent[];
   customCommandLine: string | null;
   running: { agentId: string; name: string; state: LaunchedAgentState; working: boolean } | null;
+  /** The agents hidden on this computer, by ID (`custom` for the person's own command). */
+  hidden: string[];
 }
 
 export type LaunchedAgentState = 'none' | 'starting' | 'signIn' | 'ready' | 'ended';

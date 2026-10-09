@@ -16,6 +16,7 @@ export class PreviewAgentSession {
   private notice: string | null = null;
   private agent: { id: string; name: string; commandLine: string } | null = null;
   private customCommandLine: string | null = null;
+  private hidden: string[] = [];
   // The options Copilot CLI 1.0.93 offered when probed on 2026-10-08, trimmed.
   private options: AgentOption[] = [
     { id: 'mode', name: 'Mode', description: null, category: 'mode', currentValue: 'agent', values: [
@@ -44,6 +45,13 @@ export class PreviewAgentSession {
       case 'agentSession.setCommand':
         this.customCommandLine = typeof payload.commandLine === 'string' && payload.commandLine.trim() !== '' ? payload.commandLine.trim() : null;
         return this.list();
+      case 'agentSession.setHidden': {
+        const agentId = String(payload.agentId ?? '');
+        if (!['copilot', 'gemini', 'opencode', 'custom'].includes(agentId)) throw new WorkbenchHostError('validation', 'Choose one of the agents the Agent page offers.');
+        this.hidden = this.hidden.filter((id) => id !== agentId);
+        if (payload.hidden === true) this.hidden.push(agentId);
+        return this.list();
+      }
       case 'agentSession.launch': return this.launch(String(payload.agentId ?? ''));
       case 'agentSession.read': return this.read(Number(payload.after ?? 0));
       case 'agentSession.prompt': return this.sendPrompt(String(payload.text ?? ''), Number(payload.after ?? 0));
@@ -83,6 +91,7 @@ export class PreviewAgentSession {
       agents,
       customCommandLine: this.customCommandLine,
       running,
+      hidden: [...this.hidden],
     };
   }
 

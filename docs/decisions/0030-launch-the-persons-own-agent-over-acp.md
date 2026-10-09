@@ -323,6 +323,37 @@ neither in Nendo's protocol:
   fall behind just as this one did, it would carry Node and a vendor's SDK, and it would
   make one vendor's agent part of Nendo.
 
+### The Agent page as tabs, and agents a person can hide (2026-10-09, W-199)
+
+With Launch on it, the Agent page's left pane (the access ladder, Launch and the connection,
+stacked) had grown to 1,331 px while the right pane stood half empty. The owner asked for
+four layouts, chose A ("Go for Option A") and added: "allow for deleting (or hiding) agent
+options (claude, codex, custom ...). Eg, at work we only have Copilot."
+
+**What changed:**
+- The page is the state, the access level as one row, and three tabs: **Activity** (pending
+  changes, recent activity, who is working; the default, where proposals wait), **Launch**
+  (a tile per agent, the running one first) and **Connect** (the address, the copy buttons,
+  the port and lease settings). Anything that waits for the person, an outcome or automatic
+  actions to approve, stays above the tabs. The tab chosen and the keyboard focus survive the
+  status poll's three-second redraw.
+- Any agent can be hidden, the person's own command included, and brought back from the line
+  under the tiles. That is this device's choice, kept beside the command in
+  `agent-launch.json`, never in the file. `agentSession.setHidden` takes the request gate
+  (ADR-0002 note). An ID the build does not know is dropped on read. The running agent is never
+  hidden from view while it runs.
+
+**Checks:**
+- `AnAgentHiddenOnThisDeviceStaysHiddenAndComesBack` covers the bridge method, the store and
+  the file's change sequence. Dropping the hidden list when the person's command changed
+  failed it with "What the person hid did not survive their own command changing, or a
+  restart."
+- `agent-launch.test.mjs` covers the tiles, hiding and the tabs. Showing every agent whatever
+  was hidden failed "a hidden agent leaves Launch".
+- A headless Edge tour of the preview measured all three tabs within 900 px without scrolling,
+  the level on one row, the gates' selectors visible on Activity, hide, Show hidden and Show,
+  and focus kept through the poll; both themes were looked at.
+
 ## Consequences
 
 ### Positive

@@ -79,6 +79,11 @@ export async function saveAgentCommand(commandLine: string): Promise<LaunchableA
   return client.request<LaunchableAgents>('agentSession.setCommand', { commandLine });
 }
 
+/** Hide an agent from Launch on this device, or show it again (W-199). */
+export async function setAgentHidden(agentId: string, hidden: boolean): Promise<LaunchableAgents> {
+  return client.request<LaunchableAgents>('agentSession.setHidden', { agentId, hidden });
+}
+
 /**
  * Catch the conversation up: read what changed after the revision held, as many times as the
  * host says there is more, and once more if a nudge arrived while reading.

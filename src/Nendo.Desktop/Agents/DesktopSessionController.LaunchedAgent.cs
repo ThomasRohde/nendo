@@ -23,14 +23,17 @@ internal sealed record DesktopLaunchedAgentSummary(string AgentId, string Name, 
 
 /// <summary>
 /// What the Agent page shows under Launch: whether a launch is possible now and why not, the
-/// agents it can offer, the person's own command, and the agent already running.
+/// agents it can offer, the person's own command, the agent already running, and the agents this
+/// person hid on this device (by ID, <c>custom</c> for their own command). A hidden agent is still
+/// listed, so the page can offer to show it again.
 /// </summary>
 internal sealed record DesktopLaunchableAgents(
     bool CanLaunch,
     string? Reason,
     IReadOnlyList<DesktopLaunchableAgentView> Agents,
     string? CustomCommandLine,
-    DesktopLaunchedAgentSummary? Running);
+    DesktopLaunchedAgentSummary? Running,
+    IReadOnlyList<string> Hidden);
 
 /// <summary>
 /// The conversation tab's read: who the agent is, the level it works at, the MCP address it was
@@ -103,6 +106,27 @@ internal sealed partial class DesktopSessionController
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
                 throw new NendoPreconditionException("agent-command-not-saved", "Your command could not be kept on this computer.");
+            }
+            return DescribeLaunchableCore();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>Hide an agent from Launch on this device, or show it again (W-199).</summary>
+    internal async Task<DesktopLaunchableAgents> SetAgentHiddenAsync(string fileSessionId, string agentId, bool hidden, CancellationToken cancellationToken = default)
+    {
+        await EnterRequestGateAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            RequireFileSession(fileSessionId);
+            try { AgentLaunch().SetHidden(agentId, hidden); }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                throw new NendoPreconditionException("agent-choice-not-saved", "That choice could not be kept on this computer.");
             }
             return DescribeLaunchableCore();
         }
@@ -241,7 +265,7 @@ internal sealed partial class DesktopSessionController
         var running = _launched is { HasEnded: false } agent
             ? new DesktopLaunchedAgentSummary(agent.Command.Id, agent.Command.Name, agent.Conversation.State, agent.Conversation.Working)
             : null;
-        return new DesktopLaunchableAgents(LaunchRefusal() is null, LaunchRefusal(), agents, custom, running);
+        return new DesktopLaunchableAgents(LaunchRefusal() is null, LaunchRefusal(), agents, custom, running, AgentLaunch().Hidden);
     }
 
     /// <summary>Why an agent cannot be launched now, or null when it can.</summary>

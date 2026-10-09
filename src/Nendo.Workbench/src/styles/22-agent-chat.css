@@ -1,50 +1,158 @@
 /* A launched agent (ADR-0030): Launch on the Agent page, and the conversation in its own tab.
    Slice 22 of styles.css; shared tokens only, so both themes follow. */
 
-/* Launch: one row per agent the page knows, found or not, under the access ladder. */
-.agent-launch .launch-list {
+/* Launch as tiles (W-199): the running agent first, then the installed ones, the person's own
+   command and the ones not installed. Each can be hidden on this computer. */
+.agent-launch {
   display: grid;
-  gap: 6px;
-  margin: 0 0 12px;
+  gap: 14px;
+}
+
+.launch-intro {
+  margin: 0;
+  max-width: 80ch;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.launch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.launch-agent {
+.launch-tile {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  padding: 9px 12px;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 16px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  color: var(--ink);
-  background: var(--surface-raised);
-  text-align: left;
-  cursor: pointer;
-}
-
-.launch-agent:hover:not(:disabled, .is-missing) {
-  border-color: var(--line-strong);
-  background: var(--surface-soft);
-}
-
-/* An agent that is not installed: a row, not a button, saying what installs it. The command
-   wraps rather than being cut, since it is there to be read and copied. */
-.launch-agent.is-missing {
-  cursor: default;
+  border-radius: var(--radius-panel);
   background: var(--surface);
 }
 
-.launch-agent.is-missing .launch-name strong {
-  opacity: 0.62;
+.launch-tile.is-running {
+  border-color: color-mix(in srgb, var(--healthy) 45%, var(--line));
+  background: color-mix(in srgb, var(--healthy) 6%, var(--surface));
 }
 
-.launch-agent.is-missing .launch-name small {
+/* Not installed: the outline of a tile, saying what installs it. */
+.launch-tile.is-missing {
+  border-style: dashed;
+  background: transparent;
+}
+
+/* Hidden, shown only to be brought back: quieter, never faded below a readable contrast. */
+.launch-tile.is-hidden {
+  border-style: dashed;
+  background: var(--surface-soft);
+}
+
+.launch-tile.is-hidden .launch-tile-head strong {
+  color: var(--muted);
+}
+
+.launch-tile-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.launch-tile-head strong {
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.launch-hide {
+  flex: none;
+  min-height: 24px;
+  margin: -3px -6px 0 0;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.launch-hide:hover {
+  color: var(--ink);
+  background: var(--surface-soft);
+}
+
+.launch-hide:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 1px;
+}
+
+/* A command is there to be read and copied: it wraps rather than being cut. */
+.launch-command-line {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.74rem;
   overflow-wrap: anywhere;
-  white-space: normal;
   user-select: text;
+}
+
+.launch-line {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.launch-tile-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.launch-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--healthy);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+/* A command line, not a port: the connection fields' twelve right-aligned digits would clip it. */
+.launch-command-field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.launch-hidden-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.launch-hidden-note .text-button {
+  min-height: 28px;
+  padding: 2px 6px;
+  color: var(--cobalt);
 }
 
 .launch-copy {
@@ -60,17 +168,20 @@
   cursor: pointer;
 }
 
+.launch-tile-foot .launch-copy {
+  margin-left: -8px;
+}
+
 .launch-copy:hover {
   background: var(--surface-soft);
 }
 
 /* An agent found from a package that was renamed and no longer gets updates. The action sits
-   under the sentence, so a package name has the row's whole width before it wraps. */
+   under the sentence, so a package name has the tile's whole width before it wraps. */
 .launch-renamed {
   display: grid;
   justify-items: start;
   gap: 2px;
-  margin-top: 4px;
   padding: 8px 10px;
   border: 1px solid color-mix(in srgb, var(--warning) 26%, var(--line));
   border-radius: var(--radius-control);
@@ -84,7 +195,7 @@
   line-height: 1.45;
 }
 
-/* A package name moves to the next line whole, and breaks only when it is wider than the row. */
+/* A package name moves to the next line whole, and breaks only when it is wider than the tile. */
 .launch-renamed code {
   display: inline-block;
   max-width: 100%;
@@ -95,72 +206,6 @@
 
 .launch-renamed .launch-copy {
   margin-left: -8px;
-}
-
-.launch-agent:disabled {
-  cursor: default;
-}
-
-.launch-agent:disabled .launch-name {
-  opacity: 0.62;
-}
-
-.launch-name {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.launch-name strong {
-  font-size: 0.85rem;
-  font-weight: 650;
-}
-
-.launch-name small {
-  overflow: hidden;
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.launch-go {
-  color: var(--cobalt);
-  font-size: 0.78rem;
-  font-weight: 650;
-}
-
-.launch-agent:disabled .launch-go {
-  visibility: hidden;
-}
-
-.launch-running {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 0 0 10px;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--healthy) 35%, var(--line));
-  border-radius: var(--radius-control);
-  background: color-mix(in srgb, var(--healthy) 7%, var(--surface));
-  font-size: 0.82rem;
-}
-
-.agent-launch .launch-command {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 4px;
-}
-
-/* A command line, not a port: the connection fields' twelve right-aligned digits would clip it. */
-.agent-launch .launch-command input {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: none;
-  text-align: left;
-  font-family: var(--mono);
 }
 
 /* The conversation, direction A (2026-10-08): a heading row, a reading column that scrolls, and

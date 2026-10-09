@@ -845,7 +845,7 @@ The local defaults suit single-user work:
   back to an ephemeral port and reports it.
 - an edit lease with no expiry, which ends on explicit release or owner revocation.
 
-The person can change both in Agent → Connection, where the Port field is this
+The person can change both on the Agent page's Connect tab, where the Port field is this
 file's own and a port another file keeps is refused by that file's name. That page
 also shows the live address and copies the registration command for Claude Code or
 Codex, under a server name made from the file (`nendo` for Nendo.nendo, `nendo-bcm`
@@ -866,11 +866,18 @@ host is an ACP client (`Desktop/Agents/`). It keeps no model client and no crede
 - **What it offers.** `DesktopAgentCatalog` knows five programs: Copilot CLI,
   Gemini CLI, the Claude Code and Codex ACP adapters, and OpenCode. It finds them on
   `PATH` as a terminal would. A `.cmd` shim runs under the command interpreter. The
-  person may add one command line, which this device keeps in `agent-launch.json`.
-  Launch is offered at Inspect and above. Each known program carries its npm package:
+  person may add one command line and hide any agent, their own command included;
+  this device keeps both in `agent-launch.json`, never the file (W-199). Launch is
+  offered at Inspect and above. Each known program carries its npm package:
   a missing one shows `npm install -g <package>`, and a found npm shim that starts a
   package the catalog lists as renamed shows the commands that move it. The page
   copies them for a terminal; the host runs neither.
+- **Where it sits.** The Agent page is the state, the access level as one row, and
+  three tabs (W-199, the owner's design A): Activity (pending changes, recent
+  activity, who is working; the default), Launch (a tile per agent) and Connect
+  (the address and the port and lease settings). Anything waiting for the person
+  stays above the tabs. `view-agent.ts` keeps the tab and focus through the status
+  poll's redraw; `agent-launch-model.ts` draws the tabs and tiles.
 - **How the program runs.** `AgentProcess` starts it in a new empty folder under
   `agent-sessions/` in device state, with the person's own environment, inside a Job
   Object. Closing the job's handle ends the program and everything it started.
@@ -901,7 +908,7 @@ host is an ACP client (`Desktop/Agents/`). It keeps no model client and no crede
   a listener that comes back at another address all end the agent. A new level at
   the same address does not.
 
-The conversation reaches the tab through ten `agentSession.*` bridge methods and
+The conversation reaches the tab through eleven `agentSession.*` bridge methods and
 the `agentSessionChanged` nudge (ADR-0002, 2026-10-08 note). `view-agent-chat.ts`
 reads what changed and patches it in place, so the composer is never redrawn. The
 transcript lives in host memory until the file closes or another agent is launched.

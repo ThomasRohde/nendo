@@ -70,6 +70,7 @@ internal static partial class WorkbenchMethods
         ExtensionRemove,
         AgentSessionList,
         AgentSessionSetCommand,
+        AgentSessionSetHidden,
         AgentSessionLaunch,
         AgentSessionRead,
         AgentSessionPrompt,

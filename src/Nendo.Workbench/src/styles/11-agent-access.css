@@ -1,41 +1,157 @@
 /* Agent access (2026-09-14): the permission ladder and the connection card.
    Slice 11 of styles.css; see that file for why the order matters. */
 
-/* Agent access (2026-09-14): two panes. The left pane is what the owner sets — the access
-   ladder and the connection — and the right pane is what agents are doing: state, owner,
-   pending changes and activity. Shared tokens throughout, so both themes follow; the panes
-   stack under 1020px. */
+/* Agent access as tabs (W-199, the owner's design A of 2026-10-09): the state, the level as one
+   row, and Activity, Launch and Connect behind tabs. It replaced two panes whose left one, the
+   ladder, Launch and the connection stacked, had grown to 1,331 px. Anything that waits for the
+   person stays above the tabs. Shared tokens throughout, so both themes follow. */
 .agent-page {
-  display: grid;
-  grid-template-columns: minmax(330px, 400px) minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-sizing: border-box;
   min-height: 100%;
+  padding: 26px 40px 36px;
 }
 
-.agent-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 30px;
-  min-width: 0;
-  padding: 30px 28px 28px 32px;
-  border-right: 1px solid var(--line);
-  background: var(--surface);
-}
-
-.agent-live {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  min-width: 0;
-  padding: 30px 38px 36px;
-}
-
-.agent-live > .message-slot {
+.agent-page > .message-slot {
   width: 100%;
   margin: 0;
 }
 
-.agent-live > .behaviour-approval {
+.agent-page > .behaviour-approval {
   margin: 0;
+}
+
+.agent-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.agent-page .agent-heading {
+  align-items: flex-end;
+}
+
+/* The tabs: each says in a word what is behind it. A hidden panel stays in the page, so a
+   half-typed field in it survives a switch. */
+.agent-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.agent-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
+  color: var(--muted);
+  background: transparent;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.agent-tab:hover {
+  color: var(--ink);
+  background: var(--surface-soft);
+}
+
+.agent-tab[aria-selected="true"] {
+  color: var(--ink);
+}
+
+.agent-tab[aria-selected="true"]::after {
+  position: absolute;
+  right: 10px;
+  bottom: -1px;
+  left: 10px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--cobalt);
+  content: "";
+}
+
+.agent-tab:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: -2px;
+}
+
+.tab-note {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 12%, var(--surface));
+  font-size: 0.72rem;
+  font-weight: 680;
+}
+
+.tab-dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--healthy);
+}
+
+.agent-panel[hidden] {
+  display: none;
+}
+
+.agent-activity-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  align-items: start;
+  gap: 28px;
+}
+
+.agent-activity-main {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+
+.agent-page .agent-presence {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+}
+
+.agent-page .agent-presence > div {
+  gap: 4px;
+  padding: 14px 16px;
+}
+
+.agent-page .agent-presence > div + div {
+  border-top: 1px solid var(--line);
+}
+
+.agent-page .agent-presence strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-page .agent-presence .secondary-button {
+  justify-self: start;
+  margin-top: 6px;
 }
 
 .permission-intro {
@@ -62,37 +178,30 @@
   line-height: 1.5;
 }
 
-/* The ladder: four steps down one rail. Only the marker and the title carry the selection, so
-   the rail reads as a single line. */
-.permission-track {
-  position: relative;
+/* The ladder as one row of five (W-199): the level is the one setting every tab works under, so
+   it stays in view above them. The chosen step carries the accent. */
+.permission-ladder {
   display: grid;
-  gap: 2px;
+  gap: 8px;
 }
 
-.permission-track::before {
-  position: absolute;
-  top: 24px;
-  bottom: 24px;
-  left: 17px;
-  width: 2px;
-  background: var(--line);
-  content: "";
+.permission-track {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 6px;
 }
 
 .permission-step {
-  position: relative;
-  z-index: 1;
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-columns: 26px minmax(0, 1fr);
   align-items: center;
-  gap: 14px;
-  min-height: 52px;
-  padding: 6px 8px 6px 0;
-  border: 0;
+  gap: 10px;
+  min-height: 54px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
   border-radius: var(--radius-control);
   color: var(--muted);
-  background: transparent;
+  background: var(--surface);
   text-align: left;
   cursor: pointer;
 }
@@ -101,8 +210,28 @@
   cursor: default;
 }
 
+.permission-step:not(:disabled):hover {
+  border-color: var(--line-strong);
+}
+
 .permission-step:not(:disabled):hover .step-marker {
   border-color: var(--cobalt);
+}
+
+.permission-step[aria-pressed="true"] {
+  border-color: var(--cobalt);
+  background: color-mix(in srgb, var(--cobalt) 8%, var(--surface));
+}
+
+.permission-step small {
+  overflow-wrap: anywhere;
+}
+
+.ladder-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
 }
 
 .permission-step:focus-visible {
@@ -130,8 +259,8 @@
   display: grid;
   place-items: center;
   justify-self: center;
-  width: 36px;
-  height: 36px;
+  width: 26px;
+  height: 26px;
   border: 2px solid var(--line-strong);
   border-radius: 50%;
   color: var(--muted);
@@ -144,7 +273,7 @@
   border-color: var(--cobalt);
   color: #ffffff;
   background: var(--cobalt);
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--cobalt) 13%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cobalt) 13%, transparent);
 }
 
 :root[data-theme="dark"] .permission-step[aria-pressed="true"] .step-marker {
@@ -155,22 +284,31 @@
   color: var(--cobalt);
 }
 
-/* Connection: the address card, then both switches in one bordered list. */
+/* Connect: the address card beside both switches in one bordered list. */
 .agent-connection {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
 }
 
-.agent-connection .permission-intro {
-  margin-bottom: 0;
+.connection-side {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.connection-endpoint h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  font-weight: 650;
 }
 
 .connection-endpoint {
   display: grid;
   gap: 6px;
   min-width: 0;
-  padding: 14px 16px;
+  padding: 16px 18px;
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
   color: var(--ink);
@@ -378,11 +516,10 @@
 }
 
 .agent-help-entry {
-  display: grid;
-  gap: 3px;
-  justify-items: start;
-  margin: auto 0 0;
-  padding-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
   font-size: 0.82rem;
   line-height: 1.5;
 }

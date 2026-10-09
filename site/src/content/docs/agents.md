@@ -20,11 +20,11 @@ claude mcp add --transport http nendo http://127.0.0.1:41763/mcp
 codex mcp add nendo --url http://127.0.0.1:41763/mcp
 ```
 
-The address is the whole configuration. Nendo listens on the loopback address `127.0.0.1` only while a file is open and access is not Off. **Agent › Connection** shows the live address and has a copy button for each client. Claude Code and Codex are the tested clients. Other MCP clients that support Streamable HTTP may work, but they are not tested.
+The address is the whole configuration. Nendo listens on the loopback address `127.0.0.1` only while a file is open and access is not Off. **Agent › Connect** shows the live address and has a copy button for each client. Claude Code and Codex are the tested clients. Other MCP clients that support Streamable HTTP may work, but they are not tested.
 
-Each file keeps a port of its own on your computer. The first file you switch access on for keeps `41763`, and each further file keeps the next free one, whatever order you open them in later. So you can work with several files at once: register each one once, from its own **Agent › Connection**. The copy buttons name the server after the file, `nendo` for `Nendo.nendo` and `nendo-bcm` for `BCM.nendo`, so the second registration does not replace the first. To give a file a different port, change **Port for this file** there. A port that another file keeps is refused, and the message names that file.
+Each file keeps a port of its own on your computer. The first file you switch access on for keeps `41763`, and each further file keeps the next free one, whatever order you open them in later. So you can work with several files at once: register each one once, from its own **Agent › Connect**. The copy buttons name the server after the file, `nendo` for `Nendo.nendo` and `nendo-bcm` for `BCM.nendo`, so the second registration does not replace the first. To give a file a different port, change **Port for this file** there. A port that another file keeps is refused, and the message names that file.
 
-If a file's port is taken by another program when access starts, Nendo does not fail. It listens on a temporary port for that session, and **Agent › Connection** shows a warning and the address to use. Turn **Fixed port** off to use a new port each time.
+If a file's port is taken by another program when access starts, Nendo does not fail. It listens on a temporary port for that session, and **Agent › Connect** shows a warning and the address to use. Turn **Fixed port** off to use a new port each time.
 
 A script or tool that needs to find a file's address without being told can read `%LOCALAPPDATA%\Nendo\Mcp\active\`. Each running Nendo keeps one small JSON file there for every file it has open, readable only by your Windows account. It holds the `endpoint`, the file's name as `displayName` (never its folder), the file's `applicationId`, the access `mode` and the `processId`. The entry is removed when the file closes. Once connected, `nendo://host/instances` lists the same entries.
 
@@ -32,10 +32,10 @@ There is no credential. While access is on, any program on this computer can con
 
 ## Launch an agent from Nendo
 
-Nendo can also start an agent for you, in a tab beside the file. It speaks the Agent Client Protocol (ACP), which coding agents use to run inside an editor:
+Nendo can also start an agent for you, in a tab beside the file. The Agent page has three tabs under the access level: **Activity** for pending changes and what agents did, **Launch**, and **Connect** for the address and its settings. It speaks the Agent Client Protocol (ACP), which coding agents use to run inside an editor:
 
 1. Select **Agent** and choose **Inspect** or a higher level.
-2. Under **Launch an agent**, select one that Nendo found on this computer: GitHub Copilot CLI, Gemini CLI, Claude Code or Codex through their ACP adapters, or OpenCode. You can also add your own command, such as `my-agent --acp`. One that is missing shows the npm command that installs it, and one installed from a package that was renamed says so, with the commands that move it. **Copy** puts the command on the clipboard. Run it in a terminal (npm comes with Node.js), then open the Agent page again.
+2. On the **Launch** tab, select one that Nendo found on this computer: GitHub Copilot CLI, Gemini CLI, Claude Code or Codex through their ACP adapters, or OpenCode. You can also add your own command, such as `my-agent --acp`. One that is missing shows the npm command that installs it, and one installed from a package that was renamed says so, with the commands that move it. **Copy** puts the command on the clipboard. Run it in a terminal (npm comes with Node.js), then open the Agent page again. **Hide** takes away an agent you do not use, your own command included. Your computer remembers it, not the file, and **Show hidden** brings one back.
 3. The agent opens in a new tab. Type to it there. The tab shows the agent's replies. The tools it calls and its plan fold into one line between messages, and each tool says whether it went through Nendo or was the agent's own. The tab asks you whenever the agent asks permission. **Stop** interrupts it, and **End** closes it.
 4. The agent's own settings sit beside the message box, as the agent offers them, for example its model, its reasoning effort and its mode. Anything else it offers is under **More**. These change the agent, not what it may do in your file.
 
@@ -70,7 +70,7 @@ Every write and every change-set call takes both. The agent must keep the handle
 
 The grant also states the write limits, such as how many writes one batch carries and how many fields one update writes, and the reads to make before writing. It carries a **receipt context**, an unprivileged value the agent saves before it writes, so it can read the outcome of a write whose answer was lost. An agent that sends an `idempotencyKey` with `nendo.lease.acquire` can repeat the call after a lost answer and receive the same grant instead of being refused against itself. One that released its lease, or lost it, takes it again under its earlier handle with `resumeApplicationHandle`: the proposals it validated, its pseudonym and its receipts are its own once more. A handle lasts while Nendo runs; after a restart it is unknown.
 
-By default the lease has no expiry. It ends when the agent releases it, when you select **Revoke edit access**, when you set access to Off, or when you close or switch the file. Closing the agent does not release it. If you want leases to lapse, turn on **Lease expiry** under **Agent › Connection** and set a time from 15 to 86,400 seconds. The agent must then call `nendo.lease.renew` within that time.
+By default the lease has no expiry. It ends when the agent releases it, when you select **Revoke edit access**, when you set access to Off, or when you close or switch the file. Closing the agent does not release it. If you want leases to lapse, turn on **Lease expiry** under **Agent › Connect** and set a time from 15 to 86,400 seconds. The agent must then call `nendo.lease.renew` within that time.
 
 `nendo.lease.status` needs no lease. It tells an agent who holds the lease, which is useful after a reconnect or a lost response.
 

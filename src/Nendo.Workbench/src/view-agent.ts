@@ -5,8 +5,8 @@ import { confirmDialog } from './confirm-dialog';
 import { type ConnectionClient, connectionClients, connectionCommand, serverNameFor } from './client-help';
 import { activityLabel, agentModeLabel, escapeAttribute, escapeHtml, formatDateTime, isAgentAccessMode, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel, shortId } from './format';
 import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type DesktopPromotionView, type LaunchableAgents, type ProposalPreview } from './host';
-import { launchAgent, openAgentChat, saveAgentCommand } from './view-agent-chat';
-import { type CopyFeedback, copyButtonContent, copyHintMarkup, launchCopyText, launchRowMarkup } from './agent-launch-model';
+import { launchAgent, openAgentChat, saveAgentCommand, setAgentHidden } from './view-agent-chat';
+import { type AgentTab, type CopyFeedback, agentTabs, agentTabsMarkup, copyButtonContent, copyHintMarkup, launchCopyText, launchTilesMarkup } from './agent-launch-model';
 import { announce, clearError, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
 import { applicationPlans, overviewPlan } from './plan-selection';
 import { addedSurfaceSentence, kindLabel } from './surface-model';
@@ -76,25 +76,69 @@ async function copyToClipboard(key: string, text: string, focusSelector: string)
   return ok;
 }
 
-const runningWords: Record<string, string> = { starting: 'starting', signIn: 'waiting for you to sign in', ready: 'running' };
+const runningWords: Record<string, string> = { starting: 'Starting', signIn: 'Waiting for you to sign in', ready: 'Running' };
+
+/**
+ * The tab the Agent page shows (W-199, the owner's design A), and whether Launch shows the agents
+ * hidden on this computer. Page state, so the status poll's redraw keeps both; a new file starts
+ * on Activity, where anything waiting for the person is.
+ */
+let agentTab: AgentTab = 'activity';
+let showHiddenAgents = false;
+fileScopedClearable({ clear(): void { agentTab = 'activity'; showHiddenAgents = false; } });
+
+function runningAgent(): { agentId: string; name: string; label: string } | null {
+  const running = launchable?.running ?? null;
+  return running === null ? null
+    : { agentId: running.agentId, name: running.name, label: running.working ? 'Working' : runningWords[running.state] ?? running.state };
+}
 
 /**
  * Launch an agent: the person's own installed agent programs, started in a tab beside the file
- * at the level chosen above (ADR-0030). The sentence under the heading is the one thing a person
- * must know before the first launch: Nendo does not confine the program.
+ * at the level chosen above (ADR-0030). The sentence at the top is the one thing a person must
+ * know before the first launch: Nendo does not confine the program.
  */
 function launchMarkup(): string {
-  if (launchable === null) return '';
+  if (launchable === null) return '<div class="quiet-state"><strong>Launching is not available here</strong><p>This session cannot start an agent program.</p></div>';
   const offer = launchable;
-  const running = offer.running;
-  const rows = offer.agents.map((agent) => launchRowMarkup(agent, offer.canLaunch && running === null, copyFor(`agent:${agent.id}`))).join('');
-  return `<section class="agent-launch" aria-labelledby="launch-title">
-    <div class="permission-intro"><h2 id="launch-title">Launch an agent</h2><p>Start an agent you have installed, in a tab beside this file. It works at the level above and reaches this file only through Nendo. It is the program you would run in a terminal, with its own tools on this computer.</p></div>
-    ${running === null ? '' : `<div class="launch-running"><span><strong>${escapeHtml(running.name)}</strong> is ${escapeHtml(running.working ? 'working' : runningWords[running.state] ?? running.state)}.</span><button id="open-agent-chat" class="secondary-button" type="button">Open conversation</button></div>`}
-    <ul class="launch-list">${rows}</ul>
-    <label class="connection-field launch-command"><span>Your own command</span><input id="agent-command" type="text" spellcheck="false" autocomplete="off" maxlength="1000" value="${escapeAttribute(offer.customCommandLine ?? '')}" placeholder="program --acp"></label>
-    ${offer.canLaunch ? '' : `<p class="connection-note">${escapeHtml(offer.reason ?? 'An agent cannot be launched now.')}</p>`}
-  </section>`;
+  const running = runningAgent();
+  return `<p class="launch-intro">Start an agent you have installed, in a tab beside this file. It works at the level above and reaches this file only through Nendo. It is the program you would run in a terminal, with its own tools on this computer.</p>
+    ${launchTilesMarkup(offer, { canLaunch: offer.canLaunch, running, showHidden: showHiddenAgents, copyFor: (id) => copyFor(`agent:${id}`) })}
+    ${running === null ? '' : `<p class="connection-note">One agent runs at a time. End ${escapeHtml(running.name)} in its tab to launch another.</p>`}
+    ${offer.canLaunch ? '' : `<p class="connection-note">${escapeHtml(offer.reason ?? 'An agent cannot be launched now.')}</p>`}`;
+}
+
+/**
+ * Where keyboard focus was on the Agent page, as a selector that finds the same control after a
+ * redraw. The status poll rebuilds the page every three seconds, and a tab (W-199) or a level
+ * that had focus lost it each time, so a person moving with the keyboard was sent back to the
+ * top of the document mid-step.
+ */
+const focusKeys = ['agentTab', 'agentMode', 'launchAgent', 'copyAgent', 'agentHide', 'agentShow', 'connectionClient', 'agentSetting', 'reviewAgentProposal'] as const;
+
+function focusedControl(): string | null {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !content.contains(active)) return null;
+  if (active.id !== '') return `#${CSS.escape(active.id)}`;
+  for (const key of focusKeys) {
+    const value = active.dataset[key];
+    if (value !== undefined) return `[data-${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}="${CSS.escape(value)}"]`;
+  }
+  if (active.dataset.toggleHidden !== undefined) return '[data-toggle-hidden]';
+  if (active.dataset.openAgentChat !== undefined) return '[data-open-agent-chat]';
+  return null;
+}
+
+/** Show another tab without a redraw, so focus and anything half-typed in the others stay put. */
+function selectAgentTab(tab: AgentTab, focus: boolean): void {
+  agentTab = tab;
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-agent-tab]')) {
+    const on = button.dataset.agentTab === tab;
+    button.setAttribute('aria-selected', String(on));
+    button.tabIndex = on ? 0 : -1;
+    if (on && focus) button.focus();
+  }
+  for (const panel of content.querySelectorAll<HTMLElement>('.agent-panel')) panel.hidden = panel.id !== `agent-panel-${tab}`;
 }
 
 export function renderAgent(): void {
@@ -130,48 +174,80 @@ export function renderAgent(): void {
     }
   })();
   const pendingCount = status.pendingProposals.length;
-  content.innerHTML = `<div class="agent-page" data-testid="agent-access">
-    <aside class="agent-controls" aria-label="Agent access settings">
-      <section class="permission-ladder" aria-labelledby="permission-title">
-        <div class="permission-intro"><h2 id="permission-title">Access level</h2><p>${escapeHtml(ladderIntro(status.mode))}</p></div>
-        <div class="permission-track" role="group" aria-label="Agent access level">
-          ${modes.map((mode, index) => `<button class="permission-step" type="button" data-agent-mode="${mode.value}" aria-pressed="${status.mode === mode.value}" ${!status.available ? 'disabled' : ''}><span class="step-marker" aria-hidden="true">${index + 1}</span><span class="step-text"><strong>${mode.label}</strong><small>${mode.short}</small></span></button>`).join('')}
-        </div>
-      </section>
-      ${launchMarkup()}
-      <section class="agent-connection" aria-labelledby="connection-title">
-        <div class="permission-intro"><h2 id="connection-title">Connection</h2></div>
-        <div class="connection-endpoint"><span class="presence-label">Address</span><code id="agent-endpoint">${status.endpoint === null ? 'Shown while agent access is on' : escapeHtml(status.endpoint)}</code><small>Register it with your client once, as <code>${escapeHtml(serverNameFor(state.session.fileName))}</code>.</small><div class="connection-copy">${connectionClients.map((item) => `<button class="secondary-button${copyFor(`client:${item.id}`)?.ok === true ? ' is-copied' : ''}" data-connection-client="${item.id}" data-action type="button" ${status.endpoint === null ? 'disabled' : ''}>${copyButtonContent(item.label, copyFor(`client:${item.id}`))}</button>`).join('')}</div>${connectionClients.map((item) => copyHintMarkup(copyFor(`client:${item.id}`), ' once')).join('')}</div>
-        ${status.usingPreferredPort ? '' : `<p class="connection-warning">Port ${status.portPreference} was in use. Nendo is listening on a temporary port for this session, so a pinned client address must be re-read from the connection entry.</p>`}
-        <div class="connection-settings">
-          <div class="connection-setting">
-            <button class="connection-toggle" type="button" data-agent-setting="fixedPort" aria-pressed="${status.fixedPort}" ${!status.available ? 'disabled' : ''}><span class="switch-glyph" aria-hidden="true"></span><span class="toggle-text"><strong>Fixed port</strong><small>${status.fixedPort ? 'A saved client address keeps working' : 'A new port each time this starts'}</small></span></button>
-            <label class="connection-field"><span>Port for this file</span><input id="agent-port" type="number" min="1024" max="65535" value="${status.portPreference}" ${!status.fixedPort || !status.available ? 'disabled' : ''}></label>
-          </div>
-          <div class="connection-setting">
-            <button class="connection-toggle" type="button" data-agent-setting="leaseExpiry" aria-pressed="${status.leaseExpiry}" ${!status.available ? 'disabled' : ''}><span class="switch-glyph" aria-hidden="true"></span><span class="toggle-text"><strong>Lease expiry</strong><small>${status.leaseExpiry ? 'Editing lapses without renewal' : 'Editing ends only on release or revoke'}</small></span></button>
-            <label class="connection-field"><span>Seconds</span><input id="agent-lease-seconds" type="number" min="15" max="86400" value="${status.leaseExpirySeconds}" ${!status.leaseExpiry || !status.available ? 'disabled' : ''}></label>
-          </div>
-        </div>
-        <p class="connection-note">These are the local defaults. Harden any of them if this machine is shared.${status.settingsPersisted ? '' : ' Settings could not be saved for the next launch.'}</p>
-      </section>
-      <p class="agent-help-entry"><span>New to agent access?</span><button id="agent-help" class="text-button" type="button">Learn how to connect with MCP</button><button id="agent-help-access" class="text-button" type="button">What an agent can see and do</button></p>
-    </aside>
-    <div class="agent-live">
-      <div class="message-slot" role="alert" hidden></div>
-      <header class="agent-heading"><div><h2>${escapeHtml(heading.title)}</h2><p>${escapeHtml(heading.detail)}</p></div><span class="agent-ready ${status.state}"><span aria-hidden="true"></span>${escapeHtml(heading.chip)}</span></header>
-      ${behaviourApprovalMarkup()}
-      <section class="agent-presence" aria-label="Recent agent activity and edit access">
-        <div><span class="presence-label">Most recent agent</span><strong>${escapeHtml(status.connectedAgent ?? 'No activity yet')}</strong><small>${status.connectedAgent === null ? 'Shown after the first request' : 'Available only while this file is open'}</small></div>
-        <div><span class="presence-label">Editing owner</span><strong>${escapeHtml(status.editingOwner ?? 'No edit lease')}</strong><small>${status.editingOwner === null ? 'Editing is granted to one agent at a time' : status.leaseExpiresAt === null ? 'Does not expire · use Revoke edit access to end it' : `Expires ${escapeHtml(formatDateTime(status.leaseExpiresAt))}`}</small></div>
-        <button id="revoke-agent" class="secondary-button" data-action type="button" ${status.editingOwner === null ? 'disabled' : ''}>Revoke edit access</button>
-      </section>
+  const running = runningAgent();
+  const refocus = focusedControl();
+  // Design A (W-199): the state, the level as one row, and three tabs. Anything that waits for
+  // the person -- an outcome, automatic actions to approve -- stays above the tabs, and Activity,
+  // where proposals wait, is the tab a file opens on.
+  const panel = (tab: AgentTab, kind: string, body: string): string =>
+    `<section class="agent-panel ${kind}" role="tabpanel" id="agent-panel-${tab}" aria-labelledby="agent-tab-${tab}" ${agentTab === tab ? '' : 'hidden'}>${body}</section>`;
+  const activity = `<div class="agent-activity-main">
       <section class="pending-changes"><header><h3>Pending changes</h3><span class="${pendingCount === 0 ? '' : 'pending-badge'}">${pendingCount === 0 ? 'None waiting' : `${pendingCount} waiting`}</span></header>${pendingCount === 0
         ? '<div class="quiet-state"><strong>No changes waiting</strong><p>Agent proposals appear here for your review.</p></div>'
         : status.pendingProposals.map((pending) => `<article><span class="proposal-spark" aria-hidden="true">✦</span><div><strong>${escapeHtml(pending.title)}</strong><p>${pending.operationCount} proposed changes · ${escapeHtml(reversibilityLabel(pending.reversibility))}${queueConsentNote(pending.behaviour)}</p></div><button class="secondary-button" data-review-agent-proposal="${escapeAttribute(pending.proposalId)}" data-action type="button">Review changes</button></article>`).join('')}</section>
       <section class="agent-activity"><header><h3>Recent activity</h3><span>${status.recentActivity.length} shown</span></header>${activityMarkup(status.recentActivity)}</section>
     </div>
+    <aside class="agent-presence" aria-label="Who is working in this file">
+      ${running === null ? '' : `<div><span class="presence-label">Running in Nendo</span><strong><span class="tab-dot" aria-hidden="true"></span>${escapeHtml(running.name)}</strong><small>${escapeHtml(running.label)}</small><button class="secondary-button" type="button" data-open-agent-chat>Open conversation</button></div>`}
+      <div><span class="presence-label">Most recent agent</span><strong>${escapeHtml(status.connectedAgent ?? 'No activity yet')}</strong><small>${status.connectedAgent === null ? 'Shown after the first request' : 'Available only while this file is open'}</small></div>
+      <div><span class="presence-label">Editing owner</span><strong>${escapeHtml(status.editingOwner ?? 'No edit lease')}</strong><small>${status.editingOwner === null ? 'Editing is granted to one agent at a time' : status.leaseExpiresAt === null ? 'Does not expire · use Revoke edit access to end it' : `Expires ${escapeHtml(formatDateTime(status.leaseExpiresAt))}`}</small><button id="revoke-agent" class="secondary-button" data-action type="button" ${status.editingOwner === null ? 'disabled' : ''}>Revoke edit access</button></div>
+    </aside>`;
+  const connect = `<div class="connection-endpoint"><h3>Connect a client you run yourself</h3><span class="presence-label">Address</span><code id="agent-endpoint">${status.endpoint === null ? 'Shown while agent access is on' : escapeHtml(status.endpoint)}</code><small>Register it with your client once, as <code>${escapeHtml(serverNameFor(state.session.fileName))}</code>.</small><div class="connection-copy">${connectionClients.map((item) => `<button class="secondary-button${copyFor(`client:${item.id}`)?.ok === true ? ' is-copied' : ''}" data-connection-client="${item.id}" data-action type="button" ${status.endpoint === null ? 'disabled' : ''}>${copyButtonContent(item.label, copyFor(`client:${item.id}`))}</button>`).join('')}</div>${connectionClients.map((item) => copyHintMarkup(copyFor(`client:${item.id}`), ' once')).join('')}</div>
+    <div class="connection-side">
+      ${status.usingPreferredPort ? '' : `<p class="connection-warning">Port ${status.portPreference} was in use. Nendo is listening on a temporary port for this session, so a pinned client address must be re-read from the connection entry.</p>`}
+      <div class="connection-settings">
+        <div class="connection-setting">
+          <button class="connection-toggle" type="button" data-agent-setting="fixedPort" aria-pressed="${status.fixedPort}" ${!status.available ? 'disabled' : ''}><span class="switch-glyph" aria-hidden="true"></span><span class="toggle-text"><strong>Fixed port</strong><small>${status.fixedPort ? 'A saved client address keeps working' : 'A new port each time this starts'}</small></span></button>
+          <label class="connection-field"><span>Port for this file</span><input id="agent-port" type="number" min="1024" max="65535" value="${status.portPreference}" ${!status.fixedPort || !status.available ? 'disabled' : ''}></label>
+        </div>
+        <div class="connection-setting">
+          <button class="connection-toggle" type="button" data-agent-setting="leaseExpiry" aria-pressed="${status.leaseExpiry}" ${!status.available ? 'disabled' : ''}><span class="switch-glyph" aria-hidden="true"></span><span class="toggle-text"><strong>Lease expiry</strong><small>${status.leaseExpiry ? 'Editing lapses without renewal' : 'Editing ends only on release or revoke'}</small></span></button>
+          <label class="connection-field"><span>Seconds</span><input id="agent-lease-seconds" type="number" min="15" max="86400" value="${status.leaseExpirySeconds}" ${!status.leaseExpiry || !status.available ? 'disabled' : ''}></label>
+        </div>
+      </div>
+      <p class="connection-note">These are the local defaults. Harden any of them if this machine is shared.${status.settingsPersisted ? '' : ' Settings could not be saved for the next launch.'}</p>
+    </div>`;
+  content.innerHTML = `<div class="agent-page" data-testid="agent-access">
+    <div class="message-slot" role="alert" hidden></div>
+    <header class="agent-heading">
+      <div><div class="agent-title-row"><h2>${escapeHtml(heading.title)}</h2><span class="agent-ready ${status.state}"><span aria-hidden="true"></span>${escapeHtml(heading.chip)}</span></div><p>${escapeHtml(heading.detail)}</p></div>
+      <p class="agent-help-entry"><button id="agent-help" class="text-button" type="button">Learn how to connect with MCP</button><button id="agent-help-access" class="text-button" type="button">What an agent can see and do</button></p>
+    </header>
+    <section class="permission-ladder" aria-label="Access level">
+      <div class="permission-track" role="group" aria-label="Agent access level">
+        ${modes.map((mode, index) => `<button class="permission-step" type="button" data-agent-mode="${mode.value}" aria-pressed="${status.mode === mode.value}" ${!status.available ? 'disabled' : ''}><span class="step-marker" aria-hidden="true">${index + 1}</span><span class="step-text"><strong>${mode.label}</strong><small>${mode.short}</small></span></button>`).join('')}
+      </div>
+      <p class="ladder-note">${escapeHtml(ladderIntro(status.mode))}</p>
+    </section>
+    ${behaviourApprovalMarkup()}
+    ${agentTabsMarkup(agentTab, { pending: pendingCount, running: running?.name ?? null, endpoint: status.endpoint })}
+    ${panel('activity', 'agent-activity-panel', activity)}
+    ${panel('launch', 'agent-launch', launchMarkup())}
+    ${panel('connect', 'agent-connection', connect)}
   </div>`;
+  for (const tab of content.querySelectorAll<HTMLButtonElement>('[data-agent-tab]')) {
+    tab.addEventListener('click', () => selectAgentTab(tab.dataset.agentTab as AgentTab, false));
+    tab.addEventListener('keydown', (event) => {
+      const index = agentTabs.findIndex((candidate) => candidate.id === tab.dataset.agentTab);
+      const next = event.key === 'ArrowRight' ? (index + 1) % agentTabs.length
+        : event.key === 'ArrowLeft' ? (index + agentTabs.length - 1) % agentTabs.length
+          : event.key === 'Home' ? 0 : event.key === 'End' ? agentTabs.length - 1 : -1;
+      if (next < 0) return;
+      event.preventDefault();
+      selectAgentTab(agentTabs[next]!.id, true);
+    });
+  }
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-agent-hide], [data-agent-show]')) {
+    button.addEventListener('click', () => {
+      const hide = button.dataset.agentHide !== undefined;
+      void setHiddenOnThisComputer((button.dataset.agentHide ?? button.dataset.agentShow)!, hide);
+    });
+  }
+  content.querySelector<HTMLButtonElement>('[data-toggle-hidden]')?.addEventListener('click', () => {
+    showHiddenAgents = !showHiddenAgents;
+    rerender();
+    content.querySelector<HTMLButtonElement>('[data-toggle-hidden]')?.focus();
+  });
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-agent-mode]')) {
     button.addEventListener('click', () => {
       const mode = button.dataset.agentMode;
@@ -207,9 +283,11 @@ export function renderAgent(): void {
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-copy-agent]')) {
     button.addEventListener('click', () => void copyAgentCommand(button.dataset.copyAgent!));
   }
-  content.querySelector<HTMLButtonElement>('#open-agent-chat')?.addEventListener('click', () => {
-    void openAgentChat().catch((error: unknown) => showError(messageFor(error)));
-  });
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-open-agent-chat]')) {
+    button.addEventListener('click', () => {
+      void openAgentChat().catch((error: unknown) => showError(messageFor(error)));
+    });
+  }
   const command = content.querySelector<HTMLInputElement>('#agent-command');
   command?.addEventListener('change', () => {
     void saveAgentCommand(command.value).then((offer) => {
@@ -218,6 +296,7 @@ export function renderAgent(): void {
       announce(offer.customCommandLine === null ? 'Your command was removed.' : 'Your command was kept for this computer.');
     }).catch((error: unknown) => showError(messageFor(error)));
   });
+  if (refocus !== null) content.querySelector<HTMLElement>(refocus)?.focus({ preventScroll: true });
 }
 
 // The queue names a consent step beside the size of the change, so a person sees it
@@ -389,6 +468,23 @@ export async function copyConnectionCommand(target: ConnectionClient): Promise<v
   const command = connectionCommand(target, endpoint, serverNameFor(state.session.fileName));
   const ok = await copyToClipboard(`client:${target}`, command, `[data-connection-client="${target}"]`);
   announce(ok ? `Copied. Run it once in a terminal: ${command}` : `Copy failed. Run this once in a terminal: ${command}`);
+}
+
+/**
+ * Hide an agent from Launch on this computer, or show it again (W-199). Focus goes to the line
+ * that brings hidden agents back, so a person who hid the wrong one finds the way back at once.
+ */
+async function setHiddenOnThisComputer(agentId: string, hide: boolean): Promise<void> {
+  const name = launchable?.agents.find((agent) => agent.id === agentId)?.name ?? 'Your own command';
+  try {
+    launchable = await setAgentHidden(agentId, hide);
+    if (launchable.hidden.length === 0) showHiddenAgents = false;
+    rerender();
+    (content.querySelector<HTMLButtonElement>('[data-toggle-hidden]') ?? content.querySelector<HTMLButtonElement>('#agent-tab-launch'))?.focus();
+    announce(hide ? `${name} is hidden on this computer. Show hidden brings it back.` : `${name} is shown again.`);
+  } catch (error) {
+    showError(messageFor(error));
+  }
 }
 
 /** Copy what installs an agent, or moves it off a renamed package, for a terminal (ADR-0030). */

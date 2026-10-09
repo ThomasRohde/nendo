@@ -93,7 +93,7 @@ repository `CLAUDE.md` and the imported `AGENTS.md` are present.
 
 Both registrations name the local host at port 41766. Each file keeps its own
 agent port on a device: 41766 is the one Planner.nendo claimed on this machine.
-If Agent → Connection in the planner shows another
+If Agent → Connect in the planner shows another
 port, set it back to 41766 there; the refusal names the file that has it.
 On another device, first open the intended planner in Nendo and confirm the
 application identity. The
