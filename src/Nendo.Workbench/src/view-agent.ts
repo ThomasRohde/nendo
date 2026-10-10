@@ -43,6 +43,26 @@ function ladderIntro(mode: AgentAccessMode): string {
 
 /** What Launch offers (ADR-0030), read with the status. Null where the host serves no launch. */
 let launchable: LaunchableAgents | null = null;
+let launchableAt = 0;
+let checkingLaunchable = false;
+
+/**
+ * A page drawn from Launch's facts older than the poll's own read asks again: the Launch card
+ * said "none running" for up to three seconds after an agent was launched from this page and
+ * the person came back to it from the conversation's tab.
+ */
+function freshenLaunchable(): void {
+  if (checkingLaunchable || launchable === null || Date.now() - launchableAt < 1_500) return;
+  checkingLaunchable = true;
+  void client.request<LaunchableAgents>('agentSession.list').then((next) => {
+    const changed = JSON.stringify(next) !== JSON.stringify(launchable);
+    launchable = next;
+    launchableAt = Date.now();
+    if (changed && state.view === 'agent') rerender();
+  }).catch(() => {
+    // The poll reads it again.
+  }).finally(() => { checkingLaunchable = false; });
+}
 fileScopedClearable({ clear(): void { launchable = null; lastCopy = null; } });
 
 /**
@@ -93,6 +113,13 @@ setAgentPageOpener((review) => {
   if (review) agentTab = 'activity';
   void openTabOn('agent').then(() => refreshAgentStatus()).then(rerender).catch((error: unknown) => showError(messageFor(error)));
 });
+
+/** The installed agents Launch offers on this computer, or null where the host offers no Launch. */
+function installedCount(): number | null {
+  if (launchable === null) return null;
+  const hidden = new Set(launchable.hidden);
+  return launchable.agents.filter((agent) => agent.found && !hidden.has(agent.id)).length;
+}
 
 function runningAgent(): { agentId: string; name: string; label: string } | null {
   const running = launchable?.running ?? null;
@@ -154,6 +181,7 @@ export function renderAgent(): void {
     content.innerHTML = '<div class="studio-page"><p>Agent access status is unavailable.</p></div>';
     return;
   }
+  freshenLaunchable();
   const modes: Array<{ value: AgentAccessMode; label: string; short: string }> = [
     { value: 'off', label: 'Off', short: 'No connections' },
     { value: 'inspect', label: 'Inspect', short: 'Read this workspace' },
@@ -227,7 +255,7 @@ export function renderAgent(): void {
       <p class="ladder-note">${escapeHtml(ladderIntro(status.mode))}</p>
     </section>
     ${behaviourApprovalMarkup()}
-    ${agentTabsMarkup(agentTab, { pending: pendingCount, running: running?.name ?? null, endpoint: status.endpoint })}
+    ${agentTabsMarkup(agentTab, { pending: pendingCount, running: running?.name ?? null, installed: installedCount(), endpoint: status.endpoint })}
     ${panel('activity', 'agent-activity-panel', activity)}
     ${panel('launch', 'agent-launch', launchMarkup())}
     ${panel('connect', 'agent-connection', connect)}
@@ -299,6 +327,7 @@ export function renderAgent(): void {
   command?.addEventListener('change', () => {
     void saveAgentCommand(command.value).then((offer) => {
       launchable = offer;
+      launchableAt = Date.now();
       rerender();
       announce(offer.customCommandLine === null ? 'Your command was removed.' : 'Your command was kept for this computer.');
     }).catch((error: unknown) => showError(messageFor(error)));
@@ -485,6 +514,7 @@ async function setHiddenOnThisComputer(agentId: string, hide: boolean): Promise<
   const name = launchable?.agents.find((agent) => agent.id === agentId)?.name ?? 'Your own command';
   try {
     launchable = await setAgentHidden(agentId, hide);
+    launchableAt = Date.now();
     if (launchable.hidden.length === 0) showHiddenAgents = false;
     rerender();
     (content.querySelector<HTMLButtonElement>('[data-toggle-hidden]') ?? content.querySelector<HTMLButtonElement>('#agent-tab-launch'))?.focus();
@@ -606,6 +636,7 @@ export async function refreshAgentStatus(): Promise<void> {
   state.agentStatus = await client.request<AgentStatus>('agent.getStatus');
   try {
     launchable = await client.request<LaunchableAgents>('agentSession.list');
+    launchableAt = Date.now();
   } catch {
     // A host without launching (the preview of an older build) shows the page without it.
     launchable = null;

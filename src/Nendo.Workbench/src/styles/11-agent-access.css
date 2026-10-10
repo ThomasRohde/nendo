@@ -36,69 +36,153 @@
 
 /* The tabs: each says in a word what is behind it. A hidden panel stays in the page, so a
    half-typed field in it survives a switch. */
+/* The tabs as three cards (the owner's design C, 2026-10-10): icon, purpose and what is behind each. */
 .agent-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  border-bottom: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 6px;
 }
 
 .agent-tab {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 42px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: var(--radius-control) var(--radius-control) 0 0;
-  color: var(--muted);
-  background: transparent;
-  font-weight: 650;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
 .agent-tab:hover {
-  color: var(--ink);
-  background: var(--surface-soft);
+  border-color: var(--line-strong);
+  box-shadow: 0 1px 4px rgba(20, 23, 28, 0.08);
 }
 
 .agent-tab[aria-selected="true"] {
-  color: var(--ink);
+  border-color: var(--cobalt);
+  box-shadow: inset 0 0 0 1px var(--cobalt);
 }
 
+/* A notch that points from the chosen card into what it shows. */
 .agent-tab[aria-selected="true"]::after {
   position: absolute;
-  right: 10px;
-  bottom: -1px;
-  left: 10px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--cobalt);
+  bottom: -8px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-right: 2px solid var(--cobalt);
+  border-bottom: 2px solid var(--cobalt);
+  background: var(--surface);
+  transform: rotate(45deg);
   content: "";
 }
 
 .agent-tab:focus-visible {
   outline: 2px solid var(--cobalt);
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
 
-.tab-note {
+.agent-tab-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.agent-tab-top strong {
+  font-size: 1.05rem;
+}
+
+.agent-tab-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
   color: var(--muted);
-  font-size: 0.78rem;
+  background: var(--surface-soft);
+}
+
+.agent-tab-icon .outline-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.agent-tab[aria-selected="true"] .agent-tab-icon {
+  color: var(--cobalt);
+  background: var(--cobalt-soft);
+}
+
+.agent-tab-purpose {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.agent-tab-now {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.agent-tab-now.is-attention {
+  color: var(--cobalt);
+}
+
+.agent-tab-now.is-live {
+  color: var(--healthy);
+}
+
+.agent-tab-now.is-address {
+  color: var(--ink);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 0.8rem;
   font-weight: 500;
 }
 
-.tab-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 20px;
-  padding: 0 8px;
+.agent-tab-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  box-sizing: border-box;
   border-radius: 999px;
-  color: var(--violet);
-  background: color-mix(in srgb, var(--violet) 12%, var(--surface));
+  color: var(--canvas);
+  background: var(--cobalt);
   font-size: 0.72rem;
-  font-weight: 680;
+  font-weight: 700;
+}
+
+/* Narrow: the cards stack and keep their status line; the notch would point at the next card. */
+@media (max-width: 760px) {
+  .agent-tabs {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .agent-tab-purpose,
+  .agent-tab[aria-selected="true"]::after {
+    display: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .agent-tab[aria-selected="true"] {
+    border-width: 3px;
+  }
 }
 
 .tab-dot {

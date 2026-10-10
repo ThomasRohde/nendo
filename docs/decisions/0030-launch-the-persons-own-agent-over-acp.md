@@ -354,6 +354,18 @@ options (claude, codex, custom ...). Eg, at work we only have Copilot."
   the level on one row, the gates' selectors visible on Activity, hide, Show hidden and Show,
   and focus kept through the poll; both themes were looked at.
 
+**The tabs as cards (2026-10-10).** The owner: "The 3 tabs are difficult to discover." Of four
+designs they chose C. Each tab is a card with an icon, a line on what it is for and a line on
+what is behind it now: how many changes wait, which agent runs or how many are installed, and
+the address. The chosen card has the accent border and a notch into its panel; at 760 px and
+under, the cards stack and drop the purpose line. A page drawn from Launch's facts older than
+1.5 seconds reads them again, since the card said "none running" for up to one poll after an
+agent was launched and the person came back to the page. `agent-launch.test.mjs` failed with
+"activity does not say what it is for." with the purpose line taken out. A headless tour
+measured the three cards in a row, a pointer and an arrow key moving the panel, the stacked
+narrow layout without a horizontal scroll, and the running agent on the card at once; both
+themes were looked at.
+
 ### The composer as design A, and @ to point at the file (2026-10-09, W-200)
 
 The owner compared the message box with VS Code's and Codex's, chose design A of four and

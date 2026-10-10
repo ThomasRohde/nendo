@@ -81,15 +81,28 @@ test('a hidden agent leaves Launch, is named in the line that brings it back, an
   assert.match(launchTilesMarkup(offer([agent({ id: 'copilot' })], { hidden: ['copilot', 'custom'] }), view()), /Every agent is hidden on this computer/);
 });
 
-test('the tabs say what is behind them, and only the chosen one is selected', () => {
-  const markup = agentTabsMarkup('launch', { pending: 2, running: 'Claude Code', endpoint: 'http://127.0.0.1:41763/mcp' });
+test('the tabs are cards that say what they are for and what is behind them, and only the chosen one is selected', () => {
+  // The owner's design C (2026-10-10): "The 3 tabs are difficult to discover".
+  const facts = { pending: 2, running: 'Claude Code', installed: 3, endpoint: 'http://127.0.0.1:41763/mcp' };
+  const markup = agentTabsMarkup('launch', facts);
   assert.deepEqual([...markup.matchAll(/data-agent-tab="(\w+)" aria-selected="(\w+)"/g)].map((match) => `${match[1]}:${match[2]}`),
     ['activity:false', 'launch:true', 'connect:false']);
-  assert.match(markup, /Activity<span class="tab-badge">2 waiting<\/span>/);
-  assert.match(markup, /Claude Code running/);
-  assert.match(markup, /Connect<span class="tab-note">127\.0\.0\.1:41763<\/span>/);
   assert.match(markup, /id="agent-tab-launch"[^>]*aria-controls="agent-panel-launch" tabindex="0"/);
-  assert.match(agentTabsMarkup('activity', { pending: 0, running: null, endpoint: null }), /Connect<span class="tab-note">Off<\/span>/);
+  const card = (html, id) => html.match(new RegExp(`<button[^>]*data-agent-tab="${id}"[\\s\\S]*?</button>`))?.[0] ?? '';
+  for (const id of ['activity', 'launch', 'connect']) {
+    assert.match(card(markup, id), /<svg class="outline-icon"/, `${id} has no icon.`);
+    assert.match(card(markup, id), /class="agent-tab-purpose">[^<]+</, `${id} does not say what it is for.`);
+  }
+  assert.match(card(markup, 'activity'), /class="agent-tab-now is-attention"><span class="agent-tab-count">2<\/span>changes wait for you/);
+  assert.match(card(markup, 'launch'), /class="agent-tab-now is-live">.*Claude Code running/);
+  assert.match(card(markup, 'connect'), /class="agent-tab-now is-address">127\.0\.0\.1:41763</);
+  const quiet = agentTabsMarkup('activity', { pending: 1, running: null, installed: 0, endpoint: null });
+  assert.match(card(quiet, 'activity'), /1<\/span>change waits for you/);
+  assert.match(card(quiet, 'launch'), /None installed yet/);
+  assert.match(card(quiet, 'connect'), /class="agent-tab-now">Off</);
+  const idle = agentTabsMarkup('activity', { pending: 0, running: null, installed: 2, endpoint: null });
+  assert.match(card(idle, 'activity'), /class="agent-tab-now">Nothing waits for you</);
+  assert.match(card(idle, 'launch'), /2 installed, none running/);
 });
 
 test('a Copy that ran says so on its button and under it, and shows the text when it failed', () => {
@@ -119,6 +132,6 @@ test('nothing the host names becomes markup', () => {
   ];
   const markup = launchTilesMarkup(offer(agents, { customCommandLine: hostile, hidden: ['b'] }), view({ copyFor: () => ({ ok: false, text: hostile }) }))
     + launchTilesMarkup(offer(agents, { hidden: ['a', 'b'] }), view({ showHidden: true, running: { agentId: 'b', name: hostile, label: hostile } }))
-    + agentTabsMarkup('connect', { pending: 1, running: hostile, endpoint: hostile });
+    + agentTabsMarkup('connect', { pending: 1, running: hostile, installed: 1, endpoint: hostile });
   assert.doesNotMatch(markup, /<img/);
 });

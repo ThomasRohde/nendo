@@ -37,27 +37,41 @@ export const customAgentId = 'custom';
 /** The Agent page's tabs (W-199, the owner's design A of 2026-10-09). */
 export type AgentTab = 'activity' | 'launch' | 'connect';
 
-export const agentTabs: ReadonlyArray<{ id: AgentTab; label: string }> = [
-  { id: 'activity', label: 'Activity' },
-  { id: 'launch', label: 'Launch' },
-  { id: 'connect', label: 'Connect' },
+export const agentTabs: ReadonlyArray<{ id: AgentTab; label: string; icon: 'activity' | 'rocket' | 'plug'; purpose: string }> = [
+  { id: 'activity', label: 'Activity', icon: 'activity', purpose: 'What waits for your review, and what agents did' },
+  { id: 'launch', label: 'Launch', icon: 'rocket', purpose: 'Start an agent you have installed, in a tab beside this file' },
+  { id: 'connect', label: 'Connect', icon: 'plug', purpose: 'Connect a client you run yourself, over MCP' },
 ];
 
+/** What the tabs say about what is behind them; `installed` is null where the host offers no Launch. */
+export interface AgentTabFacts { pending: number; running: string | null; installed: number | null; endpoint: string | null }
+
 /**
- * The tab strip. Each tab says in a word what is behind it, so a person need not open one to
- * know: how many changes wait, which agent runs, and where agents connect.
+ * The tabs as three cards, the owner's design C (2026-10-10): the strip of three words was hard
+ * to find. Each card has an icon, says in a line what it is for, and says what is behind it now,
+ * so a person need not open one to know: what waits, which agent runs, and where agents connect.
  */
-export function agentTabsMarkup(selected: AgentTab, facts: { pending: number; running: string | null; endpoint: string | null }): string {
-  const note = (tab: AgentTab): string => {
+export function agentTabsMarkup(selected: AgentTab, facts: AgentTabFacts): string {
+  const now = (tab: AgentTab): { tone: string; html: string } => {
     switch (tab) {
-      case 'activity': return facts.pending === 0 ? '' : `<span class="tab-badge">${facts.pending} waiting</span>`;
-      case 'launch': return facts.running === null ? '' : `<span class="tab-dot" aria-hidden="true"></span><span class="tab-note">${escapeHtml(facts.running)} running</span>`;
-      case 'connect': return `<span class="tab-note">${escapeHtml(facts.endpoint === null ? 'Off' : shortEndpoint(facts.endpoint))}</span>`;
+      case 'activity': return facts.pending === 0
+        ? { tone: '', html: 'Nothing waits for you' }
+        : { tone: 'is-attention', html: `<span class="agent-tab-count">${facts.pending}</span>${facts.pending === 1 ? 'change waits' : 'changes wait'} for you` };
+      case 'launch': return facts.running !== null
+        ? { tone: 'is-live', html: `<span class="tab-dot" aria-hidden="true"></span>${escapeHtml(facts.running)} running` }
+        : { tone: '', html: facts.installed === null ? 'Not offered here' : facts.installed === 0 ? 'None installed yet' : `${facts.installed} installed, none running` };
+      case 'connect': return facts.endpoint === null
+        ? { tone: '', html: 'Off' }
+        : { tone: 'is-address', html: escapeHtml(shortEndpoint(facts.endpoint)) };
     }
   };
   return `<div class="agent-tabs" role="tablist" aria-label="Agent access">${agentTabs.map((tab) => {
     const on = tab.id === selected;
-    return `<button class="agent-tab" type="button" role="tab" id="agent-tab-${tab.id}" data-agent-tab="${tab.id}" aria-selected="${on}" aria-controls="agent-panel-${tab.id}" tabindex="${on ? 0 : -1}">${tab.label}${note(tab.id)}</button>`;
+    const state = now(tab.id);
+    return `<button class="agent-tab" type="button" role="tab" id="agent-tab-${tab.id}" data-agent-tab="${tab.id}" aria-selected="${on}" aria-controls="agent-panel-${tab.id}" tabindex="${on ? 0 : -1}">`
+      + `<span class="agent-tab-top"><span class="agent-tab-icon">${icon(tab.icon)}</span><strong>${tab.label}</strong></span>`
+      + `<span class="agent-tab-purpose">${tab.purpose}</span>`
+      + `<span class="agent-tab-now${state.tone === '' ? '' : ` ${state.tone}`}">${state.html}</span></button>`;
   }).join('')}</div>`;
 }
 

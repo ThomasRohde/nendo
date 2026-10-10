@@ -32,7 +32,7 @@ There is no credential. While access is on, any program on this computer can con
 
 ## Launch an agent from Nendo
 
-Nendo can also start an agent for you, in a tab beside the file. The Agent page has three tabs under the access level: **Activity** for pending changes and what agents did, **Launch**, and **Connect** for the address and its settings. It speaks the Agent Client Protocol (ACP), which coding agents use to run inside an editor:
+Nendo can also start an agent for you, in a tab beside the file. The Agent page has three cards under the access level, each saying what is behind it: **Activity** for pending changes and what agents did, **Launch**, and **Connect** for the address and its settings. It speaks the Agent Client Protocol (ACP), which coding agents use to run inside an editor:
 
 1. Select **Agent** and choose **Inspect** or a higher level.
 2. On the **Launch** tab, select one that Nendo found on this computer: GitHub Copilot CLI, Gemini CLI, Claude Code or Codex through their ACP adapters, or OpenCode. You can also add your own command, such as `my-agent --acp`. One that is missing shows the npm command that installs it, and one installed from a package that was renamed says so, with the commands that move it. **Copy** puts the command on the clipboard. Run it in a terminal (npm comes with Node.js), then open the Agent page again. **Hide** takes away an agent you do not use, your own command included. Your computer remembers it, not the file, and **Show hidden** brings one back.

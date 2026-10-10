@@ -873,7 +873,8 @@ host is an ACP client (`Desktop/Agents/`). It keeps no model client and no crede
   package the catalog lists as renamed shows the commands that move it. The page
   copies them for a terminal; the host runs neither.
 - **Where it sits.** The Agent page is the state, the access level as one row, and
-  three tabs (W-199, the owner's design A): Activity (pending changes, recent
+  three tabs (W-199, the owner's design A), drawn since 2026-10-10 as three cards that
+  each give an icon, what the tab is for and what is behind it now (design C): Activity (pending changes, recent
   activity, who is working; the default), Launch (a tile per agent) and Connect
   (the address and the port and lease settings). Anything waiting for the person
   stays above the tabs. `view-agent.ts` keeps the tab and focus through the status
