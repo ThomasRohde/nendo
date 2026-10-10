@@ -777,7 +777,13 @@ internal sealed class NendoResourceProjection(
         var scope = $"operations:{revisionId}";
         var page = await application.QueryRevisionOperationsAsync(new(revisionId, limit, cursors.Decode(cursor, scope)), cancellationToken);
         return new(page.Items.Select(operation => new NendoMcpOperation(operation.OperationType, operation.Reversibility,
-            AffectedSemanticIds(operation.CanonicalJson))).ToArray(),
+            AffectedSemanticIds(operation.CanonicalJson))
+        {
+            Attribution = operation.Attribution is { } made
+                ? new(made.TriggerId, made.TriggerName, made.ActionId, made.ActionName, made.StepId,
+                    made.EventKind, made.EventEntityId, made.EventRecordId)
+                : null,
+        }).ToArray(),
             page.NextCursor is null ? null : cursors.Encode(scope, page.NextCursor)) { ChangeSequence = page.ChangeSequence };
     }
 

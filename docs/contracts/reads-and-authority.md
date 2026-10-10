@@ -158,7 +158,9 @@ file-generation checks still run under the controller gate. Native/compatibility
 full inspection stays available explicitly. An ordinary renderer snapshot or
 post-commit view contains metadata and the time/sequence of the last integrity
 verification. It contains no records. `data.queryRecords`, `history.query` and
-`history.operations` provide windows. In this mode, `semantic.compile` compiles
+`history.operations` provide windows; each operation in a `history.operations`
+window carries the `attribution` of the automatic action that made it, or null
+([calculations-and-actions.md](calculations-and-actions.md#identity-retries-and-history)). In this mode, `semantic.compile` compiles
 the definition alone. The renderer binds its separate current record window for
 display. The definition digest does not represent a digest of the visible
 records.

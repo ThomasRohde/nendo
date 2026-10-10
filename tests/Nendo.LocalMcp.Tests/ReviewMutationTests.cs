@@ -49,6 +49,24 @@ public sealed class ReviewMutationTests
             "The returned version must belong to notes/shared, not projects/shared.");
         Assert.AreEqual(1L, result.RecordVersion);
         Assert.AreEqual(3L, (await workspace.Service.QueryRecordsAsync(new("projects") { RecordId = "shared" })).Items.Single().RecordVersion);
+
+        // The revision's operations say which automatic action made each generated one, and
+        // nothing on the agent's own create (2026-10-10; written since actions were, never read).
+        using var operations = JsonDocument.Parse(await ProtocolResourceTests.ReadTextAsync(client,
+            $"nendo://application/revision/{Uri.EscapeDataString(result.RevisionId)}/operations"));
+        var items = operations.RootElement.GetProperty("items").EnumerateArray().ToArray();
+        Assert.HasCount(3, items);
+        Assert.AreEqual(JsonValueKind.Null, items[0].GetProperty("attribution").ValueKind);
+        foreach (var (item, step) in items.Skip(1).Zip(new[] { "one", "two" }))
+        {
+            var attribution = item.GetProperty("attribution");
+            Assert.AreEqual("stamp-trigger", attribution.GetProperty("triggerId").GetString());
+            Assert.AreEqual("Stamp project", attribution.GetProperty("triggerName").GetString());
+            Assert.AreEqual("Stamp", attribution.GetProperty("actionName").GetString());
+            Assert.AreEqual(step, attribution.GetProperty("stepId").GetString());
+            Assert.AreEqual("created", attribution.GetProperty("eventKind").GetString());
+            Assert.AreEqual("shared", attribution.GetProperty("eventRecordId").GetString());
+        }
     }
 
     [TestMethod]

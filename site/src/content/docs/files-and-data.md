@@ -89,7 +89,7 @@ An agent imports through MCP with the same profile and decoding. That path commi
 
 ## History and undo
 
-Each accepted change is a **revision** in History. An entry shows its lane (Definition or Data), how many operations it holds and who made it: you, an agent, or a trigger that ran on your edit. **View changes** opens the operations. CSV batches and agent writes are ordinary entries. History shows 50 entries per page and is never rewritten, except when you fold it.
+Each accepted change is a **revision** in History. An entry shows its lane (Definition or Data), how many operations it holds and who made it: you, an agent by the name the Agent page shows it under, a custom view by its package, or Nendo itself. What a trigger changed belongs to the edit that fired it. **View changes** opens the operations, and each one an automatic action made names that action. CSV batches and agent writes are ordinary entries. History shows 50 entries per page and is never rewritten, except when you fold it.
 
 History also says how many changes the file has recorded, out of the 99,000 it accepts before it refuses writes, and warns from 80%. **Fold older history…** makes room: Nendo saves a backup beside the file with the whole history in it, then replaces the older entries with one **Checkpoint** entry. The most recent 1,000 changes (fewer, if they are large) stay as they were, and so does every record. A folded change can no longer be compensated or inspected in the file; open the backup to see it.
 

@@ -380,6 +380,20 @@ produced it, plus a digest of the behaviour that it ran under. The attribution
 annotates the ordinary history. It does not form a separate log. The same
 evidence therefore answers "why did this change?" and "what changed?".
 
+**History shows it.** `QueryRevisionOperationsAsync` returns each stored operation
+with `Attribution` (`NendoOperationAttribution`): the trigger, action and step IDs
+that were recorded, the record event that selected the trigger, and the trigger's
+and action's display names as the file holds them now, read straight from the
+definitions' bodies. A name is null once its definition has left the file; the ID
+still says which it was. An operation the revision's author made has none. The
+whole-history read that serves a read-only open carries the same. History's
+**View changes** writes "made by the automatic action" and the trigger's name
+beside each generated operation, or "made by an automatic action no longer in this
+file" and the trigger ID. Over MCP the revision-operations resource carries it
+([mcp-interface.md](mcp-interface.md)). Until 2026-10-10 only receipts read the
+table, while Help and the guides said History records which trigger made each
+change.
+
 ## Approval
 
 If a file carries a trigger, it cannot be edited until this device agrees that
@@ -1164,7 +1178,17 @@ isolated device-state root:
 - Approving makes editing available.
 - One real form edit fires the action and moves every calculation that depends
   on it.
+- History's opened revision names the automatic action beside the change it
+  made, and nothing beside the person's own edit.
 - The approval survives a restart.
+
+History's attribution is also asserted below the screen:
+`TheRevisionOperationsReadNamesTheAutomaticActionBehindEachGeneratedOperation` in
+`tests/Nendo.Engine.Tests/BehaviourActionTests.cs` (the paged read, a page boundary,
+the whole-history read, and a removed definition), the revision-operations resource
+in `tests/Nendo.LocalMcp.Tests/ReviewMutationTests.cs`, and
+`src/Nendo.Workbench/scripts/history-markup.test.mjs` through the function History
+draws with.
 - Light and Dark are captured.
 
 `tests/Nendo.Engine.Tests/BehaviourProposalTests.cs` covers ADR-0008 lane D4,

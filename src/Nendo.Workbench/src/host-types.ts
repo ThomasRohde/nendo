@@ -750,6 +750,23 @@ export interface StoredOperationSnapshot {
   operationType: string;
   reversibility: string | number;
   canonicalJson: string;
+  /** The automatic action that made this operation; null for one the revision's author made. */
+  attribution?: OperationAttribution | null;
+}
+
+/**
+ * The trigger, action and step behind a generated operation. A name is the definition's
+ * current display name, null once the definition has left the file; the IDs are recorded.
+ */
+export interface OperationAttribution {
+  triggerId: string;
+  triggerName: string | null;
+  actionId: string;
+  actionName: string | null;
+  stepId: string;
+  eventKind: string | number;
+  eventEntityId: string;
+  eventRecordId: string;
 }
 
 export interface RevisionSnapshot {

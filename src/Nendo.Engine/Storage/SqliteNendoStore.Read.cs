@@ -416,10 +416,11 @@ internal sealed partial class SqliteNendoStore
         }
 
         const string operationSql = """
-            SELECT revision_id, operation_id, operation_type, reversibility, canonical_json
+            SELECT revision_id, operation_id, operation_type, reversibility, canonical_json, ordinal
             FROM __nendo_operation
             ORDER BY revision_id, ordinal;
             """;
+        var attribution = await ReadOperationAttributionAsync(null, 0, 0, transaction, cancellationToken);
         var operationsByRevision = new Dictionary<string, List<NendoStoredOperationSnapshot>>(StringComparer.Ordinal);
         await using (var command = Command(operationSql, transaction))
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
@@ -430,7 +431,10 @@ internal sealed partial class SqliteNendoStore
                 if (!operationsByRevision.TryGetValue(revisionId, out var operations))
                     operationsByRevision.Add(revisionId, operations = []);
                 operations.Add(new(reader.GetString(1), reader.GetString(2),
-                    Enum.Parse<NendoReversibilityClass>(reader.GetString(3), ignoreCase: false), reader.GetString(4)));
+                    Enum.Parse<NendoReversibilityClass>(reader.GetString(3), ignoreCase: false), reader.GetString(4))
+                {
+                    Attribution = attribution.GetValueOrDefault((revisionId, reader.GetInt64(5))),
+                });
             }
         }
         var revisions = new List<NendoRevisionSnapshot>(rows.Count);

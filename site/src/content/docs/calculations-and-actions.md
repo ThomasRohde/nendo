@@ -124,7 +124,7 @@ A save and every change its actions make are one transaction and one revision. A
 
 If an action cannot complete, if a limit is reached, or if the save is cancelled, nothing is saved. The refusal names the action, the step and the field. If only a trigger's condition cannot be evaluated, that action does not run and the edit still commits.
 
-The save result lists every other record that the actions changed (`alsoChanged` over MCP). History records which trigger, action and step produced each change. Reversing the save reverses the edit and every change its actions made, and does not run the actions again.
+The save result lists every other record that the actions changed (`alsoChanged` over MCP). History records which trigger, action and step produced each change: open the entry with **View changes**, and each change an action made reads "made by the automatic action" and the trigger's name. Reversing the save reverses the edit and every change its actions made, and does not run the actions again.
 
 Nothing runs when a file opens, when a screen draws, or when a person approves the actions. Actions run only when a record changes.
 

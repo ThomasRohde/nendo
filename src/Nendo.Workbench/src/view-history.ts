@@ -1,7 +1,8 @@
 import { compensateRevision, foldHistory, handlePageFailure } from './actions';
 import { state } from './app-state';
 import { client } from './client';
-import { canCompensate, escapeAttribute, escapeHtml, formatDateTime, laneLabel, messageFor, operationLabel, originLabel, reversibilityLabel, shortId } from './format';
+import { canCompensate, escapeAttribute, escapeHtml, formatDateTime, laneLabel, messageFor, originLabel, shortId } from './format';
+import { operationDetailsMarkup } from './history-markup';
 import { type HistoryFoldPreview, type ReadPage, type RevisionSummary, type StoredOperationSnapshot, WorkbenchHostError } from './host';
 import { icon } from './icons';
 import { content, rerender, setBusy, showError } from './shell';
@@ -99,7 +100,7 @@ export async function loadHistoryDetails(revisionId: string, cursor: string | nu
     if (page.changeSequence !== state.session.manifest?.changeSequence) throw new WorkbenchHostError('stale-cursor', 'The file changed.');
     const slot = content.querySelector<HTMLElement>(`[data-operation-detail="${CSS.escape(revisionId)}"]`);
     if (!slot) return;
-    slot.innerHTML = `<ul class="operation-details">${page.items.map(operation => `<li>${escapeHtml(operationLabel(operation.operationType))} · ${escapeHtml(reversibilityLabel(operation.reversibility))}</li>`).join('')}</ul><div class="page-controls"><span>${page.items.length} operations shown</span><button class="text-button" data-operation-first type="button" ${cursor === null ? 'disabled' : ''}>First</button><button class="text-button" data-operation-next type="button" ${page.nextCursor === null ? 'disabled' : ''}>Next</button></div>`;
+    slot.innerHTML = `${operationDetailsMarkup(page.items)}<div class="page-controls"><span>${page.items.length} operations shown</span><button class="text-button" data-operation-first type="button" ${cursor === null ? 'disabled' : ''}>First</button><button class="text-button" data-operation-next type="button" ${page.nextCursor === null ? 'disabled' : ''}>Next</button></div>`;
     slot.querySelector<HTMLButtonElement>('[data-operation-first]')?.addEventListener('click', () => void loadHistoryDetails(revisionId));
     slot.querySelector<HTMLButtonElement>('[data-operation-next]')?.addEventListener('click', () => void loadHistoryDetails(revisionId, page.nextCursor));
   } catch (error) { await handlePageFailure(error); }

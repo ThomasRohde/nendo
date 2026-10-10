@@ -428,7 +428,26 @@ public sealed record NendoMcpExtensionFileContent(
 public sealed record NendoMcpOperation(
     string OperationType,
     NendoReversibilityClass Reversibility,
-    IReadOnlyList<string> AffectedSemanticIds);
+    IReadOnlyList<string> AffectedSemanticIds)
+{
+    /// <summary>The automatic action that made this operation; null for one the revision's author made.</summary>
+    public NendoMcpOperationAttribution? Attribution { get; init; }
+}
+
+/// <summary>
+/// The trigger, action and step behind a generated operation and the record event that
+/// selected the trigger. A name is the definition's current display name, null once the
+/// definition has left the file; the IDs are what the save recorded.
+/// </summary>
+public sealed record NendoMcpOperationAttribution(
+    string TriggerId,
+    string? TriggerName,
+    string ActionId,
+    string? ActionName,
+    string StepId,
+    NendoRecordEventKind EventKind,
+    string EventEntityId,
+    string EventRecordId);
 
 public sealed record NendoMcpRevision(
     string RevisionId,

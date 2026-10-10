@@ -257,6 +257,21 @@ try {
       'The calculated completion did not follow the edit exactly. Decimal scale is part of the value.');
     await screenshot('behaviour-after-action.png');
 
+    //    History's opened revision names the automatic action behind the change it made,
+    //    and nothing beside the person's own edit. Help and the guides said History records
+    //    this; until 2026-10-10 the opened entry drew only each operation and its class.
+    await click('#nav-history'); await ready();
+    await click('.history-entry [data-history-detail]');
+    const historyLines = await waitFor(() => evaluate(`(() => {
+      const items = [...document.querySelectorAll('.history-entry')][0]?.querySelectorAll('.operation-details li') ?? [];
+      return items.length ? [...items].map(item => item.textContent.trim()) : null;
+    })()`), 'the opened revision in History');
+    assert(historyLines.some(line => line.endsWith('made by the automatic action “Keep the project stage current”')),
+      `History's opened revision does not name the automatic action that made its change: ${JSON.stringify(historyLines)}`);
+    assert(historyLines.some(line => !line.includes('made by')),
+      `History attributed the person's own edit to an automatic action: ${JSON.stringify(historyLines)}`);
+    await screenshot('behaviour-history-attribution.png');
+
     // 7. Light and Dark both stay legible, including the calculated fields.
     await openProjectRecord('p-live');
     await setTheme('light'); await screenshot('behaviour-light.png');

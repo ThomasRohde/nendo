@@ -133,7 +133,7 @@ export const conceptHelp: HelpProvider = () => [
       'A calculated field can appear on any screen, and a list can be sorted or filtered by one: Nendo works it out over every record the list could show, up to 10,000 of them. It cannot group a list, place a record on a calendar or a timeline, feed a total, or be set by a command. A form made only of calculated fields is refused. In Use, a finished screen shows the value and a Calculated mark, not the formula.',
     ] },
     { heading: 'Actions run inside your edit', paragraphs: [
-      'When you save a record and a trigger fires, the save and every change the action makes are one unit: all of it is stored, or none of it is. If an action cannot complete, nothing is saved and your typing stays on screen with the reason. History records which trigger produced each change, and the save result names every other record that changed.',
+      'When you save a record and a trigger fires, the save and every change the action makes are one unit: all of it is stored, or none of it is. If an action cannot complete, nothing is saved and your typing stays on screen with the reason. History records which trigger produced each change — open the entry with View changes, and each change an action made reads “made by the automatic action” and the trigger’s name — and the save result names every other record that changed.',
     ] },
     { heading: 'Approval belongs to this device', paragraphs: [
       'A file that carries a trigger cannot be edited until you have approved what its actions may do to your data — add records, change records, delete records. The approval names the exact rules, so a changed definition asks again. It is stored on this computer, never in the file: a Duplicate, a Fork or another computer asks again. A copy made in Explorer or a restored backup keeps the file’s identity, so here the approval still covers it while its rules are the ones you approved.',
@@ -177,7 +177,7 @@ export const conceptHelp: HelpProvider = () => [
       'Every write has a durable receipt. “Save unconfirmed” and “Acceptance unconfirmed” mean Nendo did not hear back; “Check or retry” reads the receipt first and only resubmits if the original never landed. A receipt that cannot be found is unresolved — not proof that nothing happened.',
     ] },
     { heading: 'What an entry shows', paragraphs: [
-      'Each entry names its lane (Definition or Data), how many operations it holds, who made it — you, an agent by the name the Agent page shows it under, or a custom view by its package; a trigger’s changes belong to the edit that fired it — and offers Compensate when the class and the current state allow it. CSV import batches and agent writes are ordinary entries like any other.',
+      'Each entry names its lane (Definition or Data), how many operations it holds, who made it — you, an agent by the name the Agent page shows it under, or a custom view by its package; a trigger’s changes belong to the edit that fired it — and offers Compensate when the class and the current state allow it. View changes lists its operations, and each one an automatic action made names that action. CSV import batches and agent writes are ordinary entries like any other.',
     ] },
   ] },
 

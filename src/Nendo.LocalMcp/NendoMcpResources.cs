@@ -317,7 +317,7 @@ internal sealed class NendoMcpResources(
         Title = "Revision operations",
         UriTemplate = "nendo://application/revision/{revisionId}/operations{?cursor,limit}",
         MimeType = "application/json")]
-    [Description("A bounded page of sanitized operation types, reversibility and affected semantic IDs for a revision. Ordered by operation ordinal; restart on NENDO_STALE_CURSOR. No raw operation payloads are exposed.")]
+    [Description("A bounded page of sanitized operation types, reversibility and affected semantic IDs for a revision. An operation an automatic action made carries attribution: the trigger, action and step IDs with their current display names, and the record event that fired it; null on the author's own operations. Ordered by operation ordinal; restart on NENDO_STALE_CURSOR. No raw operation payloads are exposed.")]
     public Task<string> GetRevisionOperationsAsync(string revisionId, string? cursor = null, string? limit = null,
         CancellationToken cancellationToken = default) =>
         TranslateAsync(() => projection.GetRevisionOperationsAsync(revisionId, cursor, PageLimit(limit), cancellationToken));

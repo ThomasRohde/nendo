@@ -21,6 +21,7 @@ internal sealed partial class SqliteNendoStore
                 throw new NendoPreconditionException("revision-not-found", "The requested revision does not exist.");
         }
         var items = new List<NendoStoredOperationSnapshot>(query.Limit + 1);
+        var ordinals = new List<long>(query.Limit + 1);
         var lastOrdinal = -1L;
         await using (var command = Command("""
             SELECT operation_id, operation_type, reversibility, canonical_json, ordinal
@@ -36,11 +37,98 @@ internal sealed partial class SqliteNendoStore
             {
                 items.Add(new(reader.GetString(0), reader.GetString(1),
                     Enum.Parse<NendoReversibilityClass>(reader.GetString(2)), reader.GetString(3)));
+                ordinals.Add(reader.GetInt64(4));
                 if (items.Count <= query.Limit) lastOrdinal = reader.GetInt64(4);
             }
         }
-        return new(items.Take(query.Limit).ToArray(), items.Count > query.Limit
+        var page = items.Take(query.Limit).ToArray();
+        if (page.Length > 0)
+        {
+            var attribution = await ReadOperationAttributionAsync(
+                query.RevisionId, ordinals[0], ordinals[page.Length - 1], transaction, cancellationToken);
+            for (var index = 0; index < page.Length; index++)
+            {
+                if (attribution.TryGetValue((query.RevisionId, ordinals[index]), out var made))
+                    page[index] = page[index] with { Attribution = made };
+            }
+        }
+        return new(page, items.Count > query.Limit
             ? cursors.Encode(manifest, scope, lastOrdinal.ToString(CultureInfo.InvariantCulture)) : null, manifest.ChangeSequence);
+    }
+
+    /// <summary>
+    /// Which automatic action made each generated operation, keyed by revision and ordinal:
+    /// the attribution a save stores beside its operations, with the trigger's and the
+    /// action's display names as the file holds them now. Every operation of a page, or of
+    /// the whole history when <paramref name="revisionId"/> is null.
+    /// <para>
+    /// Stored since automatic actions were, and read by nothing but receipts until
+    /// 2026-10-10, so History could not say which action made a change though Help said it
+    /// recorded that. The names come straight from the definitions' bodies rather than
+    /// through the codec, so reading History never depends on this host being able to run
+    /// them; a definition no longer in the file leaves its name null and its ID stands.
+    /// </para>
+    /// </summary>
+    private async Task<Dictionary<(string RevisionId, long Ordinal), NendoOperationAttribution>> ReadOperationAttributionAsync(
+        string? revisionId, long firstOrdinal, long lastOrdinal, SqliteTransaction? transaction, CancellationToken cancellationToken)
+    {
+        var attribution = new Dictionary<(string RevisionId, long Ordinal), NendoOperationAttribution>();
+        if (!await HasBehaviourAsync(transaction, cancellationToken)) return attribution;
+        var rows = new List<(string RevisionId, long Ordinal, string TriggerId, string ActionId, string StepId,
+            NendoRecordEventKind EventKind, string EventEntityId, string EventRecordId)>();
+        await using (var command = Command($"""
+            SELECT revision_id, ordinal, trigger_id, action_id, step_id, event_kind, event_entity_id, event_record_id
+            FROM __nendo_attribution
+            {(revisionId is null ? "" : "WHERE revision_id = @revision AND ordinal BETWEEN @first AND @last")};
+            """, transaction))
+        {
+            if (revisionId is not null)
+            {
+                command.Parameters.AddWithValue("@revision", revisionId);
+                command.Parameters.AddWithValue("@first", firstOrdinal);
+                command.Parameters.AddWithValue("@last", lastOrdinal);
+            }
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                rows.Add((reader.GetString(0), reader.GetInt64(1), reader.GetString(2), reader.GetString(3), reader.GetString(4),
+                    Enum.Parse<NendoRecordEventKind>(reader.GetString(5), ignoreCase: false), reader.GetString(6), reader.GetString(7)));
+            }
+        }
+        if (rows.Count == 0) return attribution;
+        var names = await ReadTriggerAndActionNamesAsync(transaction, cancellationToken);
+        foreach (var row in rows)
+        {
+            attribution[(row.RevisionId, row.Ordinal)] = new(
+                row.TriggerId, names.GetValueOrDefault(row.TriggerId),
+                row.ActionId, names.GetValueOrDefault(row.ActionId),
+                row.StepId, row.EventKind, row.EventEntityId, row.EventRecordId);
+        }
+        return attribution;
+    }
+
+    private async Task<Dictionary<string, string>> ReadTriggerAndActionNamesAsync(
+        SqliteTransaction? transaction, CancellationToken cancellationToken)
+    {
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        await using var command = Command(
+            "SELECT definition_id, body_json FROM __nendo_behaviour WHERE definition_kind IN ('Trigger', 'Action');", transaction);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            try
+            {
+                using var body = JsonDocument.Parse(reader.GetString(1));
+                if (body.RootElement.ValueKind == JsonValueKind.Object &&
+                    body.RootElement.TryGetProperty("displayName", out var name) && name.ValueKind == JsonValueKind.String)
+                    names[reader.GetString(0)] = name.GetString()!;
+            }
+            catch (JsonException)
+            {
+                // A body this host cannot read names nothing; History still shows the ID.
+            }
+        }
+        return names;
     }
 
     internal async Task<NendoPage<NendoRecordSnapshot>> QueryRecordsAsync(

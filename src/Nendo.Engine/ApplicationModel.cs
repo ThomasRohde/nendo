@@ -221,7 +221,30 @@ public sealed record NendoStoredOperationSnapshot(
     string OperationId,
     string OperationType,
     NendoReversibilityClass Reversibility,
-    string CanonicalJson);
+    string CanonicalJson)
+{
+    /// <summary>
+    /// The automatic action that made this operation, read from the attribution a save
+    /// stores beside it; null for an operation the revision's author made.
+    /// </summary>
+    public NendoOperationAttribution? Attribution { get; init; }
+}
+
+/// <summary>
+/// Which trigger, action and step made a generated operation, and the record event that
+/// selected the trigger. The IDs are what the save recorded. The names are the
+/// definitions' display names as the file holds them now, and null once a definition is
+/// no longer in the file.
+/// </summary>
+public sealed record NendoOperationAttribution(
+    string TriggerId,
+    string? TriggerName,
+    string ActionId,
+    string? ActionName,
+    string StepId,
+    NendoRecordEventKind EventKind,
+    string EventEntityId,
+    string EventRecordId);
 
 public sealed record NendoRevisionSnapshot(
     string RevisionId,

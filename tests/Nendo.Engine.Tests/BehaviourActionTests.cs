@@ -62,6 +62,58 @@ public sealed class BehaviourActionTests
         Assert.AreEqual(2L, (await Project(service)).Values["total"].GetInt64());
     }
 
+    /// <summary>
+    /// The revision-operations read carries the attribution a save stores, so History's
+    /// opened entry and the MCP resource name the automatic action behind each generated
+    /// operation. Until 2026-10-10 the attribution was written and only receipts read it,
+    /// while Help said History records which trigger made each change.
+    /// </summary>
+    [TestMethod]
+    public async Task TheRevisionOperationsReadNamesTheAutomaticActionBehindEachGeneratedOperation()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await Fixture(coordinator, service);
+        var result = await coordinator.ApplyAsync(Edit());
+
+        var page = await service.QueryRevisionOperationsAsync(new(result.RevisionId, 50));
+        Assert.HasCount(4, page.Items);
+        Assert.IsTrue(page.Items.Take(2).All(operation => operation.Attribution is null),
+            "The person's own edit was attributed to an automatic action.");
+        var made = page.Items.Skip(2).Select(operation => operation.Attribution!).ToArray();
+        CollectionAssert.AreEqual(new[] { "Keep the project total current", "Keep project completion current" },
+            made.Select(attribution => attribution?.TriggerName).ToArray(), "A generated operation does not name the trigger that made it.");
+        CollectionAssert.AreEqual(new[] { "Set the project total", "Set project completion" },
+            made.Select(attribution => attribution.ActionName).ToArray());
+        CollectionAssert.AreEqual(new[] { "project.setTotal", "project.setComplete" }, made.Select(attribution => attribution.ActionId).ToArray());
+        Assert.IsTrue(made.All(attribution => attribution.EventKind == NendoRecordEventKind.Updated &&
+            attribution.EventEntityId == "tasks" && attribution.EventRecordId == "t2"));
+
+        // A page that ends inside the generated operations keeps each one's attribution.
+        var first = await service.QueryRevisionOperationsAsync(new(result.RevisionId, 3));
+        var rest = await service.QueryRevisionOperationsAsync(new(result.RevisionId, 3, first.NextCursor));
+        Assert.AreEqual("Keep the project total current", first.Items[2].Attribution?.TriggerName);
+        Assert.AreEqual("Keep project completion current", rest.Items.Single().Attribution?.TriggerName);
+
+        // The whole-history read, which serves pages for a read-only open, says the same.
+        var revision = (await service.GetHistoryAsync()).Single(entry => entry.RevisionId == result.RevisionId);
+        CollectionAssert.AreEqual(new[] { null, null, "Keep the project total current", "Keep project completion current" },
+            revision.Operations.Select(operation => operation.Attribution?.TriggerName).ToArray());
+
+        // Once the definitions leave the file, the recorded IDs still say which action it was.
+        var current = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "remove-total", "test", "Remove the total", [
+            new RemoveBehaviourDefinitionOperation("rt", "10-total", NendoBehaviourKind.Trigger, current),
+            new RemoveBehaviourDefinitionOperation("ra", "project.setTotal", NendoBehaviourKind.Action, current),
+        ]));
+        var after = (await service.QueryRevisionOperationsAsync(new(result.RevisionId, 50))).Items[2].Attribution!;
+        Assert.IsNull(after.TriggerName);
+        Assert.IsNull(after.ActionName);
+        Assert.AreEqual("10-total", after.TriggerId);
+        Assert.AreEqual("project.setTotal", after.ActionId);
+    }
+
     [TestMethod]
     public async Task D3_01_ReassignmentUpdatesBothTheFormerAndTheNewParent()
     {
