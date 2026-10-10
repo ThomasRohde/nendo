@@ -1147,9 +1147,10 @@ a folder.
   function on `window.nendo`, every toolbar kind and menu item, and the example to the
   real modules: the example runs against the real `api.js`.
 - **Read only to write a view.** Nothing an agent reads by default carries it. The
-  server instructions, the vocabulary's `extension.setPackage`, the example
+  resource's own description, the vocabulary's `extension.setPackage`, the example
   `put-a-custom-view-in-the-file` and describe's `reads` each name it with the condition
-  that it is for a view's code, and `ViewApiResourceTests` fails when any of them
+  that it is for a view's code. The server instructions do not name it at all (review
+  R-006), and `ViewApiResourceTests` fails when they name it or when any of these
   carries its content.
 - **One trap it names.** A filter clause in a view definition says `lte` and `gte`;
   `records.query` takes only the query's words, `le` and `ge`, and refuses the others.

@@ -30,13 +30,14 @@ a scalar: no formula DTO crosses this boundary.
   bound what may be written. A value outside the scale is stored, read back
   exactly, and reported as a data warning. It is not refused or clamped, because
   a scale may be declared over values that already exist.
-- Workbench bridge revision 6 and later represent numbers inside `JsonElement` scalar
-  payloads as `{ "$nendoNumber": "<JSON numeric lexeme>" }`. This is a transport
-  envelope. It is decoded before the typed application service sees the
-  value. It does not persist as a user object. Metadata counts and record
-  versions keep their existing typed integer representation. Revisions 2–5 keep
-  their legacy output. Revision 5 keeps generation-bound requests and durable
-  outcomes.
+- The Workbench bridge represents numbers inside `JsonElement` scalar payloads as
+  `{ "$nendoNumber": "<JSON numeric lexeme>" }` (`WorkbenchScalarJsonConverter`). This
+  is a transport envelope. It is decoded before the typed application service sees
+  the value. It does not persist as a user object. Metadata counts and record
+  versions keep their existing typed integer representation. The host serves bridge
+  protocol 7 only (`DesktopShellContract.BridgeProtocolVersion`): a request at any
+  other version, older or newer, is refused as `unsupported-protocol` before anything
+  runs, so no legacy numeric output remains.
 - MCP keeps the existing scalar `values` projection and adds `numericLexemes`.
   This is a field-ID map of exact numeric strings. Clients with binary-only
   numeric parsers use that map. They send `{ "$nendoNumber": "..." }` for

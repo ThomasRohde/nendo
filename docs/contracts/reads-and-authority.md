@@ -1,8 +1,9 @@
 # Reads and authority contract
 
 A custom view reads the file through the Workbench's own bounded reads, under the
-same bounds: `data.queryRecords`, `data.countRecords` and the aggregate reads, which
-the Workbench's broker calls for it from a closed method table. It adds no host read
+same bounds: `data.queryRecords`, `data.treeRecords`, `data.searchRecords`,
+`data.countRecords` and the aggregate reads, which the Workbench's broker calls for it
+from a closed method table (`extension-broker.ts`). It adds no host read
 of its own and no MCP endpoint, and it reaches no SQL and no path. See
 [custom views](custom-views.md#the-method-table).
 
@@ -27,7 +28,8 @@ reaches either of them.
 typed semantic IDs and limits 1–200. Normal writable-session queries run in one
 SQLite read transaction. The orders are as follows:
 
-- Records use SQLite BINARY record-ID keyset order.
+- Records use SQLite BINARY record-ID keyset order, unless the query names a sort
+  field; record ID is then the final key ([query contract](queries.md)).
 - History uses the unique change sequence, ascending or descending.
 - Revision operations use the immutable ordinal.
 
@@ -68,9 +70,12 @@ in-memory database and answers from that.
 
 Read-only recovery uses the immutable inspection snapshot that is already
 classified, and bounded projections of that snapshot. It cannot claim a
-streaming recovery open. Sort/filter/search controls stay separate
-capability-map obligations. The query contract that this section introduces is
-explicit stable-ID/sequence ordering only.
+streaming recovery open.
+
+A record query also takes one sort field, a descending direction and up to eight AND
+filters (`NendoRecordQuery`; `RecordQuerySemantics` refuses a ninth), and full-text
+search is the read above. The [query contract](queries.md) governs sorting, predicates
+and their cursors.
 
 ## Authority reuse argument
 

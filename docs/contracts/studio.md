@@ -46,7 +46,10 @@ The minimum Studio destinations are:
 
 A new Nendo file contains only kernel metadata and a genesis revision. Studio opens on Data and offers **Create record type**. When a known application recipe applies, Data also offers a button that starts it. The navigation also reaches:
 
-- **Agent**, for agent access and connection guidance;
+- **Agent**, for agent access and its Activity, Launch and Connect tabs: Connect
+  carries the connection guidance for a client the person runs, and Launch starts an
+  agent program installed on this computer in a conversation tab beside the file
+  ([launched agents](launched-agents.md));
 - **Health**, for file identity, versions and health.
 
 File → **Import CSV** becomes available when the file has a record type that is not retired.

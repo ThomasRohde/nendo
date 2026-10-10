@@ -1191,13 +1191,19 @@ the shape cannot show (below). The ladder is:
 | A `filterClause` on, or an `orderByFieldId` naming, a calculated field | 1.40 |
 | An `extensionView` (a custom view as a screen of the file) | 1.42 |
 
-The gaps at 1.17, 1.24, 1.33, 1.35, 1.37 and 1.45 are rungs that are not shapes of the node tree.
+Every rung above 1.11 that is not in the table is not a shape of the node tree: 1.17,
+1.24, 1.33, 1.35, 1.37, 1.38, 1.39, 1.41, 1.43, 1.44, 1.45 and 1.46 (`NendoFormat`).
 `1.17.0` goes to a file that stores behaviour definitions (ADR-0008), `1.24.0`
-goes to a file that carries a purpose (the ADR-0004 2026-09-15 amendment), and
-`1.33.0` goes to a file that carries a custom-view package (ADR-0013), `1.35.0` to a
-file that declares a hierarchy (ADR-0019), `1.37.0` to one with a unique field (ADR-0020), `1.38.0` to one
-that chose its own look (ADR-0004, 2026-09-28), and `1.45.0` to one that declares a link rule (ADR-0026). Each
-operation declares that version on its own evidence.
+to a file that carries a purpose (the ADR-0004 2026-09-15 amendment), `1.33.0` to a file
+that carries a custom-view package (ADR-0013), `1.35.0` to a file that declares a hierarchy
+(ADR-0019), `1.37.0` to one with a unique field (ADR-0020), `1.38.0` to one that chose its
+own look (ADR-0004, 2026-09-28), `1.39.0` to one whose older history was folded into a
+checkpoint (ADR-0021), `1.41.0` to one that marks what a new file keeps, and to a file
+started with New (ADR-0022), `1.43.0` to one that carries a skill package (ADR-0024),
+`1.44.0` to one with a text field presented as Markdown (ADR-0003's named presentation),
+`1.45.0` to one that declares a link rule (ADR-0026), and `1.46.0` to one that built its
+full-text index (ADR-0028). Each operation declares that version on its own evidence; a
+history fold, which is not an operation, states 1.39.0 in the manifest itself.
 
 Every row except the 1.27, 1.34 and 1.40 rows is a shape of the node tree. At 1.19 and 1.22 a
 field operation also raises the rung through its own evidence: a choice tone and a

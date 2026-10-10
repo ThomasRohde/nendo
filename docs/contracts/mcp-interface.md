@@ -11,11 +11,19 @@ characters and drops the rest with nothing on the wire to say so, so the host
 cannot see the cut and holds the bound itself. On 2026-09-27 the instructions were
 2,755 characters and lost the sentence that says no SQL, file, process or network
 access exists; `add_operations` (2,179) lost its amend remedy and `import_records`
-(2,056) its retry sentence. The instructions now say what the file is, describe for
-the whole file and the smaller reads for one record type, how to take the lease and
-keep the handle private, to save `receiptContext`, what does not exist, that a
-predecessor's proposals may be waiting, and who accepts a proposal at the current
-level, in under 2,000 characters across their variants. Since 2026-10-06 (review
+(2,056) its retry sentence. The instructions now say what the file is; then, inside
+their first 150 characters, how a client that cannot read resources reads them
+(`nendo.read.resource`, starting at `nendo://application/describe`, and `nendo.read.list`,
+which names every address); then what the file holds, describe for the whole file and the
+smaller reads for one record type, that a predecessor's proposals may be waiting, which
+skills to read before writing (the host's `skill://nendo-authoring/SKILL.md` and any skill
+the file carries), how to take the lease and keep the handle private, to save
+`receiptContext`, that entity, field and node IDs are unique file-wide and a record ID
+within its type, what does not exist, and who accepts a proposal at the current level, in
+under 2,000 characters across their variants (`NendoServerInstructions.For`). The read route
+stands that early because a client that listed servers cut the text at 150 characters, and
+its agent, whose client had tools and no `resources/read`, read the file's storage instead
+(2026-10-08); `SurfaceTextBoundTests` holds the tool's name inside that cut at every level. Since 2026-10-06 (review
 R-006) they no longer route to the vocabulary, the examples or the view API: those
 pointers live in `add_operations`' description, the resources' own descriptions and
 the host skill, and some clients repeat the instructions before every tool. The paragraph for someone writing a
@@ -156,7 +164,8 @@ process ID in the write-owner sidecar.
 A client shows none of that before its first call, so the file is named where it
 does look (W-089). `serverInfo.title` is `Nendo · <file>` (`Nendo · BCM` for
 `BCM.nendo`), so two registered files read as two servers in a client's list. The
-instructions open with `This is the Nendo file BCM.nendo:`. The lease grant and
+instructions open with `This is the Nendo file BCM.nendo.`, and the sentence that names
+the read tool follows it (`This is a Nendo file.` when no name is known). The lease grant and
 `nendo.lease.status` carry `fileName`. The title and the instructions cut a name
 past 60 characters, so a 255-character file name cannot push the instructions past
 their bound; `FileNamedSurfaceTests` holds all four, and with the name withheld it
@@ -174,8 +183,9 @@ listed in stable name order.
 Every tool, resource and template carries a `title`, and `serverInfo` carries
 `title` (Nendo and the file), `description` and `websiteUrl`. No response names the web server
 behind it. `destructiveHint` is true exactly where a tool overwrites or removes what
-is stored: `set_field`, `move_record`, `execute_command`, `delete_record`, `amend`,
-`reject` and `accept`. On 2026-09-27 the first three said false, which the
+is stored, on twelve tools: `set_field`, `move_record`, `execute_command`, `update_record`,
+`apply_writes`, `undo_revision`, `set_kept_in_new_files`, `delete_record`, `amend`,
+`revalidate`, `reject` and `accept`. On 2026-09-27 the first three said false, which the
 specification reserves for additive updates. `nendo.lease.acquire` states the
 lease's lifetime in its own description. Every property of every output schema
 carries a description: the adapter's own result records through `[Description]`
@@ -250,7 +260,7 @@ adapter's parameter for the handle is now called `applicationHandle` throughout;
 `sessionId`, which hid that a reconnect minted a new one.
 
 By default, the lease ends on explicit release, user revocation or host stop. An
-owner can enable a bounded expiry in Agent → Connection. The
+owner can enable a bounded expiry in Agent → Connect. The
 device settings writer merges only the controls changed in that window with the
 latest saved settings, under the required cross-process lock. A stale window's
 port edit cannot restore an older lease-expiry choice. The
@@ -287,14 +297,14 @@ physical mappings or arbitrary host invocation.
 | `nendo://application/extension/{packageId}/file{?path,offset,length}` | `GetExtensionFileAsync` → `ReadExtensionFileAsync` | One package file, a page of bytes at a time. `path` is percent-encoded, so `tiles/world.bin` is sent as `tiles%2Fworld.bin`. `offset` and `length` are byte positions. `length` is at most 131,072, and by default the page runs to the end of the file up to that. A text file's page arrives as `text`. Any other page arrives as `base64`, and so does a text page that would split a UTF-8 sequence. `sha256` and `byteLength` describe the whole file, and `nextOffset` is null on the last page. |
 | `nendo://application/view-api` | `NendoViewApi.Json`, embedded from the Workbench's api build | `window.nendo` as a custom view's code calls it ([custom-view contract](custom-views.md#the-view-api-as-a-read)): every broker method with its call, parameters and answer, the helpers `api.js` adds, the context and record shapes, the events, the filter words, write values, toolbar kinds, icons and keys, theme tokens, limits, refusals, a whole view to start from, and how a person develops a package from a folder. Read only while an agent writes a view's code (W-094). Its own description, the vocabulary's `extension.setPackage`, the custom-view example and describe's `reads` each name it with that condition and carry none of it, and the instructions do not name it (review R-006); `ViewApiResourceTests` fails when one of them does. Static for a host build. |
 
-All five page resources (records, search, export, history and revision operations) keep
-the MCP 1–100 limit. `limit` is a whole number in
+All six page resources (records, tree, search, export, history and revision operations)
+keep the MCP 1–100 limit. `limit` is a whole number in
 that range. Any other value is `NENDO_INVALID_LIMIT`: letters, a fraction, a value
 larger than an integer holds, an empty value, `0` or `101`. The template variable
 arrives as text, and Nendo classifies it. Before, the SDK's binder refused a
 non-integer first, and the client saw a bare internal error with no code.
 
-The records, tree, history and revision-operations pages carry `changeSequence`:
+The records, tree, search, history and revision-operations pages carry `changeSequence`:
 the file's change sequence the Engine read that page at, taken from the Engine's
 own page result and never from a manifest read afterwards (review R-009, since
 2026-10-06). A records page and an aggregate with equal sequences saw the same
@@ -709,7 +719,8 @@ carries a worked change set that authors two dependent calculated fields, a
 reusable function, an action and its trigger.
 
 Form batching in Workbench uses `SetFieldsAsync`, which expands to existing field
-operations. There is no new MCP form tool. A generic service name does not imply
+operations. `nendo.data.update_record` (W-147) is the same path for an agent: it calls
+`SetFieldsAsync` and adds no operation of its own. A generic service name does not imply
 relationship/delete/rename operations.
 
 Below Unattended, there is no MCP accept/promote tool, and acceptance is the
@@ -756,6 +767,9 @@ Evidence: [protocol resource tests](../../tests/Nendo.LocalMcp.Tests/ProtocolRes
 [worked example tests](../../tests/Nendo.LocalMcp.Tests/AuthoringExampleTests.cs),
 [data outcomes](../../tests/Nendo.LocalMcp.Tests/DataOutcomeProtocolTests.cs),
 [read path tests](../../tests/Nendo.LocalMcp.Tests/ReadPathTests.cs),
+[tool-only client tests](../../tests/Nendo.LocalMcp.Tests/ToolOnlyClientTests.cs) (the two
+read tools answer every address as `resources/read` does, with no `structuredContent` beside
+the text, and the lease grant states the write limits and the first reads),
 [listen tests](../../tests/Nendo.LocalMcp.Tests/SubscriptionsListenTests.cs),
 [Tasks tests](../../tests/Nendo.LocalMcp.Tests/TasksExtensionTests.cs),
 [host skill tests](../../tests/Nendo.LocalMcp.Tests/HostSkillTests.cs),

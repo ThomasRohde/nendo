@@ -60,11 +60,13 @@ CSV text. It uses the ordinary MCP 1–100 limit and the same revision-bound cur
 that every page resource uses. The header row carries display names and appears
 on the first page only. Thus the pages concatenate into one valid document.
 `fieldIds` gives the stable field ID behind each column, and an import maps by
-this ID. It is a resource and not a tool, because Inspect keeps an empty tool
-list.
+this ID. It is a resource and not a tool, because reading is a resource in this
+product; a client that calls tools and cannot read resources reads it through
+`nendo.read.resource`, which Inspect lists with `nendo.read.list`
+(`NendoToolBoundary.ToolClasses`).
 
-`nendo.data.import_records` takes that text back, or typed JSON records, at *Data
-mutation*. Both formats decode through the same routine as the native importer.
+`nendo.data.import_records` takes that text back, or typed JSON records, at *Edit
+data*. Both formats decode through the same routine as the native importer.
 They then commit through the same canonical `data.createRecord` operations, with
 fifty operations in each revision. It does **not** use the proposal-per-batch
 path below. That path lets a person review a hundred rows, and it clones the file

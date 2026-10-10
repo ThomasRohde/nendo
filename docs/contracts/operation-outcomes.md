@@ -58,7 +58,7 @@ new file. A cleanup failure cannot hide a receipt that was already returned, and
 it cannot erase a newer pending request. Native Studio, file controls and
 recovery stay available.
 
-`data.setFields` is a protocol-5 typed convenience request for 1–64 fields on
+`data.setFields` is a typed bridge convenience request for 1–64 fields on
 one record. The service sorts the semantic field IDs and expands the request
 into existing `data.setField` operations before canonicalization. Thus one form
 save uses one transaction, one key and one revision. The record version advances
@@ -67,7 +67,13 @@ back. Compensation reverses the retained field operations together, and it uses
 the final record version from that revision. A later edit conflicts without a
 partial inverse. Any revision of record changes is reversed whole the same way, creates
 included ([ADR-0023](../decisions/0023-a-view-undoes-its-own-revisions.md)); a revision that
-also changes the definition or a package is not.
+also changes the definition or a package is not. A record's keep mark
+([ADR-0022](../decisions/0022-new-file-keeping-the-records-an-application-ships-with.md))
+moves no version; reversing it puts the previous mark back. Since 2026-10-08 a batch may set
+a mark beside the create or update it belongs to, and one keep call marks up to 200 records
+of any types as one revision. Reversing such a revision puts every previous mark back with
+the record writes, and is refused when any of those marks changed since
+(`SqliteNendoStore.Compensation.cs`; `BatchWriteToolTests`).
 
 A draft retained after a lost write or authority change is explicit immutable
 state, so losing focus and an automatic file-change/read-chase refresh cannot
@@ -90,8 +96,10 @@ The current Workbench sends both. Under its gate, the coordinator checks that
 digest against the pending proposal or against its committed receipt. A delayed
 acceptance cannot reuse an uncommitted proposal ID to apply different content.
 Compatibility service callers may omit the digest. The current owner-facing
-Workbench acceptance paths do not omit it. This does not add an MCP promotion
-tool.
+Workbench acceptance paths do not omit it. Below Unattended there is no MCP
+promotion tool. At Unattended, `nendo.change_set.accept` calls the same promotion
+with the proposal's reviewed digest (`NendoUnattendedTools`; see the
+[MCP interface contract](mcp-interface.md)).
 
 An interrupted acceptance uses the same read-first reconciliation as a data
 save. It shows **Acceptance unconfirmed**, and it requires an explicit retry
@@ -110,8 +118,10 @@ acknowledge the retained request.
    **before** you send a write.
 2. After a lost response, call `nendo.data.get_receipt` with that context and
    the original key. A result with `state: committed` contains the original
-   receipt. A result with `state: unresolved` has no receipt (MCP serialization
-   omits the absent optional member). A committed receipt carries
+   receipt. A result with `state: unresolved` carries `receipt: null` and
+   `revisions: null`, with its `message`: tool results serialize nulls rather than
+   omit them, because the advertised output schema lists them as required
+   (`NendoMcpJson.ToolOptions`; `OutputSchemaContractTests`). A committed receipt carries
    `generatedChanges`. This lists the records that the automatic actions of the
    write touched, each with the kind of change and with `recordVersion` null. An
    idempotent replay carries the same list under `alsoChanged`. The file can

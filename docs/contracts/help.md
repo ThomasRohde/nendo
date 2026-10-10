@@ -15,23 +15,6 @@ what the person has in front of them; with no file open the category is empty an
 the index starts at Getting started. If a host provider adds a category and does
 not name it, that category comes after these five, in first-seen order.
 
-- **Getting started**: *Find your way around* and *What Nendo is*. These cover
-  the one file, the permanent Studio, Use against Studio, and the rule that the
-  person accepts every change to the shape of the app.
-- **How Nendo works**: seven topics that teach the model instead of the steps.
-  The topics are the file and how it opens, the data model, screens as
-  definitions, calculations and automatic actions, the two lanes and what a
-  review shows, history and compensation, and what Nendo intentionally leaves
-  out. They are written from the contracts and accepted ADRs. Every claim names
-  something that the code does today, in the words that the screen uses (access
-  levels, calculated-field states, reversibility labels, status pills).
-- **Everyday work**: CSV, files and copies, editing and undo.
-- **Agents**: *Connect an agent with MCP* (the only topic that can name a
-  client), *What an agent can see and do* and *The MCP surface*. *What an agent
-  can see and do* describes each access level in terms of the data of the
-  person, the lease, what the Agent page shows and what an agent never gets.
-  *The MCP surface* describes every resource and tool, the limits, how a refusal
-  reads and recovery after a lost answer.
 - **About this app**: first, the file's own help pages
   ([ADR-0027](../decisions/0027-a-file-carries-its-own-help.md)): every `.md`
   under `help/` in a package the file carries, read with `help.readPages` when
@@ -45,6 +28,28 @@ not name it, that category comes after these five, in first-seen order.
   types, fields with their reference targets, calculated fields (by name, never
   with their expression) and configured screens. Topic identity uses stable
   entity IDs, so a rename keeps its place.
+- **Getting started**: *Find your way around*, *Keyboard shortcuts* and *What
+  Nendo is*. These cover the one file, the permanent Studio, Use against Studio,
+  every key the window answers to (generated from `shortcuts.ts`, so a new
+  shortcut is listed without an edit here), and the rule that the person accepts
+  every change to the shape of the app.
+- **How Nendo works**: seven topics that teach the model instead of the steps.
+  The topics are the file and how it opens, the data model, screens as
+  definitions, calculations and automatic actions, the two lanes and what a
+  review shows, history and compensation, and what Nendo intentionally leaves
+  out. They are written from the contracts and accepted ADRs. Every claim names
+  something that the code does today, in the words that the screen uses (access
+  levels, calculated-field states, reversibility labels, status pills).
+- **Everyday work**: CSV, files and copies, editing and undo.
+- **Agents**: *Connect an agent with MCP* (the only topic that can name a
+  client), *What an agent can see and do* and *The MCP surface*. *What an agent
+  can see and do* describes each access level in terms of the data of the
+  person, the lease, what the Agent page shows and what an agent never gets.
+  *The MCP surface* describes every resource and tool, the limits, how a refusal
+  reads and recovery after a lost answer. *What an agent can see and do* also
+  has *Launch an agent from Nendo*: the Agent page's Launch tab, what Nendo hands
+  the agent, @ in the message box, and that closing the conversation's tab ends
+  the agent ([launched agents](launched-agents.md)).
 
 ## Content model
 
@@ -79,6 +84,8 @@ index. A topic click moves focus to the new index entry. If the click came from
 
 - the sidebar, on the file's first help page when it carries one, else on
   *Find your way around*;
+- F1 (`shortcuts.ts`), which presses the sidebar's Help, so it opens in the same
+  place and is refused wherever that click would be;
 - the no-file screen (*Read how Nendo works*);
 - the Agent page (*Learn how to connect with MCP*, *What an agent can see and
   do*).

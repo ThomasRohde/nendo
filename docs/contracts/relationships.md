@@ -220,6 +220,11 @@ active file.
   null to follow its type. It is data, but no value: no field or record version changes and no
   automatic action runs. Compensation puts the previous mark back, and is refused when the
   mark changed since. Repeating the current mark is refused as `kept-in-new-files-unchanged`.
+  Since 2026-10-08 one call marks up to 200 records of any types as one revision
+  (`SetRecordsKeptInNewFilesAsync`), and a record write batch may set a created or updated
+  record's mark in its own revision (`NendoRecordWrite.KeptInNewFiles`; a delete carries none).
+  Either revision is undone whole, marks with the record writes, and is refused when any of
+  its marks changed since (`SqliteNendoStore.Compensation.cs`; `BatchWriteToolTests`).
 - A deleted record keeps its mark, since its ID stays reserved; a restore finds it.
 - `application.setNewFileLabel` `{label}` names one new file, 1 to 40 characters on one line.
 - A kept record may point only at kept records, its hierarchy parent included. The rule is
@@ -266,7 +271,7 @@ cycles.
 
 The bound is 100 source records per atomic conversion, within the existing
 proposal and transport byte limits. Nendo explicitly refuses larger conversions.
-It offers no partial batch conversion. Conversion is `irreversible-declared`,
+It offers no partial batch conversion. Conversion is `irreversibleDeclared`,
 and operation evidence keeps the original values. Existing configure operations
 keep their canonical bytes. New conversion history and reviewed binding require
 host 1.10.0. Ordinary old-file open stays unchanged. Studio uses the existing
