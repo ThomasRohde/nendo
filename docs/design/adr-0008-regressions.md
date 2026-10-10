@@ -1,5 +1,10 @@
 # ADR 0008 regression specifications
 
+Status: **carried out** with the [implementation plan](adr-0008-implementation-plan.md).
+Where this document and the shipped code disagree,
+[calculations-and-actions.md](../contracts/calculations-and-actions.md) is current; this is
+kept as the transfer it was.
+
 Companion to the [implementation plan](adr-0008-implementation-plan.md).
 These are test specifications, not runnable tests or fresh pass claims. Recreate
 them in the existing test projects. They preserve the 70 cases exercised before

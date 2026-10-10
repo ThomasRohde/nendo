@@ -9,6 +9,9 @@
   (SEP-2640, Final, read 2026-10-04). Accepted on the owner's standing pre-acceptance of ADR
   changes (2026-09-24); the build is a separate work item with its own acceptance criteria
 - **Amends:** ADR-0013 (a package kind that carries no code)
+- **Amended by:** [ADR-0029](0029-a-skill-may-carry-scripts-its-client-runs.md) (2026-10-08):
+  a skill package's supporting files may include scripts that a connected agent's client
+  runs on its own machine. Nendo still never runs them; the review naming them is not built yet
 - **Depends on:** ADR-0007 proposals, ADR-0009 the agent surface, ADR-0013 packages in the
   file, the Skills extension (W-154)
 - **Related design:** [MCP interface contract](../contracts/mcp-interface.md)

@@ -1,5 +1,9 @@
 # Swarm
 
+Status: **built**. `workspace/Swarm.nendo` carries the app and `extensions/swarm/` is its
+view, at package 0.2.0 on 2026-10-10. Where this design and the code disagree, the code is
+current.
+
 W-133 builds an offline creature-behaviour playground as a Nendo app. The owner
 requested it on 2026-10-04. It stays within ADR-0013: a custom view carries its
 code in the file and uses typed application services. No host change or

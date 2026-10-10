@@ -1,5 +1,10 @@
 # ADR 0008 execution semantics to carry into production
 
+Status: **carried out** with the [implementation plan](adr-0008-implementation-plan.md).
+Where this document and the shipped code disagree,
+[calculations-and-actions.md](../contracts/calculations-and-actions.md) is current; this is
+kept as the transfer it was.
+
 This preserves the retired experiment's contract, formerly `experiment-1`, for
 the [implementation plan](adr-0008-implementation-plan.md). Use these scalar and
 ordering rules as the initial production defaults; publish a production contract

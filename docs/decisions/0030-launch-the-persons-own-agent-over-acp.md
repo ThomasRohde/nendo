@@ -95,8 +95,8 @@ provider dependency and holds no credential.
 
 - An agent program already installed on this computer that speaks ACP on stdio. The host
   offers the ones it finds on `PATH` from a short list it knows (for example
-  `copilot --acp` and `gemini --acp`, and the Claude Code and Codex ACP adapters), plus one
-  command line the person enters. The person's choice is kept on this device, never in the
+  `copilot --acp` and `gemini --experimental-acp`, and the Claude Code and Codex ACP
+  adapters), plus one command line the person enters. The person's choice is kept on this device, never in the
   file.
 - The host never downloads, installs or updates an agent, and it does not read the ACP
   registry, so it still needs no network of its own. It may say what installs one: the
@@ -140,8 +140,9 @@ provider dependency and holds no credential.
   answers one by itself and never chooses an *always* option on the person's behalf.
 - A proposal the agent validates appears on the Agent page as it does today, and is
   reviewed there. The tab links to it. Below Unattended, the person still accepts it there.
-- The transcript lives in the host's memory for the tab's lifetime. It is not kept in the
-  file or on the device.
+- The transcript lives in the host's memory from launch until the file closes or another
+  agent is launched, so an ended agent's conversation can still be read. It is not kept in
+  the file or on the device.
 
 ### Lifetime
 
@@ -427,7 +428,7 @@ be "an icon button to create a new session. Closing the tab is already ending a 
   same tab.
 - Closing the tab ends the agent. Before this it only closed the tab and left the agent
   running, reachable again from Launch.
-- The tab carries a mark: a turning ring while it starts or works, a slow violet pulse while
+- The tab carries a mark: a turning ring while it starts or works, a slow pulse in the accent colour while
   its newest step is a thought, an amber dot while a permission or a sign-in waits for the
   person. An idle agent has none. The tab's name and its title say the same in words.
 - `agent-chat.test.mjs` measures the mark from the conversation. With the permission check

@@ -1,5 +1,13 @@
 # Nendo Station — the showcase application
 
+Status: **delivered 2026-09-22** (M0–M6), and kept as the plan it was.
+[docs/nendo-station.md](../nendo-station.md) and
+[extensions/systems-lens/README.md](../../extensions/systems-lens/README.md) are current;
+where this plan and they disagree, they are right. The Systems Lens section describes the
+lens as planned, at protocol 1 under the contained helper, which was retired on 2026-09-25
+([ADR-0013](../decisions/0013-custom-views-with-code-in-the-file.md)). Since then the lens's
+code is carried in the file.
+
 A fictional orbital habitat, run as a small operations room. It is the fourth
 reference application: built from an empty file through the MCP interface alone,
 carrying one custom view of its own, and kept current as each new surface slice
@@ -291,7 +299,8 @@ over MCP.
 ## Systems Lens
 
 `extensions/systems-lens/`, package `org.nendo.systems-lens`, protocol 1,
-unsigned, no dependencies, no network, no writes.
+unsigned, no dependencies, no network, no writes. *Now (2026-10-10) version 1.2.2, its code
+carried in the file by the `lens-in-file` stage, with no protocol number, install or pin.*
 
 It draws the feed network as a schematic: components as nodes, feeds as directed
 edges, each node toned by its stored `state`, banded by the system prefix in its
@@ -353,6 +362,12 @@ Studio, Disable and Close stay on the host's toolbar, outside the renderer.
 
 Build: `tools/Build-NendoSystemsLensPackage.ps1`, a one-line wrapper over
 `Build-NendoViewPackage.ps1`, printing the exact SHA-256 that the file pins.
+
+*Now (2026-10-10):* the theme arrives as `nendo.ui.theme` and the `theme` event, not a
+`setTheme` message. Focus, Take out, the zoom and Text view are in Nendo's own toolbar, in
+Ctrl K and on keys, and a right-click opens Nendo's menu. Both build scripts
+were deleted on 2026-09-25 with the helper; `Build-NendoStation.mjs` reads the folder
+afresh and proposes the files that changed.
 
 ## The showcase moment
 
@@ -422,12 +437,17 @@ screen to Nendo Station in the same change that delivers it.**
 | Path | What |
 | --- | --- |
 | `workspace/Nendo Station.nendo` | The built file, tracked, covered by `Test-BinaryAssets.ps1` |
-| `extensions/systems-lens/` | Package source: `index.html`, `lens.css`, `lens.js`, `LICENSE.txt`, `README.md` |
-| `tools/Build-NendoSystemsLensPackage.ps1` | Reproducible package build, prints the pin |
-| `tools/Build-NendoStation.mjs` | Authors the application over MCP |
+| `extensions/systems-lens/` | Package source: `nendo-package.json`, `index.html`, `lens.css`, `lens.js`, `LICENSE.txt`, `README.md` |
+| `tools/Build-NendoStation.mjs` | Authors the application over MCP; its `lens-in-file` stage carries the package into the file |
+| `tools/station-data.mjs` | The dataset the build script writes |
 | `tools/Gate-SystemsLens.mjs`, `tools/Review-SystemsLens.ps1` | The presentation gate, inside `Test-Production.ps1` |
+| `tools/Graph-FixtureServer.mjs`, `tools/Graph-FixtureBroker.html` | The gate's fixture server and broker |
+| `docs/nendo-station.md` | The walkthrough, with what each step showed |
 | `docs/design/nendo-station-plan.md` | This plan |
-| `docs/reviews/blackbox-prompt.md` | A phase that reaches the station |
+
+Until 2026-09-25 `tools/Build-NendoSystemsLensPackage.ps1` built the package and printed
+its pin; until 2026-10-06 `docs/reviews/blackbox-prompt.md` had a phase that reached the
+station.
 
 ## Evidence
 
@@ -450,7 +470,9 @@ local fixture server, reusing `Graph-FixtureServer.mjs`, and measures:
 11. An empty projection shows the empty state.
 12. `replaceProjection` clears take-out mode, bumps the generation, and a
     `selectRecord` echoing the old generation is refused.
-13. Both themes, from the `setTheme` message rather than `prefers-color-scheme`.
+13. Both themes, from the `setTheme` message rather than `prefers-color-scheme`. *Since
+    2026-09-25 the lane sends a dark `theme` event and changes a canvas token instead; the
+    README lists what it measures now.*
 14. A 512×384 window.
 15. Keyboard traversal, focus ring, and the text alternative naming the exposed
     and reduced sets.
@@ -496,7 +518,8 @@ Agent-observed against the live planner, not a lane.
 ### What is not measured
 
 - The install / allow / open journey and native composition belong to the host
-  and are measured by the custom-view contract's own lanes, not here.
+  and are measured by the custom-view contract's own lanes, not here. (Since
+  2026-09-25 there is no install or allow step; opening is the whole journey.)
 - `Build-NendoStation.mjs` is agent-run and owner-accepted. There is no automated
   assertion that the station rebuilds from empty; if the vocabulary changes
   incompatibly, the next rebuild is where it is found.
@@ -513,7 +536,7 @@ the acceptance criteria below. No `src/` change; ADR-0013 and ADR-0008 already
 carry the authority, and no new host capability is needed. If a surface turns out
 to need one, the item becomes *Needs decision/ADR* and stops there.
 
-**M1 — World and schema. Written 2026-09-22, not yet run.** All five open
+**M1 — World and schema. Written 2026-09-22, and run the same day.** All five open
 questions are settled below. `tools/Build-NendoStation.mjs` carries the whole of
 M1 as four stages, each one change set validated into a proposal: `schema-a` the
 station and what it is made of, `schema-b` what happens on it, `schema-c` crew
@@ -526,6 +549,9 @@ local MCP endpoint serves whichever file Nendo has open, and only the planner is
 open; a client cannot move itself to another endpoint. Creating the file is the
 owner's act: File, New in Nendo, saved as `workspace/Nendo Station.nendo`. Then
 `node tools/Build-NendoStation.mjs` runs stage by stage.
+
+*That paragraph is the state when M1 was written. The owner then created the file and the
+stages ran; M5 and M6 below were delivered on it the same day.*
 
 **M2 — Data.** Seed modules, systems, components, feeds, incidents, maintenance,
 experiments and crew over MCP. Import readings from CSV. Check the exact numbers
@@ -569,7 +595,8 @@ plan and `workspace/README.md` name the fourth reference application.
 - The trigger flags a system on an incident change, and only on the changes it
   declares.
 - Systems Lens opens under consent, draws the loop, and distinguishes exposed
-  from reduced on the redundant-pair fixture.
+  from reduced on the redundant-pair fixture. *(There has been no consent step since
+  2026-09-25: a view that is shown runs, ADR-0013.)*
 - The falsification text is recorded in a Finding.
 - The agent change in step 7 is authored, reviewed as a diff and accepted, and
   the resulting screen works — recorded with the proposal's exact title.

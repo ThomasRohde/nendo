@@ -406,7 +406,9 @@ route; inspection remains reachable; process-stop test and lifecycle cases pass.
 
 ## S7. Studio, surfaces, approval UX and draft recovery
 
-Use the selected visual reference, now [Console](console-direction.md) (it replaced the Molded Workbench mockups on 2026-09-26).
+Use the selected visual reference, now [Mica with tabs](mica-direction.md). It replaced
+[Console](console-direction.md) on 2026-10-03, which had replaced the Molded Workbench mockups on
+2026-09-26.
 Read the Studio and surface contracts. Preserve permanent Studio/recovery routes
 and System/Light/Dark behaviour. No implementation jargon in ordinary user flows.
 

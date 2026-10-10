@@ -1,7 +1,7 @@
 # Planner.nendo: the planner, designed
 
-`workspace/Nendo.nendo` grew by adding each new host feature as a test of it. It
-works, but it carries the history of how it was built: twelve work screens that
+`workspace/Nendo.nendo` (retired 2026-10-06) grew by adding each new host feature as a
+test of it. It worked, but it carried the history of how it was built: twelve work screens that
 overlap, a Horizon that is required so that closed work is left at *Later*, planning
 orders numbered by hand into open, delivered and dropped ranges, a Score calculation
 and an action whose flag was always on.
@@ -11,8 +11,8 @@ now. It uses a feature only where it answers a question the planner has. It hold
 every record of the old planner under its own record ID and Reference code.
 
 **Planner.nendo is the primary planner since 2026-09-29**, when the owner switched.
-[Dogfooding](../dogfooding.md), `AGENTS.md` and the MCP registrations point at it, and
-`Nendo.nendo` is kept as the archive. W-099 built it.
+[Dogfooding](../dogfooding.md), `AGENTS.md` and the MCP registrations point at it.
+`Nendo.nendo` was kept as the archive until the owner retired it on 2026-10-06. W-099 built it.
 
 ## How it is built
 

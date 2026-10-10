@@ -1,5 +1,8 @@
 # Codemap
 
+Status: **planned**; no slice is built as of 2026-10-10. There is no Codemap file, view or
+tool in the repository yet.
+
 Codemap is a Nendo application that maps every repository the owner works in, for coding
 agents and for the owner. One `.nendo` file per machine holds the map. Claude Code, working in
 any repository, reads that repository and writes the map over the Nendo MCP server. The owner

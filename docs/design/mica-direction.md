@@ -35,7 +35,8 @@ The recovery panel keeps its own opaque brush.
 
 ## Tokens
 
-The colours live in `src/Nendo.Workbench/src/styles/02-tokens.css`. The names predate both
+The colours live in `src/Nendo.Workbench/src/styles/02-tokens.css`, except `--mica`, which
+`21-native.css` declares because no view is handed it. The names predate both
 Console and this direction, and stay, because custom views are handed exactly these tokens
 (`themeTokenNames` in `extension-model.ts`, and the custom-views contract). `--cobalt` is the
 accent, whatever hue it carries.
@@ -54,8 +55,12 @@ accent, whatever hue it carries.
 Text on an accent fill is white in light and `--canvas` in dark, because the dark accent is light.
 `21-native.css` applies that to the few places that set white on the accent directly.
 
-Radii are `--radius-control` (4px) and `--radius-panel` (8px), restated in
-`21-native.css`. The root font size is 14px, and no text is set below 0.75rem.
+Radii are `--radius-control` (4px) and `--radius-panel` (8px), with `--radius-shell` (8px) for the
+record form's card, declared in `21-native.css`. The root font size is 14px. Body text is not set
+below 0.75rem. A few small labels go below it on purpose: key caps, the count of waiting changes
+on the Agent page's Activity card, a type tile's letters (10px), a launch command on the Agent
+page, and in the agent conversation its chips, the @ menu and the line under the box, down to
+0.68rem (about 9.5px).
 
 The data grid (`nendoGridTheme` in `view-data.ts`) repeats these values, because it cannot read
 a CSS variable. Change them together.
@@ -93,6 +98,14 @@ a CSS variable. Change them together.
   - A Ctrl-click or a middle click on anything in the navigation opens it in a new tab.
   - A tab is named after the place on screen: the record type and the view (*Incidents · Ops
     board*), or Studio and its page. A view named after its type is named once.
+  - A page can put a status mark on its own tab (`setTabStatus`). The launched agent's
+    conversation uses it to show, from any other tab, that the agent is starting or working (a
+    turning ring), thinking (a breathing dot) or waiting for the person (a still amber dot).
+  - A page that is one of a kind in the window opens in a tab of its own, or moves to the tab
+    already on it (`openTabOn`). The agent conversation opens this way, and so does the Agent page
+    when the conversation opens it beside itself.
+  - Closing a tab tells the page it showed (`onTabClosed`). Closing the conversation's tab ends
+    the launched agent and everything it started (ADR-0030).
 - **Address row.** The first row of the layer: Back and Forward (Alt Left and Alt Right), the
   breadcrumb, and the command box (Ctrl K). On a Use screen the breadcrumb carries the record-type
   and view pickers (W-092). The page names itself here and nowhere larger.

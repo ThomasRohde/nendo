@@ -464,8 +464,8 @@ builds `extensionView` and settles what Phase 5 left open: which screen a file o
   `ui.openScreen` can open it.
 - **The screen a file opens on.** `opensFile: true` on one `extensionView` makes the file
   open on it, rather than on the front page or the first record type. At most one view may
-  say so (`NUI453`). It is a Use screen like any other. The rail, the top bar and the picker
-  reach every other screen, and Studio and recovery stay as reachable as before.
+  say so (`NUI453`). It is a Use screen like any other. The navigation and the breadcrumb's
+  picker reach every other screen, and Studio and recovery stay as reachable as before.
 - **When views do not run.** When the device switch, the file's switch, safe mode, a restart
   without custom views or the file's health keeps views from running, the file opens as if no
   view said so: the front page, or else the first record type. The view stays in the picker
@@ -678,8 +678,9 @@ before a view runs a command.
 
 This ADR decides the whole design, and the design lands in phases. The
 [custom-view contract](../contracts/custom-views.md) states what is delivered at
-any moment. Phases 0 to 2 are delivered: views run inline from the file, and the
-contained helper is deleted.
+any moment. Phases 0 to 4 are delivered, and of Phase 5 `extensionView` and the screen a
+file opens on (W-106); `extensionTile` is not built (2026-10-10). Since Phase 2 views run
+inline from the file, and the contained helper is deleted.
 
 | Phase | Delivers | Rung |
 | --- | --- | --- |

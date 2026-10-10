@@ -78,6 +78,11 @@ same session validated, so the owner does not accept it first.
 [ADR-0009](0009-local-mcp-transport-authority-and-change-sets.md) describes the
 current access levels.
 
+**Note, 2026-10-10.** Since [ADR-0030](0030-launch-the-persons-own-agent-over-acp.md)
+(2026-10-08) the Workbench has one conversational surface: the tab of an agent program the
+person launched from the Agent page. The host still has no model client and no provider
+credential; it is an ACP client of a program the person installed.
+
 This decision is about scope. It makes no capability claim about any particular
 client. Broad client parity remains outside the MVP promise, as ADR-0009
 records.
@@ -87,7 +92,9 @@ records.
 - No new implementation obligation. This decision removes scope.
 - The decision carries one documentary obligation: agent-facing guidance must
   describe an external client as the only agent path, with no forward reference
-  to a hosted one.
+  to a hosted one. *Note, 2026-10-10:* since ADR-0030 the guidance describes two paths, an
+  external client that connects and an agent program launched from the Agent page; neither
+  is a model client in the host.
 
 ## Consequences
 

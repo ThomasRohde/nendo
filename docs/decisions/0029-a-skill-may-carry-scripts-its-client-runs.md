@@ -11,6 +11,9 @@
   package holds nothing that runs. Accepted on the owner's standing pre-acceptance of ADR
   changes (2026-09-24). The build is slice S1 of the Codemap plan, with its own acceptance
   criteria
+- **Delivery:** Not yet built (W-186, Codemap slice S1), as of 2026-10-10. Until then the
+  review line says "Nothing in it runs." and Studio's card "Nothing in it runs in Nendo." even
+  for a skill package that carries scripts, and neither names a script
 - **Amends:** ADR-0024 (what a skill package's supporting files may be), and the reading of
   ADR-0013's rule that code a file carries runs only as a view
 - **Depends on:** ADR-0009 the agent surface, ADR-0013 packages in the file, ADR-0024 a file
@@ -106,8 +109,7 @@ The build is slice S1 of the [Codemap plan](../design/codemap.md#build-slices):
   names the file and says Nendo never runs it.
 - A test that a skill package with no script keeps today's line.
 - A Workbench test for Studio's card in both cases.
-- The custom-views contract's *Skill packages* section, Help and the blackbox prompt updated
-  to say the same.
+- The custom-views contract's *Skill packages* section and Help updated to say the same.
 
 ## Consequences
 

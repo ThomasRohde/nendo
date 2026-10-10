@@ -100,7 +100,8 @@ lane exists: it builds and deploys that website and nothing else.**
   new binary extension, and none may be introduced: a `.webp`, `.jpg` or `.woff2`
   would fail that lane for two reasons.
 - This decision adds no new behavioural contract. Thus the blackbox review
-  coverage check in `Test-Repository.ps1` is not affected. The website is not part
+  coverage check in `Test-Repository.ps1` is not affected (that check was removed
+  with the blackbox prompt on 2026-10-06). The website is not part
   of the blackbox review. That review exercises the product, and when a reviewer
   reads marketing copy, that is not evidence about the host.
 

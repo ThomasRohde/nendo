@@ -128,7 +128,9 @@ instead of restating it.
 8. A step in `Gate-AgentAuthoring.mjs` that builds it through MCP alone and
    drives the running app.
 9. Engine and Workbench tests, and an acceptance fixture.
-10. A phase in the blackbox prompt so the next outside review reaches it.
+10. A phase in the blackbox prompt so the next outside review reaches it. *Retired
+    2026-10-06, when the blackbox prompt was deleted; the item stays so the numbers others
+    cite still hold.*
 11. The contract, ADR amendment and architecture text updated in the same change.
 12. Light and Dark, keyboard and screen-reader checks recorded.
 
@@ -167,7 +169,7 @@ rather than as an invented star count.
 | **B3 Matrix** | `matrixSurface`: `rowByFieldId`, `columnByFieldId` (both single-choice), `fieldBinding`, `filterClause`, `summaryTile` with `scope: cell` | One window grouped client-side like a board; a cell tile spends root clauses plus two predicates | Priority against status, effort against value: the Eisenhower grid people draw on whiteboards, with counts in every cell | Medium |
 | **B4 Ranked list** | `rankedList`: `rankByFieldId` (Integer or Decimal), `orderDirection`, `limit` (at most fifty), `fieldBinding`, `filterClause` | One page of at most `limit` records plus one exact `max` | A leaderboard: rank numerals and a bar per row proportional to the exact maximum, so the top record fills its row | Small |
 | **B5 Board by reference** | `boardSurface.groupByFieldId` widened to a Reference field | The referenced entity's label as a bounded page of columns, with a stated ceiling | A lane per project, per person, per client | Medium |
-| **B6 Outline** | `outlineSurface` over an entity that declares a hierarchy ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)) | The top level and each expanded node's children, in pages of 100 with child counts; the Engine refuses cycles | Decided 2026-09-27 by ADR-0019, not yet delivered | Large |
+| **B6 Outline** | `outlineSurface` over an entity that declares a hierarchy ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)) | The top level and each expanded node's children, in pages of 100 with child counts; the Engine refuses cycles | Decided 2026-09-27 by ADR-0019 and delivered the same day at host 1.36.0 (its stage 6; ADR-0004's outline amendment) | Large |
 
 B2 refuses DateTime by name for the reason the calendar does, and a span whose
 end precedes its start is a data issue the entry states, not a bar drawn
@@ -233,7 +235,7 @@ capability rung, and ships the F4 checklist in full.
 | **S5 Over time** — delivered 2026-09-16 | C3 trend, C5 activity grid | The Axiom Register gate: a trend of accepted axioms by month, a year of days | 1.25.0 |
 | **S6 Grids** — delivered 2026-09-17 | B3 matrix, B4 ranked list | The Axiom Register gate: status against domain, and a ranking by confidence | 1.26.0 |
 | **S7 Board by reference** — delivered 2026-09-17 | B5, with its column ceiling | The Axiom Register gate: axioms by remit, including a remit nobody points at | 1.27.0 |
-| Parked | DateTime, week and day scheduling; drag-to-date; images (B6 outline is decided by ADR-0019 and waits on its delivery stages) | | |
+| Parked | DateTime, week and day scheduling; drag-to-date; images | | |
 
 S3 was asked for before S2, so it took 1.21.0 and S2 takes 1.22.0: the ladder is
 monotone and a host never advertises a later feature than it has, so rungs follow

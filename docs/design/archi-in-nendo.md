@@ -1,5 +1,9 @@
 # Archi in Nendo: the design
 
+Status: **built** under I-007. `workspace/Archi.nendo` carries the app and
+`extensions/archi/` is its view, at package 0.16.0 on 2026-10-10. Where this design and the
+code disagree, the code is current.
+
 `Archi.nendo` is an ArchiMate modeller built as a Nendo application. It follows
 archi-online (the sibling repository `../archi-online`), the browser clone of desktop
 [Archi](https://www.archimatetool.com/) 5.9, and it runs offline in Nendo. It is

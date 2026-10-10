@@ -251,7 +251,7 @@ services, at a static loopback address, with no credential.
   first file keeps the device's port, 41763 by default, and each further file the
   next free one. If the host cannot bind a port, it falls back to an ephemeral port
   and reports it; this is never fatal. The owner can choose this file's port or
-  always-ephemeral in Agent → Connection.
+  always-ephemeral in Agent → Connect.
 - **Both MCP eras are served.** The server pins no protocol version. It answers
   an `initialize` handshake on any version that the SDK supports. The 2026-07-28
   `server/discover` path with per-request metadata works alongside it. Neither
@@ -305,7 +305,8 @@ services, at a static loopback address, with no credential.
   an `EndsOn` discriminator. When expiry is off, `lease.renew` succeeds as a
   confirmation. There is no transport-close event: a client that closes does not
   release editing. With no expiry, a crashed agent holds edit access until the
-  owner revokes it, and Agent → Connection states this.
+  owner revokes it, and the Agent page states this: the Lease expiry setting under
+  Agent → Connect, and the Editing owner line under Activity.
 - The `hostRunId` is per run and the cursor key is per run. Replacement, file
   switch or close, and recovery invalidate old authority. A renderer-only restart
   keeps healthy authority. Receipt lookup is read-only and cannot recreate a
