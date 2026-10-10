@@ -14,6 +14,7 @@ const notQualified = [
   { area: 'Cloud sync and live-root writes', status: 'Unsupported. Nendo warns about known sync folders but makes no claim that syncing is safe.' },
   { area: 'Physical power loss', status: 'Not tested.' },
   { area: 'Broad MCP client parity', status: 'Not promised. Claude Code and Codex both connect with just the address, checked by optional tests against installed clients. Other clients are untested.' },
+  { area: 'Launched agents', status: 'Built, with limits. Tests drive a stand-in agent, not a real one, and no test journey runs the whole path through the app. One live check with GitHub Copilot CLI was observed, not automated. A conversation cannot be resumed, and Nendo cannot confine the program it starts.' },
   { area: 'Account boundary on a shared machine', status: 'Not provided. While agent access is on, any program on this computer can connect, and there is no plan to change that.' },
   { area: 'Cross-platform', status: 'Windows only.' },
   { area: 'Custom views', status: 'A received file\'s view code runs when its view is shown; that is an accepted limitation, and switches turn views off. Clipboard, downloads, pop-ups and the memory budget are not measured.' },
@@ -30,7 +31,7 @@ const gaps = [
   'Any program on this computer can reach an open file. There is no password.',
   'The calendar shows a Date field on a month. There are no times, time zones, week or day views, durations, recurring events or drag-to-reschedule.',
   'A rating scale is fixed once set, and a timeline shows one calendar year at a time.',
-  'The selected tab and screen are not saved, so reopening a file returns every tab group to its first tab.',
+  'Nendo does not save which screen was selected or which tab of a record page was open. The window\'s tabs close with the file, and a reopened file shows every record page on its first tab.',
   'A whole-file snapshot with calculations grows linearly with size: 49 ms cold at 1,000 records and 474 ms at 10,000, measured on one machine on 2026-09-13.',
 ];
 ---

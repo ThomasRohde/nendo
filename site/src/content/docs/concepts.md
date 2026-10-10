@@ -212,7 +212,7 @@ choose how much it can do on the **Agent access** page:
 | Inspect | Read the file: structure, records, screens, history, health and waiting proposals. |
 | Edit data | Also create, edit and delete records and run commands. |
 | Shape app | Also build change sets and submit them as proposals for you to review. |
-| Unattended | Also accept its own proposals. Use it only while an agent builds a new file. |
+| Unattended | Also accept its own proposals, and approve the automatic actions they install, so those actions run. Use it only while an agent builds a new file. |
 
 ### Lease
 

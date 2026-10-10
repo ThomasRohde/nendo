@@ -16,6 +16,7 @@ A Nendo application is one SQLite file with the extension `.nendo`. There is no 
 - **History.** Every accepted change, as typed operations grouped into revisions.
 - **Identity.** An application ID and an instance ID. [Copies](#copies) explains how they differ.
 - **Revision counters.** A definition revision, a data revision, one change sequence across both, and a version on each record.
+- **A search index**, once you build one. It keeps its own copy of the records' text, so they can be found by any word, and grows the file by about the size of that text. Nendo keeps it current with every save.
 
 Some things are stored on the computer and never in the file: your approval of a file's automatic actions, and this computer's switches for custom views. A copy of the file on another computer, or a Duplicate or Fork on this one, asks for the approval again. A custom view's code is the other way round: it is in the file, so every copy carries it, and it runs when its view is shown. See [Custom views](/nendo/docs/custom-views).
 
@@ -28,11 +29,11 @@ Before Nendo grants any capability, it inspects the whole file. That sets two li
 | File size | 256 MiB | About 75,000 records that each carry 1.3 KB of text. A cold open at that size takes several seconds. |
 | Rows in each history or definition table | 100,000 | The history table gains one row for each record write and each later edit, so a file reaches this at about 100,000 writes, whatever their size. **Fold older history** in History makes room again. |
 
-Nendo refuses a write when the file is within 32 MiB or 1,000 rows of a limit. The 32 MiB leaves room for the largest single change, which is a custom view's code arriving in the file. The refusal says that nothing changed and that the file still opens. Nendo does not warn you as a file approaches a limit. A file over a limit does not open, and Nendo does not change it.
+Nendo refuses a write when the file is within 32 MiB or 1,000 rows of a limit. The 32 MiB leaves room for the largest single change, which is a custom view's code arriving in the file. The refusal says that nothing changed and that the file still opens. History warns once the file has recorded 80% of the changes it accepts (see [History and undo](#history-and-undo)). Nothing warns as a file approaches the size limit. A file over a limit does not open, and Nendo does not change it.
 
 ### Minimum host version
 
-Each file records the minimum version of Nendo's file capabilities that it needs. This number is separate from the product version shown in the status bar. An empty file needs the least. When a change makes the file use a newer capability, such as a timeline, a calculated field or a custom view, the review of that proposal shows that the minimum rises. That line is not compensatable.
+Each file records the minimum version of Nendo's file capabilities that it needs. This number is separate from the product version shown in the status bar. An empty file needs the least. When a change makes the file use a newer capability, such as a timeline, a calculated field or a custom view, the review of that proposal shows that the minimum rises. Building a search index raises it too, so an older Nendo refuses a file that has one. That line is not compensatable.
 
 - **An older Nendo** refuses a file that needs a newer one. It does not open the file partially.
 - **A newer Nendo** opens an older file without upgrading or rewriting it. The minimum rises only when an accepted change needs it, and never goes down.

@@ -115,9 +115,15 @@ The full guide is [Authoring a custom view](https://github.com/ThomasRohde/nendo
 5. **Name the package.** A `nendo-package.json` with a `packageId` such as `org.example.map`, and a title.
 6. **Put it in the file, and define a view that names it.** Accept both proposals, and the view runs.
 
+While you work on a view, import its package once, then choose **Develop from folder…** on its card in **Studio › Surfaces › Custom views** and pick the package's folder. On this computer every view of the package then runs from that folder, under a **Development** strip, and reloads whenever you save a file there. The `.nendo` file does not change: **Save to file…** prepares a proposal you review, and **Stop developing** puts the file's code back.
+
 An agent that writes a view over MCP reads `nendo://application/view-api` first: every `window.nendo` call with its parameters and answer, the toolbar's controls and icons, the theme's colours and a whole view to start from.
 
 To debug, right-click inside the running view and choose **Inspect**. To run code inside the view, choose its frame as the Console's context, in the drop-down that starts at `top`.
+
+## Help pages in the file
+
+A package can also carry help for the people who use the file: Markdown files under `help/` in the package. Nendo shows them first in **Help › About this app**, before the reference it builds from the file's record types. A page's first `#` heading is its title, and the paragraph after it is its summary. The pages arrive in a proposal like the rest of the package, and nothing in them runs.
 
 ## Limits
 

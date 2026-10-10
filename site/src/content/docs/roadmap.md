@@ -58,6 +58,16 @@ need to:
   earlier batches stay committed, and the agent cannot skip the refused row and
   continue.
 
+### Launched agents
+
+The Agent page's **Launch** card starts an agent program you installed, in a tab
+beside the file. These parts are not done:
+
+- No test journey runs the whole path through the app. Tests drive a stand-in
+  agent, and one live check with GitHub Copilot CLI was observed, not automated.
+- A conversation cannot be resumed: it ends with the agent and is not saved.
+- Nendo cannot confine the program it starts, and says so.
+
 ## Possible future directions
 
 The items below are possibilities, not commitments. Some may never happen,
@@ -78,7 +88,7 @@ because they conflict with the eight product axioms on the
 | Shared-machine protection | A check that only the signed-in user's processes can reach an open file. | There is no credential today. Every process on the machine can connect at the file's access level. The check is not built. |
 | Other platforms | ARM64 Windows, macOS, Linux. | The host is a WinUI and WebView2 application. There is no ARM64 build yet. Other operating systems need a different host. |
 | Broader MCP clients | A stated promise that any MCP client works. | Claude Code and Codex connect with the address alone. Other clients are not tested, and no parity claim is made. |
-| An embedded agent | An assistant built into Nendo. | Dropped. The local MCP interface is the agent surface, and local use never depends on an agent. |
+| An embedded agent | An assistant built into Nendo. | Dropped. Nendo has no agent of its own: it connects to, or launches, the agent program you installed, through the local MCP interface. Local use never depends on an agent. |
 
 ## What would change the plan
 

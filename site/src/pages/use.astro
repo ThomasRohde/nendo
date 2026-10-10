@@ -125,8 +125,13 @@ pwsh ./tools/Build-NendoInstaller.ps1</code></pre>
 codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
     <Prose class="agent-notes">
       <p>
-        Each further open file keeps a port of its own. Agent › Connection shows the
+        Each further open file keeps a port of its own. Agent › Connect shows the
         address for the file you are in and can copy either command.
+      </p>
+      <p>
+        Or let Nendo start one: Agent › Launch lists the agents it found on this
+        computer, such as Claude Code, GitHub Copilot CLI or Codex, and opens the one
+        you choose in a tab beside the file, at the access level you chose.
       </p>
       <p>
         <strong>No password also means</strong> any program on this computer can connect
@@ -136,7 +141,8 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
       </p>
       <p>
         Claude Code and Codex are the only clients that have been tested. Other MCP
-        clients may work, but nobody has checked.
+        clients may work, but nobody has checked. Launch offers more agents, over ACP;
+        apart from one live check with GitHub Copilot CLI, those are untested too.
       </p>
     </Prose>
   </section>
@@ -173,8 +179,8 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
     </p>
     <ol class="demo">{demo.map(step => <li>{step}</li>)}</ol>
     <div class="demo-shots">
-      <Shot name="record-page" alt="A component record page with a toned header, Take offline and Return to service commands, and the record form" caption="A record page with its own commands." />
-      <Shot name="matrix" alt="A matrix surface: one grouped read laid out as a grid, with empty cells shown as cells" caption="A matrix, with an exact count in every cell, including the empty ones." />
+      <Shot name="record-page" alt="A component record page beside the Components list, with a toned header, Take offline and Return to service commands, and the record form" caption="A record page with its own commands." />
+      <Shot name="matrix" alt="A matrix: systems in a grid by condition and criticality, with a count in every cell, including the empty ones" caption="A matrix, with an exact count in every cell, including the empty ones." />
     </div>
     <p class="aside">
       <a href="https://github.com/ThomasRohde/nendo/blob/main/docs/nendo-station.md" rel="noopener">The full demo script →</a>
@@ -215,9 +221,10 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
       <article class="panel">
         <h3>Help is built in</h3>
         <p>
-          Five sections: Getting started, How Nendo works, Everyday work, Agents, and About
-          this app. Help works with no file open, in read-only mode and in recovery. About
-          this app is generated from the file that is currently open.
+          Five sections: About this app, Getting started, How Nendo works, Everyday work
+          and Agents. Help works with no file open, in read-only mode and in recovery. About
+          this app opens with the help pages the open file carries, if it has any, then a
+          reference generated from its record types.
         </p>
       </article>
     </div>

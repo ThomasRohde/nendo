@@ -14,7 +14,7 @@ const lanes = [
   {
     name: 'The application lane',
     what: 'Schema, screens, constraints and commands.',
-    how: 'Changes are made on a copy of the file. Nendo validates them and shows a diff first, and accepting them is a separate step that happens in the Nendo app itself.',
+    how: 'Changes are made on a copy of the file. Nendo validates them and shows a diff first. Accepting them is a separate step that a person takes in the Nendo app, except at Unattended, where the agent accepts its own.',
   },
 ];
 
@@ -30,7 +30,7 @@ const operations = [
   ['schema.setRetired', '', 'application.setPurpose', ''],
   ['schema.setChoiceMetadata', '', 'application.setLook', ''],
   ['schema.configureReference', '', 'application.setNewFileLabel', ''],
-  ['schema.declareHierarchy', '', '', ''],
+  ['schema.declareHierarchy', '', 'application.buildSearchIndex', ''],
   ['schema.removeHierarchy', '', '', ''],
   ['schema.declareLinkRule', '', '', ''],
   ['schema.removeLinkRule', '', '', ''],
@@ -48,7 +48,7 @@ const accessLevels = [
   { name: 'Inspect', body: 'An agent can read the schema, the screens and the records, and change nothing.' },
   { name: 'Edit data', body: 'An agent can create, change and delete records, but not the schema or the screens.' },
   { name: 'Shape app', body: 'An agent can propose changes to the application. A person accepts each one.' },
-  { name: 'Unattended', body: 'The agent accepts its own proposals, and nobody reviews them first. It is off by default, must be confirmed before it takes effect, is never saved, and ends when the file closes.' },
+  { name: 'Unattended', body: 'The agent accepts its own proposals, and nobody reviews them first. It is off by default and asks you to confirm before it takes effect. Like every level, this computer remembers it for that file, so the file opens at Unattended again, without asking, until you choose Off.' },
 ];
 
 const screens = [
@@ -114,7 +114,7 @@ const screens = [
 
   <section class="page section">
     <p class="eyebrow">The vocabulary</p>
-    <h2>Thirty-eight operations, thirty-five of them open to agents.</h2>
+    <h2>Thirty-nine operations, thirty-six of them open to agents.</h2>
     <p class="lede">
       These are the only ways the file can change. There is no raw SQL and no
       general-purpose escape hatch. The two marked <code>*</code> are available only in
@@ -204,7 +204,7 @@ const screens = [
     <p class="eyebrow">Studio</p>
     <h2>Studio is always there.</h2>
     <p class="lede">
-      Every valid file opens with Nendo Studio and its five areas: Data, Structure,
+      Every valid file has Nendo Studio and its five areas: Data, Structure,
       Surfaces, History and Health. It works with no record types, no agent, no custom
       screens, a broken definition, or a file opened in safe mode.
     </p>
@@ -220,8 +220,10 @@ const screens = [
     <p class="lede">
       Agents talk to a stateless MCP server that listens only on this computer, at
       <code>http://127.0.0.1:41763/mcp</code>; each further open file keeps a port of its
-      own. Twenty-four resources are read-only and need no lease. There are twenty-five
-      tools, and the ones that write need the lease.
+      own. Twenty-five resources are read-only and need no lease. There are
+      twenty-seven tools. Two of them, <code>nendo.read.resource</code> and
+      <code>nendo.read.list</code>, read the same resources and need no lease either;
+      the ones that write need the lease.
     </p>
     <ol class="levels">
       {accessLevels.map((level, index) => (
@@ -241,7 +243,14 @@ const screens = [
         the lease, whatever name the client gives and whichever HTTP connection it uses.
         By default the lease never expires: the client releases it, and the person can
         revoke it at any time. The person can turn on a lease expiry under Agent ›
-        Connection.
+        Connect.
+      </p>
+      <p>
+        Nendo can also start an agent you installed, such as Claude Code, GitHub Copilot
+        CLI or Codex, from Agent › Launch. It speaks the Agent Client Protocol (ACP) to
+        it, opens the conversation in a tab beside the file, and gives it this file's MCP
+        address at the level you chose. It is the same program you would run in a
+        terminal, with its own tools, and Nendo does not confine it.
       </p>
       <p>
         You can see an agent working from any screen. The status indicator names the

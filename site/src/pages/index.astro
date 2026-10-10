@@ -27,13 +27,13 @@ const proposal = [
 
 const showcase = [
   { name: 'board', label: 'A board', alt: 'A board surface grouping crew records into columns by role, with per-column counts', blurb: 'Columns come from a choice field or a reference, each with a count. Drag a card to another column and the record changes with it.' },
-  { name: 'record-page', label: 'A record page', alt: 'A component record page with a toned header, two commands and a form', blurb: 'A coloured header, related lists, collapsible sections, and commands such as Take offline and Return to service.' },
+  { name: 'record-page', label: 'A record page', alt: 'A component record page beside the Components list, with a toned header, two commands and a form', blurb: 'A coloured header, related lists, collapsible sections, and commands such as Take offline and Return to service.' },
   { name: 'calendar', label: 'A calendar', alt: 'A calendar surface placing maintenance records on a month', blurb: 'Records placed on a month by a Date field. Times of day and recurring events are not supported.' },
   { name: 'timeline', label: 'A timeline', alt: 'A timeline surface laying incidents along one civil year', blurb: 'Records laid out by start date, one calendar year at a time.' },
   { name: 'gallery', label: 'A gallery', alt: 'A gallery surface: experiment records as cards with a rating drawn on a closed scale', blurb: 'Records as cards, with a rating shown as dots on a fixed scale.' },
-  { name: 'matrix', label: 'A matrix', alt: 'A matrix surface: two crossed choice fields answered by one grouped read', blurb: 'Two choice fields crossed into a grid, with an exact count in every cell, including the empty ones.' },
+  { name: 'matrix', label: 'A matrix', alt: 'A matrix: systems in a grid by condition and criticality, with a count in every cell, including the empty ones', blurb: 'Two choice fields crossed into a grid, with an exact count in every cell, including the empty ones.' },
   { name: 'overview', label: 'A front page', alt: 'The Nendo Station front page, with count tiles, a progress ring and a breakdown chart', blurb: 'A page for the whole file rather than one record type: counts, a progress ring and a breakdown chart.' },
-  { name: 'studio-data', label: 'Studio, always', alt: 'The Studio Data area showing the Components table with sort and filter controls', blurb: 'Every valid file opens here, and nothing an application or an agent adds can remove it.' },
+  { name: 'studio-data', label: 'Studio, always', alt: 'The Studio Data area showing the Components table with sort and filter controls', blurb: 'Every valid file has it, and nothing an application or an agent adds can remove it.' },
 ];
 ---
 
@@ -121,8 +121,8 @@ const showcase = [
         <p class="eyebrow">Agents</p>
         <h2>An agent's changes wait for you to accept them.</h2>
         <p>
-          Agents connect over MCP, and only from this computer. They get no SQL, no
-          database path and no file access, just a fixed set of typed operations. Nendo
+          Agents connect over MCP, and only from this computer. From Nendo they get no
+          SQL, no database path and no file access, just a fixed set of typed operations. Nendo
           tries each change on a separate copy of your file and shows you the result as a
           readable diff. When you accept, it applies the same operations to your file. The
           copy is never swapped in.
@@ -134,6 +134,11 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
           password. The flip side is that any program on this computer can connect at the
           access level you have set, so turn agent access <strong>Off</strong> when no agent
           is working.
+        </p>
+        <p class="quiet">
+          Nendo can also launch an agent you installed, such as Claude Code or GitHub
+          Copilot CLI, from the Agent page. It opens in a tab beside the file and reaches
+          the file through the same address.
         </p>
       </div>
 

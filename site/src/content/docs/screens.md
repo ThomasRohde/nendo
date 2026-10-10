@@ -136,13 +136,15 @@ A record page can contain:
   row offers **Remove link**, which deletes only the link and keeps it in History.
 - **Tiles and charts** over the whole record type.
 - **Commands**, shown as buttons under the header.
+- **Custom-view panels**, each drawn by a custom view about this one record. See
+  [Custom views](/nendo/docs/custom-views).
 
 A field binding or a section can be shown only when a Boolean calculated field is
 true (`visibleWhen`). Only a definite *false* hides it. The value stays in the
 form and is still saved.
 
-A form holds only field bindings, sections, tabs and commands. It has no header,
-related lists or tiles.
+A form holds only field bindings, sections, tabs, commands and custom-view panels.
+It has no header, related lists or tiles.
 
 **Commands.** A command is a labelled button that runs ordered steps on the open record. Each
 step sets one field to a fixed value, today's date, the current time or empty. A
