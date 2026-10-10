@@ -1,10 +1,11 @@
 /* The colours, tones and surfaces both themes are built from.
    Slice 02 of styles.css; see that file for why the order matters.
 
-   The Console direction: graphite layers a few steps apart, 1px hairlines, and one
-   violet accent for focus, selection and the primary action. The names predate it --
-   `--cobalt` is the accent whatever hue it carries -- and stay, because custom views
-   are handed these exact tokens (extension-model.ts, themeTokenNames). */
+   Mica with tabs (docs/design/mica-direction.md, adopted 2026-10-03): Windows 11 neutrals,
+   1px hairlines, and one accent, the Windows blue, for focus, selection and the primary
+   action. The names predate it -- `--cobalt` and `--violet` are that accent whatever hue they
+   carry -- and stay, because custom views are handed these exact tokens (extension-model.ts,
+   themeTokenNames). */
 
 :root {
   color-scheme: light;

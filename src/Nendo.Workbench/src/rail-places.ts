@@ -12,7 +12,7 @@ import { viewTitle } from './view-frame-markup';
 import { showsOverview } from './view-overview';
 
 /**
- * The file's own places under Use in the navigation (G, trial): its front page, its views and its
+ * The file's own places under Use in the navigation (G, Mica with tabs): its front page, its views and its
  * record types, as the breadcrumb's first picker offers them. Choosing one opens Use on it from
  * anywhere in the window, which is what a NavigationView item does.
  */

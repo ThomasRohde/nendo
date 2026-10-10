@@ -2,7 +2,7 @@ import { escapeHtml } from './format';
 import { icon, type IconName } from './icons';
 
 /**
- * A record type's icon, guessed from its name (G, trial).
+ * A record type's icon, guessed from its name (G, Mica with tabs).
  *
  * Every record type drew the same box, so a file with ten of them was a column of identical
  * icons. The name usually says what a record is: its head noun -- the last word, in English --

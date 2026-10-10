@@ -196,6 +196,23 @@ export function activityLabel(activity: AgentActivity): string {
 }
 
 /**
+ * Who made a revision, as its History entry says it: the person, in Studio or on a screen; an
+ * agent, by the pseudonym the Agent page shows (ADR-0009); a custom view, by its package; or Nendo
+ * itself. The guides and Help said History shows this before the entry drew it (2026-10-10).
+ */
+export function originLabel(origin: string, packages: ReadonlyArray<{ packageId: string; title: string }>): string {
+  if (origin === 'workbench' || origin === 'surface') return 'you';
+  if (origin.startsWith('agent-')) return `an agent (${origin})`;
+  if (origin.startsWith('extension:')) {
+    const packageId = origin.slice('extension:'.length);
+    return `the custom view ${packages.find((pkg) => pkg.packageId === packageId)?.title ?? packageId}`;
+  }
+  if (origin === 'kernel') return 'Nendo';
+  if (origin === 'recovery') return 'Nendo, in recovery';
+  return origin;
+}
+
+/**
  * The sentence under a proposal's title. A proposal a custom view prepared names the view's
  * package (ADR-0013 Phase 3), so the person knows who is asking before reading what.
  */

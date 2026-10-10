@@ -177,7 +177,7 @@ export const conceptHelp: HelpProvider = () => [
       'Every write has a durable receipt. “Save unconfirmed” and “Acceptance unconfirmed” mean Nendo did not hear back; “Check or retry” reads the receipt first and only resubmits if the original never landed. A receipt that cannot be found is unresolved — not proof that nothing happened.',
     ] },
     { heading: 'What an entry shows', paragraphs: [
-      'Each entry names its lane (Definition or Data), how many operations it holds, who made it — you, an agent, or a trigger acting on your edit — and offers Compensate when the class and the current state allow it. CSV import batches and agent writes are ordinary entries like any other.',
+      'Each entry names its lane (Definition or Data), how many operations it holds, who made it — you, an agent by the name the Agent page shows it under, or a custom view by its package; a trigger’s changes belong to the edit that fired it — and offers Compensate when the class and the current state allow it. CSV import batches and agent writes are ordinary entries like any other.',
     ] },
   ] },
 

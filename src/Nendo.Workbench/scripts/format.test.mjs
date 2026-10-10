@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/format.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {proposalAuthorLine,activityLabel,agentModeLabel,canCompensate,capitalise,choiceDisplay,cssToken,escapeAttribute,escapeHtml,fieldName,isAgentAccessMode,isProposalPreviewable,laneLabel,messageFor,mutationKey,operationLabel,presentationLabel,proposalStateLabel,reversibilityLabel,sameValue,shortId,stringValue,storageLabel,valueDisplay} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
+const {originLabel,proposalAuthorLine,activityLabel,agentModeLabel,canCompensate,capitalise,choiceDisplay,cssToken,escapeAttribute,escapeHtml,fieldName,isAgentAccessMode,isProposalPreviewable,laneLabel,messageFor,mutationKey,operationLabel,presentationLabel,proposalStateLabel,reversibilityLabel,sameValue,shortId,stringValue,storageLabel,valueDisplay} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
 const plan={entity:{fields:[{semanticId:'name',displayName:'Name'}],derivedFields:[{semanticId:'total',displayName:'Total'}]}};
 const revision=(revisionId,canRequestCompensation=true)=>({revisionId,canRequestCompensation,compensationOfRevisionId:null});
@@ -152,4 +152,16 @@ test('a proposal a custom view prepared says which package is asking; any other 
  assert.equal(proposalAuthorLine({origin:'extension:org.example.gone'},packages),'Prepared by the custom view org.example.gone. Nothing changes until you accept.');
  assert.equal(proposalAuthorLine({origin:'workbench'},packages),'Your active file is unchanged until you accept.');
  assert.equal(proposalAuthorLine({},packages),'Your active file is unchanged until you accept.');
+});
+
+test('a History entry says who made the revision: you, an agent by its pseudonym, a custom view by its package, or Nendo', () => {
+  // The guides and Help said History shows who made each change; the entry drew no one (2026-10-10).
+  const packages = [{ packageId: 'org.example.glance', title: 'Glance' }];
+  assert.equal(originLabel('workbench', packages), 'you');
+  assert.equal(originLabel('surface', packages), 'you');
+  assert.equal(originLabel('agent-342b6a7d16b4', packages), 'an agent (agent-342b6a7d16b4)');
+  assert.equal(originLabel('extension:org.example.glance', packages), 'the custom view Glance');
+  assert.equal(originLabel('extension:org.example.gone', packages), 'the custom view org.example.gone');
+  assert.equal(originLabel('kernel', packages), 'Nendo');
+  assert.equal(originLabel('something-new', packages), 'something-new');
 });

@@ -11,7 +11,7 @@ import { closeTabAt, switchTab, type Tab, type TabSet } from './tab-set';
 import { announce, refreshChrome, requiredElement, rerender } from './shell';
 
 /**
- * The places a person keeps open, as tabs in the title bar (G, trial; the Mica-with-tabs canvas).
+ * The places a person keeps open, as tabs in the title bar (G, Mica with tabs).
  *
  * A tab is a trail. The window draws from one trail, `navigationTrail`, and each tab keeps its own
  * places and cursor; switching tabs swaps the saved trail in and puts its current place back, the
