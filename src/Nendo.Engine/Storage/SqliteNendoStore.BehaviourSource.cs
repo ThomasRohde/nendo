@@ -148,6 +148,8 @@ internal sealed partial class SqliteNendoStore
         if (behaviour.CalculationsByEntity.Count == 0) return records;
         var service = new NendoCalculationService(BehaviourAdapter);
         var source = new BehaviourRecordSource(this, transaction, entities);
+        source.Calculate = (calculationId, recordId, budget, token) =>
+            service.EvaluateAsync(behaviour, calculationId, recordId, source, budget, token);
         var results = new List<NendoRecordSnapshot>(records.Count);
         foreach (var record in records)
         {
@@ -182,6 +184,13 @@ internal sealed partial class SqliteNendoStore
         IReadOnlyList<EntityMapping> mappings,
         Action<RecordKey, long>? observe = null) : IBehaviourRecordSource
     {
+        /// <summary>
+        /// Works out one calculated field of another record, for an aggregate that totals or
+        /// tests a calculation of each member. Set by whoever holds the compiled behaviour; it
+        /// reads through this same source, so a save sees its staged rows and observes them.
+        /// </summary>
+        internal Func<string, string, BehaviourBudget, CancellationToken, Task<BehaviourValue>>? Calculate { get; set; }
+
         public async Task<BehaviourValue> ResolveAsync(
             NendoBehaviourBinding binding,
             string recordId,
@@ -294,6 +303,7 @@ internal sealed partial class SqliteNendoStore
             }
             var valueFieldId = binding.PredicateFieldId ?? binding.ValueFieldId;
             var member = valueFieldId is null ? null : Locate(binding.RelatedEntityId!, valueFieldId).Field;
+            RequireCalculator(binding);
 
             var allowance = budget.RemainingScanAllowance;
             if (allowance <= 0)
@@ -344,6 +354,7 @@ internal sealed partial class SqliteNendoStore
             {
                 var memberId = binding.PredicateFieldId ?? binding.ValueFieldId;
                 member = memberId is null ? null : Locate(binding.EntityId, memberId).Field;
+                RequireCalculator(binding);
                 var selection = member is null ? "1" : $"t.{Quote(member.PhysicalColumnName)}";
                 var members = binding.IncludeSelf ? "SELECT id FROM sub UNION ALL SELECT @recordId" : "SELECT id FROM sub";
                 sql = $"{subtree} SELECT {selection}, t.{Quote("__nendo_record_id")}, t.{Quote("__nendo_record_version")} " +
@@ -354,15 +365,20 @@ internal sealed partial class SqliteNendoStore
                 var (related, pointer) = Locate(binding.RelatedEntityId!, binding.RelatedReferenceFieldId!);
                 var memberId = binding.PredicateFieldId ?? binding.ValueFieldId;
                 member = memberId is null ? null : Locate(binding.RelatedEntityId!, memberId).Field;
+                RequireCalculator(binding);
                 var selection = member is null ? "1" : $"r.{Quote(member.PhysicalColumnName)}";
                 sql = $"{subtree} SELECT {selection}, r.{Quote("__nendo_record_id")}, r.{Quote("__nendo_record_version")} " +
                     $"FROM {Quote(related.PhysicalTableName)} r WHERE r.{Quote(pointer.PhysicalColumnName)} IN (SELECT id FROM sub UNION ALL SELECT @recordId) LIMIT @limit;";
             }
             budget.SpendScan();
+            // A calculated member is worked out once per record, so each one is charged
+            // against the related-row ceiling like a row a plain aggregate reads.
+            var calculated = binding.MemberCalculationId is not null;
+            if (calculated) bound = Math.Min(bound, budget.RemainingScanAllowance);
             await using var command = store.Command(sql, transaction);
             command.Parameters.AddWithValue("@recordId", recordId);
             command.Parameters.AddWithValue("@limit", (long)bound + 1);
-            return await FoldAsync(command, binding, member, bound, chargePerRow: false,
+            return await FoldAsync(command, binding, member, bound, chargePerRow: calculated,
                 $"More than {bound} records contribute to this calculation across the hierarchy, so no total is shown rather than an incomplete one.",
                 budget, cancellationToken);
         }
@@ -447,6 +463,11 @@ internal sealed partial class SqliteNendoStore
                         throw new NendoCalculationException(NendoCalculationCodes.LimitReached, pastLimit);
                     if (chargePerRow) budget.SpendScan();
                     observe?.Invoke(new RecordKey(memberEntityId, rows.GetString(1)), rows.GetInt64(2));
+                    // A calculated member is this record's own result, worked out now; an empty
+                    // or failed one stops the total as a stored empty does.
+                    var calculatedValue = binding.MemberCalculationId is { } calculationId
+                        ? await CalculateMemberAsync(calculationId, rows.GetString(1), budget, cancellationToken)
+                        : (BehaviourValue?)null;
                     switch (binding.Aggregate)
                     {
                         case NendoAggregateFunction.Count:
@@ -454,6 +475,11 @@ internal sealed partial class SqliteNendoStore
                             break;
                         case NendoAggregateFunction.FilteredCount:
                         {
+                            if (calculatedValue is { } tested)
+                            {
+                                if (tested.AsBoolean()) count++;
+                                break;
+                            }
                             if (rows.IsDBNull(0))
                                 throw new NendoCalculationException(NendoCalculationCodes.MissingInput,
                                     "A related record has no value for the field this calculation tests, so it cannot be counted or skipped.");
@@ -462,10 +488,10 @@ internal sealed partial class SqliteNendoStore
                         }
                         case NendoAggregateFunction.Sum:
                         {
-                            if (rows.IsDBNull(0))
+                            if (calculatedValue is null && rows.IsDBNull(0))
                                 throw new NendoCalculationException(NendoCalculationCodes.MissingInput,
                                     "A related record has no value for the field this calculation totals, so it cannot be added or skipped.");
-                            var value = Convert(rows.GetValue(0), member!.StorageKind, binding.ResultType, budget);
+                            var value = calculatedValue ?? Convert(rows.GetValue(0), member!.StorageKind, binding.ResultType, budget);
                             try
                             {
                                 if (binding.ResultType == NendoBehaviourScalar.Integer)
@@ -493,6 +519,35 @@ internal sealed partial class SqliteNendoStore
                     BehaviourValue.Integer(integerTotal),
                 _ => BehaviourValue.Decimal(decimalTotal),
             };
+        }
+
+        private void RequireCalculator(NendoBehaviourBinding binding)
+        {
+            if (binding.MemberCalculationId is not null && Calculate is null)
+                throw new NendoValidationException("A calculated member was read where no calculations can be worked out.");
+        }
+
+        private async Task<BehaviourValue> CalculateMemberAsync(
+            string calculationId,
+            string recordId,
+            BehaviourBudget budget,
+            CancellationToken cancellationToken)
+        {
+            BehaviourValue value;
+            try
+            {
+                value = await Calculate!(calculationId, recordId, budget, cancellationToken);
+            }
+            catch (NendoCalculationException exception) when (exception.Code != NendoCalculationCodes.LimitReached)
+            {
+                throw new NendoCalculationException(exception.Code == NendoCalculationCodes.MissingInput
+                        ? NendoCalculationCodes.MissingInput : NendoCalculationCodes.DependencyFailed,
+                    $"A related record's {calculationId} could not be calculated ({exception.Message}), so no total is shown rather than a wrong one.");
+            }
+            return value.IsNull
+                ? throw new NendoCalculationException(NendoCalculationCodes.MissingInput,
+                    $"A related record's {calculationId} is empty, so it cannot be added, counted or skipped.")
+                : value;
         }
 
         private (EntityMapping Entity, FieldMapping Field) Locate(string entityId, string fieldId)

@@ -318,7 +318,15 @@ public static class NendoFormat
     /// </summary>
     public const string SearchMinimumHostVersion = "1.46.0";
 
-    public const string CurrentHostVersion = SearchMinimumHostVersion;
+    /// <summary>
+    /// A behaviour definition that an older host would refuse (ADR-0008, 2026-10-10 amendment):
+    /// a create step's links, a sum or filtered count over a calculated field of each member, or
+    /// a formula that calls IsEmpty. Stated by the definition operation's evidence; a file whose
+    /// definitions use none of them keeps the rung it had.
+    /// </summary>
+    public const string BehaviourLinksMinimumHostVersion = "1.47.0";
+
+    public const string CurrentHostVersion = BehaviourLinksMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

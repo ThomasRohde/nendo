@@ -276,10 +276,27 @@ internal sealed partial class SqliteNendoStore
                         values[assignment.FieldId] = Unbox(
                             await EvaluateAssignmentAsync(action, step, assignment, entityId, raised.Key.RecordId, cancellationToken));
                     }
+                    // A link sets a reference of the new record to the record that raised the
+                    // event, or to the one its reference names now (before it, for a deletion),
+                    // at the version it has now, as a person's own create names it.
+                    var targetVersions = new Dictionary<string, long>(StringComparer.Ordinal);
+                    foreach (var link in step.Links)
+                    {
+                        context.Budget.SpendWork();
+                        var linked = LinkedRecordId(link, raised);
+                        values[link.FieldId] = linked;
+                        if (linked is null) continue;
+                        var key = new RecordKey(LinkedEntityId(link, trigger), linked);
+                        if (await ReadVersionAsync(key, cancellationToken) is { } linkedVersion)
+                        {
+                            targetVersions[link.FieldId] = linkedVersion;
+                            context.Observe(key, linkedVersion);
+                        }
+                    }
                     context.Budget.SpendChange();
                     var recordId = DeterministicRecordId(attribution, raised, targetRecordId);
                     await ExecuteAsync(
-                        new CreateRecordOperation(NextOperationId(), entityId, recordId, values),
+                        new CreateRecordOperation(NextOperationId(), entityId, recordId, values, targetVersions),
                         attribution, cancellationToken);
                     await RaiseCreatedAsync(new RecordKey(entityId, recordId), cancellationToken);
                     break;
@@ -420,6 +437,23 @@ internal sealed partial class SqliteNendoStore
         {
             var version = await ReadVersionAsync(key, cancellationToken);
             if (version is not null) context.Observe(key, version.Value);
+        }
+
+        private string LinkedEntityId(NendoActionLink link, NendoTriggerDefinition trigger) =>
+            link.Target.Kind == NendoActionTargetKind.EventRecord
+                ? trigger.EntityId
+                : mappings.Single(candidate => string.Equals(candidate.EntityId, trigger.EntityId, StringComparison.Ordinal))
+                    .Fields.Single(field => string.Equals(field.FieldId, link.Target.ReferenceFieldId, StringComparison.Ordinal))
+                    .Reference!.TargetEntityId;
+
+        private static string? LinkedRecordId(NendoActionLink link, RecordEvent raised)
+        {
+            if (link.Target.Kind == NendoActionTargetKind.EventRecord)
+                return raised.Kind == NendoRecordEventKind.Deleted ? null : raised.Key.RecordId;
+            var side = raised.After ?? raised.Before;
+            return side is not null && side.TryGetValue(link.Target.ReferenceFieldId!, out var value) && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
         }
 
         private string TargetEntityId(NendoActionStep step, NendoTriggerDefinition trigger) =>

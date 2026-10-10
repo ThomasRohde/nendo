@@ -1156,10 +1156,12 @@ internal static class NendoAuthoringExamples
             "nendo://application/vocabulary carries a behaviour section: the closed function set with each one's argument and result types, the operators, the scalar domain, the four binding kinds, what each aggregate does with an empty collection and with a value it cannot read, and the ceilings. A formula may say what is in that section and nothing else.",
             "A calculated field is not a field. It has no column, nothing writes to it, and it appears under derivedFields on the record type's schema rather than under fields.",
             "definitionKind is Calculation, Function, Action or Trigger, and body is the typed definition for that kind. A binding names where a value comes from: SameRecordField, SameRecordCalculation, ReferenceTraversal, RelatedAggregate or, on a record type that declares a hierarchy, SubtreeAggregate, which folds everything under the record (includeSelf adds the record; acrossSubtree on a RelatedAggregate folds the records pointing anywhere into the subtree). Identifiers in a formula are binding IDs, never display names.",
-            "A RelatedAggregate names the field it works over with a key of its own: predicateFieldId for FilteredCount, valueFieldId for Sum, and none for Count. The vocabulary's behaviour.bindings lists every key each shape takes; a key outside that list is refused by name where the operation is sent, before it can cost the draft. A Sum totals a required field, because a member with no value is an error rather than a zero.",
+            "A RelatedAggregate names what it works over with a key of its own: predicateFieldId for FilteredCount, valueFieldId for Sum, and none for Count. To total or test a calculated field of each member instead, name its calculation ID in valueCalculationId or predicateCalculationId; project.doneHours below totals task.doneHours. The vocabulary's behaviour.bindings lists every key each shape takes, and behaviour.bodies every key of a calculation, function, action, trigger, step, assignment and link, with a body to start from; a key outside them is refused by name. A Sum totals a required field, because a member with no value is an error rather than a zero.",
+            "IsEmpty(x) is the one way a formula asks whether a value is there: every operator and every other function is stopped by an empty input. IsEmpty(status) ? 'Not set' : status gives an empty value a default, and a trigger condition IsEmpty(x) runs an action only when a field was left empty.",
             "A calculation reads another calculation with a SameRecordCalculation binding rather than repeating its work. Cycles are refused before installation.",
             "An action step writes through the same typed record operations a person's edit uses. target ReferencedRecord follows one declared reference from the record that raised the event; EventRecord writes to that record itself.",
-            "An assignment's bindings resolve against the record the step writes to, not the record that raised the event. A step targeting ReferencedRecord can read the referenced record and can assign a literal; it cannot read the event record's fields. Binding the event record's entity there refuses nothing at install and then fails on the first save that fires it.",
+            "An assignment's bindings resolve against the record the step writes to, not the record that raised the event. A step targeting ReferencedRecord can read the referenced record and can assign a literal; it cannot read the event record's fields. Binding the event record's entity there refuses nothing at install and then fails on the first save that fires it. A CreateRecord step's assignments read the event record.",
+            "A formula produces no reference. A CreateRecord step sets a reference of the record it adds with links: target EventRecord points it at the record that raised the event, as project.kickoff below names its project; ReferencedRecord at the record one of its references names.",
             "Installing an action is authoring. Running it is consent: a file whose actions run automatically cannot be edited at all until the person at this device approves it. Below Unattended access there is no MCP route to that approval; at Unattended, nendo.change_set.accept records it for the actions that the accepted proposal installs.",
         ],
         [
@@ -1305,6 +1307,57 @@ internal static class NendoAuthoringExamples
                     },
                 }),
             ]),
+            new("Total a calculated field, and give an empty value a default",
+            [
+                Operation("behaviour.setDefinition", new
+                {
+                    definitionId = "task.doneHours",
+                    definitionKind = "Calculation",
+                    body = new
+                    {
+                        entityId = "task", fieldId = "doneHours", displayName = "Hours done", resultType = "Integer", resultNullable = false,
+                        expression = "done ? hours : 0",
+                        bindings = new object[]
+                        {
+                            new { bindingId = "done", kind = "SameRecordField", entityId = "task", fieldId = "taskDone", resultType = "Boolean", nullable = false },
+                            new { bindingId = "hours", kind = "SameRecordField", entityId = "task", fieldId = "taskHours", resultType = "Integer", nullable = false },
+                        },
+                    },
+                }),
+                Operation("behaviour.setDefinition", new
+                {
+                    definitionId = "project.doneHours",
+                    definitionKind = "Calculation",
+                    body = new
+                    {
+                        entityId = "project", fieldId = "doneHours", displayName = "Hours done", resultType = "Integer", resultNullable = false,
+                        expression = "hours",
+                        bindings = new[]
+                        {
+                            new
+                            {
+                                bindingId = "hours", kind = "RelatedAggregate", aggregate = "Sum",
+                                entityId = "project", relatedEntityId = "task", relatedReferenceFieldId = "taskProject",
+                                valueCalculationId = "task.doneHours", resultType = "Integer",
+                            },
+                        },
+                    },
+                }),
+                Operation("behaviour.setDefinition", new
+                {
+                    definitionId = "project.statusText",
+                    definitionKind = "Calculation",
+                    body = new
+                    {
+                        entityId = "project", fieldId = "statusText", displayName = "Status said", resultType = "Text", resultNullable = false,
+                        expression = "IsEmpty(status) ? 'Not set' : status",
+                        bindings = new[]
+                        {
+                            new { bindingId = "status", kind = "SameRecordField", entityId = "project", fieldId = "projectStatus", resultType = "Text", nullable = true },
+                        },
+                    },
+                }),
+            ]),
             new("Mark a project active when it has work",
             [
                 Operation("behaviour.setDefinition", new
@@ -1351,6 +1404,46 @@ internal static class NendoAuthoringExamples
                         relevantFieldIds = Array.Empty<string>(),
                         conditionBindings = Array.Empty<object>(),
                         callAliases = Array.Empty<object>(),
+                    },
+                }),
+            ]),
+            new("Give every new project a kickoff task that names it",
+            [
+                Operation("behaviour.setDefinition", new
+                {
+                    definitionId = "project.kickoff",
+                    definitionKind = "Action",
+                    body = new
+                    {
+                        displayName = "Create the kickoff task",
+                        steps = new[]
+                        {
+                            new
+                            {
+                                stepId = "10-kickoff",
+                                kind = "CreateRecord",
+                                entityId = "task",
+                                assignments = new object[]
+                                {
+                                    new { fieldId = "taskTitle", expression = "'Kickoff call'" },
+                                    new { fieldId = "taskDone", expression = "false" },
+                                    new { fieldId = "taskHours", expression = "0" },
+                                },
+                                links = new[] { new { fieldId = "taskProject", target = new { kind = "EventRecord" } } },
+                            },
+                        },
+                    },
+                }),
+                Operation("behaviour.setDefinition", new
+                {
+                    definitionId = "project.onCreated",
+                    definitionKind = "Trigger",
+                    body = new
+                    {
+                        entityId = "project",
+                        displayName = "Give a new project its kickoff task",
+                        events = new[] { "Created" },
+                        actionId = "project.kickoff",
                     },
                 }),
             ]),

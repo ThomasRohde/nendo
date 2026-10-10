@@ -206,7 +206,7 @@ internal sealed partial class SqliteNendoStore
             previousKind = previous?.Kind.ToString(),
             appliedDefinitionRevision = manifest.DefinitionRevision + 1,
         }))
-        { RequiredHostVersion = NendoFormat.BehaviourMinimumHostVersion };
+        { RequiredHostVersion = definition.RequiredHostVersion };
     }
 
     private async Task<OperationEvidence> ExecuteRemoveBehaviourDefinitionAsync(
@@ -368,9 +368,9 @@ internal sealed partial class SqliteNendoStore
                     RequireActive(related);
                     RequireReferenceField(related, binding.RelatedReferenceFieldId!, binding.EntityId);
                     if (binding.PredicateFieldId is { } predicate)
-                        RequireScalarField(related, predicate, NendoBehaviourScalar.Boolean, nullable: false);
+                        RequireMemberField(related, predicate, NendoBehaviourScalar.Boolean, "predicate");
                     if (binding.ValueFieldId is { } value)
-                        RequireScalarField(related, value, binding.ResultType, nullable: false);
+                        RequireMemberField(related, value, binding.ResultType, "value");
                     if (binding.AcrossSubtree && entity.Hierarchy is null)
                         throw new NendoValidationException(
                             $"'{binding.BindingId}' folds across a subtree of {entity.DisplayName}, which declares no hierarchy.");
@@ -387,9 +387,9 @@ internal sealed partial class SqliteNendoStore
                         throw new NendoValidationException(
                             $"'{binding.BindingId}' reads the subtree of a {entity.DisplayName}, which declares no hierarchy.");
                     if (binding.PredicateFieldId is { } predicate)
-                        RequireScalarField(entity, predicate, NendoBehaviourScalar.Boolean, nullable: false);
+                        RequireMemberField(entity, predicate, NendoBehaviourScalar.Boolean, "predicate");
                     if (binding.ValueFieldId is { } value)
-                        RequireScalarField(entity, value, binding.ResultType, nullable: false);
+                        RequireMemberField(entity, value, binding.ResultType, "value");
                     break;
                 }
                 default:
@@ -474,8 +474,45 @@ internal sealed partial class SqliteNendoStore
                     }
                     RequireActive(entity, field);
                 }
+                foreach (var link in step.Links)
+                    await RequireLinkResolvesAsync(trigger, action, step, entity, link, transaction, cancellationToken);
             }
         }
+    }
+
+    /// <summary>
+    /// A link of a create step: a reference field of the new record, bound to the record type
+    /// the link's target is, and a target that exists when the step runs.
+    /// </summary>
+    private async Task RequireLinkResolvesAsync(
+        NendoTriggerDefinition trigger,
+        NendoActionDefinition action,
+        NendoActionStep step,
+        EntityMapping created,
+        NendoActionLink link,
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        var field = created.Fields.SingleOrDefault(candidate => string.Equals(candidate.FieldId, link.FieldId, StringComparison.Ordinal))
+            ?? throw new NendoPreconditionException("action-target-mismatch",
+                $"The action '{action.DisplayName}' links '{link.FieldId}' in step '{step.StepId}', but a '{created.EntityId}' record has no such field.");
+        RequireActive(created, field);
+        if (field.StorageKind != NendoStorageKind.Reference || field.Reference is not { } reference)
+            throw new NendoPreconditionException("action-target-mismatch",
+                $"The action '{action.DisplayName}' links '{link.FieldId}' in step '{step.StepId}', and that field of '{created.EntityId}' " +
+                "is not a reference pointing anywhere. A link sets a reference; give other fields a value with an assignment.");
+        if (link.Target.Kind == NendoActionTargetKind.EventRecord && trigger.Events.HasFlag(NendoTriggerEvents.Deleted))
+            throw new NendoPreconditionException("action-target-mismatch",
+                $"The action '{action.DisplayName}' links '{link.FieldId}' to the event record in step '{step.StepId}', and the trigger " +
+                $"'{trigger.DisplayName}' also runs it when a record is deleted, when there is no record to link to.");
+        var linked = link.Target.Kind == NendoActionTargetKind.EventRecord
+            ? trigger.EntityId
+            : await StepTargetEntityIdAsync(trigger, action, NendoActionStep.SetField(step.StepId, link.Target,
+                new NendoActionAssignment(link.FieldId, "true")), transaction, cancellationToken);
+        if (!string.Equals(reference.TargetEntityId, linked, StringComparison.Ordinal))
+            throw new NendoPreconditionException("action-target-mismatch",
+                $"The action '{action.DisplayName}' links '{link.FieldId}' in step '{step.StepId}' to a '{linked}' record, " +
+                $"and '{link.FieldId}' points at '{reference.TargetEntityId}'.");
     }
 
     /// <summary>
@@ -516,6 +553,20 @@ internal sealed partial class SqliteNendoStore
         NendoActionDefinition action => action.Steps.SelectMany(step => step.Assignments).SelectMany(assignment => assignment.Bindings),
         _ => [],
     };
+
+    /// <summary>
+    /// The stored field an aggregate reads from each member. A field it cannot find may be a
+    /// calculated one, which an author names by its calculation instead: the refusal says so,
+    /// where it once said only that the field was not there (2026-10-10).
+    /// </summary>
+    private static void RequireMemberField(EntityMapping entity, string fieldId, NendoBehaviourScalar expected, string role)
+    {
+        if (!entity.Fields.Any(candidate => string.Equals(candidate.FieldId, fieldId, StringComparison.Ordinal)))
+            throw new NendoPreconditionException("field-not-found",
+                $"'{fieldId}' is not a stored field of '{entity.EntityId}'. If it is a calculated field, name its calculation ID " +
+                $"in {role}CalculationId instead of {role}FieldId.");
+        RequireScalarField(entity, fieldId, expected, nullable: false);
+    }
 
     private static void RequireScalarField(
         EntityMapping entity,

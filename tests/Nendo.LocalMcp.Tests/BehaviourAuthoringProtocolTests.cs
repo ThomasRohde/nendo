@@ -37,7 +37,7 @@ public sealed class BehaviourAuthoringProtocolTests
         // The published function set is the enforced one. A second table would be a
         // table that disagrees.
         CollectionAssert.AreEquivalent(
-            new[] { "Concat", "Date", "DaysBetween", "Refuse", "RoundAway", "RoundEven", "TextLength" },
+            new[] { "Concat", "Date", "DaysBetween", "IsEmpty", "Refuse", "RoundAway", "RoundEven", "TextLength" },
             behaviour.Functions.Select(function => function.Name).ToArray());
         foreach (var function in behaviour.Functions)
         {
@@ -65,10 +65,17 @@ public sealed class BehaviourAuthoringProtocolTests
         // guessed three spellings and abandoned the calculation.
         var shapes = behaviour.Bindings.Where(binding => binding.Kind == "RelatedAggregate").ToArray();
         CollectionAssert.AreEquivalent(new[] { "Count", "FilteredCount", "Sum" }, shapes.Select(shape => shape.Aggregate).ToArray());
-        CollectionAssert.Contains(shapes.Single(shape => shape.Aggregate == "Sum").RequiredFields.ToArray(), "valueFieldId");
-        CollectionAssert.Contains(shapes.Single(shape => shape.Aggregate == "FilteredCount").RequiredFields.ToArray(), "predicateFieldId");
+        // A sum or filtered count names a stored member field or a calculated one (2026-10-10).
+        CollectionAssert.IsSubsetOf(new[] { "valueFieldId", "valueCalculationId" }, shapes.Single(shape => shape.Aggregate == "Sum").OptionalFields.ToArray());
+        CollectionAssert.IsSubsetOf(new[] { "predicateFieldId", "predicateCalculationId" },
+            shapes.Single(shape => shape.Aggregate == "FilteredCount").OptionalFields.ToArray());
         var sum = behaviour.Aggregates.Single(aggregate => aggregate.Aggregate == "Sum");
-        Assert.AreEqual("valueFieldId", sum.FieldKey);
+        Assert.AreEqual("valueFieldId or valueCalculationId", sum.FieldKey);
+        // And every object of a definition body is published with its keys, and the four
+        // bodies with one an author can start from, so no shape is learnt by refusal.
+        CollectionAssert.IsSubsetOf(new[] { "Calculation body", "Action body", "Trigger body", "step", "assignment", "link" },
+            behaviour.Bodies.Select(body => body.Name).ToArray());
+        StringAssert.Contains(behaviour.Bodies.Single(body => body.Name == "Action body").Example, "\"links\"");
         StringAssert.Contains(sum.EmptyRule, "zero", StringComparison.OrdinalIgnoreCase);
         StringAssert.Contains(sum.MissingValueRule, "error", StringComparison.OrdinalIgnoreCase);
 

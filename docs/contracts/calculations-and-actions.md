@@ -128,11 +128,11 @@ A key that is published is accepted, and a key that is accepted is published.
 | `SameRecordCalculation` | Another calculated field on the same record | `calculationId`, `resultType`, `nullable` |
 | `ReferenceTraversal` | One declared hop along a reference field, then a stored field on the target | `referenceFieldId`, `relatedEntityId`, `fieldId`, `resultType`, `nullable` |
 | `RelatedAggregate` · `Count` | How many records reference this one | `aggregate`, `relatedEntityId`, `relatedReferenceFieldId`; optional `acrossSubtree`, `resultType`, `nullable` |
-| `RelatedAggregate` · `FilteredCount` | How many of them have a Boolean field true | … and `predicateFieldId`; optional `acrossSubtree`, `resultType`, `nullable` |
-| `RelatedAggregate` · `Sum` | The exact total of a numeric field over them | … and `valueFieldId`, `resultType`; optional `acrossSubtree`, `nullable` |
+| `RelatedAggregate` · `FilteredCount` | How many of them have a Boolean true | … and `predicateFieldId` or `predicateCalculationId`; optional `acrossSubtree`, `resultType`, `nullable` |
+| `RelatedAggregate` · `Sum` | The exact total of a number over them | … and `valueFieldId` or `valueCalculationId`, `resultType`; optional `acrossSubtree`, `nullable` |
 | `SubtreeAggregate` · `Count` | How many records sit under this one in its declared hierarchy | `aggregate`; optional `includeSelf`, `resultType`, `nullable` |
-| `SubtreeAggregate` · `FilteredCount` | How many of them have a Boolean field true | … and `predicateFieldId`; optional `includeSelf`, `resultType`, `nullable` |
-| `SubtreeAggregate` · `Sum` | The exact total of a numeric field over them | … and `valueFieldId`, `resultType`; optional `includeSelf`, `nullable` |
+| `SubtreeAggregate` · `FilteredCount` | How many of them have a Boolean true | … and `predicateFieldId` or `predicateCalculationId`; optional `includeSelf`, `resultType`, `nullable` |
+| `SubtreeAggregate` · `Sum` | The exact total of a number over them | … and `valueFieldId` or `valueCalculationId`, `resultType`; optional `includeSelf`, `nullable` |
 | `HierarchyPath` | The record's dotted place in its declared hierarchy, 1.2.3 | optional `prefix`, `resultType` (Text), `nullable` (false) |
 
 **Subtrees** ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md), 2026-09-27
@@ -169,6 +169,23 @@ The initial aggregate catalogue is closed:
   sum over an optional field, because such a sum promises a total that the first
   empty value breaks.
 
+**A calculated member** (ADR-0008, 2026-10-10 amendment). A `Sum` may total, and
+a `FilteredCount` test, a calculated field of each member instead of a stored one:
+`valueCalculationId` or `predicateCalculationId` names the calculation by its
+definition ID, and exactly one of the field key and the calculation key is given.
+The calculation belongs to the member record type, produces the aggregate's kind
+(Boolean for a filtered count; Integer, or Decimal, for a sum), and is not the
+calculation itself, so a total of its own value is a loop refused at installation.
+Each member's value is worked out when the total is, through the same source, so
+inside a save it reads the staged rows and the reviewed plan observes each one.
+Every member costs one related row against the ceiling, a subtree's included. An
+empty member, or one that cannot be calculated, makes the total an error whose
+message names the calculation, never a partial total. A stored `valueFieldId`
+that names no stored field is refused with the hint to name its calculation in
+`valueCalculationId`. Before, an invoice's total of its lines' totals, a client's
+total of its invoices' totals and a count of the projects whose status is
+Active could only be written as stored copies kept current by actions.
+
 If a key is outside the list of a shape, the refusal names the key and gives
 the list. If a required key is missing, the refusal names the key and states its
 purpose: `Binding 'hours' of 'projects.totalHours'
@@ -198,8 +215,25 @@ reference field from that record reaches. A step writes ordinary typed record
 data only. It never writes a definition, identity, grant, schema change or
 anything outside the file.
 
+**A create step's links** (ADR-0008, 2026-10-10 amendment). A formula produces no
+reference, so a record an action created could not point at anything, and a
+required reference made the action fail every save: a project's kickoff task
+could not name its project. A `CreateRecord` step therefore takes `links`, each a
+reference field of the new record and a target: `EventRecord`, the record that
+raised the event, or `ReferencedRecord` with the event record's `referenceFieldId`.
+At installation, with its trigger, the field must be a reference of the created
+type bound to the linked record's type, and `EventRecord` is refused when the
+trigger also runs on a deletion, when there is no record to link to. At run time
+the link takes the record's current version, as a person's create does, and the
+plan observes it. A referenced field that is empty leaves the link empty. Only a
+create step takes links, a field is written once per step, and a step without
+links stores the body it stored before links existed.
+
 A trigger subscribes to any of created, updated and deleted. Relevant field IDs
-narrow an update subscription, and therefore they require it.
+narrow an update subscription, and therefore they require it. `events` is text,
+`"Created, Updated"`, as the canonical body stores it, or a list of the names, as
+an author sends it. A list a body has nothing in, such as `bindings`,
+`callAliases`, `relevantFieldIds` or `conditionBindings`, may be left out.
 
 **An action and its trigger are validated as a pair, at install.** An action
 does not know the record type that it runs against. Only the trigger names one.
@@ -685,6 +719,11 @@ contains:
 - the four binding kinds;
 - what each aggregate does with an empty collection and with a value that it
   cannot read;
+- every object of a definition body, `bodies`: the Calculation, Function, Action
+  and Trigger bodies, a step, an assignment, a link, a target, a parameter and a
+  call alias, each with its required and optional keys, and each of the four
+  bodies with an `example` the codec accepts as it stands (2026-10-10; an agent had
+  learnt these shapes by sending made-up keys, six refusals in two minutes);
 - the trigger events;
 - the action step kinds;
 - the action target kinds, each of which states what it selects at the edges,
@@ -782,7 +821,10 @@ inspecting or reading such a file never creates the table and never writes.
 ## Compatibility
 
 Storing a definition raises the minimum host version of the file to **1.17.0** in
-the same transaction as its canonical operation. It also brings the protected
+the same transaction as its canonical operation. A definition that uses a create
+step's `links`, a calculated aggregate member or `IsEmpty` raises it to **1.47.0**
+instead, because an older host refuses the body or the call and would read the
+file as damaged (ADR-0008, 2026-10-10). It also brings the protected
 layout to `…-retirement-behaviour-v1`. This is the whole ladder prefix, as a
 first choice edit does. An older host refuses writable open. An ordinary open
 does no rewrite or migration.
@@ -827,6 +869,7 @@ has already lost the precision.
 | `Concat(a, b, …)` | 2–8 texts; joined size checked before allocating |
 | `TextLength(text)` | how many characters a text value holds; empty text is zero |
 | `Refuse(text)` | no value; reports `calculation-refused` with the text, in one outcome of a choice |
+| `IsEmpty(value)` | any scalar; true when it is empty or an empty input stopped it; never empty itself |
 
 Every entry is a total function of its arguments. It uses no clock, no file, no
 network and no host service. Because of this, a cached result and a replayed
@@ -849,6 +892,15 @@ The digits of `RoundEven` and `RoundAway` are often read from a record. A value
 outside 0–28 is that record's data, not a mistake in the definition, so it
 reports `calculation-overflow` on the one calculated field. The record, its stored
 values and its other calculations read as usual.
+
+`IsEmpty` is the one entry an empty argument reaches (ADR-0008, 2026-10-10
+amendment). Every operator and every other function is stopped by an empty input,
+so before it no formula could ask whether a value was there: "make a time entry
+billable when Billable was left empty" could not be written. Its argument is any
+scalar; an empty value, or one an empty input stopped on its way (`IsEmpty(a * b)`
+with `a` empty), is true, and any other failure, such as a refusal or a zero
+divisor, stays what it is. `IsEmpty(x) ? fallback : x` gives an empty value a
+default; a trigger condition `IsEmpty(x)` runs an action only for an empty field.
 
 `Refuse` is the one entry that produces nothing. It reports `calculation-refused`
 with the sentence of the author. A formula can therefore decline a value that it
@@ -1012,6 +1064,22 @@ Engine service and waits for that task to end.
   available, and withdrawing takes it back. The approval is remembered at the
   next launch. On another device, the file is not approved, because the approval
   is device state and not part of the file.
+
+`tests/Nendo.Engine.Tests/BehaviourAuthoringGapsTests.cs` covers the 2026-10-10
+amendment, each guard falsified:
+
+- A create step's link names the record that raised the event; a link that is not
+  a reference, points at another type, or links a deleted event record is refused
+  at installation by name; a step without links keeps its stored body.
+- `IsEmpty` gives an empty value a default in a calculation and in a trigger
+  condition, sees a value an empty input stopped, and leaves a stated value alone.
+- A sum and a filtered count read a calculated field of each member, a total of
+  totals adds up, a member that cannot be worked out makes the total an error, and
+  an action totals calculated values inside a save.
+- A calculated member of the wrong record type or kind is refused, and a stored
+  key that names a calculated field says to name its calculation.
+- Every published body shape is read as published: each example is accepted, a key
+  outside a shape is refused naming all of its keys, and `events` may be a list.
 
 `tests/Nendo.LocalMcp.Tests/BehaviourAuthoringProtocolTests.cs` covers stage S8
 over MCP:

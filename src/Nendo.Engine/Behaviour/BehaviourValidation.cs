@@ -167,6 +167,28 @@ internal static class NendoBehaviourGraph
                     throw new NendoValidationException(
                         $"'{binding.CalculationId}' produces {calculation.ResultType.ToString().ToLowerInvariant()}, and '{definition.DefinitionId}' declares {binding.ResultType.ToString().ToLowerInvariant()}.");
             }
+            // A sum or filtered count that reads each member through a calculated field: the
+            // calculation is the members' own, and of the kind the aggregate needs.
+            foreach (var binding in BindingsOf(definition).Where(candidate => candidate.MemberCalculationId is not null))
+            {
+                var memberId = binding.MemberCalculationId!;
+                var members = binding.Kind == NendoBindingKind.SubtreeAggregate ? binding.EntityId : binding.RelatedEntityId!;
+                if (!definitions.TryGetValue(memberId, out var read))
+                    throw new NendoValidationException(
+                        $"'{definition.DefinitionId}' totals '{memberId}', which this file does not define.");
+                if (read is not NendoCalculationDefinition calculation)
+                    throw new NendoValidationException(
+                        $"'{definition.DefinitionId}' totals '{memberId}', which is not a calculated field.");
+                if (!string.Equals(calculation.EntityId, members, StringComparison.Ordinal))
+                    throw new NendoValidationException(
+                        $"'{definition.DefinitionId}' reads '{memberId}' on each '{members}' record, and '{memberId}' belongs to '{calculation.EntityId}'.");
+                var needed = binding.Aggregate == NendoAggregateFunction.FilteredCount ? NendoBehaviourScalar.Boolean : binding.ResultType;
+                var fits = calculation.ResultType == needed ||
+                    (needed == NendoBehaviourScalar.Decimal && calculation.ResultType == NendoBehaviourScalar.Integer);
+                if (!fits)
+                    throw new NendoValidationException(
+                        $"'{memberId}' produces {calculation.ResultType.ToString().ToLowerInvariant()}, and '{binding.BindingId}' of '{definition.DefinitionId}' needs {needed.ToString().ToLowerInvariant()}.");
+            }
         }
 
         // One recursion stack for the complete graph: a definition reached twice on the

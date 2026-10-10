@@ -8,6 +8,50 @@
 - **Depends on:** ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0009 and ADR-0012.
 - **Related design:** [Architecture](../architecture.md), [scalar contract](../contracts/scalars.md), [semantic surfaces](../contracts/semantic-surfaces.md), [ADR-0013](0013-custom-views-with-code-in-the-file.md).
 
+### Accepted amendment — 2026-10-10 (a created record links back, a formula asks whether a value is there, and a total reads a calculation)
+
+Accepted on the owner's standing pre-acceptance of ADR changes, when the owner asked for the
+gaps worth fixing from an agent's build of a studio manager (`workspace/Agent.nendo`) to be
+fixed.
+
+**Context.** The agent could not give a project's new kickoff task its project: a formula has
+no reference value, and the task's Project was required, so the action failed every save and
+was removed. It could not default Billable when left empty: every operator and function is
+stopped by an empty input, so no condition could ask. And a sum could not total a calculated
+field, so an invoice's total of its lines' totals, a client's invoiced total and a count of
+active projects became stored copies kept current by actions, which a person then had to fill
+in by hand on every new record. It also learnt the shapes of an action, a trigger and a
+calculation by sending made-up keys, against section 13's rule that no author discovers the
+contract by failing.
+
+**Decision.**
+
+- **Links.** A `CreateRecord` step takes `links`: a reference field of the new record set to
+  the event record, or to the record one of its references names. Installation checks the
+  pair against the schema; `EventRecord` is refused when the trigger also runs on a deletion.
+  The link carries the linked record's current version and the plan observes it.
+- **`IsEmpty(value)`.** A catalogue function that takes any scalar and is handed an empty
+  argument, or one an empty input stopped, as empty: true when it is empty, never empty
+  itself. Every other function and operator keeps stopping at an empty input.
+- **Calculated aggregate members.** A `Sum` may name `valueCalculationId`, and a
+  `FilteredCount` `predicateCalculationId`, instead of a stored field: a calculation of the
+  member type, of the aggregate's kind, worked out per member through the same source and
+  charged one related row each. It is a declared dependency, so the graph refuses a loop and
+  removal of the calculation it reads.
+- **Published bodies.** The vocabulary's behaviour section publishes every object of a
+  definition body with its required and optional keys, and an example body for each of the
+  four kinds, from the table the codec refuses against. A list with nothing in it may be left
+  out, and a trigger's `events` may be a list of names.
+
+**Not changed.** A summary tile, a list's total and a chart still total stored fields only:
+they read a whole record set rather than one record's members, and nothing here bounds that.
+`Refuse` still reports a calculation, not a refused save; validation at save stays out of
+scope.
+
+**Consequences.** A definition using any of the three needs host 1.47.0, stated by its
+operation's evidence. A total over calculated members costs a calculation per member, inside
+the same ceilings. `BehaviourAuthoringGapsTests` carries the obligations, each falsified.
+
 ### Accepted amendment — 2026-09-30 (a list filters and sorts by a calculation, and a count reads no rows)
 
 Accepted on the owner's standing pre-acceptance of ADR changes, when the owner asked for the

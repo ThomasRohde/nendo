@@ -70,20 +70,18 @@ internal static class NendoBehaviourCodec
 
     private sealed class BodyReader(string definitionId, NendoBehaviourBodySource source)
     {
-        // The keys each object of a body may carry, exactly as the canonical writer
-        // emits them. Anything else is refused by name.
-        private static readonly string[] CalculationKeys =
-            ["entityId", "fieldId", "displayName", "resultType", "resultNullable", "expression", "bindings", "callAliases"];
-        private static readonly string[] FunctionKeys =
-            ["displayName", "parameters", "resultType", "resultNullable", "expression", "callAliases"];
-        private static readonly string[] ActionKeys = ["displayName", "steps"];
-        private static readonly string[] TriggerKeys =
-            ["entityId", "displayName", "events", "actionId", "relevantFieldIds", "conditionExpression", "conditionBindings", "callAliases"];
-        private static readonly string[] StepKeys = ["stepId", "kind", "target", "entityId", "assignments"];
-        private static readonly string[] AssignmentKeys = ["fieldId", "expression", "bindings", "callAliases"];
-        private static readonly string[] ParameterKeys = ["parameterId", "displayName", "parameterType", "nullable"];
-        private static readonly string[] AliasKeys = ["alias", "functionId"];
-        private static readonly string[] TargetKeys = ["kind", "referenceFieldId"];
+        // The keys each object of a body may carry: the published table, which the
+        // canonical writer stays inside. Anything else is refused by name.
+        private static readonly string[] CalculationKeys = NendoBehaviourBodyShape.KeysOf("Calculation body");
+        private static readonly string[] FunctionKeys = NendoBehaviourBodyShape.KeysOf("Function body");
+        private static readonly string[] ActionKeys = NendoBehaviourBodyShape.KeysOf("Action body");
+        private static readonly string[] TriggerKeys = NendoBehaviourBodyShape.KeysOf("Trigger body");
+        private static readonly string[] StepKeys = NendoBehaviourBodyShape.KeysOf("step");
+        private static readonly string[] AssignmentKeys = NendoBehaviourBodyShape.KeysOf("assignment");
+        private static readonly string[] LinkKeys = NendoBehaviourBodyShape.KeysOf("link");
+        private static readonly string[] ParameterKeys = NendoBehaviourBodyShape.KeysOf("parameter");
+        private static readonly string[] AliasKeys = NendoBehaviourBodyShape.KeysOf("call alias");
+        private static readonly string[] TargetKeys = NendoBehaviourBodyShape.KeysOf("target");
 
         /// <summary>What a refusal is about right now: the definition, or one binding of it.</summary>
         private string _subject = $"'{definitionId}'";
@@ -127,10 +125,13 @@ internal static class NendoBehaviourCodec
                 RequireKnownKeys(element, StepKeys, "step");
                 var stepId = Text(element, "stepId");
                 var assignments = Assignments(element);
-                steps.Add(Enum<NendoActionStepKind>(element, "kind") switch
+                var kind = Enum<NendoActionStepKind>(element, "kind");
+                if (kind != NendoActionStepKind.CreateRecord && element.TryGetProperty("links", out _))
+                    throw Refuse($"{_subject} sets links in step '{stepId}', and only a CreateRecord step sets links.");
+                steps.Add(kind switch
                 {
                     NendoActionStepKind.SetField => NendoActionStep.SetFields(stepId, Target(element), assignments),
-                    NendoActionStepKind.CreateRecord => NendoActionStep.CreateRecord(stepId, Text(element, "entityId"), assignments),
+                    NendoActionStepKind.CreateRecord => NendoActionStep.CreateRecord(stepId, Text(element, "entityId"), assignments, Links(element)),
                     NendoActionStepKind.DeleteRecord => NendoActionStep.DeleteRecord(stepId, Target(element)),
                     _ => throw Refuse($"{_subject} has a step kind this contract does not define."),
                 });
@@ -155,7 +156,7 @@ internal static class NendoBehaviourCodec
                 definitionId,
                 Text(body, "entityId"),
                 Text(body, "displayName"),
-                Enum<NendoTriggerEvents>(body, "events"),
+                Events(body),
                 Text(body, "actionId"),
                 relevant,
                 condition,
@@ -177,6 +178,40 @@ internal static class NendoBehaviourCodec
                     Aliases(assignment)));
             }
             return assignments;
+        }
+
+        private IReadOnlyList<NendoActionLink> Links(JsonElement element)
+        {
+            var links = new List<NendoActionLink>();
+            foreach (var link in Array(element, "links"))
+            {
+                if (link.ValueKind != JsonValueKind.Object)
+                    throw Refuse($"{_subject} needs every entry of links as an object with fieldId and target.");
+                RequireKnownKeys(link, LinkKeys, "link");
+                links.Add(new NendoActionLink(Text(link, "fieldId"), Target(link)));
+            }
+            return links;
+        }
+
+        /// <summary>
+        /// The events a trigger listens to: text as the canonical writer stores it,
+        /// <c>"Created, Updated"</c>, or a list of the names, which is how authors send it.
+        /// </summary>
+        private NendoTriggerEvents Events(JsonElement body)
+        {
+            if (body.TryGetProperty("events", out var list) && list.ValueKind == JsonValueKind.Array)
+            {
+                var events = NendoTriggerEvents.None;
+                foreach (var item in list.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.String || !System.Enum.TryParse<NendoTriggerEvents>(item.GetString(), false, out var one) ||
+                        one == NendoTriggerEvents.None || item.GetString()!.Contains(',', StringComparison.Ordinal))
+                        throw Refuse($"{_subject} lists an event this contract does not define. Use Created, Updated or Deleted.");
+                    events |= one;
+                }
+                return events;
+            }
+            return Enum<NendoTriggerEvents>(body, "events");
         }
 
         private NendoActionTarget Target(JsonElement element)
@@ -306,30 +341,59 @@ internal static class NendoBehaviourCodec
             if (kind == NendoBindingKind.SubtreeAggregate)
             {
                 var includeSelf = element.TryGetProperty("includeSelf", out _) && Flag(element, "includeSelf");
-                return aggregate switch
+                return WithMember(element, aggregate, aggregate switch
                 {
                     NendoAggregateFunction.Count => NendoBehaviourBinding.Subtree(bindingId, entityId, aggregate, includeSelf: includeSelf),
                     NendoAggregateFunction.FilteredCount => NendoBehaviourBinding.Subtree(bindingId, entityId, aggregate,
-                        Text(element, "predicateFieldId"), includeSelf: includeSelf),
+                        Member(element, kind, aggregate), includeSelf: includeSelf),
                     NendoAggregateFunction.Sum => NendoBehaviourBinding.Subtree(bindingId, entityId, aggregate,
-                        Text(element, "valueFieldId"), Enum<NendoBehaviourScalar>(element, "resultType"), includeSelf),
+                        Member(element, kind, aggregate), Enum<NendoBehaviourScalar>(element, "resultType"), includeSelf),
                     _ => throw Refuse($"{_subject} has an aggregate this contract does not define."),
-                };
+                });
             }
             var relatedEntityId = Text(element, "relatedEntityId");
             var relatedReferenceFieldId = Text(element, "relatedReferenceFieldId");
             var acrossSubtree = element.TryGetProperty("acrossSubtree", out _) && Flag(element, "acrossSubtree");
-            return aggregate switch
+            return WithMember(element, aggregate, aggregate switch
             {
                 NendoAggregateFunction.Count => NendoBehaviourBinding.RelatedCount(
                     bindingId, entityId, relatedEntityId, relatedReferenceFieldId, acrossSubtree),
                 NendoAggregateFunction.FilteredCount => NendoBehaviourBinding.RelatedFilteredCount(
-                    bindingId, entityId, relatedEntityId, relatedReferenceFieldId, Text(element, "predicateFieldId"), acrossSubtree),
+                    bindingId, entityId, relatedEntityId, relatedReferenceFieldId, Member(element, kind, aggregate), acrossSubtree),
                 NendoAggregateFunction.Sum => NendoBehaviourBinding.RelatedSum(
                     bindingId, entityId, relatedEntityId, relatedReferenceFieldId,
-                    Text(element, "valueFieldId"), Enum<NendoBehaviourScalar>(element, "resultType"), acrossSubtree),
+                    Member(element, kind, aggregate), Enum<NendoBehaviourScalar>(element, "resultType"), acrossSubtree),
                 _ => throw Refuse($"{_subject} has an aggregate this contract does not define."),
+            });
+        }
+
+        /// <summary>
+        /// The stored field a sum or filtered count reads from each member, or null when it
+        /// names a calculated field instead. Exactly one of the two is named.
+        /// </summary>
+        private string? Member(JsonElement element, NendoBindingKind kind, NendoAggregateFunction aggregate)
+        {
+            var (field, calculation) = aggregate == NendoAggregateFunction.Sum
+                ? ("valueFieldId", "valueCalculationId")
+                : ("predicateFieldId", "predicateCalculationId");
+            var hasField = element.TryGetProperty(field, out _);
+            var hasCalculation = element.TryGetProperty(calculation, out _);
+            if (hasField == hasCalculation)
+                throw Refuse(hasField
+                    ? $"{_subject} ({kind} {aggregate}) names both {field} and {calculation}; name the stored field or the calculated one, not both."
+                    : $"{_subject} ({kind} {aggregate}) needs {field} — {NendoBindingShape.Purpose(field)} — or {calculation} — {NendoBindingShape.Purpose(calculation)}.");
+            return hasField ? Text(element, field) : null;
+        }
+
+        private NendoBehaviourBinding WithMember(JsonElement element, NendoAggregateFunction aggregate, NendoBehaviourBinding binding)
+        {
+            var key = aggregate switch
+            {
+                NendoAggregateFunction.Sum => "valueCalculationId",
+                NendoAggregateFunction.FilteredCount => "predicateCalculationId",
+                _ => null,
             };
+            return key is not null && element.TryGetProperty(key, out _) ? binding.WithMemberCalculation(Text(element, key)) : binding;
         }
 
         private void RequireKnownKeys(JsonElement element, string[] known, string what)
@@ -342,10 +406,17 @@ internal static class NendoBehaviourCodec
                     $"A {what} takes {string.Join(", ", known)}.");
         }
 
+        /// <summary>
+        /// A list a body may leave out when it has nothing in it: an author who has no
+        /// bindings should not have to send an empty list to be told it was missing.
+        /// </summary>
+        private static readonly JsonElement EmptyList = JsonDocument.Parse("[]").RootElement.Clone();
+
         private JsonElement.ArrayEnumerator Array(JsonElement element, string property)
         {
-            if (!element.TryGetProperty(property, out var value) || value.ValueKind != JsonValueKind.Array)
-                throw Refuse($"{_subject} needs {property} as a list, empty or not.");
+            if (!element.TryGetProperty(property, out var value)) return EmptyList.EnumerateArray();
+            if (value.ValueKind != JsonValueKind.Array)
+                throw Refuse($"{_subject} needs {property} as a list.");
             return value.EnumerateArray();
         }
 

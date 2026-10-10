@@ -29,6 +29,12 @@ internal sealed record CatalogueFunction(
 
     /// <summary>Whether the last declared argument repeats up to <see cref="MaximumArguments"/>.</summary>
     internal bool Repeating { get; init; }
+
+    /// <summary>
+    /// Whether the function is handed an empty argument rather than being stopped by it.
+    /// Every other function is stopped, as an operator is: an empty input stops the formula.
+    /// </summary>
+    internal bool TakesEmpty { get; init; }
 }
 
 /// <summary>
@@ -127,6 +133,24 @@ internal static class NendoBehaviourCatalogue
                 ParameterTypes = ["text"],
                 ResultType = "the kind of the other outcome of the choice it sits in",
                 Summary = "Produces no value and reports the sentence given as the calculation's own refusal. It sits in one outcome of a choice; the other outcome says what kind of value it stands for.",
+            },
+            // ADR-0008, 2026-10-10 amendment: the one way a formula asks whether a value is
+            // there. Every operator and every other function is stopped by an empty input, so
+            // "default Billable to true when it was left empty" could not be written at all.
+            // It is told an empty argument, or one that an empty input stopped, as empty.
+            ["IsEmpty"] = new("IsEmpty", 1, 1,
+                types => NendoBehaviourScalar.Boolean,
+                (args, budget) =>
+                {
+                    budget.SpendWork();
+                    return BehaviourValue.Boolean(args[0].IsNull);
+                })
+            {
+                ParameterTypes = ["boolean|date|decimal|integer|text"],
+                ResultType = "boolean",
+                Summary = "True when the value is empty, or would need an empty value to be worked out; false otherwise. Never empty itself. " +
+                    "IsEmpty(x) ? fallback : x gives an empty value a default.",
+                TakesEmpty = true,
             },
             ["Concat"] = new("Concat", 2, 8,
                 types =>

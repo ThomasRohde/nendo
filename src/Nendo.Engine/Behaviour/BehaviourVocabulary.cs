@@ -54,6 +54,66 @@ public sealed record NendoBehaviourActionTargetDescription(
     string Kind,
     string Summary);
 
+/// <summary>
+/// One object of a definition body: the keys it takes, which of them it needs, and, for the
+/// four bodies a <c>behaviour.setDefinition</c> sends, a body the codec accepts as it stands.
+/// <para>
+/// The codec refuses every key not listed here, so the table is the contract rather than a
+/// description of it. An agent building a studio manager on 2026-10-10 learnt the action,
+/// assignment and trigger shapes by sending made-up keys and reading the refusals, six refusals
+/// in two minutes; ADR-0008 says no author discovers the contract by failing.
+/// </para>
+/// </summary>
+public sealed record NendoBehaviourBodyShape(
+    string Name,
+    IReadOnlyList<string> RequiredKeys,
+    IReadOnlyList<string> OptionalKeys,
+    string Summary,
+    string? Example = null)
+{
+    public static IReadOnlyList<NendoBehaviourBodyShape> All { get; } =
+    [
+        new("Calculation body", ["entityId", "fieldId", "displayName", "resultType", "resultNullable", "expression"], ["bindings", "callAliases"],
+            "A calculated field of entityId. fieldId is the new field's own stable ID, never a stored field's. expression names " +
+            "each value by a binding's bindingId; resultNullable says whether the field may be empty. bindings and callAliases " +
+            "are lists and may be left out when empty.",
+            """{"entityId":"invoiceLine","fieldId":"invoiceLineTotal","displayName":"Line total","resultType":"Decimal","resultNullable":false,"expression":"quantity * unitPrice","bindings":[{"bindingId":"quantity","kind":"SameRecordField","entityId":"invoiceLine","fieldId":"invoiceLineQuantity","resultType":"Decimal","nullable":false},{"bindingId":"unitPrice","kind":"SameRecordField","entityId":"invoiceLine","fieldId":"invoiceLineUnitPrice","resultType":"Decimal","nullable":false}]}"""),
+        new("Function body", ["displayName", "resultType", "resultNullable", "expression"], ["parameters", "callAliases"],
+            "A reusable pure function. Its parameters are named in expression by parameterId and bound by position at a call.",
+            """{"displayName":"With tax","resultType":"Decimal","resultNullable":false,"expression":"amount * 1.25","parameters":[{"parameterId":"amount","displayName":"Amount","parameterType":"Decimal","nullable":false}]}"""),
+        new("Action body", ["displayName", "steps"], [],
+            "Ordered steps that write records. An action names no record type; the trigger that runs it does.",
+            """{"displayName":"Create the kickoff task","steps":[{"stepId":"kickoff","kind":"CreateRecord","entityId":"task","assignments":[{"fieldId":"taskTitle","expression":"'Kickoff call'"}],"links":[{"fieldId":"taskProject","target":{"kind":"EventRecord"}}]}]}"""),
+        new("Trigger body", ["entityId", "displayName", "events", "actionId"], ["relevantFieldIds", "conditionExpression", "conditionBindings", "callAliases"],
+            "Runs actionId when a record of entityId is Created, Updated or Deleted. events is a list of those names, or text " +
+            "such as \"Created, Updated\". relevantFieldIds narrows an update to changes of those fields. conditionExpression, " +
+            "when given, must be true for the action to run; its values come from conditionBindings.",
+            """{"entityId":"project","displayName":"When a project is created","events":["Created"],"actionId":"projectKickoff"}"""),
+        new("step", ["stepId", "kind"], ["target", "entityId", "assignments", "links"],
+            "SetField writes assignments to target; DeleteRecord deletes target and takes no assignments; CreateRecord adds a " +
+            "record of entityId with its assignments and links, and takes no target."),
+        new("assignment", ["fieldId", "expression"], ["bindings", "callAliases"],
+            "One stored field and the formula that produces its value. A SetField assignment's bindings start from the record " +
+            "the step writes; a CreateRecord assignment's from the record that raised the event. A formula produces no " +
+            "reference; a create step sets one with a link."),
+        new("link", ["fieldId", "target"], [],
+            "A reference field of the record a CreateRecord step adds, set to target: EventRecord, the record that raised " +
+            "the event, or ReferencedRecord, the record its referenceFieldId names. The field must be a reference to that " +
+            "record's type. EventRecord cannot be linked from a Deleted event; an empty referenced field leaves the link empty."),
+        new("target", ["kind"], ["referenceFieldId"],
+            "EventRecord, or ReferencedRecord with the referenceFieldId of the event record to follow."),
+        new("parameter", ["parameterId", "displayName", "parameterType", "nullable"], [],
+            "One typed parameter of a function, in call order."),
+        new("call alias", ["alias", "functionId"], [],
+            "The name a formula calls a reusable function by, and the function's definition ID."),
+    ];
+
+    /// <summary>Every key the named object accepts, required ones first.</summary>
+    public IReadOnlyList<string> Keys => [.. RequiredKeys, .. OptionalKeys];
+
+    internal static string[] KeysOf(string name) => [.. All.Single(shape => shape.Name == name).Keys];
+}
+
 /// <summary>The finite ceilings a formula runs under. Host-owned; no file raises them.</summary>
 public sealed record NendoBehaviourLimitsDescription(
     int SourceLength,
@@ -89,6 +149,7 @@ public sealed record NendoBehaviourDescription(
     IReadOnlyList<NendoBehaviourFunctionDescription> Functions,
     IReadOnlyList<NendoBehaviourAggregateDescription> Aggregates,
     IReadOnlyList<NendoBehaviourBindingDescription> Bindings,
+    IReadOnlyList<NendoBehaviourBodyShape> Bodies,
     IReadOnlyList<string> TriggerEvents,
     IReadOnlyList<string> ActionSteps,
     IReadOnlyList<NendoBehaviourActionTargetDescription> ActionTargets,
@@ -114,11 +175,11 @@ public static class NendoBehaviourVocabulary
             new("FilteredCount", "integer",
                 "An empty collection counts zero.",
                 "A predicate that is empty or cannot be calculated makes the whole count an error, rather than quietly counting it as false.",
-                "predicateFieldId"),
-            new("Sum", "integer or decimal, matching the field named by valueFieldId",
+                "predicateFieldId or predicateCalculationId"),
+            new("Sum", "integer or decimal, matching what valueFieldId or valueCalculationId names",
                 "An empty collection totals zero.",
                 "A member with no value, or one that cannot be calculated, makes the whole total an error. A partial total of what could be read is never returned.",
-                "valueFieldId"),
+                "valueFieldId or valueCalculationId"),
         ],
         // The same table the codec refuses against, so a key that is published is a
         // key that is accepted, and one that is accepted is published.
@@ -128,6 +189,7 @@ public static class NendoBehaviourVocabulary
             shape.RequiredKeys,
             shape.OptionalKeys,
             shape.Summary))],
+        NendoBehaviourBodyShape.All,
         [.. Enum.GetNames<NendoTriggerEvents>().Where(name => name != "None").OrderBy(name => name, StringComparer.Ordinal)],
         [.. Enum.GetNames<NendoActionStepKind>().OrderBy(name => name, StringComparer.Ordinal)],
         [.. Enum.GetNames<NendoActionTargetKind>().OrderBy(name => name, StringComparer.Ordinal)

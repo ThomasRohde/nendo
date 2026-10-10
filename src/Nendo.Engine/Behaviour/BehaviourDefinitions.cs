@@ -124,13 +124,16 @@ public sealed record NendoBindingShape(
             "Counts the records pointing back at this one. The result is always Integer and never null; " +
             "resultType and nullable may be sent, and must say so. Past the row ceiling it refuses rather than counting part."),
         new(NendoBindingKind.RelatedAggregate, NendoAggregateFunction.FilteredCount,
-            ["bindingId", "kind", "aggregate", "entityId", "relatedEntityId", "relatedReferenceFieldId", "predicateFieldId"], ["acrossSubtree", "resultType", "nullable"],
-            "Counts the records pointing back at this one whose Boolean predicateFieldId is true. " +
+            ["bindingId", "kind", "aggregate", "entityId", "relatedEntityId", "relatedReferenceFieldId"], ["predicateFieldId", "predicateCalculationId", "acrossSubtree", "resultType", "nullable"],
+            "Counts the records pointing back at this one whose Boolean is true: a stored field named by predicateFieldId, " +
+            "or a calculated field of theirs named by its calculation ID in predicateCalculationId. Exactly one of the two. " +
             "The result is always Integer and never null."),
         new(NendoBindingKind.RelatedAggregate, NendoAggregateFunction.Sum,
-            ["bindingId", "kind", "aggregate", "entityId", "relatedEntityId", "relatedReferenceFieldId", "valueFieldId", "resultType"], ["acrossSubtree", "nullable"],
-            "Totals valueFieldId over the records pointing back at this one, exactly. resultType is Integer or Decimal " +
-            "and matches the field; the result is never null, and an empty collection totals zero."),
+            ["bindingId", "kind", "aggregate", "entityId", "relatedEntityId", "relatedReferenceFieldId", "resultType"], ["valueFieldId", "valueCalculationId", "acrossSubtree", "nullable"],
+            "Totals a number over the records pointing back at this one, exactly: a stored field named by valueFieldId, or a " +
+            "calculated field of theirs named by its calculation ID in valueCalculationId. Exactly one of the two. resultType " +
+            "is Integer or Decimal and matches what is totalled; the result is never null, and an empty collection totals zero. " +
+            "A calculated member is worked out for each record, and each one counts against the related-row ceiling."),
         new(NendoBindingKind.HierarchyPath, null,
             ["bindingId", "kind", "entityId"], ["prefix", "resultType", "nullable"],
             "The record's place in the record type's declared hierarchy: its 1-based position among its siblings, and each " +
@@ -142,12 +145,14 @@ public sealed record NendoBindingShape(
             "Counts the records under this one in the record type's declared hierarchy, at every level; includeSelf counts " +
             "the record too. The result is always Integer and never null. Past the hierarchy's descendant bound it refuses."),
         new(NendoBindingKind.SubtreeAggregate, NendoAggregateFunction.FilteredCount,
-            ["bindingId", "kind", "aggregate", "entityId", "predicateFieldId"], ["includeSelf", "resultType", "nullable"],
-            "Counts the records under this one whose Boolean predicateFieldId is true. The result is always Integer and never null."),
+            ["bindingId", "kind", "aggregate", "entityId"], ["predicateFieldId", "predicateCalculationId", "includeSelf", "resultType", "nullable"],
+            "Counts the records under this one whose Boolean is true: predicateFieldId, or a calculated field named by " +
+            "predicateCalculationId (not this calculation itself). Exactly one of the two. The result is always Integer and never null."),
         new(NendoBindingKind.SubtreeAggregate, NendoAggregateFunction.Sum,
-            ["bindingId", "kind", "aggregate", "entityId", "valueFieldId", "resultType"], ["includeSelf", "nullable"],
-            "Totals valueFieldId over the records under this one, exactly; includeSelf adds the record's own value. resultType " +
-            "is Integer or Decimal and matches the field; the result is never null, and an empty subtree totals zero."),
+            ["bindingId", "kind", "aggregate", "entityId", "resultType"], ["valueFieldId", "valueCalculationId", "includeSelf", "nullable"],
+            "Totals a number over the records under this one, exactly: valueFieldId, or a calculated field named by " +
+            "valueCalculationId (not this calculation itself). Exactly one of the two. includeSelf adds the record's own value. " +
+            "resultType is Integer or Decimal and matches what is totalled; the result is never null, and an empty subtree totals zero."),
     ];
 
     /// <summary>What a key is for, in the words a refusal uses to ask for it.</summary>
@@ -163,7 +168,9 @@ public sealed record NendoBindingShape(
         "relatedEntityId" => "the record type on the other side of the reference",
         "relatedReferenceFieldId" => "the reference field on the related record that points back at this one",
         "predicateFieldId" => "the Boolean field it tests",
+        "predicateCalculationId" => "the calculation ID of a Boolean calculated field it tests, instead of predicateFieldId",
         "valueFieldId" => "the Integer or Decimal field it totals",
+        "valueCalculationId" => "the calculation ID of an Integer or Decimal calculated field it totals, instead of valueFieldId",
         "resultType" => "the scalar the value has: " + string.Join(", ", Enum.GetNames<NendoBehaviourScalar>()),
         "nullable" => "whether the value may be empty",
         "includeSelf" => "true to count or total the record itself as well as everything under it",
@@ -225,6 +232,40 @@ public sealed record NendoBehaviourBinding
 
     /// <summary>The calculation read from the same record.</summary>
     public string? CalculationId { get; private init; }
+
+    /// <summary>A calculated field of each member that a sum totals, instead of <see cref="ValueFieldId"/>.</summary>
+    public string? ValueCalculationId { get; private init; }
+
+    /// <summary>A Boolean calculated field of each member that a filtered count tests, instead of <see cref="PredicateFieldId"/>.</summary>
+    public string? PredicateCalculationId { get; private init; }
+
+    /// <summary>The calculation each member of an aggregate is read through, or null when it reads a stored field.</summary>
+    public string? MemberCalculationId => ValueCalculationId ?? PredicateCalculationId;
+
+    /// <summary>Every calculation this binding reads: on the same record, or on each member of an aggregate.</summary>
+    internal IEnumerable<string> ReadCalculations
+    {
+        get
+        {
+            if (CalculationId is not null) yield return CalculationId;
+            if (MemberCalculationId is not null) yield return MemberCalculationId;
+        }
+    }
+
+    /// <summary>
+    /// The same aggregate reading each member through a calculation rather than a stored field.
+    /// The member's stored field ID is cleared: the two are alternatives, never both.
+    /// </summary>
+    public NendoBehaviourBinding WithMemberCalculation(string calculationId)
+    {
+        NendoOperation.Require(calculationId, nameof(calculationId));
+        return Aggregate switch
+        {
+            NendoAggregateFunction.Sum => this with { ValueFieldId = null, ValueCalculationId = calculationId },
+            NendoAggregateFunction.FilteredCount => this with { PredicateFieldId = null, PredicateCalculationId = calculationId },
+            _ => throw new NendoValidationException("Only a sum or a filtered count reads each member through a calculation."),
+        };
+    }
 
     /// <summary>A subtree aggregate that folds the record itself as well as its descendants.</summary>
     public bool IncludeSelf { get; private init; }
@@ -297,14 +338,14 @@ public sealed record NendoBehaviourBinding
         {
             EntityId = NendoOperation.Require(entityId, nameof(entityId)),
             Aggregate = aggregate,
-            PredicateFieldId = aggregate == NendoAggregateFunction.FilteredCount ? NendoOperation.Require(memberFieldId!, nameof(memberFieldId)) : null,
-            ValueFieldId = aggregate == NendoAggregateFunction.Sum ? NendoOperation.Require(memberFieldId!, nameof(memberFieldId)) : null,
+            PredicateFieldId = aggregate == NendoAggregateFunction.FilteredCount ? memberFieldId : null,
+            ValueFieldId = aggregate == NendoAggregateFunction.Sum ? memberFieldId : null,
             IncludeSelf = includeSelf,
         };
 
     /// <summary>Counts related records whose Boolean field is true. The result is a non-null Int64.</summary>
     public static NendoBehaviourBinding RelatedFilteredCount(
-        string bindingId, string entityId, string relatedEntityId, string relatedReferenceFieldId, string predicateFieldId,
+        string bindingId, string entityId, string relatedEntityId, string relatedReferenceFieldId, string? predicateFieldId,
         bool acrossSubtree = false) =>
         new(bindingId, NendoBindingKind.RelatedAggregate, NendoBehaviourScalar.Integer, false)
         {
@@ -312,21 +353,21 @@ public sealed record NendoBehaviourBinding
             RelatedEntityId = NendoOperation.Require(relatedEntityId, nameof(relatedEntityId)),
             RelatedReferenceFieldId = NendoOperation.Require(relatedReferenceFieldId, nameof(relatedReferenceFieldId)),
             Aggregate = NendoAggregateFunction.FilteredCount,
-            PredicateFieldId = NendoOperation.Require(predicateFieldId, nameof(predicateFieldId)),
+            PredicateFieldId = predicateFieldId,
             AcrossSubtree = acrossSubtree,
         };
 
     /// <summary>Sums a numeric field over related records, with checked arithmetic.</summary>
     public static NendoBehaviourBinding RelatedSum(
         string bindingId, string entityId, string relatedEntityId, string relatedReferenceFieldId,
-        string valueFieldId, NendoBehaviourScalar resultType, bool acrossSubtree = false) =>
+        string? valueFieldId, NendoBehaviourScalar resultType, bool acrossSubtree = false) =>
         new(bindingId, NendoBindingKind.RelatedAggregate, resultType, false)
         {
             EntityId = NendoOperation.Require(entityId, nameof(entityId)),
             RelatedEntityId = NendoOperation.Require(relatedEntityId, nameof(relatedEntityId)),
             RelatedReferenceFieldId = NendoOperation.Require(relatedReferenceFieldId, nameof(relatedReferenceFieldId)),
             Aggregate = NendoAggregateFunction.Sum,
-            ValueFieldId = NendoOperation.Require(valueFieldId, nameof(valueFieldId)),
+            ValueFieldId = valueFieldId,
             AcrossSubtree = acrossSubtree,
         };
 
@@ -369,10 +410,14 @@ public sealed record NendoBehaviourBinding
     /// <summary>What an aggregate needs besides its function: the field it tests or sums, a numeric result, never null.</summary>
     private void RequireAggregateArguments(string emptyWhole)
     {
-        if (Aggregate == NendoAggregateFunction.FilteredCount && PredicateFieldId is null)
-            throw new NendoValidationException("A filtered count needs the Boolean field it tests.");
-        if (Aggregate == NendoAggregateFunction.Sum && ValueFieldId is null)
-            throw new NendoValidationException("A sum needs the numeric field it accumulates.");
+        if (Aggregate == NendoAggregateFunction.FilteredCount && (PredicateFieldId is null) == (PredicateCalculationId is null))
+            throw new NendoValidationException(
+                "A filtered count tests one Boolean: a stored field in predicateFieldId, or a calculated field in predicateCalculationId, not both.");
+        if (Aggregate == NendoAggregateFunction.Sum && (ValueFieldId is null) == (ValueCalculationId is null))
+            throw new NendoValidationException(
+                "A sum totals one number: a stored field in valueFieldId, or a calculated field in valueCalculationId, not both.");
+        if (Aggregate == NendoAggregateFunction.Count && MemberCalculationId is not null)
+            throw new NendoValidationException("A count reads no member value, so it names no calculation.");
         if (Aggregate == NendoAggregateFunction.Sum &&
             ResultType is not (NendoBehaviourScalar.Integer or NendoBehaviourScalar.Decimal))
             throw new NendoValidationException("A sum produces a whole number or a decimal.");
@@ -392,12 +437,14 @@ public sealed record NendoBehaviourBinding
         if (IncludeSelf) writer.WriteBoolean("includeSelf", true);
         writer.WriteString("kind", Kind.ToString());
         writer.WriteBoolean("nullable", Nullable);
+        if (PredicateCalculationId is not null) writer.WriteString("predicateCalculationId", PredicateCalculationId);
         if (PredicateFieldId is not null) writer.WriteString("predicateFieldId", PredicateFieldId);
         if (Prefix is not null) writer.WriteString("prefix", Prefix);
         if (ReferenceFieldId is not null) writer.WriteString("referenceFieldId", ReferenceFieldId);
         if (RelatedEntityId is not null) writer.WriteString("relatedEntityId", RelatedEntityId);
         if (RelatedReferenceFieldId is not null) writer.WriteString("relatedReferenceFieldId", RelatedReferenceFieldId);
         writer.WriteString("resultType", ResultType.ToString());
+        if (ValueCalculationId is not null) writer.WriteString("valueCalculationId", ValueCalculationId);
         if (ValueFieldId is not null) writer.WriteString("valueFieldId", ValueFieldId);
         writer.WriteEndObject();
     }
@@ -479,6 +526,30 @@ public sealed record NendoActionTarget(NendoActionTargetKind Kind, string? Refer
     }
 }
 
+/// <summary>
+/// A reference a create step sets on the record it creates: to the record that raised the
+/// event, or to the record one of its references names. A formula has no reference values, so
+/// without this a created record could not point back at what caused it — a project's kickoff
+/// task could not name its project (2026-10-10).
+/// </summary>
+public sealed record NendoActionLink(string FieldId, NendoActionTarget Target)
+{
+    internal void Validate()
+    {
+        NendoBehaviourValidation.RequireIdentifier(FieldId, "field");
+        Target.Validate();
+    }
+
+    internal void WriteCanonical(Utf8JsonWriter writer)
+    {
+        writer.WriteStartObject();
+        writer.WriteString("fieldId", FieldId);
+        writer.WritePropertyName("target");
+        Target.WriteCanonical(writer);
+        writer.WriteEndObject();
+    }
+}
+
 /// <summary>The closed set of effects one action step may have. All are local typed data writes.</summary>
 public enum NendoActionStepKind
 {
@@ -540,6 +611,9 @@ public sealed record NendoActionStep
 
     public IReadOnlyList<NendoActionAssignment> Assignments { get; private init; } = [];
 
+    /// <summary>The references a create step sets on its new record. Empty for every other step.</summary>
+    public IReadOnlyList<NendoActionLink> Links { get; private init; } = [];
+
     public static NendoActionStep SetField(string stepId, NendoActionTarget target, NendoActionAssignment assignment) =>
         new(stepId, NendoActionStepKind.SetField) { Target = target, Assignments = [assignment] };
 
@@ -547,11 +621,13 @@ public sealed record NendoActionStep
     public static NendoActionStep SetFields(string stepId, NendoActionTarget target, IReadOnlyList<NendoActionAssignment> assignments) =>
         new(stepId, NendoActionStepKind.SetField) { Target = target, Assignments = assignments };
 
-    public static NendoActionStep CreateRecord(string stepId, string entityId, IReadOnlyList<NendoActionAssignment> assignments) =>
+    public static NendoActionStep CreateRecord(
+        string stepId, string entityId, IReadOnlyList<NendoActionAssignment> assignments, IReadOnlyList<NendoActionLink>? links = null) =>
         new(stepId, NendoActionStepKind.CreateRecord)
         {
             EntityId = NendoOperation.Require(entityId, nameof(entityId)),
             Assignments = assignments,
+            Links = links ?? [],
         };
 
     public static NendoActionStep DeleteRecord(string stepId, NendoActionTarget target) =>
@@ -568,7 +644,8 @@ public sealed record NendoActionStep
                 break;
             case NendoActionStepKind.CreateRecord:
                 if (EntityId is null) throw new NendoValidationException("A create step needs the record type it adds to.");
-                if (Assignments.Count == 0) throw new NendoValidationException("A create step needs at least one field value.");
+                if (Assignments.Count == 0 && Links.Count == 0)
+                    throw new NendoValidationException("A create step needs at least one field value or link.");
                 break;
             case NendoActionStepKind.DeleteRecord:
                 if (Assignments.Count != 0) throw new NendoValidationException("A delete step writes no field values.");
@@ -576,9 +653,13 @@ public sealed record NendoActionStep
             default:
                 throw new NendoValidationException("The step kind is not supported by this contract.");
         }
-        if (Assignments.Select(assignment => assignment.FieldId).Distinct(StringComparer.Ordinal).Count() != Assignments.Count)
-            throw new NendoValidationException("One step cannot write the same field twice.");
+        if (Links.Count != 0 && Kind != NendoActionStepKind.CreateRecord)
+            throw new NendoValidationException("Only a create step sets links; a set step writes a formula's value.");
+        var written = Assignments.Select(assignment => assignment.FieldId).Concat(Links.Select(link => link.FieldId)).ToArray();
+        if (written.Distinct(StringComparer.Ordinal).Count() != written.Length)
+            throw new NendoValidationException("One step cannot write the same field twice, whether by a value or a link.");
         foreach (var assignment in Assignments) assignment.Validate();
+        foreach (var link in Links) link.Validate();
     }
 
     internal void WriteCanonical(Utf8JsonWriter writer)
@@ -590,6 +671,13 @@ public sealed record NendoActionStep
         writer.WriteEndArray();
         if (EntityId is not null) writer.WriteString("entityId", EntityId);
         writer.WriteString("kind", Kind.ToString());
+        // Written only when there are some, so a step stored before links existed keeps its digest.
+        if (Links.Count != 0)
+        {
+            writer.WriteStartArray("links");
+            foreach (var link in Links) link.WriteCanonical(writer);
+            writer.WriteEndArray();
+        }
         writer.WritePropertyName("target");
         Target.WriteCanonical(writer);
         writer.WriteEndObject();
@@ -643,6 +731,26 @@ public abstract record NendoBehaviourDefinition
     /// </summary>
     internal virtual IEnumerable<string> ReferencedDefinitionIds =>
         ReferencedAliases.Select(alias => alias.FunctionId);
+
+    /// <summary>Every formula this definition holds, wherever it sits.</summary>
+    internal abstract IEnumerable<string> Expressions { get; }
+
+    /// <summary>Every binding this definition declares, wherever it sits.</summary>
+    internal abstract IEnumerable<NendoBehaviourBinding> AllBindings { get; }
+
+    private static readonly System.Text.RegularExpressions.Regex IsEmptyCall =
+        new(@"\bIsEmpty\s*\(", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// The host this definition needs (ADR-0008, 2026-10-10): a link, a calculated aggregate
+    /// member or IsEmpty is refused by an older host, which would read the file as damaged.
+    /// </summary>
+    internal string RequiredHostVersion =>
+        AllBindings.Any(binding => binding.MemberCalculationId is not null) ||
+        (this is NendoActionDefinition action && action.Steps.Any(step => step.Links.Count != 0)) ||
+        Expressions.Any(expression => IsEmptyCall.IsMatch(expression))
+            ? NendoFormat.BehaviourLinksMinimumHostVersion
+            : NendoFormat.BehaviourMinimumHostVersion;
 
     /// <summary>Validates everything checkable without the rest of the file.</summary>
     public NendoBehaviourDefinition Validate()
@@ -716,9 +824,13 @@ public sealed record NendoCalculationDefinition : NendoBehaviourDefinition
 
     internal override IEnumerable<NendoFunctionCallAlias> ReferencedAliases => CallAliases;
 
+    internal override IEnumerable<string> Expressions => [Expression];
+
+    internal override IEnumerable<NendoBehaviourBinding> AllBindings => Bindings;
+
     internal override IEnumerable<string> ReferencedDefinitionIds =>
         CallAliases.Select(alias => alias.FunctionId)
-            .Concat(Bindings.Where(binding => binding.CalculationId is not null).Select(binding => binding.CalculationId!));
+            .Concat(Bindings.SelectMany(binding => binding.ReadCalculations));
 
     internal override void ValidateShape()
     {
@@ -732,8 +844,8 @@ public sealed record NendoCalculationDefinition : NendoBehaviourDefinition
         {
             if (!string.Equals(binding.EntityId, EntityId, StringComparison.Ordinal))
                 throw new NendoValidationException("A calculation's bindings must start from the record type it belongs to.");
-            if (string.Equals(binding.CalculationId, DefinitionId, StringComparison.Ordinal))
-                throw new NendoValidationException("A calculation cannot read itself.");
+            if (binding.ReadCalculations.Contains(DefinitionId, StringComparer.Ordinal))
+                throw new NendoValidationException("A calculation cannot read itself, on its own record or on the records it totals.");
         }
     }
 
@@ -794,6 +906,10 @@ public sealed record NendoFunctionDefinition : NendoBehaviourDefinition
 
     internal override IEnumerable<NendoFunctionCallAlias> ReferencedAliases => CallAliases;
 
+    internal override IEnumerable<string> Expressions => [Expression];
+
+    internal override IEnumerable<NendoBehaviourBinding> AllBindings => [];
+
     internal override void ValidateShape()
     {
         NendoBehaviourValidation.RequireLabel(DisplayName, "function name");
@@ -846,12 +962,17 @@ public sealed record NendoActionDefinition : NendoBehaviourDefinition
     internal override IEnumerable<NendoFunctionCallAlias> ReferencedAliases =>
         Steps.SelectMany(step => step.Assignments).SelectMany(assignment => assignment.CallAliases);
 
+    internal override IEnumerable<string> Expressions =>
+        Steps.SelectMany(step => step.Assignments).Select(assignment => assignment.Expression);
+
+    internal override IEnumerable<NendoBehaviourBinding> AllBindings =>
+        Steps.SelectMany(step => step.Assignments).SelectMany(assignment => assignment.Bindings);
+
     internal override IEnumerable<string> ReferencedDefinitionIds =>
         ReferencedAliases.Select(alias => alias.FunctionId)
             .Concat(Steps.SelectMany(step => step.Assignments)
                 .SelectMany(assignment => assignment.Bindings)
-                .Where(binding => binding.CalculationId is not null)
-                .Select(binding => binding.CalculationId!));
+                .SelectMany(binding => binding.ReadCalculations));
 
     internal override void ValidateShape()
     {
@@ -929,9 +1050,13 @@ public sealed record NendoTriggerDefinition : NendoBehaviourDefinition
 
     internal override IEnumerable<NendoFunctionCallAlias> ReferencedAliases => CallAliases;
 
+    internal override IEnumerable<string> Expressions => ConditionExpression is null ? [] : [ConditionExpression];
+
+    internal override IEnumerable<NendoBehaviourBinding> AllBindings => ConditionBindings;
+
     internal override IEnumerable<string> ReferencedDefinitionIds =>
         CallAliases.Select(alias => alias.FunctionId)
-            .Concat(ConditionBindings.Where(binding => binding.CalculationId is not null).Select(binding => binding.CalculationId!))
+            .Concat(ConditionBindings.SelectMany(binding => binding.ReadCalculations))
             .Append(ActionId);
 
     internal override void ValidateShape()

@@ -95,6 +95,20 @@ public sealed class BehaviourGrowthTests
             var complete = shape.RequiredKeys.ToDictionary(key => key, Value, StringComparer.Ordinal);
             complete["kind"] = shape.Kind.ToString();
             if (shape.Aggregate is { } aggregate) complete["aggregate"] = aggregate.ToString();
+            // A sum or filtered count names its member one of two ways, a stored field or a
+            // calculated one (2026-10-10): neither is required alone, and one of them is.
+            var member = new[] { "valueFieldId", "predicateFieldId" }.FirstOrDefault(key => shape.OptionalKeys.Contains(key));
+            if (member is not null)
+            {
+                var calculated = member.Replace("FieldId", "CalculationId", StringComparison.Ordinal);
+                var neither = Assert.ThrowsExactly<NendoValidationException>(() => Read(complete), $"{shape.Name} without a member").Message;
+                StringAssert.Contains(neither, $"needs {member}", shape.Name);
+                StringAssert.Contains(neither, calculated, shape.Name);
+                StringAssert.Contains(neither, shape.Name, shape.Name);
+                var both = new Dictionary<string, object?>(complete, StringComparer.Ordinal) { [member] = member, [calculated] = calculated };
+                StringAssert.Contains(Assert.ThrowsExactly<NendoValidationException>(() => Read(both), $"{shape.Name} with both").Message, "not both");
+                complete[member] = member;
+            }
             Read(complete);
 
             var extra = new Dictionary<string, object?>(complete, StringComparer.Ordinal) { ["aggregateFieldId"] = "x" };

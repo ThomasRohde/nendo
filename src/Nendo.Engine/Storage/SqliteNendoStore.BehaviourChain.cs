@@ -280,6 +280,9 @@ internal sealed partial class SqliteNendoStore
             BehaviourDigest(behaviour))
         { RequiredGrant = required, GrantedAtRevocationGeneration = BehaviourAuthority.RevocationGeneration };
         scope = context;
+        var calculations = new NendoCalculationService(BehaviourAdapter);
+        source.Calculate = (calculationId, recordId, budget, token) =>
+            calculations.EvaluateAsync(behaviour, calculationId, recordId, source, budget, token);
         var planner = new BehaviourActionPlanner(this, transaction, context, mappings, source);
         await planner.RunAsync(before, cancellationToken);
 

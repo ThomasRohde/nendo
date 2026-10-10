@@ -248,7 +248,23 @@ internal sealed class NendoExpressionAdapter
         var arguments = new List<BehaviourValue>(data.Count);
         for (var index = 0; index < data.Count; index++)
         {
-            arguments.Add(BehaviourValue.FromEvaluated(data.Evaluate(index), budget.Limits));
+            if (!function.TakesEmpty)
+            {
+                arguments.Add(BehaviourValue.FromEvaluated(data.Evaluate(index), budget.Limits));
+                continue;
+            }
+            // An empty argument, or one an empty input stopped, reaches the function as a
+            // typed empty. Any other failure -- a refusal, a zero divisor -- is what it is.
+            object? raw;
+            try
+            {
+                raw = data.Evaluate(index);
+            }
+            catch (NendoCalculationException exception) when (exception.Code == NendoCalculationCodes.MissingInput)
+            {
+                raw = null;
+            }
+            arguments.Add(raw is null ? BehaviourValue.Empty(NendoBehaviourScalar.Boolean) : BehaviourValue.FromEvaluated(raw, budget.Limits));
         }
         return function.Invoke(arguments, budget).Boxed;
     }

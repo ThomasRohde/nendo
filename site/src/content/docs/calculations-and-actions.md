@@ -45,6 +45,8 @@ A related aggregate is one of three:
 - **FilteredCount** counts the related records whose Boolean field is true.
 - **Sum** adds an Integer or Decimal field over the related records. An empty set gives 0. The field must be required, because a missing value is an error and not a zero.
 
+A filtered count or a sum can also read a calculated field of each related record: name its calculation in `predicateCalculationId` or `valueCalculationId` instead of the stored field. An invoice can total its lines' calculated totals, and a client the totals of its invoices. Each related record counts against the limit of 256 related records a calculation reads.
+
 A subtree aggregate is one of the same three, over the records under this one; `includeSelf` adds the record itself. A related aggregate with `acrossSubtree` counts or totals the records that point at this record or at anything under it.
 
 A hierarchy path follows a move at once, because it is worked out on every read. That makes it a display code, not a name to write down: a code people repeat belongs in a numbered field.
@@ -78,6 +80,7 @@ The function set is closed:
 | `Concat(a, b, …)` | 2 to 8 texts joined |
 | `TextLength(text)` | Number of characters; empty text is 0 |
 | `Refuse(text)` | No value; the calculation fails with your text as the reason |
+| `IsEmpty(value)` | True when the value is empty; never empty itself |
 
 No function reads a clock, a file, the network or any other part of the computer. The same inputs always give the same result.
 
@@ -91,7 +94,7 @@ A function has a display name, typed parameters, a result type and a formula. A 
 
 A result is a value, an empty value or an error.
 
-- An empty input stops the formula when it is used in arithmetic, a comparison, a condition or a function argument. It never counts as 0 or false.
+- An empty input stops the formula when it is used in arithmetic, a comparison, a condition or a function argument. It never counts as 0 or false. `IsEmpty` is the exception: `IsEmpty(billable) ? true : billable` gives an empty value a default.
 - If the calculation allows an empty result, the result is empty. If not, the result is an error.
 - A division by zero, an overflow, an invalid date, a text that is too long, a refusal or a limit gives an error with a reason.
 - If a calculation reads another calculation that failed, it fails too and names that input.
@@ -109,6 +112,8 @@ An action is a list of steps. Each step is one of:
 - `DeleteRecord`: delete a record.
 
 A step targets the record that raised the event (`EventRecord`), or the record that one reference field on it points to (`ReferencedRecord`). If that reference is empty, the step writes nothing and the save still commits. Make the reference field required if every event must reach a target.
+
+A formula cannot produce a reference, so a `CreateRecord` step sets the new record's references with `links`: each names a reference field and points it at the event record, or at the record one of its references names. A new project can create its kickoff task with the task's Project set to that project.
 
 A step writes ordinary record data through the same checks as a person's edit: record versions, required fields and reference targets. It cannot change a definition, the schema, access settings or anything outside the file.
 
