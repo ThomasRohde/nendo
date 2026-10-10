@@ -267,6 +267,20 @@ try {
         await waitFor(() => evaluate(`!!document.querySelector(${JSON.stringify(marker)})`), `${name} to render`, 12000);
       });
     }
+
+    // The Agent page at Inspect, on its Launch card: the levels, the three cards and the agents
+    // this computer has. The copy has its own device state, so the level is the run's alone.
+    await shot('agent', theme, async () => {
+      await clickFound('#nav-agent');
+      await ready();
+      if (await evaluate(`document.querySelector('[data-agent-mode="inspect"]')?.getAttribute('aria-pressed') !== 'true'`)) {
+        await clickFound('[data-agent-mode="inspect"]');
+        await ready();
+      }
+      await waitFor(() => evaluate(`document.querySelector('[data-agent-mode="inspect"]')?.getAttribute('aria-pressed') === 'true'`), 'Inspect on the Agent page', 12000);
+      await clickFound('[data-agent-tab="launch"]');
+      await waitFor(() => evaluate(`!!document.querySelector('#agent-panel-launch:not([hidden]) .launch-tile')`), 'the Launch card', 12000);
+    });
   }
 
   await clickFound(`[data-theme-option="${originalTheme}"]`);
