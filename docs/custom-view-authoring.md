@@ -12,8 +12,14 @@ screens cannot: a graph, a Gantt chart, a map. Its code lives in the `.nendo` fi
 as a **package**. A view that is shown runs, inline in Nendo, in a frame of its own.
 There is nothing to install and nothing to allow.
 
-This repository has six worked examples. All are MIT-licensed and have no
-dependencies:
+This repository has eight worked examples, one folder each under `extensions/`. Seven
+carry an MIT `LICENSE.txt`; the Swarm carries none. Four also carry third-party code,
+each with its licence beside it. Work dependencies carries elkjs (Eclipse Public License
+2.0) in `vendor/`. The Archi workbench carries elkjs too, and builds archi-online, React,
+fflate, libxml2-wasm and others into `canvas.js` and `xsd.js`, listed in its
+`THIRD-PARTY.txt`. The Garden carries d3 (ISC) and Mermaid (MIT) in `vendor/`. The Swarm
+carries bpmn-js in `vendor/`, under the bpmn.io licence, which requires its watermark to
+stay visible. The other four carry no third-party code.
 
 - [`extensions/dependency-graph/`](../extensions/dependency-graph/README.md), a
   general record graph;
@@ -31,7 +37,13 @@ dependencies:
 - [`extensions/garden/`](../extensions/garden/README.md), a notes workspace that is the
   screen `workspace/Garden.nendo` opens on, its d3 graph screen, and the Backlinks panel on a
   note's page: it derives Link, Tag and Task records from a note's Markdown in one batch, with
-  undo. It carries d3 7.9.0 (ISC) in `vendor/`, copied by `tools/garden/bundle.mjs`.
+  undo. It carries d3 7.9.0 and Mermaid in `vendor/`, copied by `tools/garden/bundle.mjs`;
+- [`extensions/archi/`](../extensions/archi/README.md), an ArchiMate modeller over
+  `workspace/Archi.nendo`'s record types: the workbench is the screen that file opens on,
+  built from archi-online by `tools/archi/build-canvas.mjs`;
+- [`extensions/swarm/`](../extensions/swarm/README.md), a behaviour playground carried by
+  `workspace/Swarm.nendo`: creature behaviours edited with bpmn-js, a habitat to watch, and
+  experiments that replay their rules and events.
 
 ## What a view can do
 
@@ -254,7 +266,7 @@ always holds the latest context.
 | Key | Holds |
 | --- | --- |
 | `viewId` | The view's node ID in the file |
-| `kind` | `extensionGraphSurface`, `extensionRecordsSurface` or `extensionRecordPanel` |
+| `kind` | `extensionGraphSurface`, `extensionRecordsSurface`, `extensionView` or `extensionRecordPanel` |
 | `placement` | `screen`, or `recordPage` for a panel on a record page |
 | `title`, `packageId` | The view's title, and the package it runs |
 | `entityId` | The record type the view is about |
@@ -557,7 +569,7 @@ if (nendo.has('ui.setToolbar')) declare(); else showOwnToolbar();
   hearing the same text twice in a row. Take that as a request for the first match.
 - **Keys** need Ctrl or Alt, except F2 to F12: `Ctrl+Shift+F`, `Alt+ArrowUp`,
   `Ctrl+Plus`. Nendo's own keys are refused: Ctrl K, Ctrl 1 to 7, F1, Ctrl B, Alt F,
-  Ctrl / and Alt ← or →. They work while your view has focus. A key you declare,
+  Ctrl /, Alt ← or →, Ctrl T, Ctrl W and Ctrl Tab. They work while your view has focus. A key you declare,
   pressed in your view, goes to Nendo unless you handle it yourself (`preventDefault`)
   or the person is typing in a field.
 - **Add.** Name one of your commands in `add`, and Nendo's Add button on your screen
@@ -568,9 +580,9 @@ if (nendo.has('ui.setToolbar')) declare(); else showOwnToolbar();
   Nendo keeps drawing the last one it accepted. The Capability Atlas then shows its own
   toolbar again and says why.
 
-All five example packages declare their controls this way and keep their own on an older
-Nendo: the Capability Atlas and Work dependencies since W-090, and the Systems Lens, the
-Dependency graph and the Gantt since W-091. The Gantt has no controls of its own, so on a
+All eight example packages declare their controls this way. The five that came before the
+toolbar also keep their own on an older Nendo: the Capability Atlas and Work dependencies
+since W-090, and the Systems Lens, the Dependency graph and the Gantt since W-091. The Gantt has no controls of its own, so on a
 screen it declares only a Find box. Since W-092 the Systems Lens, the Dependency graph, the
 Gantt and Work dependencies put their summary in the row as text and their explanation
 behind About (`info`), and start their drawing at the top of the frame.
@@ -853,8 +865,9 @@ node tools/Put-NendoPackage.mjs extensions/gantt --dry-run   # say what it would
 The script reads `nendo-package.json` and every other file in the folder, except
 paths with a segment that starts with `.` or is `node_modules`. It finds the
 running Nendo through the files a running Nendo writes under
-`%LOCALAPPDATA%\Nendo\Mcp\active`, or at the address `--endpoint` names, which a
-Nendo on a fixed port needs because it writes no such file. It proposes only the files
+`%LOCALAPPDATA%\Nendo\Mcp\active`, or at the address `--endpoint` names, which skips
+that scan. A Nendo on a fixed port still writes its file there; `--endpoint` only saves
+the search when the address is known in advance. It proposes only the files
 that differ and prints the proposal's title; accept it in Nendo. `--accept` accepts it
 only while that file's agent access is **Unattended**; below that it waits for you.
 
@@ -1018,8 +1031,9 @@ Nendo does not interpret it. It is not the place for data.
   views. If a view brings the whole window down, the recovery panel offers **Restart
   without custom views**, which keeps views off until you turn them on again or
   start Nendo again.
-- **Test outside Nendo.** The five packages are measured in Playwright by their
-  `Review-*.ps1` lanes, which serve the package on one origin and a fixture broker,
+- **Test outside Nendo.** The eight packages are measured in Playwright by their
+  `Review-*.ps1` lanes (`Review-NendoGraph.ps1` for the Dependency graph, and one named
+  after each of the others), which serve the package on one origin and a fixture broker,
   `tools/Graph-FixtureBroker.html`, on another, with the real `api.js` between them.
   The broker offers Nendo's toolbar and menus only when the probe asks
   (`broker.offerChrome(true)`), so a lane measures the view on both kinds of host, and it

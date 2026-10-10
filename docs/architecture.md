@@ -47,9 +47,9 @@ draws them in its toolbar and menus, lists them in Ctrl K and runs their keys, a
 hands Nendo's own keys back when they are pressed inside a view (W-090).
 
 [ADR-0008](decisions/0008-general-scripting-and-capability-isolation.md) accepts
-bounded calculations and host-owned local actions. Stages S1–S4 of its
-[implementation plan](design/adr-0008-implementation-plan.md) are now in the
-Engine: a protected definition table, a bounded expression runtime over NCalc,
+bounded calculations and host-owned local actions. Stages S0–S9 of its
+[implementation plan](design/adr-0008-implementation-plan.md) are delivered. The
+Engine holds a protected definition table, a bounded expression runtime over NCalc,
 calculated fields, and trigger expansion inside the initiating write transaction.
 The file format gained these rungs and operations:
 
@@ -57,8 +57,8 @@ The file format gained these rungs and operations:
   operations.
 - A rung for a field or section that a calculation shows or hides (1.18.0).
 - A rung for colour and the record-page header (1.19.0, ADR-0004's 2026-09-14
-  amendment). It adds a `tone` on a choice option, in its own protected table at
-  the end of the layout ladder. It also adds a `detailSurface` that names a title,
+  amendment). It adds a `tone` on a choice option, in its own protected table on
+  the layout ladder's tone rung, after the behaviour rung. It also adds a `detailSurface` that names a title,
   subtitle or accent field.
 - A rung for the first charts (1.20.0): a `breakdownChart` or a `progressTile`. The
   host reads each through one exact grouped aggregate over a closed grouping.
@@ -80,7 +80,8 @@ The file format gained these rungs and operations:
   ladder. Only what a file chose is stored; the defaults come from the application ID
   and the file's name.
 - A rung for folded history (1.39.0, ADR-0021): the evidence of each fold in its own
-  protected table as the last rung of the layout ladder, added by a file's first fold.
+  protected table on the layout ladder's fold rung, after the look's, added by a file's
+  first fold.
 
 Every other boundary below is unchanged.
 
@@ -118,12 +119,14 @@ custom-view frames (an origin, and a renderer, per package per file)
 
 | Project | Role | Size |
 | --- | --- | --- |
-| `src/Nendo.Engine` | Storage, typed operations, revisions, proposals, the semantic compiler. The only code that opens SQLite. | ~26.6k lines |
-| `src/Nendo.Desktop` | Thin WinUI 3 host: file lifecycle, native dialogs, recovery, window and appearance policy, the notification area and Windows notifications, the Workbench bridge, and serving custom views from the open file. | ~8.7k lines |
-| `src/Nendo.Workbench` | Local web UI in a WebView2: Studio, custom surfaces, the custom-view frames and their broker, Help (how-to guides, how Nendo works, and an agent reference that the production gate ties to the MCP surface). Vite builds it and the view API, and the host bundles both. | ~17.7k lines of TypeScript |
-| `src/Nendo.LocalMcp` | MCP adapter over the same application services. Not an authority model. | ~7.9k lines |
+| `src/Nendo.Engine` | Storage, typed operations, revisions, proposals, the semantic compiler. The only code that opens SQLite. | ~32.0k lines |
+| `src/Nendo.Desktop` | Thin WinUI 3 host: file lifecycle, native dialogs, recovery, window and appearance policy, the notification area and Windows notifications, the Workbench bridge, serving custom views from the open file, and the launched agent's ACP client. | ~12.7k lines |
+| `src/Nendo.Workbench` | Local web UI in a WebView2: Studio, custom surfaces, the custom-view frames and their broker, Help (how-to guides, how Nendo works, and an agent reference that the production gate ties to the MCP surface). Vite builds it and the view API, and the host bundles both. | ~27.1k lines of TypeScript |
+| `src/Nendo.LocalMcp` | MCP adapter over the same application services. Not an authority model. | ~12.1k lines |
 
-The sizes are `wc -l` counts of the source files on 2026-09-25.
+The sizes count the non-blank lines of each project's tracked `.cs` files, or `.ts` files
+without `.d.ts` for the Workbench, on 2026-10-10. Styles, Markdown and generated output
+are not counted.
 
 A gate enforces the dependency arrows. `Test-Production.ps1` fails the build if
 `Microsoft.Data.Sqlite`, a SQLite connection type or `SQLitePCL` appears anywhere
@@ -177,7 +180,7 @@ refuses a newer file explicitly, and does not open it partially. Opening an olde
 file never upgrades or rewrites it.
 
 Custom-view packages in the file are four protected tables on the layout ladder's
-last rung: the packages, a content store, the files and view state. The Engine
+extension rung, after the purpose's: the packages, a content store, the files and view state. The Engine
 creates them on the first extension write, never at file creation. A file that
 never carries a package keeps its layout and the host version it states. The
 content store is addressed by SHA-256. Each distinct content is stored once, a file
@@ -191,8 +194,8 @@ from these tables through a content cache keyed by SHA-256. The
 operations, the bounds and the review.
 
 A package of kind skill ([ADR-0024](decisions/0024-a-file-carries-its-own-agent-skill.md))
-holds a `SKILL.md` and supporting files for an agent instead of code. Its kind is a row in
-`__nendo_extension_kind`, the ladder's last rung, which the first skill package creates; a
+holds a `SKILL.md` and supporting files for an agent instead of view code. Its kind is a row in
+`__nendo_extension_kind`, the ladder's skill rung after the new-file rung, which the first skill package creates; a
 package without a row is a view. The package table's text is fixed by released layouts, so
 a skill package's required entry point column holds `SKILL.md` and every read ignores it.
 Validation refuses a skill package whose `SKILL.md` lacks the frontmatter that names it
@@ -207,8 +210,8 @@ rendered by the Workbench's escaping Markdown renderer. They are ordinary packag
 storage, review and serving are unchanged.
 
 A file may carry a full-text index of its text fields
-([ADR-0028](decisions/0028-full-text-search-in-the-file.md)). The index is the ladder's
-`-search-` rung: `__nendo_search_doc` maps each record and searched field to a row of
+([ADR-0028](decisions/0028-full-text-search-in-the-file.md)). The index is the layout
+ladder's search rung, built on the link-rule rung: `__nendo_search_doc` maps each record and searched field to a row of
 `__nendo_search`, an FTS5 table.
 
 - **Created by** `application.buildSearchIndex`, never at file creation.
@@ -275,8 +278,8 @@ An edit to an unrelated record does not invalidate a UI-only proposal
 
 ### Typed operations
 
-Thirty-eight operation types are the primitive: every type that a revision can
-record, including the two that only host services create. Semantic diff, undo
+Thirty-nine operation types are the primitive: every type that a revision can
+record, including the three that only host services create. Semantic diff, undo
 evidence and replay all derive from the same operation stream.
 
 ```text
@@ -293,19 +296,21 @@ schema.removeHierarchy                                     application.setNewFil
 schema.setFieldUnique                                      application.buildSearchIndex
 schema.setFieldSequence     extension.setPackage           extension.removeFile
 schema.setFieldPresentation extension.putFile              extension.removePackage
-schema.setKeptInNewFiles
+schema.setKeptInNewFiles    extension.setState *
 schema.declareLinkRule
 schema.removeLinkRule
 ```
 
-`*` marks a native-only operation. The other thirty-six are the closed union that
+`*` marks an operation that only host services create: a restore from deletion
+history, an identity transition, and a custom view's kept state (`nendo.state`,
+written through the application service). The other thirty-six are the closed union that
 the canonical change-set parser accepts and an MCP client may author (see
 `NendoAuthoringOperations.cs`). Whole-definition
 convenience APIs must expand into typed operations before the host records, diffs
 or promotes anything.
 
 Every operation declares a reversibility class: `reversible`,
-`reversible-with-retained-state` or `irreversible-declared`. A lossy conversion is
+`reversibleWithRetainedState` or `irreversibleDeclared`, as the wire spells them. A lossy conversion is
 never labelled reversible only because a backup exists. There is no universal
 undo. Compensation applies a proven inverse as a *new* revision and never rewinds
 history.
@@ -358,8 +363,10 @@ tree that one vocabulary table governs. It covers `recordForm`, `recordList`,
 bounded `summaryTile` and the three tiles that draw a number: `breakdownChart`,
 `progressTile` and `rangeTile`. It also covers `matrixSurface`, `rankedList`,
 `trendChart` and `activityGrid` (see [Studio and safe mode](#studio-and-safe-mode)),
-and the three custom-view kinds: the `extensionGraphSurface` and
-`extensionRecordsSurface` roots, and the `extensionRecordPanel` on a record page.
+the `outlineSurface` of a declared hierarchy (host 1.36.0), and the four custom-view
+kinds: the `extensionGraphSurface` and `extensionRecordsSurface` roots, the
+`extensionView` root that is a screen of the file (host 1.42.0), and the
+`extensionRecordPanel` on a record page.
 
 `relatedList` is the one kind that does something the vocabulary does not
 describe. It adds a record of the related type with the reference back already
@@ -369,13 +376,15 @@ names the target type and the field that points back, and the compiler already
 proved them. Thus an author has nothing more to specify, and every file built
 before the amendment already has the actions.
 
-`overviewSurface` is the one root that belongs to the file and not to a record
-type (2026-09-14 amendment, S4). The compiler groups every other root by its
-`entityId` and builds one `NendoApplicationPlan` for each group. The compiler
-separates the overview before that grouping. The overview arrives as its own plan
-on the compile result, and it carries the entity plans that its tiles name. An
-entity plan for the overview would need an invented entity that nothing stores.
-Every consumer would then need to know which plan was the invented one.
+Two roots belong to the file and not to a record type: `overviewSurface`
+(2026-09-14 amendment, S4) and, since host 1.42.0, `extensionView` (W-106). The
+compiler groups every other root by its `entityId` and builds one
+`NendoApplicationPlan` for each group. The compiler separates the file's roots
+before that grouping. The overview arrives as its own plan on the compile result,
+and it carries the entity plans that its tiles name; the file's views arrive as
+`Views`, each compiled without children. An entity plan for the overview would need
+an invented entity that nothing stores. Every consumer would then need to know which
+plan was the invented one.
 
 The 2026-09-12 amendment widened that vocabulary within version 3:
 
@@ -767,7 +776,7 @@ Since 2026-09-30 a person can fold a file's older history into one checkpoint re
 bound is used and warns from 80%. The host backs the file up beside itself, then replaces every
 revision older than the kept window (the last 1,000, or fewer when those hold more than 25,000
 operation rows) with a checkpoint that carries their counters and a digest of what they were,
-and records the fold in `__nendo_history_fold`, the last rung of the layout ladder (1.39.0).
+and records the fold in `__nendo_history_fold`, the layout ladder's fold rung (1.39.0).
 Records, tombstones, later revisions, counters and the change sequence do not change. A folded
 change cannot be compensated or retried as the same write, and its operations are only in the
 backup. A file in daily use therefore keeps accepting writes; the bound itself is unchanged.
@@ -790,7 +799,9 @@ The MCP surface is listed in the [MCP contract](contracts/mcp-interface.md). Res
 need no lease. Tools are writes and need a lease. The exceptions are
 `nendo.lease.status`, `nendo.data.get_receipt` and
 `nendo.health.verify_integrity`: they read authority or file state, and they
-neither hold nor grant authority. `Test-Production.ps1` asserts both surfaces by
+neither hold nor grant authority. So are `nendo.read.resource` and `nendo.read.list`
+(since 2026-10-08), which serve the resources as tools, from Inspect, for a client that
+calls tools but cannot read resources. `Test-Production.ps1` asserts both surfaces by
 name. Thus a new resource or tool fails the gate until somebody updates the
 contract. Full map: [contracts/mcp-interface.md](contracts/mcp-interface.md).
 
@@ -892,7 +903,8 @@ host is an ACP client (`Desktop/Agents/`). It keeps no model client and no crede
   the access level and the state, then a reading column. Message chunks are merged into
   one message. Each run of tool calls, thoughts and plan between two messages folds into
   one line that opens. Each tool says whether it went through Nendo or was the agent's
-  own. All of it stays bounded text.
+  own. All of it stays bounded text. The tab itself carries a mark while the agent
+  starts or works, thinks, or waits for the person (2026-10-09).
 - **The agent's own options.** Model, effort, mode and anything else the agent offers
   are drawn in the composer as it offers them (`AgentConversation.Options.cs`):
   - ACP session config options, set with `session/set_config_option` and restated by
@@ -906,8 +918,10 @@ host is an ACP client (`Desktop/Agents/`). It keeps no model client and no crede
 - **Permission requests.** Each one waits for the person's choice. Stop cancels the
   turn and every open request.
 - **What ends it.** Turning access Off, closing, switching or replacing the file, and
-  a listener that comes back at another address all end the agent. A new level at
-  the same address does not.
+  a listener that comes back at another address all end the agent. Closing the
+  conversation's tab ends it too, and New session in the tab's heading ends it and
+  starts the same agent again in the tab (2026-10-09). A new level at the same
+  address does not.
 
 The message box (W-200) names the file, the level and the agent in small chips above it, and
 @ points the agent at the file's own things: what other tabs show, record types, fields, views,
@@ -997,17 +1011,17 @@ This table gives the current locations, so that you do not need to search.
 | Outline | `Workbench/src/outline-model.ts`: the levels read of a declared hierarchy, the visible rows, where a keyboard move or a drop sends a record, and the device's remembered rows, pure; `view-data.ts` draws Studio's outline, `outline-surface-markup.ts` and `outline-surface.ts` the Use `outlineSurface` (markup, then reads and gestures) |
 | Calendars | `Workbench/src/calendar-model.ts`: civil-date arithmetic, the Monday-first month grid and month/undated queries |
 | Timelines | `Workbench/src/timeline-model.ts`: civil-year bounds, month grouping, integer day arithmetic and spans cut at the year end. The calendar's page accumulator in `reads.ts` serves both |
-| Ratings | `Workbench/src/rating.ts`: the dots, their accessible name and the radio control. `Engine/Storage/SqliteNendoStore.Scales.cs` stores the scale itself, two rungs below the last |
+| Ratings | `Workbench/src/rating.ts`: the dots, their accessible name and the radio control. `Engine/Storage/SqliteNendoStore.Scales.cs` stores the scale itself, on the layout ladder's scale rung after the tone's |
 | View failures | `Desktop/DesktopViewFailureLog.cs`: the kind, how long the view was up, whether the window was out of sight and what Windows said about memory. Capped at 50 and switched from the tray. Device state, never in the file |
-| Declared hierarchies | `Engine/HierarchyOperations.cs` (the declare and remove operations and the bounds), `Engine/Storage/SqliteNendoStore.Hierarchy.cs` (the table on the layout ladder's last rung, the scan on declaration and the placement rule every parent write passes), `Engine/NendoApplicationService.Hierarchy.cs` (a move, expanded into `data.setField` operations), `Engine/Storage/SqliteNendoStore.HierarchyReads.cs` (the depth-first tree read and the `descendantOf` predicate every filtered read shares), `Engine/NendoWriteCoordinator.Hierarchy.cs` (the same reads over a read-only snapshot) ([ADR-0019](decisions/0019-hierarchies-in-the-schema.md)) |
-| Custom-view packages in the file | `Engine/Extensions/ExtensionPackageOperations.cs` (the four operations), `ExtensionPackageModel.cs` (the bounds, the path rules and the media types), `ExtensionPackageDiff.cs` (the review's line diff), `ExtensionArchive.cs` (reading a folder, a zip or a `.nendoview`, the import change set and the exported manifest). `Engine/Storage/SqliteNendoStore.ExtensionPackages.cs` stores them on the layout ladder's last rung. `Workbench/src/package-diff-markup.ts` draws the review's Code section |
-| Custom-view definitions | `Engine/Extensions/ExtensionViewDefinition.cs` (the three kinds and their properties), `NendoSemanticCompiler.Extensions.cs` (`NUI450`, `NUI452`), `SemanticCapability.cs` (which rung a view needs, 1.29.0 to 1.34.0), `SemanticDiff.cs` (the review sentences and the line that code runs) |
+| Declared hierarchies | `Engine/HierarchyOperations.cs` (the declare and remove operations and the bounds), `Engine/Storage/SqliteNendoStore.Hierarchy.cs` (the table on the layout ladder's hierarchy rung, the scan on declaration and the placement rule every parent write passes), `Engine/NendoApplicationService.Hierarchy.cs` (a move, expanded into `data.setField` operations), `Engine/Storage/SqliteNendoStore.HierarchyReads.cs` (the depth-first tree read and the `descendantOf` predicate every filtered read shares), `Engine/NendoWriteCoordinator.Hierarchy.cs` (the same reads over a read-only snapshot) ([ADR-0019](decisions/0019-hierarchies-in-the-schema.md)) |
+| Custom-view packages in the file | `Engine/Extensions/ExtensionPackageOperations.cs` (the four operations), `ExtensionPackageModel.cs` (the bounds, the path rules and the media types), `ExtensionPackageDiff.cs` (the review's line diff), `ExtensionArchive.cs` (reading a folder, a zip or a `.nendoview`, the import change set and the exported manifest). `Engine/Storage/SqliteNendoStore.ExtensionPackages.cs` stores them on the layout ladder's extension rung. `Workbench/src/package-diff-markup.ts` draws the review's Code section |
+| Custom-view definitions | `Engine/Extensions/ExtensionViewDefinition.cs` (the four kinds and their properties), `NendoSemanticCompiler.Extensions.cs` (`NUI450`, `NUI452` to `NUI454`), `SemanticCapability.cs` (which rung a view needs, 1.29.0 to 1.34.0, and 1.42.0 for `extensionView`), `SemanticDiff.cs` (the review sentences and the line that code runs) |
 | Custom views: the host | `Desktop/Extensions/ExtensionOrigins.cs` (an origin per package per file), `ExtensionAssetServer.cs` (answers every view origin from the open file), `DesktopSessionController.Extensions.cs` (what each origin serves, the switches, the content cache, import and removal proposals), `DesktopExtensionSettingsStore.cs` (`extension-settings.json`), `ExtensionWebViewPolicy.cs` (menus, DevTools, permissions, new windows, frame navigation), `WorkbenchProtocol.Extensions.cs` (the `extension.*` bridge methods), `ExtensionFrameDiagnostics.cs` (`diagnostics.frameProcesses`). `MainPage.xaml.cs` turns a view renderer's exit into `extensionFramesFailed` and holds Restart without custom views; `MainPage.Extensions.cs` holds the import and export pickers |
 | Custom views: the Workbench | `Workbench/src/view-frames.ts` (mounts, lazy start, park and adopt, heartbeat, overlays, Stop and Reload), `view-frame-markup.ts` (placeholders, notices, overlays, the frame's attributes, the Studio panel's markup), `extension-broker.ts` (the closed method table and the caps), `extension-model.ts` (the context, records, schema and theme tokens a view is handed), `extension-ui.ts` (what a view may ask the Workbench to do), `view-packages.ts` (Studio → Surfaces → Custom views), `frame-guard.ts` (refuses to run framed). A view's controls in Nendo's chrome (W-090): `view-toolbar-model.ts` (the declaration rebuilt into closed kinds, its keys, Ctrl K's entries; `tools/Graph-FixtureServer.mjs` builds the same module for the view lanes' fixture broker, W-091), `view-toolbar-markup.ts` (the strip and the menu as markup), `view-toolbar.ts` (drawing and wiring the strip), `view-menu.ts` (Nendo's menu for a view), `styles/18-view-toolbar.css`. One row above a view (W-092): `place-pickers.ts` (the breadcrumb's record-type and view pickers, drawn by the Use page and the front page), `styles/19-one-row.css` |
 | The view API | `Workbench/src/extension-api/nendo-api.ts` (`window.nendo`) and `protocol.ts` (the messages, shapes and limits both ends share), built by `vite.api.config.ts` to `dist/_nendo/api.js` and served at `/_nendo/api.js` on every view origin |
-| What the file is for | `Engine/Storage/SqliteNendoStore.Application.cs`: a singleton row one rung below the layout ladder's last, read onto the manifest. `nendo://application/describe` leads with it. `Workbench/src/file-actions.ts` shows it on its own page, from About this file in the File menu |
+| What the file is for | `Engine/Storage/SqliteNendoStore.Application.cs`: a singleton row on the layout ladder's purpose rung, below the custom-view package tables, read onto the manifest. `nendo://application/describe` leads with it. `Workbench/src/file-actions.ts` shows it on its own page, from About this file in the File menu |
 | Launched agents (ADR-0030) | `Desktop/Agents/AcpConnection.cs` (JSON-RPC on two streams, bounded lines), `AgentConversation.cs` (the ACP session, the transcript, permission requests), `AgentProcess.cs` (the program in its Job Object), `DesktopLaunchedAgent.cs` (process, folder and conversation together), `DesktopAgentCatalog.cs` (the known programs, `PATH` lookup, the person's command), `AgentConversation.Options.cs` (the agent's own options, three forms), `DesktopSessionController.LaunchedAgent.cs` (launch, read and the lifecycle), `WorkbenchProtocol.Agents.cs` (`agentSession.*`); `Workbench/src/agent-chat-model.ts` (merge and markup, pure), `view-agent-chat.ts` (the tab), `preview-agent-session.ts` (the preview's scripted agent), `styles/22-agent-chat.css` |
-| Agent tools and allow-list | `LocalMcp/NendoAuthoringTools.cs`, `NendoAgentAuthoringService.cs`, `NendoAuthoringOperations.cs`; the other tools are in `NendoLeaseTools.cs`, `NendoDataTools.cs`, `NendoHealthTools.cs` and `NendoUnattendedTools.cs` |
+| Agent tools and allow-list | `LocalMcp/NendoAuthoringTools.cs`, `NendoAgentAuthoringService.cs`, `NendoAuthoringOperations.cs`; the other tools are in `NendoLeaseTools.cs`, `NendoDataTools.cs`, `NendoHealthTools.cs`, `NendoReadTools.cs` (the resources as tools) and `NendoUnattendedTools.cs` |
 | Resources | `LocalMcp/NendoMcpResources.cs`, `NendoResourceProjection.cs` |
 
 ## Running it
@@ -1032,7 +1046,7 @@ The preview is visual only and proves nothing about storage or the bridge.
 ## Building and verifying
 
 ```powershell
-pwsh ./tools/Test-Repository.ps1      # fast: vendored skills, tracked files, binary assets, line endings, ADR structure, blackbox coverage, shell identity
+pwsh ./tools/Test-Repository.ps1      # fast: vendored skills, JSON manifests, tracked files, binary assets, line endings, ADR structure, MCP surface count, shell identity
 pwsh ./tools/Test-Production.ps1      # full gate; includes the repository check
 ```
 

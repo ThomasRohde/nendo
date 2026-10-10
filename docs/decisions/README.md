@@ -35,16 +35,78 @@ existed. For this reason the numbering is contiguous by intent.
 | [0021](0021-folding-old-history.md) | Accepted | A person may fold a file's older history into a checkpoint revision, after a backup, keeping the most recent 1,000 revisions; the file keeps accepting writes past the operation-row bound (W-101) |
 | [0022](0022-new-file-keeping-the-records-an-application-ships-with.md) | Accepted | A record is kept in new files or left out, by its type's default or its own mark, shown in Studio and MCP; *New empty copy…* (or the application's own label) starts a new file of the same application with the definition and the kept records, folding the source's history into one checkpoint. Delivered at host 1.41.0 (W-129): Engine, MCP, Desktop and Studio |
 | [0023](0023-a-view-undoes-its-own-revisions.md) | Accepted | A record revision, creates and restores included, is compensated as a whole, and a compensation of record changes can be compensated (redo); a view undoes and redoes the batches it wrote in this visit with `records.undo` and `records.redo` (W-103) |
-| [0024](0024-a-file-carries-its-own-agent-skill.md) | Accepted | A `.nendo` file may carry a package of kind `skill`, a `SKILL.md` and supporting files with no code, reviewed and accepted as a proposal and listed beside the host's own skill over the Skills extension; built 2026-10-05 (W-160, host 1.43.0) |
+| [0024](0024-a-file-carries-its-own-agent-skill.md) | Accepted | A `.nendo` file may carry a package of kind `skill`, a `SKILL.md` and supporting files that Nendo never runs, reviewed and accepted as a proposal and listed beside the host's own skill over the Skills extension; built 2026-10-05 (W-160, host 1.43.0). ADR-0029 widened "no code" to scripts the client runs |
 | [0028](0028-full-text-search-in-the-file.md) | Accepted | A file may carry a full-text index of its text fields, a protected FTS5 rung built by `application.buildSearchIndex` and kept in step by every commit; one typed search read for views, Ctrl K, Studio and MCP. Delivered at host 1.46.0 with Garden 0.9.0 searching its notes |
 | [0027](0027-a-file-carries-its-own-help.md) | Accepted | A file carries its own help: Markdown under `help/` in any of its packages is shown first under About this app in Help, which is first in Help's index; no format change (Garden 0.8.0) |
-| [0029](0029-a-skill-may-carry-scripts-its-client-runs.md) | Accepted | A skill package may carry scripts that its client runs on its own machine; Nendo never runs them, and the review and Studio name each one. Written for Codemap's scanner; the review wording is Codemap slice S1 |
+| [0029](0029-a-skill-may-carry-scripts-its-client-runs.md) | Accepted | A skill package may carry scripts that its client runs on its own machine; Nendo never runs them, and the review and Studio name each one. Written for Codemap's scanner. The review wording is not yet built: it is Codemap slice S1 (W-186), and until then the review still says of a skill package that nothing in it runs |
 | [0030](0030-launch-the-persons-own-agent-over-acp.md) | Accepted | The Agent page may launch the person's own installed agent program over ACP on stdio, at Inspect or higher, with the conversation in a new tab; the only MCP server it is given is the file's address, Nendo grants it no file-system or terminal capability, and the host still has no model client. AG-UI not adopted. Built 2026-10-08 (W-195) |
 | [0026](0026-allowed-links.md) | Accepted | A link record type declares a table of allowed (source kind, target kind, link kind) combinations, and the Engine refuses, at the end of any mutation from any client, a link no row allows; declaring checks the data. Delivered at host 1.45.0 with Archi.nendo adopting it (W-105) |
 | [0025](0025-mcp-apps-and-a-proposal-review-card.md) | Deferred | MCP Apps: a read-only proposal review card is the first candidate, built when a client that renders apps is in the owner's loop, never with an Accept button |
 
 ## Amendments in force
 
+This list is selective. It names the amendments that changed what an earlier ADR decides,
+most of them to ADR-0002, ADR-0004, ADR-0006, ADR-0008, ADR-0009 and ADR-0012, one entry
+each; the ADR holds the full record. Shorter dated notes elsewhere stay only in their own
+ADR: among them ADR-0007's revalidate note (W-157), ADR-0010's amendment by ADR-0022 and
+ADR-0014's by ADR-0030. So do the dated notes, stages and amendments of ADR-0013 and of the
+ADRs from ADR-0018 on, whose rows in the table above say what each has delivered.
+
+- **ADR-0009, 2026-10-08 — every read is also a tool, and every tool answers within its
+  request**: after an outside review from GitHub Copilot CLI, whose client calls tools and
+  cannot read resources, `nendo.read.resource` and `nendo.read.list` serve every resource
+  and skill as read-only tools from Inspect. The Tasks extension is withdrawn, so validate,
+  import and the integrity scan answer within the request. A request past the in-flight
+  bound waits up to 30 seconds rather than meeting HTTP 429, and the
+  `subscriptions/listen` acknowledgement follows the specification. Authority unchanged.
+- **ADR-0002, 2026-10-08 — the conversation with a launched agent**: protocol 7 gains the
+  `agentSession.*` methods, eleven since `setHidden` joined on 2026-10-09, and the
+  `agentSessionChanged` nudge, for [ADR-0030](0030-launch-the-persons-own-agent-over-acp.md)'s
+  conversation tab. The version does not change. ADR-0002 carries this as its 2026-10-08
+  note.
+- **ADR-0004, 2026-10-06 — a Filter pick and Studio's query belong to the place**: the
+  trail copies them into each place by value, so two tabs on one screen keep their own
+  pick. Both stay renderer state, never written to the file (review R-003).
+- **ADR-0009, 2026-10-04 — the listen stream** (W-151, W-152): `subscriptions/listen`
+  pushes three facts, that the manifest moved, the proposal queue changed and the file is
+  closing. Validate, import and the integrity scan ran as polled tasks for a client that
+  declared the Tasks extension until the 2026-10-08 amendment withdrew it. Authority
+  unchanged.
+- **ADR-0006, 2026-09-30 and 2026-10-04 — folding and whole-revision compensation**: a
+  person may fold older history into one checkpoint revision after a backup
+  ([ADR-0021](0021-folding-old-history.md)), and a record revision is compensated as a
+  whole, its creates and restores included, with a compensation itself compensable as
+  redo ([ADR-0023](0023-a-view-undoes-its-own-revisions.md)). History is still never
+  rewound.
+- **ADR-0008, 2026-09-30 — a list filters and sorts by a calculation, and a count reads
+  no rows** (W-117): a `filterClause` or `orderByFieldId` may name a calculated field,
+  worked out over at most 10,000 records and refused past them as
+  `calculated-query-too-wide`, from host 1.40.0. A `RelatedAggregate` `Count` on a read is
+  the store's own count, with no related-row ceiling. Grouping, ranking and totals still
+  refuse a calculated field.
+- **ADR-0009, 2026-09-29 — the access level is remembered for each file** (W-126): device
+  state keeps the level for the file's application and instance, a writable open of that
+  instance turns it on again, and choosing Off forgets it. A Duplicate, a Fork, a restore
+  and a replacement begin at Off.
+- **ADR-0009, 2026-09-29 — a proposal says what it asks of consent before acceptance**
+  (W-008): the review, Pending changes and the MCP preview say what accepting means for
+  consent to automatic actions, and Accept is withheld where promotion would be refused.
+  Acceptance and consent are unchanged.
+- **ADR-0004, 2026-09-29 — a related list of links links and unlinks** (W-076): on a
+  related list whose record type the schema shows to be a link, *Link ‹other type›* opens
+  the link's form with the reference back filled in, and *Remove link* deletes the link
+  record at its version. Nothing is stored, and the vocabulary is unchanged.
+- **ADR-0009, 2026-09-28 — each file keeps its own port** (W-089): the first file keeps
+  41763 and each further file the next free port, kept for its application ID on this
+  device, so several files can be registered side by side.
+- **ADR-0004, 2026-09-28 — a file's own look** (W-089): `application.setLook` stores the
+  tone and letter a file chose for the badge on its icons, in `__nendo_application_look`,
+  from host 1.38.0. The defaults come from the application ID and the file's name, and a
+  file that never chose stores nothing.
+- **ADR-0002, 2026-09-27 — an agent request that fails inside Nendo is written down**
+  (F-181): the refusal carries a failure reference, and the device keeps one line under it
+  in `agent-failures.jsonl`, newest fifty, with no message, argument, handle, lease or
+  path. "Record failures" in the notification area switches both failure records.
 - **ADR-0006 and ADR-0009, 2026-10-04 — an agent undoes its own record revision**:
   `nendo.data.undo_revision` at Edit data compensates a revision the lease's own
   pseudonym committed, through the compensation ADR-0023 defines; a foreign

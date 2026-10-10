@@ -84,8 +84,9 @@ different shape from the one before it:
 - The **Axiom Register** (record pages, related lists, declared filters, summary
   tiles and multi-step commands; the earlier vocabulary could express none of
   these).
-- **Nendo Station** (every kind of screen this host compiles, the charts, the
-  calculations, an automatic action and a custom view of its own).
+- **Nendo Station** (every kind of screen this host compiles except the outline,
+  added at 1.36.0, with the charts, the calculations, an automatic action and a
+  custom view of its own).
 
 The Axiom Register was authored end to end through the MCP interface alone. Its
 author read the vocabulary from the wire and not from this repository. The

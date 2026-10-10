@@ -26,7 +26,8 @@ The owner then reviews a semantic diff and accepts. Four reference applications
 (Idea Garden, Decision Log, the Axiom Register and Nendo Station) test the
 claim from different shapes. The last two were built from an empty file through
 the MCP interface alone. [Nendo Station](nendo-station.md) carries every kind of
-screen that this host compiles, plus a custom view of its own.
+screen that this host compiles except the outline, added at 1.36.0, plus a custom
+view of its own.
 
 Delivery is a local, unsigned, per-user Windows x64 install.
 
@@ -46,20 +47,21 @@ Each area below is a gap. Do not read a gap as a feature.
 | Broad MCP client parity | Not promised. Claude Code and Codex both connect with only the address, and opt-in installed-client lanes check this. That is not a general parity claim |
 | Account boundary on a shared machine | Removed with the credential ([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md)). This was chosen for iteration speed on a single-user machine. It is not a gap that work is closing |
 | Cross-platform | Windows only |
-| Custom views | Phase 2 is delivered, and its journey passed on 2026-09-25 against a Debug build. No product lane measures the clipboard, downloads or pop-ups in a view, or the memory budget with the four real packages. A received file's code runs when its view is shown: an accepted limitation ([ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md)) |
+| Custom views | Phases 0 to 4 are delivered, and of Phase 5 the `extensionView` root; the front-page `extensionTile` is not built. Phase 2's journey passed on 2026-09-25 against a Debug build. No product lane measures the clipboard, downloads or pop-ups in a view, or the memory budget with the eight real packages under `extensions/`. A received file's code runs when its view is shown: an accepted limitation ([ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md)) |
 | The notification area and Windows notifications | Owner-reported. `Review-ShellRuntime.ps1` checks four things: close hides the window, the process and its file survive, opening the same file again brings the hidden window back, and the exit pin exits. A script cannot observe the icon, its menu or the notifications, and no lane instruments them. By default, Windows puts a new tray icon in the overflow. No test checks whether a first-time person finds their window again |
 | What the Windows shell draws | Owner-reported. The line between measured and not measured is stated precisely here. Measured, item by item: the registry writes that setup makes and removes; the shell identity, read back from the running window and from the notification registration that Windows filed under it; the Jump List file that Windows stored, and the fact that it names the open file; and the `-new` command line, run by hand against both an empty placeholder and an existing file (agent-observed, not a lane). Not measured, and not reachable from a script: Explorer draws the document icon; the taskbar paints the overlay badge or progress; the menu appears on right-click; a file dragged from Explorer arrives; the Jump List is rebuilt when the open file changes. `SetOverlayIcon` and `SetProgressState` report nothing back, and nothing can read them, so the call is unobserved as well as the paint. WebView2 itself refuses a page-made file, and that refusal is measured |
 
-## Next: Archi in Nendo
+## Archi in Nendo
 
 I-007 builds an offline ArchiMate modeller as a Nendo application, following
 archi-online, to find how far Nendo can be pushed. [The design](design/archi-in-nendo.md)
-names the record types, the scope and the host features it needs: batch writes from a
-view (W-102, delivered), a file a view can open (W-104), undo (W-103, delivered), and a way past the
-operation-row bound (W-101). The last was the binding one: measured on Archisurance, a file
-reached the bound after about 100 hours of active diagram editing. Since 2026-09-30 a person
-folds older history into a checkpoint from History (ADR-0021, host 1.39.0), so a modelling
-file keeps accepting writes.
+names the record types, the scope and the host features it needs. All four are
+delivered: batch writes from a view (W-102, 2026-09-29), a way past the operation-row
+bound (W-101, 2026-09-30), a file a view can open (W-104, 2026-10-01) and undo (W-103,
+2026-10-04). The bound was the binding one: measured on Archisurance, a file reached it
+after about 100 hours of active diagram editing. Since 2026-09-30 a person folds older
+history into a checkpoint from History (ADR-0021, host 1.39.0), so a modelling file keeps
+accepting writes. `workspace/Archi.nendo` carries the workbench.
 
 ## Launching the person's own agent
 
@@ -69,16 +71,31 @@ at Inspect or higher, and the conversation opens in a new tab. The
 [architecture](architecture.md#agent-surface) describes what the agent is told and
 what ends it. AG-UI is not adopted.
 
+Since then the owner has chosen each part from a design canvas, and each is built:
+
+- the conversation tab, direction A of six (2026-10-08): a reading column where the
+  steps between two messages fold into one line, permission requests inline, and the
+  agent's own options (model, effort, mode) in the composer;
+- the Agent page as three tabs, Activity, Launch and Connect, layout A of four
+  (2026-10-09, W-199), where any agent can be hidden from Launch on this device; since
+  2026-10-10 the tabs are cards that say what is behind each (design C);
+- the composer, design A of four with design D's @ menu (2026-10-09, W-200): chips for
+  the file, the access level and the agent above the box, and @ to point the agent at the
+  file's record types, fields, views, records and waiting proposals, which travel with
+  the message as their nendo:// addresses;
+- New session in the tab's heading, which ends the agent and starts it again; closing
+  the tab, which ends the agent; and a mark on the tab while the agent starts, works,
+  thinks or waits for the person (2026-10-09).
+
 These are not done:
 
-- No design canvas. The owner asked for the build, so the tab follows the Mica tokens
-  without a choice between directions.
 - No gate journey through the real host. The Desktop suite drives a stand-in agent.
-  The headless preview tour and one live check with Copilot CLI were agent-observed.
-- A conversation cannot be resumed (`session/load`).
+  The headless preview tours and a live check with Copilot CLI were agent-observed.
+- A conversation cannot be resumed (`session/load`). The transcript lives in host
+  memory until the file closes or another agent is launched.
 - Nendo cannot confine the program, and says so.
 
-## Next: surfaces and charts
+## Surfaces and charts
 
 The vision admitted charts and dashboards on 2026-09-14.
 [design/surfaces-and-charts-plan.md](design/surfaces-and-charts-plan.md) states
@@ -87,7 +104,7 @@ first slice is a foundation: a colour tone on choice options, an exact grouped
 aggregate and one renderer chart kit. The ADR-0004 amendment was accepted on
 2026-09-14.
 
-The slices stand as follows:
+All eight slices, S0 to S7, are delivered:
 
 - S0 is delivered at minimum host 1.19.0. It adds a tone on every choice option
   and a record-page header.
@@ -141,7 +158,7 @@ full typed API and no install or consent step. It lands in phases:
   under `extensions/` ported to `window.nendo` came with it. The contained helper is
   deleted ([custom-view contract](contracts/custom-views.md)).
 
-Next, in order:
+The later phases have been delivered since, all but Phase 5's tile:
 
 - **Phase 3, views that write**: creating, updating and deleting records and
   running commands through the same typed operations and version checks as a
@@ -169,10 +186,10 @@ with files from people the owner does not trust, or on a shared computer.
 What Phase 2 has not measured is listed in the
 [contract's evidence](contracts/custom-views.md#evidence): among others, the
 clipboard, downloads and pop-ups in a product lane, and the memory budget against
-the four real packages rather than the journey's probes.
+the real packages under `extensions/` rather than the journey's probes.
 
 **ADR-0008 is accepted for bounded calculations and local actions, and its
-implementation plan is complete.** Stages S1–S9 are delivered:
+implementation plan is complete.** Stages S0–S9 are delivered:
 
 - calculated fields, reusable functions, explicit actions and automatic
   triggers;
@@ -230,8 +247,8 @@ scaling. [calculations-and-actions.md](contracts/calculations-and-actions.md)
 publishes it with its limits. Cancellation is observed and joined in about a
 millisecond.
 
-**The ADR-0008 part of P7 is delivered.** Phases 3 to 5 of the ADR-0013
-custom-view work above are still ahead. The owner ran the keyboard, focus and screen-reader lane on
+**The ADR-0008 part of P7 is delivered.** Of the ADR-0013 custom-view work above,
+only Phase 5's `extensionTile` is still ahead. The owner ran the keyboard, focus and screen-reader lane on
 2026-09-13 and reported that all four checks passed. The owner also ran the
 clean-user installer lane, and it passed. (`Test-NendoInstaller.ps1` refuses
 that lane on a machine where Nendo is already installed.) The run covered the
@@ -365,9 +382,12 @@ and aggregates, multi-field and cross-type writes, an agent's undo of its own re
 one proposal in full, and a stale proposal validated again in one call. It adopted
 `subscriptions/listen`, the Tasks extension and a host-level skill, and wrote
 [ADR-0024](decisions/0024-a-file-carries-its-own-agent-skill.md) (a file carries its
-own skill, built 2026-10-05 as W-160; the planner's own skill is the step after) and
+own skill, built 2026-10-05 as W-160, with the planner's own skill, `dev.nendo.planner`,
+in the same change) and
 [ADR-0025](decisions/0025-mcp-apps-and-a-proposal-review-card.md) (MCP Apps,
-deferred).
+deferred). The Tasks extension was withdrawn on 2026-10-08: GitHub Copilot CLI declared
+it and then refused the task that validate returned, so every tool is now answered within
+its request ([MCP contract](contracts/mcp-interface.md), ADR-0009's 2026-10-08 amendment).
 
 A sixth, on 2026-10-05, came from outside: a team that built an app over MCP alone,
 without this repository. Its record is

@@ -16,8 +16,8 @@ project. No build step. No regeneration when you want a change.
 > install. Read [State](#state) before you rely on anything here.
 
 **[thomasrohde.github.io/nendo](https://thomasrohde.github.io/nendo/)** — the
-concept, how it works, how to use it, the honest status, and this repository's
-documentation rendered as a site.
+concept, how it works, how to use it, the honest status, and guides written for
+people outside this repository. It does not render `docs/`.
 
 <p align="center">
   <img src="docs/reviews/2026-09-12-mcp-vocabulary/production-board-dark.png" alt="A Nendo board surface grouped by a choice field, with column totals, in the dark theme" width="860">
@@ -151,13 +151,13 @@ claude mcp add --transport http nendo http://127.0.0.1:41763/mcp
 codex mcp add nendo --url http://127.0.0.1:41763/mcp
 ```
 
-Agent → Connection shows the address a file uses and copies either command.
+Agent → Connect shows the address a file uses and copies either command.
 
 The registrations checked into this repository (`.mcp.json` and
 `.codex/config.toml`) point at port 41766. That is the port the author's planner
 file keeps on their machine, not a default, so on a fresh machine they connect
 to nothing. To use them, set **Port for this file** to 41766 in Agent →
-Connection for the file you want an agent in this checkout to reach; otherwise
+Connect for the file you want an agent in this checkout to reach; otherwise
 register the address that panel shows.
 
 Anything running on this computer can connect at the chosen access level, so
@@ -190,7 +190,7 @@ guessing current SDK, template, MSBuild or test behaviour.
 | `src/Nendo.LocalMcp` | The loopback MCP server: tools, resources, leases and access modes |
 | `tests/` | MSTest suites for the Engine, the Desktop host and the MCP adapter |
 | `tools/` | Build, packaging, gate and review scripts (PowerShell and Node) |
-| `extensions/` | Source for the four example custom-view packages; a file carries a package's code once it is imported |
+| `extensions/` | Source for the eight example custom-view packages; a file carries a package's code once it is imported |
 | `fixtures/` | Reference-application seed data |
 | `workspace/` | Tracked `.nendo` demo files |
 | `docs/` | Vision, architecture, ADRs, contracts and reviews |

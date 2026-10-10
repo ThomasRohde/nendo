@@ -13,7 +13,9 @@ claim.
 
 `workspace/Nendo Station.nendo`. It has nine record types (Modules, Systems,
 Components, Feeds, Readings, Incidents, Maintenance, Experiments, Crew), about
-500 records, and every kind of screen this host compiles.
+500 records, and every kind of Nendo screen this host compiles except the outline
+(`outlineSurface`, host 1.36.0), which needs a declared hierarchy the station does not
+have. Of the four kinds of custom view it has one, the Systems Lens graph.
 
 **The file is an output.** `tools/Build-NendoStation.mjs` is the source. It
 authors the whole application over local MCP in stages. Each schema, behaviour
@@ -173,3 +175,7 @@ A new surface slice adds its screen to `tools/Build-NendoStation.mjs` in the sam
 change that delivers the slice, and the station is rebuilt. This rule keeps this
 file current. Without it, the file would show only the vocabulary as it was in
 September.
+
+The outline did not follow the rule. It was delivered on 2026-09-27 (ADR-0019 stage 6,
+W-073) without a station screen, and `tools/Build-NendoStation.mjs` still declares no
+hierarchy and adds no `outlineSurface`.

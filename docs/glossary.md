@@ -46,7 +46,7 @@ A stable identifier that services, definitions and agents use. Labels and physic
 
 ## Semantic surface
 
-A versioned form, list, board, gallery, calendar, timeline, record page, command or other focused experience. The selected renderer interprets it from Nendo-owned definitions. All surfaces but one are about a single record type. The front page (`overviewSurface`) belongs to the file, and each tile on it names the record type that it reads.
+A versioned form, list, board, gallery, calendar, timeline, record page, command or other focused experience. The selected renderer interprets it from Nendo-owned definitions. All surfaces but two are about a single record type. The front page (`overviewSurface`) belongs to the file, and each tile on it names the record type that it reads. A custom view that is a screen of the file (`extensionView`) also belongs to the file; its code reads the file through the view API.
 
 ## What the file is for
 
