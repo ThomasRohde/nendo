@@ -456,6 +456,14 @@ export async function setAgentMode(mode: AgentAccessMode): Promise<void> {
   clearError();
   try {
     state.agentStatus = await client.request<AgentStatus>('agent.setMode', { mode });
+    // Whether Launch may launch follows the level, so read it again with it: Launch kept the
+    // old level's answer until the next poll, and said "Choose Inspect" at Inspect (2026-10-10).
+    try {
+      launchable = await client.request<LaunchableAgents>('agentSession.list');
+      launchableAt = Date.now();
+    } catch {
+      // The poll reads it again.
+    }
     rerender();
     announce(`${agentModeLabel(mode)} selected.`);
   } catch (error) {
