@@ -303,3 +303,25 @@ test('R-002: a tab that is shown swaps the trails, and closing the old one keeps
   assert.equal(set.active, 0);
   assert.equal(placeKey(trail.current()), placeKey(b));
 });
+
+// ACP-06 (review of 2026-10-10): + on a launched agent's conversation made a second tab of the
+// same conversation, and closing either ended the agent the other still showed; a conversation
+// tab that went on to Data no longer counted as its owner, so closing it left the agent running.
+const { trailForNewTab, trailHolds } = await bundleOf('src/tab-set.ts');
+
+test('ACP-06: a new tab beside a conversation starts from the place before it, and a trail owns what it holds', () => {
+  const chat = place({ view: 'agentChat', eyebrow: 'Local collaboration', title: 'Copilot', surfaceId: null });
+  const board = place();
+  const data = place({ view: 'data', eyebrow: 'Studio', title: 'Data', surfaceId: null });
+  const oneOfAKind = (candidate) => candidate.view === 'agentChat';
+  const copied = trailForNewTab({ places: [board, chat], cursor: 1 }, oneOfAKind);
+  assert.equal(copied.places.length, 1);
+  assert.equal(copied.places[0].view, 'use', 'A new tab copied the conversation, so two tabs showed it.');
+  assert.deepEqual(trailForNewTab({ places: [chat], cursor: 0 }, oneOfAKind), { places: [], cursor: -1 });
+  assert.equal(trailForNewTab({ places: [board, data], cursor: 1 }, oneOfAKind).places[0].view, 'data', 'An ordinary place was not copied as it is.');
+
+  const holdsChat = (candidate) => candidate.view === 'agentChat';
+  assert.equal(trailHolds({ places: [chat, data], cursor: 1 }, holdsChat), true, 'A conversation tab that went on to Data lost the conversation.');
+  assert.equal(trailHolds({ places: [board], cursor: 0 }, holdsChat), false);
+  assert.equal(trailHolds(null, holdsChat), false);
+});

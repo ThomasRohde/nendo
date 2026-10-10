@@ -395,6 +395,9 @@ try {
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-Swarm.ps1')) 'Swarm behaviour, simulation and replay'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-Garden.ps1')) 'Garden notes, sync and backlinks'
 
+    Write-Host '== Launched agent conversation =='
+    Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-AgentChat.ps1')) 'Launched agent conversation tab'
+
     Write-Host '== Repository =='
     & (Join-Path $PSScriptRoot 'Test-Repository.ps1')
 

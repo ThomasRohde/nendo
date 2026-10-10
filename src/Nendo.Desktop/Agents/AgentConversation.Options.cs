@@ -44,17 +44,36 @@ internal sealed partial class AgentConversation
     private bool _legacyOptions;
 
     /// <summary>
-    /// A tool reached through this file's MCP server, judged from the names agents give its tools
-    /// (<c>nendo-nendo-read-resource</c>, <c>mcp__nendo__nendo.lease.acquire</c>) or a
-    /// <c>nendo://</c> address it sends. Anything else is the agent's own tool.
+    /// The names agents give this file's MCP tools: <c>nendo-nendo-read-resource</c>,
+    /// <c>mcp__nendo__nendo.lease.acquire</c>, <c>nendo.read.resource</c>.
     /// </summary>
     private static readonly Regex NendoTool = new(
-        @"nendo[-_.]+(?:nendo[-_.]+)?(?:read|lease|data|change[-_.]?set|health)|nendo://",
+        @"nendo[-_.]+(?:nendo[-_.]+)?(?:read|lease|data|change[-_.]?set|health)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
-    private static string? Origin(string? title, string? input) =>
-        title is null && input is null ? null
-            : NendoTool.IsMatch(title ?? string.Empty) || NendoTool.IsMatch(input ?? string.Empty) ? "nendo" : "agent";
+    /// <summary>
+    /// Whether a tool went through this file's MCP server, judged only from what names the tool:
+    /// the tool name in the agent's metadata, its title, and its kind. What the tool sends is
+    /// never evidence: a shell command that prints <c>nendo://</c> is still the agent's own shell
+    /// (ACP-09). A title naming a <c>nendo://</c> address counts unless the tool runs a command.
+    /// </summary>
+    private static string? Origin(string? title, string? kind, string? toolName)
+    {
+        if (title is null && toolName is null) return null;
+        if (toolName is not null && NendoTool.IsMatch(toolName)) return "nendo";
+        if (kind == "execute") return "agent";
+        return title is not null && (NendoTool.IsMatch(title) || title.Contains("nendo://", StringComparison.OrdinalIgnoreCase)) ? "nendo" : "agent";
+    }
+
+    /// <summary>The tool's own name, where the agent's <c>_meta</c> carries one (as <c>toolName</c>, at most two levels down).</summary>
+    private static string? MetaToolName(JsonElement call)
+    {
+        if (call.ValueKind != JsonValueKind.Object || !call.TryGetProperty("_meta", out var meta) || meta.ValueKind != JsonValueKind.Object) return null;
+        if (Text(meta, "toolName", 200) is { } direct) return direct;
+        foreach (var property in meta.EnumerateObject().Take(16))
+            if (property.Value.ValueKind == JsonValueKind.Object && Text(property.Value, "toolName", 200) is { } nested) return nested;
+        return null;
+    }
 
     /// <summary>Take the options a session result offers. Called under the lock.</summary>
     private void ReadOptions(JsonElement session)

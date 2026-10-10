@@ -76,6 +76,12 @@ const maximumFieldsDescribed = 60;
 const maximumValueCharacters = 300;
 export const maximumDescriptionCharacters = 6_000;
 export const maximumAttachments = 8;
+/** The host's bounds on what one message points at (AgentConversation.Context.cs): all descriptions together, and each name. */
+export const maximumContextCharacters = 32_000;
+export const maximumLabelCharacters = 120;
+/** A description cut shorter than this says too little to be worth sending. */
+const minimumDescriptionCharacters = 400;
+const readMorePrefix = '\n\nRead more through Nendo: ';
 
 export function entityUri(entityId: string): string {
   return `nendo://application/entity/${encodeURIComponent(entityId)}`;
@@ -254,11 +260,64 @@ export function mentionMenuMarkup(choices: readonly ContextChoice[], active: num
 
 /** The things a message points at, as chips with a way to take each back. */
 export function attachmentsMarkup(attached: readonly ContextAttachment[]): string {
-  return attached.map((item) => `<span class="chat-attachment" data-attachment="${escapeAttribute(item.key)}">${icon(kindIcon[item.kind])}<span>${escapeHtml(item.label)}</span><button type="button" data-remove-attachment="${escapeAttribute(item.key)}" aria-label="Stop pointing at ${escapeAttribute(item.label)}">${icon('close')}</button></span>`).join('');
+  return attached.map((item) => `<span class="chat-attachment" data-attachment="${escapeAttribute(item.key)}" title="${escapeAttribute(`${item.label}: ${item.text.length.toLocaleString('en-US')} of the ${maximumContextCharacters.toLocaleString('en-US')} characters a message carries`)}">${icon(kindIcon[item.kind])}<span>${escapeHtml(item.label)}</span><button type="button" data-remove-attachment="${escapeAttribute(item.key)}" aria-label="Stop pointing at ${escapeAttribute(item.label)}">${icon('close')}</button></span>`).join('');
 }
 
 function bounded(text: string, maximum: number): string {
   return text.length <= maximum ? text : `${text.slice(0, maximum - 1)}…`;
+}
+
+/** A name as the host takes it: at most 120 characters. */
+export function contextLabel(label: string): string {
+  return bounded(label.trim(), maximumLabelCharacters);
+}
+
+/**
+ * Fit one more description into what the message already carries (ACP-10). Eight descriptions of
+ * 6,000 characters each are more than the 32,000 the host takes together, and a message the host
+ * refuses cannot be sent at all. A description is cut to the room left, keeping the address that
+ * reads the rest; null when too little room is left to say anything useful.
+ */
+export function fitDescription(text: string, attached: readonly ContextAttachment[]): string | null {
+  const used = attached.reduce((sum, item) => sum + item.text.length, 0);
+  const room = Math.min(maximumDescriptionCharacters, maximumContextCharacters - used);
+  if (text.length <= room) return text;
+  const at = text.lastIndexOf(readMorePrefix);
+  const tail = at < 0 ? '' : text.slice(at);
+  const keep = room - tail.length - 1;
+  if (keep < minimumDescriptionCharacters) return null;
+  return `${text.slice(0, keep)}…${tail}`;
+}
+
+/** The thing a message points at that says the most: the one to take back when another does not fit. */
+export function largestAttachment(attached: readonly ContextAttachment[]): ContextAttachment | null {
+  return attached.reduce<ContextAttachment | null>((largest, item) => largest === null || item.text.length > largest.text.length ? item : largest, null);
+}
+
+/** Whether a message already points at this thing. */
+export function isAttached(attached: readonly ContextAttachment[], item: Pick<ContextAttachment, 'key' | 'uri' | 'label'>): boolean {
+  return attached.some((held) => held.key === item.key || held.uri === item.uri && held.label === item.label);
+}
+
+/**
+ * Add one thing the person chose to what the message points at, as the host will take it: once,
+ * no more than eight, and its description cut to the room left (ACP-10). `refused` says why it
+ * was not added, naming what to take back; null with the list unchanged when it was there already.
+ */
+export function withAttachment(attached: readonly ContextAttachment[], item: ContextAttachment): { attached: ContextAttachment[]; refused: string | null } {
+  if (isAttached(attached, item)) return { attached: [...attached], refused: null };
+  if (attached.length >= maximumAttachments) return { attached: [...attached], refused: `A message points at ${maximumAttachments} things at most.` };
+  const text = fitDescription(item.text, attached);
+  if (text === null) {
+    const largest = largestAttachment(attached);
+    return { attached: [...attached], refused: `${item.label} does not fit: this message already carries as much as one message can.${largest === null ? '' : ` Stop pointing at ${largest.label}, which says the most, to make room.`}` };
+  }
+  return { attached: [...attached, { ...item, text }], refused: null };
+}
+
+/** What the message points at, for the host: the address, the name as long as the host takes it, and the description. */
+export function contextForHost(attached: readonly ContextAttachment[]): Array<{ uri: string; title: string; text: string }> {
+  return attached.map((item) => ({ uri: item.uri, title: contextLabel(item.label), text: item.text }));
 }
 
 function fieldLine(field: ContextField): string {
@@ -270,9 +329,10 @@ function fieldLine(field: ContextField): string {
   return `- ${field.name}: ${parts.join(', ')}`;
 }
 
+/** The description, bounded, and then always the address that reads the rest: a cut never takes it. */
 function readMore(lines: string[], uri: string): string {
-  lines.push('', `Read more through Nendo: ${uri}`);
-  return bounded(lines.join('\n'), maximumDescriptionCharacters);
+  const tail = `${readMorePrefix}${uri}`;
+  return `${bounded(lines.join('\n'), maximumDescriptionCharacters - tail.length)}${tail}`;
 }
 
 /** A record type: its ID and its fields with theirs, so the agent can write to it at once. */

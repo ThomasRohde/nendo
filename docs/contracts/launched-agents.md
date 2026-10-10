@@ -76,7 +76,10 @@ Four methods take the request gate: `agentSession.list`, `agentSession.setComman
 `agentSession.setHidden` and `agentSession.launch`. The other seven do not wait on it, and
 check `fileSessionId` themselves: the tab must keep reading while an agent's own write holds
 the file. Each of those seven except `read` refuses as `agent-not-launched` when no agent
-has been launched for the file.
+has been launched for the file. Each of those six may also name the `conversationId` the tab
+holds; one that names a conversation since replaced is refused as
+`agent-conversation-replaced` and reaches nothing. Entry IDs start again with every launch, so
+without it an answer to a replaced conversation's question could land on the new one's.
 
 | Method | Payload | Answer and refusals |
 | --- | --- | --- |
@@ -95,12 +98,14 @@ has been launched for the file.
 Every method except `list`, `setCommand` and `setHidden` answers with the conversation:
 
 ```text
-{ exists, agentId, name, commandLine, endpoint, level, state, working, notice,
-  agentTitle, revision, entries, more, signInMethods, options }
+{ exists, conversationId, agentId, name, commandLine, endpoint, level, state, working,
+  notice, agentTitle, revision, entries, more, signInMethods, options, firstOrder }
 ```
 
-`state` is `none`, `starting`, `signIn`, `ready` or `ended`. `level` is the access level's
-display name now. `endpoint` is the one MCP address the agent was given.
+`conversationId` names the launch, new for each; null when none was launched. `state` is
+`none`, `starting`, `signIn`, `ready` or `ended`. `level` is the access level's display name
+now. `endpoint` is the one MCP address the agent was given. `firstOrder` is the order of the
+oldest entry the transcript still keeps.
 
 ## Reading the conversation
 
@@ -114,22 +119,45 @@ conversation's own (`AgentConversation.Read`).
 The `agentSessionChanged` event carries the conversation's revision and nothing else
 (`WorkbenchEvents.AgentSessionChanged`). The tab reads what changed with
 `agentSession.read`. A conversation that has been replaced, or whose file has closed,
-raises no event.
+raises no event. A new access level that keeps the agent raises the event too, with the
+revision unchanged, since the tab shows the level and what it does with a change.
+
+The tab fixes the launch a read is of before the read goes out, and drops an answer that
+arrives after New session or a file change; it also never merges a read whose
+`conversationId` differs from the one it holds (`agent-chat-model.ts`, `mergeChat`). It
+drops every entry before `firstOrder`, so a tab open from the start holds what a tab opened
+now would.
 
 An entry is `{ id, order, revision, kind, text, title, toolKind, status, input, options,
 answer, plan, origin }`, where `kind` is `you`, `agent`, `thought`, `tool`, `plan`,
 `permission` or `notice`. The agent's message and thought chunks are joined into one entry
-until something else intervenes. A tool call is one entry, updated in place. The plan is one
-entry, replaced whole each time the agent states it. `origin`, on a tool or a permission
-request, is `nendo` when the tool's name or input names this file's MCP server or a
-`nendo://` address, and `agent` otherwise.
+until something else intervenes. A tool call is one entry, updated in place. A diff in a
+tool's content is kept as its path and the text before and after (each cut at 8,000
+characters). The plan is one entry, replaced whole each time the agent states it.
 
-Everything an entry holds is the agent's or a tool's text and is kept as text. A tool's
-input and output have the value of any `applicationHandle` or `resumeApplicationHandle`
-replaced by `(hidden)`, since whoever holds the handle may write as the agent
+`origin`, on a tool or a permission request, is judged only from what names the tool: the
+tool name in the agent's `_meta` (as `toolName`, at most two levels down), its title, and
+its kind. It is `nendo` when that name or the title names this file's MCP tools, or the title
+names a `nendo://` address and the tool's kind is not `execute`; otherwise `agent`. What a
+tool sends is never evidence: a shell command that prints a `nendo://` address is still the
+agent's own.
+
+A permission request's entry keeps, as its `text`, what the request's tool call says it
+would do: its content (a diff, text) and the places it names (`Where: path:line`), or else
+the text of the tool call it is about. The tab offers to show that text and the input before
+the person answers.
+
+Everything an entry holds is the agent's or a tool's text and is kept as text. Every text
+the agent writes into the transcript, its messages and reasoning, a plan, a tool's title,
+input and output, and a notice that carries its error output, has the value of any
+application handle (`applicationHandle`, `resumeApplicationHandle` or `application_handle`,
+quoted or in the agent's own words) replaced by `(hidden)`, since whoever holds the handle
+may write as the agent
 ([ADR-0009](../decisions/0009-local-mcp-transport-authority-and-change-sets.md)). The
-Workbench draws every entry as text; an agent's message goes through the Markdown subset,
-which escapes every character before it adds a tag.
+redaction runs again on each entry as it is read, so a handle split across streamed chunks
+is hidden once they meet, and a value cut off at the end of a message still streaming is
+hidden too. The Workbench draws every entry as text; an agent's message goes through the
+Markdown subset, which escapes every character before it adds a tag.
 
 The transcript is bounded: at most 1,000 entries, the oldest dropped first; at most 200,000
 characters in one entry; a tool's output cut at 20,000 characters and its input at 2,000.
@@ -143,6 +171,12 @@ items `{ uri, title, text }`. The `uri` is one of the file's own addresses, begi
 once trimmed. Each `text` is at most 8,000 characters, and the texts together at most
 32,000. One refused item refuses the whole message: nothing reaches the agent and no turn
 starts (`AgentConversation.Context.cs`). The person's entry names the items in its `title`.
+
+The Workbench keeps a message within those bounds before it is sent
+(`agent-context-model.ts`, `withAttachment`): a description is cut to the room the message
+has left, keeping the `nendo://` address that reads the rest; a thing that no longer fits is
+not added, and the tab says which item says the most, to take back; names are cut to 120
+characters. New session starts the composer again, with nothing pointed at.
 
 The ACP prompt is the person's words first, then the items. An agent that declared
 `agentCapabilities.promptCapabilities.embeddedContext` at `initialize` gets each item as a
@@ -185,12 +219,17 @@ ends for any reason (`AgentProcess.cs`). The last 4,000 characters of its error 
 kept, so a program that stops on its own can say why in the notice.
 
 Ending the agent ends the program and everything it started, removes its folder and keeps
-the transcript (`DesktopLaunchedAgent.EndAsync`). It ends when:
+the transcript (`DesktopLaunchedAgent.EndAsync`). Every way the conversation ends ends the
+program too, a refusal at the handshake included: a refused agent that keeps its input open
+does not run on. It ends when:
 
 - the person ends it (`agentSession.end`), or starts a new session, which ends it and
   launches the same agent again;
-- the Workbench closes its conversation tab, which calls `agentSession.end`
-  (`view-agent-chat.ts`);
+- the Workbench closes the last tab that holds the conversation anywhere in its trail, which
+  calls `agentSession.end` (`view-agent-chat.ts`). A tab that went on from the conversation
+  to another page still holds it; a new tab opened beside the conversation starts from the
+  place before it, or the Agent page, so one conversation never has two tabs
+  (`workspace-tabs.ts`);
 - the program stops on its own;
 - agent access stops: the level set to Off, a listener that could not start again, or a
   file replacement;
@@ -223,8 +262,11 @@ holds for what Nendo grants, not for what the person's own program can do on thi
   folder, the refusals by name, Launch from Inspect upward and refused at Off, permission
   requests that wait for the person, Stop, the handle hidden, the end on file close with the
   program, its child and its folder gone, a level change that keeps the agent and Off that
-  ends it, an address that moves, sign-in, the agent's options, `origin`, and what the
-  person points at with its bounds.
+  ends it, an address that moves, sign-in, the agent's options, `origin` (a shell that names
+  `nendo://` stays the agent's own), what the person points at with its bounds, a refused
+  agent ended with its folder, the handle hidden in every channel and across chunks, a
+  permission request's diff and places, `firstOrder`, `agent-conversation-replaced`, and the
+  event a new level raises.
 - [`WorkbenchAgentSessionProtocolTests`](../../tests/Nendo.Desktop.Tests/WorkbenchAgentSessionProtocolTests.cs):
   the methods on the bridge, `stale-file-session`, `agent-launch-unavailable`,
   `agent-not-launched`, every method off the UI thread, no file path in the list, and hiding
@@ -233,6 +275,13 @@ holds for what Nendo grants, not for what the person's own program can do on thi
   [`agent-chat.test.mjs`](../../src/Nendo.Workbench/scripts/agent-chat.test.mjs),
   [`agent-context.test.mjs`](../../src/Nendo.Workbench/scripts/agent-context.test.mjs) and
   [`agent-launch.test.mjs`](../../src/Nendo.Workbench/scripts/agent-launch.test.mjs): reads
-  merged by revision, nothing an agent, a tool, the file or the host names becoming markup,
-  the bounded @ menu and its descriptions, and the Launch tab's missing, renamed and hidden
-  agents.
+  merged by revision, a late read of a replaced conversation dropped, entries before
+  `firstOrder` dropped, a permission request's details shown as text, nothing an agent, a
+  tool, the file or the host names becoming markup, the bounded @ menu and its descriptions,
+  a message kept within the host's bounds, and the Launch tab's missing, renamed and hidden
+  agents; `navigation-trail.test.mjs` for which tab owns the conversation.
+- [`tools/Review-AgentChat.ps1`](../../tools/Review-AgentChat.ps1), run by
+  `Test-Production.ps1`: the built Workbench against the browser preview's scripted agent,
+  measuring the level shown after a change on the Agent page, keyboard focus on a fold and a
+  permission's details, where More opens at 1,024 to 760 pixels in both themes, New session
+  with nothing pointed at, and the tab that owns the conversation.

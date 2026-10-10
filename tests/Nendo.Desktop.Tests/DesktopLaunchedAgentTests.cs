@@ -75,6 +75,24 @@ public sealed class DesktopLaunchedAgentTests
         StringAssert.Contains(ended.Notice, "speaks ACP version 2");
     }
 
+    /// <summary>
+    /// ACP-01 (review of 2026-10-10): a refusal at the handshake ended the conversation but not
+    /// the program, which kept its input open and ran on with its folder until the file closed.
+    /// </summary>
+    [TestMethod]
+    [DataRow("--no-http")]
+    [DataRow("--refuse-session")]
+    public async Task AnAgentRefusedAtTheHandshakeIsEndedWithItsFolder(string flag)
+    {
+        await using var fixture = await Fixture.StartAsync("inspect", flag);
+        await fixture.LaunchAsync();
+        var agent = fixture.Controller.LaunchedAgent!;
+        await fixture.WaitAsync(view => view.State == "ended");
+        await WaitUntil(() => !IsRunning(agent.ProcessId), $"The agent refused with {flag} kept running after its conversation ended.");
+        await WaitUntil(() => !Directory.Exists(agent.WorkingDirectory), $"The agent refused with {flag} left its folder behind.");
+        Assert.IsNull((await fixture.Controller.ListLaunchableAgentsAsync(fixture.FileSessionId)).Running);
+    }
+
     [TestMethod]
     public async Task LaunchIsOfferedFromInspectUpAndRefusedAtOff()
     {
@@ -137,6 +155,146 @@ public sealed class DesktopLaunchedAgentTests
         // Sent by the tool call, returned plain, returned inside an escaped string, and asked about.
         Assert.AreEqual(4, System.Text.RegularExpressions.Regex.Count(shown, @"Handle\\?"":\\?""\(hidden\)"), shown);
         StringAssert.Contains(asking.Entries.Single(entry => entry.Kind == "permission").Input, "lease-1", "More than the handle was hidden.");
+    }
+
+    /// <summary>
+    /// ACP-08 (review of 2026-10-10): only tool payloads were redacted. A handle the agent repeats
+    /// in its reply (split across two chunks), its reasoning, its plan, a tool's title or its last
+    /// words on stderr reached the tab.
+    /// </summary>
+    [TestMethod]
+    public async Task AHandleTheAgentRepeatsIsHiddenInEveryPartOfTheTranscript()
+    {
+        const string Secret = "0123456789";
+        Assert.AreEqual("{\"applicationHandle\":\"(hidden)", AgentConversation.Redact("{\"applicationHandle\":\"secret-han"),
+            "The start of a handle still streaming was shown.");
+        Assert.AreEqual("applicationHandle: (hidden)", AgentConversation.Redact(AgentConversation.Redact("applicationHandle: abc")), "Hiding twice changed the text.");
+
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "leak", 0);
+        var done = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Kind == "tool"));
+        static string Shown(DesktopLaunchedAgentView view) => string.Join("\n", view.Entries.SelectMany(entry =>
+            new[] { entry.Text, entry.Title, entry.Input }.Concat(entry.Plan?.Select(item => item.Text) ?? [])).Where(text => text is not null).Append(view.Notice));
+        Assert.DoesNotContain(Secret, Shown(done), "The agent's application handle reached the tab.");
+        foreach (var kind in new[] { "agent", "thought", "plan", "tool" })
+        {
+            var entry = done.Entries.Single(candidate => candidate.Kind == kind);
+            var text = kind == "plan" ? entry.Plan!.Single().Text : kind == "tool" ? entry.Title! : entry.Text;
+            StringAssert.Contains(text, "(hidden)", $"The {kind} entry does not say a handle was there.");
+        }
+        StringAssert.Contains(done.Entries.Single(entry => entry.Kind == "agent").Text, "\"leaseId\":\"lease-2\"", "More than the handle was hidden.");
+
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "leak-exit", 0);
+        var ended = await fixture.WaitAsync(view => view.State == "ended");
+        Assert.DoesNotContain(Secret, Shown(ended), "The handle the agent wrote to stderr reached the tab.");
+        StringAssert.Contains(ended.Notice, "(hidden)");
+    }
+
+    /// <summary>
+    /// ACP-11 (review of 2026-10-10): a permission request that described its operation only by a
+    /// diff and a location showed Allow and Reject with nothing to inspect, and a diff was told
+    /// only as "Changed path".
+    /// </summary>
+    [TestMethod]
+    public async Task APermissionShowsTheChangeTheAgentSupplied()
+    {
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "diff", 0);
+        var asking = await fixture.WaitAsync(view => view.Entries.Any(entry => entry.Kind == "permission"));
+        var question = asking.Entries.Single(entry => entry.Kind == "permission");
+        Assert.AreEqual("Edit configuration", question.Title);
+        Assert.IsNull(question.Input, "The request sent no input; the card would show one.");
+        StringAssert.Contains(question.Text, "C:/work/config.json", "The permission card does not say what it changes.");
+        StringAssert.Contains(question.Text, "retries = 1", "The permission card does not show the text before.");
+        StringAssert.Contains(question.Text, "retries = 5", "The permission card does not show the text after.");
+        StringAssert.Contains(question.Text, "C:/work/config.json:3", "The permission card does not say where.");
+        var written = asking.Entries.Single(entry => entry.Kind == "tool" && entry.Title == "Write notes");
+        StringAssert.Contains(written.Text, "Creates C:/work/notes.md");
+        StringAssert.Contains(written.Text, "first <b>note</b>", "A diff-only tool update lost its text.");
+        fixture.Controller.AnswerLaunchedAgent(fixture.FileSessionId, question.Id, "reject", 0);
+        await fixture.WaitAsync(view => !view.Working);
+    }
+
+    /// <summary>ACP-09 (review of 2026-10-10): a shell command was badged Nendo because its input printed a nendo:// address.</summary>
+    [TestMethod]
+    public async Task AShellCommandThatMentionsNendoIsStillTheAgentsOwn()
+    {
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "shell", 0);
+        var done = await fixture.WaitAsync(view => !view.Working && view.Entries.Count(entry => entry.Kind == "tool") == 3);
+        string? OriginOf(string title) => done.Entries.Single(entry => entry.Kind == "tool" && entry.Title == title).Origin;
+        Assert.AreEqual("agent", OriginOf("Run shell command"), "A shell whose input names nendo:// was told as Nendo's.");
+        Assert.AreEqual("agent", OriginOf("echo nendo://application/manifest"), "A shell whose title names nendo:// was told as Nendo's.");
+        Assert.AreEqual("nendo", OriginOf("Read the manifest"), "A tool the agent's metadata names as Nendo's was told as its own.");
+    }
+
+    /// <summary>
+    /// ACP-03 (review of 2026-10-10): the transcript keeps 1,000 entries, but a tab that read from
+    /// the start was never told which ones had gone, and kept them all.
+    /// </summary>
+    [TestMethod]
+    public async Task TheTabIsToldWhichEntriesTheTranscriptStillKeeps()
+    {
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "flood", 0);
+        var first = fixture.Controller.ReadLaunchedAgent(fixture.FileSessionId, 0);
+        var held = first.Entries.ToDictionary(entry => entry.Id);
+        await fixture.WaitAsync(view => !view.Working);
+        // Follow as the tab does: only what changed since the last read, page by page.
+        DesktopLaunchedAgentView page;
+        var after = first.Revision;
+        do
+        {
+            page = fixture.Controller.ReadLaunchedAgent(fixture.FileSessionId, after);
+            foreach (var entry in page.Entries) held[entry.Id] = entry;
+            after = page.Revision;
+        }
+        while (page.More);
+        Assert.IsGreaterThan(1L, page.FirstOrder, "The read does not say the oldest entries are gone.");
+        Assert.AreEqual(AgentConversation.MaximumEntries, held.Values.Count(entry => entry.Order >= page.FirstOrder),
+            "The entries at or after the first order kept are not the transcript's.");
+        Assert.IsTrue(held.Values.Any(entry => entry.Kind == "you" && entry.Order < page.FirstOrder), "The person's message was expected to have gone first.");
+    }
+
+    /// <summary>
+    /// ACP-07 (review of 2026-10-10): entry IDs start again with every launch, so an answer meant
+    /// for a replaced conversation's question could land on the new one's.
+    /// </summary>
+    [TestMethod]
+    public async Task ARequestMeantForAReplacedConversationIsRefused()
+    {
+        await using var fixture = await Fixture.StartAsync("editData");
+        var launched = await fixture.LaunchAsync();
+        Assert.IsNotNull(launched.ConversationId);
+        await fixture.WaitAsync(view => view.State == "ready");
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "permission", 0, conversationId: launched.ConversationId);
+        var old = (await fixture.WaitAsync(view => view.Entries.Any(entry => entry.Kind == "permission"))).Entries.Single(entry => entry.Kind == "permission");
+        await fixture.Controller.EndLaunchedAgentAsync(fixture.FileSessionId, 0, launched.ConversationId);
+
+        var replacement = await fixture.LaunchAsync();
+        Assert.AreNotEqual(launched.ConversationId, replacement.ConversationId, "Two launches carry the same conversation.");
+        await fixture.WaitAsync(view => view.State == "ready");
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "permission", 0);
+        var current = (await fixture.WaitAsync(view => view.Entries.Any(entry => entry.Kind == "permission"))).Entries.Single(entry => entry.Kind == "permission");
+        Assert.AreEqual(old.Id, current.Id, "The case this guards needs the two questions to share an entry ID.");
+
+        var refused = Assert.ThrowsExactly<NendoPreconditionException>(() =>
+            fixture.Controller.AnswerLaunchedAgent(fixture.FileSessionId, old.Id, "allow", 0, launched.ConversationId));
+        Assert.AreEqual("agent-conversation-replaced", refused.Code);
+        Assert.ThrowsExactly<NendoPreconditionException>(() =>
+            fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "hello", 0, conversationId: launched.ConversationId));
+        Assert.IsNull(fixture.Controller.ReadLaunchedAgent(fixture.FileSessionId, 0).Entries.Single(entry => entry.Kind == "permission").Answer,
+            "The replaced conversation's answer reached the new question.");
+        fixture.Controller.AnswerLaunchedAgent(fixture.FileSessionId, current.Id, "reject", 0, replacement.ConversationId);
+        await fixture.WaitAsync(view => !view.Working);
     }
 
     [TestMethod]
@@ -205,7 +363,12 @@ public sealed class DesktopLaunchedAgentTests
         await fixture.WaitAsync(view => view.State == "ready");
         var endpoint = (await fixture.Controller.GetAgentStatusAsync()).Endpoint;
 
+        // ACP-12 (review of 2026-10-10): the tab shows the level and its review policy, and was
+        // not told when the level changed under an idle agent.
+        var told = 0;
+        fixture.Controller.LaunchedAgentChanged += _ => Interlocked.Increment(ref told);
         await fixture.Controller.SetAgentModeAsync("shapeApp");
+        Assert.IsGreaterThan(0, Volatile.Read(ref told), "The tab was not told the level changed; it would go on showing Edit data.");
         Assert.AreEqual(endpoint, (await fixture.Controller.GetAgentStatusAsync()).Endpoint);
         var kept = fixture.Controller.ReadLaunchedAgent(fixture.FileSessionId, 0);
         Assert.AreEqual("ready", kept.State, "A new level ended an agent whose address had not moved.");

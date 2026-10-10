@@ -15,6 +15,8 @@ export class PreviewAgentSession {
   private working = false;
   private notice: string | null = null;
   private agent: { id: string; name: string; commandLine: string } | null = null;
+  private conversationId: string | null = null;
+  private launches = 0;
   private customCommandLine: string | null = null;
   private hidden: string[] = [];
   // The options Copilot CLI 1.0.93 offered when probed on 2026-10-08, trimmed.
@@ -39,7 +41,17 @@ export class PreviewAgentSession {
     return () => { this.listeners.delete(listener); };
   }
 
+  /** The access level changed: the conversation's tab reads again, as the Desktop host tells it to (ACP-12). */
+  levelChanged(): void {
+    if (this.agent === null) return;
+    const revision = this.revision;
+    queueMicrotask(() => { for (const listener of this.listeners) listener(revision); });
+  }
+
   handle(method: string, payload: Record<string, unknown>): unknown {
+    // A request meant for a conversation since replaced is refused, as the Desktop host does (ACP-07).
+    if (typeof payload.conversationId === 'string' && payload.conversationId !== this.conversationId)
+      throw new WorkbenchHostError('agent-conversation-replaced', 'That conversation has been replaced by a new one. Nothing was sent.');
     switch (method) {
       case 'agentSession.list': return this.list();
       case 'agentSession.setCommand':
@@ -102,6 +114,8 @@ export class PreviewAgentSession {
     const agent = offer.agents.find((candidate) => candidate.id === agentId && candidate.found);
     if (agent === undefined) throw new WorkbenchHostError('agent-not-found', 'That agent is not installed on this computer.');
     this.agent = agent;
+    this.launches += 1;
+    this.conversationId = `preview-${this.launches}`;
     this.entries = [];
     this.revision = 0;
     this.order = 0;
@@ -174,6 +188,7 @@ export class PreviewAgentSession {
     const changed = this.entries.filter((entry) => entry.revision > after);
     return {
       exists: this.agent !== null,
+      conversationId: this.conversationId,
       agentId: this.agent?.id ?? null,
       name: this.agent?.name ?? null,
       commandLine: this.agent?.commandLine ?? null,
@@ -188,6 +203,7 @@ export class PreviewAgentSession {
       more: false,
       signInMethods: [],
       options: this.agent === null || this.state === 'starting' ? [] : structuredClone(this.options),
+      firstOrder: this.entries[0]?.order ?? this.order + 1,
     };
   }
 

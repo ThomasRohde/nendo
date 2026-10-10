@@ -7,6 +7,11 @@
 //   handle      sends and receives an application handle in a tool call and asks about it
 //   spawn       starts a child process that runs until something ends it, and logs its pid
 //   exit        writes to stderr and exits with code 3
+//   leak        repeats an application handle in a split message, a thought, a plan and a title
+//   leak-exit   writes an application handle to stderr and exits with code 3
+//   shell       runs shell commands whose input or title mentions nendo://, and one MCP read named only in _meta
+//   diff        reports a diff-only tool call, then asks permission with only a diff and a location
+//   flood       reports 1,005 tool calls, more than a transcript keeps
 //   anything else is echoed back in two chunks
 // Flags: --no-http (cannot reach HTTP MCP), --version N (speaks ACP version N), --auth (asks to
 // sign in first), --banner (prints a line that is not a message before speaking), --config (offers
@@ -111,6 +116,49 @@ async function prompt(id, params) {
     } else {
       update(sessionId, { sessionUpdate: 'current_mode_update', currentModeId: 'plan' });
     }
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
+  if (text === 'leak' || text === 'leak-exit') {
+    const handle = 'secret-handle-0123456789';
+    if (text === 'leak-exit') {
+      process.stderr.write(`granted {"applicationHandle":"${handle}"}\n`);
+      setTimeout(() => process.exit(3), 50);
+      return;
+    }
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Granted: {"applicationHandle":"secret-han' } });
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'dle-0123456789","leaseId":"lease-2"}' } });
+    update(sessionId, { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: `I hold applicationHandle: ${handle} now` } });
+    update(sessionId, { sessionUpdate: 'plan', entries: [{ content: `Use application_handle=${handle}`, priority: 'high', status: 'pending' }] });
+    update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call-11', title: `Release with applicationHandle=\`${handle}\``, kind: 'other', status: 'completed' });
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
+  if (text === 'shell') {
+    update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call-6', title: 'Run shell command', kind: 'execute', status: 'completed', rawInput: { command: 'echo nendo://application/manifest' } });
+    update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call-7', title: 'echo nendo://application/manifest', kind: 'execute', status: 'completed' });
+    update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call-8', title: 'Read the manifest', kind: 'read', status: 'completed',
+      _meta: { claudeCode: { toolName: 'mcp__nendo__nendo.read.resource' } } });
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
+  if (text === 'diff') {
+    update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call-10', title: 'Write notes', kind: 'edit', status: 'completed',
+      content: [{ type: 'diff', path: 'C:/work/notes.md', oldText: null, newText: 'first <b>note</b>' }] });
+    const answer = await ask('session/request_permission', {
+      sessionId,
+      toolCall: { toolCallId: 'call-9', title: 'Edit configuration', kind: 'edit',
+        content: [{ type: 'diff', path: 'C:/work/config.json', oldText: 'retries = 1', newText: 'retries = 5' }],
+        locations: [{ path: 'C:/work/config.json', line: 3 }] },
+      options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }, { optionId: 'reject', name: 'Reject', kind: 'reject_once' }],
+    });
+    log({ permission: answer });
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
+  if (text === 'flood') {
+    for (let index = 0; index < 1005; index++)
+      update(sessionId, { sessionUpdate: 'tool_call', toolCallId: `flood-${index}`, title: `Step ${index}`, kind: 'other', status: 'completed' });
     send({ id, result: { stopReason: 'end_turn' } });
     return;
   }

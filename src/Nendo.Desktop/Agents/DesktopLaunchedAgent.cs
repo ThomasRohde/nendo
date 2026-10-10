@@ -30,6 +30,12 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
 
     internal DesktopAgentCommand Command { get; }
 
+    /// <summary>
+    /// This launch, and no other: every read carries it, and a request that names another is
+    /// refused, so an answer meant for a replaced conversation never reaches this one (ACP-07).
+    /// </summary>
+    internal string ConversationId { get; } = Guid.NewGuid().ToString("N");
+
     /// <summary>The one MCP address the agent was given: the open file's own.</summary>
     internal Uri Endpoint { get; }
 
@@ -74,11 +80,20 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
         return agent;
     }
 
-    /// <summary>When the program stops on its own, the conversation says so, with what it last said.</summary>
+    /// <summary>
+    /// When the program stops on its own, the conversation says so, with what it last said. When
+    /// the conversation ends first -- an agent refused at the handshake keeps running with its
+    /// input open -- the program is ended with it (ACP-01).
+    /// </summary>
     private async Task WatchAsync()
     {
-        await Task.WhenAny(_process.Exited, _conversation.Closed);
+        var first = await Task.WhenAny(_process.Exited, _conversation.Closed, _conversation.Ended);
         if (Volatile.Read(ref _ended) != 0) return;
+        if (first == _conversation.Ended)
+        {
+            await EndAsync("The conversation ended.");
+            return;
+        }
         // Give the error pump a moment: a program that refuses a flag says why and exits.
         try { await _process.Exited.WaitAsync(TimeSpan.FromSeconds(2)); } catch (TimeoutException) { }
         var tail = _process.StandardErrorTail;

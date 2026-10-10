@@ -7,7 +7,7 @@ import { fileViewById, viewIcon } from './file-view-model';
 import { typeGlyph } from './type-icons';
 import { revisitCurrent } from './navigation-actions';
 import { navigationTrail, type Place } from './navigation-trail';
-import { closeTabAt, switchTab, type Tab, type TabSet } from './tab-set';
+import { closeTabAt, switchTab, trailForNewTab, trailHolds, type Tab, type TabSet } from './tab-set';
 import { announce, refreshChrome, requiredElement, rerender } from './shell';
 
 /**
@@ -76,14 +76,23 @@ function tabIcon(place: Place | null): IconName {
  */
 export interface TabStatus { kind: string; label: string }
 let statusOf: (place: Place) => TabStatus | null = () => null;
-const closedListeners: Array<(place: Place) => void> = [];
+const closedListeners: Array<(places: Place[]) => void> = [];
+
+/** A page there is one of in the window: a new tab beside it starts elsewhere (ACP-06). */
+const oneOfAKind = (place: Place): boolean => place.view === 'agentChat';
 
 export function setTabStatus(provider: (place: Place) => TabStatus | null): void {
   statusOf = provider;
 }
 
-export function onTabClosed(listener: (place: Place) => void): void {
+/** Called with every place in the closed tab's trail, not only the one it showed (ACP-06). */
+export function onTabClosed(listener: (places: Place[]) => void): void {
   closedListeners.push(listener);
+}
+
+/** How many tabs hold a place showing `view` anywhere in their trail. */
+export function tabsHolding(view: ViewName): number {
+  return set.tabs.filter((tab, index) => trailHolds(index === set.active ? navigationTrail.inspect() : tab.saved, (place) => place.view === view)).length;
 }
 
 /** What the window's other tabs show, for pointing a launched agent at it (W-200). */
@@ -120,15 +129,26 @@ export function drawTabs(): void {
   if (refocus !== null) strip.querySelector<HTMLElement>(refocus)?.focus({ preventScroll: true });
 }
 
-/** Keep the place on screen in a second tab, and move to it. Nothing redraws: it is the same place. */
-export function newTab(): void {
+/**
+ * Keep the place on screen in a second tab, and move to it. Nothing redraws: it is the same place.
+ * A page that is one of a kind (a launched agent's conversation) is not copied: the new tab goes
+ * to the place before it, or the Agent page, so one conversation never has two tabs (ACP-06).
+ * `show` is false when the caller moves the new tab itself at once.
+ */
+export function newTab(show = true): void {
   if (state.session.fileName === null) return;
   const here = navigationTrail.current();
-  set.tabs[set.active].saved = navigationTrail.inspect();
+  const saved = navigationTrail.inspect();
+  set.tabs[set.active].saved = saved;
   const tab: Tab = { id: nextId++, saved: null };
   set.tabs.splice(set.active + 1, 0, tab);
   set.active += 1;
-  navigationTrail.load(here === null ? { places: [], cursor: -1 } : { places: [here], cursor: 0 });
+  const copied = here !== null && oneOfAKind(here) ? trailForNewTab(saved, oneOfAKind) : here === null ? { places: [], cursor: -1 } : { places: [here], cursor: 0 };
+  navigationTrail.load(copied);
+  if (show && here !== null && oneOfAKind(here)) {
+    if (copied.cursor < 0) { state.view = 'agent'; rerender(); }
+    else void revisitCurrent();
+  }
   refreshChrome();
   announce('New tab opened.');
 }
@@ -141,7 +161,7 @@ export async function openTabOn(view: ViewName): Promise<void> {
   const index = set.tabs.findIndex((tab, at) => placeOf(tab, at)?.view === view);
   if (index === set.active) { state.view = view; rerender(); return; }
   if (index >= 0) { await activateTab(index); return; }
-  newTab();
+  newTab(false);
   state.view = view;
   rerender();
 }
@@ -157,11 +177,11 @@ export async function activateTab(index: number): Promise<void> {
 export async function closeTab(index: number): Promise<void> {
   if (set.tabs.length === 1 || index < 0 || index >= set.tabs.length) return;
   if (index === set.active && (state.actionInFlight || refuseWhileDirty('switching tabs'))) return;
-  const closing = placeOf(set.tabs[index]!, index);
+  const closing = index === set.active ? navigationTrail.inspect() : set.tabs[index]!.saved;
   const closed = await closeTabAt(set, index, navigationTrail, revisitCurrent);
   refreshChrome();
   focusActiveTab();
-  if (closed && closing !== null) for (const listener of closedListeners) listener(closing);
+  if (closed && closing !== null) for (const listener of closedListeners) listener(closing.places);
 }
 
 function focusActiveTab(): void {
@@ -224,14 +244,14 @@ export function wireOpenInNewTab(rail: HTMLElement): void {
     if (!event.ctrlKey) return;
     const route = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('.nav-item, .nav-place') : null;
     if (route === null || route.disabled) return;
-    newTab();
+    newTab(false);
   }, true);
   rail.addEventListener('auxclick', (event) => {
     if (event.button !== 1) return;
     const route = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('.nav-item, .nav-place') : null;
     if (route === null || route.disabled) return;
     event.preventDefault();
-    newTab();
+    newTab(false);
     route.click();
   });
 }

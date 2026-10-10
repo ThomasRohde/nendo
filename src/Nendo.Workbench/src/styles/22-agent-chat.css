@@ -939,8 +939,11 @@
   color: var(--ink);
 }
 
+/* The panel takes its place from the composer, not from More, so it stays inside the content
+   pane wherever More wraps to (ACP-04): anchored to More, its 300px ran past the window's edge
+   at ordinary widths, where the pane clips it. */
 .chat-more {
-  position: relative;
+  position: static;
 }
 
 .chat-more summary {
@@ -961,12 +964,13 @@
 
 .chat-more-panel {
   position: absolute;
-  bottom: 38px;
-  left: 0;
+  right: 8px;
+  bottom: calc(100% + 6px);
   z-index: 5;
+  box-sizing: border-box;
   display: grid;
   gap: 8px;
-  width: 300px;
+  width: min(300px, calc(100% - 16px));
   padding: 12px;
   border: 1px solid var(--line-strong);
   border-radius: 10px;
@@ -983,6 +987,7 @@
 }
 
 .chat-more-row select {
+  min-width: 0;
   padding: 0 6px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-control);

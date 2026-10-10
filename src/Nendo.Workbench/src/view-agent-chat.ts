@@ -5,7 +5,7 @@ import type { AgentStatus, LaunchableAgents, LaunchedAgentView } from './host';
 import { icon } from './icons';
 import { chatActivity, chatTabStatus, composerState, emptyChat, itemMarkup, mergeChat, optionsMarkup, reviewHint, stateLabel, stateTone, threadItems, waitingForYou, type AgentChat, type ChatActivity } from './agent-chat-model';
 import { announce, content, rerender, showError } from './shell';
-import { drawTabs, onTabClosed, openTabOn, setTabStatus } from './workspace-tabs';
+import { drawTabs, onTabClosed, openTabOn, setTabStatus, tabsHolding } from './workspace-tabs';
 import { clearPointedAt, mentionKey, pointedAt, resetMentions, wireMentions } from './agent-mention';
 
 /**
@@ -95,12 +95,18 @@ function patchReview(): void {
   slot.classList.toggle('is-waiting', hint.waiting);
 }
 
-/** Closing the conversation's tab ends the agent, and everything it started (ADR-0030). */
-onTabClosed((place) => {
-  if (place.view !== 'agentChat' || !chat.exists || chat.state === 'ended') return;
+/**
+ * Closing the conversation's tab ends the agent, and everything it started (ADR-0030). The tab
+ * that owns it is the one whose trail holds it, wherever that tab has since gone: it ends when the
+ * last such tab closes, not when any tab that happens to show it does (ACP-06).
+ */
+onTabClosed((places) => {
+  if (!places.some((place) => place.view === 'agentChat') || tabsHolding('agentChat') > 0 || !chat.exists || chat.state === 'ended') return;
   void (async () => {
     try {
-      mergeChat(chat, await client.request<LaunchedAgentView>('agentSession.end', { after: chat.revision }), chat.key);
+      const key = launchKey();
+      const view = await client.request<LaunchedAgentView>('agentSession.end', withConversation({ after: chat.revision }));
+      if (key === launchKey()) mergeChat(chat, view, key);
       noteActivity();
       announce(`${chat.name} ended with its tab.`);
     } catch (error) {
@@ -143,6 +149,14 @@ function launchKey(): string {
   return `${state.session.fileSessionId ?? ''}|${launches}`;
 }
 
+/**
+ * A request names the conversation it was meant for, once a read has said which, so the host
+ * refuses it when that conversation has been replaced (ACP-07).
+ */
+function withConversation(payload: Record<string, unknown>): Record<string, unknown> {
+  return chat.conversationId === null ? payload : { ...payload, conversationId: chat.conversationId };
+}
+
 /** The tab's title: the agent's name. */
 export function agentChatTitle(): string {
   return chat.exists ? chat.name : 'Agent';
@@ -157,7 +171,9 @@ export async function launchAgent(agentId: string): Promise<void> {
     expanded.clear();
     drawn.clear();
     mergeChat(chat, view, launchKey());
+    // The whole composer starts again: the message, and what it pointed at (ACP-02).
     draft = '';
+    resetMentions();
     await openTabOn('agentChat');
     announce(`${chat.name} is starting in a new tab.`);
     followAgentChat();
@@ -197,8 +213,12 @@ export function followAgentChat(): void {
         readAgain = false;
         let more = true;
         while (more) {
+          // The launch this read is of is fixed before it goes out: an answer that arrives after
+          // New session, or after the file changed, belongs to the old one and is dropped (ACP-07).
+          const key = launchKey();
           const view = await client.request<LaunchedAgentView>('agentSession.read', { after: chat.revision });
-          mergeChat(chat, view, chat.key === '' ? launchKey() : chat.key);
+          if (key !== launchKey()) { readAgain = true; break; }
+          mergeChat(chat, view, key);
           patchChat(false);
           more = view.more;
         }
@@ -217,6 +237,9 @@ export function renderAgentChat(): void {
   if (page !== null && page.dataset.chatKey === chat.key) {
     content.querySelector('#pending-save-notice')?.remove();
     patchChat(false);
+    // Read again: the access level and what it does with a change may have moved while the
+    // transcript did not (ACP-12).
+    followAgentChat();
     return;
   }
   drawn.clear();
@@ -314,7 +337,32 @@ export function renderAgentChat(): void {
   });
   patchChat(true);
   void checkWaiting();
-  if (chat.key === '' || !chat.exists) followAgentChat();
+  // Always read on showing the tab: the level may have changed on the Agent page (ACP-12).
+  followAgentChat();
+}
+
+/** The access level changed on the Agent page: the tab shows it, and what it does with a change, at once (ACP-12). */
+export function agentLevelChanged(): void {
+  if (chat.exists) followAgentChat();
+}
+
+/**
+ * The control in `item` that has keyboard focus, as a way to find its counterpart in the item
+ * drawn to replace it: by what it does (a fold, an answer), or else by its place among the
+ * item's controls. Null when focus is elsewhere.
+ */
+function focusedControl(item: HTMLElement): ((next: HTMLElement) => HTMLElement | null) | null {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !item.contains(active)) return null;
+  for (const name of ['toggleSteps', 'toggleInput', 'optionId'] as const) {
+    const value = active.dataset[name];
+    if (value === undefined) continue;
+    const attribute = name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+    return (next) => next.querySelector<HTMLElement>(`[data-${attribute}="${CSS.escape(value)}"]`);
+  }
+  const controls = (root: HTMLElement): HTMLElement[] => [...root.querySelectorAll<HTMLElement>('button, summary, a[href], [tabindex]')];
+  const at = controls(item).indexOf(active);
+  return at < 0 ? null : (next) => controls(next)[at] ?? null;
 }
 
 async function send(): Promise<void> {
@@ -332,8 +380,11 @@ async function send(): Promise<void> {
 /** One of the tab's own requests. It answers with a read, merged like any other. */
 async function act(method: string, payload: Record<string, unknown>, said: string | null): Promise<boolean> {
   try {
-    const view = await client.request<LaunchedAgentView>(method, { ...payload, after: chat.revision });
-    mergeChat(chat, view, chat.key === '' ? launchKey() : chat.key);
+    const key = launchKey();
+    const view = await client.request<LaunchedAgentView>(method, withConversation({ ...payload, after: chat.revision }));
+    // An answer for a conversation since replaced says nothing about the one on screen (ACP-07).
+    if (key !== launchKey()) return true;
+    mergeChat(chat, view, key);
     patchChat(true);
     if (said !== null) announce(said);
     return true;
@@ -418,10 +469,13 @@ function patchChat(force: boolean, only?: string): void {
     template.innerHTML = html.trim();
     const next = template.content.firstElementChild as HTMLElement;
     if (held !== null) {
-      // A details the person opened stays open as the item grows.
+      // A details the person opened stays open as the item grows, and the control they were on
+      // keeps the keyboard: replacing the item took it to the page's body (ACP-05).
       const opened = [...held.querySelectorAll('details')].map((details) => details.open);
+      const focused = focusedControl(held);
       held.replaceWith(next);
       [...next.querySelectorAll('details')].forEach((details, at) => { if (opened[at]) details.open = true; });
+      if (focused !== null) focused(next)?.focus({ preventScroll: true });
     } else {
       thread.insertBefore(next, previous === null ? thread.firstChild : previous.nextSibling);
     }

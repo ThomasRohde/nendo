@@ -9,8 +9,8 @@ import { announce } from './shell';
 import { viewTitle } from './view-frame-markup';
 import { placesInOtherTabs, tabLabel } from './workspace-tabs';
 import {
-  attachmentsMarkup, contextChoices, describeField, describeProposal, describeRecord, describeType, describeView,
-  maximumAttachments, mentionAt, mentionMenuMarkup, recordUri,
+  attachmentsMarkup, contextChoices, contextForHost, describeField, describeProposal, describeRecord, describeType, describeView,
+  isAttached, maximumAttachments, mentionAt, mentionMenuMarkup, recordUri, withAttachment,
   type ContextAttachment, type ContextChoice, type ContextEntity, type ContextRecordHit, type ContextSource,
 } from './agent-context-model';
 
@@ -24,6 +24,11 @@ import {
  */
 
 let attached: ContextAttachment[] = [];
+/**
+ * Moves on whenever the composer starts again (a new file, a new session): a record still being
+ * read for a chip chosen before then is dropped when it arrives, not added to the new message.
+ */
+let composerGeneration = 0;
 /** The open menu. Its source is gathered once when it opens and kept while the person types. */
 let menu: { start: number; query: string; choices: ContextChoice[]; active: number; records: ContextRecordHit[] | null; note: string | null; source: ContextSource } | null = null;
 let searchTimer = 0;
@@ -32,9 +37,9 @@ const searchMinimum = 2;
 const searchPauseMs = 180;
 const searchLimit = 6;
 
-/** What the message points at, for the host: the address, the name and the description. */
+/** What the message points at, for the host: the address, the name (as long as the host takes) and the description. */
 export function pointedAt(): Array<{ uri: string; title: string; text: string }> {
-  return attached.map((item) => ({ uri: item.uri, title: item.label, text: item.text }));
+  return contextForHost(attached);
 }
 
 export function clearPointedAt(page: ParentNode): void {
@@ -43,11 +48,17 @@ export function clearPointedAt(page: ParentNode): void {
   drawAttachments(page);
 }
 
-/** Forget everything with the file: a new file is a new conversation. */
+/**
+ * Forget everything the composer held: a new file, or a new session, is a new conversation, and
+ * what the person pointed at for the old one does not go with the new one's first message (ACP-02).
+ */
 export function resetMentions(): void {
   attached = [];
   menu = null;
   written = null;
+  composerGeneration += 1;
+  clearTimeout(searchTimer);
+  searchSequence += 1;
 }
 
 /** The pages whose place names something to point at: a record type, a view, a record or a proposal. */
@@ -201,15 +212,21 @@ async function choose(page: ParentNode, prompt: HTMLTextAreaElement, index: numb
   prompt.selectionStart = prompt.selectionEnd = before.length + name.length;
   written = { start: before.length, name };
   prompt.dispatchEvent(new Event('input', { bubbles: true }));
-  if (attached.some((item) => item.key === chosen.key || item.uri === chosen.uri && item.label === chosen.label)) return;
+  if (isAttached(attached, chosen)) return;
   if (attached.length >= maximumAttachments) { announce(`A message points at ${maximumAttachments} things at most.`); return; }
+  const generation = composerGeneration;
   let text: string;
   try {
     text = await describe(chosen);
   } catch {
     text = `${chosen.label}: read it through Nendo at ${chosen.recordId !== null && chosen.entityId !== null ? recordUri(chosen.entityId, chosen.recordId) : chosen.uri}`;
   }
-  attached = [...attached, { key: chosen.key, kind: chosen.kind, label: chosen.label, uri: chosen.uri, text }];
+  // The composer started again while the record was read: this chip belonged to the old message.
+  if (generation !== composerGeneration || isAttached(attached, chosen)) return;
+  // What the host takes together is bounded, so the description is cut to the room left (ACP-10).
+  const added = withAttachment(attached, { key: chosen.key, kind: chosen.kind, label: chosen.label, uri: chosen.uri, text });
+  if (added.refused !== null) { announce(added.refused); return; }
+  attached = added.attached;
   drawAttachments(page);
   announce(`${chosen.label} goes with this message.`);
 }

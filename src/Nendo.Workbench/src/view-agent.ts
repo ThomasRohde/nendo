@@ -5,7 +5,7 @@ import { confirmDialog } from './confirm-dialog';
 import { type ConnectionClient, connectionClients, connectionCommand, serverNameFor } from './client-help';
 import { activityLabel, agentModeLabel, escapeAttribute, escapeHtml, formatDateTime, isAgentAccessMode, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel, shortId } from './format';
 import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type DesktopPromotionView, type LaunchableAgents, type ProposalPreview } from './host';
-import { launchAgent, openAgentChat, saveAgentCommand, setAgentHidden, setAgentPageOpener } from './view-agent-chat';
+import { agentLevelChanged, launchAgent, openAgentChat, saveAgentCommand, setAgentHidden, setAgentPageOpener } from './view-agent-chat';
 import { type AgentTab, type CopyFeedback, agentTabs, agentTabsMarkup, copyButtonContent, copyHintMarkup, launchCopyText, launchTilesMarkup } from './agent-launch-model';
 import { announce, clearError, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
 import { openTabOn } from './workspace-tabs';
@@ -456,6 +456,8 @@ export async function setAgentMode(mode: AgentAccessMode): Promise<void> {
   clearError();
   try {
     state.agentStatus = await client.request<AgentStatus>('agent.setMode', { mode });
+    // A running conversation shows the level and what it does with a change (ACP-12).
+    agentLevelChanged();
     // Whether Launch may launch follows the level, so read it again with it: Launch kept the
     // old level's answer until the next poll, and said "Choose Inspect" at Inspect (2026-10-10).
     try {

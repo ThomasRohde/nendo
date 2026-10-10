@@ -185,6 +185,7 @@ internal sealed partial class DesktopSessionController
         _agentMode = mode;
         AttachWorkSignal(_agentHost);
         await EndLaunchedAgentIfMovedCoreAsync();
+        SayLevelChanged();
     }
 
     /// <summary>The port this file listens on: its own kept port, or a new one each time with Fixed port off.</summary>

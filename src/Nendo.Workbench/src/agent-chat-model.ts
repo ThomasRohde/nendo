@@ -18,6 +18,8 @@ import type { AgentOption, AgentTranscriptEntry, LaunchedAgentState, LaunchedAge
 export interface AgentChat {
   /** Changes when another agent is launched, so the page is rebuilt rather than patched. */
   key: string;
+  /** The host's name for the launch this chat holds, once a read has said it (ACP-07). */
+  conversationId: string | null;
   exists: boolean;
   agentId: string | null;
   name: string;
@@ -36,21 +38,26 @@ export interface AgentChat {
 
 export function emptyChat(): AgentChat {
   return {
-    key: '', exists: false, agentId: null, name: 'Agent', commandLine: null, endpoint: null, level: 'Off',
+    key: '', conversationId: null, exists: false, agentId: null, name: 'Agent', commandLine: null, endpoint: null, level: 'Off',
     state: 'none', working: false, notice: null, agentTitle: null, revision: 0, entries: new Map(), signInMethods: [], options: [],
   };
 }
 
 /**
- * Take in one read. A read whose revision is older than what the chat holds is a late answer and
- * changes nothing; a read of another conversation (another launch) starts the chat again.
- * Returns the IDs of the entries that changed.
+ * Take in one read. A read under another launch key (another launch, another file) starts the chat
+ * again. A read of another conversation than the one held is a late answer from a replaced
+ * launch and changes nothing (ACP-07): entry IDs and revisions start again with every launch, so
+ * merging it would show the old conversation and leave the new one's revisions unread. So does a
+ * read whose revision is older than what the chat holds. Entries the host no longer keeps go
+ * (ACP-03). Returns the IDs of the entries that changed.
  */
 export function mergeChat(chat: AgentChat, view: LaunchedAgentView, launchKey: string): string[] {
   if (chat.key !== launchKey) {
     Object.assign(chat, emptyChat(), { key: launchKey, entries: new Map() });
   }
+  if (chat.conversationId !== null && view.conversationId !== null && view.conversationId !== chat.conversationId) return [];
   if (view.revision < chat.revision && view.exists === chat.exists) return [];
+  if (view.conversationId !== null) chat.conversationId = view.conversationId;
   chat.exists = view.exists;
   chat.agentId = view.agentId;
   chat.name = view.name ?? 'Agent';
@@ -70,6 +77,11 @@ export function mergeChat(chat: AgentChat, view: LaunchedAgentView, launchKey: s
     if (held !== undefined && held.revision > entry.revision) continue;
     chat.entries.set(entry.id, entry);
     changed.push(entry.id);
+  }
+  // The host keeps a bounded transcript and says where it now starts; a tab open from the start
+  // holds what a tab opened now would, and scans no more than that.
+  if (view.firstOrder > 0) {
+    for (const [id, entry] of chat.entries) if (entry.order < view.firstOrder) chat.entries.delete(id);
   }
   return changed;
 }
@@ -285,12 +297,17 @@ function permissionMarkup(entry: AgentTranscriptEntry, agentName: string, showIn
   }
   const options = [...(entry.options ?? [])].sort((left, right) => (optionOrder[left.kind] ?? 4) - (optionOrder[right.kind] ?? 4));
   const firstAllow = options.find((option) => option.kind === 'allow_once')?.optionId ?? null;
+  // What the operation would do, as the agent supplied it (a diff, the places it touches), and
+  // what it sends. Either may be all the request carries (ACP-11). Both are text, never markup.
+  const details = entry.text === '' ? '' : `<pre class="chat-plain">${escapeHtml(entry.text)}</pre>`;
+  const input = entry.input === null ? '' : `<pre class="chat-plain">${escapeHtml(entry.input)}</pre>`;
+  const inspectable = details !== '' || input !== '';
   return `<section class="chat-permission" data-item="${key}" aria-label="${escapeAttribute(agentName)} asks permission">
     <div class="chat-permission-head"><span class="chat-permission-icon" aria-hidden="true">${icon('alert')}</span><strong>${escapeHtml(agentName)} asks: ${escapeHtml(entry.title ?? 'a tool call')}</strong>${originTag(entry.origin)}</div>
-    ${showInput && entry.input !== null ? `<pre class="chat-plain">${escapeHtml(entry.input)}</pre>` : ''}
+    ${showInput ? `${details}${input}` : ''}
     <div class="chat-permission-actions">${options.map((option) =>
       `<button type="button" class="${option.optionId === firstAllow ? 'primary-button' : option.kind === 'allow_always' ? 'text-button' : 'secondary-button'}" data-answer-entry="${escapeAttribute(entry.id)}" data-option-id="${escapeAttribute(option.optionId)}">${escapeHtml(option.name)}</button>`).join('')}
-      ${entry.input === null ? '' : `<button type="button" class="text-button chat-permission-input" data-toggle-input="${key}" aria-expanded="${showInput}">${showInput ? 'Hide what it sends' : 'Show what it sends'}</button>`}
+      ${!inspectable ? '' : `<button type="button" class="text-button chat-permission-input" data-toggle-input="${key}" aria-expanded="${showInput}">${showInput ? 'Hide what it does' : 'Show what it does'}</button>`}
     </div>
   </section>`;
 }

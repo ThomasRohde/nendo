@@ -305,6 +305,8 @@ export interface AgentOption {
 /** The conversation tab's read: the agent, its state, and what changed after the revision asked from. */
 export interface LaunchedAgentView {
   exists: boolean;
+  /** Which launch this read is of. A read of another launch is never merged into this one (ACP-07). */
+  conversationId: string | null;
   agentId: string | null;
   name: string | null;
   commandLine: string | null;
@@ -319,6 +321,8 @@ export interface LaunchedAgentView {
   more: boolean;
   signInMethods: Array<{ id: string; name: string; description: string | null }>;
   options: AgentOption[];
+  /** The order of the oldest entry the host still keeps: every entry before it is gone (ACP-03). */
+  firstOrder: number;
 }
 
 /**

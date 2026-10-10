@@ -53,3 +53,26 @@ export async function closeTabAt(set: TabSet, index: number, trail: Trail, show:
   if (index < set.active) set.active -= 1;
   return true;
 }
+
+/**
+ * What a new tab starts from when the person asks for one beside `saved` (the + button, Ctrl T):
+ * the place on screen, or, when that place is one of a kind in the window (a launched agent's
+ * conversation, ADR-0030), the nearest place before it that is not. Two tabs never show one
+ * conversation, so closing one of them cannot end the agent the other still shows (ACP-06).
+ * An empty trail when there is no such place.
+ */
+export function trailForNewTab(saved: SavedTrail, oneOfAKind: (place: Place) => boolean): SavedTrail {
+  for (let at = Math.min(saved.cursor, saved.places.length - 1); at >= 0; at -= 1) {
+    const place = saved.places[at]!;
+    if (!oneOfAKind(place)) return { places: [place], cursor: 0 };
+  }
+  return { places: [], cursor: -1 };
+}
+
+/**
+ * Whether a tab's trail holds a place anywhere in it, not only on screen: a conversation's tab
+ * that went on to Data still owns the conversation, which Back returns to (ACP-06).
+ */
+export function trailHolds(saved: SavedTrail | null, held: (place: Place) => boolean): boolean {
+  return saved !== null && saved.places.some(held);
+}

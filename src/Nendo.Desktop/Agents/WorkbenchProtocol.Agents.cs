@@ -36,6 +36,8 @@ internal sealed partial class WorkbenchProtocolHandler
     private async Task<object> HandleAgentSessionAsync(string method, string fileSessionId, JsonElement payload, CancellationToken cancellationToken)
     {
         var after = OptionalInt64(payload, "after");
+        // The launch the tab meant (ACP-07); absent from a tab that has not read one yet.
+        var conversation = OptionalString(payload, "conversationId", 64);
         return method switch
         {
             WorkbenchMethods.AgentSessionList => await _session.ListLaunchableAgentsAsync(fileSessionId, cancellationToken),
@@ -47,15 +49,15 @@ internal sealed partial class WorkbenchProtocolHandler
             WorkbenchMethods.AgentSessionRead => _session.ReadLaunchedAgent(fileSessionId, after),
             WorkbenchMethods.AgentSessionPrompt => _session.PromptLaunchedAgent(fileSessionId,
                 OptionalString(payload, "text", AgentConversation.MaximumPromptCharacters)
-                    ?? throw new NendoValidationException("Type something for the agent first."), after, PointedAt(payload)),
+                    ?? throw new NendoValidationException("Type something for the agent first."), after, PointedAt(payload), conversation),
             WorkbenchMethods.AgentSessionAnswer => _session.AnswerLaunchedAgent(fileSessionId,
-                RequiredString(payload, "entryId", 40), OptionalString(payload, "optionId", 200), after),
-            WorkbenchMethods.AgentSessionCancel => await _session.CancelLaunchedAgentTurnAsync(fileSessionId, after),
+                RequiredString(payload, "entryId", 40), OptionalString(payload, "optionId", 200), after, conversation),
+            WorkbenchMethods.AgentSessionCancel => await _session.CancelLaunchedAgentTurnAsync(fileSessionId, after, conversation),
             WorkbenchMethods.AgentSessionAuthenticate => _session.AuthenticateLaunchedAgent(fileSessionId,
-                RequiredString(payload, "methodId", 200), after),
-            WorkbenchMethods.AgentSessionEnd => await _session.EndLaunchedAgentAsync(fileSessionId, after),
+                RequiredString(payload, "methodId", 200), after, conversation),
+            WorkbenchMethods.AgentSessionEnd => await _session.EndLaunchedAgentAsync(fileSessionId, after, conversation),
             WorkbenchMethods.AgentSessionSetOption => await _session.SetLaunchedAgentOptionAsync(fileSessionId,
-                RequiredString(payload, "configId", 200), RequiredString(payload, "value", 300), after, cancellationToken),
+                RequiredString(payload, "configId", 200), RequiredString(payload, "value", 300), after, cancellationToken, conversation),
             _ => throw new NendoPreconditionException("unknown-method", $"Workbench method {method} is not part of this protocol."),
         };
     }

@@ -6,7 +6,7 @@ import { bundleOf } from './bundle-of.mjs';
 // Reads carry only what changed and are merged by entry; a run of steps folds into one line;
 // everything an agent or a tool says is drawn as text, never as markup; and the agent's own
 // options are drawn as it offers them.
-const { chatActivity, chatTabStatus, composerState, emptyChat, itemMarkup, mergeChat, optionsMarkup, partitionOptions, reviewHint, stateLabel, stepsSummary, threadItems } =
+const { chatActivity, chatTabStatus, composerState, emptyChat, itemMarkup, mergeChat, optionsMarkup, partitionOptions, reviewHint, stateLabel, stepsSummary, threadItems, waitingForYou } =
   await bundleOf('src/agent-chat-model.ts');
 
 const hostile = '<img src=x onerror="alert(1)"><script>alert(2)</script>';
@@ -18,7 +18,7 @@ function entry(fields) {
 function view(fields) {
   return {
     exists: true, agentId: 'copilot', name: 'GitHub Copilot CLI', commandLine: 'copilot --acp', endpoint: 'http://127.0.0.1:41763/mcp',
-    level: 'Edit data', state: 'ready', working: false, notice: null, agentTitle: null, revision: 1, entries: [], more: false, signInMethods: [], options: [], ...fields,
+    conversationId: 'c1', level: 'Edit data', state: 'ready', working: false, notice: null, agentTitle: null, revision: 1, entries: [], more: false, signInMethods: [], options: [], firstOrder: 0, ...fields,
   };
 }
 
@@ -165,4 +165,52 @@ test('under the box: what waits for review when something does, and otherwise wh
   assert.deepEqual(reviewHint('Unattended', 1), { text: '1 proposal waits for your review', waiting: true });
   assert.deepEqual(reviewHint('Edit data', 3), { text: '3 proposals wait for your review', waiting: true });
   assert.equal(reviewHint('Off', 0).text, '');
+});
+
+// ACP-07 (review of 2026-10-10): a read still out when New session started came back afterwards
+// and was merged into the new conversation: its old prompt, tools and answers on screen, and its
+// revision taken, so the new conversation's entries were never read.
+test('ACP-07: a late read from a replaced conversation changes nothing', () => {
+  const chat = emptyChat();
+  mergeChat(chat, view({ conversationId: 'old', revision: 10, entries: [entry({ id: 'e1', kind: 'you', text: 'Old prompt', revision: 10 })] }), 'f|1');
+  mergeChat(chat, view({ conversationId: 'new', revision: 1, state: 'starting', entries: [] }), 'f|2');
+  const late = mergeChat(chat, view({ conversationId: 'old', revision: 10, entries: [entry({ id: 'e1', kind: 'you', text: 'Old prompt', revision: 10 })] }), 'f|2');
+  assert.deepEqual(late, []);
+  assert.equal(chat.revision, 1, "The new conversation took the old one's revision.");
+  assert.equal(chat.entries.size, 0, "The old conversation's entries were drawn in the new one.");
+  assert.equal(chat.conversationId, 'new');
+  mergeChat(chat, view({ conversationId: 'new', revision: 2, entries: [entry({ id: 'e1', kind: 'you', text: 'New prompt', revision: 2 })] }), 'f|2');
+  assert.equal(chat.entries.get('e1').text, 'New prompt');
+});
+
+// ACP-03 (review of 2026-10-10): the host keeps 1,000 entries; a tab open from the start kept
+// every one it had ever read, and scanned them all on every update.
+test('ACP-03: entries the host no longer keeps leave the tab too', () => {
+  const chat = emptyChat();
+  const entries = Array.from({ length: 1010 }, (_, index) => entry({ id: `e${index + 1}`, order: index + 1, revision: 1, kind: index === 0 ? 'permission' : 'tool', options: index === 0 ? [{ optionId: 'a', name: 'Allow', kind: 'allow_once' }] : null }));
+  mergeChat(chat, view({ revision: 1, entries, firstOrder: 1 }), 'k');
+  assert.equal(chat.entries.size, 1010);
+  mergeChat(chat, view({ revision: 2, entries: [], firstOrder: 11 }), 'k');
+  assert.equal(chat.entries.size, 1000, 'The tab kept entries the host had let go.');
+  assert.equal(chat.entries.has('e1'), false);
+  assert.equal(chat.entries.has('e11'), true);
+  assert.equal(waitingForYou(chat), false, 'A question the host no longer keeps still waits for the person.');
+});
+
+// ACP-11 (review of 2026-10-10): a permission request that supplied its operation only as a diff
+// offered Allow and Reject with nothing to inspect; the card drew a disclosure only for input.
+test('ACP-11: a permission card shows the change the agent supplied, as text', () => {
+  const asking = entry({ id: 'e4', kind: 'permission', title: 'Edit configuration', input: null,
+    text: `Changes C:/work/config.json
+Before:
+${hostile}
+After:
+retries = 5`, options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }] });
+  const item = { key: 'e4', type: 'permission', entry: asking };
+  const closed = itemMarkup(item, 'Copilot', new Set());
+  assert.match(closed, /data-toggle-input="e4"/, 'The card offers no way to see what the operation does.');
+  const open = itemMarkup(item, 'Copilot', new Set(['e4']));
+  assert.match(open, /retries = 5/);
+  assert.match(open, /Changes C:\/work\/config\.json/);
+  assert.doesNotMatch(open, /<img src=x/, 'What the agent sent was drawn as markup.');
 });

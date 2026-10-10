@@ -903,7 +903,9 @@ host is an ACP client (`Desktop/Agents/`). It keeps no model client and no crede
   the access level and the state, then a reading column. Message chunks are merged into
   one message. Each run of tool calls, thoughts and plan between two messages folds into
   one line that opens. Each tool says whether it went through Nendo or was the agent's
-  own. All of it stays bounded text. The tab itself carries a mark while the agent
+  own, judged from its name and kind, never from what it sends. All of it stays bounded
+  text, and every text the agent writes passes one redaction of the application handle
+  as the tab reads it. The tab itself carries a mark while the agent
   starts or works, thinks, or waits for the person (2026-10-09).
 - **The agent's own options.** Model, effort, mode and anything else the agent offers
   are drawn in the composer as it offers them (`AgentConversation.Options.cs`):
@@ -915,13 +917,15 @@ host is an ACP client (`Desktop/Agents/`). It keeps no model client and no crede
   The `model`, `thought_level`, `mode` and `model_config` categories sit in the
   composer; anything else sits under More, such as Copilot's custom agent and Allow
   All. Nendo sends only a value the agent offered, and only when the person picks it.
-- **Permission requests.** Each one waits for the person's choice. Stop cancels the
-  turn and every open request.
+- **Permission requests.** Each one waits for the person's choice, with the diff and
+  places the request supplied there to read first. Stop cancels the turn and every open
+  request.
 - **What ends it.** Turning access Off, closing, switching or replacing the file, and
-  a listener that comes back at another address all end the agent. Closing the
-  conversation's tab ends it too, and New session in the tab's heading ends it and
-  starts the same agent again in the tab (2026-10-09). A new level at the same
-  address does not.
+  a listener that comes back at another address all end the agent, and so does a
+  refusal at the handshake. Closing the last tab whose trail holds the conversation
+  ends it too, and New session in the tab's heading ends it and starts the same agent
+  again in the tab, with an empty composer (2026-10-09). A new level at the same
+  address does not; the tab is told of it and shows it.
 
 The message box (W-200) names the file, the level and the agent in small chips above it, and
 @ points the agent at the file's own things: what other tabs show, record types, fields, views,
@@ -932,8 +936,11 @@ sends each as an embedded resource or a resource link with its nendo:// address
 
 The conversation reaches the tab through eleven `agentSession.*` bridge methods and
 the `agentSessionChanged` nudge (ADR-0002, 2026-10-08 note). `view-agent-chat.ts`
-reads what changed and patches it in place, so the composer is never redrawn. The
-transcript lives in host memory until the file closes or another agent is launched.
+reads what changed and patches it in place, so the composer is never redrawn. Each read
+carries the launch's `conversationId`; a read or an answer of a replaced conversation is
+dropped, and a request that names one is refused. The transcript lives in host memory until
+the file closes or another agent is launched, at most 1,000 entries, and each read says where
+it now starts so the tab lets the same entries go.
 
 **What Nendo does not confine.** The program keeps every ability it has on this
 computer, including its own shell and file tools. ACP lets an agent ask permission

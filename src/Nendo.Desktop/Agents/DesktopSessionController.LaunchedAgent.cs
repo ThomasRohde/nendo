@@ -36,11 +36,13 @@ internal sealed record DesktopLaunchableAgents(
     IReadOnlyList<string> Hidden);
 
 /// <summary>
-/// The conversation tab's read: who the agent is, the level it works at, the MCP address it was
-/// given, its state, and the entries that changed after the revision the tab asked from.
+/// The conversation tab's read: which launch it is, who the agent is, the level it works at, the
+/// MCP address it was given, its state, the entries that changed after the revision the tab asked
+/// from, and the order of the oldest entry still kept.
 /// </summary>
 internal sealed record DesktopLaunchedAgentView(
     bool Exists,
+    string? ConversationId,
     string? AgentId,
     string? Name,
     string? CommandLine,
@@ -54,10 +56,11 @@ internal sealed record DesktopLaunchedAgentView(
     IReadOnlyList<AgentTranscriptEntry> Entries,
     bool More,
     IReadOnlyList<AgentSignInMethodView> SignInMethods,
-    IReadOnlyList<AgentOptionView> Options)
+    IReadOnlyList<AgentOptionView> Options,
+    long FirstOrder)
 {
     internal static DesktopLaunchedAgentView None(string level) =>
-        new(false, null, null, null, null, level, "none", false, null, null, 0, [], false, [], []);
+        new(false, null, null, null, null, null, level, "none", false, null, null, 0, [], false, [], [], 0);
 }
 
 internal sealed partial class DesktopSessionController
@@ -185,31 +188,31 @@ internal sealed partial class DesktopSessionController
         return _launched is { } agent ? ReadLaunchedCore(agent, Math.Max(0, after)) : DesktopLaunchedAgentView.None(LevelName());
     }
 
-    internal DesktopLaunchedAgentView PromptLaunchedAgent(string fileSessionId, string text, long after, IReadOnlyList<AgentPromptContext>? pointedAt = null)
+    internal DesktopLaunchedAgentView PromptLaunchedAgent(string fileSessionId, string text, long after, IReadOnlyList<AgentPromptContext>? pointedAt = null, string? conversationId = null)
     {
-        var agent = RequireLaunched(fileSessionId);
+        var agent = RequireLaunched(fileSessionId, conversationId);
         agent.Conversation.Prompt(text, pointedAt);
         return ReadLaunchedCore(agent, after);
     }
 
-    internal DesktopLaunchedAgentView AnswerLaunchedAgent(string fileSessionId, string entryId, string? optionId, long after)
+    internal DesktopLaunchedAgentView AnswerLaunchedAgent(string fileSessionId, string entryId, string? optionId, long after, string? conversationId = null)
     {
-        var agent = RequireLaunched(fileSessionId);
+        var agent = RequireLaunched(fileSessionId, conversationId);
         agent.Conversation.Answer(entryId, optionId);
         return ReadLaunchedCore(agent, after);
     }
 
-    internal async Task<DesktopLaunchedAgentView> CancelLaunchedAgentTurnAsync(string fileSessionId, long after)
+    internal async Task<DesktopLaunchedAgentView> CancelLaunchedAgentTurnAsync(string fileSessionId, long after, string? conversationId = null)
     {
-        var agent = RequireLaunched(fileSessionId);
+        var agent = RequireLaunched(fileSessionId, conversationId);
         await agent.Conversation.CancelTurnAsync();
         return ReadLaunchedCore(agent, after);
     }
 
     /// <summary>Ask the agent to sign in by the way the person chose. Runs on; the tab reads how it went.</summary>
-    internal DesktopLaunchedAgentView AuthenticateLaunchedAgent(string fileSessionId, string methodId, long after)
+    internal DesktopLaunchedAgentView AuthenticateLaunchedAgent(string fileSessionId, string methodId, long after, string? conversationId = null)
     {
-        var agent = RequireLaunched(fileSessionId);
+        var agent = RequireLaunched(fileSessionId, conversationId);
         if (agent.Conversation.State != "signIn")
             throw new NendoPreconditionException("agent-not-signing-in", "The agent is not waiting to sign in.");
         _ = agent.Conversation.AuthenticateAsync(methodId, CancellationToken.None);
@@ -217,16 +220,16 @@ internal sealed partial class DesktopSessionController
     }
 
     /// <summary>Set one of the agent's own options to a value it offered (ADR-0030, 2026-10-08).</summary>
-    internal async Task<DesktopLaunchedAgentView> SetLaunchedAgentOptionAsync(string fileSessionId, string optionId, string value, long after, CancellationToken cancellationToken = default)
+    internal async Task<DesktopLaunchedAgentView> SetLaunchedAgentOptionAsync(string fileSessionId, string optionId, string value, long after, CancellationToken cancellationToken = default, string? conversationId = null)
     {
-        var agent = RequireLaunched(fileSessionId);
+        var agent = RequireLaunched(fileSessionId, conversationId);
         await agent.Conversation.SetOptionAsync(optionId, value, cancellationToken);
         return ReadLaunchedCore(agent, after);
     }
 
-    internal async Task<DesktopLaunchedAgentView> EndLaunchedAgentAsync(string fileSessionId, long after)
+    internal async Task<DesktopLaunchedAgentView> EndLaunchedAgentAsync(string fileSessionId, long after, string? conversationId = null)
     {
-        var agent = RequireLaunched(fileSessionId);
+        var agent = RequireLaunched(fileSessionId, conversationId);
         await agent.EndAsync("You ended the conversation.");
         return ReadLaunchedCore(agent, after);
     }
@@ -285,19 +288,37 @@ internal sealed partial class DesktopSessionController
     private DesktopLaunchedAgentView ReadLaunchedCore(DesktopLaunchedAgent agent, long after)
     {
         var snapshot = agent.Conversation.Read(after);
-        return new DesktopLaunchedAgentView(true, agent.Command.Id, agent.Command.Name, agent.Command.CommandLine,
+        return new DesktopLaunchedAgentView(true, agent.ConversationId, agent.Command.Id, agent.Command.Name, agent.Command.CommandLine,
             agent.Endpoint.AbsoluteUri, LevelName(), snapshot.State, snapshot.Working, snapshot.Notice, snapshot.AgentTitle,
-            snapshot.Revision, snapshot.Entries, snapshot.More, snapshot.SignInMethods, snapshot.Options);
+            snapshot.Revision, snapshot.Entries, snapshot.More, snapshot.SignInMethods, snapshot.Options, snapshot.FirstOrder);
     }
 
     private string LevelName() => NendoAccessLevels.DisplayName(_agentMode);
 
-    private DesktopLaunchedAgent RequireLaunched(string fileSessionId)
+    /// <param name="conversationId">
+    /// The launch the request was meant for, when the tab names one. Entry IDs start again with
+    /// every launch, so an answer to a replaced conversation's question would otherwise land on
+    /// this one's (ACP-07).
+    /// </param>
+    private DesktopLaunchedAgent RequireLaunched(string fileSessionId, string? conversationId = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         RequireFileSession(fileSessionId);
-        return _launched ?? throw new NendoPreconditionException("agent-not-launched",
+        var agent = _launched ?? throw new NendoPreconditionException("agent-not-launched",
             "No agent is running for this file. Launch one from the Agent page.");
+        if (conversationId is not null && !string.Equals(conversationId, agent.ConversationId, StringComparison.Ordinal))
+            throw new NendoPreconditionException("agent-conversation-replaced",
+                "That conversation has been replaced by a new one. Nothing was sent.");
+        return agent;
+    }
+
+    /// <summary>
+    /// The access level changed while the agent kept running: tell the tab, which shows the level
+    /// and what becomes of the agent's changes, though nothing in the transcript moved (ACP-12).
+    /// </summary>
+    private void SayLevelChanged()
+    {
+        if (_launched is { } agent) LaunchedAgentChanged?.Invoke(agent.Conversation.Revision);
     }
 
     /// <summary>

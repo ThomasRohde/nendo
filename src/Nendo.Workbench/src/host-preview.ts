@@ -190,6 +190,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         break;
       case 'agent.setMode':
         result = this.setAgentMode(payload);
+        this.agentSession.levelChanged();
         break;
       case 'agent.revokeEditing':
         result = this.revokeAgentEditing();

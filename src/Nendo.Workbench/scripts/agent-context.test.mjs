@@ -5,7 +5,7 @@ import { bundleOf } from './bundle-of.mjs';
 // W-200: @ in the agent tab's message box points the agent at the file's own things. The owner's
 // "Add more books!" stalled because the agent did not know the record type's ID or fields; what
 // the person points at carries them, and the menu stays cheap on a large file.
-const { attachmentsMarkup, contextChoices, describeRecord, describeType, foldsSoFar, maximumDescriptionCharacters, mentionAt, mentionMenuMarkup, recordUri } =
+const { attachmentsMarkup, contextChoices, contextForHost, describeRecord, describeType, foldsSoFar, maximumDescriptionCharacters, mentionAt, mentionMenuMarkup, recordUri, withAttachment } =
   await bundleOf('src/agent-context-model.ts');
 
 const hostile = '<img src=x onerror="alert(1)">';
@@ -121,4 +121,38 @@ test('nothing the file names becomes markup', () => {
     + attachmentsMarkup([{ key: hostile, kind: 'type', label: hostile, uri: 'nendo://x', text: hostile }]);
   assert.doesNotMatch(markup, /<img/);
   assert.match(mentionMenuMarkup([], 0, null), /Nothing in this file has that name/);
+});
+
+// ACP-10 (review of 2026-10-10): the menu offered eight things of up to 6,000 characters each,
+// and the host takes 32,000 together and 120 for a name: six large record types made a message
+// that could not be sent at all, with nothing on screen saying why. The bounds below are the
+// host's (AgentConversation.Context.cs).
+const hostTotal = 32_000;
+const hostTitle = 120;
+const hostItems = 8;
+
+function largeType(index) {
+  const fields = Array.from({ length: 200 }, (_, at) => field(`t${index}.f${at}`, `A rather long field name number ${at} of type ${index} ${'that goes on and on '.repeat(5)}`));
+  return { entityId: `t${index}`, name: `Type ${index}`, recordCount: null, fields };
+}
+
+test('ACP-10: what a message points at fits what the host takes, and keeps the address that reads the rest', () => {
+  let attached = [];
+  const refusals = [];
+  for (let index = 0; index < 10; index++) {
+    const text = describeType('Big.nendo', largeType(index));
+    assert.equal(text.length, maximumDescriptionCharacters, 'The case this guards needs maximum-size descriptions.');
+    const label = index === 0 ? 'L'.repeat(300) : `Type ${index}`;
+    const added = withAttachment(attached, { key: `type:t${index}`, kind: 'type', label, uri: `nendo://application/entity/t${index}`, text });
+    if (added.refused !== null) refusals.push(added.refused);
+    attached = added.attached;
+  }
+  const sent = contextForHost(attached);
+  assert.ok(sent.length <= hostItems, `${sent.length} things were sent; the host takes ${hostItems}.`);
+  const total = sent.reduce((sum, item) => sum + item.text.length, 0);
+  assert.ok(total <= hostTotal, `The descriptions came to ${total} characters; the host takes ${hostTotal} together, and refuses the message.`);
+  assert.ok(sent.every((item) => item.title.length <= hostTitle && item.title.trim().length > 0), 'A name was longer than the host takes.');
+  assert.ok(sent.every((item) => item.text.includes(`Read more through Nendo: ${item.uri}`)), 'A description cut to fit lost the address that reads the rest.');
+  assert.ok(sent.length >= 5, `Only ${sent.length} large things fitted; cutting them should leave room for more.`);
+  assert.ok(refusals.length > 0 && refusals.every((said) => /Stop pointing at|at most/.test(said)), 'A thing that did not fit was dropped without saying what to take back.');
 });

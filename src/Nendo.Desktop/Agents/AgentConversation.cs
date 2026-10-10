@@ -34,7 +34,11 @@ internal sealed record AgentTranscriptEntry(
     IReadOnlyList<AgentPlanItemView>? Plan = null,
     string? Origin = null);
 
-/// <summary>What a reader is told: the state, and the entries that changed after its revision.</summary>
+/// <summary>
+/// What a reader is told: the state, and the entries that changed after its revision.
+/// <c>FirstOrder</c> is the order of the oldest entry still kept: a reader drops every entry
+/// before it, so a tab open from the start holds what a tab opened now would (ACP-03).
+/// </summary>
 internal sealed record AgentConversationSnapshot(
     string State,
     bool Working,
@@ -44,7 +48,8 @@ internal sealed record AgentConversationSnapshot(
     IReadOnlyList<AgentTranscriptEntry> Entries,
     bool More,
     IReadOnlyList<AgentSignInMethodView> SignInMethods,
-    IReadOnlyList<AgentOptionView> Options);
+    IReadOnlyList<AgentOptionView> Options,
+    long FirstOrder);
 
 /// <summary>
 /// One ACP session with one agent, over whatever carries its messages (ADR-0030).
@@ -84,6 +89,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
     private IReadOnlyList<AgentSignInMethodView> _signIn = [];
     private MutableEntry? _openMessage;
     private bool _embeddedContext;
+    private readonly TaskCompletionSource _ended = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <param name="fromAgent">What the agent writes.</param>
     /// <param name="toAgent">What the agent reads.</param>
@@ -99,9 +105,18 @@ internal sealed partial class AgentConversation : IAsyncDisposable
     /// <summary>The connection ended, with its reason.</summary>
     internal Task<string> Closed => _connection.Closed;
 
+    /// <summary>
+    /// The conversation ended, for whatever reason: a refusal at the handshake as much as the
+    /// person's End. Whoever runs the program ends it then too (ACP-01).
+    /// </summary>
+    internal Task Ended => _ended.Task;
+
     internal string State { get { lock (_sync) return _state; } }
 
     internal bool Working { get { lock (_sync) return _working; } }
+
+    /// <summary>The revision now, for a nudge that carries no entry of its own (a new access level).</summary>
+    internal long Revision { get { lock (_sync) return _revision; } }
 
     /// <summary>The MCP address the agent was given, for the tests and the tab.</summary>
     internal Uri? Endpoint => _endpoint;
@@ -363,7 +378,8 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             if (_state == "ended") return;
             _state = "ended";
             _working = false;
-            _notice = AcpConnection.Bounded(notice);
+            // A notice may carry what the program last wrote to stderr, which is the agent's own text.
+            _notice = Redact(AcpConnection.Bounded(notice));
             _openMessage = null;
             Add("notice", _notice);
             open = _permissions.Values.ToArray();
@@ -371,6 +387,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         }
         foreach (var permission in open) permission.Answer.TrySetResult(null);
         _ending.Cancel();
+        _ended.TrySetResult();
         Raise(revision);
     }
 
@@ -383,7 +400,8 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             var more = changed.Count > limit;
             var taken = changed.Take(limit).Select(entry => entry.View()).ToArray();
             var revision = more ? taken[^1].Revision : _revision;
-            return new AgentConversationSnapshot(_state, _working, _notice, _agentTitle, revision, taken, more, _signIn, _options);
+            var firstOrder = _entries.Count == 0 ? _order + 1 : _entries[0].Order;
+            return new AgentConversationSnapshot(_state, _working, _notice is null ? null : Redact(_notice), _agentTitle, revision, taken, more, _signIn, _options, firstOrder);
         }
     }
 
@@ -420,8 +438,13 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             permission.Entry.Title = (call.ValueKind == JsonValueKind.Object ? Text(call, "title", 500) : null) ?? known?.Title ?? "A tool call";
             permission.Entry.ToolKind = (call.ValueKind == JsonValueKind.Object ? Text(call, "kind", 40) : null) ?? known?.ToolKind;
             permission.Entry.Input = (call.ValueKind == JsonValueKind.Object ? RawInput(call) : null) ?? known?.Input;
+            // What the operation would do, as the agent supplied it: a diff, its output so far,
+            // the places it touches. The person decides with it in front of them (ACP-11).
+            var details = call.ValueKind == JsonValueKind.Object ? CallDetails(call) : string.Empty;
+            permission.Entry.Text.Append(details.Length > 0 ? details : known?.Text.ToString() ?? string.Empty);
             permission.Entry.Options = options;
-            permission.Entry.Origin = Origin(known?.Title ?? permission.Entry.Title, permission.Entry.Input);
+            permission.Entry.ToolName = (call.ValueKind == JsonValueKind.Object ? MetaToolName(call) : null) ?? known?.ToolName;
+            permission.Entry.Origin = Origin(known?.Title ?? permission.Entry.Title, permission.Entry.ToolKind, permission.Entry.ToolName);
             _permissions[permission.Entry.Id] = permission;
             revision = Touch();
         }
@@ -519,12 +542,13 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         if (Text(update, "status", 40) is { } status) entry.Status = status;
         else if (created) entry.Status ??= "pending";
         if (RawInput(update) is { } input) entry.Input = input;
+        if (MetaToolName(update) is { } name) entry.ToolName = name;
         if (update.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Array)
         {
             entry.Text.Clear();
             entry.Text.Append(Redact(ToolContentText(content)));
         }
-        entry.Origin = Origin(entry.Title, entry.Input);
+        entry.Origin = Origin(entry.Title, entry.ToolKind, entry.ToolName);
         entry.Revision = _revision + 1;
     }
 
@@ -533,7 +557,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         if (!update.TryGetProperty("entries", out var items) || items.ValueKind != JsonValueKind.Array) return;
         var plan = items.EnumerateArray()
             .Where(item => item.ValueKind == JsonValueKind.Object)
-            .Select(item => new AgentPlanItemView(Text(item, "content", 500) ?? string.Empty, Text(item, "status", 40) ?? "pending"))
+            .Select(item => new AgentPlanItemView(Redact(Text(item, "content", 500) ?? string.Empty), Text(item, "status", 40) ?? "pending"))
             .Take(50)
             .ToArray();
         // One plan, replaced whole each time the agent states it.
@@ -618,7 +642,8 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             var line = Text(item, "type", 40) switch
             {
                 "content" => item.TryGetProperty("content", out var block) ? BlockText(block) : string.Empty,
-                "diff" => $"Changed {Text(item, "path", 500) ?? "a file"}",
+                // The change itself, not only its path: a permission request may carry nothing else.
+                "diff" => DiffText(item),
                 "terminal" => "(terminal output)",
                 _ => string.Empty,
             };
@@ -630,6 +655,46 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         return text.ToString();
     }
 
+    private const int MaximumDiffSideCharacters = 8_000;
+
+    private static string DiffText(JsonElement diff)
+    {
+        var path = Text(diff, "path", 500) ?? "a file";
+        var before = Text(diff, "oldText", MaximumDiffSideCharacters + 1);
+        var after = Text(diff, "newText", MaximumDiffSideCharacters + 1) ?? string.Empty;
+        static string Side(string text) => text.Length > MaximumDiffSideCharacters
+            ? string.Concat(text.AsSpan(0, MaximumDiffSideCharacters), "\n… (cut short)") : text;
+        return before is null
+            ? $"Creates {path}:\n{Side(after)}"
+            : $"Changes {path}\nBefore:\n{Side(before)}\nAfter:\n{Side(after)}";
+    }
+
+    /// <summary>
+    /// What a tool call in a permission request says it would do: its content (a diff, text) and
+    /// the places it names. Empty when it supplied neither; bounded and redacted like a tool's output.
+    /// </summary>
+    private static string CallDetails(JsonElement call)
+    {
+        var text = new StringBuilder();
+        if (call.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Array)
+            text.Append(ToolContentText(content));
+        if (call.TryGetProperty("locations", out var locations) && locations.ValueKind == JsonValueKind.Array)
+        {
+            var places = locations.EnumerateArray()
+                .Where(location => location.ValueKind == JsonValueKind.Object && Text(location, "path", 500) is not null)
+                .Take(20)
+                .Select(location => location.TryGetProperty("line", out var line) && line.TryGetInt32(out var number)
+                    ? $"{Text(location, "path", 500)}:{number}" : Text(location, "path", 500)!)
+                .ToArray();
+            if (places.Length > 0)
+            {
+                if (text.Length > 0) text.Append('\n');
+                text.Append("Where: ").Append(string.Join(", ", places));
+            }
+        }
+        return Redact(text.ToString());
+    }
+
     private static string? RawInput(JsonElement call)
     {
         if (!call.TryGetProperty("rawInput", out var input) || input.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null) return null;
@@ -638,13 +703,21 @@ internal sealed partial class AgentConversation : IAsyncDisposable
 
     /// <summary>
     /// The agent's private application handle, as a tool call sends it or a lease grant returns
-    /// it, plain or inside an escaped string. It is a capability (ADR-0009): whoever holds it may
-    /// write as the agent, so the tab shows that it was sent and never what it was.
+    /// it, plain or inside an escaped string, or as the agent repeats it in its own words
+    /// (<c>applicationHandle: abc</c>, <c>application_handle=`abc`</c>). It is a capability
+    /// (ADR-0009): whoever holds it may write as the agent, so the tab shows that it was sent and
+    /// never what it was. A value cut off at the end of the text is hidden too, so a message
+    /// still streaming never shows the start of one.
     /// </summary>
     private static readonly Regex Handle = new(
-        @"(\\?""(?:resumeA|a)pplicationHandle\\?""\s*:\s*\\?"")[^""\\]+",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        @"((?:resume[_ ]?)?application[_ ]?handle\\?[""'`*]{0,2}\s*[:=]\s*\\?[""'`*]{0,2})(?!\(hidden\))[^""'`*\\\s,;}\])]+",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
+    /// <summary>
+    /// Hide every application handle. Applied wherever the agent's text enters the transcript, and
+    /// again to each entry as it is read, so a handle split across streamed chunks is hidden once
+    /// the chunks meet (ACP-08).
+    /// </summary>
     internal static string Redact(string text) => Handle.Replace(text, "$1(hidden)");
 
     private static string? Text(JsonElement element, string name, int maximum) =>
@@ -674,8 +747,13 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         internal IReadOnlyList<AgentPlanItemView>? Plan { get; set; }
         internal string? Origin { get; set; }
 
+        /// <summary>The tool's name as the agent's metadata gives it, when it does. Not shown.</summary>
+        internal string? ToolName { get; set; }
+
+        /// <summary>The entry as the tab is sent it: every text the agent wrote passes the one redaction boundary.</summary>
         internal AgentTranscriptEntry View() =>
-            new(Id, Order, Revision, Kind, Text.ToString(), Title, ToolKind, Status, Input, Options, Answer, Plan, Origin);
+            new(Id, Order, Revision, Kind, Redact(Text.ToString()), Title is null ? null : Redact(Title), ToolKind, Status,
+                Input is null ? null : Redact(Input), Options, Answer, Plan, Origin);
     }
 
     private sealed class PendingPermission(TaskCompletionSource<string?> answer)
