@@ -26,11 +26,20 @@ const rejected = new Set(['validation', 'invalid-request', 'idempotency-conflict
   'hierarchy-too-wide', 'hierarchy-cycle', 'hierarchy-too-deep', 'move-unchanged',
   // ADR-0026: the whole mutation was refused at its end, so nothing of it landed.
   'link-not-allowed', 'links-not-allowed',
+  // Refused inside the write's own transaction before it committed (ADR-0019, ADR-0020 and
+  // the open ceilings). Left out, a duplicate in a unique field kept the save pending for
+  // good and locked editing of the file on this device (WCS-01). refusal-codes.test.mjs
+  // fails when the Engine gains a code that is neither listed here nor named as unsettled.
+  'value-not-unique', 'field-values-not-unique', 'kept-in-new-files-unchanged',
+  'hierarchy-parent-invalid', 'hierarchy-parent-required', 'hierarchy-order-invalid', 'hierarchy-cycle-present',
+  'write-ceiling-bytes', 'write-ceiling-rows', 'write-ceiling-schema', 'action-target-mismatch', 'read-only',
+  'revision-not-found', 'revision-not-yours', 'not-an-undo',
+  'record-exists-or-invalid', 'behaviour-not-approved', 'definition-not-found', 'field-calculated',
   // A save refused because an automatic action could not run. The whole transaction
   // rolled back, so nothing is in flight.
   'calculation-missing-input', 'calculation-divide-by-zero', 'calculation-overflow', 'calculation-invalid-date',
   'calculation-text-too-long', 'calculation-limit-reached', 'calculation-dependency-failed', 'calculation-related-unavailable',
-  'calculation-refused']);
+  'calculation-refused', 'calculation-stored-value-invalid']);
 const maximumCharacters = 131_072;
 
 export function isJournaledMutation(method: string): boolean { return methods.has(method); }
@@ -126,7 +135,7 @@ export class PendingMutationJournal {
       return this.acknowledge(entry, result);
     } catch (error) {
       const code = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : '';
-      if (rejected.has(code)) {
+      if (isConfirmedRejection(code)) {
         this.removeIfMatching(entry);
         throw error;
       }

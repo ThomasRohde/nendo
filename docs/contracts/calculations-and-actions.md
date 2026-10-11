@@ -938,9 +938,15 @@ argument with `calculation-missing-input`, and the declaration of the caller dec
 The empty result of a function reaches its caller as an empty argument, and the
 declaration of the caller then decides. The codes are
 `calculation-missing-input`, `-divide-by-zero`, `-overflow`, `-invalid-date`,
-`-text-too-long`, `-limit-reached`, `-dependency-failed`, `-related-unavailable`
-and `-refused`. Messages are owner-facing and carry no stack trace, type name or
+`-text-too-long`, `-limit-reached`, `-dependency-failed`, `-related-unavailable`,
+`-stored-value-invalid` and `-refused`. Messages are owner-facing and carry no stack trace, type name or
 expression internals. The message of a refusal is the text of the author.
+
+`calculation-stored-value-invalid` is a stored value a formula cannot read as its field's type,
+such as text a tool outside Nendo left in a whole-number column, a fraction in a yes/no column,
+or a date that is not a calendar date. Only that field's value fails; the record and the file
+stay readable. Inspection reports text or a fraction in a whole-number or yes/no column as
+drift, so such a file opens without editing until it is repaired.
 
 The branch that is not taken is never evaluated: `true ? 7 : 1/0` is seven, and
 `false and (1/0 = 0)` is false.

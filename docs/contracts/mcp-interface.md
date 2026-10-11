@@ -204,7 +204,8 @@ in this way.
 [Output schema contract tests](../../tests/Nendo.LocalMcp.Tests/OutputSchemaContractTests.cs)
 call every declared tool and check its payload against its own declared schema.
 
-Host/Origin/address/body checks occur before dispatch. A body is at most 256 KiB
+Host/Origin/address/body checks occur before dispatch, on every request whatever its path:
+routing matches `/mcp` without regard to case, so the perimeter does not test the path. A body is at most 256 KiB
 (`limits.requestBodyBytes`). A larger one whose JSON-RPC `id` the host can read in its first
 16 MiB is answered under that id rather than as a bare HTTP 413, which a client reports
 as a transport failure (W-165): a `tools/call` as a refused tool result carrying

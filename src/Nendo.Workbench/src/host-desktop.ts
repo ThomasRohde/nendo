@@ -81,6 +81,8 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
   readonly mode = 'desktop' as const;
   private readonly pending = new Map<string, PendingRequest>();
   private fileSessionId: string | null = null;
+
+  currentFileSession(): string | null { return this.fileSessionId; }
   private fileIdentity: string | null = null;
   private readonly navigateListeners = new Set<(route: HostRoute) => void>();
   private readonly framesFailedListeners = new Set<(failed: HostFramesFailed) => void>();

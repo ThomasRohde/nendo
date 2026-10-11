@@ -5,6 +5,7 @@
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** [perimeter tests](../../tests/Nendo.LocalMcp.Tests/McpSecurityTests.cs),
+  [path perimeter tests](../../tests/Nendo.LocalMcp.Tests/McpPathPerimeterTests.cs),
   [protocol tests](../../tests/Nendo.LocalMcp.Tests/LatestProtocolTests.cs),
   [discovery lifecycle tests](../../tests/Nendo.LocalMcp.Tests/DiscoveryLifecycleTests.cs),
   the opt-in installed-client lanes for
@@ -364,7 +365,9 @@ services, at a static loopback address, with no credential.
 
 - The perimeter tests assert that the server refuses non-loopback, mismatched
   Host, mismatched Origin, oversize and over-deep bodies before dispatch. They
-  also assert that it refuses a body that arrives after admission closes.
+  also assert that it refuses a body that arrives after admission closes. Through a
+  real host, the same refusals hold on every spelling of the path, since routing
+  matches `/mcp` without regard to case.
 - The protocol tests assert that the server answers the `initialize` handshake
   with the client's own version. They also assert that the 2026-07-28 discover
   path works without a session header.
@@ -483,3 +486,7 @@ services, at a static loopback address, with no credential.
   is device state, so a file that travels does not carry it and a file never stores
   it. A copy made outside Nendo keeps the instance ID, so on this device it opens at
   the remembered level, as the moved or renamed file would.
+- 2026-10-11 — the perimeter runs for every request, whatever its path. It had tested
+  the path ordinally while routing matched `/mcp` without regard to case, so `/MCP`
+  reached the endpoint past the Host and Origin checks this decision relies on against
+  DNS rebinding (MHS-01 in a broad review). Authority unchanged.

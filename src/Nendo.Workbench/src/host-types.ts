@@ -815,6 +815,8 @@ export function isHostRoute(value: unknown): value is HostRoute {
 export interface WorkbenchClient {
   readonly mode: WorkbenchMode;
   request<T>(method: string, payload?: Record<string, unknown>): Promise<T>;
+  /** The file session requests go out under now; it moves before the renderer redraws (WXS-01). */
+  currentFileSession?(): string | null;
   /** Listen for a view the host asked to show. Returns a function that stops listening. */
   onNavigate?(listener: (route: HostRoute) => void): () => void;
   /** Listen for custom-view frames whose renderer ended. */

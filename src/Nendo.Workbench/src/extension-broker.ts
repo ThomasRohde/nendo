@@ -25,6 +25,8 @@ import { declaredKeys, readMenu, readToolbar, type CommandValue, type ViewMenuRe
 export interface BrokerMount {
   readonly key: string;
   readonly origin: string;
+  /** The file session the frame was mounted under. A frame of another reaches nothing (WXS-01). */
+  readonly fileSessionId: string | null;
   /** The mounted iframe's contentWindow, or null while there is no frame. */
   frameWindow(): unknown;
 }
@@ -69,6 +71,13 @@ export interface BrokerDeps {
   mounts(): Iterable<BrokerMount>;
   /** Whether views may run now; the host answers 403 on every view origin when they may not. */
   running(): boolean;
+  /**
+   * The file session the Workbench's own requests go out under now. A view is answered only
+   * while it matches the session its frame was mounted under: the client takes the next
+   * file's session before the old file's frames are released, and until then a request from
+   * one of them would be answered from the next file.
+   */
+  fileSessionId(): string | null;
   context(mount: BrokerMount): ViewContext;
   describe(): SchemaDescription;
   ui: BrokerUi;
@@ -802,9 +811,28 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
     if (connections.get(connection.mount.key) === connection) connections.delete(connection.mount.key);
   }
 
+  /** Whether the connection's frame belongs to the file the Workbench has open now. */
+  function current(connection: Connection): boolean {
+    return connection.mount.fileSessionId === deps.fileSessionId();
+  }
+
+  /**
+   * Close every connection whose frame belongs to a file no longer open, before anything is
+   * pushed to the views: a view that only listens would otherwise hear the next file's
+   * changes and commands until its frame is released.
+   */
+  function closeStale(): void {
+    for (const connection of [...connections.values()]) if (!current(connection)) close(connection);
+  }
+
   async function run(connection: Connection, pending: Pending): Promise<void> {
     connection.inFlight += 1;
+    let stale = false;
     try {
+      if (!current(connection)) {
+        stale = true;
+        throw new WorkbenchHostError('stale-file-session', 'This view belongs to a file that is no longer open, so it reaches nothing.');
+      }
       if (!deps.running()) throw new WorkbenchHostError('views-off', 'Custom views are off, so this view cannot reach the file.');
       const raw = pending.params;
       if (raw !== undefined && raw !== null && (typeof raw !== 'object' || Array.isArray(raw)))
@@ -817,6 +845,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       fail(connection, pending.id, described.code, described.message);
     } finally {
       connection.inFlight -= 1;
+      if (stale) close(connection);
       pump(connection);
     }
   }
@@ -874,7 +903,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
    * eight a second is not heard for the rest of that second; there is no answer to refuse.
    */
   function handKey(connection: Connection, keys: unknown): void {
-    if (typeof keys !== 'string' || !deps.running()) return;
+    if (typeof keys !== 'string' || !deps.running() || !current(connection)) return;
     if (!hostKeys.includes(keys) && !connection.keys.has(keys)) return;
     try { withinRate(connection.keyTimes, deps.now(), extensionLimits.keysPerSecond, ''); } catch { return; }
     deps.ui.key(connection.mount, keys);
@@ -902,7 +931,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       // Only a frame this Workbench mounted, and only from the origin it was mounted at. A
       // frame that has navigated elsewhere keeps its window but not its origin.
       const mount = mountFor(event.source);
-      if (mount === null || event.origin !== mount.origin || !deps.running()) return;
+      if (mount === null || event.origin !== mount.origin || !deps.running() || mount.fileSessionId !== deps.fileSessionId()) return;
       const previous = connections.get(mount.key);
       if (previous !== undefined) close(previous);
       const channel = new MessageChannel();
@@ -926,10 +955,12 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
     },
 
     isConnected(mount) {
+      closeStale();
       return connections.has(mount.key);
     },
 
     changes(changeSequence) {
+      closeStale();
       const now = deps.now();
       for (const connection of connections.values()) {
         connection.changesPending = changeSequence;
@@ -942,6 +973,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
     },
 
     theme(theme) {
+      closeStale();
       for (const connection of connections.values()) {
         post(connection, { t: 'evt', n: 'theme', d: theme });
         connection.contextJson = JSON.stringify(deps.context(connection.mount));
@@ -949,6 +981,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
     },
 
     refreshContext(mount) {
+      closeStale();
       const connection = connections.get(mount.key);
       if (connection === undefined) return;
       const context = deps.context(mount);
@@ -959,6 +992,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
     },
 
     command(mount, command) {
+      closeStale();
       const connection = connections.get(mount.key);
       if (connection === undefined || connection.closed) return false;
       post(connection, { t: 'evt', n: 'command', d: { id: command.id, value: command.value, source: command.source } });
@@ -966,6 +1000,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
     },
 
     place(mount, place) {
+      closeStale();
       const connection = connections.get(mount.key);
       if (connection === undefined || connection.closed) return;
       const json = JSON.stringify(place);
@@ -976,6 +1011,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
     },
 
     tick() {
+      closeStale();
       const now = deps.now();
       for (const connection of connections.values()) {
         if (connection.ping !== null) {

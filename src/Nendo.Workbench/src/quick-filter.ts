@@ -30,10 +30,21 @@ export function quickFilterMenu(plan: ApplicationPlan, surface: SurfaceNodePlan 
 export function wireQuickFilter(plan: ApplicationPlan, surface: SurfaceNodePlan | null): void {
   if (surface === null) return;
   const menu = content.querySelector<HTMLDetailsElement>('[data-testid="quick-filter"]');
+  // Chromium fires toggle on a details inserted open. Only a change from what was drawn is
+  // the person opening or closing it; otherwise each redraw read the targets and redrew the
+  // menu open again, without end (WDV-01).
+  let drawn = menu?.open ?? false;
   menu?.addEventListener('toggle', () => {
+    if (menu.open === drawn) return;
+    drawn = menu.open;
     openSurfaceId = menu.open ? surface.semanticId : null;
     if (menu.open) void readTargets(plan);
   });
+  // A menu drawn open whose targets were never read, as after the file view was reset, reads
+  // them once. readTargets marks them loading before it redraws, so that redraw reads nothing.
+  if (menu?.open && quickFilterFields(plan.entity.fields).some(field =>
+    field.reference != null && !quickFilterTargets.has(field.reference.targetEntityId)))
+    queueMicrotask(() => void readTargets(plan));
   menu?.addEventListener('keydown', event => {
     if (event.key === 'Escape') { menu.open = false; menu.querySelector('summary')?.focus(); }
   });

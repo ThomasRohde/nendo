@@ -19,8 +19,8 @@ function harness() {
   const posted = [];
   const frameWindow = { postMessage: (message, targetOrigin, transfer) => posted.push({ message, targetOrigin, transfer }) };
   const otherWindow = { postMessage: () => { throw new Error('A window this Workbench did not mount was answered.'); } };
-  const mount = { key: 'mount-1', origin, frameWindow: () => frameWindow };
-  const h = { posted, frameWindow, otherWindow, mount, calls: [], pending: [], timers: [], toasts: [], responsive: [], now: 0, running: true, heights: [], opened: [], canOpen: true,
+  const mount = { key: 'mount-1', origin, fileSessionId: 'file-A', frameWindow: () => frameWindow };
+  const h = { posted, frameWindow, otherWindow, mount, calls: [], pending: [], timers: [], toasts: [], responsive: [], now: 0, running: true, fileSessionId: 'file-A', heights: [], opened: [], canOpen: true,
     toolbars: [], menus: [], menuAnswer: null, keys: [], places: [] };
   h.broker = broker.createExtensionBroker({
     request: (method, payload) => {
@@ -29,6 +29,7 @@ function harness() {
     },
     mounts: () => [mount],
     running: () => h.running,
+    fileSessionId: () => h.fileSessionId,
     context: () => h.context ?? context,
     describe: () => ({ purpose: null, changeSequence: 1, entities: [], screens: [], commands: [] }),
     ui: {
@@ -87,6 +88,45 @@ const readMethods = ['data.queryRecords', 'data.searchRecords', 'data.treeRecord
 // W-065 and W-069). The host admits a view's actor on exactly these and on proposal.get
 // (WorkbenchMethods.ExtensionWriterMethods). Never promote or reject.
 const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.moveRecord', 'data.writeRecords', 'data.undoRecordWrites', 'data.executeCommand', 'proposal.prepareChangeSet', 'extension.state.set'];
+
+// WXS-01: the client takes the next file's session before the old file's frames are released.
+// Until then a view of the old file was answered from the next one: its schema locally, its
+// reads and, under a shared package ID, its writes by the host. Each family is the first thing
+// its own connection asks after the switch, so one refusal closing the port cannot hide another.
+for (const [family, method, params] of [
+  ['a local answer', 'schema.describe', {}],
+  ['a read', 'records.query', { entityId: 'b.salary' }],
+  ['a write', 'records.create', { entityId: 'b.salary', values: { amount: 1 } }],
+  ['a request to Nendo', 'ui.toast', { text: 'hello' }],
+]) {
+  test(`WXS-01: ${family} from a view of a file that is no longer open reaches nothing and disconnects it`, async (t) => {
+    const h = harness(); t.after(() => close(h)); const view = connect(h);
+    h.fileSessionId = 'file-B';
+    view.send({ t: 'req', id: 1, m: method, p: params });
+    const refused = await view.next(message => message.id === 1);
+    assert.equal(refused.ok, false, `${method} from the old file's view was answered: ` + JSON.stringify(refused));
+    assert.equal(refused.e.code, 'stale-file-session', method);
+    await settle();
+    assert.deepEqual(h.calls, [], 'Nothing went to the host for a view of a file that is no longer open.');
+    assert.deepEqual(h.toasts, [], 'Nothing was shown for it either.');
+    assert.equal(h.broker.isConnected(h.mount), false, 'Its connection is closed.');
+  });
+}
+
+test('WXS-01: a view of a file that is no longer open hears nothing more and cannot connect again', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  h.fileSessionId = 'file-B';
+  view.send({ t: 'key', keys: 'Ctrl+K' });
+  h.broker.changes(7);
+  await settle();
+  assert.deepEqual(h.keys, [], 'A key it hands back is not run in the next file.');
+  assert.equal(view.inbox.some(message => message.t === 'evt' && message.n === 'changes'), false, 'The next file\'s changes are not pushed to it.');
+  assert.equal(h.broker.isConnected(h.mount), false, 'Its connection is closed before anything is pushed.');
+
+  const before = h.posted.length;
+  h.broker.receive({ source: h.frameWindow, origin: h.mount.origin, data: hello });
+  assert.equal(h.posted.length, before, 'A frame of the old file is not connected again.');
+});
 
 test('R30-016: a batch admits the same record ID in different record types', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);

@@ -379,6 +379,7 @@ export function viewApiReference() {
       'too-large': 'The parameters take more than 256 KiB.',
       busy: 'Too many requests wait, a second toast or menu came too soon, or Nendo is running another action. Try again shortly.',
       'views-off': 'Custom views were turned off while the request waited.',
+      'stale-file-session': 'The view\'s file is no longer open. Nendo disconnects the view and its frame ends; do not retry.',
       'read-only': 'The open file takes no edits.',
       'not-allowed': 'A record page holds unsaved typing, so Nendo stays where it is.',
       'not-found': 'The record type or the screen is not in this file.',

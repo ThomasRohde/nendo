@@ -573,19 +573,34 @@ internal sealed partial class SqliteNendoStore
             BehaviourBudget budget)
         {
             var actual = BehaviourScalarOf(storageKind)
-                ?? throw new NendoValidationException("A formula cannot read this kind of stored value.");
-            var value = actual switch
+                ?? throw new NendoCalculationException(NendoCalculationCodes.StoredValueInvalid,
+                    "A field this calculation reads has a kind of stored value a formula cannot read.");
+            BehaviourValue value;
+            try
             {
-                NendoBehaviourScalar.Integer => BehaviourValue.Integer(System.Convert.ToInt64(stored, CultureInfo.InvariantCulture)),
-                NendoBehaviourScalar.Decimal => BehaviourValue.Decimal(ReadDecimal(stored)),
-                NendoBehaviourScalar.Boolean => BehaviourValue.Boolean(System.Convert.ToInt64(stored, CultureInfo.InvariantCulture) != 0),
-                NendoBehaviourScalar.Text => BehaviourValue.Text((string)stored, budget.Limits),
-                _ => BehaviourValue.Date(DateOnly.ParseExact((string)stored, "yyyy-MM-dd", CultureInfo.InvariantCulture)),
-            };
+                // A whole number or yes/no is stored as an integer; a fraction there is refused,
+                // never rounded.
+                value = actual switch
+                {
+                    NendoBehaviourScalar.Integer => BehaviourValue.Integer(stored is long whole ? whole : throw new InvalidCastException()),
+                    NendoBehaviourScalar.Decimal => BehaviourValue.Decimal(ReadDecimal(stored)),
+                    NendoBehaviourScalar.Boolean => BehaviourValue.Boolean((stored is long flag ? flag : throw new InvalidCastException()) != 0),
+                    NendoBehaviourScalar.Text => BehaviourValue.Text((string)stored, budget.Limits),
+                    _ => BehaviourValue.Date(DateOnly.ParseExact((string)stored, "yyyy-MM-dd", CultureInfo.InvariantCulture)),
+                };
+            }
+            catch (Exception exception) when (exception is FormatException or InvalidCastException or OverflowException)
+            {
+                // A value written by a tool outside Nendo, such as text in a whole-number column.
+                // It fails this field's value; unanswered, it failed every read of the file and
+                // the next open refused the whole file (R2SMA-01).
+                throw new NendoCalculationException(NendoCalculationCodes.StoredValueInvalid,
+                    "A value this calculation reads is not stored as its field's type. File health says what changed.");
+            }
             if (value.Type == expected) return value;
             if (expected == NendoBehaviourScalar.Decimal && value.Type == NendoBehaviourScalar.Integer)
                 return BehaviourValue.Decimal(value.AsDecimal());
-            throw new NendoValidationException(
+            throw new NendoCalculationException(NendoCalculationCodes.StoredValueInvalid,
                 $"A formula expects {expected.ToString().ToLowerInvariant()} where the file now stores {value.Type.ToString().ToLowerInvariant()}.");
         }
 

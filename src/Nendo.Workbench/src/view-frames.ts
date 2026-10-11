@@ -99,6 +99,7 @@ export function installViewFrames(): void {
     request: (method, payload) => client.request(method, payload),
     mounts: () => [...mounts.values()].filter((mount) => mount.frame !== null),
     running: () => state.session.extensions?.run === true,
+    fileSessionId: () => client.currentFileSession?.() ?? state.session.fileSessionId,
     context: (mount) => ({
       ...viewContext((mount as Mount).spec, state.session, currentTheme(), navigator.language || 'en', brokerMethodNames),
       place: placeOf(mount as Mount),
@@ -257,7 +258,7 @@ export function wireViewFrames(scope: ParentNode): void {
     const key = mountKey(spec, state.session.fileSessionId, notice.pkg);
     let mount = mounts.get(key);
     if (mount === undefined) {
-      mount = createMount(key, spec, notice.pkg.origin, notice.pkg.entryPoint);
+      mount = createMount(key, spec, notice.pkg.origin, notice.pkg.entryPoint, state.session.fileSessionId);
       mounts.set(key, mount);
     }
     if (mount.placeholder !== null && mount.placeholder !== element) observer?.unobserve(mount.placeholder);
@@ -306,9 +307,9 @@ function setViewPlace(mount: Mount, place: { value: Json; label: string | null; 
   return true;
 }
 
-function createMount(key: string, spec: ViewSpec, origin: string, entryPoint: string): Mount {
+function createMount(key: string, spec: ViewSpec, origin: string, entryPoint: string, fileSessionId: string | null): Mount {
   const mount: Mount = {
-    key, origin, entryPoint, spec,
+    key, origin, entryPoint, spec, fileSessionId,
     placeholder: null, frame: null, frameId: null,
     started: false, loaded: false, restarting: false, trouble: null,
     height: defaultPanelHeight, seen: generation, toolbar: null,

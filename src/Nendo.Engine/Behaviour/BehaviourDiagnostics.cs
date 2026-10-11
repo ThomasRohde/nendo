@@ -33,6 +33,12 @@ public static class NendoCalculationCodes
 
     /// <summary>A related record could not be read completely.</summary>
     public const string RelatedUnavailable = "calculation-related-unavailable";
+
+    /// <summary>
+    /// A stored value is not of the type its field declares, as a tool outside Nendo can
+    /// leave it. The field's value fails; the record and the file stay readable.
+    /// </summary>
+    public const string StoredValueInvalid = "calculation-stored-value-invalid";
 }
 
 /// <summary>

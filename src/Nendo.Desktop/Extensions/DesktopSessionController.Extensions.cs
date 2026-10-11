@@ -52,6 +52,8 @@ internal sealed record DesktopExtensionAsset(int Status, string? MediaType, byte
     internal static DesktopExtensionAsset Forbidden { get; } = new(403, "text/plain", "Custom views are off."u8.ToArray());
     internal static DesktopExtensionAsset NotFound { get; } = new(404, "text/plain", "Not in this package."u8.ToArray());
     internal static DesktopExtensionAsset Unavailable { get; } = new(503, "text/plain", "The file is not readable right now."u8.ToArray());
+    internal static DesktopExtensionAsset Damaged { get; } = new(500, "text/plain",
+        "This view file is damaged: its bytes do not match the hash they are filed under. Check the file's health in Nendo."u8.ToArray());
 }
 
 internal sealed partial class DesktopSessionController
@@ -116,6 +118,7 @@ internal sealed partial class DesktopSessionController
     {
         lock (_viewProposals) _viewProposals.Clear();
         _extensionServing = ExtensionServing.None;
+        _extensionContent.Clear();
         StopDevelopment();
     }
 
@@ -339,7 +342,12 @@ internal sealed partial class DesktopSessionController
         {
             var content = await service.ReadExtensionFileAsync(package.PackageId, path, cancellationToken);
             if (content is null) return DesktopExtensionAsset.NotFound;
-            _extensionContent.Add(content.Sha256, content.Content);
+            // An open only checks that a stored hash looks like one, so the bytes are hashed here.
+            // Content filed under a hash it does not have is neither served nor cached, or one
+            // file could plant code that another file's view loads by that hash (DAE-01).
+            var actual = NendoExtensionContent.Sha256(content.Content);
+            if (!string.Equals(actual, content.Sha256, StringComparison.Ordinal)) return DesktopExtensionAsset.Damaged;
+            _extensionContent.Add(actual, content.Content);
             return new(200, content.MediaType, content.Content);
         }
         catch (Exception exception) when (exception is ObjectDisposedException or NendoException or OperationCanceledException or IOException)
@@ -468,6 +476,16 @@ internal sealed partial class DesktopSessionController
                 _order.Remove(node);
                 _order.AddFirst(node);
                 return node.Value.Content;
+            }
+        }
+
+        internal void Clear()
+        {
+            lock (_lock)
+            {
+                _order.Clear();
+                _entries.Clear();
+                _bytes = 0;
             }
         }
 

@@ -271,6 +271,8 @@ every bound, and case-unique paths. A table outside them is `mapping-drift`, and
 editing is disabled. An explicit integrity verification, `health.verify` in the
 Workbench or `nendo.health.verify_integrity` over MCP, also reads every stored
 content and compares it with its SHA-256. A mismatch puts the file into recovery.
+Serving a view file also hashes the bytes it reads: content that does not match the hash
+it is filed under is answered 500, "This view file is damaged", and is not cached.
 
 ### Skill packages
 
@@ -362,7 +364,9 @@ For example, `org.nendo.gantt` in some file runs at
 `https://org-nendo-gantt-‹10 hex›.example`. The origin is stable for a package in a
 file, so its browser storage survives a restart. Two files that carry one package
 have different origins and separate storage. A frame left over from a closed file
-reaches nothing.
+reaches nothing. The client takes the next file's session before the old file's frames are
+released. Until they are, the broker refuses an old frame's requests and its hello with
+`stale-file-session`, closes its connection, and pushes nothing more to it.
 
 `.example` is reserved by RFC 2606 and never resolves. Each origin is a site of its
 own, so Chromium puts each package in a renderer process of its own, never the
@@ -449,7 +453,8 @@ A request is answered in this order:
    500.
 5. `/` is the package's entry point. A path that ends in `/` means that folder's
    `index.html`.
-6. A file of the package: 200, with its content.
+6. A file of the package: 200, with its content. Content whose bytes do not match its
+   stored SHA-256: 500, "This view file is damaged", never cached.
 7. Anything else: 404, "Not in this package."
 
 Step 5 has a development step in front of it (Phase 4, see
@@ -472,8 +477,9 @@ policy to a view's answers.
 The host knows which origin is which package from the last session view it
 produced, so serving never waits behind the Workbench's own requests. The bytes
 come from a content cache or from a typed Engine read, off the UI thread. The cache
-holds content by its SHA-256, at most 64 MiB, and drops the least recently used
-first, so cached content is never stale.
+holds content by the SHA-256 the host computed from its bytes, at most 64 MiB, and drops
+the least recently used first, so cached content is never stale. It is emptied when the
+file session ends, so nothing cached for one file is answered for another.
 
 ## The browser a view gets
 
@@ -1118,6 +1124,7 @@ sentence.
 | `too-large` | Script or broker | The parameters take more than 256 KiB |
 | `busy` | Broker or Workbench | 64 requests already wait, a second toast came within a second, or another action is running |
 | `views-off` | Broker | Views were off when the request ran |
+| `stale-file-session` | Broker | The view's file is no longer open. The broker disconnects the view and its frame is about to end; do not retry |
 | `not-allowed` | Workbench | A record page holds unsaved changes, so Nendo stays where it is |
 | `not-found` | Workbench | The record type or the screen is not in this file |
 | `disconnected` | Script | The Workbench reconnected the view before it answered. Send a read again; a write may have been kept, so read first or send a batch again under its `writeKey` |

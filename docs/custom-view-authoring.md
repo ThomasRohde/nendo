@@ -764,6 +764,7 @@ A refused call rejects with a `nendo.NendoError`. Its `code` is stable, and its
 | `not-allowed` | A record page has unsaved changes, so Nendo stays where it is |
 | `not-found` | The record type or the screen is not in this file |
 | `views-off` | Custom views were turned off |
+| `stale-file-session` | The person opened another file. Nendo disconnects the view and its frame ends; do not retry |
 | `read-only` | The file is open read-only, so nothing may change it |
 | `record-version-conflict` | The record changed since you read it. Read it again |
 | `proposal-waiting` | A proposal your package prepared still waits for the person |

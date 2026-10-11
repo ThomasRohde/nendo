@@ -268,6 +268,60 @@ public sealed class FileInspectionTests
         CollectionAssert.AreEqual(before, await File.ReadAllBytesAsync(workspace.FilePath));
     }
 
+    /// <summary>
+    /// R2SMA-01. Inspection checked a column's values only for binary, so text a tool outside
+    /// Nendo left in a whole-number column opened the file for editing. The first calculation
+    /// over that column then threw a raw FormatException on every read, and the next open
+    /// refused the whole file as unreadable: no data, export or backup.
+    /// </summary>
+    [TestMethod]
+    [DataRow(NendoStorageKind.Integer, "'abc'", DisplayName = "text in a whole-number column")]
+    [DataRow(NendoStorageKind.Integer, "2.5", DisplayName = "a fraction in a whole-number column")]
+    [DataRow(NendoStorageKind.Integer, "1e19", DisplayName = "a number past the whole-number range")]
+    [DataRow(NendoStorageKind.Boolean, "'yes'", DisplayName = "text in a yes/no column")]
+    public async Task AValueNotOfItsFieldsTypeIsDriftAndFailsOnlyThatCalculation(NendoStorageKind kind, string outside)
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var original = await workspace.CreateAsync();
+        var service = new NendoApplicationService(original);
+        await original.ApplyAsync(new("test", "schema", "test", "Items", [
+            new CreateEntityOperation("items", "items", "Items", "items"),
+            new AddFieldOperation("i-amount", "items", "amount", "Amount", "amount", kind, true),
+            new AddFieldOperation("i-title", "items", "title", "Title", "title", NendoStorageKind.Text, true),
+        ]));
+        foreach (var id in new[] { "bad", "good" })
+            await service.CreateRecordAsync(new("items", id, new Dictionary<string, object?>
+            {
+                ["amount"] = kind == NendoStorageKind.Boolean ? true : 5L, ["title"] = id,
+            }, new("test", id, "test")));
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await original.ApplyAsync(new("test", "behaviour", "test", "Doubled", [
+            new SetBehaviourDefinitionOperation("doubled", new NendoCalculationDefinition(
+                "items.doubled", "items", "doubled", "Doubled", NendoBehaviourScalar.Integer, false,
+                kind == NendoStorageKind.Boolean ? "amount ? 10 : 0" : "amount * 2",
+                [NendoBehaviourBinding.SameRecordField("amount", "items", "amount",
+                    kind == NendoStorageKind.Boolean ? NendoBehaviourScalar.Boolean : NendoBehaviourScalar.Integer, false)]), revision),
+        ]));
+        await CloseAsync(workspace, original);
+        await ChangeFixtureAsync(workspace.FilePath, $"UPDATE items SET amount = {outside} WHERE __nendo_record_id = 'bad';");
+
+        var inspection = await NendoWriteCoordinator.InspectAsync(workspace.FilePath);
+        Assert.AreNotEqual(NendoOpenClassification.Rejected, inspection.Classification,
+            "The file was refused whole: " + string.Join("; ", inspection.Findings.Select(finding => finding.Code)));
+        Assert.IsTrue(inspection.Capabilities.ReadData, "The other records stay readable.");
+        Assert.IsTrue(inspection.Findings.Any(finding => finding.Code == "mapping-drift"),
+            $"{outside} in a {kind} column is drift: " + inspection.Classification);
+
+        await using var reader = await NendoWriteCoordinator.OpenReadOnlyAsync(workspace.FilePath);
+        Assert.IsFalse(reader.Capabilities.Mutate);
+        var records = (await new NendoApplicationService(reader).GetSnapshotAsync()).Records;
+        var good = records.Single(record => record.RecordId == "good").Calculations.Single(calculation => calculation.FieldId == "doubled");
+        Assert.AreEqual(10L, good.Value.GetInt64(), "A record with a well-typed value still calculates.");
+        var bad = records.Single(record => record.RecordId == "bad").Calculations.Single(calculation => calculation.FieldId == "doubled");
+        Assert.AreEqual(NendoCalculationState.Error, bad.State, $"{outside} was read as {bad.Value}");
+        Assert.AreEqual(NendoCalculationCodes.StoredValueInvalid, bad.ErrorCode);
+    }
+
     [TestMethod]
     public async Task WalHeaderWithoutSidecarsIsRejectedBeforeSqliteCanCreateDerivatives()
     {

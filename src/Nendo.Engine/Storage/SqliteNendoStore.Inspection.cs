@@ -639,13 +639,22 @@ internal sealed partial class SqliteNendoStore
                 {
                     drift |= column.Type != SqliteType(field.StorageKind) || column.Required != (field.Required && !field.Retired) || column.Key != 0;
                 }
-                var binary = Convert.ToInt64(await ScalarAsync(
-                    $"SELECT EXISTS(SELECT 1 FROM {Quote(entity.PhysicalTableName)} WHERE typeof({Quote(field.PhysicalColumnName)}) = 'blob');",
+                // One scan per column: 2 for a binary value, which cannot be projected at all; 1 for
+                // text or a fraction in a whole-number or yes/no column, which only a tool outside
+                // Nendo writes. That is drift, shown read-only, rather than a file that opens for
+                // editing and fails later (R2SMA-01).
+                var quoted = Quote(field.PhysicalColumnName);
+                var mistyped = field.StorageKind is NendoStorageKind.Integer or NendoStorageKind.Boolean
+                    ? $"WHEN typeof({quoted}) NOT IN ('integer', 'null') THEN 1 "
+                    : string.Empty;
+                var found = Convert.ToInt64(await ScalarAsync(
+                    $"SELECT coalesce(max(CASE WHEN typeof({quoted}) = 'blob' THEN 2 {mistyped}ELSE 0 END), 0) FROM {Quote(entity.PhysicalTableName)};",
                     null, cancellationToken), CultureInfo.InvariantCulture);
-                if (binary != 0)
+                if (found == 2)
                 {
                     throw new NendoValidationException("Binary values cannot be projected as scalar recovery data.");
                 }
+                drift |= found == 1;
             }
             totalRows += Convert.ToInt64(await ScalarAsync($"SELECT COUNT(*) FROM {Quote(entity.PhysicalTableName)};", null, cancellationToken), CultureInfo.InvariantCulture);
             if (totalRows > MaximumInspectionRows)

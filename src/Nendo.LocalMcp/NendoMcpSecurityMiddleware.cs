@@ -23,11 +23,8 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
 
     public async Task InvokeAsync(HttpContext context, NendoHostAuthority authority, NendoRequestGate gate)
     {
-        if (!context.Request.Path.StartsWithSegments("/mcp", StringComparison.Ordinal))
-        {
-            await next(context);
-            return;
-        }
+        // Every request passes the perimeter, whatever its path. Routing matches /mcp without
+        // regard to case, so a path test here once let /MCP past every check below (MHS-01).
 
         // The request's User-Agent names a handshake-era client on every request (W-150).
         using var client = NendoTransportIdentity.FromUserAgent(context.Request.Headers.UserAgent.ToString());
