@@ -301,6 +301,29 @@ public sealed class DesktopExtensionServingTests
             "The reopened file was read afresh, not answered from the last session's cache.");
     }
 
+    /// <summary>
+    /// DAE-02. A view's request for anything but a clipboard read or several downloads went to
+    /// WebView2's own prompt. The request carries the Workbench's origin, so an Allow kept there
+    /// covered every view of every file: the person's own map view's location grant reached a
+    /// view in a file someone sent them. Every other kind is now refused, and nothing is kept.
+    /// </summary>
+    [TestMethod]
+    public void AViewIsGivenTheClipboardAutoplayAndDownloadsAndRefusedEverythingElse()
+    {
+        foreach (var kind in Enum.GetValues<Microsoft.Web.WebView2.Core.CoreWebView2PermissionKind>())
+        {
+            var expected = kind is Microsoft.Web.WebView2.Core.CoreWebView2PermissionKind.ClipboardRead
+                or Microsoft.Web.WebView2.Core.CoreWebView2PermissionKind.MultipleAutomaticDownloads
+                or Microsoft.Web.WebView2.Core.CoreWebView2PermissionKind.Autoplay
+                ? Microsoft.Web.WebView2.Core.CoreWebView2PermissionState.Allow
+                : Microsoft.Web.WebView2.Core.CoreWebView2PermissionState.Deny;
+            var answer = ExtensionWebViewPolicy.ViewPermission(kind);
+            Assert.IsTrue(answer.Handled, $"{kind} reaches the Workbench's handler.");
+            Assert.IsFalse(answer.SavesInProfile, $"{kind}'s answer is kept in the profile, where it covers every view.");
+            Assert.AreEqual(expected, answer.State, $"{kind} is answered by the host, never left to the browser's prompt.");
+        }
+    }
+
     private static async Task SeedAsync(string path)
     {
         await using var coordinator = await NendoWriteCoordinator.CreateAsync(path, "serving-test");

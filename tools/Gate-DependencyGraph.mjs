@@ -319,7 +319,7 @@ async (page) => {
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/graph-native-chrome.png' });
   await page.evaluate(() => window.broker.offerChrome(false));
   assert(errors.length === 0, 'Graph raised browser errors: ' + errors.join('; '));
-  return JSON.stringify({ nodes: 3, edges: 4, handshake: true, openRecord: true, keyboard: true, zoom: true, textAlternative: true,
+  return 'dependency graph ok ' + JSON.stringify({ nodes: 3, edges: 4, handshake: true, openRecord: true, keyboard: true, zoom: true, textAlternative: true,
     themes: { light: lightColour, dark: darkColour }, rereadAfterChange: true, burstReads: burst, selectionKept: true,
     compact: '480x320', highDensity: '512x384', chromeNotSelectable: true, nodesInView: true, summaryCounts: true, refusedReadShown: true, pageErrors: errors });
 }

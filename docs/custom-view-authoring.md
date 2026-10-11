@@ -1040,7 +1040,10 @@ Nendo does not interpret it. It is not the place for data.
   (`broker.offerChrome(true)`), so a lane measures the view on both kinds of host, and it
   reads each toolbar and menu by the Workbench's own rules: a declaration Nendo would
   refuse is refused there too, and named in `broker.chromeRefusals`. Copy one of those
-  lanes for your own package.
+  lanes for your own package. A lane passes only when its probe's own last word, such as
+  `gantt ok`, appears under `### Result` and no `### Modal state` does: `run-code` stops at
+  a dialog and still exits 0, so the exit code alone would pass a probe that never
+  finished. Give your probe a word of its own.
 
 ## What a view can and cannot reach
 

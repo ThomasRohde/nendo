@@ -150,8 +150,8 @@ internal static class NendoToolErrors
         "LEASE_HELD" =>
             "Another local agent currently has edit access. nendo.lease.status names its client. If your own acquire " +
             "response was lost, call nendo.lease.acquire again with the same idempotencyKey to receive the same " +
-            "grant. Otherwise wait for the holder to release the lease, or ask the person to revoke it on the " +
-            "Agent page in Nendo.",
+            "grant; that works until the lease is first used, for at most five minutes. Otherwise wait for the holder " +
+            "to release the lease, or ask the person to revoke it on the Agent page in Nendo.",
         "HANDLE_UNKNOWN" =>
             "The resumeApplicationHandle was not minted by this host run, so there is nothing of yours to resume. " +
             "Acquire without it; a handle from before the file was reopened no longer counts.",

@@ -90,18 +90,30 @@ internal static class ExtensionWebViewPolicy
         args.Frame.PermissionRequested += OnViewPermissionRequested;
 
     /// <summary>
-    /// A view may read the clipboard and download several files without being asked each time.
-    /// Anything else it asks for gets the browser's own prompt. Either way the answer is this
-    /// frame's alone, and nothing reaches the Workbench's handler below.
+    /// A view may read the clipboard, play media and download several files without being asked
+    /// each time. Anything else it asks for is refused. Either way the answer is this frame's
+    /// alone, nothing reaches the Workbench's handler below, and nothing is kept in the profile.
     /// </summary>
     private static void OnViewPermissionRequested(CoreWebView2Frame sender, CoreWebView2PermissionRequestedEventArgs args)
     {
-        args.Handled = true;
-        if (args.PermissionKind is not (CoreWebView2PermissionKind.ClipboardRead or CoreWebView2PermissionKind.MultipleAutomaticDownloads))
-            return;
-        args.SavesInProfile = false;
-        args.State = CoreWebView2PermissionState.Allow;
+        var answer = ViewPermission(args.PermissionKind);
+        args.Handled = answer.Handled;
+        args.SavesInProfile = answer.SavesInProfile;
+        args.State = answer.State;
     }
+
+    /// <summary>
+    /// The whole answer a view gets, which the handler only copies. A request carries the
+    /// Workbench's origin whichever view asked, so an answer WebView2's own prompt kept would
+    /// cover every view of every file: the person's Allow for their own map view would hand a
+    /// file someone sent them their location without asking (DAE-02). So nothing is left to that
+    /// prompt and nothing is kept. Autoplay is allowed because the frame delegates it.
+    /// </summary>
+    internal static (bool Handled, bool SavesInProfile, CoreWebView2PermissionState State) ViewPermission(CoreWebView2PermissionKind kind) =>
+        (true, false, kind is CoreWebView2PermissionKind.ClipboardRead or CoreWebView2PermissionKind.MultipleAutomaticDownloads
+            or CoreWebView2PermissionKind.Autoplay
+            ? CoreWebView2PermissionState.Allow
+            : CoreWebView2PermissionState.Deny);
 
     /// <summary>The Workbench asks for nothing, so it is given nothing.</summary>
     private static void OnWorkbenchPermissionRequested(CoreWebView2 sender, CoreWebView2PermissionRequestedEventArgs args)

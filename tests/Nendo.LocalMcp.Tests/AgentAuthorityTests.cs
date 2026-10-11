@@ -88,6 +88,50 @@ public sealed class AgentAuthorityTests
         Assert.IsFalse((await authority.GetStatusAsync(CancellationToken.None)).HasLease);
     }
 
+    /// <summary>
+    /// MHS-02. An acquire under the holder's idempotency key returned the holder's whole grant,
+    /// application handle included, for as long as the lease was held. Two agents following the
+    /// same skill could send the same key, and the second then wrote under the first's lease. A
+    /// replay is the recovery for a lost response, so it now holds only until the lease is first
+    /// used, and only for a short while after the grant.
+    /// </summary>
+    [TestMethod]
+    public async Task AnAcquireKeyReplaysOnlyALostResponseNeverAnotherAgentsGrant()
+    {
+        var clock = new TestClock(new DateTimeOffset(2026, 10, 11, 10, 0, 0, TimeSpan.Zero));
+        var authority = CreateAuthority(AgentAccessMode.DataMutation, clock, TimeSpan.FromHours(1));
+        var first = await authority.AcquireAsync("handle-a", "Codex", "acquire-lease", null, CancellationToken.None);
+        var retried = await authority.AcquireAsync("handle-x", "Codex", "acquire-lease", null, CancellationToken.None);
+        Assert.AreEqual(first.LeaseId, retried.LeaseId, "A retry after a lost response still receives the same grant.");
+
+        // Inside the window and before any use, another client sending the holder's key is refused.
+        var early = await Assert.ThrowsExactlyAsync<NendoAgentAuthorityException>(() =>
+            authority.AcquireAsync("handle-b", "Claude Code", "acquire-lease", null, CancellationToken.None),
+            "Another client sending the holder's key was handed the holder's grant.");
+        Assert.AreEqual("LEASE_HELD", early.Code);
+
+        await authority.AdmitMutationAsync(first.LeaseId, "handle-a", AgentAccessMode.DataMutation, _ => Task.FromResult(1), CancellationToken.None);
+        var other = await Assert.ThrowsExactlyAsync<NendoAgentAuthorityException>(() =>
+            authority.AcquireAsync("handle-y", "Codex", "acquire-lease", null, CancellationToken.None),
+            "Once the holder has written, even its own client's acquire under the key is not a lost response.");
+        Assert.AreEqual("LEASE_HELD", other.Code);
+
+        // A renewal is a use too.
+        var renewing = CreateAuthority(AgentAccessMode.DataMutation, clock, TimeSpan.FromHours(1));
+        var renewed = await renewing.AcquireAsync("handle-r", "Codex", "acquire-lease", null, CancellationToken.None);
+        await renewing.RenewAsync(renewed.LeaseId, "handle-r", CancellationToken.None);
+        var afterRenew = await Assert.ThrowsExactlyAsync<NendoAgentAuthorityException>(() =>
+            renewing.AcquireAsync("handle-s", "Codex", "acquire-lease", null, CancellationToken.None));
+        Assert.AreEqual("LEASE_HELD", afterRenew.Code, "A renewed grant is not replayed.");
+
+        var unused = CreateAuthority(AgentAccessMode.DataMutation, clock, TimeSpan.FromHours(1));
+        await unused.AcquireAsync("handle-c", "Codex", "acquire-lease", null, CancellationToken.None);
+        clock.Advance(NendoAgentAuthority.AcquireReplayWindow + TimeSpan.FromSeconds(1));
+        var late = await Assert.ThrowsExactlyAsync<NendoAgentAuthorityException>(() =>
+            unused.AcquireAsync("handle-d", "Claude Code", "acquire-lease", null, CancellationToken.None));
+        Assert.AreEqual("LEASE_HELD", late.Code, "Past the window an unused grant is not replayed either.");
+    }
+
     private static NendoAgentAuthority CreateAuthority(
         AgentAccessMode mode,
         INendoClock clock,

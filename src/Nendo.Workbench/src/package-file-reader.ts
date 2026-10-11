@@ -1,6 +1,6 @@
 import { escapeHtml } from './format';
 import type { ProposalFileWindow } from './host-types';
-import { byteSize } from './package-diff-markup';
+import { byteSize, hasHiddenCharacters, hiddenCharactersFileNote, showHiddenCharacters } from './package-diff-markup';
 
 /**
  * The whole of a file a proposal adds or replaces, read before accepting it (review R-017).
@@ -66,7 +66,7 @@ export function proposedFileMarkup(path: string, file: ProposedFile): string {
   const facts = `${escapeHtml(file.mediaType)} · ${escapeHtml(byteSize(file.bytes.length))} · SHA-256 <code>${escapeHtml(file.sha256)}</code>`;
   const body = file.text === null
     ? '<p>Not text, so it cannot be shown as lines. Its size and digest are those of the bytes the proposal adds.</p>'
-    : `<pre class="package-file-text" tabindex="0">${escapeHtml(file.text)}</pre>`;
+    : (hasHiddenCharacters(file.text, true) ? hiddenCharactersFileNote : '') + `<pre class="package-file-text" tabindex="0">${showHiddenCharacters(file.text, true)}</pre>`;
   return `<h2 id="package-file-heading">${escapeHtml(path)}, as the proposal leaves it</h2><p class="package-file-facts">${facts}</p>${body}
     <div class="form-actions">${file.text === null ? '' : '<button class="secondary-button" data-copy type="button">Copy</button>'}<button class="primary-button" data-close type="button" autofocus>Close</button></div>`;
 }

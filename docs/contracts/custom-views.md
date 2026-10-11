@@ -208,7 +208,12 @@ change continues past what the review shows. Each file is a disclosure that star
 folded. Folded, it still shows its path, what happened to it, its sizes and, for text,
 how many lines it adds and removes, so a long list reads as an overview, and a change cut
 short says "longer than the review shows" there too. The lines open by pointer or keyboard
-(W-098). The MCP preview carries the same list.
+(W-098). The MCP preview carries the same list. Direction controls, invisible format
+characters (Unicode's Cf, tag characters included) and the Hangul fillers are drawn as their
+code points, `[U+202E]`, never as themselves, because they can make a line read differently
+from how it runs (WMX-01). A soft hyphen is left alone, and so is a byte-order mark at the
+start of a file. A change whose remaining lines hold any says so above them, and its folded
+summary says "hidden characters".
 
 **Reading a proposed file whole** (review R-017, 2026-10-06). Every file a proposal adds or
 replaces offers *Read the whole file*. The Workbench calls the host's
@@ -219,7 +224,8 @@ totalBytes, offset, content}` with `content` in base64 and `sha256` the whole fi
 refuses a digest other than the one reviewed (`idempotency-conflict`), a proposal that is not
 waiting for review, and a file the proposal removes or does not touch. The Workbench puts
 the windows together, checks them against `sha256`, and shows valid UTF-8 as text in its own
-dialog with Copy, or the size and digest of anything else. A view cannot call it: it is not
+dialog with Copy, or the size and digest of anything else. The dialog draws hidden characters
+as the Code section does, with a note above the text; Copy copies the bytes as they are. A view cannot call it: it is not
 in the broker's table. Accept stays bound to the same digest.
 A proposal that only brings code says beside it: "Read the code beside this panel:
 once you accept, it runs wherever a screen or a record page shows its view."
@@ -341,7 +347,7 @@ last:
 | `name` | `nendo-view-` and twelve hex digits, fresh for every frame. The host names a frame whose renderer ended by it |
 | `title` | The view's title |
 | `sandbox` | `allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-pointer-lock allow-presentation`. No form of `allow-top-navigation` |
-| `allow` | `clipboard-read; clipboard-write; fullscreen; web-share; autoplay; encrypted-media; picture-in-picture; geolocation` |
+| `allow` | `clipboard-read; clipboard-write; fullscreen; web-share; autoplay; encrypted-media; picture-in-picture` |
 | `loading` | `lazy` |
 | `src` | The package's origin and its entry point, each path segment encoded |
 
@@ -501,10 +507,12 @@ A view gets most of what a web page gets
   dialog.
 - **Permissions.** The browser raises a view's permission request with the
   Workbench's origin, whichever view asked (S10). So the host answers each view
-  on its own frame. A clipboard read and several automatic downloads are allowed.
-  Anything else gets WebView2's default prompt. No answer is saved in the profile,
-  where it would cover every view. The Workbench's own requests are denied. The
-  frame's `allow` attribute delegates only the features it names.
+  on its own frame. A clipboard read, autoplay and several automatic downloads are
+  allowed. Anything else, location, camera and microphone among them, is refused,
+  and no answer is kept in the profile, where it would cover every view of every
+  file; nothing is left to WebView2's own prompt. The Workbench's own requests are
+  denied. The frame's `allow` attribute delegates only the features it names, and the
+  browser blocks the rest before the host is asked.
 - **Downloads.** A view may download files. Each goes to the person's Downloads
   folder under a name that overwrites nothing, `Name (1).xml` beside `Name.xml`, and
   WebView2's own downloads panel never opens (F-237). That panel opened when a view
@@ -2044,3 +2052,7 @@ passed. Each guard below was falsified, seen to fail and then restored:
   answers windows of a file as the proposal under review leaves it, bound to its reviewed
   digest, and each review offers *Read the whole file*; a cut-short change says so folded.
   Measured by `ExtensionPackageTests` and `scripts/package-diff.test.mjs`. No rung.
+- 2026-10-11 — hidden characters in reviewed code (WMX-01 in a broad review): the Code section
+  and the whole-file dialog draw direction controls, invisible format characters and the Hangul
+  fillers as their code points, and say so above the lines and in the folded summary. Measured
+  by `scripts/package-diff.test.mjs`. No rung.

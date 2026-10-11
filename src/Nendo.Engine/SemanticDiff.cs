@@ -292,14 +292,15 @@ internal static class SemanticDiff
         // file's typed API. Said once, as a line of its own, so accepting code is accepting that.
         // A skill package's files are never run (ADR-0024); what accepting them means is said
         // in a line of its own too.
-        var puts = changeSet.Mutations.SelectMany(mutation => mutation.Operations).OfType<PutExtensionFileOperation>().ToArray();
-        if (puts.Any(put => !packages.IsSkill(put.PackageId)))
+        // Each put is said as the kind its package had when the file went in, so a package removed
+        // and re-created as the other kind in the same change set is reviewed as what it became (ESM-02).
+        if (packages.PutIntoView)
         {
             result.Add(Entry("extensionCode",
                 "This code runs when a view that uses its package is shown. It can read and change this file's records through Nendo, reach the network and use the clipboard.",
                 NendoReversibilityClass.ReversibleWithRetainedState));
         }
-        if (puts.Any(put => packages.IsSkill(put.PackageId)))
+        if (packages.PutIntoSkill)
         {
             result.Add(Entry("extensionSkill",
                 "These are instructions for an agent working on this file. Nendo never runs them; an agent's client offers them to its model when the agent connects, after asking you if it asks at all. Read them as you would read instructions given to someone editing your file.",
@@ -331,6 +332,12 @@ internal static class SemanticDiff
 
         internal bool IsSkill(string packageId) => _skills.Contains(packageId);
 
+        /// <summary>Whether the change set put a file into a view package, as it was at that point.</summary>
+        internal bool PutIntoView { get; private set; }
+
+        /// <summary>Whether the change set put a file into a skill package, as it was at that point.</summary>
+        internal bool PutIntoSkill { get; private set; }
+
         private string Title(string packageId) =>
             _titles.TryGetValue(packageId, out var title) ? $"the package {title}" : $"the package {packageId}";
 
@@ -345,6 +352,8 @@ internal static class SemanticDiff
                     ? $"Update the skill package {operation.Title} ({operation.PackageId})" + (operation.Version is null ? "." : $": it is version {operation.Version}.")
                     : $"Add the skill package {operation.Title} ({operation.PackageId}): instructions for an agent, read from {NendoAgentSkill.FileName}, offered as the skill {NendoAgentSkill.NameFor(operation.PackageId)}. Nothing in it runs.";
             }
+            // A view package of an ID a skill package had: its code runs, whatever the ID was (ESM-02).
+            _skills.Remove(operation.PackageId);
             return existed
                 ? $"Update the custom-view package {operation.Title} ({operation.PackageId}): it starts at {operation.EntryPoint}" +
                     (operation.Version is null ? "." : $" and is version {operation.Version}.")
@@ -353,6 +362,8 @@ internal static class SemanticDiff
 
         internal string Put(PutExtensionFileOperation operation)
         {
+            if (IsSkill(operation.PackageId)) PutIntoSkill = true;
+            else PutIntoView = true;
             var key = (operation.PackageId, operation.Path);
             var had = _files.TryGetValue(key, out var before);
             _files[key] = (operation.Sha256, operation.ByteLength);
@@ -372,6 +383,9 @@ internal static class SemanticDiff
         {
             var title = Title(operation.PackageId);
             _titles.Remove(operation.PackageId);
+            // Its kind goes with it: the ID may come back as the other kind in the same change set,
+            // and code put into a view package re-created there must read as code that runs (ESM-02).
+            _skills.Remove(operation.PackageId);
             return $"Remove {title} from this file.";
         }
 

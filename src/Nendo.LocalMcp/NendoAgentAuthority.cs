@@ -242,7 +242,13 @@ internal sealed class NendoAgentAuthority(
             await ExpireIfNeededAsync();
             if (Active is not null)
             {
-                if (idempotencyKey is not null && Active.AcquireKey == idempotencyKey)
+                // A replay is the recovery for a lost acquire response, so it answers only the client
+                // that acquired, and only while the grant is unused and recent. A key alone proves
+                // nothing: another agent following the same skill can send the same one, and was
+                // handed the holder's grant (MHS-02).
+                if (idempotencyKey is not null && Active.AcquireKey == idempotencyKey &&
+                    clientDisplayName == Active.ClientDisplayName &&
+                    !Active.Used && clock.UtcNow - Active.GrantedAt <= AcquireReplayWindow)
                 {
                     return Active.Grant;
                 }
@@ -285,7 +291,8 @@ internal sealed class NendoAgentAuthority(
                 host.ApplicationId,
                 host.InstanceId,
                 clientDisplayName,
-                idempotencyKey);
+                idempotencyKey,
+                clock.UtcNow);
             Remember(applicationHandle);
             _released = null;
             return grant;
@@ -325,7 +332,7 @@ internal sealed class NendoAgentAuthority(
             }
             var active = RequireActive(leaseId, applicationHandle);
             var renewed = active.Grant with { ExpiresAt = NextExpiry() };
-            Active = active with { Grant = renewed };
+            Active = active with { Grant = renewed, Used = true };
             return renewed;
         }
         finally
@@ -385,6 +392,8 @@ internal sealed class NendoAgentAuthority(
                 throw new NendoAgentAuthorityException("LEASE_EXPIRED", "The edit lease expired.");
             }
             var active = RequireActive(leaseId, applicationHandle);
+            // The holder has its grant: an acquire under its key is no longer a lost response.
+            if (!active.Used) Active = active with { Used = true };
             return await action(active.Grant);
         }
         finally
@@ -501,6 +510,9 @@ internal sealed class NendoAgentAuthority(
     private static string RandomLeaseId() =>
         Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
 
+    /// <summary>How long after a grant an acquire under its key may still be its lost response.</summary>
+    internal static readonly TimeSpan AcquireReplayWindow = NendoRequestGate.DefaultTimeout;
+
     private sealed record ActiveLease(
         NendoLeaseGrant Grant,
         string ApplicationHandle,
@@ -508,7 +520,12 @@ internal sealed class NendoAgentAuthority(
         string ApplicationId,
         string InstanceId,
         string ClientDisplayName,
-        string? AcquireKey = null);
+        string? AcquireKey = null,
+        DateTimeOffset GrantedAt = default)
+    {
+        /// <summary>Whether an owned call has used the grant, which proves its response arrived.</summary>
+        public bool Used { get; init; }
+    }
 
     private sealed record ReleasedLease(string LeaseId, string ApplicationHandle);
 }

@@ -147,7 +147,7 @@ internal static class NendoHostSkill
         text.Append("so a tool can find which address has a given file open before it connects. The guide for agents names the folder: ").Append(AgentsGuide).Append(". ");
         text.Append("Once connected, `nendo://host/instances` lists the same entries.\n\n");
         text.Append("## Before writing\n\n");
-        text.Append("Call `nendo.lease.acquire` with an `idempotencyKey`; keep `applicationHandle` private and pass it with `leaseId` on every owned call. ");
+        text.Append("Call `nendo.lease.acquire` with a fresh random `idempotencyKey`; keep `applicationHandle` private and pass it with `leaseId` on every owned call. ");
         text.Append("Save `receiptContext`: after a lost response, `nendo.data.get_receipt` reads the original outcome, and an unresolved receipt is not permission to resubmit under a new key. ");
         text.Append("Release the lease when finished; to take it again later under the same handle, pass `resumeApplicationHandle`. ");
         text.Append("Every write carries the record's current version; every result returns the version it left. ");

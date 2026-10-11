@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
@@ -25,8 +27,15 @@ test('a view frame is sandboxed without top navigation, named by its mount, and 
   assert.deepEqual(sandbox, ['allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-popups', 'allow-popups-to-escape-sandbox',
     'allow-downloads', 'allow-modals', 'allow-pointer-lock', 'allow-presentation']);
   assert.ok(sandbox.every(token => !token.startsWith('allow-top-navigation')), `A view may navigate the Workbench away: ${attributes.sandbox}`);
-  assert.equal(attributes.allow, 'clipboard-read; clipboard-write; fullscreen; web-share; autoplay; encrypted-media; picture-in-picture; geolocation');
+  // DAE-02: no location. The host refuses it, and a prompt's answer would have covered every view.
+  assert.equal(attributes.allow, 'clipboard-read; clipboard-write; fullscreen; web-share; autoplay; encrypted-media; picture-in-picture');
   assert.equal(attributes.loading, 'lazy');
+
+  // The fixture broker every package lane frames its view in draws the same frame, or a view
+  // could pass its lane with a feature Nendo does not give it.
+  const broker = readFileSync(join(import.meta.dirname, '..', '..', '..', 'tools', 'Graph-FixtureBroker.html'), 'utf8');
+  assert.equal(broker.match(/const SANDBOX = '([^']*)'/)?.[1], markup.frameSandbox, 'The fixture broker sandboxes views differently.');
+  assert.equal(broker.match(/const ALLOW = '([^']*)'/)?.[1], markup.frameAllow, 'The fixture broker delegates different features.');
   assert.equal(attributes.src, `${origin}/app/index.html`);
   assert.equal(attributes.title, 'Glance <b>');
   // The source is set last, once the sandbox is on the element.

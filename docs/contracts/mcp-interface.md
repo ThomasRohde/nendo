@@ -245,8 +245,13 @@ governs ownership, not claimed client names or HTTP connection identity. Keep th
 handle private.
 
 Since 2026-10-04 (W-143) `nendo.lease.acquire` takes two optional arguments. An
-`idempotencyKey` makes an exact retry return the grant it already made while that
-lease is held, which is the recovery for a lost acquire response; before, the retry was
+`idempotencyKey` makes an exact retry return the grant it already made, which is the
+recovery for a lost acquire response. The replay answers only the client that acquired
+(by its client name), only until an owned call first uses the lease, and for at most five
+minutes, the request timeout; any other client sending the same key gets `NENDO_LEASE_HELD`.
+Two clients reporting the same name, each sending one fixed key inside that window, could
+still share a grant, so the key should be a fresh random value; its length is not enforced,
+so that existing clients keep working. Before, the retry was
 `NENDO_LEASE_HELD` against the agent itself, and the refusal sent it to `lease.status`
 with a handle it never received. A `resumeApplicationHandle`, a handle this host run
 minted earlier, grants a new lease under that same handle, so the proposals the
@@ -345,7 +350,7 @@ opened the file's storage instead ([ADR-0009](../decisions/0009-local-mcp-transp
 | --- | --- | --- |
 | `nendo.read.resource` | `NendoReadTools.ResourceAsync`, from Inspect, no lease | Takes `uri`, any address the resources serve, `nendo://` or `skill://`, with its query in any order. The query is canonicalized as the read filter does, the SDK's own resource collection is matched (an exact URI first, then the first template that matches) and that resource's `ReadAsync` answers. The result's text is the resource's text, byte for byte; a binary skill file comes back as an embedded resource. It declares no output schema and returns no `structuredContent`: MCP lets a client read the structure in place of the text, and Claude Code, launched from the Agent page, did, saw only `{uri, mimeType, isText}` and read every resource as empty (2026-10-09). Every tool that does return `structuredContent` carries the same JSON as its text. A resource's refusal, which `resources/read` answers as a protocol error, comes back as a refused tool result with the same code and sentence, and its `_meta` refusal. `readOnlyHint` true. |
 | `nendo.read.list` | `NendoReadTools.ListAsync`, from Inspect, no lease | Every resource address with its purpose (`NendoMcpReadIndex`, the templated ones included), and every skill by its `SKILL.md`: the host's, then each the file carries, marked `fromFile`. `readOnlyHint` true. |
-| `nendo.lease.acquire` | `NendoAgentAuthority.AcquireAsync` | One handle-bound modifying lease. Returns applicationHandle, leaseId, an unprivileged receipt locator and the open file's name before writes. Optional `idempotencyKey` (an exact retry returns the same grant) and `resumeApplicationHandle` (a new lease under an earlier handle of this run). Since 2026-10-08 the grant (and `renew`'s) also carries `limits`, the write bounds an agent plans against (`recordWritesPerCall`, `recordsPerCreateBatch`, `fieldsPerRecordUpdate`, `recordWritesLabelCharacters`, the value and body bytes, `requestsInFlight`, `requestQueueSeconds`, `maximumPageLimit`; the vocabulary has the rest), and `reads`, the first reads by address. No file mutation. |
+| `nendo.lease.acquire` | `NendoAgentAuthority.AcquireAsync` | One handle-bound modifying lease. Returns applicationHandle, leaseId, an unprivileged receipt locator and the open file's name before writes. Optional `idempotencyKey` (an exact retry from the same client returns the same grant, until the lease is first used and for at most five minutes) and `resumeApplicationHandle` (a new lease under an earlier handle of this run). Since 2026-10-08 the grant (and `renew`'s) also carries `limits`, the write bounds an agent plans against (`recordWritesPerCall`, `recordsPerCreateBatch`, `fieldsPerRecordUpdate`, `recordWritesLabelCharacters`, the value and body bytes, `requestsInFlight`, `requestQueueSeconds`, `maximumPageLimit`; the vocabulary has the rest), and `reads`, the first reads by address. No file mutation. |
 | `nendo.lease.renew` | `NendoAgentAuthority.RenewAsync` | Same live handle. Extends an enabled TTL, or confirms ownership when expiry is off. No file mutation. |
 | `nendo.lease.release` | `NendoAgentAuthority.ReleaseAsync` | Serialized lease release. No file mutation. |
 | `nendo.lease.status` | Current endpoint, no lease needed | `GetStatusAsync`. Reports whether a lease is held, the client display name and pseudonym of the holder, the open file's name, and, if a handle is supplied, whether the lease is yours. This is the recovery path when an acquire response is lost: the grant exists, and no other call can report it. |

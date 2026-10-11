@@ -102,3 +102,37 @@ test('R-017: the windows are put together, checked by digest, and decoded as the
   assert.doesNotMatch(shown, /<b>x/);
   assert.match(shown, /data-copy/);
 });
+
+// WMX-01: a direction control reordered the line under review, so `"user\u202E \u2066// Check if
+// admin\u2069 \u2066"` read as a closed string and a comment while it runs as one literal.
+// One character from each family the review must draw as its code point.
+const hidden = ['\u061C', '\u200B', '\u200E', '\u202A', '\u202E', '\u2060', '\u2066', '\u2069', '\u206A', '\u180E',
+  '\uFEFF', '\u{E0041}', '\u115F', '\u3164', '\uFFA0'];
+const code = (character) => `[U+${character.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}]`;
+const withLines = (lines, start = 17) => ({ ...replaced, hunks: [{ ...replaced.hunks[0], oldStart: start, newStart: start, lines }] });
+
+test('hidden direction, format and filler characters are shown as code points, with a warning', () => {
+  for (const character of hidden) {
+    const text = `const access = "user${character} // Check if admin";`;
+    const markups = [packageChangesMarkup([withLines([{ kind: 'added', text }])]),
+      reader.proposedFileMarkup('map.js', { mediaType: 'text/javascript', bytes: new Uint8Array(4), sha256: 'a'.repeat(64), text })];
+    for (const markup of markups) {
+      assert.equal(markup.includes(character), false, `the review shows ${code(character)} raw`);
+      assert.ok(markup.includes(code(character)), `${code(character)} is drawn as its code point`);
+      assert.match(markup, /invisible or direction-changing characters/);
+    }
+    const summary = markups[0].slice(markups[0].indexOf('<summary>'), markups[0].indexOf('</summary>'));
+    assert.match(summary, /hidden characters/, `the folded summary flags ${code(character)}`);
+  }
+  assert.doesNotMatch(packageChangesMarkup([replaced]), /hidden-char/, 'a file without them carries no warning');
+});
+
+test('a soft hyphen, a leading byte-order mark and a removed hidden line raise no warning', () => {
+  assert.doesNotMatch(packageChangesMarkup([withLines([{ kind: 'added', text: 'const word = "co\u00ADoperate";' }])]), /hidden-char/);
+  assert.doesNotMatch(packageChangesMarkup([withLines([{ kind: 'added', text: '\uFEFFconst first = 1;' }], 1)]), /hidden-char/,
+    'a byte-order mark at the start of the file is encoding');
+  assert.match(packageChangesMarkup([withLines([{ kind: 'added', text: 'x;\uFEFF' }], 1)]), /\[U\+FEFF\]/, 'one elsewhere is shown');
+  const removed = packageChangesMarkup([withLines([{ kind: 'removed', text: 'a\u202Eb' }, { kind: 'added', text: 'ab' }])]);
+  assert.doesNotMatch(removed, /hidden-char-note|hidden characters/, 'a change that removes them leaves no warning');
+  assert.match(removed, /\[U\+202E\]/, 'the removed line still shows what it held');
+});

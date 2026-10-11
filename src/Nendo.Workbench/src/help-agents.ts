@@ -83,7 +83,7 @@ const refusalCodes: HelpTerm[] = [
   { term: 'NENDO_TOOL_UNAVAILABLE', meaning: 'No tool by that name exists at any level. The agent’s tool list names every tool the current level serves.' },
   { term: 'NENDO_CHANGE_SET_NOT_VALIDATED', meaning: 'An accept arrived for a change set that is still a draft. It must validate first, so there is something to accept.' },
   { term: 'NENDO_HOST_CLOSED', meaning: 'The file was closed, switched or entered recovery; the address and every handle from before are gone.' },
-  { term: 'NENDO_LEASE_HELD', meaning: 'Another agent holds the editing lease. An agent whose own answer was lost repeats nendo.lease.acquire with the same idempotencyKey and gets the same grant; otherwise it waits, or you revoke the lease on the Agent page.' },
+  { term: 'NENDO_LEASE_HELD', meaning: 'Another agent holds the editing lease. An agent whose own answer was lost repeats nendo.lease.acquire with the same idempotencyKey and gets the same grant, until the lease is first used and for at most five minutes; otherwise it waits, or you revoke the lease on the Agent page.' },
   { term: 'NENDO_LEASE_EXPIRED', meaning: 'The lease lapsed because expiry is on and it was not renewed. Acquire again.' },
   { term: 'NENDO_INVALID_LEASE', meaning: 'The handle or lease does not belong to this run of this file.' },
   { term: 'NENDO_RECORD_VERSION_CONFLICT', meaning: 'The record moved since it was read. Read it again and retry with the current version.' },

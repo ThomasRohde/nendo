@@ -189,7 +189,7 @@ Acquire editing authority only when you need it. Then:
 
 - Keep the application handle and receipt context private.
 - Respect record versions and the published call limits.
-- Use stable idempotency keys.
+- Keep a write's idempotency key stable across its retries. The key for `nendo.lease.acquire` is a fresh random value for each acquire, never a fixed word another agent could also send.
 - Release the lease at handoff.
 
 Before you retry an uncertain write, recover it through its receipt. Native

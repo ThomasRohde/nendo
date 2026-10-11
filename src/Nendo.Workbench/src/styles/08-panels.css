@@ -644,6 +644,19 @@
   white-space: pre;
 }
 
+/* A direction control or invisible character, drawn as its code point (WMX-01). */
+.hidden-char {
+  padding: 0 2px;
+  border: 1px solid var(--warning);
+  border-radius: 3px;
+  color: var(--warning);
+}
+
+.hidden-char-flag,
+.hidden-char-note {
+  color: var(--warning);
+}
+
 .diff-mark {
   display: inline-block;
   width: 24px;

@@ -45,8 +45,15 @@ try {
     [IO.File]::WriteAllText($probePath, $probe, [Text.UTF8Encoding]::new($false))
     & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" open about:blank --browser msedge
     if ($LASTEXITCODE -ne 0) { throw 'Capability Atlas browser did not start.' }
-    & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" run-code --filename $probePath
-    if ($LASTEXITCODE -ne 0) { throw 'Capability Atlas browser measurements failed.' }
+    $ran = & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" run-code --filename $probePath 2>&1 | Out-String
+    $exitCode = $LASTEXITCODE
+    Write-Host $ran
+    # TGA-01: run-code ends early and exits 0 when a dialog opens (such as the editor's discard
+    # confirm), so an exit code alone passed a probe that stopped part-way.
+    # The probe's source is echoed too, so its last word counts only as the run's own result.
+    if ($exitCode -ne 0 -or $ran.Contains('### Modal state') -or $ran -notmatch '### Result\r?\n"bcm-atlas ok ') {
+        throw 'Capability Atlas browser measurements did not complete.'
+    }
 } finally {
     & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" close
     if (-not $server.HasExited) { Stop-Process -Id $server.Id }

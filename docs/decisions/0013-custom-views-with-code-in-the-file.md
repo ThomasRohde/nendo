@@ -354,9 +354,8 @@ browser's main-frame flag is false for both (S13). Any asset type is served.
 
 A permission request from a view carries the Workbench's origin, not the view's
 (S10). So the host answers each view on its own frame: clipboard reads and several
-downloads are allowed, anything else gets WebView2's default prompt, and no grant
-is saved, where it would cover every view. The Workbench's own requests are
-denied.
+downloads are allowed, anything else is refused, and no answer is saved, where it
+would cover every view. The Workbench's own requests are denied.
 
 A download goes to the person's Downloads folder under a name that overwrites nothing, and
 WebView2's own downloads panel is never shown (2026-10-02, F-237). The panel asked whether an
@@ -868,3 +867,8 @@ falsified once, and has the failure text quoted in its planner Check.
 - 2026-10-06 — a proposed package file can be read whole in the review, through the host's
   `proposal.readPackageFile`, from the proposal's validated copy and bound to its reviewed
   digest (review R-017). No rung. On the owner's standing pre-acceptance.
+- 2026-10-11 — a view's permission requests other than a clipboard read and several
+  downloads are refused, and its frame no longer delegates location. They had gone to
+  WebView2's own prompt, whose answer is kept for the Workbench's origin and so would have
+  covered every view of every file (DAE-02 in a broad review). No rung. On the owner's
+  standing pre-acceptance.
