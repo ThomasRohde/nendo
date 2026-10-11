@@ -11,7 +11,7 @@ findings are verified.
 - Complete (2026-10-11). Round 1: 35 areas. Round 2: 6 areas the completeness critic opened on its gaps (adapter parity, ADR and vision conformance, locale and time, reversibility matrix, safe mode and file versions, several processes). Every finding had a skeptic vote; duplicates were folded.
 - Areas reported: 41. Raw findings: 708; kept after verification: 644 (595 after folding 49 duplicates); refuted: 64; awaiting verification: 0.
 - Kept by priority: P0 2, P1 4, P2 95, P3 494.
-- Fix pass 2026-10-11: both P0 and all four P1 findings are fixed, each with a guard seen to fail with the defect put back. See [Fix pass](#fix-pass). P2 and P3 are open.
+- Fix pass 2026-10-11: both P0 and all four P1 findings are fixed, and so are the five P2 findings in the security category (MHS-02, ESM-02, WMX-01, TGA-01, DAE-02), each with a guard seen to fail with the defect put back. See [Fix pass](#fix-pass). The other P2 and all P3 findings are open.
 
 ## Method
 
@@ -9023,3 +9023,56 @@ stored-value message, and a closed-host case per path in the MCP guard.
   damaged-content answer, `Nendo.Engine.dll` the stored-value code and the inspection
   query, the Workbench bundle the broker refusal, and `Nendo.LocalMcp.dll` no longer
   contains the path test.
+
+### Second pass: the P2 security findings
+
+2026-10-11: the five P2 findings in the security category are fixed, each with a guard seen
+to fail with the defect put back. An independent review of the five fixes asked for more,
+and that is included: a client match and a longer window for MHS-02, the per-put labelling for
+ESM-02, a wider character class and contract text for WMX-01, autoplay and the fixture broker
+for DAE-02, and a result-section check for TGA-01.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [MHS-02](#mhs-02) | `nendo.lease.acquire` replays a grant under its idempotency key only to the client that acquired, only until an owned call first uses the lease (a write or a renewal), and for at most five minutes, the request timeout (`NendoAgentAuthority.cs`). The tool and parameter descriptions, the host skill, the `LEASE_HELD` refusal, Workbench help, the site guide, `docs/dogfooding.md` and the contract ask for a fresh random key. Guard: `AgentAuthorityTests.AnAcquireKeyReplaysOnlyALostResponseNeverAnotherAgentsGrant`. | Replay on the key alone: `Expected exception type:<NendoAgentAuthorityException> but no exception was thrown … Another agent sending the holder's key was handed the holder's grant.` Client match removed: `… Another client sending the holder's key was handed the holder's grant.` Renewal no longer counted as a use: `… no exception was thrown. 'action' expression: '() => renewing.AcquireAsync("handle-s", "Codex", "acquire-lease", …)'`. |
+| [ESM-02](#esm-02) | The proposal review labels each package file it puts by the kind its package has when the file goes in, and a package ID loses its skill kind when the package is removed or set as a view package (`SemanticDiff.cs`). Guard: `SkillPackageTests.APackageReCreatedAsTheOtherKindIsReviewedAsWhatItBecomes`. | Both kind removals reverted: `CollectionAssert.Contains failed. Code put into the re-created view package is said to run: removeExtensionFile, removeExtensionPackage, setExtensionPackage, putExtensionFile, extensionSkill`. Labelling back to the final state: `CollectionAssert.DoesNotContain failed. A skill's file is not code that runs: putExtensionFile, removeExtensionFile, removeExtensionPackage, extensionCode`. |
+| [WMX-01](#wmx-01) | Package code review, in the Code section and the whole-file dialog, draws direction controls, invisible format characters (Unicode's Cf, tag characters included) and the Hangul fillers as `[U+XXXX]`, says so above the lines the change leaves and in the folded summary, and leaves a soft hyphen and a leading byte-order mark alone (`package-diff-markup.ts`, `package-file-reader.ts`, `08-panels.css`). Guard: two `WMX-01` cases in `package-diff.test.mjs`, one character from each family. | Shown with plain `escapeHtml`: `AssertionError: the review shows %u202E raw`. Class narrowed back to the first ranges: `AssertionError: the review shows [U+206A] raw`. |
+| [TGA-01](#tga-01) | The five custom-view lanes capture `run-code`'s output and fail unless it exits 0, shows no `### Modal state`, and carries the probe's own word directly under `### Result` (the Graph probe now returns `dependency graph ok …`). Guard: the lanes themselves; the authoring guide tells a package author to do the same. A dialog handler inside the probe was tried and dropped: playwright-cli takes the dialog first. | With an alert injected at the start of each probe (a synthetic top-frame alert, not the innerHTML label the finding names): the old `Review-Gantt.ps1` exited 0 with `### Modal state`, a pass. All five fixed lanes exited 1 with `<Lane> browser measurements did not complete.` With the modal check removed, the result check alone still failed `Review-Gantt` (`Gantt browser measurements did not complete.`), although the echoed probe source contains `gantt ok`. All five lanes pass clean. |
+| [DAE-02](#dae-02) | A view frame's permission requests are answered by the host, never left to WebView2's prompt, and never kept in the profile: a clipboard read, autoplay and several downloads are allowed, everything else refused (`ExtensionWebViewPolicy.ViewPermission`, which the handler only copies). Frames no longer delegate location, and the fixture broker draws the same frame as production. Guards: `DesktopExtensionServingTests.AViewIsGivenTheClipboardAutoplayAndDownloadsAndRefusedEverythingElse`; `view-frames.test.mjs` (frame `allow`, and the broker's `SANDBOX` and `ALLOW` equal to the Workbench's). | Other kinds left to the prompt: `Expected:<Deny>. Actual:<Default>. … UnknownPermission is answered by the host, never left to the browser's prompt.` Answer kept in the profile: `UnknownPermission's answer is kept in the profile, where it covers every view.` Location delegated again: `actual: '…; picture-in-picture; geolocation'`. Location back in the fixture broker: `The fixture broker delegates different features.` |
+
+Documents updated with the behaviour: `docs/contracts/mcp-interface.md` (lease replay and
+the tool row), `docs/dogfooding.md`, the site's agents guide and Workbench help (acquire key);
+`docs/contracts/custom-views.md` (hidden characters in the Code section and the dialog,
+permissions) and ADR-0013 (permissions; history line); `docs/custom-view-authoring.md` (a
+lane's completion word).
+
+Not done, from the review's minor suggestions: enforcing a minimum acquire-key length (left
+out so that existing clients keep working; two clients reporting the same name and sending
+one fixed key within five minutes could still share a grant, as the contract now says); a
+per-file hidden-character flag computed from the whole proposed file rather than the lines
+shown; drawing code lines with `unicode-bidi: bidi-override` against reordering by strong
+right-to-left letters alone; and rerunning one lane against a real innerHTML regression.
+
+#### Checks run for the second pass
+
+- Workbench: `npm test` 558 passed, 0 failed; `tsc --noEmit` clean.
+- .NET (`dotnet test Nendo.slnx`, from `Test-Production.ps1`): Nendo.LocalMcp.Tests 243
+  passed, 5 skipped; Nendo.Engine.Tests 1124 passed, 3 skipped; Nendo.Desktop.Tests 424
+  passed, 1 failed: the extension-view journey's clipboard probe, `Requested Clipboard
+  operation did not succeed`, with LogonUI running (the workstation was locked), the same
+  interlock as the first pass. Its guards G8–G33 reported ok; G34–G36 did not run.
+- The stages after .NET tests, with `Test-Production.ps1`'s own commands: tool boundaries 12
+  passed; production boundaries (the neutrality scan) passed; the custom-view presentation
+  lanes passed, the five changed ones included. `Review-Garden.ps1` failed once with
+  `A note without the tag fades: 0.530604. [after: backlinks panel]`, an opacity caught
+  mid-fade on the locked desktop, and passed when run again; the launched-agent lane passed.
+- Repository gate without the binary-asset step (which still refuses the owner's pending
+  deletion of `workspace/Archi.nendo`): passed.
+- Site: `Test-Site.ps1` passed, once a leftover `astro preview` on port 4399 from this
+  review's site tour, which held `site/node_modules`, was stopped.
+- Installer: `Publish-NendoPayload.ps1`, `Build-NendoInstaller.ps1` and
+  `Test-NendoSetupIsolated.ps1` passed; `artifacts/installer/Nendo-Setup.exe` is the new
+  build, and its payload carries each fix (the new acquire description in
+  `Nendo.LocalMcp.dll`, `PutIntoView` in `Nendo.Engine.dll`, `ViewPermission` in
+  `Nendo.Desktop.dll`, the hidden-character markup and no `geolocation` in the Workbench
+  bundle).
