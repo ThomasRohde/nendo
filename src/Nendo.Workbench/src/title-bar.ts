@@ -68,6 +68,9 @@ export function startTitleBar(host: WorkbenchClient): void {
   new MutationObserver(measure).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
   new MutationObserver(measure).observe(document.body, { childList: true });
   void document.fonts.ready.then(measure);
+  document.addEventListener('scroll', (event) => {
+    if (event.target instanceof Element && event.target.closest(bandSelector) !== null) schedule();
+  }, { capture: true, passive: true });
   schedule();
 }
 

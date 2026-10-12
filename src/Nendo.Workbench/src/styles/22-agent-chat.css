@@ -933,6 +933,15 @@
   cursor: pointer;
 }
 
+/* The composer's own focus ring is on while anything in it has focus, so the select with focus
+   says so itself, at full strength (UIK-09). */
+.chat-option select:focus-visible,
+.chat-more-row select:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .chat-option select option,
 .chat-more-row select option {
   background: var(--surface-raised);
@@ -1105,7 +1114,8 @@
 }
 
 .mention-option[aria-selected="true"] {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cobalt) 45%, transparent);
+  /* The choice the arrows are on, at 3:1 or better against the menu (UIK-09). */
+  box-shadow: inset 0 0 0 2px var(--cobalt);
 }
 
 .mention-icon {

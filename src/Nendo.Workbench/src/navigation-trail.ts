@@ -103,6 +103,9 @@ export function placeKey(place: Place): string {
     place.proposalId,
     place.agentProposalId,
     place.proposalReturnView,
+    // One of the file's own views over the same record type is another place than its screen,
+    // and two views are two places (UIS-09).
+    place.fileView,
     // The values, not the labels: a label is the place's name, like the heading.
     place.viewPlaces.map((entry) => [entry.view, entry.value]),
   ]);

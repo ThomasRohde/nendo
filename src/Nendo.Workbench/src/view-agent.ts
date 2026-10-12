@@ -7,7 +7,7 @@ import { activityLabel, agentModeLabel, escapeAttribute, escapeHtml, formatDateT
 import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type DesktopPromotionView, type LaunchableAgents, type ProposalPreview } from './host';
 import { agentLevelChanged, launchAgent, openAgentChat, saveAgentCommand, setAgentHidden, setAgentPageOpener } from './view-agent-chat';
 import { type AgentTab, type CopyFeedback, agentTabs, agentTabsMarkup, copyButtonContent, copyHintMarkup, launchCopyText, launchTilesMarkup } from './agent-launch-model';
-import { announce, clearError, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
+import { announce, clearError, content, focusWithoutInteraction, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
 import { openTabOn } from './workspace-tabs';
 import { applicationPlans, overviewPlan } from './plan-selection';
 import { addedSurfaceSentence, kindLabel } from './surface-model';
@@ -83,7 +83,9 @@ async function copyToClipboard(key: string, text: string, focusSelector: string)
   try { await navigator.clipboard.writeText(text); } catch { ok = false; }
   lastCopy = { key, ok, text };
   window.clearTimeout(lastCopyTimer);
-  lastCopyTimer = window.setTimeout(() => {
+  // A copy that failed shows the command to run by hand, and that is the only way to get it:
+  // it stays until the next copy, not eight seconds (UIK-02).
+  if (ok) lastCopyTimer = window.setTimeout(() => {
     if (lastCopy?.key !== key) return;
     lastCopy = null;
     // Never redraw under a half-typed field; the next redraw drops the line instead.
@@ -159,7 +161,8 @@ function focusedControl(): string | null {
     if (value !== undefined) return `[data-${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}="${CSS.escape(value)}"]`;
   }
   if (active.dataset.toggleHidden !== undefined) return '[data-toggle-hidden]';
-  if (active.dataset.openAgentChat !== undefined) return '[data-open-agent-chat]';
+  // Two copies while an agent runs, one in the hidden Activity panel (UIK-15).
+  if (active.dataset.openAgentChat !== undefined) return '.agent-panel:not([hidden]) [data-open-agent-chat]';
   return null;
 }
 
@@ -353,7 +356,7 @@ export function renderAgentProposal(): void {
   const preview = state.agentProposal!;
   const consent = proposalConsent(preview.preview.behaviour, state.session.behaviourTrust);
   content.innerHTML = `<div class="proposal-page agent-proposal-page" data-testid="agent-proposal-review">
-    <header class="proposal-heading"><button id="close-agent-proposal" class="text-button" type="button" data-dismiss>Back to Agent</button><span class="proposal-state">${escapeHtml(proposalStateLabel(preview.state))}</span><h2>${escapeHtml(preview.title)}</h2><p>An agent prepared these changes. Your active file is unchanged until you accept.</p></header>
+    <header class="proposal-heading"><button id="close-agent-proposal" class="text-button" type="button" data-dismiss>Back to Agent</button><span class="proposal-state">${escapeHtml(proposalStateLabel(preview.state))}</span><h2 id="agent-proposal-heading" tabindex="-1">${escapeHtml(preview.title)}</h2><p>An agent prepared these changes. Your active file is unchanged until you accept.</p></header>
     <div class="message-slot" role="alert" hidden></div>
     <div class="proposal-layout">
       <section class="proposal-changes"><h3>What changes</h3>${preview.semanticDiff.map((entry) => `<article><span class="change-mark" aria-hidden="true">＋</span><div><strong>${escapeHtml(entry.summary)}</strong><p>${escapeHtml(reversibilityLabel(entry.reversibility))}</p></div></article>`).join('')}${preview.diagnostics.map((item) => `<article class="proposal-diagnostic"><span class="change-mark" aria-hidden="true">!</span><div><strong>${escapeHtml(item.message)}</strong><p>${escapeHtml(item.hint)}</p></div></article>`).join('')}${packageChangesMarkup(preview.preview.packageChanges)}</section>
@@ -571,6 +574,7 @@ export async function reviewAgentProposal(proposalId: string): Promise<void> {
     state.agentScreenPreview = await client.request<ProposalPreview>('proposal.get', { proposalId });
     state.view = 'agentProposal';
     rerender();
+    focusWithoutInteraction(content.querySelector<HTMLElement>('#agent-proposal-heading'));
   } catch (error) {
     await refreshAgentStatus();
     rerender();
@@ -632,6 +636,9 @@ export async function resolveAgentProposal(accept: boolean): Promise<void> {
     if (notice !== null) showOutcomeRefreshNotice(outcomeMessage, notice);
     else if (result.promotion.applied) showOutcome(outcomeMessage);
     else announce(outcomeMessage);
+    // The review is gone; focus goes to what it left, its outcome (UIK-04).
+    const outcome = content.querySelector<HTMLElement>('.message-slot:not([hidden])');
+    if (outcome !== null) { outcome.tabIndex = -1; focusWithoutInteraction(outcome); }
   } catch (error) {
     rerender();
     showError(messageFor(error));
@@ -639,6 +646,11 @@ export async function resolveAgentProposal(accept: boolean): Promise<void> {
     state.actionInFlight = false;
     setBusy(false);
   }
+}
+
+/** What the status poll reads, so it can tell a change from the same status read again (UIK-01). */
+export function agentDigest(): string {
+  return JSON.stringify([state.agentStatus, launchable]);
 }
 
 export async function refreshAgentStatus(): Promise<void> {

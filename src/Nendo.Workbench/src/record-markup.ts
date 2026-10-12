@@ -429,7 +429,7 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown): str
   const required = field.required ? 'required' : '';
   const name = escapeAttribute(field.semanticId);
   const label = escapeHtml(field.displayName);
-  const textControl = (markup: string): string => field.required ? markup : `<div class="scalar-field">${markup}<label class="checkbox-field"><input type="checkbox" name="__unset:${name}" data-null-field="${name}" value="true" ${currentValue === null || currentValue === undefined ? 'checked' : ''} />Not set</label></div>`;
+  const textControl = (markup: string): string => field.required ? markup : `<div class="scalar-field">${markup}<label class="checkbox-field"><input type="checkbox" name="__unset:${name}" data-null-field="${name}" value="true" aria-label="${escapeAttribute(field.displayName)} not set" ${currentValue === null || currentValue === undefined ? 'checked' : ''} />Not set</label></div>`;
   if (field.presentation === 'longText') {
     return textControl(`<label>${label}<textarea name="${name}" rows="4" ${required}>${escapeHtml(value)}</textarea></label>`);
   }

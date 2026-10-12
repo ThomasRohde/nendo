@@ -33,7 +33,19 @@ const place = (over = {}) => ({
   agentProposalId: null,
   proposalReturnView: null,
   viewPlaces: [],
+  fileView: null,
   ...over,
+});
+
+test('a file view over the same record type is a place of its own, and so is a second view (UIS-09)', () => {
+  // A file view keeps the record type and screen of whatever came before, so without the view
+  // in the key, board -> Garden -> Codemap collapsed into one entry and Back skipped the board.
+  const trail = createTrail();
+  trail.record(place());
+  trail.record(place({ fileView: 'view.garden', title: 'Garden' }));
+  trail.record(place({ fileView: 'view.codemap', title: 'Codemap' }));
+  assert.deepEqual(trail.inspect().places.map(entry => entry.title), ['Board', 'Garden', 'Codemap']);
+  assert.equal(trail.canGoBack(), true);
 });
 
 test('the same place drawn again is a repaint, not a move', () => {

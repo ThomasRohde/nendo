@@ -24,7 +24,7 @@ test('a toned option paints with its theme token and an untoned one keeps its de
  // A stored value outside the set is not a colour; the option falls back like an untoned one.
  assert.equal(toneOf(field,'odd'),null);
  assert.equal(choiceStyle(field,'open'),'--status-color: var(--tone-teal)');
- assert.equal(choiceStyle(field,'won'),`--status-color: hsl(${derivedHue('won')} 58% 49%)`);
+ assert.equal(choiceStyle(field,'won'),`--status-color: hsl(${derivedHue('won')} 58% 49%); --chip-share: 48%; --chip-share-dark: 48%`);
  // The derived hue depends only on the value, so a list and a board agree without a field.
  assert.equal(choiceStyle(field,'won'),choiceStyle(undefined,'won'));
  assert.equal(derivedHue('won'),derivedHue('won'));

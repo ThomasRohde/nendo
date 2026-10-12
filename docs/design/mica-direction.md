@@ -94,7 +94,10 @@ a CSS variable. Change them together.
   - **+**, Ctrl T: a new tab on the place on screen.
   - Ctrl W, a tab's close button, a middle click on a tab: close it. The last tab cannot be closed.
   - Ctrl Tab and Ctrl Shift Tab: the next and previous tab. The arrow keys move between tabs, and
-    Delete closes the focused one.
+    Delete closes the focused one. The tab on screen is the strip's one Tab stop; the close
+    buttons are the pointer's, and New tab stands after the tabs.
+  - Once the tabs reach their narrowest the strip scrolls sideways, and the tab on screen is kept
+    in view, with New tab beside it.
   - A Ctrl-click or a middle click on anything in the navigation opens it in a new tab.
   - A tab is named after the place on screen: the record type and the view (*Incidents · Ops
     board*), or Studio and its page. A view named after its type is named once.
@@ -113,7 +116,8 @@ a CSS variable. Change them together.
   agent pill, the health pill, the theme (System, Light, Dark), the key hints toggle and the
   version on the right.
 - **A narrow window.** Below 841px the navigation is the bar across the top and the title bar, as
-  before. Tabs wait for a wider window.
+  before. Tabs wait for a wider window, and the tab keys (Ctrl T, Ctrl W, Ctrl Tab) do nothing
+  until they are on screen again. The File menu opens below the bar, on the window.
 
 ## Fonts
 

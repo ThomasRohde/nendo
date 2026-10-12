@@ -661,6 +661,7 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
     defaultColDef: outlineRows === undefined ? { sortable: false }
       : { sortable: false, suppressKeyboardEvent: parameters => isMoveKey(parameters.event) },
     rowData,
+    tabToNextCell: (parameters) => parameters.editing ? (parameters.nextCellPosition ?? false) : false,
     columnDefs: [
       ...(outlineRows !== undefined ? [outlineColumn(entity)] : []),
       // Opening a record is a quiet icon at the row's start: faint until the row is pointed

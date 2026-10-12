@@ -114,18 +114,33 @@ export function drawTabs(): void {
   const focused = strip.contains(document.activeElement) ? document.activeElement as HTMLElement : null;
   const refocus = focused?.dataset.tab !== undefined ? `[data-tab="${focused.dataset.tab}"]`
     : focused?.dataset.closeTab !== undefined ? `[data-close-tab="${focused.dataset.closeTab}"]` : null;
-  strip.innerHTML = set.tabs.map((tab, index) => {
+  // The list holds only tabs: a close button is the pointer's, as Delete and Ctrl W are the
+  // keyboard's, and New tab stands after the list (UIK-11). One tab is a Tab stop; the arrows move
+  // along them. The list scrolls once the tabs reach their narrowest, and the tab on screen is
+  // brought into view, so a tab opened past the window's edge is still seen (UIS-01).
+  const scrolled = strip.querySelector<HTMLElement>('.tab-list')?.scrollLeft ?? 0;
+  strip.innerHTML = '<div class="tab-list" role="tablist" aria-label="Open places">' + set.tabs.map((tab, index) => {
     const place = placeOf(tab, index);
     const label = tabLabel(place);
     const selected = index === set.active;
     const status = place === null ? null : statusOf(place);
     const said = status === null ? label : `${label}, ${status.label.toLowerCase()}`;
     const mark = status === null ? '' : `<span class="tab-status is-${escapeAttribute(status.kind)}" aria-hidden="true"></span><span class="visually-hidden">, ${escapeHtml(status.label.toLowerCase())}</span>`;
-    return `<div class="tab${selected ? ' is-active' : ''}" data-tab-index="${index}">
-      <button class="tab-main" type="button" role="tab" aria-selected="${selected}" data-tab="${index}" title="${escapeAttribute(said)}">${tabGlyph(place)}<span class="tab-label">${escapeHtml(label)}</span>${mark}</button>
-      <button class="tab-close" type="button" data-close-tab="${index}" aria-label="Close ${escapeAttribute(label)}" title="Close tab (Ctrl+W)" ${only ? 'disabled' : ''}>${icon('close')}</button>
+    return `<div class="tab${selected ? ' is-active' : ''}" role="presentation" data-tab-index="${index}">
+      <button class="tab-main" type="button" role="tab" aria-selected="${selected}" tabindex="${selected ? 0 : -1}" data-tab="${index}" title="${escapeAttribute(said)}">${tabGlyph(place)}<span class="tab-label">${escapeHtml(label)}</span>${mark}</button>
+      <button class="tab-close" type="button" data-close-tab="${index}" tabindex="-1" aria-hidden="true" title="Close tab (Ctrl+W)" ${only ? 'disabled' : ''}>${icon('close')}</button>
     </div>`;
-  }).join('') + `<button id="tab-new" class="tab-new" type="button" aria-label="New tab" title="New tab (Ctrl+T)">${icon('plus')}</button>`;
+  }).join('') + '</div>' + `<button id="tab-new" class="tab-new" type="button" aria-label="New tab" title="New tab (Ctrl+T)">${icon('plus')}</button>`;
+  const list = strip.querySelector<HTMLElement>('.tab-list');
+  const active = list?.querySelector<HTMLElement>('.tab.is-active');
+  if (list && active) {
+    // Where the person left the list, moved only as far as the tab on screen needs.
+    list.scrollLeft = scrolled;
+    const room = list.getBoundingClientRect();
+    const box = active.getBoundingClientRect();
+    if (box.right > room.right) list.scrollLeft += box.right - room.right;
+    else if (box.left < room.left) list.scrollLeft -= room.left - box.left;
+  }
   if (refocus !== null) strip.querySelector<HTMLElement>(refocus)?.focus({ preventScroll: true });
 }
 
@@ -228,9 +243,18 @@ export function closeActiveTab(): void {
   void closeTab(set.active);
 }
 
+/**
+ * Whether the tabs are on screen. A narrow window hides the strip (tabs wait for a wider window,
+ * docs/design/mica-direction.md), and the tab keys then acted on tabs nobody could see: Ctrl W
+ * closed a conversation's tab and ended its agent (UIK-08).
+ */
+export function tabsShown(): boolean {
+  return !strip.hidden && strip.offsetParent !== null;
+}
+
 document.addEventListener('keydown', (event) => {
   if (event.defaultPrevented || !event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey || event.key !== 'Tab') return;
-  if (document.querySelector('dialog[open]') !== null || state.session.fileName === null) return;
+  if (document.querySelector('dialog[open]') !== null || state.session.fileName === null || !tabsShown()) return;
   event.preventDefault();
   cycleTab(-1);
 });

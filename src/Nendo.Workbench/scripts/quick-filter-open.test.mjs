@@ -19,7 +19,8 @@ const stubs = {
       querySelector: (selector) => selector === '[data-testid="quick-filter"]' ? h().menu : null,
       querySelectorAll: () => [] };
     export const rerender = () => { h().redraws += 1; if (h().redraws < 60) h().redrawMenu(); };
-    export const setBusy = () => {}; export const showError = () => {}; export const interactionInProgress = () => false;`,
+    export const setBusy = () => {}; export const showError = () => {}; export const interactionInProgress = () => false;
+    export const focusWithoutInteraction = () => {};`,
   './draft-guard': 'export const refuseWhileDirty = () => false;',
   './reads': 'export const loadSurfaceWindow = async () => {};',
 };

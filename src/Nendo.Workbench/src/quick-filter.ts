@@ -9,7 +9,7 @@ import {
 } from './quick-filter-model';
 import { loadSurfaceWindow } from './reads';
 import { windowRequest } from './record-window';
-import { content, rerender, setBusy } from './shell';
+import { content, focusWithoutInteraction, rerender, setBusy } from './shell';
 
 // The screen whose Filter menu is open, so a redraw while its targets are read keeps it open.
 let openSurfaceId: string | null = null;
@@ -46,10 +46,26 @@ export function wireQuickFilter(plan: ApplicationPlan, surface: SurfaceNodePlan 
     field.reference != null && !quickFilterTargets.has(field.reference.targetEntityId)))
     queueMicrotask(() => void readTargets(plan));
   menu?.addEventListener('keydown', event => {
-    if (event.key === 'Escape') { menu.open = false; menu.querySelector('summary')?.focus(); }
+    // The menu's Escape is the menu's: the page's own Escape would also close the record (UIS-04).
+    if (event.key === 'Escape') {
+      event.preventDefault(); event.stopPropagation();
+      // A value only looked at goes back, so leaving the select does not apply it.
+      for (const select of menu.querySelectorAll<HTMLSelectElement>('[data-quick-filter]')) if (select.dataset.drawn !== undefined) select.value = select.dataset.drawn;
+      menu.open = false; menu.querySelector('summary')?.focus();
+    }
   });
-  for (const select of content.querySelectorAll<HTMLSelectElement>('[data-quick-filter]'))
-    select.addEventListener('change', () => {
+  for (const select of content.querySelectorAll<HTMLSelectElement>('[data-quick-filter]')) {
+    // Chromium on Windows changes a closed select's value on each arrow key and fires change at
+    // once, so applying every change applied the first choice a keyboard user looked at, closed
+    // the menu and dropped focus (UIK-07). A change made with the keys waits for Enter, or for
+    // focus to leave the select; a pick from the open list applies as before.
+    const drawn = select.value;
+    select.dataset.drawn = drawn;
+    let keyed = false;
+    let applied = false;
+    const apply = (): void => {
+      if (applied || select.value === drawn) return;
+      applied = true;
       const field = plan.entity.fields.find(candidate => candidate.semanticId === select.dataset.quickFilter);
       if (field === undefined) return;
       // Declined: draw the menu again from what is picked, which is still the previous pick.
@@ -58,8 +74,18 @@ export function wireQuickFilter(plan: ApplicationPlan, surface: SurfaceNodePlan 
         field.reference == null ? undefined : quickFilterTargets.get(field.reference.targetEntityId));
       if (pick === null) quickFilters.delete(surface.semanticId); else quickFilters.set(surface.semanticId, pick);
       openSurfaceId = null;
-      void reopen(plan, surface);
+      // The menu closes after a pick, and focus goes back to the Filter button it was opened from.
+      void reopen(plan, surface).then(() => focusWithoutInteraction(content.querySelector<HTMLElement>('[data-testid="quick-filter"] > summary')));
+    };
+    select.addEventListener('keydown', event => {
+      if (event.key === 'Enter') { if (select.value !== drawn) { event.preventDefault(); apply(); } return; }
+      // Space opens the list, whose own keys never reach the select; a pick there is a pick.
+      if (!event.altKey && (event.key.startsWith('Arrow') || event.key === 'Home' || event.key === 'End' || event.key.startsWith('Page') || (event.key.length === 1 && event.key !== ' '))) keyed = true;
     });
+    select.addEventListener('pointerdown', () => { keyed = false; });
+    select.addEventListener('change', () => { if (keyed) { keyed = false; return; } apply(); });
+    select.addEventListener('blur', apply);
+  }
   content.querySelector<HTMLButtonElement>('[data-quick-filter-clear]')?.addEventListener('click', () => {
     if (state.actionInFlight || refuseWhileDirty('widening the screen')) return;
     quickFilters.delete(surface.semanticId);

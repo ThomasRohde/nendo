@@ -77,9 +77,14 @@ function scrollPositions(): HTMLElement[] {
 export function rerender(): void {
   const wasShowing = content.dataset.place ?? '';
   const wasAt = scrollPositions().map((element) => element.scrollTop);
+  const focusAt = focusKey();
   renderer?.();
   restoreOutcome();
   if (content.dataset.place !== wasShowing) return;
+  // A redraw replaces the pane, and a control that had the keyboard went with it: a record just
+  // opened lost its inspector's focus when its related rows arrived a second later (UIK-04).
+  if (focusAt !== null && (document.activeElement === null || document.activeElement === document.body))
+    focusWithoutInteraction(content.querySelector<HTMLElement>(focusAt));
   const now = scrollPositions();
   // A different number of scrollers is a different shape of screen, and guessing which
   // one matched which would put somebody somewhere they never were.
@@ -87,6 +92,17 @@ export function rerender(): void {
   now.forEach((element, index) => {
     if (wasAt[index] > 0) element.scrollTop = wasAt[index];
   });
+}
+
+/** The control with the keyboard in the content pane, as a selector that finds it after a redraw. */
+function focusKey(): string | null {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !content.contains(active)) return null;
+  if (active.id !== '') return `#${CSS.escape(active.id)}`;
+  if (active.dataset.recordId !== undefined) return `[data-record-id="${CSS.escape(active.dataset.recordId)}"]`;
+  const menu = active.parentElement?.closest<HTMLElement>('[data-testid]');
+  if (active.tagName === 'SUMMARY' && menu?.dataset.testid !== undefined) return `[data-testid="${CSS.escape(menu.dataset.testid)}"] > summary`;
+  return null;
 }
 
 /** What is on screen, so a redraw can tell a repaint from a move to somewhere else. */
@@ -378,6 +394,9 @@ export function interactionInProgress(): boolean {
   // folded open, which is part of the page and stays open for as long as they like.
   // Counting it held every read on a page with one open section (W-040).
   if (content.querySelector('details[open]:not([data-section])') !== null) return true;
+  // The View picker and the record-type list stand in the breadcrumb, outside the content pane,
+  // and a redraw replaces them too (UIS-03).
+  if (placePickers?.querySelector('details[open]') != null) return true;
   if (Date.now() - lastInteractionAt < quietMs) return true;
   const focused = document.activeElement;
   return focused !== null && content.contains(focused) &&
@@ -420,11 +439,13 @@ let lastInteractionAt = 0;
 // Focus the app moves itself is not somebody using the app; see focusWithoutInteraction.
 let restoringFocus = false;
 
+const placePickers = document.getElementById('place-pickers');
 for (const kind of ['pointerdown', 'keydown', 'focusin'] as const)
-  content.addEventListener(kind, () => {
-    if (restoringFocus) return;
-    lastInteractionAt = Date.now();
-  }, true);
+  for (const area of [content, placePickers])
+    area?.addEventListener(kind, () => {
+      if (restoringFocus) return;
+      lastInteractionAt = Date.now();
+    }, true);
 // Reading is using the page. A wheel never reaches the three above, so somebody moving
 // down a long screen looked idle to the hold and could be redrawn out from under.
 content.addEventListener('scroll', () => {

@@ -129,12 +129,26 @@ document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
   const more = content.querySelector<HTMLDetailsElement>('[data-agent-chat] details.chat-more[open]');
   if (more === null) return;
-  // Escape closes the panel and does nothing else: it would also stop a working agent.
+  // Escape closes the panel and does nothing else: it would also stop a working agent. A value
+  // only looked at with the arrow keys goes back to the agent's own, so leaving does not pick it.
+  const looked = document.activeElement;
+  if (looked instanceof HTMLSelectElement && more.contains(looked)) revertLooked(looked);
   event.preventDefault();
   event.stopImmediatePropagation();
   more.open = false;
   more.querySelector('summary')?.focus();
 }, true);
+
+/** A select's value only looked at with the arrow keys, put back to the agent's own (UIK-06). */
+function revertLooked(select: HTMLSelectElement): void {
+  if (select.dataset.keyed !== 'yes') return;
+  select.dataset.keyed = '';
+  const option = chat.options.find((candidate) => candidate.id === select.dataset.configId);
+  if (option !== undefined) select.value = option.currentValue;
+}
+
+/** The empty state as last written into the log. */
+let drawnEmpty: string | null = null;
 
 /** End this conversation and start the same agent again, in this tab. */
 async function newSession(): Promise<void> {
@@ -177,6 +191,8 @@ export async function launchAgent(agentId: string): Promise<void> {
     await openTabOn('agentChat');
     announce(`${chat.name} is starting in a new tab.`);
     followAgentChat();
+    // The page was rebuilt; the keyboard goes where the next step is typed (UIK-03).
+    content.querySelector<HTMLTextAreaElement>('#agent-prompt:not(:disabled)')?.focus();
   } catch (error) {
     showError(messageFor(error));
   }
@@ -268,12 +284,12 @@ export function renderAgentChat(): void {
       <form id="chat-composer" class="chat-composer">
         <div id="chat-attachments" class="chat-attachments" hidden></div>
         <label class="visually-hidden" for="agent-prompt">Message to the agent</label>
-        <textarea id="agent-prompt" rows="2" aria-autocomplete="list" aria-controls="chat-mention" aria-expanded="false"></textarea>
+        <textarea id="agent-prompt" rows="2" aria-autocomplete="list" aria-controls="chat-mention" aria-haspopup="listbox"></textarea>
         <div class="chat-toolbar">
           <button id="chat-add-context" class="chat-quiet" type="button" aria-label="Point at something in this file" title="Point at something in this file (@)">${icon('plus')}</button>
           <div id="chat-options" class="chat-options"></div>
           <span class="chat-toolbar-gap"></span>
-          <button id="stop-agent" class="chat-round" type="button" aria-label="Stop" title="Stop (Esc)">${icon('stop')}</button>
+          <button id="stop-agent" class="chat-round" type="button" aria-label="Stop" title="Stop (Esc in the message box)">${icon('stop')}</button>
           <button id="send-prompt" class="chat-round is-primary" type="submit" aria-label="Send" title="Send (Enter)">${icon('arrowUp')}</button>
         </div>
         <div id="chat-mention" class="chat-mention" role="listbox" aria-label="Point at something in this file" hidden></div>
@@ -303,19 +319,47 @@ export function renderAgentChat(): void {
   });
   content.querySelector<HTMLButtonElement>('#stop-agent')!.addEventListener('click', () => void act('agentSession.cancel', {}, 'Stopping.'));
   content.querySelector<HTMLButtonElement>('#new-agent-session')!.addEventListener('click', () => void newSession());
-  content.querySelector<HTMLElement>('#chat-options')!.addEventListener('change', (event) => {
+  // Chromium on Windows changes a closed select on each arrow key and fires change at once, so
+  // the first arrow chose the agent's option (Allow All among them), closed More and dropped
+  // focus (UIK-06). A change made with the keys waits for Enter, or for focus to leave.
+  const optionsBox = content.querySelector<HTMLElement>('#chat-options')!;
+  const choose = (select: HTMLSelectElement, keyed: boolean): void => {
+    const option = chat.options.find((candidate) => candidate.id === select.dataset.configId);
+    if (option === undefined || select.value === option.currentValue) return;
+    // A pick from the open list in More is the person done with it; a key keeps them in it.
+    const more = select.closest<HTMLDetailsElement>('details.chat-more');
+    if (more !== null && !keyed) more.open = false;
+    commitOption(select, option);
+  };
+  optionsBox.addEventListener('keydown', (event) => {
     const select = event.target instanceof HTMLSelectElement ? event.target : null;
     if (select === null || select.dataset.configId === undefined) return;
-    // A choice in More is the person done with it.
-    const more = select.closest<HTMLDetailsElement>('details.chat-more');
-    if (more !== null) more.open = false;
-    const option = chat.options.find((candidate) => candidate.id === select.dataset.configId);
+    if (event.key === 'Enter') { event.preventDefault(); select.dataset.keyed = ''; choose(select, true); return; }
+    if (event.key === 'Escape') { revertLooked(select); return; }
+    // Space opens the list, whose own keys never reach the select; a pick there is a pick.
+    if (!event.altKey && (event.key.startsWith('Arrow') || event.key === 'Home' || event.key === 'End' || event.key.startsWith('Page') || (event.key.length === 1 && event.key !== ' '))) select.dataset.keyed = 'yes';
+  });
+  optionsBox.addEventListener('pointerdown', (event) => {
+    if (event.target instanceof HTMLSelectElement) event.target.dataset.keyed = '';
+  });
+  optionsBox.addEventListener('focusout', (event) => {
+    const select = event.target instanceof HTMLSelectElement ? event.target : null;
+    if (select === null || select.dataset.configId === undefined || select.dataset.keyed !== 'yes') return;
+    select.dataset.keyed = '';
+    choose(select, true);
+  });
+  optionsBox.addEventListener('change', (event) => {
+    const select = event.target instanceof HTMLSelectElement ? event.target : null;
+    if (select === null || select.dataset.configId === undefined || select.dataset.keyed === 'yes') return;
+    choose(select, false);
+  });
+  const commitOption = (select: HTMLSelectElement, option: (typeof chat.options)[number]): void => {
     void act('agentSession.setOption', { configId: select.dataset.configId, value: select.value },
-      option === undefined ? null : `${option.name}: ${select.selectedOptions[0]?.text ?? select.value}.`).then((done) => {
+      `${option.name}: ${select.selectedOptions[0]?.text ?? select.value}.`).then((done) => {
       // A refusal puts the agent's own value back.
       if (!done) { drawnOptions = ''; patchChat(false); }
     });
-  });
+  };
   const thread = content.querySelector<HTMLElement>('#chat-thread')!;
   thread.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target : null;
@@ -368,7 +412,13 @@ function focusedControl(item: HTMLElement): ((next: HTMLElement) => HTMLElement 
 async function send(): Promise<void> {
   const prompt = content.querySelector<HTMLTextAreaElement>('#agent-prompt');
   const text = prompt?.value.trim() ?? '';
-  if (text === '' || !composerState(chat).canSend) return;
+  if (text === '') return;
+  if (!composerState(chat).canSend) {
+    // The text is kept; the person is told why it did not go (UIK-12).
+    if (chat.working) announce(`${chat.name} is working. Stop it, or wait for it to finish, to send this.`);
+    else if (chat.exists && chat.state !== 'ended') announce(`${chat.name} is not ready yet. Wait for it to send this.`);
+    return;
+  }
   const context = pointedAt();
   const sent = await act('agentSession.prompt', context.length === 0 ? { text } : { text, context }, null);
   if (!sent) return;
@@ -426,10 +476,15 @@ function patchChat(force: boolean, only?: string): void {
   // One round button: Send, or Stop while the agent works.
   const sendButton = page.querySelector<HTMLButtonElement>('#send-prompt')!;
   const stopButton = page.querySelector<HTMLButtonElement>('#stop-agent')!;
+  const roundFocused = document.activeElement === sendButton ? 'send' : document.activeElement === stopButton ? 'stop' : null;
   sendButton.disabled = !composer.canSend;
   sendButton.hidden = composer.canStop;
   stopButton.disabled = !composer.canStop;
   stopButton.hidden = !composer.canStop;
+  // Hiding the focused button took the keyboard to the page's body (UIK-03): Send hands it to
+  // Stop, and Stop to the message box, where the next message is typed.
+  if (roundFocused === 'send' && sendButton.hidden) (stopButton.hidden ? prompt : stopButton).focus({ preventScroll: true });
+  if (roundFocused === 'stop' && stopButton.hidden) prompt.focus({ preventScroll: true });
   page.querySelector<HTMLButtonElement>('#chat-add-context')!.disabled = chat.state === 'ended' || !chat.exists;
   page.querySelector<HTMLButtonElement>('#new-agent-session')!.disabled = chat.agentId === null || chat.state === 'starting';
 
@@ -455,6 +510,8 @@ function patchChat(force: boolean, only?: string): void {
   const live = chat.working && !waitingForYou(chat);
   const keys = new Set(items.map((item) => item.key));
   for (const child of [...thread.children] as HTMLElement[]) {
+    // The empty state stays while there is still nothing to show; removing it each read wrote it again.
+    if (items.length === 0 && child.classList.contains('chat-empty')) continue;
     if (child.dataset.item === undefined || !keys.has(child.dataset.item)) child.remove();
   }
   let previous: Element | null = null;
@@ -473,9 +530,21 @@ function patchChat(force: boolean, only?: string): void {
       // keeps the keyboard: replacing the item took it to the page's body (ACP-05).
       const opened = [...held.querySelectorAll('details')].map((details) => details.open);
       const focused = focusedControl(held);
-      held.replaceWith(next);
-      [...next.querySelectorAll('details')].forEach((details, at) => { if (opened[at]) details.open = true; });
-      if (focused !== null) focused(next)?.focus({ preventScroll: true });
+      let shown: HTMLElement = next;
+      if (held.tagName === next.tagName) {
+        // The same element, its contents renewed: replacing it was a removal and an addition, and
+        // the log said the whole message again for every chunk (UIK-05).
+        for (const name of held.getAttributeNames()) if (!next.hasAttribute(name)) held.removeAttribute(name);
+        for (const name of next.getAttributeNames()) held.setAttribute(name, next.getAttribute(name)!);
+        held.innerHTML = next.innerHTML;
+        shown = held;
+      } else held.replaceWith(next);
+      [...shown.querySelectorAll('details')].forEach((details, at) => { if (opened[at]) details.open = true; });
+      // An answered request has no control left: the keyboard goes to the message box (UIK-03).
+      if (focused !== null) (focused(shown) ?? prompt).focus({ preventScroll: true });
+      previous = shown;
+      drawn.set(item.key, html);
+      return;
     } else {
       thread.insertBefore(next, previous === null ? thread.firstChild : previous.nextSibling);
     }
@@ -483,10 +552,15 @@ function patchChat(force: boolean, only?: string): void {
     previous = next;
   });
   for (const key of [...drawn.keys()]) if (!keys.has(key)) drawn.delete(key);
+  // While the agent streams, the log is busy: it speaks once the turn ends or the agent asks.
+  thread.setAttribute('aria-busy', String(live));
   if (items.length === 0) {
-    thread.innerHTML = `<div class="chat-empty"><strong>${escapeHtml(chat.exists ? `${chat.name} is ${chat.state === 'starting' ? 'starting' : 'ready'}` : 'No conversation')}</strong><p>${escapeHtml(chat.exists
+    const empty = `<div class="chat-empty"><strong>${escapeHtml(chat.exists ? `${chat.name} is ${chat.state === 'starting' ? 'starting' : 'ready'}` : 'No conversation')}</strong><p>${escapeHtml(chat.exists
       ? `Ask it to read this file, add records or shape a screen. It works at ${chat.level} through this file's address and keeps its own tools on this computer. ${reviewHint(chat.level, 0).text}.`
       : 'Launch an agent from the Agent page.')}</p></div>`;
-  }
+    // Written only when it changed: each read wrote it again and the log said it again. The
+    // markup is compared as written; read back, the browser spells its entities differently.
+    if (drawnEmpty !== empty || thread.querySelector('.chat-empty') === null) { thread.innerHTML = empty; drawnEmpty = empty; }
+  } else drawnEmpty = null;
   if ((force && only === undefined) || nearBottom) scroller.scrollTop = scroller.scrollHeight;
 }

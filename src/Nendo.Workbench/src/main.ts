@@ -1,6 +1,6 @@
 // First, so that a Workbench loaded inside a frame stops before anything else has run.
 import './frame-guard';
-import { refreshAgentStatus, renderAgent, renderAgentProposal } from './view-agent';
+import { agentDigest, refreshAgentStatus, renderAgent, renderAgentProposal } from './view-agent';
 import { agentChatTitle, followAgentChat, renderAgentChat } from './view-agent-chat';
 import { destroyGrid, renderData } from './view-data';
 import { refreshHealth, renderHealth } from './view-health';
@@ -19,7 +19,7 @@ import { activePlan, overviewPlan, selectedSurfaceNode, sessionEntity } from './
 import { showsOverview } from './view-overview';
 import { overviewTitle } from './overview-model';
 import { client } from './client';
-import { announce, applyRail, applyTheme, content, historyBack, historyForward, isThemePreference, navigation, readPreference, readRailCollapsed, railToggle, requiredElement, root, sessionContext, sessionFile, sessionHealth, sessionStatus, sessionVersion, setAgentWork, setBusy, setRenderer, showError, showOutcome, stopInFlightWork, systemDark, themeButtons, workspaceTitle, rerender, markPlace } from './shell';
+import { announce, applyRail, applyTheme, content, historyBack, historyForward, interactionInProgress, isThemePreference, navigation, readPreference, readRailCollapsed, railToggle, requiredElement, root, sessionContext, sessionFile, sessionHealth, sessionStatus, sessionVersion, setAgentWork, setBusy, setRenderer, showError, showOutcome, stopInFlightWork, systemDark, themeButtons, workspaceTitle, rerender, markPlace } from './shell';
 import { holdingThePage, refuseWhileDirty } from './draft-guard';
 import { backTarget, forwardTarget, goBack, goForward, placeName, recordPlace } from './navigation-actions';
 import { state } from './app-state';
@@ -51,7 +51,7 @@ import { storageKindName } from './extension-model';
 import { icon, type IconName } from './icons';
 import { openPalette } from './command-palette';
 import { matchShortcut, shortcut, shortcutForKeys, shortcutsShownFrom, shortcutsStorageKey, type ShortcutId } from './shortcuts';
-import { closeActiveTab, cycleTab, drawTabs, newTab, wireOpenInNewTab } from './workspace-tabs';
+import { closeActiveTab, cycleTab, drawTabs, newTab, tabsShown, wireOpenInNewTab } from './workspace-tabs';
 import { drawRailPlaces } from './rail-places';
 import { typeGlyph } from './type-icons';
 import './styles.css';
@@ -487,11 +487,14 @@ function runShortcut(id: ShortcutId): void {
   if (id === 'hints') { shortcutsToggle.click(); return; }
   // The tabs belong to the window, not to a control on it (G).
   if (id === 'newTab' || id === 'closeTab' || id === 'nextTab') {
-    if (state.session.fileName === null) return;
+    if (state.session.fileName === null || !tabsShown()) return;
     if (id === 'newTab') newTab(); else if (id === 'closeTab') closeActiveTab(); else cycleTab(1);
     return;
   }
   if (id === 'file') {
+    // Folded, the rail draws no File menu, and opening it showed nothing (UIS-15).
+    if (fileDetails.offsetParent === null && root.dataset.rail === 'collapsed') applyRail(false, true);
+    if (fileDetails.offsetParent === null) return;
     fileDetails.open = true;
     fileDetails.querySelector<HTMLButtonElement>('#file-actions button:not(:disabled)')?.focus();
     return;
@@ -546,6 +549,10 @@ document.addEventListener('keydown', event => {
     fileSummary.focus();
     return;
   }
+  // A key pressed in an open menu or picker, or in the breadcrumb, belongs to that control, not
+  // to the surface behind it (UIS-04).
+  const target = event.target instanceof Element ? event.target : null;
+  if (target?.closest('details[open]:not([data-section]), #place-pickers') != null) return;
   const dismiss = content.querySelector<HTMLButtonElement>('[data-dismiss]:not(:disabled)');
   if (dismiss === null) return;
   event.preventDefault();
@@ -617,19 +624,29 @@ document.addEventListener('drop', event => {
 });
 
 // Dismissing rebuilds the view, so the control that opened the surface is a new
-// element. Remember it by id and hand focus back, or a keyboard owner who presses
-// Escape restarts from the top of the document.
-let dismissReturnId: string | null = null;
+// element. Remember it by what it opens and hand focus back, or a keyboard owner who presses
+// Escape restarts from the top of the document. A record row and the agent's Review changes
+// have no id, so an id alone handed nothing back (UIK-04).
+let dismissReturn: string | null = null;
+const returnKeys = ['recordId', 'reviewAgentProposal', 'openAgentChat'] as const;
+function returnSelector(button: HTMLElement): string | null {
+  if (button.id !== '') return `#${CSS.escape(button.id)}`;
+  for (const key of returnKeys) {
+    const value = button.dataset[key];
+    if (value !== undefined) return `[data-${key.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}="${CSS.escape(value)}"]`;
+  }
+  return null;
+}
 content.addEventListener('click', event => {
   const button = (event.target as Element | null)?.closest('button');
   if (button == null || button.hasAttribute('data-dismiss')) return;
-  dismissReturnId = button.id === '' ? null : button.id;
+  dismissReturn = returnSelector(button);
 }, true);
 content.addEventListener('click', event => {
   if ((event.target as Element | null)?.closest('[data-dismiss]') == null) return;
-  const returnId = dismissReturnId;
-  dismissReturnId = null;
-  if (returnId !== null) document.getElementById(returnId)?.focus();
+  const selector = dismissReturn;
+  dismissReturn = null;
+  if (selector !== null) content.querySelector<HTMLElement>(selector)?.focus();
 });
 fileDetails.addEventListener('focusout', () => window.setTimeout(() => {
   if (!fileDetails.contains(document.activeElement)) fileDetails.open = false;
@@ -767,18 +784,12 @@ systemDark.addEventListener('change', () => {
   if (root.dataset.themePreference === 'system') applyTheme('system');
 });
 
+/** Since when text has been selected on the Agent page; a selection holds the poll for a minute. */
+let selectingSince: number | null = null;
 window.setInterval(() => {
   // A re-render replaces the panel, so never poll while the owner is editing a connection field.
   const editingConnection = document.activeElement?.closest('.agent-connection, .agent-launch') != null;
   if (state.view === 'agent' && !state.actionInFlight && !editingConnection && state.session.hasFile) {
-    // rerender, not render: this poll rebuilds the page every three seconds on its own
-    // account, and the raw renderer puts back a page with an empty message slot. So the
-    // outcome of accepting a proposal -- which is shown on this very page -- survived at
-    // most one tick, and then the screen said nothing at all, with nobody having touched
-    // it. That is what the owner reported of 0.8.2 reached by another route, and it is
-    // why the authoring gate failed at the outcome of an acceptance about two runs in
-    // five. rerender also puts the scroll position back, which this poll had been
-    // throwing away every three seconds.
     // rerender, not render: this poll rebuilds the page every three seconds on its own
     // account, and the raw renderer hands back a page whose message slot is empty. So the
     // outcome of accepting a proposal -- which is shown on this very page -- survived at
@@ -792,7 +803,17 @@ window.setInterval(() => {
     //
     // rerender also puts the scroll position back, which this poll had been throwing
     // away every three seconds.
-    void refreshAgentStatus().then(rerender).catch(() => {
+    // Only a status that changed is drawn, and never under an open dialog, a hand on the page or
+    // text being selected: an unchanged read rebuilt the page every three seconds, wiped a
+    // selected address, said its outcome again and took focus from a dialog's opener (UIK-01).
+    const selection = document.getSelection();
+    const selecting = selection !== null && !selection.isCollapsed && selection.anchorNode !== null && content.contains(selection.anchorNode);
+    selectingSince = selecting ? selectingSince ?? Date.now() : null;
+    if (interactionInProgress() || (selectingSince !== null && Date.now() - selectingSince < 60_000)) return;
+    const before = agentDigest();
+    void refreshAgentStatus().then(() => {
+      if (state.view === 'agent' && agentDigest() !== before) rerender();
+    }).catch(() => {
       // Keep the last coherent agent status if a renderer refresh races shutdown.
     });
   }

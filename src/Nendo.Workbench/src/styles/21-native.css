@@ -229,6 +229,19 @@ body {
 
 .tab-strip[hidden] { display: none; }
 
+/* The tabs scroll once they reach their narrowest; New tab stays after them (UIS-01). */
+.tab-list {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 0;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
 .tab {
   display: flex;
   flex: 0 1 236px;
@@ -515,6 +528,14 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
   }
 
   .brand { flex: none; margin: 0; }
+  /* The bar scrolls sideways, and a scrolling box clips what hangs below it: the menu stood 2px
+     tall under its button (UIS-02). */
+  .brand .file-menu-panel {
+    position: fixed;
+    top: calc(var(--title-bar-height, 48px) + 2px);
+    left: 8px;
+    max-height: calc(100dvh - var(--title-bar-height, 48px) - 16px);
+  }
 
   .primary-nav,
   .studio-nav,
@@ -558,7 +579,8 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
 }
 
 /* A record type whose name suggests no icon: its letters on a tile in one of the choice tones
-   (type-icons.ts). The tone tints the tile and colours the letters, so it reads in both themes. */
+   (type-icons.ts). The tone tints the tile and colours the letters, leaning to the ink far enough
+   to read at 4.5:1 on the rail, a selected row, a tab and the address field (UIS-13). */
 .type-tile {
   --tile: var(--tone-grey);
   display: inline-grid;
@@ -567,13 +589,15 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
   width: 18px;
   height: 18px;
   border-radius: 4px;
-  color: var(--tile);
+  color: color-mix(in srgb, var(--tile) 60%, var(--ink));
   background: color-mix(in srgb, var(--tile) 16%, transparent);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1;
 }
+
+:root[data-theme="dark"] .type-tile { color: color-mix(in srgb, var(--tile) 75%, var(--ink)); }
 
 .type-tile[data-tone="red"] { --tile: var(--tone-red); }
 .type-tile[data-tone="orange"] { --tile: var(--tone-orange); }

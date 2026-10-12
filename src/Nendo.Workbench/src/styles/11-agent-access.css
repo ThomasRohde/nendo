@@ -556,6 +556,8 @@
   height: 22px;
   border-radius: 999px;
   background: var(--line-strong);
+  /* Off, the track is outlined, or it hardly reads as a control on a white card (UIK-09). */
+  box-shadow: inset 0 0 0 1px var(--muted);
   transition: background 120ms ease;
 }
 

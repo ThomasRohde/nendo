@@ -11,7 +11,7 @@ findings are verified.
 - Complete (2026-10-11). Round 1: 35 areas. Round 2: 6 areas the completeness critic opened on its gaps (adapter parity, ADR and vision conformance, locale and time, reversibility matrix, safe mode and file versions, several processes). Every finding had a skeptic vote; duplicates were folded.
 - Areas reported: 41. Raw findings: 708; kept after verification: 644 (595 after folding 49 duplicates); refuted: 64; awaiting verification: 0.
 - Kept by priority: P0 2, P1 4, P2 95, P3 494.
-- Fix pass 2026-10-11: both P0 and all four P1 findings are fixed, and so are the five P2 findings in the security category (MHS-02, ESM-02, WMX-01, TGA-01, DAE-02), each with a guard seen to fail with the defect put back. See [Fix pass](#fix-pass). Fix pass 2026-10-12 (W-204): the nine P3 security findings are closed, eight with a falsified guard and BL-09 by a lock refresh, and DAE-08 with them. The other findings are open, planned as W-205 to W-231 under I-009 in the Nendo Development planner.
+- Fix pass 2026-10-11: both P0 and all four P1 findings are fixed, and so are the five P2 findings in the security category (MHS-02, ESM-02, WMX-01, TGA-01, DAE-02), each with a guard seen to fail with the defect put back. See [Fix pass](#fix-pass). Fix pass 2026-10-12 (W-204): the nine P3 security findings are closed, eight with a falsified guard and BL-09 by a lock refresh, and DAE-08 with them. TST-02 is fixed too (gate harness). Fix pass 2026-10-12 (W-206): the 30 shell, focus and keyboard findings are fixed, two in part. The other findings are open, planned as W-205 and W-207 to W-231 under I-009 in the Nendo Development planner.
 
 ## Method
 
@@ -9161,3 +9161,92 @@ either:
   Clipboard operation did not succeed`, with LogonUI running (the workstation had locked),
   the interlock recorded in the earlier passes. The gate stopped there, after running all
   three suites.
+
+### Fourth pass: shell layout, focus and keyboard (W-206)
+
+2026-10-12: the 30 findings planned as W-206 (12 P2, 18 P3) are fixed, two of them in part as
+said below. Most guards are in a new browser lane, `tools/Review-WorkbenchShell.ps1` with
+`Gate-WorkbenchShell.mjs`, which drives the Workbench against the browser preview host in Edge
+from the Vite dev server (so a probe can reach the shell's redraw hold) and runs each check on a
+fresh page; it is a step of `Test-Production.ps1`. Every lane check below failed with its batch's
+source changes taken out, in one run per batch, with the text quoted.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [UIK-01](#uik-01) | The Agent page's poll draws a status only when it differs from the last one read (`agentDigest`), and never while a dialog is open, the page is held or text is selected in it (`main.ts`, `view-agent.ts`). | `UIK-01: the page was rebuilt 2 times in 7 s with nothing changed; the selected address was lost; cancelling the Unattended dialog after 4 s left focus on BODY.` |
+| [UIK-03](#uik-03) | Hiding the focused Send hands focus to Stop, and Stop's to the message box; an answered request with no control left puts focus in the message box; Launch and New session focus it (`view-agent-chat.ts`). | `UIK-03: after Launch focus is on BODY; … after Send focus is on BODY; … after answering Allow focus is on BODY.` |
+| [UIK-04](#uik-04) | The control that opened a surface is found again by what it opens (its id, record or proposal), not only by an id; a record opened from the list focuses its inspector's heading; the agent's review focuses its heading, and an acceptance its outcome (`main.ts`, `view-use.ts`, `view-agent.ts`). | `UIK-04: opening a record left focus on body.` and `UIK-04: opening the review left focus outside it.` |
+| [UIK-05](#uik-05) | A conversation item that grows is updated where it stands, not replaced; the log is `aria-busy` while the agent streams, and the empty state is written only when it changes (`view-agent-chat.ts`). | `UIK-05: the streamed reply was added to the log 3 times.` |
+| [UIK-07](#uik-07) | In a Filter select an arrow key only looks; Enter, a pick from the open list or leaving the select applies, and focus returns to Filter (`quick-filter.ts`). | `UIK-07: one ArrowDown in a Filter select left {"open":false,"focused":false,"value":null}; the menu should stay open with focus on the select.` |
+| [UIS-01](#uis-01) | The tabs sit in a list that scrolls once they reach their narrowest, the tab on screen is brought into view, and New tab stands after the list; the title bar re-measures when a band scrolls (`workspace-tabs.ts`, `21-native.css`, `title-bar.ts`). | `UIS-01: with 12 tabs at 1024px the active tab is at [990,1086] and New tab at [1092,1124].` |
+| [UIS-02](#uis-02) | In the narrow layout the File menu's panel is placed on the window, out of the scrolling bar (`21-native.css`). | `UIS-02: at 800px the File menu shows {"height":550,"hit":false}; it should open whole and take the pointer.` |
+| [UIS-03](#uis-03) | The redraw hold counts an open breadcrumb picker and a focused control in it, and the breadcrumb's presses quiet the redraws as the page's do (`shell.ts`). | `UIS-03: the page is not held while the View picker is open, so an automatic redraw closes it under the pointer.` |
+| [UIS-04](#uis-04) | The Filter menu's and the View picker's Escape is theirs alone, and the page's Escape stands aside for a key pressed in an open menu or the breadcrumb (`quick-filter.ts`, `view-use.ts`, `main.ts`). | `UIS-04: Escape in the Filter menu left {"filter":false,"inspector":false}; the menu should close and the record stay open.` |
+| [UIS-05](#uis-05) | The inspector keeps room clear under its sticky header and Save bar (`scroll-padding-block`, `14-refinements-controls.css`). | `UIS-05: focus moved to controls under the sticky header or Save bar: field.decision.state 30/30px.` |
+| [UIS-06](#uis-06) | A chip for an option with no tone carries its own text mix, leaning to the ink far enough for 4.5:1 in both themes; named tones are unchanged (`tones.ts`, `13-refinements-pages.css`). Guard: `chip-contrast.test.mjs` resolves the chip's own CSS for every tone and 2,000 derived values. | Without the derived mix: `Chips below 4.5:1 (245 in all).` (`'Light hue 90 2.86:1'`, …). |
+| [UIS-09](#uis-09) | A file view is part of a place's key (`navigation-trail.ts`). Guard: a case in `navigation-trail.test.mjs`. | `actual: [ 'Codemap' ], expected: [ 'Board', 'Garden', 'Codemap' ]` |
+| [UIK-02](#uik-02) | A failed copy's command stays until the next copy (`view-agent.ts`). | `UIK-02: the command shown after a failed copy was gone 9 s later.` |
+| [UIK-06](#uik-06) | In the agent's options an arrow key only looks; Enter, a pick from the list or leaving it chooses, and More stays open while the person steps through it (`view-agent-chat.ts`). | `UIK-06: one ArrowUp in More left {"open":false,"focused":false} and said ["Allow All: On.","Allow All: On."].` |
+| [UIK-08](#uik-08) | While the tab strip is hidden by a narrow window, Ctrl T, Ctrl W and Ctrl Tab do nothing (`tabsShown`, `workspace-tabs.ts`, `main.ts`). Not done: a waiting mark for the conversation on the Agent nav. | `UIK-08: with the tabs hidden, Ctrl W took the tabs from 2 to 1.` |
+| [UIK-09](#uik-09) | A focused composer option has a 2px cobalt outline; the @ menu's active choice a 2px cobalt ring; the switch's off track an outline (`22-agent-chat.css`, `11-agent-access.css`). Only the first is measured by the lane. | `UIK-09: a focused composer option shows {"style":"none","width":"0px"}.` |
+| [UIK-10](#uik-10) | The message box has `aria-haspopup="listbox"` and no unsupported `aria-expanded`; opening the @ list says how many choices it holds (`view-agent-chat.ts`, `agent-mention.ts`). | `UIK-10: the message box says {"popup":null,"expanded":"false"}; UIK-10: opening the @ list was not said.` |
+| [UIK-11](#uik-11) | The tab list holds only tabs, with one Tab stop and the arrows moving along them; the close buttons are the pointer's, and New tab stands outside it (`workspace-tabs.ts`, `index.html`). Not done: the access ladder stays as pressed buttons, since radio semantics would make the arrow keys change the access level (the verifier called that half optional). | `UIK-11: the tab list exposes {"list":true,"stops":["tab","","tab","","tab-new"],"exposed":["tab-close","tab-close","tab-new"],"newTabInside":true}.` |
+| [UIK-12](#uik-12) | Enter while the agent works says why nothing was sent; Stop's title names the message box (`view-agent-chat.ts`). | `UIK-12: Enter while the agent works said nothing.` |
+| [UIK-14](#uik-14) | Tab leaves the Data grid; while a cell is edited it still moves to the next (`tabToNextCell`, `view-data.ts`). | `UIK-14: one Tab from a grid cell stayed in the grid.` The check's first version focused the cell by script and passed against the old code; it now clicks the cell. |
+| [UIK-15](#uik-15) | Focus on Open conversation comes back to the copy in the panel on screen (`view-agent.ts`). | `UIK-15: after a redraw focus was {"open":false,"visible":false}, not the Launch tile's Open conversation.` |
+| [UIS-10](#uis-10) | A record form's values draw at the body size and weight (`14-refinements-controls.css`). | `UIS-10: a record value is drawn at 10.64px, weight 650.` |
+| [UIS-11](#uis-11) | The inspector is headed by the record's name; the open record carries `aria-current` and a fill and ring where it is listed (no left stripe, which `callout-edges.test.mjs` refuses) (`page-markup.ts`, `view-use.ts`). | `UIS-11: the inspector is headed "", not by its record "Keep the working file local". UIS-11: the open record's row is not marked: {"current":null,"fill":"rgba(0, 0, 0, 0)"}.` |
+| [UIS-12](#uis-12) | An optional field's Not set, and a reference's Choose and Clear, are named with their field (`record-markup.ts`, `reference-controls.ts`). The preview's decision log has no reference field, so the lane measures only Not set. | `UIS-12: controls share a name without their field: {"unset":["Not set","Not set"],"choose":[]}.` |
+| [UIS-13](#uis-13) | A type tile's letters lean to the ink (60% in Light, 75% in Dark) (`21-native.css`). Guard: `chip-contrast.test.mjs`, every tone on the rail, a selected row, a tab and the address field. | Letters in the tone itself: `'Light red on rail 3.57:1', 'Light red on selected 3.21:1', 'Light red on tab 3.82:1'`, … |
+| [UIS-14](#uis-14) | The formatted text above a Markdown field follows its source as it is typed (`record-form.ts`). | `UIS-14: the formatted text shows "WhyThe first release …" while its source says "## Reasons for the change".` |
+| [UIS-15](#uis-15) | Alt+F with the navigation folded unfolds it first (`main.ts`). | `UIS-15: Alt+F with the rail folded left focus on {"inMenu":false,"visible":true,"name":""}.` |
+| [UIS-20](#uis-20) | The view's name in the breadcrumb and the list's column heads carry their full text as a title (`surface-markup.ts`). | `UIS-20: the View picker's name carries no title: {"text":"Decision log","title":""}.` |
+| [UIS-21](#uis-21) | Ctrl K leaves a button's glyph out of its name (`command-palette.ts`). | `UIS-21: Ctrl K lists the Add command as "+Add DecisionThis page".` |
+| [UIS-23](#uis-23) | The poll's comment is said once (`main.ts`). No guard: a comment. | Not applicable. |
+
+Documents updated with the behaviour: `docs/design/mica-direction.md` (the tab strip's Tab stop
+and scrolling, the tab keys and the File menu in a narrow window) and
+`docs/contracts/launched-agents.md` (an arrow key in an agent's option only looks).
+
+An independent review of the fixes found seven more defects, all fixed and guarded, with these
+failures when the review's fixes were taken out (one run):
+
+- Escape after looking with an arrow key applied the look, in the Filter menu (`UIK-07: Escape
+  after looking with ArrowDown left {"pill":true,"open":false}; nothing should be applied.`) and
+  in the agent's options (`UIK-06: Escape after looking chose the option: said ["Allow All:
+  On.","Allow All: On."], value on.`). Space, which opens a native list, no longer counts as
+  looking, and a pointer pick is never held back.
+- The empty conversation was still written again on every read, because the comparison read
+  the markup back with other entities and the pruning loop removed it first (`UIK-05: changing
+  an option wrote the empty conversation into the log again 2 times.`).
+- Focus resting on the record-type list held every automatic read for as long as it rested
+  there (`UIS-03: focus resting on the record-type list holds every automatic read.`); only an
+  open picker and the quiet window hold now.
+- A redraw of the same screen, such as related rows arriving after a record opened, dropped
+  focus again; `rerender` now finds the focused control again by its id, record or menu
+  (`UIK-04: after a redraw of the open record's screen, focus is on BODY.`).
+- The lane's own clean-up folded the rail for every later check; removed.
+
+Smaller changes from the review: the inspector's top scroll room covers its two-line heading;
+the tab list keeps where it was scrolled; each Markdown field follows its own source; Enter while
+the agent starts says why; a selection holds the Agent page's poll for at most a minute; four
+lane checks were tightened so they cannot pass vacuously. Not done: `aria-busy` on the
+streaming item rather than the log, a Shift+Tab walk of the inspector, a Tab-inside-an-editor
+check for the grid, measuring the @ menu's ring and the switch's outline, and the related-list
+edge case of the current-record mark.
+
+#### Checks run for the fourth pass
+
+- Workbench: `npm test` 565 passed, 0 failed; `tsc --noEmit` clean.
+- `Test-Production.ps1 -SkipRestore`, from a copy that goes on past a .NET failure: Engine 1127
+  passed, 2 skipped; LocalMcp 245 passed, 5 skipped; Desktop 454 passed, 1 failed: the
+  extension-view journey's clipboard probe, `Requested Clipboard operation did not succeed`,
+  with LogonUI running (the workstation had locked), the interlock of the earlier passes. Every
+  later stage passed: tool and production boundaries, the custom-view presentation lanes, Swarm,
+  Garden, the agent conversation lane, the new Workbench shell lane (22 checks) and the
+  repository gate (the binary-asset step included). An earlier run of the same copy stopped at
+  the Garden lane's settle timing (`{"travelled":28,"afterTwoSeconds":7}`) on the locked desktop;
+  it passed in this run.
+- Installer: `Publish-NendoPayload.ps1`, `Build-NendoInstaller.ps1` and
+  `Test-NendoSetupIsolated.ps1` passed; the payload's Workbench bundle carries the changes
+  (`inspector-heading`, `tab-list`, `chip-share`, `tabToNextCell`, `scroll-padding-block`).

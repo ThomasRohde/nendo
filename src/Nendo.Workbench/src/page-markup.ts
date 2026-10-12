@@ -5,7 +5,7 @@ import { icon } from './icons';
 import { choiceDisplay, cssToken, escapeAttribute, escapeHtml } from './format';
 import { selectedTabs, tabStateKey } from './app-state';
 import { sectionIsOpen } from './fold-state';
-import { formFields } from './plan-selection';
+import { formFields, listFieldIds } from './plan-selection';
 import { unsavedViewMarkup, viewPlaceholderMarkup, viewSpecFor } from './view-frame-markup';
 import {
   chartTileMarkup, commandButtons, derivedFieldMarkup, fieldMarkup, fieldsMarkup, nodeTitle, recordFieldDisplay,
@@ -221,6 +221,8 @@ export function recordActionsMarkup(plan: ApplicationPlan, record: RecordPlan): 
 }
 
 export function inspectorMarkup(plan: ApplicationPlan, record: RecordPlan): string {
-  return `<aside class="record-inspector"><header><span>${escapeHtml(plan.entity.displayName)} details</span><button id="close-inspector" class="icon-button" type="button" aria-label="Close" data-dismiss>${icon('close')}</button></header>${recordHeroMarkup(plan, record)}${recordActionsMarkup(plan, record)}${recordFormMarkup(record, formFields(plan), 'Save changes', pageFormBody(plan, record, true), '', pageHasTabs(plan))}<p class="version-note">Record version ${record.version}</p></aside>`;
+  // Named by the record, as its row in the list is, so the form says which record it edits (UIS-11).
+  const title = recordFieldDisplay(record, listFieldIds(plan, null)[0], plan.entity.derivedFields);
+  return `<aside class="record-inspector" aria-labelledby="inspector-heading"><header><span id="inspector-heading" class="inspector-heading" role="heading" aria-level="2" tabindex="-1">${title === '' ? `${escapeHtml(plan.entity.displayName)} details` : `${escapeHtml(title)}<small>${escapeHtml(plan.entity.displayName)} details</small>`}</span><button id="close-inspector" class="icon-button" type="button" aria-label="Close" data-dismiss>${icon('close')}</button></header>${recordHeroMarkup(plan, record)}${recordActionsMarkup(plan, record)}${recordFormMarkup(record, formFields(plan), 'Save changes', pageFormBody(plan, record, true), '', pageHasTabs(plan))}<p class="version-note">Record version ${record.version}</p></aside>`;
 }
 

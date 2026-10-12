@@ -211,6 +211,8 @@ The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversati
 - The agent's own options (its model, effort, mode, or anything else it offers as a
   `select` config option; at most 16, each with at most 300 values) are shown as the agent
   states them and set with `session/set_config_option` only when the person picks a value.
+  An arrow key on a closed list only looks: the value is picked with Enter, from the open
+  list, or by leaving the list, and More stays open while the person steps through it.
   An agent that sends no config options but `modes` or `models` has them shown as Mode and
   Model and set with `session/set_mode` and `session/set_model`
   (`AgentConversation.Options.cs`).

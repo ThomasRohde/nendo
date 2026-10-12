@@ -115,13 +115,14 @@ function drawMenu(page: ParentNode): void {
   if (menu === null) {
     list.hidden = true;
     list.innerHTML = '';
-    prompt.setAttribute('aria-expanded', 'false');
     prompt.removeAttribute('aria-activedescendant');
     return;
   }
+  // A textbox has no expanded state; the list is said aloud when it opens (UIK-10).
+  const opening = list.hidden;
   list.hidden = false;
   list.innerHTML = mentionMenuMarkup(menu.choices, menu.active, menu.note);
-  prompt.setAttribute('aria-expanded', 'true');
+  if (opening && menu.choices.length > 0) announce(`${menu.choices.length} ${menu.choices.length === 1 ? 'choice' : 'choices'}; up and down to choose, Enter to point at one.`);
   if (menu.choices.length > 0) {
     prompt.setAttribute('aria-activedescendant', `mention-option-${menu.active}`);
     list.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });

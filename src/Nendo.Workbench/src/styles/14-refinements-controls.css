@@ -87,6 +87,33 @@
 }
 
 .record-inspector > header > span { font-size: 0.95rem; }
+.record-inspector .inspector-heading small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+.record-inspector .inspector-heading:focus { outline: none; }
+.record-inspector .inspector-heading:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+
+/* The sticky header and Save bar stand over the scroller's edges, so a control that Tab brings
+   to either edge would sit under them (WCAG 2.4.11). The scroller keeps that room clear (UIS-05). */
+.record-inspector { scroll-padding-block: 5.5rem 5.5rem; }
+
+/* A stored value reads at the body size, not at its label's (UIS-10). */
+.record-form label :is(input, select, textarea) {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+/* The record that is open beside the list (UIS-11). */
+.record-row > button.is-current,
+.record-card.is-current,
+.calendar-entry.is-current {
+  background: var(--cobalt-soft);
+  box-shadow: inset 0 0 0 1px var(--cobalt);
+}
 
 /* Long forms scroll, so keep the commit action in reach instead of below the
    fold with the destructive action stacked under it. */

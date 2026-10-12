@@ -124,7 +124,7 @@
   align-items: center;
   padding: 2px 9px;
   border-radius: 999px;
-  color: color-mix(in srgb, var(--status-color, var(--muted)) 78%, var(--ink));
+  color: color-mix(in srgb, var(--status-color, var(--muted)) var(--chip-share, 78%), var(--ink));
   background: color-mix(in srgb, var(--status-color, var(--muted)) 14%, var(--surface-raised));
   font-size: 0.75rem;
   font-weight: 680;
@@ -133,7 +133,7 @@
 }
 
 :root[data-theme="dark"] .card-chip {
-  color: color-mix(in srgb, var(--status-color, var(--muted)) 55%, #ffffff);
+  color: color-mix(in srgb, var(--status-color, var(--muted)) var(--chip-share-dark, 55%), #ffffff);
   background: color-mix(in srgb, var(--status-color, var(--muted)) 22%, var(--surface-raised));
 }
 

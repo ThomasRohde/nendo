@@ -56,7 +56,8 @@ const searchLimit = 8;
 /** The text a control shows, without the detail line or a key hint inside it. */
 function labelOf(element: Element): string {
   const clone = element.cloneNode(true) as Element;
-  for (const extra of clone.querySelectorAll('small, kbd, svg, .nav-symbol')) extra.remove();
+  // A glyph drawn beside the words, such as Add's +, is decoration (UIS-21).
+  for (const extra of clone.querySelectorAll('small, kbd, svg, .nav-symbol, .button-glyph')) extra.remove();
   const strong = clone.querySelector('strong');
   return (strong?.textContent ?? clone.textContent ?? '').replace(/\s+/g, ' ').trim();
 }

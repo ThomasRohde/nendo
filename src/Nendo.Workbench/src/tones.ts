@@ -22,6 +22,9 @@ export function toneOf(field: TonedField | undefined, value: unknown): ChoiceTon
   return isChoiceTone(tone) ? tone : null;
 }
 
+/** How much of a derived hue a chip's text keeps, the rest being the theme's ink, per theme. */
+export const derivedChipShare = { light: 48, dark: 48 } as const;
+
 /** A hue derived from the stored value, for an option that has no tone. */
 export function derivedHue(value: string): number {
   let hash = 0;
@@ -37,7 +40,9 @@ export function choiceStyle(field: TonedField | undefined, value: unknown): stri
   const tone = toneOf(field, value);
   if (tone !== null) return `--status-color: var(--tone-${tone})`;
   const text = typeof value === 'string' ? value : value === null || value === undefined ? '' : String(value);
-  return text === '' ? '' : `--status-color: hsl(${derivedHue(text)} 58% 49%)`;
+  // A derived hue can be any colour, a pale yellow among them, so its chip text leans further to
+  // the ink than a named tone's to reach 4.5:1 in both themes (UIS-06).
+  return text === '' ? '' : `--status-color: hsl(${derivedHue(text)} 58% 49%); --chip-share: ${derivedChipShare.light}%; --chip-share-dark: ${derivedChipShare.dark}%`;
 }
 
 /** The label a picker shows for a tone, or for none. */

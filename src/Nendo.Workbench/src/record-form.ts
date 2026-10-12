@@ -7,6 +7,7 @@ import { confirmDialog } from './confirm-dialog';
 import { refuseWhileDirty } from './draft-guard';
 import { foldSection } from './fold-state';
 import { escapeHtml, messageFor, mutationKey, sameValue, storageLabel, stringValue, valueDisplay } from './format';
+import { markdownMarkup } from './markdown';
 import { type ApplicationPlan, type FieldPlan, type ReadPage, type RecordPlan, type RecordSnapshot } from './host';
 import { refreshVisibleTiles, wireCharts, wireSummaryRetry } from './panels';
 import { relatedLists, visibleCharts, visibleTiles } from './plan-selection';
@@ -93,6 +94,26 @@ export function wireRecordForm(
   };
   recordForm.addEventListener('input', trackEdit);
   recordForm.addEventListener('change', trackEdit);
+  // The rendering above a Markdown field shows its source as typed, not the stored text, so the
+  // page never shows two versions of one field (UIS-14).
+  const rendering = new Map<Element, number>();
+  recordForm.addEventListener('input', (event) => {
+    const source = event.target instanceof HTMLTextAreaElement ? event.target : null;
+    const field = source?.closest('.markdown-field');
+    if (source === null || field == null) return;
+    window.clearTimeout(rendering.get(field));
+    rendering.set(field, window.setTimeout(() => {
+      rendering.delete(field);
+      let body = field.querySelector<HTMLElement>('.markdown-body');
+      if (body === null) {
+        body = document.createElement('div');
+        body.className = 'markdown-body';
+        field.querySelector('.markdown-source')?.before(body);
+      }
+      body.innerHTML = markdownMarkup(source.value);
+      body.hidden = source.value.trim() === '';
+    }, 150));
+  });
   state.openDraft = { session: { fileSessionId: state.session.fileSessionId, canMutate: state.session.capabilities.mutate }, edited: editedFields };
   requiredElement<HTMLFormElement>('#record-form').addEventListener('submit', (event) => {
     event.preventDefault();

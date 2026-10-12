@@ -409,6 +409,9 @@ try {
     Write-Host '== Launched agent conversation =='
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-AgentChat.ps1')) 'Launched agent conversation tab'
 
+    Write-Host '== Workbench shell =='
+    Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-WorkbenchShell.ps1')) 'Workbench shell, Use screens and Agent page'
+
     Write-Host '== Repository =='
     & (Join-Path $PSScriptRoot 'Test-Repository.ps1')
 

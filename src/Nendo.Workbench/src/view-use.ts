@@ -197,7 +197,7 @@ export function renderUse(): void {
   });
   const picker = pickers.querySelector<HTMLDetailsElement>('.surface-picker');
   picker?.addEventListener('keydown', event => {
-    if (event.key === 'Escape') { picker.open = false; picker.querySelector('summary')?.focus(); }
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); picker.open = false; picker.querySelector('summary')?.focus(); }
   });
   picker?.addEventListener('focusout', () => {
     setTimeout(() => { if (!picker.contains(document.activeElement)) picker.open = false; }, 0);
@@ -246,6 +246,10 @@ export function renderUse(): void {
     leaveRecordContext(); state.creatingRecord = true; rerender();
   });
   for (const card of content.querySelectorAll<HTMLButtonElement>('[data-record-id]')) {
+    // The open record is marked in the list, board or gallery beside its inspector (UIS-11).
+    const current = state.selectedRecordId !== null && card.dataset.recordId === state.selectedRecordId && card.closest('.record-inspector') === null;
+    card.classList.toggle('is-current', current);
+    if (current) card.setAttribute('aria-current', 'true'); else card.removeAttribute('aria-current');
     // Selecting a record only says which record is open. Its relations and its totals are
     // read by the chases below, which is also what reads them when neither a click nor a
     // tab change is what made them stale.
@@ -255,6 +259,9 @@ export function renderUse(): void {
       state.creatingRecord = false;
       state.returnTo = null;
       rerender();
+      // The record opens beside the list: its inspector takes focus, or a keyboard user reaches
+      // it only by tabbing through the rest of the list (UIK-04).
+      focusWithoutInteraction(content.querySelector<HTMLElement>('#inspector-heading'));
     });
   }
   wireSummaryRetry(plan);
