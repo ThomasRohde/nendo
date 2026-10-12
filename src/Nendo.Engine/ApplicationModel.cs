@@ -228,6 +228,14 @@ public sealed record NendoStoredOperationSnapshot(
     /// stores beside it; null for an operation the revision's author made.
     /// </summary>
     public NendoOperationAttribution? Attribution { get; init; }
+
+    /// <summary>
+    /// The label of the record a record operation acts on: its record type's first text field,
+    /// read from the record as it stands or, once deleted, from the values its deletion kept.
+    /// Null for an operation on no record, or a record whose label is empty. History named no
+    /// record, so three deletes of one type read as three identical lines (UX-07).
+    /// </summary>
+    public string? RecordLabel { get; init; }
 }
 
 /// <summary>

@@ -12,7 +12,7 @@ import { announce, clearError, content, focusWithoutInteraction, rerender, setBu
 import { customViewsPanelMarkup } from './view-frame-markup';
 
 /**
- * Studio → Surfaces → Custom views (ADR-0013): whether views run on this device, and the
+ * Studio → Screens → Custom views (ADR-0013): whether views run on this device, and the
  * packages that carry their code in this file.
  *
  * The two switches are device settings, like the theme: they never reach the file, and they
@@ -21,7 +21,7 @@ import { customViewsPanelMarkup } from './view-frame-markup';
  * both arrive as a proposal in the review Studio uses for every other definition change.
  */
 
-/** Studio → Surfaces, scrolled to Custom views: where a placeholder and the File menu send a person to turn views on. */
+/** Studio → Screens, scrolled to Custom views: where a placeholder and the File menu send a person to turn views on. */
 export async function openCustomViews(): Promise<void> {
   await openWorkspaceView('surfaces');
   if (state.view === 'surfaces') document.getElementById('custom-views')?.scrollIntoView({ block: 'start' });

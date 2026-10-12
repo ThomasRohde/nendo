@@ -150,11 +150,13 @@ test('a selector label falls back to the kind and disambiguates a shared title',
  assert.equal(kindLabel('timelineSurface'),'Timeline');
  assert.equal(kindLabel('gallerySurface'),'Gallery');
  // Two lists may legitimately share a title; two buttons reading "Deals" name
- // nothing, so the stable ID comes back into the label.
+ // nothing. They are told apart by kind, then by order, never by a stored ID (UX-13).
  const a=node('list.a','recordList',{title:'Deals'});
  const b=node('list.b','recordList',{title:'Deals'});
- assert.equal(surfaceLabel(a,[a,b]),'Deals (list.a)');
- assert.equal(surfaceLabel(b,[a,b]),'Deals (list.b)');
+ assert.equal(surfaceLabel(a,[a,b]),'Deals (1 of 2)');
+ assert.equal(surfaceLabel(b,[a,b]),'Deals (2 of 2)');
+ const board=node('board.c','boardSurface',{title:'Deals'});
+ assert.equal(surfaceLabel(board,[a,board]),'Deals (2 of 2)');
 });
 
 // A tab removed or reordered by a proposal must not leave the page with no open

@@ -413,7 +413,7 @@
 .rename-form { margin-top: var(--space-5); padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5); }
 .rename-form input { min-height: 38px; }
 
-/* Studio → Surfaces → Custom views (ADR-0013): this device's two switches, and the packages
+/* Studio → Screens → Custom views (ADR-0013): this device's two switches, and the packages
    the file carries. The switches reuse the Agent page's toggle; a package reads like a
    surface card with its two actions where the card's chip would be. */
 .custom-views-panel {

@@ -32,7 +32,7 @@ test('MCP help hands the person the concrete registration commands and explains 
   assert.match(JSON.stringify(topic), /2026-07-28/);
   assert.match(JSON.stringify(topic), /Closing the agent alone does not release editing/);
   // The relaxed local defaults are the product promise; help must not drift back to the hardened wording.
-  assert.match(JSON.stringify(topic), /Lease expiry is off unless/);
+  assert.match(JSON.stringify(topic), /Edit access expires is off unless/);
   assert.doesNotMatch(JSON.stringify(topic), /sixty seconds|short-lived/);
 });
 
@@ -107,7 +107,7 @@ test('the agent surface article names every resource and tool the host declares,
 test('what the person is told matches the words on screen', () => {
   for (const label of ['Off', 'Inspect', 'Edit data', 'Shape app', 'Unattended', 'Local agent', 'Revoke edit access', 'Editing owner', 'Pending changes']) assert.ok(topicText('agent-access').includes(label), label);
   for (const label of ['Not set', 'Calculating…', 'Cannot calculate', 'Approve automatic actions', 'Withdraw approval', 'Approval needed']) assert.ok(topicText('calculations').includes(label), label);
-  for (const label of ['Reversible', 'Compensatable with retained state', 'Not compensatable', 'Save unconfirmed', 'Acceptance unconfirmed']) assert.ok(topicText('history').includes(label), label);
+  for (const label of ['Can be undone', 'Can be undone if nothing has changed it since', 'Cannot be undone', 'Save unconfirmed', 'Acceptance unconfirmed']) assert.ok(topicText('history').includes(label), label);
   for (const label of ['Read-only', 'Recovery required', 'Approval needed', 'Check or retry save']) assert.ok(topicText('one-file').includes(label), label);
   for (const label of ['What changes', 'What this builds', 'Accept changes', 'Preview changes']) assert.ok(topicText('lanes').includes(label), label);
   assert.match(topicText('limits'), /Windows/);
@@ -119,7 +119,7 @@ test('search reaches article bodies, not only titles', () => {
   assert.ok(helpSearchText(topic).includes('nendo_stale_cursor'));
   assert.ok(!`${topic.title} ${topic.summary}`.toLowerCase().includes('nendo_stale_cursor'));
   const history = helpTopics(context).find(item => item.id === 'history');
-  assert.ok(helpSearchText(history).includes('compensatable with retained state'));
+  assert.ok(helpSearchText(history).includes('can be undone if nothing has changed it since'));
 });
 
 test('built-in guides stay inside the vocabulary gates and link only to topics that exist', () => {

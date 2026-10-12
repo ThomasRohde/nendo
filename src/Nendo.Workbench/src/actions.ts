@@ -3,7 +3,7 @@ import type { ViewName } from './app-state';
 import type { ApplicationRecipe } from './application-recipes';
 import { client } from './client';
 import { confirmDialog } from './confirm-dialog';
-import { announce, clearError, content, refreshChrome, requiredElement, rerender, setBusy, showError, showRetainedNotice } from './shell';
+import { announce, clearError, content, refreshChrome, requiredElement, rerender, setBusy, showError, showOutcome, showRetainedNotice } from './shell';
 import { escapeHtml, messageFor, mutationKey, valueDisplay } from './format';
 import { decideWriteFailure, nameHolder, namingFieldId } from './write-failure';
 import { refuseWhileDirty } from './draft-guard';
@@ -57,6 +57,12 @@ async function holderNamed(error: unknown, payload: Record<string, unknown>): Pr
  * host's wording is right far more often than not, and this is a deliberate exception
  * rather than a translation layer.
  */
+/**
+ * What became of a change: saved; refused with the screen left as it was, which keeps a
+ * record form's draft; or refused with the view read again.
+ */
+export type MutationOutcome = 'saved' | 'kept' | 'redrawn' | 'busy';
+
 export async function runMutation(
   method: string,
   payload: Record<string, unknown>,
@@ -64,8 +70,8 @@ export async function runMutation(
   refreshAfterFailure = false,
   beforeRender?: () => void,
   restate?: (error: unknown) => string | null,
-): Promise<void> {
-  if (state.actionInFlight) return;
+): Promise<MutationOutcome> {
+  if (state.actionInFlight) return 'busy';
   state.actionInFlight = true;
   setBusy(true);
   clearError();
@@ -75,18 +81,23 @@ export async function runMutation(
     beforeRender?.();
     const notice = await refreshAfterOutcome(result);
     rerender();
-    announce(success);
+    // Drawn as well as announced: a hidden live region told a screen reader and nobody else
+    // that a save, an add, a delete or a command had worked (UX-04).
     if (notice !== null) showOutcomeRefreshNotice(success, notice);
+    else showOutcome(success);
+    return 'saved';
   } catch (error) {
     // A confirmed refusal leaves the file unchanged, so the form's draft is still
     // the user's current intent and must survive. Only an unsettled outcome is
     // worth rebuilding the view for, and then exactly once: recoverAfterWriteFailure
     // renders on its own.
-    if (decideWriteFailure(error) === 'refresh-view') {
+    const redrawn = decideWriteFailure(error) === 'refresh-view';
+    if (redrawn) {
       if (refreshAfterFailure) await recoverAfterWriteFailure();
       else rerender();
     }
     showError(restate?.(error) ?? await holderNamed(error, payload) ?? messageFor(error));
+    return redrawn ? 'redrawn' : 'kept';
   } finally {
     state.actionInFlight = false;
     setBusy(false);
@@ -425,7 +436,7 @@ export async function foldHistory(): Promise<void> {
     state.historyFold = null;
     await refreshDerived();
     rerender();
-    announce(`Folded ${result.revisions.toLocaleString()} older changes into one checkpoint. ${result.operationRowsAfter.toLocaleString()} of ${preview.operationCeiling.toLocaleString()} changes are now recorded. The full history is in ${result.backupLabel}, beside the file.`);
+    showOutcome(`Folded ${result.revisions.toLocaleString()} older changes into one checkpoint. ${result.operationRowsAfter.toLocaleString()} of ${preview.operationCeiling.toLocaleString()} changes are now recorded. The full history is in ${result.backupLabel}, beside the file.`);
   } catch (error) {
     showError(messageFor(error));
   } finally {
@@ -448,7 +459,7 @@ export async function buildSearchIndex(): Promise<boolean> {
     state.session = await client.request<DesktopSessionView>('session.getSnapshot');
     await refreshDerived();
     rerender();
-    announce('This file can now be searched by any word in its records. Nendo keeps the search index current from now on.');
+    showOutcome('This file can now be searched by any word in its records. Nendo keeps the search index current from now on.');
     return true;
   } catch (error) {
     showError(messageFor(error));
@@ -474,7 +485,7 @@ function confirmFold(preview: HistoryFoldPreview): Promise<boolean> {
 }
 
 export async function compensateRevision(revisionId: string): Promise<void> {
-  await runMutation('history.compensate', { revisionId, idempotencyKey: mutationKey() }, 'Compensation added to history.', true);
+  await runMutation('history.compensate', { revisionId, idempotencyKey: mutationKey() }, 'Undone. History lists the undo as a new change.', true);
 }
 
 export async function retryPendingSave(): Promise<void> {
@@ -503,8 +514,8 @@ export async function retryPendingSave(): Promise<void> {
       const confirmed = 'promotion' in result ? 'Proposal acceptance confirmed.' : 'Previous save confirmed.';
       const notice = await refreshAfterOutcome(result);
       rerender();
-      announce(confirmed);
       if (notice !== null) showOutcomeRefreshNotice(confirmed, notice);
+      else showOutcome(confirmed);
     } else rerender();
   } catch (error) {
     rerender();

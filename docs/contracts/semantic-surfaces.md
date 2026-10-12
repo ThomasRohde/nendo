@@ -248,8 +248,9 @@ read-only parts in place: a tab change, and paging a related list, which reads
 the next page and redraws only the relation.
 
 Every other move off the page redraws it, and a redraw removes the typing. So
-each of these moves declines, in the words of the board drag, *Save your changes
-or close record details before …*:
+each of these moves declines, in the words of the board drag, *Save or discard your
+changes before …*. Closing the record itself, by its close button, Back to Data or Escape,
+asks *Discard your changes?* first (W-210):
 
 - another surface, another record type or the front page
 - another record

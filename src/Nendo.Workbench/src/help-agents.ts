@@ -123,7 +123,7 @@ export const agentHelp: HelpProvider = () => [
     ] },
     { heading: 'One editor at a time', paragraphs: [
       'Writing needs the editing lease. One agent holds it, together with a private handle that only it knows. “Editing owner” on the Agent page shows who holds it, and “Revoke edit access” ends it at once.',
-      'Lease expiry is off unless you turn it on under Agent → Connect; then a lease that is not renewed lapses after the seconds you set. Closing the agent alone does not release editing. Setting access to Off, closing the file or switching to another file ends every lease.',
+      'Edit access expires is off unless you turn it on under Agent → Connect; then a lease that is not renewed lapses after the seconds you set. Closing the agent alone does not release editing. Setting access to Off, closing the file or switching to another file ends every lease.',
     ] },
     { heading: 'Working with an agent', steps: [
       'Start at Inspect and ask the agent to describe the file: record types, fields, screens, and what is already waiting for review.',

@@ -23,7 +23,7 @@ const stubs = {
       return {items:all.filter(([,s])=>!f||s===f.value).map(([id,s])=>({entityId:'tasks',recordId:id,recordVersion:1,values:{status:s}})),nextCursor:null,changeSequence:3};}
     if(method==='session.getSnapshot')return globalThis.tabQuerySession;
     return {items:[],nextCursor:null,changeSequence:3};}};`,
-  './shell': 'export const content={querySelectorAll:()=>[],querySelector:()=>null,innerHTML:"",contains:()=>false};export const interactionInProgress=()=>false;export const rerender=()=>{};export const setBusy=()=>{};export const showError=(m)=>{globalThis.tabQueryHost.error=m;};export const clearError=()=>{};export const announce=()=>{};export const refreshChrome=()=>{};export const showRetainedNotice=()=>{};export const requiredElement=()=>({hidden:false,addEventListener(){},querySelector:()=>null,querySelectorAll:()=>[]});export const focusWithoutInteraction=()=>{};',
+  './shell': 'export const content={querySelectorAll:()=>[],querySelector:()=>null,innerHTML:"",contains:()=>false};export const interactionInProgress=()=>false;export const rerender=()=>{};export const setBusy=()=>{};export const showError=(m)=>{globalThis.tabQueryHost.error=m;};export const clearError=()=>{};export const announce=()=>{};export const refreshChrome=()=>{};export const showRetainedNotice=()=>{};export const showOutcome=()=>{};export const requiredElement=()=>({hidden:false,addEventListener(){},querySelector:()=>null,querySelectorAll:()=>[]});export const focusWithoutInteraction=()=>{};',
   './confirm-dialog': 'export const confirmDialog=async()=>false;',
 };
 const entry = [

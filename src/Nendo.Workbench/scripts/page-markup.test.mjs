@@ -109,5 +109,5 @@ test('the inspector carries the close control and the record version',()=>{
  assert.match(markup,/class="record-inspector"/);
  assert.match(markup,/id="close-inspector"[^>]*data-dismiss/);
  assert.match(markup,/<form id="record-form"/);
- assert.match(markup,/Record version 2/);
+ assert.doesNotMatch(markup,/Record version|>v2</,'the concurrency counter is on a person-facing page (UX-13)');
 });

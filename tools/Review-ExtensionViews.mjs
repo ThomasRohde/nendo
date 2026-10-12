@@ -675,8 +675,12 @@ try {
   // the view's frame is that one row, where it was the Use toolbar and a strip of its own.
   const oneRow = await evaluate(`(() => { const header = document.querySelector('.workspace-header'), row = document.querySelector('.use-page > .use-toolbar');
     const frame = ${probeMount}.querySelector('iframe'), bar = ${probeStrip}, add = document.querySelector('#new-record');
-    const between = frame.getBoundingClientRect().top - header.getBoundingClientRect().bottom;
-    return { between: Math.round(between), row: Math.round(row.getBoundingClientRect().height), headerHeight: Math.round(header.getBoundingClientRect().height),
+    // An outcome the person was just shown sits in the message line above the toolbar until they
+    // move on (W-210, UX-04). It is said, not chrome, so its height is set aside and reported.
+    const slot = document.querySelector('.use-page .message-slot:not([hidden])');
+    const said = slot === null ? 0 : slot.getBoundingClientRect().height + parseFloat(getComputedStyle(slot).marginTop) + parseFloat(getComputedStyle(slot).marginBottom);
+    const between = frame.getBoundingClientRect().top - header.getBoundingClientRect().bottom - said;
+    return { between: Math.round(between), message: slot === null ? null : { height: Math.round(said), text: slot.textContent.trim().slice(0, 80) }, row: Math.round(row.getBoundingClientRect().height), headerHeight: Math.round(header.getBoundingClientRect().height),
       frameTop: Math.round(frame.getBoundingClientRect().top),
       pickers: Boolean(header.querySelector('#use-entity')) && Boolean(header.querySelector('.surface-picker [data-select-surface="probe"][aria-pressed="true"]')),
       rowPickers: Boolean(row.querySelector('#use-entity, .surface-picker')), sameRow: bar !== null && add !== null && bar.closest('.use-toolbar') === add.closest('.use-toolbar'),

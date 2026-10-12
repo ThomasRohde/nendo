@@ -4,7 +4,7 @@ import { noteTabsChanged } from './navigation-trail';
 import { chartKey } from './charts';
 import { client } from './client';
 import { confirmDialog } from './confirm-dialog';
-import { refuseWhileDirty } from './draft-guard';
+import { recordFormIsDirty, refuseWhileDirty } from './draft-guard';
 import { foldSection } from './fold-state';
 import { escapeHtml, isDateTimeKind, messageFor, mutationKey, sameValue, storageLabel, stringValue, valueDisplay } from './format';
 import { errorCode } from './write-failure';
@@ -40,7 +40,17 @@ export function wireRecordForm(
   close: () => void,
   page: ApplicationPlan | null = null,
 ): void {
-  for (const button of content.querySelectorAll<HTMLButtonElement>('#close-inspector, #cancel-create')) button.addEventListener('click', close);
+  // Escape presses the same button, so both ask before unsaved typing goes (UX-12).
+  const closeAsking = (): void => {
+    if (!recordFormIsDirty()) { close(); return; }
+    void confirmDialog({
+      headingId: 'discard-draft-heading',
+      title: 'Discard your changes?',
+      bodyHtml: '<p>What you typed on this record has not been saved. Discarding it cannot be undone.</p>',
+      confirmLabel: 'Discard changes',
+    }).then(discard => { if (discard) close(); });
+  };
+  for (const button of content.querySelectorAll<HTMLButtonElement>('#close-inspector, #cancel-create')) button.addEventListener('click', closeAsking);
   if (page !== null) { wireTabs(page, record); wireFolds(page, record); }
   const editedFields = new Set<string>();
   const recordForm = requiredElement<HTMLFormElement>('#record-form');
@@ -49,12 +59,13 @@ export function wireRecordForm(
   recordForm.querySelector<HTMLButtonElement>('#delete-record')?.addEventListener('click', () => {
     if (record === null) return;
     const titleField = fields.find(field => storageLabel(field.storageKind) === 'Text');
-    const title = titleField ? valueDisplay(record.values[titleField.semanticId]) : record.semanticId;
+    const typeName = state.session.entities.find(entity => entity.entityId === entityId)?.displayName ?? 'record';
+    const title = (titleField ? valueDisplay(record.values[titleField.semanticId]) : '') || `This ${typeName}`;
     void confirmDialog({
       headingId: 'delete-record-heading',
       title: 'Delete this record?',
-      bodyHtml: `<p>${escapeHtml(title || record.semanticId)}</p>
-      <p>Its values will be retained in History for restoration while its schema and references remain valid. Incoming references must be cleared or reassigned first.</p>`,
+      bodyHtml: `<p>${escapeHtml(title)}</p>
+      <p>You can restore it from History, unless its record type or fields change in a way that no longer fits it. If other records link to it, Nendo asks you to unlink them first.</p>`,
       confirmLabel: 'Delete record',
     }).then((confirmed) => {
       if (!confirmed) return;
@@ -94,6 +105,20 @@ export function wireRecordForm(
     if (record !== null && sameAsStored(record, field, recordForm)) editedFields.delete(fieldId);
     else editedFields.add(fieldId);
   };
+  // Ticking Not set left the text in the box and threw it away on save (UX-18): the box now
+  // empties while it is ticked, and gets the text back if it is unticked.
+  recordForm.addEventListener('change', (event) => {
+    const unset = event.target instanceof HTMLInputElement && event.target.dataset.nullField ? event.target : null;
+    if (unset === null) return;
+    const control = recordForm.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${CSS.escape(unset.dataset.nullField!)}"]`);
+    if (control === null) return;
+    if (unset.checked) { control.dataset.unsetText = control.value; control.value = ''; }
+    else if (control.dataset.unsetText !== undefined) { control.value = control.dataset.unsetText; delete control.dataset.unsetText; }
+    // Set from code, so no input event redraws the rendering above a Markdown box (UIS-14); it is
+    // drawn here rather than by an input event, which would untick Not set again.
+    const body = control.closest('.markdown-field')?.querySelector<HTMLElement>('.markdown-body');
+    if (body) body.innerHTML = markdownMarkup(control.value);
+  });
   recordForm.addEventListener('input', trackEdit);
   recordForm.addEventListener('change', trackEdit);
   // The rendering above a Markdown field shows its source as typed, not the stored text, so the

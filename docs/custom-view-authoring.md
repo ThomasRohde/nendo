@@ -789,7 +789,7 @@ against an older package is refused rather than replayed over a newer one.
 
 ### From Studio
 
-1. Open **Studio → Surfaces → Custom views**, or **File → Custom views…**.
+1. Open **Studio → Screens → Custom views**, or **File → Custom views…**.
 2. Choose **Import package…**, and pick the folder's `nendo-package.json`, a `.zip`
    of the folder, or a `.nendoview` archive from before 2026-09-25.
 3. Nendo reads the whole package, prepares the proposal and opens the review. Its
@@ -885,7 +885,7 @@ file's screens, authored with `ui.addNode` in a change set that a person accepts
 like any other screen. The example `show-a-custom-graph` in
 `nendo://application/examples` defines a graph.
 
-A person can add one without an agent. In **Studio → Surfaces → Custom views**, each
+A person can add one without an agent. In **Studio → Screens → Custom views**, each
 package's card lists the screens and record pages that already show it, and has an
 **Add view…** button. The form asks for the kind, a title, the record type (or, for a
 panel, the record page) and the label and status fields, and for a graph the link record
@@ -1003,7 +1003,7 @@ Nendo does not interpret it. It is not the place for data.
 
 ## Running, stopping and debugging
 
-- **Develop from a folder.** Import the package once. Then, in Studio → Surfaces →
+- **Develop from a folder.** Import the package once. Then, in Studio → Screens →
   Custom views, press **Develop from folder…** on its card and pick the package's
   folder. Every view of the package now runs from that folder on this computer, under
   a Development strip, and reloads whenever you save a file there. Nothing reaches the
@@ -1028,7 +1028,7 @@ Nendo does not interpret it. It is not the place for data.
 - **A crash.** If a view's renderer ends, each of its package's views says "This
   view stopped", with **Reload**. The rest of Nendo is unaffected.
 - **Switches.** **Run custom views** turns every view off on this device, and **Run
-  this file's views** turns off this file's. Both are in Studio → Surfaces → Custom
+  this file's views** turns off this file's. Both are in Studio → Screens → Custom
   views. If a view brings the whole window down, the recovery panel offers **Restart
   without custom views**, which keeps views off until you turn them on again or
   start Nendo again.

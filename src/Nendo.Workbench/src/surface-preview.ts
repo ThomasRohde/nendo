@@ -169,7 +169,7 @@ export function surfacePreviewMarkup(
     ?? id;
   const body = surface?.node == null ? '' : treeMarkup(app, surface.node, fieldName, record, peers);
   return `<div class="preview-controls"><label>Record type<select data-preview-entity></select></label><div class="view-switcher" role="group" aria-label="Preview surface">${surfaces.map(candidate => `<button type="button" data-preview-surface="${escape(candidate.id)}" aria-pressed="${candidate.id === surface?.id}">${escape(candidate.label)}</button>`).join('')}</div>
-    <label>Preview record<select data-preview-selected>${app.records.map((record, index) => `<option value="${index}" ${index === selected ? 'selected' : ''}>${escape(recordLabel(record).slice(0, 100))} · ${escape(record.semanticId)} · v${record.version}</option>`).join('')}</select></label></div>
+    <label>Preview record<select data-preview-selected>${app.records.map((record, index) => `<option value="${index}" ${index === selected ? 'selected' : ''}>${escape(recordLabel(record).slice(0, 100))}</option>`).join('')}</select></label></div>
     <p class="preview-count" role="status">${app.records.length} of ${total} records in this read-only preview. Your active file is unchanged.</p><div class="preview-content">${body}</div>`;
 }
 
@@ -412,7 +412,7 @@ function filterNote(node: SurfaceNodePlan, fieldName: (id: string) => string): s
 }
 
 function listMarkup(app: ApplicationPlan, fieldIds: string[]): string {
-  return `<div class="record-list">${app.records.map((record, index) => `<button type="button" data-preview-record="${index}">${fieldIds.map(id => `<span>${escape(valueText(app, record, id))}</span>`).join('')}<small>v${record.version}</small></button>`).join('') || '<p>No records in this preview.</p>'}</div>`;
+  return `<div class="record-list">${app.records.map((record, index) => `<button type="button" data-preview-record="${index}">${fieldIds.map(id => `<span>${escape(valueText(app, record, id))}</span>`).join('')}</button>`).join('') || '<p>No records in this preview.</p>'}</div>`;
 }
 
 /**

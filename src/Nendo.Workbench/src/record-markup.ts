@@ -115,7 +115,7 @@ export function recordCardMarkup(plan: ApplicationPlan, record: RecordPlan, card
     return `<span class="card-chip" style="${choiceStyle(plan.entity.fields.find((field) => field.semanticId === fieldId), record.values[fieldId])}" title="${escapeAttribute(`${fieldName(plan, fieldId)}: ${display}`)}">${escapeHtml(display)}</span>`;
   }).join('')}</div>`;
   const values = valueFields.length === 0 ? '' : `<div class="card-values">${valueFields.map((fieldId) => `<span><small>${escapeHtml(fieldName(plan, fieldId))}</small>${fieldValueMarkup(plan, record, fieldId, 'Not set')}</span>`).join('')}</div>`;
-  return `<button class="record-card${style === '' ? '' : ' is-toned'}" data-record-id="${escapeAttribute(record.semanticId)}" type="button" style="${style}" aria-label="Open ${escapeAttribute(heading)}"><strong>${escapeHtml(heading)}</strong>${chips}${values}<footer><small>v${record.version}</small></footer></button>`;
+  return `<button class="record-card${style === '' ? '' : ' is-toned'}" data-record-id="${escapeAttribute(record.semanticId)}" type="button" style="${style}" aria-label="Open ${escapeAttribute(heading)}"><strong>${escapeHtml(heading)}</strong>${chips}${values}</button>`;
 }
 
 export function relatedKey(node: SurfaceNodePlan, recordId: string): string {

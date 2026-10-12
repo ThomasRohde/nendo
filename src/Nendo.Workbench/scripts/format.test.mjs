@@ -70,11 +70,13 @@ test('a lane and a reversibility class read the same whether sent as a number or
  assert.equal(laneLabel(0),'Genesis');
  assert.equal(laneLabel(2),'Data');
  assert.equal(laneLabel('definition'),'Definition');
- assert.equal(reversibilityLabel(0),'Reversible');
- assert.equal(reversibilityLabel('reversibleWithRetainedState'),'Compensatable with retained state');
- assert.equal(reversibilityLabel('irreversibleDeclared'),'Not compensatable');
+ assert.equal(reversibilityLabel(0),'Can be undone');
+ // No label of a class says compensat: History's word for it is Undo (UX-06).
+ for (const value of [0,1,2]) assert.doesNotMatch(reversibilityLabel(value),/ompensat/);
+ assert.equal(reversibilityLabel('reversibleWithRetainedState'),'Can be undone if nothing has changed it since');
+ assert.equal(reversibilityLabel('irreversibleDeclared'),'Cannot be undone');
  // An unrecognised class is never claimed to be reversible.
- assert.equal(reversibilityLabel('somethingNew'),'Not compensatable');
+ assert.equal(reversibilityLabel('somethingNew'),'Cannot be undone');
 });
 
 test('a revision stops offering compensation once some later revision compensates it',()=>{
@@ -100,10 +102,10 @@ test('agent activity is named by what the person would say happened, not by the 
  assert.equal(activityLabel({category:'session',name:'connected'}),'Agent connected');
  assert.equal(activityLabel({category:'session',name:'disconnected'}),'Agent disconnected');
  assert.equal(activityLabel({category:'resource',name:'nendo://x/records'}),'Read records');
- assert.equal(activityLabel({category:'resource',name:'nendo://x/unknown'}),'Read workspace details');
+ assert.equal(activityLabel({category:'resource',name:'nendo://x/unknown'}),'Read file details');
  assert.equal(activityLabel({category:'mutation',name:'nendo.data.set_field'}),'Edited a record');
  // An unnamed mutation still reports that data changed rather than going silent.
- assert.equal(activityLabel({category:'mutation',name:'nendo.data.something_new'}),'Changed workspace data');
+ assert.equal(activityLabel({category:'mutation',name:'nendo.data.something_new'}),'Changed the file’s data');
 });
 
 test('every tool call reads as what happened, now that a call is one entry',()=>{

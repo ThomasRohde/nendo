@@ -18,7 +18,7 @@ import {
   defaultPanelHeight, frameAttributes, frameName, frameSource, mountKey, newMountId, viewNotice, viewNoticeMarkup,
   viewOverlayMarkup, viewSpecOf, type ViewNotice, type ViewTrouble,
 } from './view-frame-markup';
-import { refreshHealth } from './view-health';
+import { openHealth } from './view-health';
 import { importPackage, openCustomViews, saveDevelopment, setViewSwitch, stopDeveloping } from './view-packages';
 import { keepViewPlace, viewAnchor, viewPlaceKey, viewPlaceOf, viewPlacesAt } from './view-places';
 
@@ -533,7 +533,7 @@ function showNotice(element: HTMLElement, stage: HTMLElement, notice: Exclude<Vi
   stage.classList.add('is-notice');
   stage.innerHTML = viewNoticeMarkup(notice, spec);
   stage.querySelector<HTMLButtonElement>('[data-view-settings]')?.addEventListener('click', () => void openCustomViews());
-  stage.querySelector<HTMLButtonElement>('[data-view-health]')?.addEventListener('click', () => void refreshHealth());
+  stage.querySelector<HTMLButtonElement>('[data-view-health]')?.addEventListener('click', () => openHealth());
   stage.querySelector<HTMLButtonElement>('[data-view-import]')?.addEventListener('click', () => void importPackage('use'));
   stage.querySelector<HTMLButtonElement>('[data-view-resume]')?.addEventListener('click', () => void setViewSwitch('device', true));
 }

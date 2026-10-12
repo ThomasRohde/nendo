@@ -21,7 +21,7 @@ each time the definitions change, then draws the result in **Use**.
 The compiler checks every screen before it draws any of them. If one node is
 wrong, for example a field binding that names a field the record type does not
 have, Nendo turns off
-every custom screen and shows the error in Studio's **Surfaces** area. It does
+every custom screen and shows the error in Studio's **Screens** page. It does
 not draw part of an app. Your data, Studio and recovery are not affected, and no
 screen can hide Studio.
 
@@ -249,7 +249,7 @@ There is no visual screen editor. Screens are built as proposals:
 4. **Accept changes** applies the same operations to your file. **Reject** leaves
    the file unchanged.
 
-Studio's **Surfaces** area lists the compiled screens of each record type, with
+Studio's **Screens** page lists the compiled screens of each record type, with
 their kind and what they are bound to. When the definition does not compile, it
 shows each error with a hint. Studio makes two kinds of screen edit itself:
 renaming a board, and adding a custom view with **Add view…** under **Custom

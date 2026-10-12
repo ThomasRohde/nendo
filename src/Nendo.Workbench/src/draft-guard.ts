@@ -29,7 +29,8 @@ export function recordFormIsDirty(): boolean {
 /** Decline a move while there is unsaved typing, and say so. True when declined. */
 export function refuseWhileDirty(action: string): boolean {
   if (!recordFormIsDirty()) return false;
-  showError(`Save your changes or close record details before ${action}.`);
+  // "Close" used to be offered as the way out without saying it discards (UX-12).
+  showError(`Save or discard your changes before ${action}.`);
   return true;
 }
 

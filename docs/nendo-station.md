@@ -60,7 +60,7 @@ exposure from a prediction of failure.
 
 The tracked `workspace/Nendo Station.nendo` carries the package: Systems Lens
 1.2.0 since 2026-09-28 (W-092). When `extensions/systems-lens/` holds a newer
-version, import it in **Studio › Surfaces › Custom views › Import package…**, or
+version, import it in **Studio › Screens › Custom views › Import package…**, or
 run the `lens-in-file` stage, and accept the proposal. Do it in a Duplicate to keep
 the tracked file as it is.
 

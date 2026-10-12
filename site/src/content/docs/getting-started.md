@@ -85,8 +85,8 @@ Studio is the part of Nendo that the host provides for every file. No file conte
 | --- | --- | --- |
 | **Data** | Each record type as a table, with a record editor. A record type kept as a tree opens as an outline, with a switch to the table. | Add, edit and delete records; click a column's name to sort by it, drag its edge to resize it, or use its pencil to rename the field; filter and search; open **Show retired data**. In an outline, open and close records and move one with **Move up**, **Move down**, **Indent** and **Outdent**, or Alt, Shift and an arrow key. |
 | **Structure** | Record types and their fields. | **Add field**, **Rename**, **Rename record type**, **Edit choices**, make a field required or optional, **Make unique**, **Number automatically**, **Show as Markdown**, retire and reactivate. Each change opens a proposal for you to review. |
-| **Surfaces** | The screens the file defines and what each one is bound to. | Read screen definitions and their diagnostics; import custom-view packages and add views. |
-| **History** | Every saved change, in order, with its lane and its reversibility. | **View changes** on an entry, and **Compensate** where Nendo can reverse it. |
+| **Screens** | The screens the file defines and what each one is bound to. | Read screen definitions and their diagnostics; import custom-view packages and add views. |
+| **History** | Every saved change, in order, with its lane and its reversibility. | **View changes** on an entry, and **Undo** where Nendo can reverse it. |
 | **Health** | Whether the file is ready for editing, read-only or in recovery, and the last integrity check. | Create and restore backups, export readable data, re-inspect the file, and approve automatic actions on this computer. |
 
 Three more items sit beside Studio in the navigation. **Use** opens the screens the file defines (lists, boards, calendars, record pages); it has nothing to show until the file has screens. Under it the navigation lists the file's front page, its views and its record types, each with an icon, so you can go straight to one. **Agent** controls agent access, and can launch an agent you installed in a tab beside the file. **Help** is built in and works with no file open.
@@ -120,7 +120,7 @@ Nendo Station is a demonstration file: a fictional orbital habitat with nine rec
 
 To look around, open the file. It starts on the **Station status** front page. The file has automatic actions, so editing stays off until you choose **Approve automatic actions** under **Health**. Reading works without it.
 
-The **Systems Lens** schematic is a custom view, a screen of Components, and the file carries its code. If the repository has a newer version of the view, pick `extensions/systems-lens/nendo-package.json` in **Studio › Surfaces › Custom views › Import package…** and accept the proposal. See [Custom views](/nendo/docs/custom-views).
+The **Systems Lens** schematic is a custom view, a screen of Components, and the file carries its code. If the repository has a newer version of the view, pick `extensions/systems-lens/nendo-package.json` in **Studio › Screens › Custom views › Import package…** and accept the proposal. See [Custom views](/nendo/docs/custom-views).
 
 To keep the tracked file unchanged, open it and use **Duplicate…** from the file menu, then work in the copy. A copy asks for the approval of automatic actions again.
 

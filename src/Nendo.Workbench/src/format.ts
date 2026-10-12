@@ -85,9 +85,19 @@ export function laneLabel(value: string | number): string {
   return ['Genesis', 'Definition', 'Data', 'Checkpoint'][value] ?? 'Change';
 }
 
+/**
+ * Whether History can take a change back, in a person's words. "Compensatable with retained
+ * state" said nothing to someone deciding whether to accept (UX-06). None of them promises
+ * universal undo: the retained-state class says when it holds.
+ */
 export function reversibilityLabel(value: string | number): string {
   const normalized = typeof value === 'number' ? value : ({ reversible: 0, reversibleWithRetainedState: 1, irreversibleDeclared: 2 } as Record<string, number>)[value] ?? 2;
-  return normalized === 0 ? 'Reversible' : normalized === 1 ? 'Compensatable with retained state' : 'Not compensatable';
+  return normalized === 0 ? 'Can be undone' : normalized === 1 ? 'Can be undone if nothing has changed it since' : 'Cannot be undone';
+}
+
+/** A count and its noun, singular for one: "1 revisions shown" read wrong after every first edit (UX-16). */
+export function counted(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count.toLocaleString()} ${count === 1 ? singular : plural}`;
 }
 
 // The history a caller already holds decides this, not a module-level snapshot:
@@ -96,19 +106,52 @@ export function canCompensate(revision: RevisionSummary, history: RevisionSummar
   return revision.canRequestCompensation && !history.some(candidate => candidate.compensationOfRevisionId === revision.revisionId);
 }
 
+/**
+ * Every operation the Engine records, in a person's words. History drew 29 of them as their
+ * identifiers (UX-07); a test reads the Engine's own list and fails on any left out.
+ */
 export function operationLabel(value: string): string {
   const labels: Record<string, string> = {
-    'data.createRecord': 'Create record',
+    'application.buildSearchIndex': 'Build the search index',
+    'application.setLook': 'Change the file’s look',
+    'application.setNewFileLabel': 'Name a new file',
+    'application.setPurpose': 'Say what the file is for',
+    'behaviour.removeDefinition': 'Remove a calculation or action',
+    'behaviour.setDefinition': 'Set a calculation or action',
+    'data.backfillRetiredField': 'Fill a retired field',
+    'data.convertLegacyReference': 'Convert old reference values',
+    'data.createRecord': 'Add record',
     'data.deleteRecord': 'Delete record',
+    'data.moveRecord': 'Move record',
     'data.restoreDeletedRecord': 'Restore deleted record',
     'data.setField': 'Set field',
-    'data.setKeptInNewFiles': 'Keep in new files',
-    'schema.setKeptInNewFiles': 'Keep a type in new files',
-    'application.setNewFileLabel': 'Name a new file',
-    'schema.createEntity': 'Create entity',
+    'data.setKeptInNewFiles': 'Keep a record in new files',
+    'extension.putFile': 'Add or replace a custom-view file',
+    'extension.removeFile': 'Remove a custom-view file',
+    'extension.removePackage': 'Remove a custom-view package',
+    'extension.setPackage': 'Add or update a custom-view package',
+    'extension.setState': 'Save a custom view’s state',
+    'identity.transition': 'Change the file’s identity',
     'schema.addField': 'Add field',
-    'ui.addNode': 'Add surface node',
-    'ui.setProperty': 'Set surface property',
+    'schema.configureReference': 'Point a reference at a record type',
+    'schema.createEntity': 'Add record type',
+    'schema.declareHierarchy': 'Keep records as a tree',
+    'schema.declareLinkRule': 'Allow only listed links',
+    'schema.removeHierarchy': 'Stop keeping records as a tree',
+    'schema.removeLinkRule': 'Stop checking links',
+    'schema.renameEntity': 'Rename record type',
+    'schema.renameField': 'Rename field',
+    'schema.setChoiceMetadata': 'Change a choice',
+    'schema.setFieldPresentation': 'Change how a field is shown',
+    'schema.setFieldRequired': 'Make a field required or optional',
+    'schema.setFieldSequence': 'Number a field automatically',
+    'schema.setFieldUnique': 'Make a field unique or not',
+    'schema.setKeptInNewFiles': 'Keep a record type in new files',
+    'schema.setRetired': 'Retire or reactivate',
+    'ui.addNode': 'Add to a screen',
+    'ui.moveNode': 'Move on a screen',
+    'ui.removeNode': 'Remove from a screen',
+    'ui.setProperty': 'Change a screen',
   };
   return labels[value] ?? value;
 }
@@ -166,13 +209,13 @@ export function proposalStateLabel(state: string | number): string {
 export function activityLabel(activity: AgentActivity): string {
   if (activity.category === 'session') return activity.name === 'connected' ? 'Agent connected' : 'Agent disconnected';
   if (activity.category === 'resource') {
-    if (activity.name.includes('/manifest')) return 'Read workspace overview';
+    if (activity.name.includes('/manifest')) return 'Read the file overview';
     if (activity.name.includes('/entities')) return 'Read app structure';
-    if (activity.name.includes('/surfaces')) return 'Read app surfaces';
+    if (activity.name.includes('/surfaces')) return 'Read app screens';
     if (activity.name.includes('/history')) return 'Read change history';
-    if (activity.name.includes('/health')) return 'Checked workspace health';
+    if (activity.name.includes('/health')) return 'Checked the file’s health';
     if (activity.name.includes('/records')) return 'Read records';
-    return 'Read workspace details';
+    return 'Read file details';
   }
   // Every tool, so each call reads as what happened: a call is one entry since
   // 2026-09-27, and a tool with no label here would read only as "Agent activity".
@@ -194,6 +237,10 @@ export function activityLabel(activity: AgentActivity): string {
     'nendo.change_set.amend': 'Amended an app proposal',
     'nendo.change_set.accept': 'Accepted its own app proposal',
     'nendo.data.set_field': 'Edited a record',
+    'nendo.data.update_record': 'Edited a record',
+    'nendo.data.apply_writes': 'Wrote several records',
+    'nendo.data.undo_revision': 'Undid one of its writes',
+    'nendo.change_set.revalidate': 'Checked an app proposal again',
     'nendo.data.execute_command': 'Ran an app action',
     'nendo.change_set.begin': 'Began an app proposal',
     'nendo.change_set.add_operations': 'Added proposed changes',
@@ -207,7 +254,7 @@ export function activityLabel(activity: AgentActivity): string {
     'mode.editData': 'Agent access: Edit data',
     'mode.shapeApp': 'Agent access: Shape app',
   };
-  return labels[activity.name] ?? (activity.category === 'mutation' ? 'Changed workspace data' : 'Agent activity');
+  return labels[activity.name] ?? (activity.category === 'mutation' ? 'Changed the file’s data' : 'Agent activity');
 }
 
 /**

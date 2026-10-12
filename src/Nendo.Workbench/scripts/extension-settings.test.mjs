@@ -16,7 +16,7 @@ const stubs = {
   './actions': `export const refreshDerived = async () => globalThis.extensionSettingsPage.calls.push('derived');`,
   './shell': `const p = () => globalThis.extensionSettingsPage;
     export const content = {}; export const refreshChrome = () => p().calls.push('chrome');
-    export const rerender = () => p().calls.push('render'); export const showError = () => {};
+    export const rerender = () => p().calls.push('render'); export const showError = () => {}; export const showOutcome = () => {};
     export const interactionInProgress = () => p().focused;`,
   './view-frames': `const p = () => globalThis.extensionSettingsPage;
     export const parkViewFrames = () => p().calls.push('park');
@@ -97,7 +97,7 @@ const frameStubs = {
   './extension-ui': 'export const openProposalFromView = () => ({ opened: true }); export const openRecordFromView = () => {}; export const openScreenFromView = () => {}; export const openStudioFromView = () => {}; export const toastFromView = () => {};',
   './view-menu': 'export const closeViewMenu = () => {}; export const showViewMenu = () => {};',
   './view-toolbar': 'export const drawViewToolbar = (_element, host) => globalThis.extensionSettingsFrames.controls.push(host.toolbar); export const focusViewSearch = () => {};',
-  './view-health': 'export const refreshHealth = () => {};',
+  './view-health': 'export const refreshHealth = () => {}; export const openHealth = () => {};',
   './view-packages': 'export const importPackage = () => {}; export const openCustomViews = () => {}; export const saveDevelopment = () => {}; export const setViewSwitch = () => {}; export const stopDeveloping = () => {};',
 };
 const frameEntry = [

@@ -65,7 +65,7 @@ test('a view runs only when views are on and its package is in the file, and say
   const said = (notice) => markup.viewNoticeMarkup(notice, spec);
   for (const reason of ['device', 'file']) {
     const text = said({ kind: 'off', reason });
-    assert.match(text, /Studio → Surfaces → Custom views/);
+    assert.match(text, /Studio → Screens → Custom views/);
     assert.match(text, /<button type="button" class="secondary-button" data-view-settings>Open Custom views<\/button>/);
   }
   assert.match(said({ kind: 'off', reason: 'device' }), /Custom views are off on this device\./);

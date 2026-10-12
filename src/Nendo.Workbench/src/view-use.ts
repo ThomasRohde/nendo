@@ -377,7 +377,7 @@ export function wireBoardDrag(plan: ApplicationPlan, node: SurfaceNodePlan, boar
         suppressClick = true;
         if (recordFormIsDirty()) {
           clear();
-          showError('Save your changes or close record details before moving a card.');
+          showError('Save or discard your changes before moving a card.');
           return;
         }
         gesture.active = true;

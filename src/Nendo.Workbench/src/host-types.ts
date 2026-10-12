@@ -754,6 +754,8 @@ export interface StoredOperationSnapshot {
   operationType: string;
   reversibility: string | number;
   canonicalJson: string;
+  /** The label of the record a record operation acts on, read even after a delete; null when it has none. */
+  recordLabel?: string | null;
   /** The automatic action that made this operation; null for one the revision's author made. */
   attribution?: OperationAttribution | null;
 }

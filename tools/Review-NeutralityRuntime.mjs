@@ -341,7 +341,7 @@ async function referenceJourney(name,reopen){
     const cStep=`${c.nodeId}.step`;operations.push(op('ui.addNode',{surfaceId:c.surfaceId,nodeId:cStep,parentNodeId:c.nodeId,kind:'commandStep',position:0}));
     for(const [key,value]of Object.entries({fieldId:c.fieldId,valueKind:'literal',value:c.value}))operations.push(property(c.surfaceId,cStep,key,value));
     const client=await enableMcp();const rejected=await propose(client,'decision-rejected','Review Decision Log',operations);
-    await refresh();await click('#nav-agent');await ready();await click(`[data-review-agent-proposal="${rejected.proposalId}"]`);await ready();await click('#reject-agent-proposal');await ready();
+    await refresh();await click('#nav-agent');await ready();await click(`[data-review-agent-proposal="${rejected.proposalId}"]`);await ready();await click('#reject-agent-proposal');await click('dialog[open] [data-confirm]');await ready();
     assert((await snapshot()).entities.length===0,'Decision rejection changed state.');
     const preview=await propose(client,'decision-accepted','Create Decision Log',operations);await acceptAgent(preview);
     await client.tool('nendo.lease.release',{applicationHandle: client.lease.applicationHandle, leaseId: client.lease.leaseId});await host('agent.setMode',{mode:'off'});await refresh();

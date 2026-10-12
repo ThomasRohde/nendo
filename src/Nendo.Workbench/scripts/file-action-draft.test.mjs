@@ -109,7 +109,7 @@ test('Open file, New file, Close, Restore and a dropped file are declined over u
     await run();
     assert.deepEqual(page.requests, [], `${what} asked the host while the form held unsaved typing.`);
     assert.equal(page.errors.length, 1, `${what} was declined without saying why.`);
-    assert.match(page.errors[0], /^Save your changes or close record details before (opening another file|closing the file)\.$/);
+    assert.match(page.errors[0], /^Save or discard your changes before (opening another file|closing the file)\.$/);
     assertKept(draft, what);
   }
 });

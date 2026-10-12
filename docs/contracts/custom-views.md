@@ -105,7 +105,7 @@ the blob store. So history stays small: the history row of a 300 KB file is unde
 
 A revision made only of package operations is compensated as a whole, in reverse
 order, so files leave before the package that holds them. Studio's History offers
-Compensate on such a revision, and one compensation reverses at most 128
+Undo on such a revision, and one compensation reverses at most 128
 operations. A revision that mixes package operations with other operations is not
 compensated. Each inverse states the content it expects to find. A file changed
 since then therefore refuses the compensation as `extension-file-changed` and is
@@ -1224,8 +1224,8 @@ A view that is shown runs. Views are off when any of these holds:
 
 | Switch | Off reason | Where | Kept |
 | --- | --- | --- | --- |
-| **Run custom views** is off | `device` | Studio → Surfaces → Custom views | In `extension-settings.json`, for every file on this device |
-| **Run this file's views** is off | `file` | Studio → Surfaces → Custom views | In `extension-settings.json`, by the file's application ID |
+| **Run custom views** is off | `device` | Studio → Screens → Custom views | In `extension-settings.json`, for every file on this device |
+| **Run this file's views** is off | `file` | Studio → Screens → Custom views | In `extension-settings.json`, by the file's application ID |
 | The file's health is not `normal` | `health` | Health says why | While the file is read-only or needs recovery |
 | **Restart without custom views** | `recovery` | The native recovery panel | Until **Run custom views** is turned on again or Nendo starts again; never saved |
 
@@ -1297,7 +1297,7 @@ absent when no file is open and in a recovery session view.
 
 ## Studio
 
-**Studio → Surfaces → Custom views** is the panel for views. **File → Custom
+**Studio → Screens → Custom views** is the panel for views. **File → Custom
 views…** opens it. It shows:
 
 - whether views run here, as **Running** or **Off** with the reason in words;
@@ -1593,7 +1593,7 @@ A binding is not a permission. The view's code reads through the file's API.
 | `NUI450` | Error | The definition names a package, a record type, a label, fields or filters that do not exist or break the rules above. The message names which. "Name a package, a record type and fields that exist; the view's code reads the rest through the file's API." |
 | `NUI455` | Error | A filter clause compares (`eq`, `ne`, `lt` and the rest) with the `null` value kind, which has no value to compare. "Use the operator isNull or isNotNull to match records with or without a value." The same rule refuses such a clause in a custom view's filters |
 | `NUI300` | Error | More than eight `filterClause` children name fields of one record type. "Remove a filterClause child on ‹type›, or narrow the records with a stored field instead." |
-| `NUI452` | Warning | "The package ‹id› is not in this file, so the view has no code to run yet." Remedy: "Add the package to the file: Studio → Surfaces → Custom views → Import, or extension.setPackage and extension.putFile in this change set or a later one." The view says the same where it is shown. Validation compiles the change set after all its operations, so a package and the view naming it in one change set draw no `NUI452` (W-170) |
+| `NUI452` | Warning | "The package ‹id› is not in this file, so the view has no code to run yet." Remedy: "Add the package to the file: Studio → Screens → Custom views → Import, or extension.setPackage and extension.putFile in this change set or a later one." The view says the same where it is shown. Validation compiles the change set after all its operations, so a package and the view naming it in one change set draw no `NUI452` (W-170) |
 | `NUI454` | Error | "The package ‹id› is a skill package, which holds text for an agent and never runs, so a view cannot use it." Remedy: "Name a view package, one created without kind skill, or remove the view." |
 | `NUI013` | Error | A child kind its parent does not take, as for every node |
 

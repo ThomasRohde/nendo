@@ -12,7 +12,7 @@ export const conceptHelp: HelpProvider = () => [
       'Nendo works offline and never depends on a service or on an agent. Keep the file in a local folder: folders that sync to the cloud are not supported, and Nendo warns when it recognises one.',
     ] },
     { heading: 'Studio is always there', paragraphs: [
-      'Data, Structure, Surfaces, History and Health come from Nendo itself, not from the file. No app content and no agent can remove them or hide the route back to your data. The table works before a screen exists, and it still works after a screen breaks.',
+      'Data, Structure, Screens, History and Health come from Nendo itself, not from the file. No app content and no agent can remove them or hide the route back to your data. The table works before a screen exists, and it still works after a screen breaks.',
     ] },
     { heading: 'Use is the app, Studio is the data', paragraphs: [
       'Use shows the screens defined in this file: forms, lists, boards, galleries, calendars, timelines, record pages and commands. Studio shows every stored field of every record, whatever the screens say. A record opened from a list or board uses its configured form; without one it opens in Studio’s editor.',
@@ -86,7 +86,7 @@ export const conceptHelp: HelpProvider = () => [
 
   { id: 'screens', title: 'Screens are definitions, not code', category: 'How Nendo works', summary: 'Forms, lists, boards, galleries, calendars, timelines, record pages and commands are stored descriptions that Nendo compiles and checks as a whole.', related: ['data-model', 'calculations', 'lanes'], sections: [
     { heading: 'What a screen is', paragraphs: [
-      'A screen is a stored description of meaning, not a program: a form, a record page, a list, a board, a calendar, a timeline or a command, made of sections, tabs, related lists, totals, field bindings, filters and command steps. Nendo compiles that description and draws it. The file never contains HTML, styling, scripts or SQL, so a screen can never run anything on your computer.',
+      'A screen is a stored description of meaning, not a program: a form, a record page, a list, a board, a calendar, a timeline or a command, made of sections, tabs, related lists, totals, field bindings, filters and command steps. Nendo compiles that description and draws it. A screen’s definition never contains HTML, styling, scripts or SQL, so a screen can never run anything on your computer. A custom view is the one kind of screen that carries code; Boundaries says what it can do.',
     ] },
     { heading: 'Limits you can plan around', paragraphs: [
       'Each record type can have one form and one record page, and up to eight lists, boards, galleries, calendars, timelines and commands each. A list or board can filter by up to eight conditions, and all of them must match; there is no “or”. A command sets one field per step, and each step advances the record’s version by one.',
@@ -111,13 +111,13 @@ export const conceptHelp: HelpProvider = () => [
       'A timeline places records on a spine by one Date field, one year at a time under a heading for every month, with a coloured dot from a choice field and the same Undated view a calendar has. A second Date field turns an entry into a span, drawn to scale from its start date with both dates and the day count beside it; an entry is placed by its start, so a span that began the year before is on that year’s spine, and an end before its start is stated on the entry rather than drawn backwards. Records load a page at a time, so a month nobody has loaded yet reads “None loaded yet” rather than empty.',
     ] },
     { heading: 'When a definition is wrong', paragraphs: [
-      'If any part of the screen definition does not compile, Nendo switches off every custom screen rather than drawing part of an app. Your data, Studio and recovery are untouched. Surfaces shows the diagnostic, and a file with no custom screens at all is a valid shape.',
+      'If any part of the screen definition does not compile, Nendo switches off every custom screen rather than drawing part of an app. Your data, Studio and recovery are untouched. Screens shows the diagnostic, and a file with no custom screens at all is a valid shape.',
     ] },
     { heading: 'Choosing a view', paragraphs: [
       'In Use, every list, board, gallery, calendar and timeline of a record type is offered by its own title. Which one is open, which tab is selected, which month a calendar shows and which year a timeline shows are remembered for the session only; they are never written to the file.',
     ] },
     { heading: 'Three version numbers', paragraphs: [
-      'Nendo has a product version; screen definitions have a contract version; and each file records the minimum Nendo version its shape needs. An older Nendo refuses a newer file outright rather than opening it partially. When a proposal would raise the minimum, the review shows that as its own line, marked not compensatable.',
+      'Nendo has a product version; screen definitions have a contract version; and each file records the minimum Nendo version its shape needs. An older Nendo refuses a newer file outright rather than opening it partially. When a proposal would raise the minimum, the review shows that as its own line, marked Cannot be undone.',
     ] },
   ] },
 
@@ -166,24 +166,24 @@ export const conceptHelp: HelpProvider = () => [
       'Changes to the app’s shape advance the definition revision; changes to records advance the data revision; both share one change sequence, so History shows them in order. Every record also carries its own version, which is what a save checks before it applies.',
     ] },
     { heading: 'Reversibility is declared, not assumed', terms: [
-      { term: 'Reversible', meaning: 'Nendo can produce the exact inverse: a screen node added, a field’s presentation changed, a value a custom view keeps.' },
-      { term: 'Compensatable with retained state', meaning: 'Nendo kept what it needs to restore — a field’s earlier value, a deleted record’s values, a retired definition — and can restore it while the current state still allows.' },
-      { term: 'Not compensatable', meaning: 'There is no inverse: a created record, a new record type or field, a conversion, a change of the file’s identity, a raised minimum version. Make a backup first if that matters. A created record is the one exception History makes: compensating it deletes the record.' },
+      { term: 'Can be undone', meaning: 'Nendo can produce the exact inverse: a screen node added, a field’s presentation changed, a value a custom view keeps.' },
+      { term: 'Can be undone if nothing has changed it since', meaning: 'Nendo kept what it needs to restore — a field’s earlier value, a deleted record’s values, a retired definition — and can restore it while the current state still allows.' },
+      { term: 'Cannot be undone', meaning: 'There is no inverse: a created record, a new record type or field, a conversion, a change of the file’s identity, a raised minimum version. Make a backup first if that matters. A created record is the one exception History makes: undoing it deletes the record.' },
     ], paragraphs: ['The class is shown before you accept a proposal and again in History. A backup does not make an irreversible change reversible; it gives you an older file to return to.'] },
-    { heading: 'Compensate, not rewind', paragraphs: [
-      'Compensate applies a proven inverse as a new history entry. History is never rewritten and nothing disappears from it. A restored record gets a new version. If something changed in between — a referenced record is gone, a field is now required — Nendo refuses rather than overwrites. Reversing a save that fired an automatic action reverses the whole entry, the action’s changes included. This is not universal undo.',
+    { heading: 'Undo, not rewind', paragraphs: [
+      'Undo applies a proven inverse as a new history entry. History is never rewritten and nothing disappears from it. A restored record gets a new version. If something changed in between — a referenced record is gone, a field is now required — Nendo refuses rather than overwrites. Reversing a save that fired an automatic action reverses the whole entry, the action’s changes included. This is not universal undo.',
     ] },
     { heading: 'Receipts', paragraphs: [
       'Every write has a durable receipt. “Save unconfirmed” and “Acceptance unconfirmed” mean Nendo did not hear back; “Check or retry” reads the receipt first and only resubmits if the original never landed. A receipt that cannot be found is unresolved — not proof that nothing happened.',
     ] },
     { heading: 'What an entry shows', paragraphs: [
-      'Each entry names its lane (Definition or Data), how many operations it holds, who made it — you, an agent by the name the Agent page shows it under, or a custom view by its package; a trigger’s changes belong to the edit that fired it — and offers Compensate when the class and the current state allow it. View changes lists its operations, and each one an automatic action made names that action. CSV import batches and agent writes are ordinary entries like any other.',
+      'Each entry names its lane (Definition or Data), how many operations it holds, who made it — you, an agent by the name the Agent page shows it under, or a custom view by its package; a trigger’s changes belong to the edit that fired it — and offers Undo when the class and the current state allow it. View changes lists its operations, and each one an automatic action made names that action. CSV import batches and agent writes are ordinary entries like any other.',
     ] },
   ] },
 
   { id: 'limits', title: 'What Nendo deliberately leaves out', category: 'How Nendo works', summary: 'Boundaries, stated as boundaries.', related: ['overview', 'agent-surface'], sections: [
     { heading: 'Scope', paragraphs: [
-      'Nendo runs on Windows only, as an unsigned per-user install. It is for one person on one computer: there is no collaboration, no cloud sync and no accounts. Folders that sync to the cloud are warned about, not supported. There is no built-in agent; agents connect from their own app. There are no plug-ins or scripts in a file, and no file, image or multi-choice fields. The one exception is a custom view: HTML and JavaScript the file carries, reviewed line by line when it arrives, which runs in a frame of its own wherever its screen or record page shows it. It reads records through Nendo’s typed services and, in this version, cannot change them; as a web page it can reach the network and the clipboard. A file you receive brings its views’ code with it, and that code runs when its view is shown. The only controls are the switches: Run custom views on this computer, one for each file, safe mode and recovery. A chart is an exact count or total per option of a choice field, per yes and no, or per week or month of a date field, with its numbers beside it; there is no free-form charting.',
+      'Nendo runs on Windows only, as an unsigned per-user install. It is for one person on one computer: there is no collaboration, no cloud sync and no accounts. Folders that sync to the cloud are warned about, not supported. There is no built-in agent; agents connect from their own app. There are no plug-ins in a file, and no file, image or multi-choice fields. The one exception is a custom view: HTML and JavaScript the file carries, reviewed line by line when it arrives, which runs in a frame of its own wherever its screen or record page shows it. It reads and changes records and runs a record’s commands through Nendo’s typed services, without asking first, and History lists every change it makes under its package; as a web page it can reach the network and the clipboard. A file you receive brings its views’ code with it, and that code runs when its view is shown. The only controls are the switches: Run custom views on this computer, one for each file, safe mode and recovery. A chart is an exact count or total per option of a choice field, per yes and no, or per week or month of a date field, with its numbers beside it; there is no free-form charting.',
     ] },
     { heading: 'Safety', paragraphs: [
       'There is no universal undo. Nendo never guesses a repair. A newer file is refused by an older Nendo. Agent access is not an anti-malware boundary: while it is on, anything running on this computer can connect, so it is the wrong posture for a shared machine.',

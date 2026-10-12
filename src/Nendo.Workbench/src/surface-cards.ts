@@ -93,7 +93,7 @@ export function cardKindFor(kind: string): string {
     case 'matrixSurface': return 'Matrix';
     case 'overviewSurface': return 'Front page';
     case 'recordCommand': return 'Command';
-    default: return 'Surfaces';
+    default: return 'Screens';
   }
 }
 

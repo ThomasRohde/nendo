@@ -288,9 +288,11 @@ export function surfaceLabel(node: SurfaceNodePlan, siblings: readonly SurfaceNo
   const own = typeof node.properties.title === 'string' && node.properties.title.length > 0
     ? node.properties.title
     : kindLabel(node.kind);
-  const shared = siblings.some((other) =>
-    other.semanticId !== node.semanticId && surfaceOwnLabel(other) === own);
-  return shared ? `${own} (${node.semanticId})` : own;
+  // Two screens with one name are told apart by their order, never by their stored ID, which a
+  // picker showed as "Board (node.task.board.root)" (UX-13). The picker states each one's kind.
+  const namesakes = siblings.filter((other) => surfaceOwnLabel(other) === own);
+  if (namesakes.length < 2) return own;
+  return `${own} (${namesakes.findIndex((other) => other.semanticId === node.semanticId) + 1} of ${namesakes.length})`;
 }
 
 function surfaceOwnLabel(node: SurfaceNodePlan): string {

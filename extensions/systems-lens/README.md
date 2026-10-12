@@ -91,7 +91,7 @@ A read that Nendo refuses is shown in the summary line.
 
 ## Putting it into a file
 
-In Studio → Surfaces → Custom views, choose **Import** and pick this folder's
+In Studio → Screens → Custom views, choose **Import** and pick this folder's
 `nendo-package.json`. The package arrives as a proposal to review, and once it is accepted
 the file carries the code. An agent does the same over MCP with `extension.setPackage` and
 one `extension.putFile` for each file.

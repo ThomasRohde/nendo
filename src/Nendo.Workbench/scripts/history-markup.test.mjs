@@ -18,8 +18,8 @@ test('an operation an automatic action made names the action by its trigger; the
   const markup = operationDetailsMarkup([operation('edit-done'), operation('generated-1', made('Keep the project stage current'))]);
   const lines = [...markup.matchAll(/<li>(.*?)<\/li>/g)].map(match => match[1].replace(/<[^>]+>/g, ''));
   assert.deepEqual(lines, [
-    'Set field · Reversible',
-    'Set field · Reversible · made by the automatic action “Keep the project stage current”',
+    'Set field · Can be undone',
+    'Set field · Can be undone · made by the automatic action “Keep the project stage current”',
   ]);
 });
 

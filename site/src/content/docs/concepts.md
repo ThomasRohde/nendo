@@ -118,7 +118,7 @@ Nendo has two ways to look at a file.
   author built it.
 - **Studio** is part of Nendo itself, not of the file. It has five areas:
   **Data** (a table of every stored field of every record), **Structure** (record
-  types and fields), **Surfaces** (the compiled screens and any compile errors),
+  types and fields), **Screens** (the compiled screens and any compile errors),
   **History** and **Health**. No file content and no agent can remove Studio or
   hide the route to it.
 
@@ -192,12 +192,12 @@ the class before you accept, and History shows it again:
 
 | Label in the app | Meaning |
 | --- | --- |
-| Reversible | Nendo can produce the exact inverse. |
-| Compensatable with retained state | Nendo kept the old state and can restore it while the current state allows. |
-| Not compensatable | There is no inverse, for example a new record type or field. |
+| Can be undone | Nendo can produce the exact inverse. |
+| Can be undone if nothing has changed it since | Nendo kept the old state and can restore it while the current state allows. |
+| Cannot be undone | There is no inverse, for example a new record type or field. |
 
 To reverse a change, History applies the inverse as a new revision
-(**Compensate**). History is never rewritten. There is no universal undo.
+(**Undo**). History is never rewritten. There is no universal undo.
 
 ## Agents
 

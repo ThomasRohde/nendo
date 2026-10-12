@@ -1,6 +1,6 @@
 import { prepareApplication } from './actions';
 import { state } from './app-state';
-import { escapeAttribute, escapeHtml, messageFor } from './format';
+import { counted, escapeAttribute, escapeHtml, messageFor } from './format';
 import { type ApplicationPlan, type CompileResult } from './host';
 import { activePlan, applicationPlans, currentRecipe } from './plan-selection';
 import { content, requiredElement, rerender, showError } from './shell';
@@ -23,7 +23,7 @@ export function renderSurfaces(): void {
   content.innerHTML = `<div class="studio-page">
     ${!valid && recipe !== null ? `<header class="page-heading"><button id="prepare-application" class="primary-button" data-action type="button">${escapeHtml(recipe.actionLabel)}</button></header>` : ''}
     <div class="message-slot" role="alert" hidden></div>
-    ${valid ? `<div class="page-toolbar"><label class="select-field">Record type<select id="surface-entity">${applicationPlans().map(app => `<option value="${escapeAttribute(app.entity.semanticId)}" ${app.entity.semanticId === plan.entity.semanticId ? 'selected' : ''}>${escapeHtml(app.entity.displayName)}</option>`).join('')}</select></label><span class="toolbar-spacer"></span><span class="record-total">${surfaceCount(plan)} surfaces</span></div><div class="surface-list">
+    ${valid ? `<div class="page-toolbar"><label class="select-field">Record type<select id="surface-entity">${applicationPlans().map(app => `<option value="${escapeAttribute(app.entity.semanticId)}" ${app.entity.semanticId === plan.entity.semanticId ? 'selected' : ''}>${escapeHtml(app.entity.displayName)}</option>`).join('')}</select></label><span class="toolbar-spacer"></span><span class="record-total">${counted(surfaceCount(plan), 'screen')}</span></div><div class="surface-list">
       ${plan.surfaces.map((root) => treeSurfaceCard(plan, root)).join('')}
     </div>
     ${boardRename(plan)}`
@@ -82,8 +82,8 @@ export function boardRename(plan: ApplicationPlan): string {
 export function diagnosticsMarkup(result: CompileResult | null): string {
   const diagnostics = result?.diagnostics ?? [];
   if (diagnostics.length === 0) {
-    return '<section class="empty-inline"><h3>No surfaces yet</h3><p>Ask an agent to propose a form, list, board or action for your records. Review it here before using it.</p></section>';
+    return '<section class="empty-inline"><h3>No screens yet</h3><p>Ask an agent to propose a form, list, board or action for your records. Review it here before using it.</p></section>';
   }
-  return `<section class="diagnostics"><h3>Custom surfaces are unavailable</h3><p>Data remains available while you resolve the definition.</p>${diagnostics.map((item) => `<article><strong>${escapeHtml(item.message)}</strong><p>${escapeHtml(item.hint)}</p><code>${escapeHtml(item.code)}</code></article>`).join('')}</section>`;
+  return `<section class="diagnostics"><h3>Custom screens are unavailable</h3><p>Data remains available while you resolve the definition.</p>${diagnostics.map((item) => `<article><strong>${escapeHtml(item.message)}</strong><p>${escapeHtml(item.hint)}</p><code>${escapeHtml(item.code)}</code></article>`).join('')}</section>`;
 }
 

@@ -51,9 +51,75 @@ internal sealed partial class SqliteNendoStore
                 if (attribution.TryGetValue((query.RevisionId, ordinals[index]), out var made))
                     page[index] = page[index] with { Attribution = made };
             }
+            // Only a page that holds a record operation reads the record types.
+            var targets = page.Select(item => RecordOf(item.CanonicalJson)).ToArray();
+            var entities = targets.Any(target => target is not null)
+                ? (await ReadEntityMappingsAsync(transaction, cancellationToken)).ToDictionary(entity => entity.EntityId, StringComparer.Ordinal)
+                : new Dictionary<string, EntityMapping>(StringComparer.Ordinal);
+            var labels = new Dictionary<(string Entity, string Record), string?>();
+            for (var index = 0; index < page.Length; index++)
+            {
+                if (targets[index] is not { } target || !entities.TryGetValue(target.Entity, out var entity)) continue;
+                if (!labels.TryGetValue(target, out var label))
+                    labels[target] = label = await RecordLabelAsync(entity, target.Record, transaction, cancellationToken);
+                if (label is not null) page[index] = page[index] with { RecordLabel = label };
+            }
         }
         return new(page, items.Count > query.Limit
             ? cursors.Encode(manifest, scope, lastOrdinal.ToString(CultureInfo.InvariantCulture)) : null, manifest.ChangeSequence);
+    }
+
+    /// <summary>The record type and record a stored operation's payload names, directly or in its edit.</summary>
+    private static (string Entity, string Record)? RecordOf(string canonicalJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(canonicalJson);
+            if (!document.RootElement.TryGetProperty("payload", out var payload) || payload.ValueKind != JsonValueKind.Object) return null;
+            var source = payload.TryGetProperty("edit", out var edit) && edit.ValueKind == JsonValueKind.Object ? edit : payload;
+            return source.TryGetProperty("entityId", out var entity) && entity.ValueKind == JsonValueKind.String &&
+                   source.TryGetProperty("recordId", out var record) && record.ValueKind == JsonValueKind.String
+                ? (entity.GetString()!, record.GetString()!)
+                : null;
+        }
+        catch (JsonException) { return null; }
+    }
+
+    /// <summary>
+    /// A record's label: its type's first active text field, from the row, or from the values its
+    /// deletion kept when the row is gone. Cut to 120 characters, as a line of History is.
+    /// </summary>
+    private async Task<string?> RecordLabelAsync(EntityMapping entity, string recordId, SqliteTransaction transaction, CancellationToken cancellationToken)
+    {
+        var field = entity.Fields.FirstOrDefault(candidate => candidate.StorageKind == NendoStorageKind.Text && !candidate.Retired);
+        if (field is null || !await TableExistsAsync(entity.PhysicalTableName, transaction, cancellationToken)) return null;
+        object? found;
+        await using (var row = Command($"SELECT {Quote(field.PhysicalColumnName)} FROM {Quote(entity.PhysicalTableName)} WHERE __nendo_record_id = @record;", transaction))
+        {
+            row.Parameters.AddWithValue("@record", recordId);
+            found = await row.ExecuteScalarAsync(cancellationToken);
+        }
+        if (found is null && await TableExistsAsync("__nendo_deleted_record", transaction, cancellationToken))
+        {
+            // Read in C# rather than through a JSON path, which a field ID holding a quote would
+            // break, taking the whole page of operations down with it.
+            await using var kept = Command("SELECT values_json FROM __nendo_deleted_record WHERE entity_id = @entity AND record_id = @record;", transaction);
+            kept.Parameters.AddWithValue("@entity", entity.EntityId);
+            kept.Parameters.AddWithValue("@record", recordId);
+            if (await kept.ExecuteScalarAsync(cancellationToken) is string values)
+            {
+                try
+                {
+                    using var document = JsonDocument.Parse(values);
+                    if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                        document.RootElement.TryGetProperty(field.FieldId, out var retained) && retained.ValueKind == JsonValueKind.String)
+                        found = retained.GetString();
+                }
+                catch (JsonException) { found = null; }
+            }
+        }
+        var text = found is string value ? value.Trim() : null;
+        return string.IsNullOrEmpty(text) ? null : text.Length > 120 ? text[..120] + "…" : text;
     }
 
     /// <summary>

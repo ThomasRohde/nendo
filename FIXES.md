@@ -11,7 +11,7 @@ findings are verified.
 - Complete (2026-10-11). Round 1: 35 areas. Round 2: 6 areas the completeness critic opened on its gaps (adapter parity, ADR and vision conformance, locale and time, reversibility matrix, safe mode and file versions, several processes). Every finding had a skeptic vote; duplicates were folded.
 - Areas reported: 41. Raw findings: 708; kept after verification: 644 (595 after folding 49 duplicates); refuted: 64; awaiting verification: 0.
 - Kept by priority: P0 2, P1 4, P2 95, P3 494.
-- Fix pass 2026-10-11: both P0 and all four P1 findings are fixed, and so are the five P2 findings in the security category (MHS-02, ESM-02, WMX-01, TGA-01, DAE-02), each with a guard seen to fail with the defect put back. See [Fix pass](#fix-pass). Fix pass 2026-10-12 (W-204): the nine P3 security findings are closed, eight with a falsified guard and BL-09 by a lock refresh, and DAE-08 with them. TST-02 is fixed too (gate harness). Fix pass 2026-10-12 (W-206): the 30 shell, focus and keyboard findings are fixed, two in part. Fix pass 2026-10-12 (W-207): the 30 data view, form and markup findings are fixed, four in part. Fix pass 2026-10-12 (W-208): the 21 semantic compiler, review-line and History findings are fixed, one in part. The other findings are open, planned as W-205 and W-209 to W-231 under I-009 in the Nendo Development planner; W-205's five decisions are accepted (D-005 to D-009).
+- Fix pass 2026-10-11: both P0 and all four P1 findings are fixed, and so are the five P2 findings in the security category (MHS-02, ESM-02, WMX-01, TGA-01, DAE-02), each with a guard seen to fail with the defect put back. See [Fix pass](#fix-pass). Fix pass 2026-10-12 (W-204): the nine P3 security findings are closed, eight with a falsified guard and BL-09 by a lock refresh, and DAE-08 with them. TST-02 is fixed too (gate harness). Fix pass 2026-10-12 (W-206): the 30 shell, focus and keyboard findings are fixed, two in part. Fix pass 2026-10-12 (W-207): the 30 data view, form and markup findings are fixed, four in part. Fix pass 2026-10-12 (W-208): the 21 semantic compiler, review-line and History findings are fixed, one in part. Fix pass 2026-10-12 (W-210): the 21 UX copy, status and recovery findings are fixed, two in part. The other findings are open, planned as W-205, W-209 and W-211 to W-231 under I-009 in the Nendo Development planner; W-205's five decisions are accepted (D-005 to D-009).
 
 ## Method
 
@@ -9382,3 +9382,70 @@ Checks, on a locked workstation (LogonUI running):
   `Review-Garden.ps1` (passed this time) and `Test-Repository.ps1` passed. The presentation lanes
   before Garden were not rerun after the review's fixes, which change only the Engine.
 - On an unlocked desktop afterwards: Desktop 455 of 455 passed, the clipboard probe included.
+
+### Seventh pass: UX copy, status and recovery (W-210)
+
+2026-10-12: the 21 findings planned as W-210 (6 P2, 15 P3) are fixed, two in part as said
+below. The guards are a new Workbench test file, `ux-review.test.mjs`, an Engine test,
+`HistoryRecordLabelTests.cs`, and eleven checks added to the Workbench shell lane. Every guard
+failed with its defect put back; the quoted texts are from those runs.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [UX-01](#ux-01) | Health declines like every other move off a record page holding unsaved typing: the rail, Ctrl 6, the palette, a notification and a view's notice (`openHealth`, `view-health.ts`). | `UX-01: Health from the rail left null in the field and said "".` |
+| [UX-02](#ux-02) | A grid edit the host refuses, or one that never left because another write was in flight, reads the table again so the cell shows what is stored, beside the reason (`view-data.ts`). | `UX-02: after the refusal (Order must be a number.) the cell shows "77", not the stored "1024".` |
+| [UX-03](#ux-03) | A cell save keeps the keyboard on its cell and the columns where they were scrolled, and only across the redraw that edit makes (`view-data.ts`). | `UX-03: after the save the focus is on BODY, not the cell it saved.` |
+| [UX-04](#ux-04) | A save, add, delete, command, undo, proposal accept or reject, fold, search index, approval and revoke are drawn in the message line as well as announced (`actions.ts`, `view-proposal.ts`, `view-agent.ts`, `view-health.ts`). Not done: the delete outcome has no button that opens History on its entry. | `Timed out waiting for a visible saved message.`; `UX-04: after Reject nothing on screen says what happened.` |
+| [UX-06](#ux-06) | History's action is **Undo**, its chip says Undo, and the classes read "Can be undone", "Can be undone if nothing has changed it since" and "Cannot be undone", in Help and the guides too. None promises universal undo. | `UX-06: … History’s button still reads Compensate` |
+| [UX-07](#ux-07) | Every operation the Engine records has words of its own, and each History line names its field, record type and record, by the record's label even after a delete (`NendoStoredOperationSnapshot.RecordLabel`, `history-markup.ts`). | `History draws these as identifiers: ui.moveNode`; Engine: `Expected:<Pocket field notes>. Actual:<>. … A field set names no record.` |
+| [UX-08](#ux-08) | The Data filter takes Yes and No for a Boolean and a choice by its label, an available choice before a retired one (`filter-input.ts`). Not done: a Reference filter still takes a record ID. | The UX-08 test failed on `Yes`; the retired label: `a retired choice won over the available one of the same label`. |
+| [UX-09](#ux-09) | Help says a custom view reads and changes records and runs commands, each change in History under its package, and that a screen's definition, not the file, carries no code. | `Help says a custom view cannot change records, which it can` |
+| [UX-10](#ux-10) | One word: **Screens** for the Studio page, the Use picker, Help, the guides and the extension READMEs; "file" for "workspace" on the start screen, the Agent page and its activity; "Proposed changes" on both reviews. | `UX-10: the picker says "View", the rail "Screens".` |
+| [UX-12](#ux-12) | Closing a record with unsaved typing, by its close button, Back to Data or Escape, asks "Discard your changes?"; every refusal says "Save or discard your changes before …". | `UX-12: Escape with unsaved typing closed the record without asking.` |
+| [UX-13](#ux-13) | No concurrency counter on Use rows, cards or the inspector, no package ID in a panel header (it is the title's tooltip), no record ID in the preview picker, and namesake screens told apart by order. | The UX-13 test failed on the inspector's `Record version`. |
+| [UX-14](#ux-14) | The Agent page says "No agent can edit", "Edit access expires", and gives shared-computer advice instead of "Harden". | `UX-14: the Agent page still says \blease\b.` |
+| [UX-15](#ux-15) | Every tool the local MCP host registers has an activity line of its own; the test reads the host's source. | `these tools read only as a generic line: nendo.data.undo_revision` |
+| [UX-16](#ux-16) | Counts read in the singular for one, the OS notification included (`counted`). | The UX-16 test failed on `${state.history.length} revisions shown`. |
+| [UX-18](#ux-18) | Ticking Not set empties its box, and its Markdown rendering, and unticking brings the text back. | `UX-18: with Not set ticked the box still shows "Try it on Friday", which a save throws away.` |
+| [UX-19](#ux-19) | The type-default switch is drawn in the link colour, underlined. | The UX-19 test found no colour rule. |
+| [UX-20](#ux-20) | With no file open nothing in the rail is the current page, except Help or Health when shown. | `UX-20: with no file open nav-data is marked as the current page.`; the review's case: `Help with no file open is not marked as the current page (null).` |
+| [UX-21](#ux-21) | The delete question says the record can be restored from History and that linked records are unlinked first; an untitled record is "This Idea". | The UX-21 test found `schema` in the dialog. |
+| [UX-22](#ux-22) | Help puts Delete record… in the page's top bar. | Documentation. |
+| [UX-24](#ux-24) | Rejecting an agent's proposal asks first; Studio's own one-click proposals do not. | `UX-24: Reject discarded the proposal without asking.` |
+| [UX-25](#ux-25) | Retire, Edit choices, Make required, Make unique and numbering name their field. | `data-retire-field has no field in its accessible name` |
+
+An independent review of the fixes found six defects and ten smaller items, fixed as quoted
+above where a guard applies: Help and Health lost their current-page mark with no file; list
+rows no longer lined up with their header; Help, the guides and two headings still said
+Surfaces or Compensate; a kept grid place could steal the focus on a later, unrelated redraw;
+the Markdown rendering went stale on Not set; a grid edit that never left was not put back; a
+retired choice could win the filter; the kept-record JSON path broke on a quote in a field ID
+(now read in C#), and labels were read on pages with no record operation; History claimed "a
+record with no title"; namesake labels repeated the kind; the notification's plural was dead
+code; two contracts and a comment kept the old words.
+
+The Desktop journey's G31 measures the rows between the top bar and a view's frame. The view's
+accepted proposal now leaves its outcome in the message line, which G31 counted as a second row
+(`between 97, row 47`); it now sets the message line's height aside and reports it, since a
+message is said, not chrome.
+
+Documents updated with the behaviour: `docs/contracts/studio.md` (cell saves, leaving a record,
+History's words), `docs/contracts/semantic-surfaces.md` (the refusal and the discard question),
+`docs/contracts/custom-views.md`, `docs/architecture.md`, `docs/custom-view-authoring.md`,
+`docs/nendo-station.md`, the site guides (`agents`, `concepts`, `custom-views`, `files-and-data`,
+`getting-started`, `screens`) and the four extension READMEs. Not done: the site's screenshots
+still show the old labels; `Capture-SiteScreenshots.ps1` was not run.
+
+Checks, on an unlocked desktop:
+
+- `Test-Production.ps1 -SkipRestore` after the review's fixes: Workbench (type check, 601 behaviour
+  tests, dependency verification, build) and the .NET build passed; Engine 1177 of 1179 (2
+  skipped) and Local MCP 245 of 250 (5 skipped) passed. Desktop 453 of 455: two agent-settings
+  tests lost their MCP handshake ("The server does not support the requested protocol version")
+  while the suites ran at half their usual speed; both passed run again alone. The stages after
+  .NET then ran from a copy of the gate without the suites, and passed: tool and production
+  boundaries, every custom-view presentation lane, the agent conversation, the Workbench shell
+  lane (37 checks) and the repository gate, ending "Production verification passed."
+- The run before the review's fixes had Desktop 454 of 455, the one failure G31's message row,
+  since fixed; the G31 journey passed alone and in the run above.
+- `Test-Site.ps1`: the website build passed with the changed guides.

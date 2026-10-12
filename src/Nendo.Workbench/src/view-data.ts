@@ -1,4 +1,5 @@
 import { prepareApplication, recoverAfterWriteFailure, refreshStudioQuery, reloadReadWindows, runMutation } from './actions';
+import { filterInput } from './filter-input';
 import { keptChoice, keptChoices, keptDefaultProposal, keptDefaultSentence, keptFromChoice, keptText } from './new-file';
 import { type CellFocusedEvent, type CellKeyDownEvent, type CellValueChangedEvent, type ColDef, type ColumnResizedEvent, type FullWidthCellKeyDownEvent, type GridApi, type GridOptions, createGrid, themeQuartz } from 'ag-grid-community';
 import { type StudioQuery, fileScopedClearable, recordWindows, state, studioQueries, studioWindows } from './app-state';
@@ -98,6 +99,47 @@ const columnWidths = new Map<string, ColumnWidths>();
 fileScopedClearable({ clear() { columnWidths.clear(); headerFocusAfterDraw = null; } });
 // A sort made from the keyboard puts the focus back on its header once the table is redrawn.
 let headerFocusAfterDraw: string | null = null;
+// A cell save redraws the table. It came back with the focus on the page and its columns
+// scrolled home, so a keyboard user clicked back in for every cell and a column scrolled
+// into view jumped away (UX-03). The cell, and whether the grid had the focus, are kept here.
+let cellFocusAfterDraw: { recordId: string; colId: string; scrollLeft: number; focus: boolean } | null = null;
+
+function gridViewport(): HTMLElement | null {
+  return content.querySelector<HTMLElement>('#record-grid .ag-grid-viewport');
+}
+
+function keepCellAcrossDraw(event: CellValueChangedEvent<GridRow>): void {
+  const focused = event.api.getFocusedCell();
+  const row = focused === null ? null : event.api.getDisplayedRowAtIndex(focused.rowIndex);
+  const grid = content.querySelector('#record-grid');
+  cellFocusAfterDraw = {
+    recordId: row?.data?.recordId ?? event.data!.recordId,
+    colId: focused?.column.getColId() ?? event.colDef.colId!,
+    scrollLeft: gridViewport()?.scrollLeft ?? 0,
+    focus: grid !== null && grid.contains(document.activeElement),
+  };
+}
+
+function restoreCellAfterDraw(api: GridApi<GridRow>, rowData: GridRow[]): void {
+  const kept = cellFocusAfterDraw;
+  cellFocusAfterDraw = null;
+  if (kept === null) return;
+  const index = rowData.findIndex(row => row.recordId === kept.recordId);
+  if (index < 0) return;
+  // The rows can be drawn before a listener could be added, so the place is also set on the next
+  // tick, whichever comes first, and once.
+  let placed = false;
+  const place = (): void => {
+    if (placed || api.isDestroyed()) return;
+    placed = true;
+    api.ensureIndexVisible(index);
+    const viewport = gridViewport();
+    if (viewport !== null) viewport.scrollLeft = kept.scrollLeft;
+    if (kept.focus) api.setFocusedCell(index, kept.colId);
+  };
+  api.addEventListener('firstDataRendered', place);
+  window.setTimeout(place, 0);
+}
 
 function widthsFor(entityId: string): ColumnWidths {
   let widths = columnWidths.get(entityId);
@@ -480,7 +522,7 @@ export function wireStudioQuery(entity: EntitySnapshot): void {
     if (contains.disabled && operator.value === 'contains') operator.value = 'eq';
     value.disabled = !field || ['isNull','isNotNull'].includes(operator.value);
     operator.disabled = !field;
-    value.placeholder = field && storageLabel(field.storageKind) === 'Boolean' ? 'true or false' : '';
+    value.placeholder = field && storageLabel(field.storageKind) === 'Boolean' ? 'Yes or No' : '';
   };
   fieldControl.addEventListener('change', update); operator.addEventListener('change', update); update();
   form.addEventListener('submit', event => {
@@ -488,7 +530,7 @@ export function wireStudioQuery(entity: EntitySnapshot): void {
     const field = entity.fields.find(field => field.fieldId === fieldControl.value);
     try {
       const filters: StudioQuery['filters'] = field ? [{ fieldId: field.fieldId, operator: operator.value,
-        ...(['isNull','isNotNull'].includes(operator.value) ? {} : { value: parseScalar(storageLabel(field.storageKind), value.value) }) }] : [];
+        ...(['isNull','isNotNull'].includes(operator.value) ? {} : { value: parseScalar(storageLabel(field.storageKind), filterInput(field, value.value)) }) }] : [];
       if (filters.some(filter => 'value' in filter && filter.value === null)) throw new Error('Choose Not set to find missing values.');
       void applyStudioQuery(entity.entityId, withFilter(studioQueries.get(entity.entityId), { fieldId: fieldControl.value, operator: operator.value, text: value.value, filters }));
     } catch (error) { showError(messageFor(error)); }
@@ -736,6 +778,7 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
     gridApi.setFocusedHeader(headerFocusAfterDraw);
     headerFocusAfterDraw = null;
   }
+  restoreCellAfterDraw(gridApi, rowData);
   // The focused record keeps its place across a move, an open or a redraw.
   if (outlineRows !== undefined && outlineFocus !== null) {
     const index = rowData.findIndex(row => row.recordId === outlineFocus);
@@ -772,15 +815,30 @@ function keptColumn(entity: EntitySnapshot): ColDef<GridRow> {
 
 export async function commitGridEdit(event: CellValueChangedEvent<GridRow>): Promise<void> {
   if (event.data === undefined || event.newValue === event.oldValue || event.colDef.colId === undefined) return;
+  // The cell's place is kept only across a redraw this edit makes, and dropped after it, so a
+  // later redraw nobody tied to this edit never pulls the focus back here (UX-03).
+  const redrawing = async <T>(redraw: () => Promise<T>): Promise<T> => {
+    keepCellAcrossDraw(event);
+    try { return await redraw(); } finally { cellFocusAfterDraw = null; }
+  };
+  // A change the host refused, or one that never left because another was in flight, left its
+  // value drawn in the cell as if it had been saved (UX-02). The table is read again so the cell
+  // shows what is stored, and the reason stays beside it.
+  const putBack = (): Promise<void> => redrawing(async () => {
+    const reason = document.querySelector('.message-slot:not([hidden])')?.textContent ?? '';
+    await recoverAfterWriteFailure();
+    if (reason !== '' && document.querySelector('.message-slot:not([hidden])') === null) showError(reason);
+  });
   if (event.colDef.colId === 'keptInNewFiles') {
     const target = sessionEntity();
     if (target === null || target === undefined) return;
-    await runMutation('data.setKeptInNewFiles', {
+    const kept = await redrawing(() => runMutation('data.setKeptInNewFiles', {
       entityId: target.entityId,
-      recordId: event.data.recordId,
-      kept: event.data.keptInNewFiles ?? null,
+      recordId: event.data!.recordId,
+      kept: event.data!.keptInNewFiles ?? null,
       idempotencyKey: mutationKey(),
-    }, 'Saved what a new file keeps.', true);
+    }, 'Saved what a new file keeps.', true));
+    if (kept === 'kept' || kept === 'busy') await putBack();
     return;
   }
   const entity = sessionEntity();
@@ -790,25 +848,26 @@ export async function commitGridEdit(event: CellValueChangedEvent<GridRow>): Pro
     ? event.newValue.trim() : event.newValue;
   if (field.required && (value === '' || value === null || value === undefined)) {
     showError(`${field.displayName} must not be blank.`);
-    await recoverAfterWriteFailure();
+    await redrawing(() => recoverAfterWriteFailure());
     return;
   }
   try {
     value = value === null || value === undefined || ((field.presentation === 'singleChoice' || ratingScaleOf(field) !== null) && value === '') ? null : parseScalar(storageLabel(field.storageKind), exactNumberText(value) ?? String(value));
-  } catch (error) { showError(messageFor(error)); await recoverAfterWriteFailure(); return; }
+  } catch (error) { showError(messageFor(error)); await redrawing(() => recoverAfterWriteFailure()); return; }
   // An edit that leaves the value as it was writes nothing: no revision, no new version (WDV-02).
   if (gridEditUnchanged(value, event.oldValue)) {
     event.data.values[field.fieldId] = event.oldValue;
     event.api.refreshCells({ rowNodes: [event.node], columns: [event.colDef.colId], force: true });
     return;
   }
-  await runMutation('data.setField', {
+  const outcome = await redrawing(() => runMutation('data.setField', {
     entityId: entity.entityId,
-    recordId: event.data.recordId,
-    expectedRecordVersion: event.data.recordVersion,
+    recordId: event.data!.recordId,
+    expectedRecordVersion: event.data!.recordVersion,
     fieldId: field.fieldId,
     value,
     idempotencyKey: mutationKey(),
-  }, `${field.displayName} saved.`, true);
+  }, `${field.displayName} saved.`, true));
+  if (outcome === 'kept' || outcome === 'busy') await putBack();
 }
 

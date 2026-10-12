@@ -1,7 +1,7 @@
 import { compensateRevision, foldHistory, handlePageFailure } from './actions';
 import { state } from './app-state';
 import { client } from './client';
-import { canCompensate, escapeAttribute, escapeHtml, formatDateTime, laneLabel, messageFor, originLabel, shortId } from './format';
+import { canCompensate, counted, escapeAttribute, escapeHtml, formatDateTime, laneLabel, messageFor, originLabel, shortId } from './format';
 import { operationDetailsMarkup } from './history-markup';
 import { type HistoryFoldPreview, type ReadPage, type RevisionSummary, type StoredOperationSnapshot, WorkbenchHostError } from './host';
 import { icon } from './icons';
@@ -13,11 +13,11 @@ import { content, rerender, setBusy, showError } from './shell';
 
 export function renderHistory(): void {
   const ordered = [...state.history].sort((left, right) => right.changeSequence - left.changeSequence);
-  content.innerHTML = `<div class="studio-page history-page"><header class="page-heading"><span class="record-total">${state.history.length} revisions shown</span></header><div class="message-slot" role="alert" hidden></div>
+  content.innerHTML = `<div class="studio-page history-page"><header class="page-heading"><span class="record-total">${counted(state.history.length, 'revision')} shown</span></header><div class="message-slot" role="alert" hidden></div>
     ${foldMarkup()}
     <div class="page-controls" aria-label="History pages"><span>Page ${(state.historyWindow?.index ?? 0) + 1}</span><button class="text-button" data-history-page="-1" type="button" ${!state.historyWindow || state.historyWindow.index === 0 ? 'disabled' : ''}>Previous</button><button class="text-button" data-history-page="1" type="button" ${!state.historyWindow?.page.nextCursor ? 'disabled' : ''}>Next</button></div>
     ${ordered.length === 0 ? `<div class="quiet-empty"><span class="quiet-empty-glyph" aria-hidden="true">${icon('history')}</span><h3>No revisions yet</h3><p>Every definition and data change you save appears here in one ordered sequence.</p></div>` : ''}
-    <div class="history-list" ${ordered.length === 0 ? 'hidden' : ''}>${ordered.map((revision) => `<article class="history-entry"><div class="history-sequence">${revision.changeSequence}</div><div><div class="history-meta"><span class="lane-chip ${laneLabel(revision.lane).toLowerCase()}">${laneLabel(revision.lane)}</span><time>${escapeHtml(formatDateTime(revision.createdAt))}</time><span class="history-origin">by ${escapeHtml(originLabel(revision.origin, state.session.extensions?.packages ?? []))}</span>${revision.compensationOfRevisionId ? '<span>Compensation</span>' : ''}</div><h3>${escapeHtml(revision.description)}</h3><p>${revision.operationCount} operations · <button class="text-button" data-history-detail="${escapeAttribute(revision.revisionId)}" type="button">View changes</button></p><div data-operation-detail="${escapeAttribute(revision.revisionId)}"></div><code>${escapeHtml(shortId(revision.revisionId))}</code></div><div class="history-action">${canCompensate(revision, state.history) ? `<span>Current state is checked when requested</span><button class="secondary-button" data-compensate="${escapeAttribute(revision.revisionId)}" data-action type="button">Compensate</button>` : '<span>No compensation offered</span>'}</div></article>`).join('')}</div>
+    <div class="history-list" ${ordered.length === 0 ? 'hidden' : ''}>${ordered.map((revision) => `<article class="history-entry"><div class="history-sequence">${revision.changeSequence}</div><div><div class="history-meta"><span class="lane-chip ${laneLabel(revision.lane).toLowerCase()}">${laneLabel(revision.lane)}</span><time>${escapeHtml(formatDateTime(revision.createdAt))}</time><span class="history-origin">by ${escapeHtml(originLabel(revision.origin, state.session.extensions?.packages ?? []))}</span>${revision.compensationOfRevisionId ? '<span>Undo</span>' : ''}</div><h3>${escapeHtml(revision.description)}</h3><p>${counted(revision.operationCount, 'change')} · <button class="text-button" data-history-detail="${escapeAttribute(revision.revisionId)}" type="button">View changes</button></p><div data-operation-detail="${escapeAttribute(revision.revisionId)}"></div><code>${escapeHtml(shortId(revision.revisionId))}</code></div><div class="history-action">${canCompensate(revision, state.history) ? `<span>Checked against the file when you press it</span><button class="secondary-button" data-compensate="${escapeAttribute(revision.revisionId)}" data-action type="button">Undo</button>` : '<span>Cannot be undone here</span>'}</div></article>`).join('')}</div>
   </div>`;
   content.querySelector<HTMLButtonElement>('[data-fold-history]')?.addEventListener('click', () => void foldHistory());
   void loadFoldPreview();
@@ -100,7 +100,7 @@ export async function loadHistoryDetails(revisionId: string, cursor: string | nu
     if (page.changeSequence !== state.session.manifest?.changeSequence) throw new WorkbenchHostError('stale-cursor', 'The file changed.');
     const slot = content.querySelector<HTMLElement>(`[data-operation-detail="${CSS.escape(revisionId)}"]`);
     if (!slot) return;
-    slot.innerHTML = `${operationDetailsMarkup(page.items)}<div class="page-controls"><span>${page.items.length} operations shown</span><button class="text-button" data-operation-first type="button" ${cursor === null ? 'disabled' : ''}>First</button><button class="text-button" data-operation-next type="button" ${page.nextCursor === null ? 'disabled' : ''}>Next</button></div>`;
+    slot.innerHTML = `${operationDetailsMarkup(page.items, state.session.entities)}<div class="page-controls"><span>${counted(page.items.length, 'change')} shown</span><button class="text-button" data-operation-first type="button" ${cursor === null ? 'disabled' : ''}>First</button><button class="text-button" data-operation-next type="button" ${page.nextCursor === null ? 'disabled' : ''}>Next</button></div>`;
     slot.querySelector<HTMLButtonElement>('[data-operation-first]')?.addEventListener('click', () => void loadHistoryDetails(revisionId));
     slot.querySelector<HTMLButtonElement>('[data-operation-next]')?.addEventListener('click', () => void loadHistoryDetails(revisionId, page.nextCursor));
   } catch (error) { await handlePageFailure(error); }

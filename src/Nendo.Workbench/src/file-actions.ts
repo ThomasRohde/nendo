@@ -96,7 +96,7 @@ export function renderUnavailable(): void {
 export function renderNoFile(): void {
   content.innerHTML = `<section class="empty-state no-file-empty" data-testid="no-file-state">
     <img class="empty-brand-mark" src="/nendo-mark.png" alt="" />
-    <h2>Open a local workspace</h2>
+    <h2>Start with a Nendo file</h2>
     <p>Create a Nendo file, or open one you already own. Your work stays local and offline.</p>
     <div class="action-row">
       <button id="create-file" class="primary-button" data-action type="button">Create Nendo file</button>

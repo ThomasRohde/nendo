@@ -61,7 +61,7 @@ export function surfaceSelectorMarkup(plan: ApplicationPlan): string {
     if (node.kind === 'outlineSurface') return ' id="show-outline"';
     return '';
   };
-  return `<details class="surface-picker"><summary><span class="surface-picker-label">View</span><strong title="${escapeAttribute(selected === null ? 'Choose a view' : surfaceLabel(selected, surfaces))}">${escapeHtml(selected === null ? 'Choose a view' : surfaceLabel(selected, surfaces))}</strong><span class="surface-picker-chevron" aria-hidden="true">${icon('chevron')}</span></summary><div class="surface-picker-options" role="group" aria-label="${escapeAttribute(plan.entity.displayName)} views">${surfaces.map(node => `<button type="button"${alias(node)} data-select-surface="${escapeAttribute(node.semanticId)}" aria-pressed="${node.semanticId === selected?.semanticId}">${escapeHtml(surfaceLabel(node, surfaces))}<small>${escapeHtml(surfaceKindLabel(node.kind))}</small></button>`).join('')}</div></details>`;
+  return `<details class="surface-picker"><summary><span class="surface-picker-label">Screen</span><strong title="${escapeAttribute(selected === null ? 'Choose a screen' : surfaceLabel(selected, surfaces))}">${escapeHtml(selected === null ? 'Choose a screen' : surfaceLabel(selected, surfaces))}</strong><span class="surface-picker-chevron" aria-hidden="true">${icon('chevron')}</span></summary><div class="surface-picker-options" role="group" aria-label="${escapeAttribute(plan.entity.displayName)} views">${surfaces.map(node => `<button type="button"${alias(node)} data-select-surface="${escapeAttribute(node.semanticId)}" aria-pressed="${node.semanticId === selected?.semanticId}">${escapeHtml(surfaceLabel(node, surfaces))}<small>${escapeHtml(surfaceKindLabel(node.kind))}</small></button>`).join('')}</div></details>`;
 }
 
 /**
@@ -168,7 +168,7 @@ export function calendarMarkup(plan: ApplicationPlan, node: SurfaceNodePlan): st
   if (mode === 'undated') {
     const rows = entries.length === 0 && complete
       ? `<p class="empty-column">No ${escapeHtml(plan.entity.displayName)} records are missing a ${escapeHtml(fieldName(plan, dateFieldId))}.</p>`
-      : `<div class="record-list" role="list">${entries.map((record) => `<div role="listitem" class="record-row"><button type="button" data-record-id="${escapeAttribute(record.semanticId)}">${accentDot(plan, accentFieldId, record)}<strong>${escapeHtml(recordFieldDisplay(record, titleFieldId, plan.entity.derivedFields) || `Untitled ${plan.entity.displayName}`)}</strong><small>v${record.version}</small></button></div>`).join('')}</div>`;
+      : `<div class="record-list" role="list">${entries.map((record) => `<div role="listitem" class="record-row"><button type="button" data-record-id="${escapeAttribute(record.semanticId)}">${accentDot(plan, accentFieldId, record)}<strong>${escapeHtml(recordFieldDisplay(record, titleFieldId, plan.entity.derivedFields) || `Untitled ${plan.entity.displayName}`)}</strong></button></div>`).join('')}</div>`;
     return `${controls}${loadedLine}${rows}${more}`;
   }
 
@@ -237,7 +237,7 @@ export function timelineMarkup(plan: ApplicationPlan, node: SurfaceNodePlan): st
   if (mode === 'undated') {
     const rows = entries.length === 0 && complete
       ? `<p class="empty-column">No ${escapeHtml(displayName)} records are missing a ${escapeHtml(fieldName(plan, dateFieldId))}.</p>`
-      : `<div class="record-list" role="list">${entries.map((record) => `<div role="listitem" class="record-row"><button type="button" data-record-id="${escapeAttribute(record.semanticId)}">${accentDot(plan, accentFieldId, record)}<strong>${escapeHtml(titleOf(record))}</strong><small>v${record.version}</small></button></div>`).join('')}</div>`;
+      : `<div class="record-list" role="list">${entries.map((record) => `<div role="listitem" class="record-row"><button type="button" data-record-id="${escapeAttribute(record.semanticId)}">${accentDot(plan, accentFieldId, record)}<strong>${escapeHtml(titleOf(record))}</strong></button></div>`).join('')}</div>`;
     return `${controls}${loadedLine}${rows}${more}`;
   }
 
@@ -506,8 +506,8 @@ export function listMarkup(plan: ApplicationPlan, node: SurfaceNodePlan | null):
   const details = node !== null && nodeFieldIds(node).length > 0 ? detailFieldIds : detailFieldIds.slice(0, 2);
   // A record with no value for the dot keeps its place, so every row's columns line up with the head.
   const dotSpace = dotFieldId ? '<span class="status-dot dot-space" aria-hidden="true"></span>' : '';
-  const head = `<div class="record-list-head" aria-hidden="true">${dotSpace}<strong title="${escapeAttribute(fieldName(plan, headingFieldId ?? ''))}">${escapeHtml(fieldName(plan, headingFieldId ?? ''))}</strong>${details.map((fieldId) => `<span title="${escapeAttribute(fieldName(plan, fieldId))}">${escapeHtml(fieldName(plan, fieldId))}</span>`).join('')}<small></small></div>`;
-  return `<div class="record-list" role="list">${head}${plan.records.map((record) => `<div role="listitem" class="record-row"><button type="button" data-record-id="${escapeAttribute(record.semanticId)}">${accentDot(plan, dotFieldId ?? null, record) || dotSpace}<strong>${escapeHtml(recordFieldDisplay(record, headingFieldId, plan.entity.derivedFields) || `Untitled ${plan.entity.displayName}`)}</strong>${details.map((fieldId) => `<span>${fieldValueMarkup(plan, record, fieldId, '—')}</span>`).join('')}<small>v${record.version}</small></button></div>`).join('')}</div>`;
+  const head = `<div class="record-list-head" aria-hidden="true">${dotSpace}<strong title="${escapeAttribute(fieldName(plan, headingFieldId ?? ''))}">${escapeHtml(fieldName(plan, headingFieldId ?? ''))}</strong>${details.map((fieldId) => `<span title="${escapeAttribute(fieldName(plan, fieldId))}">${escapeHtml(fieldName(plan, fieldId))}</span>`).join('')}</div>`;
+  return `<div class="record-list" role="list">${head}${plan.records.map((record) => `<div role="listitem" class="record-row"><button type="button" data-record-id="${escapeAttribute(record.semanticId)}">${accentDot(plan, dotFieldId ?? null, record) || dotSpace}<strong>${escapeHtml(recordFieldDisplay(record, headingFieldId, plan.entity.derivedFields) || `Untitled ${plan.entity.displayName}`)}</strong>${details.map((fieldId) => `<span>${fieldValueMarkup(plan, record, fieldId, '—')}</span>`).join('')}</button></div>`).join('')}</div>`;
 }
 
 export function drillPillMarkup(plan: ApplicationPlan): string {

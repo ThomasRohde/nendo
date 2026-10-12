@@ -3,7 +3,7 @@ import { fileScopedClearable, state } from './app-state';
 import { client } from './client';
 import { confirmDialog } from './confirm-dialog';
 import { type ConnectionClient, connectionClients, connectionCommand, serverNameFor } from './client-help';
-import { activityLabel, agentModeLabel, escapeAttribute, escapeHtml, formatDateTime, isAgentAccessMode, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel, shortId } from './format';
+import { activityLabel, agentModeLabel, counted, escapeAttribute, escapeHtml, formatDateTime, isAgentAccessMode, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel, shortId } from './format';
 import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type DesktopPromotionView, type LaunchableAgents, type ProposalPreview } from './host';
 import { agentLevelChanged, launchAgent, openAgentChat, saveAgentCommand, setAgentHidden, setAgentPageOpener } from './view-agent-chat';
 import { type AgentTab, type CopyFeedback, agentTabs, agentTabsMarkup, copyButtonContent, copyHintMarkup, launchCopyText, launchTilesMarkup } from './agent-launch-model';
@@ -187,9 +187,9 @@ export function renderAgent(): void {
   freshenLaunchable();
   const modes: Array<{ value: AgentAccessMode; label: string; short: string }> = [
     { value: 'off', label: 'Off', short: 'No connections' },
-    { value: 'inspect', label: 'Inspect', short: 'Read this workspace' },
+    { value: 'inspect', label: 'Inspect', short: 'Read this file' },
     { value: 'editData', label: 'Edit data', short: 'Change records' },
-    { value: 'shapeApp', label: 'Shape app', short: 'Propose structure and surfaces' },
+    { value: 'shapeApp', label: 'Shape app', short: 'Propose structure and screens' },
     { value: 'unattended', label: 'Unattended', short: 'Accept and run its own changes' },
   ];
   const modeLabel = modes.find((mode) => mode.value === status.mode)?.label ?? 'Off';
@@ -222,13 +222,13 @@ export function renderAgent(): void {
   const activity = `<div class="agent-activity-main">
       <section class="pending-changes"><header><h3>Pending changes</h3><span class="${pendingCount === 0 ? '' : 'pending-badge'}">${pendingCount === 0 ? 'None waiting' : `${pendingCount} waiting`}</span></header>${pendingCount === 0
         ? '<div class="quiet-state"><strong>No changes waiting</strong><p>Agent proposals appear here for your review.</p></div>'
-        : status.pendingProposals.map((pending) => `<article><span class="proposal-spark" aria-hidden="true">✦</span><div><strong>${escapeHtml(pending.title)}</strong><p>${pending.operationCount} proposed changes · ${escapeHtml(reversibilityLabel(pending.reversibility))}${queueConsentNote(pending.behaviour)}</p></div><button class="secondary-button" data-review-agent-proposal="${escapeAttribute(pending.proposalId)}" data-action type="button">Review changes</button></article>`).join('')}</section>
+        : status.pendingProposals.map((pending) => `<article><span class="proposal-spark" aria-hidden="true">✦</span><div><strong>${escapeHtml(pending.title)}</strong><p>${counted(pending.operationCount, 'proposed change')} · ${escapeHtml(reversibilityLabel(pending.reversibility))}${queueConsentNote(pending.behaviour)}</p></div><button class="secondary-button" data-review-agent-proposal="${escapeAttribute(pending.proposalId)}" data-action type="button">Review changes</button></article>`).join('')}</section>
       <section class="agent-activity"><header><h3>Recent activity</h3><span>${status.recentActivity.length} shown</span></header>${activityMarkup(status.recentActivity)}</section>
     </div>
     <aside class="agent-presence" aria-label="Who is working in this file">
       ${running === null ? '' : `<div><span class="presence-label">Running in Nendo</span><strong><span class="tab-dot" aria-hidden="true"></span>${escapeHtml(running.name)}</strong><small>${escapeHtml(running.label)}</small><button class="secondary-button" type="button" data-open-agent-chat>Open conversation</button></div>`}
       <div><span class="presence-label">Most recent agent</span><strong>${escapeHtml(status.connectedAgent ?? 'No activity yet')}</strong><small>${status.connectedAgent === null ? 'Shown after the first request' : 'Available only while this file is open'}</small></div>
-      <div><span class="presence-label">Editing owner</span><strong>${escapeHtml(status.editingOwner ?? 'No edit lease')}</strong><small>${status.editingOwner === null ? 'Editing is granted to one agent at a time' : status.leaseExpiresAt === null ? 'Does not expire · use Revoke edit access to end it' : `Expires ${escapeHtml(formatDateTime(status.leaseExpiresAt))}`}</small><button id="revoke-agent" class="secondary-button" data-action type="button" ${status.editingOwner === null ? 'disabled' : ''}>Revoke edit access</button></div>
+      <div><span class="presence-label">Editing owner</span><strong>${escapeHtml(status.editingOwner ?? 'No agent can edit')}</strong><small>${status.editingOwner === null ? 'Editing is granted to one agent at a time' : status.leaseExpiresAt === null ? 'Does not expire · use Revoke edit access to end it' : `Expires ${escapeHtml(formatDateTime(status.leaseExpiresAt))}`}</small><button id="revoke-agent" class="secondary-button" data-action type="button" ${status.editingOwner === null ? 'disabled' : ''}>Revoke edit access</button></div>
     </aside>`;
   const connect = `<div class="connection-endpoint"><h3>Connect a client you run yourself</h3><span class="presence-label">Address</span><code id="agent-endpoint">${status.endpoint === null ? 'Shown while agent access is on' : escapeHtml(status.endpoint)}</code><small>Register it with your client once, as <code>${escapeHtml(serverNameFor(state.session.fileName))}</code>.</small><div class="connection-copy">${connectionClients.map((item) => `<button class="secondary-button${copyFor(`client:${item.id}`)?.ok === true ? ' is-copied' : ''}" data-connection-client="${item.id}" data-action type="button" ${status.endpoint === null ? 'disabled' : ''}>${copyButtonContent(item.label, copyFor(`client:${item.id}`))}</button>`).join('')}</div>${connectionClients.map((item) => copyHintMarkup(copyFor(`client:${item.id}`), ' once')).join('')}</div>
     <div class="connection-side">
@@ -239,11 +239,11 @@ export function renderAgent(): void {
           <label class="connection-field"><span>Port for this file</span><input id="agent-port" type="number" min="1024" max="65535" value="${status.portPreference}" ${!status.fixedPort || !status.available ? 'disabled' : ''}></label>
         </div>
         <div class="connection-setting">
-          <button class="connection-toggle" type="button" data-agent-setting="leaseExpiry" aria-pressed="${status.leaseExpiry}" ${!status.available ? 'disabled' : ''}><span class="switch-glyph" aria-hidden="true"></span><span class="toggle-text"><strong>Lease expiry</strong><small>${status.leaseExpiry ? 'Editing lapses without renewal' : 'Editing ends only on release or revoke'}</small></span></button>
+          <button class="connection-toggle" type="button" data-agent-setting="leaseExpiry" aria-pressed="${status.leaseExpiry}" ${!status.available ? 'disabled' : ''}><span class="switch-glyph" aria-hidden="true"></span><span class="toggle-text"><strong>Edit access expires</strong><small>${status.leaseExpiry ? 'Editing lapses without renewal' : 'Editing ends only on release or revoke'}</small></span></button>
           <label class="connection-field"><span>Seconds</span><input id="agent-lease-seconds" type="number" min="15" max="86400" value="${status.leaseExpirySeconds}" ${!status.leaseExpiry || !status.available ? 'disabled' : ''}></label>
         </div>
       </div>
-      <p class="connection-note">These are the local defaults. Harden any of them if this machine is shared.${status.settingsPersisted ? '' : ' Settings could not be saved for the next launch.'}</p>
+      <p class="connection-note">These settings are for this computer. On a shared computer, choose Off when no agent is working, and turn on Edit access expires so access lapses unless the agent keeps renewing it.${status.settingsPersisted ? '' : ' Settings could not be saved for the next launch.'}</p>
     </div>`;
   content.innerHTML = `<div class="agent-page" data-testid="agent-access">
     <div class="message-slot" role="alert" hidden></div>
@@ -370,7 +370,16 @@ export function renderAgentProposal(): void {
       state.agentScreenPreview.previewOverview ?? null);
   wirePackageFileReading(content, () => state.agentProposal === null ? null : { proposalId: state.agentProposal.proposalId, reviewedDigest: state.agentProposal.operationDigest });
   requiredElement<HTMLButtonElement>('#close-agent-proposal').addEventListener('click', () => { state.agentProposal = null; state.view = 'agent'; rerender(); });
-  requiredElement<HTMLButtonElement>('#reject-agent-proposal').addEventListener('click', () => void resolveAgentProposal(false));
+  // An agent's proposal is gone once rejected and the agent has to prepare it again, while
+  // Reject sits one click beside Accept, so it asks first (UX-24).
+  requiredElement<HTMLButtonElement>('#reject-agent-proposal').addEventListener('click', () => {
+    void confirmDialog({
+      headingId: 'reject-proposal-heading',
+      title: 'Reject this proposal?',
+      bodyHtml: '<p>The proposal is discarded, and the agent would have to prepare it again. Your file is not changed either way.</p>',
+      confirmLabel: 'Reject proposal',
+    }).then(reject => { if (reject) void resolveAgentProposal(false); });
+  });
   requiredElement<HTMLButtonElement>('#accept-agent-proposal').addEventListener('click', () => void resolveAgentProposal(true));
 }
 
@@ -555,7 +564,7 @@ export async function revokeAgentEditing(): Promise<void> {
   try {
     state.agentStatus = await client.request<AgentStatus>('agent.revokeEditing');
     rerender();
-    announce('Agent edit access revoked.');
+    showOutcome('Edit access revoked. No agent can edit until one asks again.');
   } catch (error) {
     showError(messageFor(error));
   } finally {
@@ -635,7 +644,7 @@ export async function resolveAgentProposal(accept: boolean): Promise<void> {
         : result.promotion.message;
     if (notice !== null) showOutcomeRefreshNotice(outcomeMessage, notice);
     else if (result.promotion.applied) showOutcome(outcomeMessage);
-    else announce(outcomeMessage);
+    else showOutcome(outcomeMessage);
     // The review is gone; focus goes to what it left, its outcome (UIK-04).
     const outcome = content.querySelector<HTMLElement>('.message-slot:not([hidden])');
     if (outcome !== null) { outcome.tabIndex = -1; focusWithoutInteraction(outcome); }

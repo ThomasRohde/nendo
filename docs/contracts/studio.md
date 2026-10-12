@@ -34,11 +34,11 @@ The minimum Studio destinations are:
 
 1. **Data**: table, record inspector, search, filters, sorts, import and export;
 2. **Structure**: entities, fields, constraints, relationships and physical mapping;
-3. **Surfaces**: generated and custom semantic views plus validation/disable/restore,
+3. **Screens**: generated and custom semantic views plus validation/disable/restore,
    and the Custom views panel: this device's two switches for custom views, and
    import, export and removal of the file's view packages
    ([custom views](custom-views.md#studio));
-4. **History**: revisions, attribution, semantic changes and supported compensation;
+4. **History**: revisions, attribution, semantic changes and Undo where it is supported;
 5. **Health**: compatibility, integrity, drift, backup, recovery and safe mode, and
    whether custom views run.
 
@@ -86,6 +86,21 @@ The first MVP should provide:
 - light, dark and high-contrast presentation;
 - accessible names, roles, errors and focus;
 - stable semantic test targets based on entity, field and record IDs.
+
+**A cell save, as built.** A saved cell keeps the keyboard on that cell and the columns where
+they were scrolled, and the message line says it saved. A refused edit puts the stored value
+back in its cell beside the reason, rather than leaving the refused one drawn as if it were
+saved. The filter takes values as the grid shows them: Yes and No for a Boolean, a choice by
+its label (W-210).
+
+**Leaving a record with unsaved typing.** Every move off a record page declines while it holds
+unsaved typing, Health included, and says "Save or discard your changes before …". Closing the
+record, by its close button, Back to Data or Escape, asks "Discard your changes?" first.
+
+**History names what changed.** Each operation of an entry reads in words, with the field, the
+record type and the record it acts on, by the record's label even after a delete. The action is
+**Undo**, offered only where Nendo can reverse the change; the classes read "Can be undone",
+"Can be undone if nothing has changed it since" and "Cannot be undone". It is not universal undo.
 
 **Columns as built.** A column's header carries the field's name. Clicking it, or Enter
 on the focused header, sorts every record of the type by that field through

@@ -18,7 +18,7 @@ const stubs = {
     if(method==='agent.getStatus')return {mode:'inspect',state:'ready'};
     if(method==='session.getSnapshot')return globalThis.navigationReadsSession();
     throw new Error('Unexpected '+method);}};`,
-  './shell': 'export const content={querySelectorAll:()=>[],querySelector:()=>null,innerHTML:""};export const interactionInProgress=()=>false;export const rerender=()=>{};export const setBusy=()=>{};export const showError=()=>{};export const clearError=()=>{};export const announce=()=>{};export const refreshChrome=()=>{};export const showRetainedNotice=()=>{};export const requiredElement=()=>({hidden:false,addEventListener(){},querySelector:()=>null});export const focusWithoutInteraction=()=>{};',
+  './shell': 'export const content={querySelectorAll:()=>[],querySelector:()=>null,innerHTML:""};export const interactionInProgress=()=>false;export const rerender=()=>{};export const setBusy=()=>{};export const showError=()=>{};export const clearError=()=>{};export const announce=()=>{};export const refreshChrome=()=>{};export const showRetainedNotice=()=>{};export const showOutcome=()=>{};export const requiredElement=()=>({hidden:false,addEventListener(){},querySelector:()=>null});export const focusWithoutInteraction=()=>{};',
   './confirm-dialog': 'export const confirmDialog=async()=>false;',
 };
 const entry = [

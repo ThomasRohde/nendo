@@ -3,7 +3,7 @@ import './frame-guard';
 import { agentDigest, refreshAgentStatus, renderAgent, renderAgentProposal } from './view-agent';
 import { agentChatTitle, followAgentChat, renderAgentChat } from './view-agent-chat';
 import { destroyGrid, renderData } from './view-data';
-import { refreshHealth, renderHealth } from './view-health';
+import { openHealth, renderHealth } from './view-health';
 import { renderHelp } from './view-help';
 import { renderHistory } from './view-history';
 import { renderProposal } from './view-proposal';
@@ -242,7 +242,7 @@ function currentHeading(): { eyebrow: string; title: string } {
       case 'agentProposal': return { eyebrow: 'Local collaboration', title: 'Review changes' };
       case 'agentChat': return { eyebrow: 'Local collaboration', title: agentChatTitle() };
       case 'proposal': return { eyebrow: 'Studio', title: 'Review changes' };
-      case 'surfaces': return { eyebrow: 'Studio', title: 'Surfaces' };
+      case 'surfaces': return { eyebrow: 'Studio', title: 'Screens' };
       case 'history': return { eyebrow: 'Studio', title: 'History' };
       case 'health': return { eyebrow: 'Studio', title: 'File health' };
       case 'data': return { eyebrow: 'Studio', title: entity === null ? 'Data' : `${entity.displayName} data` };
@@ -349,14 +349,14 @@ function updateChrome(): void {
   renderFileMenu();
   const selected = state.view === 'proposal' ? state.proposalReturnView : state.view === 'agentProposal' || state.view === 'agentChat' ? 'agent' : state.view;
   for (const [name, button] of Object.entries(navigation)) {
-    button.title = name === 'use' ? 'Use application' : name === 'agent' ? 'Agent access' : capitalise(name);
-    const active = name === selected;
+    button.title = name === 'use' ? 'Use application' : name === 'agent' ? 'Agent access' : name === 'surfaces' ? 'Screens' : capitalise(name);
+    const active = name === selected && !button.disabled && (state.session.hasFile || name === 'help' || name === 'health');
     button.classList.toggle('is-selected', active);
     button.classList.toggle('is-current', active);
     if (active) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
   }
-  const studioSelected = ['data', 'structure', 'surfaces', 'history', 'health', 'proposal'].includes(selected);
+  const studioSelected = state.session.hasFile && ['data', 'structure', 'surfaces', 'history', 'health', 'proposal'].includes(selected);
   navigation.studio.classList.toggle('is-selected', studioSelected);
   if (studioSelected) navigation.studio.setAttribute('aria-current', 'true');
   else navigation.studio.removeAttribute('aria-current');
@@ -668,7 +668,7 @@ navigation.data.addEventListener('click', () => { void openWorkspaceView('data')
 navigation.structure.addEventListener('click', () => { void openWorkspaceView('structure'); });
 navigation.surfaces.addEventListener('click', () => { void openWorkspaceView('surfaces'); });
 navigation.history.addEventListener('click', () => { void openWorkspaceView('history'); });
-navigation.health.addEventListener('click', () => { void refreshHealth(); });
+navigation.health.addEventListener('click', () => { openHealth(); });
 requiredElement<HTMLButtonElement>('#stop-request').addEventListener('click', () => { void stopInFlightWork(); });
 navigation.agent.addEventListener('click', () => { openAgentView(); });
 
@@ -690,7 +690,7 @@ function openAgentView(): void {
  */
 client.onNavigate?.((route) => {
   if (route === 'agent') openAgentView();
-  else if (route === 'health') void refreshHealth();
+  else if (route === 'health') openHealth();
   else if (route === 'studio') void openWorkspaceView('data');
 });
 

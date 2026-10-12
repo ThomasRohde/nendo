@@ -1,11 +1,12 @@
 import { refreshDerived, resetFileView } from './actions';
 import { state } from './app-state';
+import { refuseWhileDirty } from './draft-guard';
 import { client } from './client';
 import { fileActionButton, wireFileActions } from './file-actions';
 import { escapeHtml, formatDateTime, messageFor } from './format';
 import { type DesktopSessionView, WorkbenchHostError } from './host';
 import { type IconName, icon } from './icons';
-import { announce, clearError, content, requiredElement, rerender, setBusy, showError } from './shell';
+import { clearError, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
 import { offReasonSentence } from './view-frame-markup';
 /**
  * File health and the consents this device has given: what the host can still
@@ -124,6 +125,17 @@ export function healthCard(title: string, ok: boolean, state: string, detail: st
   </section>`;
 }
 
+/**
+ * Health as the person opens it: the rail, Ctrl 6, the palette, a notification or a view's
+ * notice. Every other move off a record page declines while it holds unsaved typing, and
+ * this one redrew over it (UX-01). The re-read the Agent page makes for itself stays
+ * unguarded, since no record form is open there.
+ */
+export function openHealth(): void {
+  if (refuseWhileDirty('opening Health')) return;
+  void refreshHealth();
+}
+
 export async function refreshHealth(): Promise<void> {
   if (state.actionInFlight || client.mode === 'unavailable') return;
   state.actionInFlight = true;
@@ -166,7 +178,7 @@ export async function setBehaviourApproval(approve: boolean): Promise<void> {
   try {
     state.session = await client.request<DesktopSessionView>(approve ? 'behaviour.approve' : 'behaviour.revoke');
     rerender();
-    announce(approve ? 'Automatic actions approved.' : 'Approval withdrawn.');
+    showOutcome(approve ? 'Automatic actions approved.' : 'Approval withdrawn.');
   } catch (error) {
     showError(messageFor(error));
   } finally {

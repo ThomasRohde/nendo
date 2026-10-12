@@ -27,7 +27,7 @@ export const shortcuts: readonly Shortcut[] = [
   { id: 'use', keys: 'Ctrl 1', aria: 'Control+1', label: 'Use' },
   { id: 'data', keys: 'Ctrl 2', aria: 'Control+2', label: 'Data' },
   { id: 'structure', keys: 'Ctrl 3', aria: 'Control+3', label: 'Structure' },
-  { id: 'surfaces', keys: 'Ctrl 4', aria: 'Control+4', label: 'Surfaces' },
+  { id: 'surfaces', keys: 'Ctrl 4', aria: 'Control+4', label: 'Screens' },
   { id: 'history', keys: 'Ctrl 5', aria: 'Control+5', label: 'History' },
   { id: 'health', keys: 'Ctrl 6', aria: 'Control+6', label: 'Health' },
   { id: 'agent', keys: 'Ctrl 7', aria: 'Control+7', label: 'Agent access' },

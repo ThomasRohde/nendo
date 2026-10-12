@@ -134,9 +134,6 @@ textarea:focus {
 }
 .record-list button > .status-dot,
 .record-list button > small { flex: 0 0 auto; }
-/* The version keeps one width, so the columns of every row line up with the head's. */
-.record-list button > small,
-.record-list-head > small { flex: 0 0 3.5rem; text-align: right; }
 .record-list .dot-space { visibility: hidden; }
 
 /* The head names each column once, above the rows it labels (F-225). */

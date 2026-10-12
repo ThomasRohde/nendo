@@ -536,7 +536,7 @@ async page => {
     await page.mouse.up();
     await page.waitForTimeout(500);
     const said = await message();
-    assert(!/Save your changes or close record details before moving a card/.test(said), `WDV-12: a drag after typing taken back was refused: ${said}`);
+    assert(!/Save or discard your changes before moving a card/.test(said), `WDV-12: a drag after typing taken back was refused: ${said}`);
     const moved = await page.evaluate(id => document.querySelector(`.board-column .record-card[data-record-id="${CSS.escape(id)}"]`)?.closest('.board-column')?.dataset.group ?? null, movedId);
     assert(moved !== null && moved !== movedFrom, `WDV-12: the drag did not move the card (still in ${moved}); the check measures nothing.`);
   });
@@ -570,6 +570,176 @@ async page => {
     await page.waitForTimeout(800);
     const stored = (await request('data.queryRecords', { entityId: 'entity.decision', recordId: current.recordId, limit: 1 })).items[0].values;
     assert(stored[typed] === 'Typed in the sheet' && stored[other] === 'Changed under the sheet', `WDV-08: the sheet's second save left ${JSON.stringify({ [typed]: stored[typed], [other]: stored[other] })}; ${await message()}`);
+  });
+
+  // UX-01: Health is refused while a record holds unsaved typing, by the rail and by Ctrl 6.
+  await check('UX-01 Health keeps unsaved typing', 'decision', async () => {
+    await openRecord();
+    const [name] = await textInputs();
+    assert(name, 'the record has no text field; the check measures nothing');
+    await page.fill(`#record-form input[name="${name}"]`, 'Unsaved typing');
+    await page.click('#nav-health');
+    await page.waitForTimeout(500);
+    const said = await message();
+    const kept = await page.evaluate(name => document.querySelector(`#record-form input[name="${name}"]`)?.value ?? null, name);
+    assert(/Save or discard your changes before opening Health/.test(said) && kept === 'Unsaved typing',
+      `UX-01: Health from the rail left ${JSON.stringify(kept)} in the field and said ${JSON.stringify(said)}.`);
+    await page.locator(`#record-form input[name="${name}"]`).focus();
+    await page.keyboard.press('Control+6');
+    await page.waitForTimeout(500);
+    const after = await page.evaluate(name => document.querySelector(`#record-form input[name="${name}"]`)?.value ?? null, name);
+    assert(after === 'Unsaved typing', `UX-01: Ctrl 6 left ${JSON.stringify(after)} in the field.`);
+  });
+
+  // UX-12: Escape, or the close button, asks before unsaved typing goes, and Cancel keeps it.
+  await check('UX-12 closing asks before discarding', 'decision', async () => {
+    await openRecord();
+    const [name] = await textInputs();
+    const input = page.locator(`#record-form input[name="${name}"]`);
+    await input.fill('Two paragraphs of notes');
+    await input.focus();
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    const asked = await page.evaluate(() => document.querySelector('dialog[open] h2')?.textContent ?? null);
+    assert(asked === 'Discard your changes?', `UX-12: Escape with unsaved typing ${asked === null ? 'closed the record without asking' : `asked ${JSON.stringify(asked)}`}.`);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    const kept = await page.evaluate(name => document.querySelector(`#record-form input[name="${name}"]`)?.value ?? null, name);
+    assert(kept === 'Two paragraphs of notes', `UX-12: Cancel did not keep the typing: ${JSON.stringify(kept)}.`);
+    await page.click('#close-inspector');
+    await until(() => document.querySelector('dialog[open] [data-confirm]') !== null, null, 'the discard question');
+    await page.click('dialog[open] [data-confirm]');
+    await until(() => document.querySelector('.record-inspector') === null, null, 'the record to close after Discard');
+  });
+
+  // UX-02: a cell edit the host refuses shows the stored value again, beside the reason.
+  await check('UX-02 refused grid edit', 'tree', async () => {
+    await page.click('#nav-data');
+    await until(() => document.querySelector('.ag-cell[col-id="field.capability.order"]') !== null, null, 'the Order column', 8000);
+    const cell = '.ag-row[row-index="0"] .ag-cell[col-id="field.capability.order"]';
+    const before = (await page.locator(cell).textContent()).trim();
+    await page.locator(cell).dblclick();
+    await page.waitForTimeout(200);
+    await page.keyboard.press('Control+A');
+    await page.keyboard.type('77');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(1200);
+    const after = (await page.locator(cell).textContent()).trim();
+    const said = await message();
+    assert(said !== '', 'UX-02: the host did not refuse the edit; the check measures nothing.');
+    assert(after === before, `UX-02: after the refusal (${said}) the cell shows ${JSON.stringify(after)}, not the stored ${JSON.stringify(before)}.`);
+  });
+
+  // UX-03 and UX-04: a keyboard save keeps the focus on its cell and the columns where they were,
+  // and says it saved where it can be seen.
+  await check('UX-03 UX-04 grid save keeps its place', 'idea', async () => {
+    await page.click('#nav-data');
+    await until(() => document.querySelector('.ag-row[row-index="1"] .ag-cell') !== null, null, 'the Data grid', 8000);
+    const viewport = '#record-grid .ag-grid-viewport';
+    const scrollable = await page.evaluate(selector => { const element = document.querySelector(selector); return element.scrollWidth - element.clientWidth; }, viewport);
+    assert(scrollable > 40, `the grid does not scroll sideways at this width (${scrollable} px); the check measures nothing`);
+    await page.evaluate(selector => { document.querySelector(selector).scrollLeft = 40; }, viewport);
+    await page.waitForTimeout(200);
+    const target = await page.evaluate(() => {
+      const viewport = document.querySelector('#record-grid .ag-grid-viewport').getBoundingClientRect();
+      const cells = [...document.querySelectorAll('.ag-row[row-index="0"] .ag-cell[col-id]')].filter(cell => {
+        const box = cell.getBoundingClientRect();
+        return box.left >= viewport.left && box.right <= viewport.right && !cell.classList.contains('record-open-cell') && /text|title|name/i.test(cell.getAttribute('col-id') + ' ' + (cell.closest('[role="gridcell"]')?.textContent ?? ''));
+      });
+      return cells[0]?.getAttribute('col-id') ?? null;
+    });
+    assert(target !== null, 'no text cell is in view; the check measures nothing');
+    const scrollBefore = await page.evaluate(selector => document.querySelector(selector).scrollLeft, viewport);
+    await page.locator(`.ag-row[row-index="0"] .ag-cell[col-id="${target}"]`).click();
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+    await page.keyboard.press('End');
+    await page.keyboard.type(' (kept)');
+    await page.keyboard.press('Enter');
+    await until(() => /saved/.test(document.querySelector('.message-slot:not([hidden])')?.textContent ?? ''), null, 'a visible saved message', 6000);
+    await page.waitForTimeout(400);
+    const where = await page.evaluate(() => { const cell = document.activeElement?.closest('.ag-cell'); return cell ? `${cell.closest('.ag-row')?.getAttribute('row-index')}:${cell.getAttribute('col-id')}` : document.activeElement?.tagName ?? 'none'; });
+    assert(where === `0:${target}`, `UX-03: after the save the focus is on ${where}, not the cell it saved.`);
+    const scrollAfter = await page.evaluate(selector => document.querySelector(selector).scrollLeft, viewport);
+    assert(Math.abs(scrollAfter - scrollBefore) <= 2, `UX-03: the columns scrolled from ${scrollBefore} to ${scrollAfter} px.`);
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(150);
+    const down = await page.evaluate(() => document.activeElement?.closest('.ag-row')?.getAttribute('row-index') ?? null);
+    assert(down === '1', `UX-03: ArrowDown after the save went to row ${down}.`);
+  }, 900, 800);
+
+  // UX-24 and UX-04: rejecting an agent's proposal asks first, and the outcome is on screen.
+  await check('UX-24 UX-04 reject asks and says so', 'idea', async () => {
+    await agentPage('activity');
+    await until(() => document.querySelector('[data-review-agent-proposal]') !== null, null, 'a waiting proposal');
+    await page.click('[data-review-agent-proposal]');
+    await until(() => document.querySelector('#reject-agent-proposal') !== null, null, 'the review');
+    await page.click('#reject-agent-proposal');
+    await page.waitForTimeout(300);
+    const asked = await page.evaluate(() => document.querySelector('dialog[open] h2')?.textContent ?? null);
+    assert(asked === 'Reject this proposal?', `UX-24: Reject ${asked === null ? 'discarded the proposal without asking' : `asked ${JSON.stringify(asked)}`}.`);
+    await page.click('dialog[open] [data-cancel]');
+    await page.waitForTimeout(300);
+    assert(await page.evaluate(() => document.querySelector('.agent-proposal-page') !== null), 'UX-24: Cancel left the review.');
+    await page.click('#reject-agent-proposal');
+    await until(() => document.querySelector('dialog[open] [data-confirm]') !== null, null, 'the question again');
+    await page.click('dialog[open] [data-confirm]');
+    await until(() => document.querySelector('.agent-proposal-page') === null, null, 'the Agent page after Reject', 6000);
+    await page.waitForTimeout(300);
+    const said = await message();
+    assert(said !== '', 'UX-04: after Reject nothing on screen says what happened.');
+  });
+
+  // UX-14 and UX-10: the Agent page speaks of edit access and the file, not leases and workspaces.
+  await check('UX-14 UX-10 Agent page words', 'idea', async () => {
+    await agentPage('activity');
+    const activity = await page.evaluate(() => document.querySelector('#studio-content').innerText);
+    await page.click('[data-agent-tab="connect"]');
+    await page.waitForTimeout(300);
+    const text = activity + ' ' + await page.evaluate(() => document.querySelector('#studio-content').innerText);
+    const found = ['\\blease\\b', '\\bworkspace\\b', '\\bsurfaces?\\b', '\\bHarden\\b'].filter(word => new RegExp(word, 'i').test(text));
+    assert(found.length === 0, `UX-14: the Agent page still says ${found.join(', ')}.`);
+  });
+
+  // UX-10: one word for screens, in the rail, the Use picker and the Screens page.
+  await check('UX-10 one word for screens', 'decision', async () => {
+    const picker = await page.evaluate(() => document.querySelector('.surface-picker-label')?.textContent ?? null);
+    await page.click('#nav-surfaces');
+    await page.waitForTimeout(600);
+    const rail = await page.evaluate(() => document.querySelector('#nav-surfaces')?.innerText ?? '');
+    const pageText = await page.evaluate(() => document.querySelector('#studio-content').innerText);
+    assert(picker === 'Screen' && /Screens/.test(rail) && !/\bsurfaces?\b/i.test(pageText),
+      `UX-10: the picker says ${JSON.stringify(picker)}, the rail ${JSON.stringify(rail)}${/\bsurfaces?\b/i.test(pageText) ? ', and the page still says surface' : ''}.`);
+  });
+
+  // UX-18: ticking Not set empties its box, and unticking brings the text back.
+  await check('UX-18 Not set empties its box', 'decision', async () => {
+    await openRecord();
+    const name = await page.evaluate(() => [...document.querySelectorAll('#record-form [data-null-field]')].map(box => box.dataset.nullField)
+      .find(field => { const control = document.querySelector(`#record-form [name="${CSS.escape(field)}"]`); return control instanceof HTMLInputElement && control.type === 'text' && control.offsetParent !== null; }) ?? null);
+    assert(name !== null, 'the record has no optional text field; the check measures nothing');
+    const box = `#record-form [name="${name}"]`;
+    await page.fill(box, 'Try it on Friday');
+    await page.check(`#record-form [data-null-field="${name}"]`);
+    const ticked = await page.evaluate(box => document.querySelector(box).value, box);
+    assert(ticked === '', `UX-18: with Not set ticked the box still shows ${JSON.stringify(ticked)}, which a save throws away.`);
+    await page.uncheck(`#record-form [data-null-field="${name}"]`);
+    const back = await page.evaluate(box => document.querySelector(box).value, box);
+    assert(back === 'Try it on Friday', `UX-18: unticking Not set left ${JSON.stringify(back)} in the box.`);
+  });
+
+  // UX-20: with no file open, nothing in the rail is the current page.
+  await check('UX-20 no current page without a file', 'decision', async () => {
+    await page.click('#file-menu > summary');
+    await page.click('[data-file-action="file.close"]');
+    await until(() => document.querySelector('[data-testid="no-file-state"]') !== null, null, 'the start screen', 6000);
+    const current = await page.evaluate(() => [...document.querySelectorAll('[aria-current="page"]')].map(element => element.id || element.tagName));
+    assert(current.length === 0, `UX-20: with no file open ${current.join(', ')} is marked as the current page.`);
+    // Help draws with no file, so it is the current page then (the review's catch).
+    await page.click('#nav-help');
+    await page.waitForTimeout(400);
+    const help = await page.evaluate(() => document.querySelector('#nav-help')?.getAttribute('aria-current'));
+    assert(help === 'page', `UX-20: Help with no file open is not marked as the current page (${help}).`);
   });
 
   return { complete: failures.length === 0, checks, errors, failure: failures.join(' || ') };

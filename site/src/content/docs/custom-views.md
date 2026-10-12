@@ -32,7 +32,7 @@ A package arrives the way every other change to the application does: as a propo
 
 There are three ways to propose a package:
 
-- **Studio › Surfaces › Custom views › Import package…** Pick a folder's `nendo-package.json`, a `.zip` of the folder, or an older `.nendoview` file. **File › Custom views…** opens the same panel.
+- **Studio › Screens › Custom views › Import package…** Pick a folder's `nendo-package.json`, a `.zip` of the folder, or an older `.nendoview` file. **File › Custom views…** opens the same panel.
 - **An agent** writes the package over MCP with the operations `extension.setPackage` and `extension.putFile`, in a change set, and you accept it. See [Agents](/nendo/docs/agents).
 - **A script.** From a clone of the repository, `node tools/Put-NendoPackage.mjs <folder>` proposes a package folder into the file that a running Nendo has open.
 
@@ -45,7 +45,7 @@ Each way proposes only what differs from the package the file already carries. W
 
 A copy of the file carries its views' code. If a view names a package that the file does not carry, the view says so and offers **Add package to file…**, which is Import.
 
-A view also needs a definition: a screen, a graph or a record-page panel that names its package, the record type it is about and the fields it shows. In **Studio › Surfaces › Custom views**, each package lists where it is already shown and has **Add view…**. The form offers only fields that work, and **Preview view** opens the ordinary review. After you accept a screen, Use opens on it. An agent can write the same definition through a change set, with extra fields and filters the form does not ask for. An agent can also make a view a screen of the file itself, listed before the record types and, if the definition says so, the screen the file opens on. With custom views off, such a file opens on its front page or its first record type instead. The [authoring guide](https://github.com/ThomasRohde/nendo/blob/main/docs/custom-view-authoring.md) shows each kind.
+A view also needs a definition: a screen, a graph or a record-page panel that names its package, the record type it is about and the fields it shows. In **Studio › Screens › Custom views**, each package lists where it is already shown and has **Add view…**. The form offers only fields that work, and **Preview view** opens the ordinary review. After you accept a screen, Use opens on it. An agent can write the same definition through a change set, with extra fields and filters the form does not ask for. An agent can also make a view a screen of the file itself, listed before the record types and, if the definition says so, the screen the file opens on. With custom views off, such a file opens on its front page or its first record type instead. The [authoring guide](https://github.com/ThomasRohde/nendo/blob/main/docs/custom-view-authoring.md) shows each kind.
 
 ## What a view can and cannot do
 
@@ -65,7 +65,7 @@ Each package runs on a web address of its own, in a browser process of its own, 
 
 A file that somebody else wrote brings its views' code with it, and that code runs when its view is shown. You have not read it: the review happened wherever the change was made. It can read every record in the file, reach the network, including programs on your own computer, use the clipboard, read a file you choose or drop on it, and download files. It never gets a file you did not choose. It can also change your records and run their commands, the way you would. Each change is in **History** under the package's name.
 
-History offers **Compensate** where it can reverse a change, a view's batch included: a record the batch created is deleted, and a record it deleted comes back. A view can do the same itself for what it wrote since it opened: `nendo.records.undo(revision)` takes a batch back and `nendo.records.redo(...)` makes it again, each as a new entry in History, and refused if somebody else changed those records since. See [History and undo](/nendo/docs/files-and-data#history-and-undo) for the reversibility classes and other limits.
+History offers **Undo** where it can reverse a change, a view's batch included: a record the batch created is deleted, and a record it deleted comes back. A view can do the same itself for what it wrote since it opened: `nendo.records.undo(revision)` takes a batch back and `nendo.records.redo(...)` makes it again, each as a new entry in History, and refused if somebody else changed those records since. See [History and undo](/nendo/docs/files-and-data#history-and-undo) for the reversibility classes and other limits.
 
 This is a deliberate trade: no install step and no permission dialog, in exchange for switches. The switches below are the whole control. Turn views off before you open a file you do not trust.
 
@@ -73,8 +73,8 @@ This is a deliberate trade: no install step and no permission dialog, in exchang
 
 | Switch | Where | What it covers |
 | --- | --- | --- |
-| **Run custom views** | Studio › Surfaces › Custom views | Every file, on this computer |
-| **Run this file's views** | Studio › Surfaces › Custom views | This file, on this computer |
+| **Run custom views** | Studio › Screens › Custom views | Every file, on this computer |
+| **Run this file's views** | Studio › Screens › Custom views | This file, on this computer |
 | **Restart without custom views** | The recovery panel, when the app view has stopped | Views stay off until you turn **Run custom views** on again or start Nendo again |
 
 Both switches are settings of this computer. They never change the file, and a file cannot turn its own views back on. Views never run in safe mode, during recovery, or while a file needs attention, for example when it opened read-only. A view that cannot run says why where it would be, with the step that changes it. **Health** shows whether views run.
@@ -115,7 +115,7 @@ The full guide is [Authoring a custom view](https://github.com/ThomasRohde/nendo
 5. **Name the package.** A `nendo-package.json` with a `packageId` such as `org.example.map`, and a title.
 6. **Put it in the file, and define a view that names it.** Accept both proposals, and the view runs.
 
-While you work on a view, import its package once, then choose **Develop from folder…** on its card in **Studio › Surfaces › Custom views** and pick the package's folder. On this computer every view of the package then runs from that folder, under a **Development** strip, and reloads whenever you save a file there. The `.nendo` file does not change: **Save to file…** prepares a proposal you review, and **Stop developing** puts the file's code back.
+While you work on a view, import its package once, then choose **Develop from folder…** on its card in **Studio › Screens › Custom views** and pick the package's folder. On this computer every view of the package then runs from that folder, under a **Development** strip, and reloads whenever you save a file there. The `.nendo` file does not change: **Save to file…** prepares a proposal you review, and **Stop developing** puts the file's code back.
 
 An agent that writes a view over MCP reads `nendo://application/view-api` first: every `window.nendo` call with its parameters and answer, the toolbar's controls and icons, the theme's colours and a whole view to start from.
 

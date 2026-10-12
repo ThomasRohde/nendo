@@ -23,7 +23,8 @@ test('a card is addressable by record id and names the record in its accessible 
  // none of, so the stored id is what shows here.
  assert.match(markup,/class="card-chip"[^>]*>won</);
  assert.match(markup,/<small>note<\/small>hi/);
- assert.match(markup,/<small>v3<\/small>/);
+ // The concurrency counter is not a person's number (UX-13).
+ assert.doesNotMatch(markup,/>v3</);
 });
 
 test('a rating reads as dots wherever a value is shown, and as its number when it is out of scale',()=>{

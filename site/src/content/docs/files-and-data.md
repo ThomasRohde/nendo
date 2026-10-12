@@ -33,7 +33,7 @@ Nendo refuses a write when the file is within 32 MiB or 1,000 rows of a limit. T
 
 ### Minimum host version
 
-Each file records the minimum version of Nendo's file capabilities that it needs. This number is separate from the product version shown in the status bar. An empty file needs the least. When a change makes the file use a newer capability, such as a timeline, a calculated field or a custom view, the review of that proposal shows that the minimum rises. Building a search index raises it too, so an older Nendo refuses a file that has one. That line is not compensatable.
+Each file records the minimum version of Nendo's file capabilities that it needs. This number is separate from the product version shown in the status bar. An empty file needs the least. When a change makes the file use a newer capability, such as a timeline, a calculated field or a custom view, the review of that proposal shows that the minimum rises. Building a search index raises it too, so an older Nendo refuses a file that has one. That line cannot be undone.
 
 - **An older Nendo** refuses a file that needs a newer one. It does not open the file partially.
 - **A newer Nendo** opens an older file without upgrading or rewriting it. The minimum rises only when an accepted change needs it, and never goes down.
@@ -91,19 +91,19 @@ An agent imports through MCP with the same profile and decoding. That path commi
 
 Each accepted change is a **revision** in History. An entry shows its lane (Definition or Data), how many operations it holds and who made it: you, an agent by the name the Agent page shows it under, a custom view by its package, or Nendo itself. What a trigger changed belongs to the edit that fired it. **View changes** opens the operations, and each one an automatic action made names that action. CSV batches and agent writes are ordinary entries. History shows 50 entries per page and is never rewritten, except when you fold it.
 
-History also says how many changes the file has recorded, out of the 99,000 it accepts before it refuses writes, and warns from 80%. **Fold older history…** makes room: Nendo saves a backup beside the file with the whole history in it, then replaces the older entries with one **Checkpoint** entry. The most recent 1,000 changes (fewer, if they are large) stay as they were, and so does every record. A folded change can no longer be compensated or inspected in the file; open the backup to see it.
+History also says how many changes the file has recorded, out of the 99,000 it accepts before it refuses writes, and warns from 80%. **Fold older history…** makes room: Nendo saves a backup beside the file with the whole history in it, then replaces the older entries with one **Checkpoint** entry. The most recent 1,000 changes (fewer, if they are large) stay as they were, and so does every record. A folded change can no longer be undone or inspected in the file; open the backup to see it.
 
 Every operation declares a reversibility class. Nendo shows it in the review before you accept a proposal, and again in History.
 
 | Class | Meaning | Examples |
 | --- | --- | --- |
-| Reversible | Nendo can produce the exact inverse. | A screen node added; a field's presentation changed; a value a custom view keeps. |
-| Compensatable with retained state | Nendo kept what it needs and can restore it while the current state allows. | A field set to a new value; a deleted record; a retired field or record type; a renamed field; a changed screen property. |
-| Not compensatable | There is no inverse. | A record created; a new record type or field; a conversion; a change of identity; a raised minimum version. |
+| Can be undone | Nendo can produce the exact inverse. | A screen node added; a field's presentation changed; a value a custom view keeps. |
+| Can be undone if nothing has changed it since | Nendo kept what it needs and can restore it while the current state allows. | A field set to a new value; a deleted record; a retired field or record type; a renamed field; a changed screen property. |
+| Cannot be undone | There is no inverse. | A record created; a new record type or field; a conversion; a change of identity; a raised minimum version. |
 
-**Compensate** applies the inverse of an entry as a new revision. It does not rewind history. A restored record gets a new version. If the current state no longer allows the inverse (a referenced record is gone, a field is now required), Nendo refuses. If a save triggered an automatic action, Compensate reverses the whole entry, including the action's changes. To bring back a deleted record, find its Delete entry in History and choose **Compensate**. A created record is the one exception to its class: compensating it deletes the record, and its record ID stays taken. A compensation of record changes can itself be compensated, which makes the change again.
+**Undo** applies the inverse of an entry as a new revision. It does not rewind history. A restored record gets a new version. If the current state no longer allows the inverse (a referenced record is gone, a field is now required), Nendo refuses. If a save triggered an automatic action, Undo reverses the whole entry, including the action's changes. To bring back a deleted record, find its Delete entry in History, which names the record, and choose **Undo**. A created record is the one exception to its class: undoing it deletes the record, and its record ID stays taken. An undo of record changes can itself be undone, which makes the change again.
 
-There is no universal undo. A backup does not make an irreversible change reversible; it gives you an older file to go back to. Make a backup before a change you cannot compensate.
+There is no universal undo. A backup does not make an irreversible change reversible; it gives you an older file to go back to. Make a backup before a change that cannot be undone.
 
 ## Copies
 
@@ -119,7 +119,7 @@ The file menu has a **Copies** section, and **Restore backup…** under **Recove
 
 **New empty copy…** stands where **New file** does while a file is open, and an application can give it its own name, such as **New Archi model…**. The new file has the record types, screens and custom views, and only the records the application keeps in new files: a record type keeps its records or leaves them out by default, and a single record can say otherwise. Studio shows both, in each record type's sentence above the grid and in its **In new files** column. Nendo shows what the new file keeps and leaves out before you choose where it goes, and refuses while a kept record points at one that is left out, naming it. The new file opens in a window of its own; the file you are in does not change.
 
-Restore checks the backup first, then replaces the current file. It keeps the previous file beside it and never deletes those retained copies. If a replacement is interrupted, the next open says so and **Review recovery record…** resolves it; Nendo does not adopt a staged file on its own. The Duplicate and Fork entries in History are not compensatable.
+Restore checks the backup first, then replaces the current file. It keeps the previous file beside it and never deletes those retained copies. If a replacement is interrupted, the next open says so and **Review recovery record…** resolves it; Nendo does not adopt a staged file on its own. The Duplicate and Fork entries in History cannot be undone.
 
 A copy made in Explorer keeps both IDs. Nendo does not rewrite them. One instance can be open for editing in only one Nendo session at a time, so if you open a raw copy or a backup while the original is open, Nendo offers to open it read-only or to make a Duplicate or Fork. Moving or renaming a file keeps its identity.
 

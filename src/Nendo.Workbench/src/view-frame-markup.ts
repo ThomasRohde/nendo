@@ -129,7 +129,7 @@ function specAttributes(spec: ViewSpec): string {
 export function viewPlaceholderMarkup(spec: ViewSpec): string {
   if (spec.placement === 'recordPage') {
     const titleId = `view-title-${escapeAttribute(spec.viewId)}`;
-    return `<section class="view-mount is-panel" ${specAttributes(spec)} aria-labelledby="${titleId}"><header class="view-header"><h3 id="${titleId}">${escapeHtml(spec.title)}</h3><span class="view-package">${escapeHtml(spec.packageId)}</span></header><div class="view-stage" data-view-stage></div></section>`;
+    return `<section class="view-mount is-panel" ${specAttributes(spec)} aria-labelledby="${titleId}"><header class="view-header"><h3 id="${titleId}" title="${escapeAttribute(`From the package ${spec.packageId}`)}">${escapeHtml(spec.title)}</h3></header><div class="view-stage" data-view-stage></div></section>`;
   }
   return `<section class="view-mount is-screen" ${specAttributes(spec)} aria-label="${escapeAttribute(spec.title)}"><div class="view-stage" data-view-stage></div></section>`;
 }
@@ -137,7 +137,7 @@ export function viewPlaceholderMarkup(spec: ViewSpec): string {
 /** A panel on a record that has not been saved: no record, so nothing for a view to be about. */
 export function unsavedViewMarkup(spec: ViewSpec): string {
   const titleId = `view-title-${escapeAttribute(spec.viewId)}`;
-  return `<section class="view-mount is-panel" data-view-unsaved aria-labelledby="${titleId}"><header class="view-header"><h3 id="${titleId}">${escapeHtml(spec.title)}</h3><span class="view-package">${escapeHtml(spec.packageId)}</span></header><div class="view-notice"><p>Save this record to show its custom view.</p></div></section>`;
+  return `<section class="view-mount is-panel" data-view-unsaved aria-labelledby="${titleId}"><header class="view-header"><h3 id="${titleId}" title="${escapeAttribute(`From the package ${spec.packageId}`)}">${escapeHtml(spec.title)}</h3></header><div class="view-notice"><p>Save this record to show its custom view.</p></div></section>`;
 }
 
 /** Whether a view can run here, and when it cannot, which of the reasons it is. */
@@ -188,7 +188,7 @@ export function viewNoticeMarkup(notice: Exclude<ViewNotice, { kind: 'run' }>, s
   switch (notice.kind) {
     case 'off':
       body = notice.reason === 'device' || notice.reason === 'file'
-        ? `<p>${escapeHtml(offReasonSentence(notice.reason))} Turn them on under Studio → Surfaces → Custom views.</p><button type="button" class="secondary-button" data-view-settings>Open Custom views</button>`
+        ? `<p>${escapeHtml(offReasonSentence(notice.reason))} Turn them on under Studio → Screens → Custom views.</p><button type="button" class="secondary-button" data-view-settings>Open Custom views</button>`
         : notice.reason === 'health'
           ? `<p>${escapeHtml(offReasonSentence(notice.reason))} Health says why.</p><button type="button" class="secondary-button" data-view-health>Open Health</button>`
           : notice.reason === 'recovery'
@@ -240,7 +240,7 @@ export function mountKey(spec: ViewSpec, fileSessionId: string | null, pkg: Runn
 }
 
 /**
- * Studio → Surfaces → Custom views: the two switches that decide whether views run here, and
+ * Studio → Screens → Custom views: the two switches that decide whether views run here, and
  * the packages this file carries. The switches are this device's and never change the file;
  * adding or removing a package is a proposal, reviewed line by line like any definition change.
  */
