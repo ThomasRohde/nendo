@@ -1,4 +1,4 @@
-import { refreshDerived, runMutation } from './actions';
+import { openWorkspaceView, refreshDerived, runMutation } from './actions';
 import { focusedRecords, leaveRecordContext, state, type CreateRelated } from './app-state';
 import { confirmDialog } from './confirm-dialog';
 import { refuseWhileDirty } from './draft-guard';
@@ -133,7 +133,8 @@ export function unlinkRelated(entityId: string, recordId: string, version: numbe
   }).then((confirmed) => {
     if (!confirmed) return;
     void runMutation('data.deleteRecord', { entityId, recordId, expectedRecordVersion: version, idempotencyKey: `unlink-${crypto.randomUUID()}` },
-      'Link removed. Open History to review or restore it.', true);
+      'Link removed. History can bring it back.', true, undefined, undefined,
+      { label: 'Open History', run: () => openWorkspaceView('history') });
   });
 }
 

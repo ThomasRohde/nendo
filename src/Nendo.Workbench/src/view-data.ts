@@ -1,5 +1,6 @@
 import { prepareApplication, recoverAfterWriteFailure, refreshStudioQuery, reloadReadWindows, runMutation } from './actions';
 import { filterInput } from './filter-input';
+import { referenceControl, wireReferenceControls } from './reference-controls';
 import { keptChoice, keptChoices, keptDefaultProposal, keptDefaultSentence, keptFromChoice, keptText } from './new-file';
 import { type CellFocusedEvent, type CellKeyDownEvent, type CellValueChangedEvent, type ColDef, type ColumnResizedEvent, type FullWidthCellKeyDownEvent, type GridApi, type GridOptions, createGrid, themeQuartz } from 'ag-grid-community';
 import { type StudioQuery, fileScopedClearable, recordWindows, state, studioQueries, studioWindows } from './app-state';
@@ -504,6 +505,7 @@ export function studioQueryMarkup(entity: EntitySnapshot): string {
     <label>Filter field<select name="field"><option value="">All records</option>${options(query?.fieldId)}</select></label>
     <label>Match<select name="operator">${[['contains','Contains text'],['eq','Equals'],['ne','Does not equal'],['lt','Less than'],['le','At most'],['gt','Greater than'],['ge','At least'],['isNull','Not set'],['isNotNull','Has a value']].map(([op,label])=>`<option value="${op}" ${query?.operator === op ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
     <label>Value<input name="value" type="text" value="${escapeAttribute(query?.text ?? '')}" /></label>
+    <div class="query-reference" data-query-reference hidden></div>
     <button class="secondary-button" data-action type="submit">Apply</button><button id="clear-query" class="text-button" data-action type="button" ${query ? '' : 'hidden'}>Clear</button>
     <p class="query-status" role="status">${escapeHtml(queryStatusText(query, nameOf))}</p>
     ${studioSearchResultsMarkup()}
@@ -515,22 +517,55 @@ export function wireStudioQuery(entity: EntitySnapshot): void {
   const fieldControl = form.elements.namedItem('field') as HTMLSelectElement;
   const operator = form.elements.namedItem('operator') as HTMLSelectElement;
   const value = form.elements.namedItem('value') as HTMLInputElement;
+  // A Reference field is filtered by its record, chosen in the picker a record form uses: the
+  // Value box wanted the record's stored ID, which nothing on screen shows (UX-08).
+  const picker = requiredElement<HTMLElement>('[data-query-reference]');
+  const pickedFor = (field: EntitySnapshot['fields'][number] | undefined): boolean =>
+    field?.reference != null && storageLabel(field.storageKind) === 'Reference';
+  const showPicker = (field: EntitySnapshot['fields'][number] | undefined, presence: boolean): void => {
+    const show = pickedFor(field) && !presence;
+    value.closest('label')!.hidden = show;
+    picker.hidden = !show;
+    if (!show) { picker.replaceChildren(); return; }
+    if (picker.dataset.field === field!.fieldId) return;
+    const saved = studioQueries.get(entity.entityId);
+    const initial = saved?.fieldId === field!.fieldId && typeof saved.filters?.[0]?.value === 'string' ? saved.filters[0].value : '';
+    picker.dataset.field = field!.fieldId;
+    picker.innerHTML = referenceControl(field!, initial);
+    wireReferenceControls(form, [field!], payload => client.request<ReadPage<RecordSnapshot>>('data.queryRecords', payload));
+  };
   const update = (): void => {
     const field = entity.fields.find(field => field.fieldId === fieldControl.value);
+    for (const comparing of ['lt', 'le', 'gt', 'ge']) {
+      const option = operator.querySelector<HTMLOptionElement>(`[value="${comparing}"]`)!;
+      option.disabled = pickedFor(field);
+      if (option.disabled && operator.value === comparing) operator.value = 'eq';
+    }
     const contains = operator.querySelector<HTMLOptionElement>('[value="contains"]')!;
     contains.disabled = !field || storageLabel(field.storageKind) !== 'Text';
     if (contains.disabled && operator.value === 'contains') operator.value = 'eq';
     value.disabled = !field || ['isNull','isNotNull'].includes(operator.value);
     operator.disabled = !field;
     value.placeholder = field && storageLabel(field.storageKind) === 'Boolean' ? 'Yes or No' : '';
+    showPicker(field, ['isNull','isNotNull'].includes(operator.value));
   };
   fieldControl.addEventListener('change', update); operator.addEventListener('change', update); update();
   form.addEventListener('submit', event => {
     event.preventDefault();
     const field = entity.fields.find(field => field.fieldId === fieldControl.value);
     try {
+      const presence = ['isNull','isNotNull'].includes(operator.value);
+      if (field && pickedFor(field) && !presence) {
+        const chosen = picker.querySelector<HTMLInputElement>('input[type=hidden]')?.value ?? '';
+        if (chosen === '') throw new Error(`Choose the ${field.displayName} record to filter by.`);
+        // The status names the record by its label, as the picker shows it, never by its ID.
+        const shown = (picker.querySelector('.reference-selected')?.textContent ?? chosen).replace(/ · [^·]*$/, '');
+        void applyStudioQuery(entity.entityId, withFilter(studioQueries.get(entity.entityId),
+          { fieldId: field.fieldId, operator: operator.value, text: shown, filters: [{ fieldId: field.fieldId, operator: operator.value, value: chosen }] }));
+        return;
+      }
       const filters: StudioQuery['filters'] = field ? [{ fieldId: field.fieldId, operator: operator.value,
-        ...(['isNull','isNotNull'].includes(operator.value) ? {} : { value: parseScalar(storageLabel(field.storageKind), filterInput(field, value.value)) }) }] : [];
+        ...(presence ? {} : { value: parseScalar(storageLabel(field.storageKind), filterInput(field, value.value)) }) }] : [];
       if (filters.some(filter => 'value' in filter && filter.value === null)) throw new Error('Choose Not set to find missing values.');
       void applyStudioQuery(entity.entityId, withFilter(studioQueries.get(entity.entityId), { fieldId: fieldControl.value, operator: operator.value, text: value.value, filters }));
     } catch (error) { showError(messageFor(error)); }

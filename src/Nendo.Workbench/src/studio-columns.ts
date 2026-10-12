@@ -113,7 +113,10 @@ export function queryStatusText(query: StudioQuery | undefined, nameOf: (fieldId
   if (query.sortFieldId !== null) parts.push(`Sorted by ${nameOf(query.sortFieldId)}, ${query.descending ? 'descending' : 'ascending'}`);
   for (const filter of query.filters) {
     const words = operatorWords[filter.operator] ?? filter.operator;
-    parts.push(`Only where ${nameOf(filter.fieldId)} ${words}${'value' in filter ? ` ${String(filter.value)}` : ''}`);
+    // The value as the person gave it -- a record's label, Yes, a choice's name -- rather than as
+    // stored, which for a reference is an ID nothing on screen shows (UX-08).
+    const said = filter.fieldId === query.fieldId && query.text ? query.text : 'value' in filter ? String(filter.value) : '';
+    parts.push(`Only where ${nameOf(filter.fieldId)} ${words}${'value' in filter ? ` ${said}` : ''}`);
   }
   return parts.length === 0 ? '' : `${parts.join(' · ')} · across every record of this type`;
 }

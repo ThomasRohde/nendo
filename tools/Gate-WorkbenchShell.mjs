@@ -742,6 +742,42 @@ async page => {
     assert(help === 'page', `UX-20: Help with no file open is not marked as the current page (${help}).`);
   });
 
+  // UX-08, the Reference half: Studio's filter takes a reference by choosing its record.
+  await check('UX-08 reference filter by its record', 'tree', async () => {
+    await page.click('#nav-data');
+    await until(() => document.querySelector('[data-layout="table"]') !== null, null, 'the layout switch', 8000);
+    await page.click('[data-layout="table"]');
+    await until(() => document.querySelector('#studio-query select[name="field"]') !== null, null, 'the Data filter', 8000);
+    await page.selectOption('#studio-query select[name="field"]', 'field.capability.parent');
+    await page.waitForTimeout(200);
+    const shown = await page.evaluate(() => ({ box: !document.querySelector('#studio-query input[name="value"]').closest('label').hidden,
+      picker: document.querySelector('[data-query-reference] .reference-choose') !== null }));
+    assert(shown.picker && !shown.box, `UX-08: a Reference filter offers ${shown.box ? 'a box for a record ID' : 'nothing'} rather than a record picker.`);
+    await page.click('[data-query-reference] .reference-choose');
+    await until(() => document.querySelector('[data-query-reference] .reference-result') !== null, null, 'records to choose from', 6000);
+    const picked = await page.evaluate(() => { const button = document.querySelector('[data-query-reference] .reference-result'); const text = button.textContent; button.click(); return text; });
+    const [label, id] = picked.split(' · ');
+    await page.click('#studio-query button[type="submit"]');
+    await until(() => /Part of/.test(document.querySelector('#studio-query .query-status')?.textContent ?? ''), null, 'the filter to apply', 6000);
+    const status = await page.evaluate(() => document.querySelector('#studio-query .query-status').textContent);
+    assert(status.includes(label) && !status.includes(id), `UX-08: the filter status reads ${JSON.stringify(status)}, not the record's label.`);
+  });
+
+  // UX-04: a delete says what it deleted and offers History, where Undo brings it back.
+  await check('UX-04 delete offers History', 'decision', async () => {
+    await openRecord();
+    await page.click('#delete-record');
+    await until(() => document.querySelector('dialog[open] [data-confirm]') !== null, null, 'the delete question');
+    await page.click('dialog[open] [data-confirm]');
+    await until(() => document.querySelector('#outcome-action') !== null, null, 'the delete outcome and its action', 6000);
+    const said = await message();
+    assert(/History can bring it back/.test(said), `UX-04: the delete said ${JSON.stringify(said)}.`);
+    await page.click('#outcome-action');
+    await until(() => document.querySelector('.history-entry') !== null, null, 'History', 6000);
+    const first = await page.evaluate(() => document.querySelector('.history-entry h3')?.textContent ?? '');
+    assert(/Delete/.test(first), `UX-04: Open History showed ${JSON.stringify(first)} first, not the delete.`);
+  });
+
   return { complete: failures.length === 0, checks, errors, failure: failures.join(' || ') };
   })(); } catch (error) {
     return { complete: false, checks, errors, failure: [...failures, String(error?.message ?? error)].join(' || ') };

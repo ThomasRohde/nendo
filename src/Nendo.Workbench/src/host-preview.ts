@@ -97,6 +97,9 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
       case 'data.setField':
         result = this.setField(payload);
         break;
+      case 'data.deleteRecord':
+        result = this.deleteRecord(payload);
+        break;
       case 'data.setFields':
         result = this.setFields(payload);
         break;
@@ -295,6 +298,20 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         return this.advance('data', `Edit ${entity.displayName}`, 'data.setField');
       },
     );
+  }
+
+  /** A record deleted, so the delete outcome and its way to History can be measured here (W-210). */
+  private deleteRecord(payload: Record<string, unknown>): DesktopMutationView {
+    const idempotencyKey = requiredString(payload, 'idempotencyKey');
+    const entityId = requiredString(payload, 'entityId');
+    const recordId = requiredString(payload, 'recordId');
+    const expectedRecordVersion = requiredNumber(payload, 'expectedRecordVersion');
+    return this.mutate('data.deleteRecord', idempotencyKey, JSON.stringify(payload), () => {
+      const entity = requireEntity(this.session, entityId);
+      const record = requireRecord(this.session, entityId, recordId, expectedRecordVersion);
+      this.session.records.splice(this.session.records.indexOf(record), 1);
+      return this.advance('data', `Delete ${entity.displayName}`, 'data.deleteRecord');
+    });
   }
 
   /** The children of a record, or the top level, in the hierarchy's sibling order (ADR-0019). */

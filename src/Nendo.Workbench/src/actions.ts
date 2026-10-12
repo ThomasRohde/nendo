@@ -1,5 +1,5 @@
 import type { FileHelpPage } from './help';
-import type { ViewName } from './app-state';
+import type { OutcomeNotice, ViewName } from './app-state';
 import type { ApplicationRecipe } from './application-recipes';
 import { client } from './client';
 import { confirmDialog } from './confirm-dialog';
@@ -70,6 +70,7 @@ export async function runMutation(
   refreshAfterFailure = false,
   beforeRender?: () => void,
   restate?: (error: unknown) => string | null,
+  next?: OutcomeNotice['action'],
 ): Promise<MutationOutcome> {
   if (state.actionInFlight) return 'busy';
   state.actionInFlight = true;
@@ -84,7 +85,7 @@ export async function runMutation(
     // Drawn as well as announced: a hidden live region told a screen reader and nobody else
     // that a save, an add, a delete or a command had worked (UX-04).
     if (notice !== null) showOutcomeRefreshNotice(success, notice);
-    else showOutcome(success);
+    else showOutcome(success, next);
     return 'saved';
   } catch (error) {
     // A confirmed refusal leaves the file unchanged, so the form's draft is still

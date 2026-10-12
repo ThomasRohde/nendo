@@ -91,7 +91,9 @@ The first MVP should provide:
 they were scrolled, and the message line says it saved. A refused edit puts the stored value
 back in its cell beside the reason, rather than leaving the refused one drawn as if it were
 saved. The filter takes values as the grid shows them: Yes and No for a Boolean, a choice by
-its label (W-210).
+its label, and a reference by choosing its record in the picker a record form uses; its status
+names the value as given, never a stored ID (W-210). A delete says what it deleted and offers
+**Open History**, where the entry names the record and Undo brings it back.
 
 **Leaving a record with unsaved typing.** Every move off a record page declines while it holds
 unsaved typing, Health included, and says "Save or discard your changes before …". Closing the

@@ -116,3 +116,11 @@ test('UX-19: the type default switch reads as a control', () => {
   const css = readFileSync(new URL('../src/styles/07-studio.css', import.meta.url), 'utf8');
   assert.match(css, /\.kept-default \.text-button \{[^}]*color: var\(--cobalt\)/);
 });
+
+test('UX-08: the filter status names a chosen record by its label, not its ID', async () => {
+  const { queryStatusText } = await bundleOf('src/studio-columns.ts');
+  const status = queryStatusText({ fieldId: 'parent', operator: 'eq', text: 'Brand', sortFieldId: null, descending: false,
+    filters: [{ fieldId: 'parent', operator: 'eq', value: 'cap-brand' }] }, () => 'Part of');
+  assert.match(status, /Part of is Brand/);
+  assert.doesNotMatch(status, /cap-brand/);
+});

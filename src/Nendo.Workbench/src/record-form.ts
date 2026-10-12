@@ -1,4 +1,4 @@
-import { runMutation } from './actions';
+import { openWorkspaceView, runMutation } from './actions';
 import { leaveRecordContext, selectedTabs, state, tabStateKey } from './app-state';
 import { noteTabsChanged } from './navigation-trail';
 import { chartKey } from './charts';
@@ -70,11 +70,13 @@ export function wireRecordForm(
     }).then((confirmed) => {
       if (!confirmed) return;
       void runMutation('data.deleteRecord', { entityId, recordId: record.semanticId, expectedRecordVersion: record.version,
-        idempotencyKey: mutationKey() }, 'Record deleted. Open History to review or restore it.', true,
+        idempotencyKey: mutationKey() }, `Deleted “${title}”. History can bring it back.`, true,
       // The whole record context, not the selection alone: a record deleted after being
       // opened from a related row left its "Back to" standing on the surface behind it,
       // offering a way back to the page nobody was on.
-      () => leaveRecordContext());
+      () => leaveRecordContext(), undefined,
+      // The sentence said to open History and offered no way there (UX-04).
+      { label: 'Open History', run: () => openWorkspaceView('history') });
     });
   });
   wireReferenceControls(recordForm, state.session.entities.flatMap(entity => entity.fields),

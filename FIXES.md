@@ -9395,10 +9395,10 @@ failed with its defect put back; the quoted texts are from those runs.
 | [UX-01](#ux-01) | Health declines like every other move off a record page holding unsaved typing: the rail, Ctrl 6, the palette, a notification and a view's notice (`openHealth`, `view-health.ts`). | `UX-01: Health from the rail left null in the field and said "".` |
 | [UX-02](#ux-02) | A grid edit the host refuses, or one that never left because another write was in flight, reads the table again so the cell shows what is stored, beside the reason (`view-data.ts`). | `UX-02: after the refusal (Order must be a number.) the cell shows "77", not the stored "1024".` |
 | [UX-03](#ux-03) | A cell save keeps the keyboard on its cell and the columns where they were scrolled, and only across the redraw that edit makes (`view-data.ts`). | `UX-03: after the save the focus is on BODY, not the cell it saved.` |
-| [UX-04](#ux-04) | A save, add, delete, command, undo, proposal accept or reject, fold, search index, approval and revoke are drawn in the message line as well as announced (`actions.ts`, `view-proposal.ts`, `view-agent.ts`, `view-health.ts`). Not done: the delete outcome has no button that opens History on its entry. | `Timed out waiting for a visible saved message.`; `UX-04: after Reject nothing on screen says what happened.` |
+| [UX-04](#ux-04) | A save, add, delete, command, undo, proposal accept or reject, fold, search index, approval and revoke are drawn in the message line as well as announced (`actions.ts`, `view-proposal.ts`, `view-agent.ts`, `view-health.ts`). A delete, and a link's removal, says what it removed and offers **Open History** (follow-up). | `Timed out waiting for a visible saved message.`; `UX-04: after Reject nothing on screen says what happened.` |
 | [UX-06](#ux-06) | History's action is **Undo**, its chip says Undo, and the classes read "Can be undone", "Can be undone if nothing has changed it since" and "Cannot be undone", in Help and the guides too. None promises universal undo. | `UX-06: … History’s button still reads Compensate` |
 | [UX-07](#ux-07) | Every operation the Engine records has words of its own, and each History line names its field, record type and record, by the record's label even after a delete (`NendoStoredOperationSnapshot.RecordLabel`, `history-markup.ts`). | `History draws these as identifiers: ui.moveNode`; Engine: `Expected:<Pocket field notes>. Actual:<>. … A field set names no record.` |
-| [UX-08](#ux-08) | The Data filter takes Yes and No for a Boolean and a choice by its label, an available choice before a retired one (`filter-input.ts`). Not done: a Reference filter still takes a record ID. | The UX-08 test failed on `Yes`; the retired label: `a retired choice won over the available one of the same label`. |
+| [UX-08](#ux-08) | The Data filter takes Yes and No for a Boolean and a choice by its label, an available choice before a retired one (`filter-input.ts`), and a reference by choosing its record in the record form's picker, its status naming the label (follow-up). | The UX-08 test failed on `Yes`; the retired label: `a retired choice won over the available one of the same label`. |
 | [UX-09](#ux-09) | Help says a custom view reads and changes records and runs commands, each change in History under its package, and that a screen's definition, not the file, carries no code. | `Help says a custom view cannot change records, which it can` |
 | [UX-10](#ux-10) | One word: **Screens** for the Studio page, the Use picker, Help, the guides and the extension READMEs; "file" for "workspace" on the start screen, the Agent page and its activity; "Proposed changes" on both reviews. | `UX-10: the picker says "View", the rail "Screens".` |
 | [UX-12](#ux-12) | Closing a record with unsaved typing, by its close button, Back to Data or Escape, asks "Discard your changes?"; every refusal says "Save or discard your changes before …". | `UX-12: Escape with unsaved typing closed the record without asking.` |
@@ -9433,8 +9433,16 @@ Documents updated with the behaviour: `docs/contracts/studio.md` (cell saves, le
 History's words), `docs/contracts/semantic-surfaces.md` (the refusal and the discard question),
 `docs/contracts/custom-views.md`, `docs/architecture.md`, `docs/custom-view-authoring.md`,
 `docs/nendo-station.md`, the site guides (`agents`, `concepts`, `custom-views`, `files-and-data`,
-`getting-started`, `screens`) and the four extension READMEs. Not done: the site's screenshots
-still show the old labels; `Capture-SiteScreenshots.ps1` was not run.
+`getting-started`, `screens`) and the four extension READMEs.
+
+**Follow-up, 2026-10-12.** The three items first left partly done are finished: a Reference
+field is filtered by choosing its record (`view-data.ts`, its status by `studio-columns.ts`);
+a delete and a link's removal offer **Open History** (`record-form.ts`, `related-actions.ts`;
+the preview host gained a delete so the lane can measure it); and the site's 26 screenshots
+were recaptured with `Capture-SiteScreenshots.ps1` from a copy of `workspace/Nendo Station.nendo`,
+so they show Screens, Undo and the singular counts. Falsified with the defects put back:
+`UX-08: a Reference filter offers a box for a record ID rather than a record picker.`, the status
+test failing on `cap-brand`, and `Timed out waiting for the delete outcome and its action.`
 
 Checks, on an unlocked desktop:
 
@@ -9448,4 +9456,8 @@ Checks, on an unlocked desktop:
   lane (37 checks) and the repository gate, ending "Production verification passed."
 - The run before the review's fixes had Desktop 454 of 455, the one failure G31's message row,
   since fixed; the G31 journey passed alone and in the run above.
+- After the follow-up: 602 Workbench behaviour tests, the Workbench shell lane (39 checks),
+  `Test-Site.ps1` with the new screenshots and `Test-Repository.ps1` passed. The full
+  `Test-Production.ps1 -SkipRestore` then passed without exception: Engine 1177 of 1179, Local MCP
+  245 of 250, Desktop 455 of 455, every lane, "Production verification passed."
 - `Test-Site.ps1`: the website build passed with the changed guides.
