@@ -11,7 +11,7 @@ findings are verified.
 - Complete (2026-10-11). Round 1: 35 areas. Round 2: 6 areas the completeness critic opened on its gaps (adapter parity, ADR and vision conformance, locale and time, reversibility matrix, safe mode and file versions, several processes). Every finding had a skeptic vote; duplicates were folded.
 - Areas reported: 41. Raw findings: 708; kept after verification: 644 (595 after folding 49 duplicates); refuted: 64; awaiting verification: 0.
 - Kept by priority: P0 2, P1 4, P2 95, P3 494.
-- Fix pass 2026-10-11: both P0 and all four P1 findings are fixed, and so are the five P2 findings in the security category (MHS-02, ESM-02, WMX-01, TGA-01, DAE-02), each with a guard seen to fail with the defect put back. See [Fix pass](#fix-pass). The other P2 and all P3 findings are open.
+- Fix pass 2026-10-11: both P0 and all four P1 findings are fixed, and so are the five P2 findings in the security category (MHS-02, ESM-02, WMX-01, TGA-01, DAE-02), each with a guard seen to fail with the defect put back. See [Fix pass](#fix-pass). Fix pass 2026-10-12 (W-204): the nine P3 security findings are closed, eight with a falsified guard and BL-09 by a lock refresh, and DAE-08 with them. The other findings are open, planned as W-205 to W-231 under I-009 in the Nendo Development planner.
 
 ## Method
 
@@ -9076,3 +9076,61 @@ right-to-left letters alone; and rerunning one lane against a real innerHTML reg
   `Nendo.LocalMcp.dll`, `PutIntoView` in `Nendo.Engine.dll`, `ViewPermission` in
   `Nendo.Desktop.dll`, the hidden-character markup and no `geolocation` in the Workbench
   bundle).
+
+### Third pass: the P3 security findings (W-204)
+
+2026-10-12: the nine P3 findings in the security category are closed, planned as W-204 in the
+Nendo Development planner (initiative I-009). Eight are fixed with a guard seen to fail with
+the defect put back; BL-09 is a lock refresh with no gate guard, for the reason given. An
+independent review of the fixes found one real gap, in WXS-08's menus, and asked for three
+smaller changes; all are included, and closing R2SP-04 properly also closed DAE-08 (P3,
+correctness, from W-220).
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [DAE-05](#dae-05) | Every handle a lease grant carries is remembered by the process (`NendoMintedHandles.cs`, from `NendoLeaseTools`), and the conversation tab hides it by its value wherever it appears, in prose, a table or on its own; the key pattern still covers a value cut off mid-stream (`AgentConversation.Redact`). Past 4,096 handles the oldest is forgotten, never the newest. Guards: `MintedHandleTests.EveryHandleALeaseGrantsIsHiddenByItsValue` (a real lease over MCP; a 64-digit digest that is no handle stays shown; a handle granted past the bound is hidden) and three by-value forms added to `DesktopLaunchedAgentTests.AHandleTheAgentRepeatsIsHiddenInEveryPartOfTheTranscript`. | Grant not remembered: `Assert.DoesNotContain failed. String 'Your applicationHandle is 2b09a216…deac6.' does contain string '2b09a216…deac6'. … The granted handle was shown`. Redaction by key only: `Expected string length 34 but was 90. 'expected' expression: 'said.Replace(minted, "(hidden)")', 'actual' expression: 'AgentConversation.Redact(said)'. A granted handle in the agent's own words was shown.` Newest dropped past the bound: `Expected string length 8 but was 64. … A handle granted past the bound was not hidden.` |
+| [EXT-02](#ext-02) | `packageChanges` lists a put whose bytes are the same and whose media type differs, as `replaced` with both types and no lines (`ExtensionPackageDiff.cs`); the review says "Serve ‹path› in the package ‹title› as ‹type› instead of ‹type›; the content is unchanged." (`SemanticDiff.cs`); the Code section says "served as ‹type›, was ‹type›" in the folded summary and above the file (`package-diff-markup.ts`). Guards: `ExtensionPackageTests.AProposalThatOnlyRetypesAFileShowsBothMediaTypes`; a case in `package-diff.test.mjs`. | Sha-only comparison back: `Assert.IsNotNull failed. 'value' expression: 'retyped'. A put that changes only the media type is missing from packageChanges.` Sentence off: `String 'Keep index.html in the package Map as it is; the content sent is identical. \| This code runs …' does not contain string 'Serve index.html in the package Map as text/html instead of text/plain; the content is unchanged.'` Markup off: `AssertionError [ERR_ASSERTION]: the folded summary names both media types`. |
+| [MHS-06](#mhs-06) | The MCP web host reads no ambient configuration: its content root is the app's folder and its configuration sources are cleared, so neither a `Kestrel__Endpoints__…` variable nor an `appsettings.json` in the current directory adds a listener (`NendoLocalMcpHost.cs`). Guard: `McpAmbientConfigurationTests.EndpointsNamedInTheEnvironmentOrTheCurrentDirectoryAreNotBound`, with both set at once, asserting that neither port accepts and the loopback listener does. | Sources not cleared: `System.InvalidOperationException: Sequence contains more than one matching element`: the host bound both extra 127.0.0.1 endpoints, and its own address check then refused to start agent access. |
+| [R2SP-05](#r2sp-05) | Off is remembered before the listener stops, so a stop whose cleanup throws still leaves the file at Off on its next open; the idle signal is raised whatever the cleanup did (`DesktopAgentAccess.cs`). Discovery entries are read without denying delete (`NendoDiscoveryStore.ReadValidEntry`), so another Nendo reading the instances list no longer makes the stop fail. Guard: `DesktopAgentModeMemoryTests.OffStaysOffWhenTheListenersCleanupFails`, which holds the entry open as the old reader did. | Order back: `Assert.AreEqual failed. Expected string length 3 but was 8. 'expected' expression: '"off"', 'actual' expression: '(await second.GetAgentStatusAsync()).Mode'. The file opened again at the level the person had turned off, because the stop's cleanup failed.` |
+| [WXS-08](#wxs-08) | A key a view hands back runs only while the view's frame has focus, as it has whenever the key was really pressed there; a menu shows with the frame focused or within two seconds of a command Nendo sent the view from Ctrl K, a declared key or Add, so a palette entry can still open one. A command from the view's strip does not open that window: its search box sends one at every pause in typing, which the review caught (`view-input.ts`, `view-frames.ts`). Guards: `view-input.test.mjs`, the two checks and their use in `keyFromView`, `showMenuFor` and `sendCommand`; `Review-ExtensionViews.mjs` G29 now focuses the frame before each menu, as a right-click does, and asks for a menu while the person types in the strip's search box, which must draw nothing and leave the box focused. G30's keys pressed inside a real view are the check that a pressed key still runs. | Focus not compared: `AssertionError [ERR_ASSERTION]: a key the view posted while a Nendo field had focus ran` and `… a menu the view asked for on its own took focus from a Nendo field`. Check removed from `keyFromView`: `keyFromView runs a key before asking whether its frame has focus`. Every command source stamped again: `a command from the strip, its search box included, opens the window for a menu`, and in the real app (`DesktopExtensionViewJourneyTests`) `Timed out: a menu asked for while the search box had focus answering nothing (last: null)`. |
+| [BL-09](#bl-09) | `npm update source-map-js`: the lock now pins 1.2.2 under vite → postcss, and `npm audit --omit=optional` reports 0 vulnerabilities (it reported 1 high, GHSA-68fv-2mgg-jv7q). No gate guard: `npm audit` needs the registry, so a gate step would fail offline, and failing the gate on every advisory in a dev-only dependency is the owner's call. | Not applicable: no guard. |
+| [DAE-13](#dae-13) | A view's frame, or one it nests, loads only `http`, `https`, `data`, `blob` and `about` addresses and runs `javascript:` links in itself, reading the scheme from the text; every other scheme is cancelled before WebView2 can offer to open an app, and a `mailto:` link the person followed opens their mail app, as a pop-up's does (`ExtensionWebViewPolicy.FrameNavigation`, which the handler only copies). Guards: `DesktopExtensionServingTests.AFrameLoadsOnlyWebSchemesAndNeverStartsAnotherApp` (eleven addresses) and `AMailLinkThePersonFollowedOpensTheirMailAppAndNothingElseDoes`. The event wiring is not driven in a journey, and that WebView2 prompts for a sandboxed frame was never measured (the finding was from source). | Workbench-only check back: `search-ms:query=invoice&crumb=location:\\attacker\share`, `ms-settings:privacy` and `file:///C:/Windows/win.ini` failed with `Assert.AreEqual failed. Expected:<True>. Actual:<False>. 'expected' expression: 'cancelled', 'actual' expression: 'decision.Cancel'.` |
+| [EXT-11](#ext-11) | The in-transaction package check runs for compensations too, so a view's `records.undo` and `records.redo` in the name of a package removed after the host admitted them are refused with `actor-not-allowed`; History's compensations write as the person and are unaffected (`SqliteNendoStore.cs`). Guard: `ExtensionActorWriteTests.AViewsUndoAndRedoInTheNameOfARemovedPackageAreRefused`, an undo and a redo after the removal, with nothing written. | Check skipped for compensations again: `Assert.ThrowsExactlyAsync failed. Expected exception type:<Nendo.Engine.NendoPreconditionException> but no exception was thrown. 'action' expression: '() => Undo(service, kept.RevisionId, "undo-kept", redo: false)'.` |
+| [R2SP-04](#r2sp-04) | The "Nendo" badge needs the tool's server prefix, when it has one, to be the session's own server, `nendo` (Claude Code's `mcp__nendo__`, Gemini's `mcp_nendo_`, Copilot's `nendo-`): every Nendo file's server offers the same tools, so `mcp__nendo-planner__nendo_data_delete_record` is now the agent's own. The tool's own name decides whenever the agent gives one, since its title often carries the bare tool name (`AgentConversation.Options.cs`). Guard: `AgentToolOriginTests`, six names of this session's tools and four of another server's, by metadata name and by title, and the pair agents send. A bare tool name with no server, and no metadata name, still reads as Nendo's; it carries nothing to tell servers apart. | Old pattern: 4 of 9 cases failed, among them `AnotherServerOfferingTheSameToolsIsTheAgentsOwn ("mcp__nendo-planner__nendo_data_delete_record")` and `("nendo-planner-nendo-lease-acquire")`: `Assert.AreEqual failed. String lengths are both 5 but differ at index 0. 'expected' expression: '"agent"' …`. Title trusted after a non-Nendo metadata name again: all four pairs failed, among them `("mcp__nendo-planner__nendo_data_delete_record","nendo.data.delete_record (nendo-planner MCP Server)")`. |
+| [DAE-08](#dae-08) | Closed by the R2SP-04 change: when the agent's metadata names the tool, that name decides, so a Grep for `nendo.data.set_field` or a Read of `nendo://…` titled with its input is the agent's own. Guard: `AgentToolOriginTests.TheToolsOwnNameDecidesOverItsTitle`. | `("Grep","Grep nendo.data.set_field")` and `("Read","Read nendo://application/manifest")` failed with `'expected' expression: '"agent"', 'actual' expression: 'AgentConversation.Origin(title, "read", toolName)'`. |
+
+Documents updated with the behaviour: `docs/contracts/launched-agents.md` (redaction by value,
+the badge's server prefix); `docs/contracts/custom-views.md` (the retype sentence and
+`packageChanges`, frames and other apps, keys and menus only with focus, undo and redo under
+the in-transaction check); ADR-0013 (the retype sentence, frames and other apps, keys and
+menus only with focus); ADR-0009 (no ambient configuration).
+
+Not done, from the review: a bare handle cut off mid-stream still shows its start until the
+chunks meet (only the key pattern covers a value cut off); a failed discovery-entry delete is
+still not retried, so in that rare case a stale entry stays advertised; DAE-13 cancels in
+`FrameNavigationStarting` rather than handling `LaunchingExternalUriScheme`, and neither was
+driven against a real view. The review's worry that `Uri` refuses a long `data:` address did
+not reproduce on .NET 10 (a 200,000-character one parses), so its test was dropped as one
+that could not fail; the scheme is still read from the text.
+
+#### Checks run for the third pass
+
+- Workbench: `npm test` 562 passed, 0 failed (before the review's additions; `view-input.test.mjs`
+  and `package-diff.test.mjs` pass after them); `tsc --noEmit` clean.
+- `Test-Production.ps1 -SkipRestore`, second run, after the review's changes: Workbench passed;
+  .NET Nendo.LocalMcp.Tests 245 passed, 5 skipped; Nendo.Desktop.Tests 452 passed;
+  Nendo.Engine.Tests 1126 passed, 3 skipped; tool boundaries, production boundaries, the
+  custom-view presentation lanes, the Garden lane and the launched-agent lane passed. The
+  repository gate stopped at its binary-asset step, which refuses the owner's pending deletion
+  of `workspace/Archi.nendo` (`workspace/Archi.nendo is tracked but not on disk`), the same
+  interlock as the earlier passes.
+- The first run, before the review's changes, failed one Desktop test,
+  `DesktopAgentSettingsTests.ARefusedExpiryCannotSaveTheChosenFilePortOrRestartItsListener`, with
+  `System.TimeoutException: Initialization timed out`: its MCP client allows 5 s for the host's
+  first answer while three test suites run at once. That is [TST-02](#tst-02), seen in the same
+  test on 2026-10-05 and 2026-10-10; the class passed 13 of 13 three times alone.
+- Installer: `Publish-NendoPayload.ps1`, `Build-NendoInstaller.ps1` and
+  `Test-NendoSetupIsolated.ps1` passed; `artifacts/installer/Nendo-Setup.exe` is the new build,
+  and its payload carries the fixes (`NendoMintedHandles` in `Nendo.LocalMcp.dll`,
+  `FrameNavigation` in `Nendo.Desktop.dll`, the "Serve … instead of …" sentence in
+  `Nendo.Engine.dll`, and "served as" and the menu window in the Workbench bundle).

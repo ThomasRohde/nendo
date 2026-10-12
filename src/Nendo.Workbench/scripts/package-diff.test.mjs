@@ -136,3 +136,14 @@ test('a soft hyphen, a leading byte-order mark and a removed hidden line raise n
   assert.doesNotMatch(removed, /hidden-char-note|hidden characters/, 'a change that removes them leaves no warning');
   assert.match(removed, /\[U\+202E\]/, 'the removed line still shows what it held');
 });
+
+// EXT-02: the same bytes put as text/html instead of text/plain become a page at the view's
+// origin, and the review said nothing about the file.
+test('a file whose media type alone changes says what it is served as now and was before', () => {
+  const retyped = { ...replaced, path: 'index.html', mediaTypeBefore: 'text/plain', mediaTypeAfter: 'text/html', bytesAfter: 2048, hunks: [] };
+  const markup = packageChangesMarkup([retyped]);
+  const summary = markup.slice(markup.indexOf('<summary>'), markup.indexOf('</summary>'));
+  assert.match(summary, /served as text\/html, was text\/plain/, 'the folded summary names both media types');
+  assert.match(markup, /Served as text\/html instead of text\/plain\./);
+  assert.doesNotMatch(packageChangesMarkup([replaced]), /[Ss]erved as/, 'a file keeping its media type says nothing about it');
+});

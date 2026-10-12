@@ -324,6 +324,40 @@ public sealed class DesktopExtensionServingTests
         }
     }
 
+    /// <summary>
+    /// DAE-13. Only a view's pop-ups were held to http, https and mailto; a frame sent to any
+    /// other scheme reached WebView2's prompt to open the app registered for it, so a view in a
+    /// received file could offer Explorer opening a remote share dressed as a search.
+    /// </summary>
+    [TestMethod]
+    [DataRow("search-ms:query=invoice&crumb=location:\\\\attacker\\share", true)]
+    [DataRow("ms-settings:privacy", true)]
+    [DataRow("file:///C:/Windows/win.ini", true)]
+    [DataRow("mailto:someone@example.com", true)]
+    [DataRow("https://app.nendo.local/index.html", true)]
+    [DataRow("https://example.com/page", false)]
+    [DataRow("http://example.com/page", false)]
+    [DataRow("about:blank", false)]
+    [DataRow("javascript:void(0)", false)]
+    [DataRow("data:text/html,hi", false)]
+    [DataRow("blob:https://example.com/1f2e", false)]
+    public void AFrameLoadsOnlyWebSchemesAndNeverStartsAnotherApp(string address, bool cancelled)
+    {
+        var decision = ExtensionWebViewPolicy.FrameNavigation(address, userInitiated: false);
+        Assert.AreEqual(cancelled, decision.Cancel, address);
+        Assert.IsNull(decision.Mail, $"{address} started an app with no click.");
+    }
+
+    [TestMethod]
+    public void AMailLinkThePersonFollowedOpensTheirMailAppAndNothingElseDoes()
+    {
+        var followed = ExtensionWebViewPolicy.FrameNavigation("mailto:someone@example.com", userInitiated: true);
+        Assert.IsTrue(followed.Cancel);
+        Assert.AreEqual("mailto:someone@example.com", followed.Mail?.OriginalString);
+        Assert.IsNull(ExtensionWebViewPolicy.FrameNavigation("search-ms:query=x", userInitiated: true).Mail,
+            "A followed link to another scheme was launched.");
+    }
+
     private static async Task SeedAsync(string path)
     {
         await using var coordinator = await NendoWriteCoordinator.CreateAsync(path, "serving-test");

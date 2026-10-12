@@ -9,6 +9,7 @@ import { navigationTrail } from './navigation-trail';
 import { content, refreshChrome, root } from './shell';
 import type { PaletteCommand } from './shortcuts';
 import { icon } from './icons';
+import { viewKeyMayRun, viewMenuMayShow } from './view-input';
 import { closeViewMenu, showViewMenu } from './view-menu';
 import { drawViewToolbar, focusViewSearch } from './view-toolbar';
 import { keyDisplay } from './view-toolbar-markup';
@@ -59,6 +60,8 @@ interface Mount extends BrokerMount {
    * a crash or a reload clears them.
    */
   toolbar: ViewToolbar | null;
+  /** When Nendo last sent the view a command, so a menu may answer it without the frame's focus (WXS-08). */
+  commandAt: number | null;
 }
 
 const mounts = new Map<string, Mount>();
@@ -312,7 +315,7 @@ function createMount(key: string, spec: ViewSpec, origin: string, entryPoint: st
     key, origin, entryPoint, spec, fileSessionId,
     placeholder: null, frame: null, frameId: null,
     started: false, loaded: false, restarting: false, trouble: null,
-    height: defaultPanelHeight, seen: generation, toolbar: null,
+    height: defaultPanelHeight, seen: generation, toolbar: null, commandAt: null,
     frameWindow: () => mount.frame?.contentWindow ?? null,
   };
   return mount;
@@ -355,6 +358,10 @@ function sendCommand(mount: Mount, id: string, value: CommandValue, source: Comm
     mount.toolbar = afterCommand(mount.toolbar, id, value);
     drawToolbar(mount);
   }
+  // Ctrl K, a declared key and Nendo's Add are given outside the frame, and a view may answer
+  // one with a menu. The strip's own controls are not: its search box sends a command at every
+  // pause in typing, and a menu answering that would catch the next Space (WXS-08).
+  if (source === 'palette' || source === 'key' || source === 'add') mount.commandAt = performance.now();
   broker?.command(mount, { id, value, source });
 }
 
@@ -386,8 +393,12 @@ export function runViewKey(keys: string): boolean {
   return false;
 }
 
-/** A key pressed inside a view: Nendo's own runs as Nendo's; one the view declared runs for that view. */
+/**
+ * A key pressed inside a view: Nendo's own runs as Nendo's; one the view declared runs for that
+ * view. Only while the view's frame has focus, so a key the view posts on its own is dropped.
+ */
 function keyFromView(mount: Mount, keys: string): void {
+  if (!viewKeyMayRun(document.activeElement, mount.frame)) return;
   if (hostKeys.includes(keys)) { hostKeyRunner?.(keys); return; }
   if (document.querySelector('dialog[open]') !== null) return;
   runDeclaredKey(mount, keys);
@@ -431,6 +442,7 @@ export function viewPaletteCommands(): PaletteCommand[] {
 async function showMenuFor(mount: Mount, menu: ViewMenuRequest): Promise<{ id: string; value: CommandValue } | null> {
   const frame = mount.frame;
   if (frame === null || !frame.isConnected || document.querySelector('dialog[open]') !== null) return null;
+  if (!viewMenuMayShow(document.activeElement, frame, mount.commandAt, performance.now())) return null;
   const box = frame.getBoundingClientRect();
   const x = box.left + Math.min(Math.max(menu.x, 0), box.width);
   const y = box.top + Math.min(Math.max(menu.y, 0), box.height);

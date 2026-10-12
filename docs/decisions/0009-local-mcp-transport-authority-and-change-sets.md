@@ -248,7 +248,9 @@ services, at a static loopback address, with no credential.
 ### Transport and perimeter
 
 - Stateless Streamable HTTP through the official .NET MCP SDK, bound only to
-  IPv4 loopback. Each file keeps a port on this device (2026-09-28 amendment): the
+  IPv4 loopback. The web host reads no ambient configuration, so an endpoint named
+  in an environment variable or an `appsettings.json` in the current directory is
+  not bound beside it. Each file keeps a port on this device (2026-09-28 amendment): the
   first file keeps the device's port, 41763 by default, and each further file the
   next free one. If the host cannot bind a port, it falls back to an ephemeral port
   and reports it; this is never fatal. The owner can choose this file's port or

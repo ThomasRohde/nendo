@@ -27,21 +27,28 @@ function fileMarkup(change: ExtensionFileChange): string {
       ? byteSize(change.bytesBefore)
       : `${byteSize(change.bytesBefore)} → ${byteSize(change.bytesAfter)}`;
   const verb = change.change === 'added' ? 'Added' : change.change === 'removed' ? 'Removed' : 'Changed';
+  // The media type decides whether the file is served as a page, a script or inert text, so a
+  // change to it is said even when the bytes are the same (EXT-02).
+  const retyped = change.change === 'replaced' && change.mediaTypeBefore !== change.mediaTypeAfter;
+  const retypedNote = retyped
+    ? `<p class="package-change-note">Served as ${escapeHtml(change.mediaTypeAfter ?? '')} instead of ${escapeHtml(change.mediaTypeBefore ?? '')}.</p>`
+    : '';
   // A hunk's first line is the file's first when it starts at line 1, where a byte-order mark is
   // only encoding. The flag and the note read what the proposal leaves, not lines it removes.
   const startsFile = (hunk: ExtensionFileChange['hunks'][number], index: number) => index === 0 && (hunk.newStart === 1 || hunk.oldStart === 1);
   const hidden = change.textual && change.hunks.some((hunk) => hunk.lines.some((line, index) =>
     line.kind !== 'removed' && hasHiddenCharacters(line.text, startsFile(hunk, index))));
-  const body = !change.textual
+  const body = retypedNote + (!change.textual
     ? '<p class="package-change-note">Not shown as lines: it is not text, or it is longer than the review lays out line by line.</p>'
     : (hidden ? hiddenCharactersNote : '') + change.hunks.map((hunk) => `<pre class="package-hunk" aria-label="Lines ${hunk.oldStart} to ${hunk.oldStart + Math.max(hunk.oldLines - 1, 0)} before, ${hunk.newStart} to ${hunk.newStart + Math.max(hunk.newLines - 1, 0)} after">${hunk.lines.map((line, index) =>
       `<span class="diff-line diff-${line.kind}"><span class="diff-mark" aria-hidden="true">${line.kind === 'added' ? '+' : line.kind === 'removed' ? '−' : ' '}</span>${showHiddenCharacters(line.text, startsFile(hunk, index))}</span>`).join('')}</pre>`).join('')
-      + (change.truncated ? '<p class="package-change-note">The change continues past what the review shows.</p>' : '');
+      + (change.truncated ? '<p class="package-change-note">The change continues past what the review shows.</p>' : ''));
   const reader = change.change === 'removed' ? ''
     : `<p class="package-read"><button class="text-button" type="button" data-package-read="${escapeHtml(change.path)}" data-package-id="${escapeHtml(change.packageId)}">Read the whole file</button><span data-package-read-note role="status"></span></p>`;
   const lines = change.textual ? lineCounts(change) : '';
   const flag = hidden ? ' · <strong class="hidden-char-flag">hidden characters</strong>' : '';
-  return `<details class="package-change" data-package-path="${escapeHtml(change.path)}"><summary><span class="package-change-chevron" aria-hidden="true">${icon('chevron')}</span><strong>${escapeHtml(change.path)}</strong><span>${escapeHtml(verb)} in ${escapeHtml(change.packageId)} · ${escapeHtml(sizes)}${lines}${flag}</span></summary><div class="package-change-body">${body}${reader}</div></details>`;
+  const type = retyped ? ` · served as ${escapeHtml(change.mediaTypeAfter ?? '')}, was ${escapeHtml(change.mediaTypeBefore ?? '')}` : '';
+  return `<details class="package-change" data-package-path="${escapeHtml(change.path)}"><summary><span class="package-change-chevron" aria-hidden="true">${icon('chevron')}</span><strong>${escapeHtml(change.path)}</strong><span>${escapeHtml(verb)} in ${escapeHtml(change.packageId)} · ${escapeHtml(sizes)}${type}${lines}${flag}</span></summary><div class="package-change-body">${body}${reader}</div></details>`;
 }
 
 /** How many lines a text file's shown change adds and removes, for the folded summary. */

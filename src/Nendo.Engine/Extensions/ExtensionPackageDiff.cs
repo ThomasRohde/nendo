@@ -36,7 +36,10 @@ internal static class ExtensionPackageDiff
         {
             var before = await active.ReadExtensionFileAsync(packageId, path, null, ct);
             var after = await clone.ReadExtensionFileAsync(packageId, path, null, ct);
-            if (before is null && after is null || before?.Sha256 == after?.Sha256) continue;
+            // A put of the same bytes under another media type changes how the file is served,
+            // so it is shown too (EXT-02); only a file left exactly as it was is not.
+            if (before is null && after is null ||
+                before?.Sha256 == after?.Sha256 && before?.MediaType == after?.MediaType) continue;
             var change = before is null ? "added" : after is null ? "removed" : "replaced";
             string[] oldLines = [];
             string[] newLines = [];

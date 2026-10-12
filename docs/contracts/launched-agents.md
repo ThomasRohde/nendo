@@ -138,7 +138,12 @@ characters). The plan is one entry, replaced whole each time the agent states it
 `origin`, on a tool or a permission request, is judged only from what names the tool: the
 tool name in the agent's `_meta` (as `toolName`, at most two levels down), its title, and
 its kind. It is `nendo` when that name or the title names this file's MCP tools, or the title
-names a `nendo://` address and the tool's kind is not `execute`; otherwise `agent`. What a
+names a `nendo://` address and the tool's kind is not `execute`; otherwise `agent`. When
+the agent gives the tool's own name, that name alone decides, since a title can name another
+server's tool by its bare name or echo the tool's input. A server prefix counts only when it
+is the session's own server, `nendo`: every Nendo file's server offers the same tools, so
+`mcp__nendo-planner__nendo_data_delete_record` is a server the person registered for another
+file, and `agent`. What a
 tool sends is never evidence: a shell command that prints a `nendo://` address is still the
 agent's own.
 
@@ -150,9 +155,10 @@ the person answers.
 Everything an entry holds is the agent's or a tool's text and is kept as text. Every text
 the agent writes into the transcript, its messages and reasoning, a plan, a tool's title,
 input and output, and a notice that carries its error output, has the value of any
-application handle (`applicationHandle`, `resumeApplicationHandle` or `application_handle`,
-quoted or in the agent's own words) replaced by `(hidden)`, since whoever holds the handle
-may write as the agent
+application handle replaced by `(hidden)`: after its key (`applicationHandle`,
+`resumeApplicationHandle` or `application_handle`), quoted or not, and, for any handle a
+lease grant in this process has carried, wherever its value appears, in prose, a table or
+on its own. Whoever holds the handle may write as the agent
 ([ADR-0009](../decisions/0009-local-mcp-transport-authority-and-change-sets.md)). The
 redaction runs again on each entry as it is read, so a handle split across streamed chunks
 is hidden once they meet, and a value cut off at the end of a message still streaming is

@@ -729,6 +729,8 @@ try {
   check('G28 a press in the strip, Nendo\u2019s own Add (its form left closed) and a Ctrl K entry each reach the view as a command, and the strip shows the press at once');
 
   // G29: the menu a view asks for is Nendo's, at the point in the frame, and answers the pick; Escape answers nothing.
+  // A right-click inside the view leaves its frame focused, which is when a view's menu shows (WXS-08).
+  await evaluate(`${probeMount}.querySelector('iframe').focus()`);
   await inFrame(chromeFrame, 'probe.menu(40, 30)');
   const menu = await waitFor(() => evaluate(`(() => { const m = document.querySelector('[data-view-menu-open]'); if (!m) return null;
     const chromeBox = m.getBoundingClientRect(), frame = ${probeMount}.querySelector('iframe').getBoundingClientRect();
@@ -739,12 +741,27 @@ try {
   await evaluate(`[...document.querySelectorAll('[data-view-menu-open] .view-menu-item')][1].click()`);
   const picked = await waitFor(() => inFrame(chromeFrame, `probe.state.pick && probe.state.pick !== 'waiting' ? probe.state.pick : null`), 'the pick reaching the view');
   assert(picked.id === 'rename' && picked.value === null, 'The view did not hear its pick: ' + JSON.stringify(picked));
+  await evaluate(`${probeMount}.querySelector('iframe').focus()`);
   await inFrame(chromeFrame, 'probe.menu(10, 10)');
   await waitFor(() => evaluate(`Boolean(document.querySelector('[data-view-menu-open]'))`), 'the second menu');
   await evaluate(`document.querySelector('[data-view-menu-open] .view-menu-item').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))`);
   await waitFor(() => inFrame(chromeFrame, `probe.state.pick === null ? 'dismissed' : null`), 'a dismissed menu answering nothing');
   assert(!(await evaluate(`Boolean(document.querySelector('[data-view-menu-open]'))`)), 'Escape left the menu open.');
-  check(`G29 the menu a view asks for is Nendo's, drawn on the Workbench at the view's point (${menu.dx}, ${menu.dy}), and answers the pick; Escape answers nothing`);
+  // WXS-08: while the person types in the strip's search box, a menu the view asks for is not drawn
+  // and answers nothing, even right after the search command a pause in the typing sent it. The
+  // wait lets G28's Ctrl K command, which may open a menu, fall out of its window first.
+  await new Promise((resolve) => setTimeout(resolve, 2200));
+  await evaluate(`(() => { const box = ${probeStrip}.querySelector('input[type="search"][data-view-command="find"]');
+    box.focus(); box.value = 'two words'; box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); return true; })()`);
+  await waitFor(async () => (await heard()).some((entry) => entry.startsWith('find:two words')) ? true : null, 'the search reaching the view');
+  await inFrame(chromeFrame, 'probe.menu(20, 20)');
+  await waitFor(() => inFrame(chromeFrame, `probe.state.pick === null ? 'refused' : null`), 'a menu asked for while the search box had focus answering nothing');
+  assert(!(await evaluate(`Boolean(document.querySelector('[data-view-menu-open]'))`)),
+    'A menu the view asked for while the person typed in the search box was drawn and took focus.');
+  assert(await evaluate(`document.activeElement === ${probeStrip}.querySelector('input[type="search"][data-view-command="find"]')`),
+    'The search box lost focus to a menu the view asked for.');
+  await evaluate(`(() => { const box = ${probeStrip}.querySelector('input[type="search"][data-view-command="find"]'); box.value = ''; box.blur(); return true; })()`);
+  check(`G29 the menu a view asks for is Nendo's, drawn on the Workbench at the view's point (${menu.dx}, ${menu.dy}), and answers the pick; Escape answers nothing; none is drawn while the person types in the strip's search`);
 
   // G30: keys. A key pressed inside a view never reaches the Workbench's document on its own:
   // Nendo's own come back through api.js, before the view sees them, and a declared key runs its

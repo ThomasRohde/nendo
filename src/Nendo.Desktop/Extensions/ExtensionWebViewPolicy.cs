@@ -137,11 +137,29 @@ internal static class ExtensionWebViewPolicy
 
     /// <summary>
     /// A view, or a frame a view nests, cannot load the Workbench's own origin. That document
-    /// would share an origin with the Workbench and could reach into it (S9b).
+    /// would share an origin with the Workbench and could reach into it (S9b). Nor can it start
+    /// another app through a scheme of its own: a frame sent to <c>search-ms:</c> or
+    /// <c>ms-settings:</c> reached WebView2's "open this app?" prompt (DAE-13). A <c>mailto:</c>
+    /// link the person followed opens their mail app, as a pop-up's does.
     /// </summary>
     private static void OnFrameNavigationStarting(CoreWebView2 sender, CoreWebView2NavigationStartingEventArgs args)
     {
-        if (IsWorkbench(args.Uri)) args.Cancel = true;
+        var answer = FrameNavigation(args.Uri, args.IsUserInitiated);
+        args.Cancel = answer.Cancel;
+        if (answer.Mail is { } mail) _ = Windows.System.Launcher.LaunchUriAsync(mail);
+    }
+
+    /// <summary>The whole answer to a frame's navigation, which the handler only copies.</summary>
+    internal static (bool Cancel, Uri? Mail) FrameNavigation(string? address, bool userInitiated)
+    {
+        // The scheme is read from the text, so nothing turns on what Uri accepts.
+        var colon = address?.IndexOf(':') ?? -1;
+        if (colon <= 0) return (true, null);
+        var scheme = address![..colon].ToLowerInvariant();
+        if (IsWorkbench(address)) return (true, null);
+        // A javascript: link runs in the frame's own document and starts nothing else.
+        if (scheme is "http" or "https" or "data" or "blob" or "about" or "javascript") return (false, null);
+        return (true, scheme == "mailto" && userInitiated && Uri.TryCreate(address, UriKind.Absolute, out var mail) ? mail : null);
     }
 
     private static bool IsWorkbench(string? address) =>

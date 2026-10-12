@@ -356,7 +356,13 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                     Args = [],
                     ApplicationName = typeof(NendoLocalMcpHost).Assembly.FullName,
                     EnvironmentName = Environments.Production,
+                    ContentRootPath = AppContext.BaseDirectory,
                 });
+                // Nothing in the environment configures this host. The defaults read environment
+                // variables and an appsettings.json in the current directory, which is often the
+                // opened file's folder, and Kestrel binds any endpoints they name beside the
+                // loopback one below (MHS-06).
+                builder.Configuration.Sources.Clear();
                 builder.Logging.ClearProviders();
                 if (options.RecordFailure is not null)
                 {

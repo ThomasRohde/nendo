@@ -292,6 +292,31 @@ public sealed class ExtensionPackageTests
     }
 
     [TestMethod]
+    public async Task AProposalThatOnlyRetypesAFileShowsBothMediaTypes()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await coordinator.ApplyAsync(Mutation("add", Package(),
+            PutExtensionFileOperation.FromContent("i", PackageId, "index.html", "text/plain", Encoding.UTF8.GetBytes(Html))));
+
+        // The same bytes, now served as a page: the review must not say the file is kept as it is (EXT-02).
+        var request = Canonical(Operation("r", "extension.putFile",
+            new { packageId = PackageId, path = "index.html", mediaType = "text/html", text = Html }));
+        var proposal = await service.PrepareProposalAsync(new NendoCanonicalProposalRequest(ProposalId(4), "Serve the page", "test", request));
+
+        var retyped = proposal.PackageChanges.SingleOrDefault(change => change.Path == "index.html");
+        Assert.IsNotNull(retyped, "A put that changes only the media type is missing from packageChanges.");
+        Assert.AreEqual("replaced", retyped.Change);
+        Assert.AreEqual("text/plain", retyped.MediaTypeBefore);
+        Assert.AreEqual("text/html", retyped.MediaTypeAfter);
+        Assert.IsEmpty(retyped.Hunks);
+        var summaries = string.Join(" | ", proposal.SemanticDiff.Select(entry => entry.Summary));
+        Assert.Contains("Serve index.html in the package Map as text/html instead of text/plain; the content is unchanged.", summaries);
+        Assert.DoesNotContain("as it is", summaries);
+    }
+
+    [TestMethod]
     public async Task AReviewWhoseDiffStopsEarlyCanReadTheProposedFileToItsLastByte()
     {
         // Review R-017: a change longer than the diff shows ended with "the change continues"

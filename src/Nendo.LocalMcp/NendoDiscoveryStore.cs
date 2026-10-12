@@ -224,9 +224,13 @@ internal sealed class NendoDiscoveryStore(string root)
     /// </summary>
     private static NendoDiscoveryDocument? ReadValidEntry(string path)
     {
-        var document = JsonSerializer.Deserialize<NendoDiscoveryDocument>(
-            File.ReadAllText(path),
-            NendoMcpJson.Options);
+        // Read without denying delete: the host that owns the entry removes it when its agent
+        // access stops, and a reader in another process must not make that stop fail (R2SP-05).
+        string text;
+        using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+        using (var reader = new StreamReader(stream))
+            text = reader.ReadToEnd();
+        var document = JsonSerializer.Deserialize<NendoDiscoveryDocument>(text, NendoMcpJson.Options);
         return document is null ||
             document.SchemaVersion != SchemaVersion ||
             string.IsNullOrWhiteSpace(document.HostRunId) ||

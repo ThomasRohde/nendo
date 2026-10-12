@@ -274,8 +274,10 @@ internal sealed partial class DesktopSessionController
             var service = RequireService();
             if (requested == AgentAccessMode.Disabled)
             {
-                await StopAgentAccessCoreAsync();
+                // Off is remembered first: a listener whose cleanup throws has still stopped, and
+                // the next open must not start the level the person just turned off (R2SP-05).
                 await RememberAgentModeAsync(service, requested, cancellationToken);
+                await StopAgentAccessCoreAsync();
                 return await ReadAgentStatusCoreAsync(cancellationToken);
             }
             if (!service.Capabilities.AgentAccess)
@@ -416,8 +418,14 @@ internal sealed partial class DesktopSessionController
             // indicator left standing after the agent is gone is worse than none.
             host.Work.SetHandler(null);
             host.CloseAdmission();
-            await host.DisposeAsync();
-            AnnounceAgentIdle();
+            try
+            {
+                await host.DisposeAsync();
+            }
+            finally
+            {
+                AnnounceAgentIdle();
+            }
         }
     }
 

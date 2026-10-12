@@ -45,10 +45,13 @@ internal sealed partial class AgentConversation
 
     /// <summary>
     /// The names agents give this file's MCP tools: <c>nendo-nendo-read-resource</c>,
-    /// <c>mcp__nendo__nendo.lease.acquire</c>, <c>nendo.read.resource</c>.
+    /// <c>mcp__nendo__nendo.lease.acquire</c>, <c>nendo.read.resource</c>. A server prefix counts
+    /// only when it is this session's server, <see cref="McpServerName"/>: every Nendo file's
+    /// server offers the same tools, so <c>mcp__nendo-planner__nendo_data_delete_record</c> is a
+    /// server the person registered for another file, and the agent's own (R2SP-04).
     /// </summary>
     private static readonly Regex NendoTool = new(
-        @"nendo[-_.]+(?:nendo[-_.]+)?(?:read|lease|data|change[-_.]?set|health)",
+        @"(?<![\w.-])(?:mcp_+nendo_+(?=nendo)|nendo[-_.]+(?=nendo))?nendo[-_.]+(?:read|lease|data|change[-_.]?set|health)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     /// <summary>
@@ -57,10 +60,12 @@ internal sealed partial class AgentConversation
     /// never evidence: a shell command that prints <c>nendo://</c> is still the agent's own shell
     /// (ACP-09). A title naming a <c>nendo://</c> address counts unless the tool runs a command.
     /// </summary>
-    private static string? Origin(string? title, string? kind, string? toolName)
+    internal static string? Origin(string? title, string? kind, string? toolName)
     {
         if (title is null && toolName is null) return null;
-        if (toolName is not null && NendoTool.IsMatch(toolName)) return "nendo";
+        // The tool's own name, when the agent gives one, decides: a title can name another
+        // server's tool by its bare name, or echo the input (R2SP-04, DAE-08).
+        if (toolName is not null) return NendoTool.IsMatch(toolName) ? "nendo" : "agent";
         if (kind == "execute") return "agent";
         return title is not null && (NendoTool.IsMatch(title) || title.Contains("nendo://", StringComparison.OrdinalIgnoreCase)) ? "nendo" : "agent";
     }

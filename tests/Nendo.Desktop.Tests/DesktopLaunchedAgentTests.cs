@@ -169,6 +169,11 @@ public sealed class DesktopLaunchedAgentTests
         Assert.AreEqual("{\"applicationHandle\":\"(hidden)", AgentConversation.Redact("{\"applicationHandle\":\"secret-han"),
             "The start of a handle still streaming was shown.");
         Assert.AreEqual("applicationHandle: (hidden)", AgentConversation.Redact(AgentConversation.Redact("applicationHandle: abc")), "Hiding twice changed the text.");
+        // DAE-05: a handle this process granted is hidden by its value, however the agent words it.
+        var minted = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+        Nendo.LocalMcp.NendoMintedHandles.Remember(minted);
+        foreach (var said in new[] { $"Your applicationHandle is {minted}", $"| applicationHandle | {minted} |", $"Keep {minted} private." })
+            Assert.AreEqual(said.Replace(minted, "(hidden)"), AgentConversation.Redact(said), "A granted handle in the agent's own words was shown.");
 
         await using var fixture = await Fixture.StartAsync("editData");
         await fixture.LaunchAsync();

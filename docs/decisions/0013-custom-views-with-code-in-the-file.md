@@ -208,6 +208,8 @@ Five canonical operations write them. `extension.setState` arrives with Phase 3.
   - "Replace ‹path› in the package ‹title› (‹size› before, ‹size› after); the old
     version stays in history."
   - "Keep ‹path› in the package ‹title› as it is; the content sent is identical."
+  - "Serve ‹path› in the package ‹title› as ‹media type› instead of ‹media type›;
+    the content is unchanged."
   - "Remove ‹path› from the package ‹title›; its content stays in history."
   - "Remove the package ‹title› from this file."
 - The review shows a line diff for each text file of at most 1 MiB, with three
@@ -348,7 +350,10 @@ A view origin may use the network, loopback included; runtime 153 has no
 local-network gate for it (S11). It may read and write the clipboard, make several
 downloads, show script dialogs and open DevTools, in every build. A user-initiated
 `http(s)` or `mailto` pop-up opens in the system browser, and a window a script
-opens by itself opens nowhere (S15). Context menus work inside frames; the host
+opens by itself opens nowhere (S15). A frame does not start another app: a
+navigation to a scheme other than `http(s)`, `data`, `blob`, `about` or
+`javascript` is cancelled, and a followed `mailto` link opens the mail app
+(2026-10-12, DAE-13). Context menus work inside frames; the host
 tells a view's menu from the Workbench's by the frame's address, because the
 browser's main-frame flag is false for both (S13). Any asset type is served.
 
@@ -501,13 +506,15 @@ inside a cross-origin frame never reaches the Workbench's document.
 - **Menus.** A toolbar menu and a right-click menu are Nendo's menu. `ui.showMenu({items, x,
   y})` draws one at a point in the frame and answers the item picked, or null when the
   person dismisses it. One menu is open at a time in the window, and a view may ask at most
-  four times a second.
+  four times a second. A menu is drawn only while the view's frame has focus, or within two
+  seconds of a command from Ctrl K, a declared key or Add (2026-10-12, WXS-08).
 - **Keys.** A command may declare a key. Nendo shows the key beside the control, in the
   palette and in the shortcut hints, and runs the command wherever focus is in the window,
   except while the person types in a field. Nendo's own keys stay Nendo's. A view cannot
   declare one. When one is pressed inside a view, api.js hands it to the Workbench, so Ctrl K
   works with a view focused. That is the only way a key crosses the frame, and the broker
-  takes only Nendo's keys and the keys the view has declared.
+  takes only Nendo's keys and the keys the view has declared. The Workbench runs a handed-back
+  key only while the view's frame has focus (2026-10-12, WXS-08).
 - **Ctrl K** lists a view's commands under its title. Each option of a choice or a select,
   and each item of a menu, is an entry of its own.
 - **Unchanged.** The frame, its origin, the broker's table, its bounds, the actor and the

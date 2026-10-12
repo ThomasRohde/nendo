@@ -98,11 +98,16 @@ internal sealed class NendoLeaseTools(NendoAgentAuthority authority)
     /// The limits and first reads beside the lease. The call every agent makes first is the one
     /// place an agent whose client cannot read resources is sure to look (2026-10-08).
     /// </summary>
-    private static NendoLeaseGrant Essentials(NendoLeaseGrant grant) => grant with
+    private static NendoLeaseGrant Essentials(NendoLeaseGrant grant)
     {
-        Limits = NendoLeaseLimits.From(Nendo.Engine.NendoAuthoringLimits.Current),
-        Reads = [.. NendoMcpReadIndex.All.Where(read => FirstReads.Contains(read.Name))],
-    };
+        // Every handle a grant carries, so a transcript can hide it by value (DAE-05).
+        NendoMintedHandles.Remember(grant.ApplicationHandle);
+        return grant with
+        {
+            Limits = NendoLeaseLimits.From(Nendo.Engine.NendoAuthoringLimits.Current),
+            Reads = [.. NendoMcpReadIndex.All.Where(read => FirstReads.Contains(read.Name))],
+        };
+    }
 
     private static async Task<T> TranslateAsync<T>(Func<Task<T>> action)
     {

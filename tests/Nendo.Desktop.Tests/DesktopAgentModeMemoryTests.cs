@@ -40,6 +40,41 @@ public sealed class DesktopAgentModeMemoryTests
         }
     }
 
+    /// <summary>
+    /// R2SP-05: Off was remembered only after the listener's cleanup succeeded, so a cleanup that
+    /// threw (here, a reader holding the discovery entry open without sharing delete, as every
+    /// reader did) brought the old level back on the next open.
+    /// </summary>
+    [TestMethod]
+    public async Task OffStaysOffWhenTheListenersCleanupFails()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var deviceRoot = workspace.FileHistoryRoot;
+        var path = Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, "switched-off.nendo");
+
+        await using (var first = Controller(deviceRoot, "one"))
+        {
+            await first.CreateAsync(path);
+            await first.SetAgentModeAsync("editData");
+            var entry = Directory.GetFiles(Path.Combine(deviceRoot, "discovery-one"), "*.json").Single();
+            using (new FileStream(entry, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                // The stop itself may say its cleanup did not finish; what matters is what is remembered.
+                try { await first.SetAgentModeAsync("off"); }
+                catch (IOException) { }
+                catch (Nendo.Engine.NendoException) { }
+            }
+            Assert.AreEqual("off", (await first.GetAgentStatusAsync()).Mode);
+        }
+
+        await using (var second = Controller(deviceRoot, "two"))
+        {
+            await second.OpenAsync(path);
+            Assert.AreEqual("off", (await second.GetAgentStatusAsync()).Mode,
+                "The file opened again at the level the person had turned off, because the stop's cleanup failed.");
+        }
+    }
+
     [TestMethod]
     public async Task AReadOnlyOpenAndAnotherInstanceBeginAtOff()
     {

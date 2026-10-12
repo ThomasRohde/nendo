@@ -318,7 +318,7 @@ internal static class SemanticDiff
     {
         private readonly Dictionary<string, string> _titles = new(StringComparer.Ordinal);
         private readonly HashSet<string> _skills = new(StringComparer.Ordinal);
-        private readonly Dictionary<(string Package, string Path), (string Sha256, long Bytes)> _files = new();
+        private readonly Dictionary<(string Package, string Path), (string Sha256, long Bytes, string MediaType)> _files = new();
 
         internal PackageState(NendoSessionSnapshot active)
         {
@@ -326,7 +326,7 @@ internal static class SemanticDiff
             {
                 _titles[package.PackageId] = package.Title;
                 if (package.IsSkill) _skills.Add(package.PackageId);
-                foreach (var file in package.Files) _files[(package.PackageId, file.Path)] = (file.Sha256, file.ByteLength);
+                foreach (var file in package.Files) _files[(package.PackageId, file.Path)] = (file.Sha256, file.ByteLength, file.MediaType);
             }
         }
 
@@ -366,8 +366,11 @@ internal static class SemanticDiff
             else PutIntoView = true;
             var key = (operation.PackageId, operation.Path);
             var had = _files.TryGetValue(key, out var before);
-            _files[key] = (operation.Sha256, operation.ByteLength);
+            _files[key] = (operation.Sha256, operation.ByteLength, operation.MediaType);
             if (!had) return $"Add {operation.Path} to {Title(operation.PackageId)} ({operation.MediaType}, {Size(operation.ByteLength)}).";
+            // The media type decides how the file is served, as a page, a script or inert text (EXT-02).
+            if (before.Sha256 == operation.Sha256 && before.MediaType != operation.MediaType)
+                return $"Serve {operation.Path} in {Title(operation.PackageId)} as {operation.MediaType} instead of {before.MediaType}; the content is unchanged.";
             return before.Sha256 == operation.Sha256
                 ? $"Keep {operation.Path} in {Title(operation.PackageId)} as it is; the content sent is identical."
                 : $"Replace {operation.Path} in {Title(operation.PackageId)} ({Size(before.Bytes)} before, {Size(operation.ByteLength)} after); the old version stays in history.";

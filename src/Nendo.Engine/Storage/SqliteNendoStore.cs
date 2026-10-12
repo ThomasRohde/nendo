@@ -160,9 +160,10 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                     cancellationToken));
             }
             // After the operations' own checks, so their refusals keep their own codes; still
-            // in this transaction, so nothing that removed the package can land in between.
-            if (compensationOfRevisionId is null)
-                await RequireExtensionActorPackageAsync(mutation.Origin, transaction, cancellationToken);
+            // in this transaction, so nothing that removed the package can land in between. A
+            // view's undo and redo are compensations in the package's name and are checked too;
+            // History's compensations write as the person and pass.
+            await RequireExtensionActorPackageAsync(mutation.Origin, transaction, cancellationToken);
             // Hook two: every initiating operation is staged, so the file now shows the
             // complete edit and no half-formed intermediate. Automatic actions run
             // against that, and their generated writes join `evidence` as ordinary

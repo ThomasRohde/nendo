@@ -716,9 +716,12 @@ internal sealed partial class AgentConversation : IAsyncDisposable
     /// <summary>
     /// Hide every application handle. Applied wherever the agent's text enters the transcript, and
     /// again to each entry as it is read, so a handle split across streamed chunks is hidden once
-    /// the chunks meet (ACP-08).
+    /// the chunks meet (ACP-08). A handle this process's host granted is hidden by its value too,
+    /// however the agent words it: "Your applicationHandle is …", a table row, the bare value
+    /// (DAE-05). The key pattern still covers a value cut off mid-stream.
     /// </summary>
-    internal static string Redact(string text) => Handle.Replace(text, "$1(hidden)");
+    internal static string Redact(string text) =>
+        Nendo.LocalMcp.NendoMintedHandles.Hide(Handle.Replace(text, "$1(hidden)"), "(hidden)");
 
     private static string? Text(JsonElement element, string name, int maximum) =>
         element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String

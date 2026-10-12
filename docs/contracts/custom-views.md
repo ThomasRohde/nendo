@@ -170,6 +170,9 @@ A proposal names each package change in a sentence:
 - "Replace ‹path› in the package ‹title› (‹size› before, ‹size› after); the old
   version stays in history."
 - "Keep ‹path› in the package ‹title› as it is; the content sent is identical."
+- "Serve ‹path› in the package ‹title› as ‹media type› instead of ‹media type›; the
+  content is unchanged." The same bytes under another media type change how the file
+  is served, as a page, a script or inert text.
 - "Remove ‹path› from the package ‹title›; its content stays in history."
 - "Remove the package ‹title› from this file."
 - "Add the skill package ‹title› (‹id›): instructions for an agent, read from
@@ -192,7 +195,9 @@ In a file below 1.33.0, a package change also raises the file's minimum host to
 The proposal preview also carries `packageChanges`. It compares the active file
 with the validated clone, so it shows what acceptance commits, not what the author
 said it would. Each changed file is `added`, `replaced` or `removed`, with its
-media types and sizes before and after:
+media types and sizes before and after. A file put with the same bytes and another
+media type is `replaced` with no lines, and the Code section says the type it is
+served as now and the one it was:
 
 - A text file is diffed by line, with three lines of context. It must be at most
   1 MiB on both sides, have a text media type and be valid UTF-8.
@@ -548,6 +553,11 @@ A view gets most of what a web page gets
   a click on an `http`, `https` or `mailto` link, opens in the system's default
   browser, unless it points at a view origin or the Workbench. A window a script
   opens by itself opens nowhere.
+- **Other apps.** A view's frame, or a frame it nests, loads only `http`, `https`,
+  `data`, `blob` and `about` addresses (and runs `javascript:` links in itself). A
+  navigation to any other scheme, such as `search-ms:`, `ms-settings:` or `file:`,
+  is cancelled, so no "open this app?" prompt is offered. A `mailto:` link the
+  person followed in the frame opens their mail app.
 - **The top frame.** A view cannot navigate the Workbench away: the sandbox has no
   top navigation, and the Workbench's own navigation allowlist is the second line.
 - **`window.chrome.webview`** exists inside a frame and reaches nothing. The host
@@ -925,8 +935,14 @@ in Ctrl K, shows and runs their keys, and sends each press back as the event `co
     unless the person is typing in a field.
 
   Alt and an arrow stay in a field. The broker takes only Nendo's keys and the keys the
-  view's toolbar declares, eight a second, and only while views run.
+  view's toolbar declares, eight a second, and only while views run. The Workbench runs
+  one only while the view's frame has focus, as it has whenever the key was pressed
+  there; a key a view posts while the person is elsewhere is dropped.
 - **Menus.** `ui.showMenu` takes menu items and a point in the view's own pixels.
+  - It draws a menu while the view's frame has focus, or within two seconds of a command
+    Nendo sent the view from Ctrl K, a declared key or Nendo's Add. A command from the
+    strip's own controls, its search box included, does not count. Otherwise it answers
+    null at once, so a menu cannot take focus from a field the person is typing in.
   - The Workbench draws its menu in its own document at that point on the frame. A point
     outside the frame is brought inside it. The first item has focus.
   - Arrow keys, Home and End move. Enter or Space picks.
@@ -1244,7 +1260,8 @@ A write that already held the gate when the switch was thrown finishes, and repo
 the commit it made. The Engine checks the package a third time, inside the write
 transaction that would commit the write: a direct mutation whose origin is
 `extension:<package>` for a package the file does not carry at that moment is
-refused with `actor-not-allowed`. That covers a removal committed by a writer the
+refused with `actor-not-allowed`, and so is the view's `records.undo` or
+`records.redo`, which commits in the package's name too. That covers a removal committed by a writer the
 request gate does not serialize with, such as an agent at Unattended accepting its
 own proposal. An exact retry of a write that did commit still returns its receipt.
 A view's proposal accepted by a person is the person's act and is not checked this
