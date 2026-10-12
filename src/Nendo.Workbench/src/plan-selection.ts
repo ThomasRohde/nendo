@@ -453,7 +453,8 @@ export function visibleTiles(plan: ApplicationPlan): ScopedTile[] {
   // The columns come from the board in view. Reading the plan's first board
   // would total the second board's tiles by the first one's grouping field.
   const board = boardOf(plan, surface);
-  const quick = quickClauses(surface).length > 0;
+  // A drill hides the screen's tiles as a Filter pick does, so neither reads them (WDV-20).
+  const quick = narrowed(plan, surface);
   const groupTiles = quick ? [] : groupScopedTiles(surface);
   const columns = surface === null || board === null || groupTiles.length === 0
     ? []

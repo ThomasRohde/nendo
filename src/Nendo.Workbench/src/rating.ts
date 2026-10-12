@@ -49,6 +49,13 @@ export function ratingSteps(scale: RatingScale): number[] {
   return Array.from({ length: scale.max - scale.min + 1 }, (_, index) => scale.min + index);
 }
 
+/** The whole number as stored, digit for digit, for saying it (WDV-13). */
+export function ratingText(value: unknown): string {
+  const lexeme = exactNumberText(value);
+  if (lexeme !== null) return lexeme;
+  return typeof value === 'string' ? value.trim() : String(value);
+}
+
 /**
  * One record's rating as markup: dots when the value sits on the scale, the number and
  * the issue when it does not, and nothing pretending to be a value when it is unset.
@@ -57,7 +64,7 @@ export function ratingMarkup(value: unknown, scale: RatingScale, fallback = 'Not
   const rating = ratingValue(value);
   if (rating === null) return escapeHtml(fallback);
   if (rating < scale.min || rating > scale.max)
-    return `<span class="rating is-outside">${escapeHtml(String(rating))}<span class="rating-issue">outside ${scale.min}–${scale.max}</span></span>`;
+    return `<span class="rating is-outside">${escapeHtml(ratingText(value))}<span class="rating-issue">outside ${scale.min}–${scale.max}</span></span>`;
   const dots = ratingSteps(scale)
     .map((step) => `<span class="rating-dot${step <= rating ? ' is-filled' : ''}"></span>`)
     .join('');
@@ -92,7 +99,7 @@ export function ratingControlMarkup(
   // nearest: the number is shown beside the control so the person can see what is
   // stored and decide, and leaving the control alone never rewrites it.
   const note = outside
-    ? `<p class="rating-issue" role="status">Stored as ${escapeHtml(String(rating))}, outside ${scale.min}–${scale.max}. Choose a value to correct it.</p>`
+    ? `<p class="rating-issue" role="status">Stored as ${escapeHtml(ratingText(value))}, outside ${scale.min}–${scale.max}. Choose a value to correct it.</p>`
     : '';
   const unset = required
     ? ''

@@ -42,7 +42,8 @@ export function queryOperatorFor(contractOperator: string): string {
 /**
  * What a clause compares against, which is not always written down.
  *
- * `valueKind` is a closed vocabulary — `literal`, `today`, `now`, `null` — and only a
+ * `valueKind` is a closed vocabulary — `literal`, `today`, `now`, and `null` with isNull or
+ * isNotNull only (NUI455 refuses it with a comparing operator) — and only a
  * literal carries its value in the definition. `today` and `now` are resolved when the
  * query is built, which is the whole point of them: a definition written in January must
  * not still mean January in December, so it stores the word and not the date.

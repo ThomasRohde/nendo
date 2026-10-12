@@ -570,7 +570,15 @@ textarea:focus {
 
 .markdown-body ul,
 .markdown-body ol {
-  padding-left: 1.4em;
+  padding-inline-start: 1.4em;
+}
+
+/* Each block takes its direction from its own text, so a Hebrew or Arabic paragraph reads from
+   the right with its punctuation on its own side (WMX-13). List markers and indents still follow
+   the page, which is left to right. */
+.markdown-body :is(p, li, h3, h4, h5, h6, blockquote, th, td) {
+  unicode-bidi: plaintext;
+  text-align: start;
 }
 
 .markdown-body code {
@@ -594,8 +602,8 @@ textarea:focus {
 }
 
 .markdown-body blockquote {
-  border-left: 3px solid var(--line-strong);
-  padding-left: 10px;
+  border-inline-start: 3px solid var(--line-strong);
+  padding-inline-start: 10px;
   color: var(--muted);
 }
 
@@ -617,7 +625,7 @@ textarea:focus {
 .markdown-body td {
   border: 1px solid var(--line);
   padding: 4px 8px;
-  text-align: left;
+  text-align: start;
   vertical-align: top;
 }
 

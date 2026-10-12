@@ -69,8 +69,10 @@ const tones = ['blue', 'teal', 'green', 'amber', 'orange', 'red', 'violet', 'gre
 export function tileLetters(name: string): string {
   const words = name.split(/[^\p{L}\p{N}]+/u).filter((word) => word !== '');
   if (words.length === 0) return '?';
-  if (words.length > 1) return (words[0][0] + words[1][0]).toUpperCase();
-  return words[0][0].toUpperCase() + (words[0][1] ?? '').toLowerCase();
+  // Whole code points, so a letter outside the basic plane is never cut in half (WMX-16).
+  const first = Array.from(words[0]);
+  if (words.length > 1) return (first[0] + Array.from(words[1])[0]).toUpperCase();
+  return first[0].toUpperCase() + (first[1] ?? '').toLowerCase();
 }
 
 /** The tone a name always gets: the same name, the same colour, in every window. */

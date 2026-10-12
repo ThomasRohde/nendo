@@ -16,6 +16,8 @@ export interface ChartSegment {
   lexeme: string | null;
   /** The numeric amount used for geometry only; signed for trends, never displayed. */
   amount: number;
+  /** How many records the group holds, where the chart knows it (a breakdown does). */
+  records?: number;
   /** An inline style setting --status-color, or empty for the muted default. */
   style: string;
 }
@@ -87,7 +89,10 @@ export function proportionBar(input: BarInput): string {
   const track = pending !== null
     ? pending
     : total === 0
-      ? '<div class="chart-track is-empty" role="img" aria-label="No records"><span class="chart-empty">No records</span></div>'
+      // Totals of zero or less cannot be drawn as shares, and that is not the same as no records (WDV-15).
+      ? input.segments.some((segment) => (segment.records ?? 0) > 0)
+        ? '<div class="chart-track is-empty" role="img" aria-label="These totals are zero or less, so they are listed rather than drawn"><span class="chart-empty">Totals of zero or less are listed, not drawn</span></div>'
+        : '<div class="chart-track is-empty" role="img" aria-label="No records"><span class="chart-empty">No records</span></div>'
       : `<div class="chart-track" role="group" aria-label="${attribute(input.title)}">${input.segments.filter((segment) => segment.amount > 0).map((segment) => {
         const share = (segment.amount / total) * 100;
         const name = `${segment.label}: ${segment.lexeme ?? 'none'}`;
@@ -209,11 +214,12 @@ export function activityGrid(input: GridInput): string {
   const blanks = '<span class="chart-day is-blank" aria-hidden="true"></span>'.repeat(offset);
   const plot = pending !== null
     ? pending
-    : `<div class="chart-grid" role="group" aria-label="${attribute(input.title)}">${blanks}${input.days.map((day) => {
+    // One Tab stop for the whole grid; the arrow keys move by day and week (WDV-16, chart-grid-keys.ts).
+    : `<div class="chart-grid" role="group" aria-label="${attribute(input.title)}">${blanks}${input.days.map((day, index) => {
       const count = day.lexeme ?? '0';
       const name = `${day.label}: ${count}`;
       const drill = input.drillable ? ` data-chart-drill="${attribute(input.key)}" data-chart-group="${day.key === null ? '' : attribute(day.key)}" data-chart-unset="false"` : '';
-      return `<button type="button" class="chart-day" data-level="${day.level}" title="${attribute(name)}" aria-label="${attribute(name)}"${drill}${input.drillable ? '' : ' disabled'}></button>`;
+      return `<button type="button" class="chart-day" data-level="${day.level}" title="${attribute(name)}" aria-label="${attribute(name)}"${drill}${input.drillable ? ` tabindex="${index === 0 ? 0 : -1}"` : ' disabled'}></button>`;
     }).join('')}</div>`;
   const busy = input.days.filter((day) => day.level > 0);
   const table = pending === null && input.tableOpen

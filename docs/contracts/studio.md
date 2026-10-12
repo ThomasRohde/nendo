@@ -138,10 +138,10 @@ The Studio maps semantic storage and constraints to editors:
 | --- | --- | --- |
 | short text | `text` | inline text editor |
 | long text | `text` + presentation hint | clipped cell and record inspector editor |
-| Markdown text | `text` + `markdown` presentation (host 1.44.0, W-173) | clipped cell; the record page shows it formatted (headings, lists, tables, code, emphasis, quotes; links not followed) above an **Edit** disclosure holding the source. Structure offers **Show as Markdown** on a long text field and **Show as long text** back, a reviewed `schema.setFieldPresentation` that changes no value |
+| Markdown text | `text` + `markdown` presentation (host 1.44.0, W-173) | clipped cell; the record page shows it formatted (headings, nested lists, tables, code, emphasis, quotes, hard line breaks and backslash escapes; links not followed; each block takes its direction from its own text) above an **Edit** disclosure holding the source, and the formatted text follows the source as it is typed. Structure offers **Show as Markdown** on a long text field and **Show as long text** back, a reviewed `schema.setFieldPresentation` that changes no value |
 | integer/decimal | numeric scalar | locale-aware numeric editor |
 | checkbox | `boolean` | direct toggle with nullable state where declared |
-| date/datetime | canonical date value | date/time editor with explicit timezone semantics |
+| date/datetime | canonical date value | date picker; a date and time is shown and typed in this device's time and saved as an exact timestamp with its offset (Studio's grid edits it as text) |
 | single choice | scalar + allowed stable option IDs | searchable choice picker; the cell shows the tone of the option as a dot |
 | rating | `integer` + a closed min/max scale of at most ten values | the cell draws dots filled to the value; the user edits it by choosing one of the numbers of the scale; a value outside the scale shows as that number with the issue stated, never as a dot count that nobody chose |
 | reference | relationship/foreign key | related-record label and picker |

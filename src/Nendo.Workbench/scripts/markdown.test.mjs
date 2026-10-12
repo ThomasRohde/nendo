@@ -50,7 +50,7 @@ test('a markdown field shows its text formatted with its source a control of the
   const markup = fieldControlMarkup(field('markdown'), '## Plan\n\n- **ship** it');
   assert.match(markup, /<div class="markdown-body"><h4>Plan<\/h4><ul><li><strong>ship<\/strong> it<\/li><\/ul><\/div>/);
   assert.match(markup, /<details class="markdown-source"><summary>Edit Notes as Markdown<\/summary><textarea name="notes" rows="8"/);
-  assert.match(markup, />## Plan\n\n- \*\*ship\*\* it<\/textarea>/);
+  assert.match(markup, />\n## Plan\n\n- \*\*ship\*\* it<\/textarea>/);
   // Nothing to read yet: the source is open, so a required field is never hidden from the browser.
   const empty = fieldControlMarkup(field('markdown', { required: true }), '');
   assert.doesNotMatch(empty, /markdown-body/);

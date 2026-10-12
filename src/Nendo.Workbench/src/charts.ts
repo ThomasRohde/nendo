@@ -188,8 +188,9 @@ export function bucketDrillFilters(node: SurfaceNodePlan, bucket: string, key: s
   if (dateFieldId === null || key === null) return [];
   const span = bucketSpan(bucket, key);
   return [
-    { fieldId: dateFieldId, operator: 'gte', value: span.start },
-    { fieldId: dateFieldId, operator: 'lte', value: span.end },
+    // The record query spells these ge and le, and refused gte and lte (WDV-03).
+    { fieldId: dateFieldId, operator: 'ge', value: span.start },
+    { fieldId: dateFieldId, operator: 'le', value: span.end },
   ];
 }
 
@@ -249,13 +250,16 @@ export function cellValue(result: CellResult, rowKey: string | null, columnKey: 
  * an operator the closed set already has.
  */
 export function cellDrillFilters(
-  node: SurfaceNodePlan, rowKey: string | null, columnKey: string | null): QueryFilter[] {
+  node: SurfaceNodePlan, rowKey: string | null, columnKey: string | null, fields: readonly FieldPlan[] = []): QueryFilter[] {
   const rowByFieldId = property(node, 'rowByFieldId');
   const columnByFieldId = property(node, 'columnByFieldId');
   if (rowByFieldId === null || columnByFieldId === null) return [];
+  // A lane of a Boolean axis is its key as text; the query takes the Boolean itself (WDV-04).
+  const value = (fieldId: string, key: string): string | boolean =>
+    isBooleanField(fields.find((field) => field.semanticId === fieldId)) ? key === 'true' : key;
   return [
-    rowKey === null ? { fieldId: rowByFieldId, operator: 'isNull' } : { fieldId: rowByFieldId, operator: 'eq', value: rowKey },
-    columnKey === null ? { fieldId: columnByFieldId, operator: 'isNull' } : { fieldId: columnByFieldId, operator: 'eq', value: columnKey },
+    rowKey === null ? { fieldId: rowByFieldId, operator: 'isNull' } : { fieldId: rowByFieldId, operator: 'eq', value: value(rowByFieldId, rowKey) },
+    columnKey === null ? { fieldId: columnByFieldId, operator: 'isNull' } : { fieldId: columnByFieldId, operator: 'eq', value: value(columnByFieldId, columnKey) },
   ];
 }
 
@@ -357,6 +361,7 @@ export function breakdownSegments(field: FieldPlan | undefined, result: GroupedR
     lexeme: group.valueLexeme,
     amount: proportionOf(group.valueLexeme),
     style: groupStyle(field, group.key),
+    records: group.contributingRecords,
   }));
 }
 

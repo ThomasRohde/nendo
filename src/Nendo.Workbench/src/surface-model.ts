@@ -214,7 +214,9 @@ function reachableGroups(
   let groups = [...options];
   for (const child of node.children) {
     if (child.kind !== 'filterClause' || child.properties.fieldId !== groupByFieldId) continue;
-    const { operator, value } = child.properties;
+    const { operator, value: stated } = child.properties;
+    // A Boolean clause states true or false, and its lanes are their text (WDV-04).
+    const value = typeof stated === 'boolean' ? String(stated) : stated;
     if (typeof value !== 'string') continue;
     if (operator === 'ne') groups = groups.filter((group) => group !== value);
     else if (operator === 'eq') groups = groups.filter((group) => group === value);

@@ -5,6 +5,7 @@ import { content, showError } from './shell';
 import { client } from './client';
 import { rerender, setBusy } from './shell';
 import { messageFor, fieldName } from './format';
+import './chart-grid-keys';
 import { breakdownRead, bucketDrillFilters, bucketRead, cellDrillFilters, cellRead, chartKey, drillFilter, drillLabel, isOverTimeKind, progressRead, ringDrillFilters, type BucketResult, type CellResult, type GroupedResult, type ScopedChart } from './charts';
 import { tileKey, tileRead, type OverviewTileScope, type ScopedTile, type TileRead } from './summary-tiles';
 import {
@@ -382,7 +383,7 @@ export async function drillIntoCell(
 ): Promise<void> {
   const list = drillTarget(plan);
   if (list === null) return;
-  const filters = cellDrillFilters(surface, rowKey, columnKey);
+  const filters = cellDrillFilters(surface, rowKey, columnKey, plan.entity.fields);
   if (filters.length === 0) return;
   // A cell counted under the screen's Filter pick opens the records it counted.
   filters.push(...quickClauses(surface));

@@ -6,14 +6,16 @@ import { client } from './client';
 import { confirmDialog } from './confirm-dialog';
 import { refuseWhileDirty } from './draft-guard';
 import { foldSection } from './fold-state';
-import { escapeHtml, messageFor, mutationKey, sameValue, storageLabel, stringValue, valueDisplay } from './format';
+import { escapeHtml, isDateTimeKind, messageFor, mutationKey, sameValue, storageLabel, stringValue, valueDisplay } from './format';
+import { errorCode } from './write-failure';
+import { recordPlanOf } from './plan-selection';
 import { markdownMarkup } from './markdown';
 import { type ApplicationPlan, type FieldPlan, type ReadPage, type RecordPlan, type RecordSnapshot } from './host';
 import { refreshVisibleTiles, wireCharts, wireSummaryRetry } from './panels';
 import { relatedLists, visibleCharts, visibleTiles } from './plan-selection';
 import { loadRelatedWindow, loadRelatedWindows } from './reads';
 import { wireRelatedActions } from './related-actions';
-import { chartTileMarkup, fieldSequence, relatedListMarkup, summaryTileMarkup } from './record-markup';
+import { chartTileMarkup, dateTimeFormValue, fieldSequence, relatedListMarkup, summaryTileMarkup } from './record-markup';
 import { referenceVersions, wireReferenceControls } from './reference-controls';
 import { parseScalar } from './scalars';
 import { content, requiredElement, rerender, showError, showOutcome } from './shell';
@@ -118,11 +120,19 @@ export function wireRecordForm(
   requiredElement<HTMLFormElement>('#record-form').addEventListener('submit', (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget as HTMLFormElement);
-    let values: Record<string, unknown>;
-    try {
-      values = Object.fromEntries(fields.map((field) => [field.semanticId,
-        record !== null && !editedFields.has(field.semanticId) ? record.values[field.semanticId] : formValue(field, form)]));
-    } catch (error) { showError(messageFor(error)); return; }
+    const values: Record<string, unknown> = {};
+    for (const field of fields) {
+      if (record !== null && !editedFields.has(field.semanticId)) { values[field.semanticId] = record.values[field.semanticId]; continue; }
+      try {
+        values[field.semanticId] = formValue(field, form, record?.values[field.semanticId]);
+      } catch (error) {
+        // Which field, and where it is: a closed tab is opened on it (WDV-10).
+        if (page !== null) revealField(page, field.semanticId, record);
+        recordForm.querySelector<HTMLElement>(`[name="${CSS.escape(field.semanticId)}"]`)?.focus();
+        showError(`${field.displayName}: ${messageFor(error)}`);
+        return;
+      }
+    }
     // Every declared field is checked, including one in a closed tab. The
     // browser would refuse to focus a hidden required control and block the
     // submit with an error nobody can act on, so the page does this itself.
@@ -130,7 +140,7 @@ export function wireRecordForm(
     const missing = fields.find((field) => !field.retired && field.required && (values[field.semanticId] === null || values[field.semanticId] === '') &&
       !(record === null && fieldSequence(field) !== null));
     if (missing !== undefined) {
-      if (page !== null) revealField(page, missing.semanticId);
+      if (page !== null) revealField(page, missing.semanticId, record);
       showError(`${missing.displayName} is required.`);
       return;
     }
@@ -151,8 +161,13 @@ export function wireRecordForm(
   });
 }
 
-export function formValue(field: FieldPlan, form: FormData): unknown {
+export function formValue(field: FieldPlan, form: FormData, stored?: unknown): unknown {
   if (form.get(`__unset:${field.semanticId}`) === 'true') return null;
+  if (isDateTimeKind(field.storageKind)) {
+    const local = stringValue(form.get(field.semanticId)).trim();
+    const chosen = dateTimeFormValue(local, stored);
+    return chosen === null || chosen === stored ? chosen : parseScalar(storageLabel(field.storageKind), chosen);
+  }
   if (field.presentation === 'singleChoice' && !form.get(field.semanticId)) return null;
   return parseScalar(storageLabel(field.storageKind), stringValue(form.get(field.semanticId)));
 }
@@ -163,7 +178,7 @@ export function formValue(field: FieldPlan, form: FormData): unknown {
  */
 function sameAsStored(record: RecordPlan, field: FieldPlan, form: HTMLFormElement): boolean {
   try {
-    return sameValue(record.values[field.semanticId], formValue(field, new FormData(form)));
+    return sameValue(record.values[field.semanticId], formValue(field, new FormData(form), record.values[field.semanticId]));
   } catch {
     return false;
   }
@@ -185,6 +200,7 @@ export async function saveRecordChanges(
     showOutcome('No changes to save.');
     return false;
   }
+  let newer = false;
   await runMutation('data.setFields', {
     entityId,
     recordId: record.semanticId,
@@ -192,8 +208,43 @@ export async function saveRecordChanges(
     values: Object.fromEntries(changes),
     expectedTargetVersions: Object.fromEntries(changes.filter(([id]) => id in targetVersions).map(([id]) => [id, targetVersions[id]])),
     idempotencyKey: mutationKey(),
-  }, 'Record saved.', true);
+  }, 'Record saved.', true, undefined, (error) => {
+    if (errorCode(error) !== 'record-version-conflict') return null;
+    newer = true;
+    return 'This record changed while you edited it. Reading its new version.';
+  });
+  if (newer) await keepTypingOverNewVersion(entityId, record, fields, changes.map(([fieldId]) => fieldId));
   return true;
+}
+
+/**
+ * Another writer saved the record while the person typed (an agent, an automatic action). Every
+ * Save sent the old version and was refused the same way, and the only way out threw the typing
+ * away (WDV-08). The form is left exactly as it is, the person's typing included, wherever it is
+ * drawn (the Use inspector, Studio's record sheet, beside a calendar), and the record under it
+ * moves to its new version: the next Save carries that version and writes only what the person
+ * changed. They are told which of their fields the other writer also changed.
+ */
+async function keepTypingOverNewVersion(entityId: string, record: RecordPlan, fields: FieldPlan[], typed: string[]): Promise<void> {
+  let fresh: RecordSnapshot | undefined;
+  try {
+    fresh = (await client.request<ReadPage<RecordSnapshot>>('data.queryRecords', { entityId, recordId: record.semanticId, limit: 1 })).items[0];
+  } catch {
+    fresh = undefined;
+  }
+  if (fresh === undefined) {
+    showError('This record changed or was deleted while you edited it, and its new version could not be read. Your typing is still on screen: copy what you need before you close the record.');
+    return;
+  }
+  const before = record.values;
+  const now = recordPlanOf(fresh);
+  Object.assign(record as { version: number }, { version: now.version });
+  Object.assign(record, { values: now.values, referenceLabels: now.referenceLabels, calculations: now.calculations });
+  const also = typed.filter((fieldId) => !sameValue(now.values[fieldId], before[fieldId]))
+    .map((fieldId) => fields.find((field) => field.semanticId === fieldId)?.displayName ?? fieldId);
+  showError(also.length === 0
+    ? 'This record changed while you edited it, though not in the fields you changed. Your typing is kept; Save again to write it on its new version. The fields you did not touch show their earlier values until then.'
+    : `This record changed while you edited it, ${also.join(', ')} included. Your typing is kept; Save again to write it over theirs. The fields you did not touch show their earlier values until then.`);
 }
 
 export function closeInspector(): void {
@@ -342,12 +393,13 @@ export function wireRelatedPager(plan: ApplicationPlan, record: RecordPlan): voi
  * field in a closed tab cannot be focused, so the failure has to move the view
  * to it before it is reported.
  */
-export function revealField(plan: ApplicationPlan, fieldId: string): void {
+export function revealField(plan: ApplicationPlan, fieldId: string, record: RecordPlan | null = null): void {
   const control = content.querySelector<HTMLElement>(`#record-form [name="${CSS.escape(fieldId)}"]`);
   if (control === null) return;
   for (let panel = control.closest<HTMLElement>('[data-tab-panel]'); panel !== null;
     panel = panel.parentElement?.closest<HTMLElement>('[data-tab-panel]') ?? null)
-    activateTab(plan, null, panel.dataset.tabGroup!, panel.dataset.tabPanel!);
+    // With the record, so the tab reads its relations and totals as a click on it does (WDV-22).
+    activateTab(plan, record, panel.dataset.tabGroup!, panel.dataset.tabPanel!);
   // A required field inside a folded section is revealed the way one inside a closed
   // tab is: the section opens, and the person sees what is being asked for.
   for (let fold = control.closest<HTMLDetailsElement>('details[data-section]'); fold !== null;

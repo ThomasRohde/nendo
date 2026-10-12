@@ -5,7 +5,8 @@ import { type StudioQuery, fileScopedClearable, recordWindows, state, studioQuer
 import { calculatedDisplay } from './calculated-fields';
 import { client } from './client';
 import { deviceStorage } from './device-storage';
-import { choiceDisplay, escapeAttribute, escapeHtml, messageFor, mutationKey, storageLabel, valueDisplay } from './format';
+import { choiceDisplay, escapeAttribute, escapeHtml, formatDateTime, isDateTimeKind, messageFor, mutationKey, storageLabel, valueDisplay } from './format';
+import { editorValues, gridEditUnchanged } from './grid-edit-model';
 import { type CalculationResult, type EntitySnapshot, type ReadPage, type RecordPlan, type RecordSnapshot } from './host';
 import { icon } from './icons';
 import { type MoveDirection, type OutlineNode, type OutlineRow, movePayload, moveTarget, visibleRows } from './outline-model';
@@ -209,7 +210,8 @@ async function readMore(entity: EntitySnapshot, parentKey: string): Promise<void
 async function moveInOutline(entity: EntitySnapshot, direction: MoveDirection): Promise<void> {
   const outline = outlines.get(entity.entityId);
   if (outline === undefined || outlineFocus === null || !state.session.capabilities.mutate) return;
-  const target = moveTarget(outline, outlineFocus, direction);
+  // A hierarchy with no order field has no sibling order to move within (WDV-09).
+  const target = moveTarget(outline, outlineFocus, direction, entity.hierarchy?.orderFieldId != null);
   if (target === null) return;
   const payload = movePayload(outline, outlineFocus, target, mutationKey());
   if (payload === null) return;
@@ -231,7 +233,7 @@ function syncMoveButtons(entity: EntitySnapshot): void {
   const outline = outlines.get(entity.entityId);
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-move]')) {
     button.disabled = outline === undefined || outlineFocus === null || !state.session.capabilities.mutate || entity.retired === true ||
-      moveTarget(outline, outlineFocus, button.dataset.move as MoveDirection) === null;
+      moveTarget(outline, outlineFocus, button.dataset.move as MoveDirection, entity.hierarchy?.orderFieldId != null) === null;
   }
 }
 
@@ -610,7 +612,8 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
         }
         : undefined,
     valueFormatter: (parameters) => storageLabel(field.storageKind) === 'Reference' && parameters.value != null
-      ? parameters.data?.referenceLabels?.[field.fieldId] ?? '(No target label)' : field.presentation === 'singleChoice' ? choiceDisplay(field, parameters.value) : valueDisplay(parameters.value),
+      ? parameters.data?.referenceLabels?.[field.fieldId] ?? '(No target label)' : field.presentation === 'singleChoice' ? choiceDisplay(field, parameters.value)
+        : isDateTimeKind(field.storageKind) && typeof parameters.value === 'string' ? formatDateTime(parameters.value) : valueDisplay(parameters.value),
     valueSetter: (parameters) => {
       if (parameters.data === undefined) return false;
       parameters.data.values[field.fieldId] = parameters.newValue;
@@ -623,13 +626,14 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
         : field.presentation === 'longText' || field.presentation === 'markdown' ? 'agLargeTextCellEditor' : 'agTextCellEditor',
     cellEditorPopup: field.presentation === 'longText' || field.presentation === 'markdown',
     cellEditorParams: field.presentation === 'singleChoice'
-      ? { values: [...(field.required ? [] : ['']), ...field.options.filter(id => !field.choices?.some(choice => choice.id === id && choice.retired))] }
+      ? (parameters: { value?: unknown }) => ({ values: editorValues([...(field.required ? [] : ['']), ...field.options.filter(id => !field.choices?.some(choice => choice.id === id && choice.retired))], parameters.value) })
       : storageLabel(field.storageKind) === 'Boolean' ? { values: field.required ? [true, false] : [null, true, false] }
         // A rating is edited by choosing one of the scale's numbers. The values are the
         // lexemes the cell already carries, so a chosen one needs no conversion on the
-        // way back in; the dots are how it reads, not how it is typed.
+        // way back in; the dots are how it reads, not how it is typed. The cell's own value
+        // is offered too, in scale or not, so opening it to look changes nothing (WDV-02).
         : ratingScaleOf(field) !== null
-          ? { values: [...(field.required ? [] : ['']), ...ratingSteps(ratingScaleOf(field)!).map(String)] }
+          ? (parameters: { value?: unknown }) => ({ values: editorValues([...(field.required ? [] : ['']), ...ratingSteps(ratingScaleOf(field)!).map(String)], parameters.value) })
           // The large-text editor cuts what it holds at 200 characters unless told otherwise.
           : field.presentation === 'longText' || field.presentation === 'markdown' ? { maxLength: largeTextCharacters, rows: 12, cols: 60 }
             : undefined,
@@ -790,8 +794,14 @@ export async function commitGridEdit(event: CellValueChangedEvent<GridRow>): Pro
     return;
   }
   try {
-    value = value === null || value === undefined || (field.presentation === 'singleChoice' && value === '') ? null : parseScalar(storageLabel(field.storageKind), exactNumberText(value) ?? String(value));
+    value = value === null || value === undefined || ((field.presentation === 'singleChoice' || ratingScaleOf(field) !== null) && value === '') ? null : parseScalar(storageLabel(field.storageKind), exactNumberText(value) ?? String(value));
   } catch (error) { showError(messageFor(error)); await recoverAfterWriteFailure(); return; }
+  // An edit that leaves the value as it was writes nothing: no revision, no new version (WDV-02).
+  if (gridEditUnchanged(value, event.oldValue)) {
+    event.data.values[field.fieldId] = event.oldValue;
+    event.api.refreshCells({ rowNodes: [event.node], columns: [event.colDef.colId], force: true });
+    return;
+  }
   await runMutation('data.setField', {
     entityId: entity.entityId,
     recordId: event.data.recordId,

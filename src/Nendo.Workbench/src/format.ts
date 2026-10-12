@@ -113,6 +113,21 @@ export function operationLabel(value: string): string {
   return labels[value] ?? value;
 }
 
+/** A local date and time from a datetime-local control, as an exact timestamp with this device's offset (WDV-18). */
+export function withLocalOffset(local: string): string {
+  const seconds = /T\d\d:\d\d$/.test(local) ? `${local}:00` : local;
+  const minutes = -new Date(seconds).getTimezoneOffset();
+  if (Number.isNaN(minutes)) return local;
+  const sign = minutes >= 0 ? '+' : '-';
+  const pad = (n: number): string => String(Math.floor(Math.abs(n))).padStart(2, '0');
+  return `${seconds}${sign}${pad(minutes / 60)}:${pad(minutes % 60)}`;
+}
+
+/** Whether a storage kind holds a date and time, however the host spells it. */
+export function isDateTimeKind(kind: string | number): boolean {
+  return kind === 5 || (typeof kind === 'string' && kind.toLowerCase() === 'datetime');
+}
+
 export function formatDateTime(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);

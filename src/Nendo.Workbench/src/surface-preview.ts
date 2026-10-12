@@ -1,13 +1,13 @@
-import type { ApplicationPlan, FieldPlan, OverviewPlan, RecordPlan, SurfaceNodePlan } from './host';
+import type { ApplicationPlan, OverviewPlan, RecordPlan, SurfaceNodePlan } from './host';
 import { nodeText as property } from './host-types';
 import { escapeHtml as escape } from './format';
 import { exactNumberText } from './scalars';
 
 import { choiceStyle } from './tones';
-import { activityLevel, breakdownSegments, bucketLabel, bucketSegments, busiestBucket, chartTitle, isChartKind, isOverTimeKind, rangeLabel, sampleBucketed, sampleGrouped } from './charts';
+import { activityLevel, breakdownSegments, groupLabel, bucketLabel, bucketSegments, busiestBucket, chartTitle, isChartKind, isOverTimeKind, rangeLabel, sampleBucketed, sampleGrouped } from './charts';
 import { proportionBar, columns, activityGrid as activityGridMarkup } from './chart-kit';
 import { civilDate, groupByDate, monthGrid, monthLabel, monthOf, undatedItems, weekdayNames } from './calendar-model';
-import { kindLabel, maximumReferenceBoardColumns } from './surface-model';
+import { kindLabel, matrixViewOf, maximumReferenceBoardColumns } from './surface-model';
 import { dayMonthLabel, groupByMonth, spanLabel, spanOf, yearNote } from './timeline-model';
 
 /**
@@ -26,14 +26,21 @@ interface PreviewSurface {
 // Which tab a reviewer opened, for this preview only. The preview is a read-only
 // view of a validated clone, so nothing it selects reaches a file.
 const previewTabs = new Map<string, string>();
-const text = (value: unknown): string => value == null ? 'Not set' : exactNumberText(value) ?? (typeof value === 'object' ? JSON.stringify(value) : String(value));
+// A Boolean reads Yes or No, as every live screen says it (WDV-19).
+const text = (value: unknown): string => value == null ? 'Not set' : typeof value === 'boolean' ? (value ? 'Yes' : 'No') : exactNumberText(value) ?? (typeof value === 'object' ? JSON.stringify(value) : String(value));
 function valueText(app: ApplicationPlan, record: RecordPlan | undefined, fieldId: string): string {
+  // A calculated field shows its result, where the preview has one; it stores nothing (WMX-18).
+  if ((app.entity.derivedFields ?? []).some(field => field.semanticId === fieldId)) {
+    const result = record?.calculations?.[fieldId] as { state?: string; value?: unknown } | undefined;
+    return result?.state === 'value' ? text(result.value) : 'Calculated';
+  }
   const field = app.entity.fields.find(field => field.semanticId === fieldId);
   const value = record?.values[fieldId];
   if (value != null && record?.referenceLabels && fieldId in record.referenceLabels) return record.referenceLabels[fieldId] ?? '(No target label)';
   return field?.choices?.find(choice => choice.id === value)?.displayName ?? text(value);
 }
-const name = (field: FieldPlan | undefined, id: string): string => field?.displayName ?? id;
+// The other record types the preview carries, so a related list names its type (WMX-18).
+let previewPeers: readonly ApplicationPlan[] = [];
 // Every number crossing the desktop bridge is wrapped in a $nendoNumber envelope, so a
 // plain typeof check never matches and the preview quietly printed its own default
 // instead of the limit the node carries: "up to 10" over a node that says 5.
@@ -154,7 +161,12 @@ export function surfacePreviewMarkup(
   const record = app.records[selected];
   const titleField = app.surfaces.flatMap(node => bindings(node))[0] ?? app.entity.fields[0]?.semanticId;
   const recordLabel = (item: RecordPlan): string => titleField ? valueText(app, item, titleField) : item.semanticId;
-  const fieldName = (id: string): string => name(app.entity.fields.find(field => field.semanticId === id), id);
+  previewPeers = peers;
+  // Every field a screen may bind is named: its own, its calculations, and a related type's (WMX-18).
+  const fieldName = (id: string): string => app.entity.fields.find(field => field.semanticId === id)?.displayName
+    ?? (app.entity.derivedFields ?? []).find(field => field.semanticId === id)?.displayName
+    ?? peers.flatMap(peer => peer.entity.fields).find(field => field.semanticId === id)?.displayName
+    ?? id;
   const body = surface?.node == null ? '' : treeMarkup(app, surface.node, fieldName, record, peers);
   return `<div class="preview-controls"><label>Record type<select data-preview-entity></select></label><div class="view-switcher" role="group" aria-label="Preview surface">${surfaces.map(candidate => `<button type="button" data-preview-surface="${escape(candidate.id)}" aria-pressed="${candidate.id === surface?.id}">${escape(candidate.label)}</button>`).join('')}</div>
     <label>Preview record<select data-preview-selected>${app.records.map((record, index) => `<option value="${index}" ${index === selected ? 'selected' : ''}>${escape(recordLabel(record).slice(0, 100))} · ${escape(record.semanticId)} · v${record.version}</option>`).join('')}</select></label></div>
@@ -292,12 +304,13 @@ function sectionMarkup(
       return tabGroupMarkup(app, child, fieldName, record);
     }
     if (child.kind === 'relatedList') {
-      const target = property(child, 'targetEntityId') ?? 'related records';
-      const columns = bindings(child).map(id => escape(id)).join(', ');
+      const targetId = property(child, 'targetEntityId');
+      const target = previewPeers.find(peer => peer.entity.semanticId === targetId)?.entity.displayName ?? targetId ?? 'related records';
+      const columns = bindings(child).map(id => escape(fieldName(id))).join(', ');
       // The related records live on another record type, which this preview does
       // not carry. Describe the relation rather than invent rows for it — including
       // the two things it will do that a description of its columns does not say.
-      return `<section class="related-list"><h3>${escape(property(child, 'title') ?? target)}</h3><p class="preview-note">Shows ${escape(target)} records that point at this one${columns ? `, with ${columns}` : ''}. On the record page it also adds one, already pointing here, and opens the one you click.</p>${sectionMarkup(app, child, fieldName, undefined)}</section>`;
+      return `<section class="related-list"><h3>${escape(property(child, 'title') ?? target)}</h3><p class="preview-note">Shows ${escape(target)} records that point at this one${columns ? `, with ${columns}` : ''}. On the record page it also adds one, already pointing here, and opens the one you click.</p>${sectionMarkup(app, { ...child, children: child.children.filter(grandchild => grandchild.kind !== 'fieldBinding') }, fieldName, undefined)}</section>`;
     }
     if (child.kind === 'summaryTile') {
       // The rollup is computed against live data, which a frozen preview does not
@@ -447,11 +460,12 @@ function matrixMarkup(app: ApplicationPlan, root: SurfaceNodePlan, fieldName: (i
   const columnId = property(root, 'columnByFieldId') ?? '';
   const rowField = app.entity.fields.find(field => field.semanticId === rowId);
   const columnField = app.entity.fields.find(field => field.semanticId === columnId);
-  const rows = rowField?.options ?? [];
-  const columns = columnField?.options ?? [];
+  // The live matrix's own lanes: a Boolean axis has Yes and No, and a clause narrows them (WDV-19).
+  const view = matrixViewOf(root, app.entity.fields);
+  const rows = view?.rows ?? [];
+  const columns = view?.columns ?? [];
   const cardFieldIds = bindings(root);
-  const laneLabel = (field: typeof rowField, id: string): string =>
-    field?.choices?.find(choice => choice.id === id)?.displayName ?? id;
+  const laneLabel = (field: typeof rowField, id: string): string => groupLabel(field, id);
   const header = `<div class="matrix-corner"><small>${escape(fieldName(rowId))}</small><small>${escape(fieldName(columnId))}</small></div>` +
     columns.map(column => `<div class="matrix-heading"><span class="status-dot" style="${choiceStyle(columnField, column)}" aria-hidden="true"></span><h3>${escape(laneLabel(columnField, column))}</h3></div>`).join('');
   const body = rows.map(row => {

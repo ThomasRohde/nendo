@@ -11,7 +11,7 @@ findings are verified.
 - Complete (2026-10-11). Round 1: 35 areas. Round 2: 6 areas the completeness critic opened on its gaps (adapter parity, ADR and vision conformance, locale and time, reversibility matrix, safe mode and file versions, several processes). Every finding had a skeptic vote; duplicates were folded.
 - Areas reported: 41. Raw findings: 708; kept after verification: 644 (595 after folding 49 duplicates); refuted: 64; awaiting verification: 0.
 - Kept by priority: P0 2, P1 4, P2 95, P3 494.
-- Fix pass 2026-10-11: both P0 and all four P1 findings are fixed, and so are the five P2 findings in the security category (MHS-02, ESM-02, WMX-01, TGA-01, DAE-02), each with a guard seen to fail with the defect put back. See [Fix pass](#fix-pass). Fix pass 2026-10-12 (W-204): the nine P3 security findings are closed, eight with a falsified guard and BL-09 by a lock refresh, and DAE-08 with them. TST-02 is fixed too (gate harness). Fix pass 2026-10-12 (W-206): the 30 shell, focus and keyboard findings are fixed, two in part. The other findings are open, planned as W-205 and W-207 to W-231 under I-009 in the Nendo Development planner.
+- Fix pass 2026-10-11: both P0 and all four P1 findings are fixed, and so are the five P2 findings in the security category (MHS-02, ESM-02, WMX-01, TGA-01, DAE-02), each with a guard seen to fail with the defect put back. See [Fix pass](#fix-pass). Fix pass 2026-10-12 (W-204): the nine P3 security findings are closed, eight with a falsified guard and BL-09 by a lock refresh, and DAE-08 with them. TST-02 is fixed too (gate harness). Fix pass 2026-10-12 (W-206): the 30 shell, focus and keyboard findings are fixed, two in part. Fix pass 2026-10-12 (W-207): the 30 data view, form and markup findings are fixed, four in part. The other findings are open, planned as W-205 and W-208 to W-231 under I-009 in the Nendo Development planner; W-205's five decisions are accepted (D-005 to D-009).
 
 ## Method
 
@@ -9250,3 +9250,73 @@ edge case of the current-record mark.
 - Installer: `Publish-NendoPayload.ps1`, `Build-NendoInstaller.ps1` and
   `Test-NendoSetupIsolated.ps1` passed; the payload's Workbench bundle carries the changes
   (`inspector-heading`, `tab-list`, `chip-share`, `tabToNextCell`, `scroll-padding-block`).
+
+### Fifth pass: data views, record forms and markup (W-207)
+
+2026-10-12: the 30 findings planned as W-207 (7 P2, 23 P3) are fixed, four of them in part as
+said below. The guards are two new Workbench test files, `data-views-review.test.mjs` and
+`markdown-review.test.mjs`, five checks added to the Workbench shell lane, and a compiler test.
+Every guard failed with its defect put back; the quoted texts are from those runs.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [WDV-02](#wdv-02) | A grid select editor always offers the cell's own value, so a retired choice or an out-of-scale rating is not replaced by the first one on opening; an edit that leaves the value as it was writes nothing and puts the cell back (`grid-edit-model.ts`, `view-data.ts`). Not done: an empty required choice or Boolean still takes the first option when opened and left. | `editorValues` without the cell's value, and an unchanged check comparing raw values: the WDV-02 test failed. |
+| [WDV-03](#wdv-03) | A bucket drills with `ge` and `le`, which the record query accepts (`charts.ts`). The test reads the accepted operators from `RecordQuerySemantics.cs`. | `gte is refused by the record query` |
+| [WDV-04](#wdv-04) | A cell on a Boolean axis drills with the Boolean, and a Boolean clause narrows its lanes (`charts.ts`, `panels.ts`, `surface-model.ts`). | `Expected values to be strictly deep-equal` (the drill sent `"true"`). |
+| [WDV-08](#wdv-08) | A save refused because another writer saved the record keeps the form exactly as it is, wherever it is drawn (Use, Studio's record sheet, beside a calendar), moves the record under it to its new version, and says which of the person's fields the other writer also changed; the next Save writes the typing (`record-form.ts`). Lane: two checks, Use and Studio's sheet. | First fix's own defect, from the review (a redraw): `WDV-08: in Studio's sheet the typing became null after the conflict.` Without the rebase: `WDV-08: the second save left {"field.decision.title":"Keep the working file local", …}`. |
+| [WDV-09](#wdv-09) | Studio's outline asks for the moves its hierarchy allows: none within siblings when there is no order field (`view-data.ts`). Source-level test. | The WDV-09 test failed with the argument dropped. |
+| [WDV-10](#wdv-10) | A value that does not parse is reported with its field's name, and its field is revealed and focused (`record-form.ts`). | `WDV-10: an unparseable Order says "Enter a whole number without separators."` |
+| [WDV-12](#wdv-12) | The board refuses a drag only over a record form that differs from what is stored (`view-use.ts`). The lane confirms the card moved. | `WDV-12: a drag after typing taken back was refused: Save your changes or close record details before moving a card.` |
+| [WDV-13](#wdv-13) | A rating outside its scale shows the number stored, digit for digit (`rating.ts`). | `did not match />9223372036854775807</` |
+| [WDV-14](#wdv-14) | A calendar or timeline that could not read while a save ran reads once it is done: one waiting retry per screen, only while it is shown, unread and holds no typing (`view-use.ts`). Source-level test only: the preview host cannot read a calendar or timeline ("Open the native Nendo app to use typed filtering"). | `every redraw during a save starts another retry`; with no retry, the WDV-14 test failed. |
+| [WDV-15](#wdv-15) | A breakdown whose totals are zero or less over real records says they are listed rather than drawn, not "No records" (`chart-kit.ts`, `charts.ts`). | `expected to not match /aria-label="No records"/` |
+| [WDV-16](#wdv-16) | A drillable activity grid is one Tab stop; the arrow keys move by day and week (`chart-kit.ts`, `chart-grid-keys.ts`). | The tab-stop count test failed. |
+| [WDV-17](#wdv-17) | Paging the reference picker gives the keyboard back to the pressed button, the first result or the search box, on success and on failure (`reference-controls.ts`). Not measured: no preview fixture has enough targets to page. | Not applicable. |
+| [WDV-18](#wdv-18) | A date and time is shown in this device's time and typed in a datetime-local control; a value left as shown is the stored value, an edited one is saved with this device's offset (`format.ts`, `record-markup.ts`, `record-form.ts`, the grid's formatter). Not done: the grid still edits it as text, and an edited value in the hour a clock falls back resolves to the earlier offset. | `an untouched date-time is written back as another lexeme`; the round-trip test failed with the offset dropped. |
+| [WDV-19](#wdv-19) | The proposal preview draws a Boolean axis's lanes and says Yes and No (`surface-preview.ts`). | With the preview test (below). |
+| [WDV-20](#wdv-20) | Tiles a drill hides are not read (`plan-selection.ts`). | `Expected values to be strictly deep-equal` (tiles listed while drilled). |
+| [WDV-21](#wdv-21) | The compiler refuses the `null` value kind on a filter clause with a comparing operator (`NUI455`); with `isNull` or `isNotNull` it compiles as before (`NendoSemanticCompiler.ComposableSurfaces.cs`, `NendoSemanticCompiler.Extensions.cs`). The extension-view path is not separately tested. | `Assert.IsFalse failed. … A malformed filter must not compile.`; refusing it with presence operators too (the review's catch): `nullWithIsNull: NUI455`. |
+| [WDV-22](#wdv-22) | A field revealed in a closed tab opens it with the record, so its relations and totals are read (`record-form.ts`). Source-level test. | The WDV-22 test failed with `null` passed again. |
+| [WMX-02](#wmx-02) | Quotes nest to eight levels and then show as typed (`markdown.ts`). | `RangeError: Maximum call stack size exceeded` |
+| [WMX-03](#wmx-03) | A text value holding a line break is edited in a textarea, and every textarea gets the line break the parser drops after its start tag (`record-markup.ts`). Not done: a stored CRLF reads back as LF. | `a text value with a line break is edited where it keeps it` |
+| [WMX-04](#wmx-04) | A related row shows a choice's label and a reference's target label (`relatedRowTexts`, `record-markup.ts`). | `Expected values to be strictly deep-equal` (IDs shown). |
+| [WMX-05](#wmx-05) | Long unbroken values wrap in cards, related rows and the drill pill; a chip is cut with its field and value as a tooltip (`09-surfaces.css`, `13-refinements-pages.css`, `record-markup.ts`). | `.record-card > strong does not wrap a long value` |
+| [WMX-06](#wmx-06) | Lists nest by indentation, a bullet under a numbered step included (`markdown.ts`). | `Expected values to be strictly equal` (flattened). |
+| [WMX-07](#wmx-07) | Links and images are taken out before emphasis is matched, and an address may hold only escapes, so no delimiter pairs across it and no markup lands in a tooltip (`markdown.ts`). | `**Bold [link](https://x.y/a**b) rest: a tag in the tooltip https://x.y/a</strong>b`; the review's case: `[a](![b](c)): markup in the tooltip: …title="<span class="markdown-image" …`. |
+| [WMX-08](#wmx-08) | `#` in a heading kept unless a space precedes it, hard line breaks, backslash escapes, and `**a **b` as typed (`markdown.ts`). | The WMX-08 test failed on its first assertion. |
+| [WMX-09](#wmx-09) | Emphasis runs never cross their own delimiter, so unmatched openers cost linear time (`markdown.ts`). | The test's line of unmatched delimiters took 58,252 ms. |
+| [WMX-13](#wmx-13) | Each Markdown block takes its direction from its own text, with logical edges (`10-forms.css`). In part: list markers and indents still follow the page, and the rest of the Workbench has no right-to-left support. | The CSS test found no such rule. |
+| [WMX-15](#wmx-15) | A recent file that cannot open says why in words (`recent-files.ts`). | `Expected "actual" to be strictly unequal` (the host's word shown). |
+| [WMX-16](#wmx-16) | Glyphs take whole code points (`type-icons.ts`, `view-structure.ts`). | `\ud842O` (not well-formed). |
+| [WMX-17](#wmx-17) | A matrix screen is described as a matrix by its two fields, and nothing falls back to a raw kind (`surface-cards.ts`, split out of `view-surfaces.ts` so a test can load it). | `expected to not match /matrixSurface/` |
+| [WMX-18](#wmx-18) | The proposal preview names calculated and related fields, shows a calculation's result, and describes a related list by its type and columns, keeping its totals (`surface-preview.ts`). | `a calculated binding is labelled by its ID` |
+
+An independent review of the fixes found seven more defects, all fixed and guarded as quoted
+above: WDV-08 lost the typing in Studio's sheet and beside a calendar (the first fix redrew the
+page) and restored a reference only in part; an image inside a link's address was restored
+inside the tooltip; a touched date-time stayed unsaved and was written back as a new lexeme;
+`NUI455` also refused `null` with `isNull`; and the calendar's retries piled up. Smaller items
+from it are fixed too (relation totals back in the preview, the chip's tooltip, an unchanged
+grid edit putting its cell back, the lane checking a card really moved); the rest are listed
+as not done in the rows above.
+
+Documents updated with the behaviour: `docs/contracts/custom-views.md` (filter value kinds and
+`NUI455` in the diagnostics table) and `docs/contracts/studio.md` (the date and time editor,
+the Markdown subset).
+
+#### Checks run for the fifth pass
+
+- Workbench: `npm test` 590 passed, 0 failed; `tsc --noEmit` clean.
+- `Test-Production.ps1 -SkipRestore`, from a copy that goes on past a .NET failure, with the
+  workstation locked: Engine 1129 passed, 2 skipped; LocalMcp 245 passed, 5 skipped; Desktop 454
+  passed, 1 failed (the extension-view journey's clipboard probe, the locked-workstation
+  interlock). Tool and production boundaries, the custom-view presentation lanes and Swarm
+  passed. The Garden lane then failed twice, the second time alone, waiting for a note to open
+  after a click (`frame.waitForFunction: Timeout 30000ms exceeded. [after: wikilink navigation and
+  places]`). Nothing it runs changed in this pass (the Garden package, `view-toolbar-model.ts` and
+  the view API are as at HEAD), and the same lane failed on its settle timing earlier today on the
+  locked desktop and then passed; it is to be run again on an unlocked desktop. The stages after
+  it were run on their own and passed: the agent conversation lane, the Workbench shell lane (27
+  checks) and the repository gate.
+- Installer: `Publish-NendoPayload.ps1`, `Build-NendoInstaller.ps1` and
+  `Test-NendoSetupIsolated.ps1` passed; the payload's Workbench bundle carries the changes.

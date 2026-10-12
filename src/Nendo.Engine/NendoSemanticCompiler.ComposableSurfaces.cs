@@ -718,6 +718,14 @@ public sealed partial class NendoSemanticCompiler
                 AddError(diagnostics, "NUI275", $"'{comparison}' does not take a value.", node.NodeId, "value", "Remove the value, or use a comparing operator.");
             return;
         }
+        // "null" is a command step's word for clearing a field. With a comparing operator it compiled
+        // and then sent a comparison with no value, which the record query refuses for good (WDV-21).
+        if (valueKind == "null")
+        {
+            AddError(diagnostics, "NUI455", $"'{comparison}' does not compare with the null value kind.", node.NodeId, "valueKind",
+                "Use the operator isNull or isNotNull to match records with or without a value.");
+            return;
+        }
         if (valueKind == "literal" && !hasValue)
         {
             AddError(diagnostics, "NUI276", "The filter has no value to compare.", node.NodeId, "value", "Declare a literal value, or use isNull or isNotNull.");

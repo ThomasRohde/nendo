@@ -1508,8 +1508,9 @@ and read by nothing. `extensionView` never had pins and accepts none.
   `literal`) and a `value`. It names an active stored field of the view's record
   type, or of a graph's edge type: a calculated field is shown, not filtered. The
   operators are `eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `isNull` and `isNotNull`, and
-  the value kinds `literal`, `today`, `now` and `null`, the same words every screen
-  uses. A literal must suit the field. `isNull` and `isNotNull` take no value.
+  the value kinds `literal`, `today`, `now` and `null`. `null` goes only with
+  `isNull` and `isNotNull`, which match a missing value and take no value themselves;
+  with a comparing operator it is refused (`NUI455`). A literal must suit the field.
 - A view carries at most 64 `fieldBinding` and `filterClause` children together.
   Every read under its filters meets the host's bound of eight filters in one
   query.
@@ -1584,6 +1585,7 @@ A binding is not a permission. The view's code reads through the file's API.
 | Code | Severity | Meaning |
 | --- | --- | --- |
 | `NUI450` | Error | The definition names a package, a record type, a label, fields or filters that do not exist or break the rules above. The message names which. "Name a package, a record type and fields that exist; the view's code reads the rest through the file's API." |
+| `NUI455` | Error | A filter clause compares (`eq`, `ne`, `lt` and the rest) with the `null` value kind, which has no value to compare. "Use the operator isNull or isNotNull to match records with or without a value." The same rule refuses such a clause in a custom view's filters |
 | `NUI452` | Warning | "The package ‹id› is not in this file, so the view has no code to run yet." Remedy: "Add the package to the file: Studio → Surfaces → Custom views → Import, or extension.setPackage and extension.putFile in this change set or a later one." The view says the same where it is shown. Validation compiles the change set after all its operations, so a package and the view naming it in one change set draw no `NUI452` (W-170) |
 | `NUI454` | Error | "The package ‹id› is a skill package, which holds text for an agent and never runs, so a view cannot use it." Remedy: "Name a view package, one created without kind skill, or remove the view." |
 | `NUI013` | Error | A child kind its parent does not take, as for every node |

@@ -4,6 +4,7 @@ import { escapeAttribute, escapeHtml, messageFor } from './format';
 import { icon, type IconName } from './icons';
 import type { DesktopFileActionView, DesktopSessionView, RecentFiles } from './host';
 import { state } from './app-state';
+import { recentFileState } from './recent-files';
 import { openHelp, prepareApplication, recoverAfterWriteFailure, refreshDerived, resetFileView, retainDraftReadOnly, showOutcomeRefreshNotice } from './actions';
 import { openCustomViews } from './view-packages';
 import { aboutLookMarkup, chosenLook, lookIconMarkup, lookProposal, lookSentence, normaliseLetter } from './file-look';
@@ -103,7 +104,7 @@ export function renderNoFile(): void {
     </div>
     <p class="empty-help-entry">New to Nendo? <button id="no-file-help" class="text-button" type="button">Read how Nendo works</button></p>
     <div class="message-slot" role="alert" hidden></div>
-    ${state.recentFiles.files.length === 0 ? '' : `<section class="recent-files" aria-label="Recent files"><h3>Recent files</h3>${state.recentFiles.files.slice(0, 4).map(file => `<button class="recent-file" data-file-action="file.openRecent" data-recent-id="${escapeAttribute(file.id)}" type="button" ${file.state !== 'available' ? 'disabled' : ''}><span>${escapeHtml(file.fileName)}</span><span>${file.state === 'available' ? 'Open' : escapeHtml(file.state)}</span></button>`).join('')}</section>`}
+    ${state.recentFiles.files.length === 0 ? '' : `<section class="recent-files" aria-label="Recent files"><h3>Recent files</h3>${state.recentFiles.files.slice(0, 4).map(file => `<button class="recent-file" data-file-action="file.openRecent" data-recent-id="${escapeAttribute(file.id)}" type="button" ${file.state !== 'available' ? 'disabled' : ''}><span>${escapeHtml(file.fileName)}</span><span>${escapeHtml(recentFileState(file.state))}</span></button>`).join('')}</section>`}
     ${state.recentFiles.notice ? `<p class="recent-notice">${escapeHtml(state.recentFiles.notice)}</p>` : ''}
   </section>`;
   requiredElement<HTMLButtonElement>('#create-file').addEventListener('click', () => void chooseFile('session.createFile', null));

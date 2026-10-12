@@ -123,6 +123,8 @@ public sealed partial class NendoSemanticCompiler
             if (clause.Properties.TryGetValue("valueKind", out var kind) &&
                 (kind.ValueKind != System.Text.Json.JsonValueKind.String || !NendoSemanticVocabulary.ValueKinds.Contains(kind.GetString()!)))
                 throw Refused($"Value kind '{kind}' is not supported. Use one of: {string.Join(", ", NendoSemanticVocabulary.ValueKinds.Order(StringComparer.Ordinal))}.");
+            if (clause.Properties.TryGetValue("valueKind", out var nullKind) && nullKind.GetString() == "null" && comparison is not ("isNull" or "isNotNull"))
+                throw Refused("A filter does not compare with the null value kind; use the operator isNull or isNotNull.");
             var literal = !clause.Properties.TryGetValue("valueKind", out var declared) || declared.GetString() == "literal";
             if (literal && clause.Properties.TryGetValue("value", out var value)) ValidateLiteral(clause, field, value, diagnostics);
         }

@@ -46,6 +46,8 @@ export function wireReferenceControls(form: HTMLFormElement, fields: Field[], qu
     };
     const load = async (): Promise<void> => {
       const generation = ++request;
+      // Disabling the focused pager button took the keyboard to the page's body (WDV-17).
+      const pressed = document.activeElement === next ? next : document.activeElement === previous ? previous : null;
       status.textContent = 'Loading records…'; results.replaceChildren(); previous.disabled = true; next.disabled = true;
       try {
         const page = await query({ entityId: reference.targetEntityId, limit: 25, cursor: cursors.at(-1),
@@ -58,9 +60,11 @@ export function wireReferenceControls(form: HTMLFormElement, fields: Field[], qu
         }
         status.textContent = page.items.length ? `${page.items.length} records · Page ${cursors.length}` : 'No matching records.';
         previous.disabled = cursors.length < 2; next.disabled = nextCursor === null;
+        if (pressed !== null) (pressed.disabled ? results.querySelector<HTMLButtonElement>('.reference-result') ?? search : pressed).focus();
       } catch (error) {
         if (!root.isConnected || generation !== request) return;
         status.textContent = `${error instanceof Error ? error.message : 'Unable to load records.'} Search again to restart.`;
+        if (pressed !== null) search.focus();
       }
     };
     choose.addEventListener('click', () => { panel.hidden = false; cursors = [null]; search.focus(); void load(); });

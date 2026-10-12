@@ -44,8 +44,8 @@ test('a bucket knows its own two ends, which is what a drill needs',()=>{
 
  // The one drill in the product that needs two clauses: a period has two ends.
  assert.deepEqual(bucketDrillFilters(trend,'month','2026-02'),[
-  {fieldId:'due',operator:'gte',value:'2026-02-01'},
-  {fieldId:'due',operator:'lte',value:'2026-02-28'},
+  {fieldId:'due',operator:'ge',value:'2026-02-01'},
+  {fieldId:'due',operator:'le',value:'2026-02-28'},
  ]);
  assert.deepEqual(bucketDrillFilters(trend,'month',null),[],'no bucket, no drill');
 });

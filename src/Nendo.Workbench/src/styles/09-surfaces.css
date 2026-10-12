@@ -107,6 +107,17 @@
   line-height: 1.35;
 }
 
+/* A long unbroken value (an address, an ID, a code) wraps inside what holds it rather than
+   drawing over the next column (WMX-05). */
+.record-card > strong,
+.card-values > span,
+.related-row,
+.related-row > *,
+.drill-pill {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .card-values {
   display: grid;
   gap: 7px;

@@ -130,6 +130,11 @@
   font-weight: 680;
   line-height: 1.6;
   white-space: nowrap;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 :root[data-theme="dark"] .card-chip {

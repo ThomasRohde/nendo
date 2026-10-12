@@ -6,18 +6,48 @@ import { treeCommands } from './surface-model';
 import { calculatedDisplay, isDerived, resultFor } from './calculated-fields';
 import { referenceControl } from './reference-controls';
 import { markdownMarkup } from './markdown';
-import { choiceDisplay, escapeAttribute, escapeHtml, fieldName, sameValue, storageLabel, valueDisplay } from './format';
+import { choiceDisplay, escapeAttribute, escapeHtml, fieldName, formatDateTime, isDateTimeKind, sameValue, storageLabel, valueDisplay, withLocalOffset } from './format';
 import { ratingControlMarkup, ratingMarkup, ratingScaleOf } from './rating';
 import { chartStates, chartTables, relatedWindows, state, summaryCounts } from './app-state';
-import { applicationPlans, drillTarget } from './plan-selection';
+import { applicationPlans, drillTarget, recordPlanOf } from './plan-selection';
 import { icon } from './icons';
-import type { ApplicationPlan, DerivedFieldPlan, EntitySnapshot, FieldPlan, RecordPlan, SurfaceNodePlan } from './host';
+import type { ApplicationPlan, DerivedFieldPlan, EntitySnapshot, FieldPlan, RecordPlan, RecordSnapshot, SurfaceNodePlan } from './host';
 
 /**
  * The pieces a screen is built from: one field, one card, one tile, one chart,
  * one related list. Each answers from what it is handed, so the page and surface
  * modules above can assemble them without knowing how any of them is drawn.
  */
+
+/**
+ * The text of each column of a related row: a calculation's result, a choice's label and a
+ * reference's target label, as every other list shows them, never the stored ID (WMX-04).
+ */
+export function relatedRowTexts(fieldIds: readonly string[], related: RecordSnapshot, derived: readonly { fieldId: string }[] | undefined): string[] {
+  const asPlan = recordPlanOf(related);
+  return fieldIds.map((fieldId) => (derived ?? []).some((field) => field.fieldId === fieldId)
+    ? calculatedDisplay(resultFor(related.calculations, fieldId)).text
+    : recordFieldDisplay(asPlan, fieldId, undefined));
+}
+
+/**
+ * What a date-time control's local value saves as. The control shows the stored instant in this
+ * device's time; left so, it is the stored value itself, not the same instant spelt another way,
+ * which read as a change and was written back as one (WDV-18). Otherwise the local time with this
+ * device's offset, so the instant is exact.
+ */
+export function dateTimeFormValue(local: string, stored: unknown): string | null {
+  if (typeof stored === 'string' && local === localDateTimeInput(stored)) return stored;
+  return local === '' ? null : withLocalOffset(local);
+}
+
+/** A stored timestamp as a datetime-local control's value, in this device's time; empty when it is not one. */
+export function localDateTimeInput(value: string): string {
+  const date = new Date(value);
+  if (value === '' || Number.isNaN(date.getTime())) return '';
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
 
 /**
  * One field of one record as a reader sees it in a list, a card or a calendar.
@@ -34,6 +64,8 @@ export function recordFieldDisplay(
   if (isDerived(derived, fieldId)) return calculatedDisplay(record.calculations?.[fieldId]).text;
   const field = state.session.entities.flatMap(entity => entity.fields).find(field => field.fieldId === fieldId);
   if (field?.presentation === 'singleChoice') return choiceDisplay(field, record.values[fieldId]);
+  const stored = record.values[fieldId];
+  if (field !== undefined && isDateTimeKind(field.storageKind) && typeof stored === 'string') return formatDateTime(stored);
   return record.referenceLabels && fieldId in record.referenceLabels && record.values[fieldId] != null
     ? record.referenceLabels[fieldId] || '(No target label)' : valueDisplay(record.values[fieldId]);
 }
@@ -80,7 +112,7 @@ export function recordCardMarkup(plan: ApplicationPlan, record: RecordPlan, card
   const valueFields = detailFieldIds.filter((fieldId) => !chipFields.includes(fieldId));
   const chips = chipFields.length === 0 ? '' : `<div class="card-chips">${chipFields.map((fieldId) => {
     const display = recordFieldDisplay(record, fieldId, plan.entity.derivedFields);
-    return `<span class="card-chip" style="${choiceStyle(plan.entity.fields.find((field) => field.semanticId === fieldId), record.values[fieldId])}" title="${escapeAttribute(fieldName(plan, fieldId))}">${escapeHtml(display)}</span>`;
+    return `<span class="card-chip" style="${choiceStyle(plan.entity.fields.find((field) => field.semanticId === fieldId), record.values[fieldId])}" title="${escapeAttribute(`${fieldName(plan, fieldId)}: ${display}`)}">${escapeHtml(display)}</span>`;
   }).join('')}</div>`;
   const values = valueFields.length === 0 ? '' : `<div class="card-values">${valueFields.map((fieldId) => `<span><small>${escapeHtml(fieldName(plan, fieldId))}</small>${fieldValueMarkup(plan, record, fieldId, 'Not set')}</span>`).join('')}</div>`;
   return `<button class="record-card${style === '' ? '' : ' is-toned'}" data-record-id="${escapeAttribute(record.semanticId)}" type="button" style="${style}" aria-label="Open ${escapeAttribute(heading)}"><strong>${escapeHtml(heading)}</strong>${chips}${values}<footer><small>v${record.version}</small></footer></button>`;
@@ -257,9 +289,7 @@ export function relatedListMarkup(node: SurfaceNodePlan, record: RecordPlan): st
   const relatedDerived = state.session.entities
     .find((entity) => entity.entityId === node.properties.targetEntityId)?.derivedFields;
   const rows = page.items.map((related) => relatedRowMarkup(
-    fieldIds.map((fieldId) => (relatedDerived ?? []).some((field) => field.fieldId === fieldId)
-      ? calculatedDisplay(resultFor(related.calculations, fieldId)).text
-      : valueDisplay(related.values[fieldId])),
+    relatedRowTexts(fieldIds, related, relatedDerived),
     related.recordId, targetEntityId, opens, links.length > 0 ? related.recordVersion : null)).join('');
   const pager = `<div class="page-controls" aria-label="${escapeAttribute(title)} pages"><span>${page.items.length} shown · Page ${(window?.index ?? 0) + 1}</span><button class="text-button" type="button" data-related-page="-1" data-related-key="${escapeAttribute(key)}" ${(window?.index ?? 0) === 0 ? 'disabled' : ''}>Previous</button><button class="text-button" type="button" data-related-page="1" data-related-key="${escapeAttribute(key)}" ${page.nextCursor === null ? 'disabled' : ''}>Next</button></div>`;
   return `<section class="related-list" data-related="${escapeAttribute(node.semanticId)}">${head}${tiles}<ul class="related-rows">${rows}</ul>${page.nextCursor === null && (window?.index ?? 0) === 0 ? '' : pager}</section>`;
@@ -431,7 +461,8 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown): str
   const label = escapeHtml(field.displayName);
   const textControl = (markup: string): string => field.required ? markup : `<div class="scalar-field">${markup}<label class="checkbox-field"><input type="checkbox" name="__unset:${name}" data-null-field="${name}" value="true" aria-label="${escapeAttribute(field.displayName)} not set" ${currentValue === null || currentValue === undefined ? 'checked' : ''} />Not set</label></div>`;
   if (field.presentation === 'longText') {
-    return textControl(`<label>${label}<textarea name="${name}" rows="4" ${required}>${escapeHtml(value)}</textarea></label>`);
+    // The parser drops one line break right after <textarea>; one is written for it (WMX-03).
+    return textControl(`<label>${label}<textarea name="${name}" rows="4" ${required}>\n${escapeHtml(value)}</textarea></label>`);
   }
   if (field.presentation === 'markdown') {
     // Read as formatted text, written as Markdown (W-173). The source sits in a disclosure under
@@ -441,7 +472,7 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown): str
     return textControl(`<div class="markdown-field"><span class="markdown-field-label">${label}</span>`
       + (empty ? '' : `<div class="markdown-body">${markdownMarkup(value)}</div>`)
       + `<details class="markdown-source"${empty ? ' open' : ''}><summary>${empty ? 'Write' : 'Edit'} ${label} as Markdown</summary>`
-      + `<textarea name="${name}" rows="8" aria-label="${escapeAttribute(field.displayName)}" ${required}>${escapeHtml(value)}</textarea></details></div>`);
+      + `<textarea name="${name}" rows="8" aria-label="${escapeAttribute(field.displayName)}" ${required}>\n${escapeHtml(value)}</textarea></details></div>`);
   }
   if (field.presentation === 'singleChoice') {
     return `<label>${label}<select name="${name}" ${required}>${field.required ? '' : '<option value="">Not set</option>'}${field.options.filter(id => id === value || !field.choices?.some(choice => choice.id === id && choice.retired)).map(id => `<option value="${escapeAttribute(id)}" ${id === value ? 'selected' : ''} ${field.choices?.some(choice => choice.id === id && choice.retired) ? 'disabled' : ''}>${escapeHtml(choiceDisplay(field, id))}</option>`).join('')}</select></label>`;
@@ -450,6 +481,11 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown): str
   if (scale !== null) {
     return ratingControlMarkup(field.semanticId, field.displayName, scale, currentValue, field.required);
   }
+  if (isDateTimeKind(field.storageKind)) {
+    // Typed and shown in this device's time; saved with its offset, so the instant is exact (WDV-18).
+    const local = localDateTimeInput(value);
+    return `<label>${label}<input name="${name}" type="datetime-local" step="1" value="${escapeAttribute(local)}" title="${escapeAttribute(value)}" ${required} /></label>`;
+  }
   if (field.presentation === 'date' || storageLabel(field.storageKind) === 'Date') {
     return `<label>${label}<input name="${name}" type="date" value="${escapeAttribute(value)}" ${required} /></label>`;
   }
@@ -457,6 +493,10 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown): str
     return `<label>${label}<select name="${name}" ${required}><option value="" ${currentValue == null ? 'selected' : ''}>${field.required ? 'Choose Yes or No' : 'Not set'}</option><option value="true" ${currentValue === true ? 'selected' : ''}>Yes</option><option value="false" ${currentValue === false ? 'selected' : ''}>No</option></select></label>`;
   }
   const numeric = ['Integer', 'Decimal'].includes(storageLabel(field.storageKind));
+  // A single-line input strips line breaks, so a text value holding one is edited where it keeps
+  // them: saving the field otherwise wrote the value back without them (WMX-03).
+  if (!numeric && storageLabel(field.storageKind) === 'Text' && /[\r\n]/.test(value))
+    return textControl(`<label>${label}<textarea name="${name}" rows="3" ${required}>\n${escapeHtml(value)}</textarea></label>`);
   const markup = `<label>${label}<input name="${name}" type="text" ${numeric ? 'inputmode="decimal"' : ''} value="${escapeAttribute(value)}" ${required} /></label>`;
   return storageLabel(field.storageKind) === 'Text' ? textControl(markup) : markup;
 }

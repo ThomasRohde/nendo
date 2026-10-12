@@ -469,6 +469,109 @@ async page => {
     assert(focus.open && focus.visible, `UIK-15: after a redraw focus was ${JSON.stringify(focus)}, not the Launch tile's Open conversation.`);
   });
 
+  // W-207. The record's text fields, and a host request from the page's own client.
+  const textInputs = () => page.evaluate(() => [...document.querySelectorAll('#record-form label > input[type="text"]')].map(input => input.name));
+  const request = (method, payload) => page.evaluate(([method, payload]) => import('/src/client.ts').then(module => module.client.request(method, payload)), [method, payload]);
+  const save = () => page.click('#record-form button[type="submit"]');
+  const message = () => page.evaluate(() => document.querySelector('.message-slot:not([hidden])')?.textContent?.trim() ?? '');
+  const pickView = async (pattern) => {
+    await page.click('#place-pickers details.surface-picker > summary');
+    const picked = await page.evaluate(pattern => { const button = [...document.querySelectorAll('#place-pickers [data-select-surface]')].find(candidate => new RegExp(pattern, 'i').test(candidate.textContent)); button?.click(); return button !== undefined; }, pattern);
+    assert(picked, `no view matches ${pattern}`);
+    await page.waitForTimeout(800);
+  };
+
+  // WDV-08: a save refused over a newer version keeps the typing on the new version, and the next save writes it.
+  await check('WDV-08 save over a newer version', 'decision', async () => {
+    await openRecord();
+    const id = await page.evaluate(() => document.querySelector('.record-row > button[aria-current="true"], .record-row > button').dataset.recordId);
+    const [typed, other] = await textInputs();
+    assert(typed && other, 'the record has fewer than two text fields; the check measures nothing');
+    await page.fill(`#record-form input[name="${typed}"]`, 'My typing');
+    const current = (await request('data.queryRecords', { entityId: 'entity.decision', recordId: id, limit: 1 })).items[0];
+    await request('data.setField', { entityId: 'entity.decision', recordId: id, expectedRecordVersion: current.recordVersion, fieldId: other, value: 'Changed underneath', idempotencyKey: `underneath-${Date.now()}` });
+    await save();
+    await until(() => /changed while you edited/.test(document.querySelector('.message-slot:not([hidden])')?.textContent ?? ''), null, 'the conflict message', 6000);
+    const kept = await page.evaluate(name => document.querySelector(`#record-form input[name="${name}"]`)?.value ?? null, typed);
+    assert(kept === 'My typing', `WDV-08: after the conflict the field shows ${JSON.stringify(kept)}, not the typing.`);
+    await save();
+    await page.waitForTimeout(800);
+    const stored = (await request('data.queryRecords', { entityId: 'entity.decision', recordId: id, limit: 1 })).items[0].values;
+    assert(stored[typed] === 'My typing' && stored[other] === 'Changed underneath', `WDV-08: the second save left ${JSON.stringify({ [typed]: stored[typed], [other]: stored[other] })}; ${await message()}`);
+  });
+
+  // WDV-10: a value that does not parse is reported with its field's name.
+  await check('WDV-10 parse error names its field', 'tree', async () => {
+    await openRecord();
+    await page.fill('#record-form input[name="field.capability.order"]', '1,000');
+    await save();
+    await page.waitForTimeout(400);
+    const said = await message();
+    assert(/^Order:/.test(said), `WDV-10: an unparseable Order says ${JSON.stringify(said)}.`);
+  });
+
+  // WDV-12: typing and taking it back is not a change, so a card still moves.
+  await check('WDV-12 board drag after reverted typing', 'idea', async () => {
+    await pickView('board');
+    const cards = await page.evaluate(() => [...document.querySelectorAll('.board-column .record-card')].length);
+    assert(cards >= 2, 'the board has fewer than two cards; the check measures nothing');
+    await page.locator('.board-column .record-card').first().click();
+    await until(() => document.querySelector('#record-form') !== null, null, 'the record form');
+    const [name] = await textInputs();
+    const input = page.locator(`#record-form input[name="${name}"]`);
+    await input.focus();
+    await page.keyboard.press('End');
+    await page.keyboard.type('x');
+    await page.keyboard.press('Backspace');
+    const card = page.locator('.board-column .record-card').nth(1);
+    const movedId = await card.getAttribute('data-record-id');
+    const movedFrom = await page.evaluate(() => document.querySelectorAll('.board-column .record-card')[1].closest('.board-column').dataset.group);
+    const box = await card.boundingBox();
+    const target = await page.evaluate(() => { const columns = [...document.querySelectorAll('.board-column')]; const own = document.querySelectorAll('.board-column .record-card')[1].closest('.board-column');
+      const other = columns.find(column => column !== own); const box = other.getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + 80 }; });
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 20, box.y + box.height / 2 + 5, { steps: 4 });
+    await page.mouse.move(target.x, target.y, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+    const said = await message();
+    assert(!/Save your changes or close record details before moving a card/.test(said), `WDV-12: a drag after typing taken back was refused: ${said}`);
+    const moved = await page.evaluate(id => document.querySelector(`.board-column .record-card[data-record-id="${CSS.escape(id)}"]`)?.closest('.board-column')?.dataset.group ?? null, movedId);
+    assert(moved !== null && moved !== movedFrom, `WDV-12: the drag did not move the card (still in ${moved}); the check measures nothing.`);
+  });
+
+  // UIS-12, the reference half: the tree fixture has a reference field, Part of.
+  await check('UIS-12 reference controls named by field', 'tree', async () => {
+    await openRecord();
+    const name = await page.evaluate(() => document.querySelector('.record-inspector .reference-choose')?.getAttribute('aria-label') ?? null);
+    assert(name !== null && name.includes('Part of'), `UIS-12: the reference's Choose button is named ${JSON.stringify(name)}.`);
+  });
+
+  // WDV-08 in Studio's record sheet, which is drawn outside the Use renderer: the typing stays.
+  await check('WDV-08 Studio sheet over a newer version', 'decision', async () => {
+    await page.click('#nav-data');
+    await until(() => document.querySelector('.record-open-button') !== null, null, 'the Data grid', 8000);
+    const id = await page.evaluate(() => document.querySelector('.ag-row[row-index="0"]')?.getAttribute('row-id') ?? null);
+    await page.locator('.ag-row[row-index="0"] .record-open-button').click({ force: true });
+    await until(() => document.querySelector('#record-form') !== null, null, 'the record sheet');
+    const recordId = id ?? await page.evaluate(() => document.querySelector('#record-form')?.closest('[data-record-id]')?.dataset.recordId ?? null);
+    const [typed, other] = await textInputs();
+    assert(typed && other, 'the sheet has fewer than two text fields; the check measures nothing');
+    await page.fill(`#record-form input[name="${typed}"]`, 'Typed in the sheet');
+    const page1 = await request('data.queryRecords', { entityId: 'entity.decision', limit: 10 });
+    const current = page1.items.find(item => item.recordId === recordId) ?? page1.items[0];
+    await request('data.setField', { entityId: 'entity.decision', recordId: current.recordId, expectedRecordVersion: current.recordVersion, fieldId: other, value: 'Changed under the sheet', idempotencyKey: `sheet-${Date.now()}` });
+    await save();
+    await until(() => /changed while you edited/.test(document.querySelector('.message-slot:not([hidden])')?.textContent ?? ''), null, 'the conflict message', 6000);
+    const kept = await page.evaluate(name => document.querySelector(`#record-form input[name="${name}"]`)?.value ?? null, typed);
+    assert(kept === 'Typed in the sheet', `WDV-08: in Studio's sheet the typing became ${JSON.stringify(kept)} after the conflict.`);
+    await save();
+    await page.waitForTimeout(800);
+    const stored = (await request('data.queryRecords', { entityId: 'entity.decision', recordId: current.recordId, limit: 1 })).items[0].values;
+    assert(stored[typed] === 'Typed in the sheet' && stored[other] === 'Changed under the sheet', `WDV-08: the sheet's second save left ${JSON.stringify({ [typed]: stored[typed], [other]: stored[other] })}; ${await message()}`);
+  });
+
   return { complete: failures.length === 0, checks, errors, failure: failures.join(' || ') };
   })(); } catch (error) {
     return { complete: false, checks, errors, failure: [...failures, String(error?.message ?? error)].join(' || ') };

@@ -1,3 +1,4 @@
+import './chart-grid-keys';
 import { focusedRecords, rankedWindows, recentWindows, state, summaryCounts, surfaceErrors } from './app-state';
 import { foldSection, sectionIsOpen } from './fold-state';
 import { escapeAttribute, escapeHtml, messageFor } from './format';

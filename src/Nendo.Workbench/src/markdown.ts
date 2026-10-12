@@ -4,14 +4,24 @@ import { escapeHtml } from './format';
  * A text field presented as Markdown, as a page shows it (W-173). AI-written notes and answers
  * arrive as Markdown, and an outside author wrote a custom view and a parser only to read them.
  *
- * The subset is the one such text uses: headings, paragraphs, bulleted and numbered lists,
- * block quotes, fenced code, pipe tables, rules, and inline code, strong, emphasis and
- * strikethrough. Every character of the source is escaped before any tag is added, and the only
- * tags in the result are the ones written here, so stored text can never become markup. A link
- * is not followed: its text shows, with the address as its tooltip. An image shows its alt text.
+ * The subset is the one such text uses: headings, paragraphs, bulleted and numbered lists (nested
+ * by indentation), block quotes, fenced code, pipe tables, rules, hard line breaks, backslash
+ * escapes, and inline code, strong, emphasis and strikethrough. Every character of the source is
+ * escaped before any tag is added, and the only tags in the result are the ones written here, so
+ * stored text can never become markup. A link is not followed: its text shows, with the address as
+ * its tooltip. An image shows its alt text.
  */
 export function markdownMarkup(source: string, { headingShift = 2 }: { headingShift?: number } = {}): string {
-  const lines = source.replace(/\r\n?/g, '\n').split('\n');
+  return blocksOf(source.replace(/\r\n?/g, '\n').split('\n'), headingShift, 0);
+}
+
+/**
+ * How deep quotes nest before the rest is shown as it was typed. Each level was a recursive call,
+ * so a few thousand '>' overflowed the stack and left the page undrawn (WMX-02).
+ */
+const maximumQuoteDepth = 8;
+
+function blocksOf(lines: string[], headingShift: number, depth: number): string {
   const blocks: string[] = [];
   let paragraph: string[] = [];
   const flush = (): void => {
@@ -29,7 +39,8 @@ export function markdownMarkup(source: string, { headingShift = 2 }: { headingSh
       continue;
     }
     if (line.trim() === '') { flush(); continue; }
-    const heading = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+    // A closing run of '#' counts only after a space: '# Learn C#' keeps its '#' (WMX-08).
+    const heading = /^\s{0,3}(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/.exec(line);
     if (heading) {
       flush();
       // A record page's own headings come first; a field's start below them.
@@ -38,29 +49,29 @@ export function markdownMarkup(source: string, { headingShift = 2 }: { headingSh
       continue;
     }
     if (/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)) { flush(); blocks.push('<hr>'); continue; }
-    if (/^\s{0,3}>/.test(line)) {
+    if (/^\s{0,3}>/.test(line) && depth < maximumQuoteDepth) {
       flush();
       const quoted: string[] = [];
       for (; index < lines.length && /^\s{0,3}>/.test(lines[index]); index++) quoted.push(lines[index].replace(/^\s{0,3}>\s?/, ''));
       index--;
-      blocks.push(`<blockquote>${markdownMarkup(quoted.join('\n'), { headingShift })}</blockquote>`);
+      blocks.push(`<blockquote>${blocksOf(quoted, headingShift, depth + 1)}</blockquote>`);
       continue;
     }
     const item = listItem(line);
-    if (item) {
+    if (item && item.indent <= 3) {
       flush();
-      const items: string[] = [];
+      const entries: ListLine[] = [];
       for (; index < lines.length; index++) {
         const next = listItem(lines[index]);
-        if (next && next.ordered === item.ordered) { items.push(next.text); continue; }
+        // A list of the other kind at the list's own level starts a list of its own.
+        if (next && next.indent <= item.indent + 1 && next.ordered !== item.ordered) break;
+        if (next) { entries.push(next); continue; }
         // A line indented under an item continues it.
-        if (items.length > 0 && /^\s{2,}\S/.test(lines[index]) && !listItem(lines[index])) { items[items.length - 1] += `\n${lines[index].trim()}`; continue; }
+        if (entries.length > 0 && /^\s{2,}\S/.test(lines[index])) { entries[entries.length - 1].text += `\n${lines[index].trim()}`; continue; }
         break;
       }
       index--;
-      const tag = item.ordered ? 'ol' : 'ul';
-      const start = item.ordered && item.start !== 1 ? ` start="${item.start}"` : '';
-      blocks.push(`<${tag}${start}>${items.map(text => `<li>${inline(text)}</li>`).join('')}</${tag}>`);
+      blocks.push(listMarkup(entries));
       continue;
     }
     if (line.includes('|') && index + 1 < lines.length && isTableRule(lines[index + 1])) {
@@ -76,17 +87,57 @@ export function markdownMarkup(source: string, { headingShift = 2 }: { headingSh
         + `<tbody>${rows.map(row => `<tr>${head.map((_, column) => cellMarkup('td', row[column] ?? '', column)).join('')}</tr>`).join('')}</tbody></table></div>`);
       continue;
     }
-    paragraph.push(line.trim());
+    // Only the start is trimmed: two spaces at a line's end are a line break (WMX-08).
+    paragraph.push(line.trimStart());
   }
   flush();
   return blocks.join('');
 }
 
-function listItem(line: string): { ordered: boolean; start: number; text: string } | null {
-  const bullet = /^\s{0,3}[-*+]\s+(.*)$/.exec(line);
-  if (bullet) return { ordered: false, start: 1, text: bullet[1] };
-  const numbered = /^\s{0,3}(\d{1,9})[.)]\s+(.*)$/.exec(line);
-  return numbered ? { ordered: true, start: Number(numbered[1]), text: numbered[2] } : null;
+interface ListLine { indent: number; ordered: boolean; start: number; text: string }
+interface ListNode { ordered: boolean; start: number; indent: number; items: { text: string; children: ListNode[] }[] }
+
+function listItem(line: string): ListLine | null {
+  const bullet = /^(\s*)[-*+]\s+(.*)$/.exec(line);
+  if (bullet) return { indent: bullet[1].length, ordered: false, start: 1, text: bullet[2] };
+  const numbered = /^(\s*)(\d{1,9})[.)]\s+(.*)$/.exec(line);
+  return numbered ? { indent: numbered[1].length, ordered: true, start: Number(numbered[2]), text: numbered[3] } : null;
+}
+
+/**
+ * A list, with a line indented two or more spaces past an item nesting under it, as AI-written
+ * text routinely does: a bullet under a numbered step stays inside that step (WMX-06).
+ */
+function listMarkup(entries: ListLine[]): string {
+  const root: ListNode = { ordered: entries[0].ordered, start: entries[0].start, indent: entries[0].indent, items: [] };
+  const open: ListNode[] = [root];
+  for (const entry of entries) {
+    while (open.length > 1 && entry.indent < open[open.length - 1].indent) open.pop();
+    let list = open[open.length - 1];
+    const parent = list.items[list.items.length - 1];
+    if (parent !== undefined && entry.indent >= list.indent + 2) {
+      const nested: ListNode = { ordered: entry.ordered, start: entry.start, indent: entry.indent, items: [] };
+      parent.children.push(nested);
+      open.push(nested);
+      list = nested;
+    } else if (entry.ordered !== list.ordered && open.length > 1) {
+      // Another kind at a nested level: a sibling list under the same item.
+      open.pop();
+      const holder = open[open.length - 1];
+      const nested: ListNode = { ordered: entry.ordered, start: entry.start, indent: entry.indent, items: [] };
+      holder.items[holder.items.length - 1].children.push(nested);
+      open.push(nested);
+      list = nested;
+    }
+    list.items.push({ text: entry.text, children: [] });
+  }
+  return listNodeMarkup(root);
+}
+
+function listNodeMarkup(list: ListNode): string {
+  const tag = list.ordered ? 'ol' : 'ul';
+  const start = list.ordered && list.start !== 1 ? ` start="${list.start}"` : '';
+  return `<${tag}${start}>${list.items.map(item => `<li>${inline(item.text)}${item.children.map(listNodeMarkup).join('')}</li>`).join('')}</${tag}>`;
 }
 
 function isTableRule(line: string): boolean {
@@ -98,18 +149,53 @@ function cells(line: string): string[] {
   return trimmed.split(/(?<!\\)\|/).map(cell => cell.trim().replace(/\\\|/g, '|'));
 }
 
+// Text held aside while the rest is formatted, so formatting never reaches inside it: a link's
+// address, an escaped character. Private-use characters, which no formatting rule matches.
+const held = (index: number): string => `${index}`;
+const heldPattern = /(\d+)/g;
+
 /** One run of inline text: code spans kept literal, everything else escaped and then formatted. */
 function inline(text: string): string {
   return text.split(/(`+[^`]*?`+)/).map((part, index) => {
     if (index % 2 === 1) return `<code>${escapeHtml(part.replace(/^`+|`+$/g, ''))}</code>`;
-    return escapeHtml(part)
-      .replace(/!\[([^\]]*)\]\(((?:[^()\s]|\([^()\s]*\))+)(?:\s+&quot;[^&]*&quot;)?\)/g, '<span class="markdown-image" title="$2">$1</span>')
-      .replace(/\[([^\]]+)\]\(((?:[^()\s]|\([^()\s]*\))+)(?:\s+&quot;[^&]*&quot;)?\)/g, '<span class="markdown-link" title="$2">$1</span>')
-      .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, '<strong>$2</strong>')
-      .replace(/(?<![\w*])\*(?=\S)(.+?)(?<=\S)\*(?!\*)/g, '<em>$1</em>')
-      .replace(/(?<![\w_])_(?=\S)(.+?)(?<=\S)_(?![\w_])/g, '<em>$1</em>')
-      .replace(/~~(?=\S)(.+?)(?<=\S)~~/g, '<del>$1</del>')
+    const aside: string[] = [];
+    const escapes = new Set<number>();
+    const hold = (markup: string): string => { aside.push(markup); return held(aside.length - 1); };
+    const holdEscape = (markup: string): string => { escapes.add(aside.length); return hold(markup); };
+    // Only an escape may sit in an address: an image held there would be restored inside a tooltip.
+    const addressable = (address: string): boolean => [...address.matchAll(heldPattern)].every(([, held]) => escapes.has(Number(held)));
+    // A backslash before punctuation shows the punctuation itself (WMX-08). The private-use
+    // characters held text is marked with are themselves held, as entities, never dropped.
+    const escaped = part
+      .replace(/[\uE000\uE001]/g, (character: string) => holdEscape(`&#x${character.charCodeAt(0).toString(16).toUpperCase()};`))
+      .replace(/\\([!-/:-@[-`{-~])/g, (_, character: string) => holdEscape(escapeHtml(character)));
+    // Links and images come out before any emphasis is matched, so a delimiter in an address
+    // never pairs with one in the text and a tag never lands in a tooltip (WMX-07).
+    const linked = escapeHtml(escaped)
+      .replace(/!\[([^\]]*)\]\(((?:[^()\s]|\([^()\s]*\))+)(?:\s+&quot;[^&]*&quot;)?\)/g,
+        (whole: string, alt: string, address: string) => addressable(address) ? hold(`<span class="markdown-image" title="${address}">${emphasis(alt)}</span>`) : whole)
+      .replace(/\[([^\]]+)\]\(((?:[^()\s]|\([^()\s]*\))+)(?:\s+&quot;[^&]*&quot;)?\)/g,
+        (whole: string, label: string, address: string) => addressable(address) ? hold(`<span class="markdown-link" title="${address}">${emphasis(label)}</span>`) : whole);
+    const formatted = emphasis(linked)
       .replace(/ {2,}\n/g, '<br>')
       .replace(/\n/g, ' ');
+    // Held text may itself hold text (a link's label with an escape in it), so restore until none is left.
+    let restored = formatted;
+    for (let pass = 0; pass < 4 && restored.includes(''); pass++) restored = restored.replace(heldPattern, (_, at: string) => aside[Number(at)] ?? '');
+    return restored;
   }).join('');
+}
+
+/**
+ * Strong, emphasis and strikethrough. A run's content never crosses its own delimiter, so an
+ * unmatched opener stops at the next one instead of scanning to the end of the line: thousands of
+ * unclosed '**' took seconds, quadratically (WMX-09). An opener is never the second half of a
+ * pair, so '**a **b' stays as typed rather than becoming emphasis with stray stars (WMX-08).
+ */
+function emphasis(text: string): string {
+  return text
+    .replace(/(\*\*|__)(?=\S)((?:(?!\1)[^\n])+?)(?<=\S)\1/g, '<strong>$2</strong>')
+    .replace(/(?<![\w*])\*(?![\s*])([^*\n]+?)(?<![\s*])\*(?!\*)/g, '<em>$1</em>')
+    .replace(/(?<![\w_])_(?![\s_])([^_\n]+?)(?<![\s_])_(?![\w_])/g, '<em>$1</em>')
+    .replace(/~~(?=\S)((?:(?!~~)[^\n])+?)(?<=\S)~~/g, '<del>$1</del>');
 }

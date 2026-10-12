@@ -179,6 +179,7 @@ public sealed class ComposableSurfaceTests
     [DataRow("unknownValueKind", "NUI274", "valueKind")]
     [DataRow("valueOnPresenceOperator", "NUI275", "value")]
     [DataRow("missingValue", "NUI276", "value")]
+    [DataRow("nullValueKind", "NUI455", "valueKind")]
     [DataRow("wrongKindLiteral", "NUI277", "value")]
     [DataRow("unknownOrderField", "NUI278", "orderByFieldId")]
     [DataRow("unknownDirection", "NUI279", "orderDirection")]
@@ -193,6 +194,18 @@ public sealed class ComposableSurfaceTests
         Assert.IsNotNull(hit, $"Expected {code}; got {string.Join(", ", compiled.Diagnostics.Select(d => d.Code))}.");
         Assert.AreEqual(propertyPath, hit.PropertyPath);
         Assert.IsFalse(string.IsNullOrWhiteSpace(hit.SemanticId));
+    }
+
+    [TestMethod]
+    public void TheNullValueKindGoesWithIsNullAndIsNotNull()
+    {
+        // NUI455 refuses null only with a comparing operator; with a presence operator it is what a
+        // definition may have said all along, and keeps compiling.
+        foreach (var scenario in new[] { "nullWithIsNull", "nullWithIsNotNull" })
+        {
+            var compiled = new NendoSemanticCompiler().Compile(FilteredSource(scenario));
+            Assert.IsTrue(compiled.IsValid, scenario + ": " + string.Join("; ", compiled.Diagnostics.Select(d => d.Code + ": " + d.Message)));
+        }
     }
 
     [TestMethod]
@@ -268,6 +281,17 @@ public sealed class ComposableSurfaceTests
                 clause[1] = ("operator", "isNotNull");
                 break;
             case "missingValue":
+                break;
+            case "nullValueKind":
+                clause.Add(("valueKind", "null"));
+                break;
+            case "nullWithIsNull":
+                clause[1] = ("operator", "isNull");
+                clause.Add(("valueKind", "null"));
+                break;
+            case "nullWithIsNotNull":
+                clause[1] = ("operator", "isNotNull");
+                clause.Add(("valueKind", "null"));
                 break;
             case "wrongKindLiteral":
                 clause[0] = ("fieldId", "e-rank");

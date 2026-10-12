@@ -2,7 +2,7 @@ import { refreshDerived, runMutation } from './actions';
 import { accumulatedWindows, boardColumns, calendarModes, calendarMonths, leaveRecordContext, matrixCells, selectedSurfaces, state, surfaceErrors, surfaceWindows, timelineModes, timelineYears, type CreateRelated } from './app-state';
 import { type CalendarMode, shiftMonth } from './calendar-model';
 import { client } from './client';
-import { holdingThePage, refuseWhileDirty } from './draft-guard';
+import { holdingThePage, recordFormIsDirty, refuseWhileDirty } from './draft-guard';
 import { escapeAttribute, escapeHtml, messageFor, mutationKey } from './format';
 import { WorkbenchHostError, type ApplicationPlan, type FieldPlan, type RecordPlan, type SurfaceNodePlan } from './host';
 import { icon } from './icons';
@@ -331,10 +331,6 @@ export function wireBoardDrag(plan: ApplicationPlan, node: SurfaceNodePlan, boar
   const surfaceId = node.semanticId;
   const boardLanes = referenceColumnsOf(node) ?? [];
   let gesture: { record: RecordPlan; card: HTMLButtonElement; pointerId: number; x: number; y: number; active: boolean } | null = null;
-  let formDirty = false;
-  const form = content.querySelector('#record-form');
-  form?.addEventListener('input', () => { formDirty = true; });
-  form?.addEventListener('change', () => { formDirty = true; });
   const columns = [...content.querySelectorAll<HTMLElement>('.board-column')];
   const clear = (): void => {
     const previous = gesture;
@@ -379,7 +375,7 @@ export function wireBoardDrag(plan: ApplicationPlan, node: SurfaceNodePlan, boar
       if (!gesture.active) {
         if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < 6) return;
         suppressClick = true;
-        if (formDirty) {
+        if (recordFormIsDirty()) {
           clear();
           showError('Save your changes or close record details before moving a card.');
           return;
@@ -397,7 +393,7 @@ export function wireBoardDrag(plan: ApplicationPlan, node: SurfaceNodePlan, boar
       if (!gesture || gesture.pointerId !== event.pointerId) return;
       const { record, active } = gesture;
       const group = targetAt(event)?.dataset.group;
-      const admitted = active && writable() && !formDirty && group !== undefined && board.groups.includes(group);
+      const admitted = active && writable() && !recordFormIsDirty() && group !== undefined && board.groups.includes(group);
       clear();
       if (!admitted || group === undefined) return;
       event.preventDefault();
@@ -435,10 +431,33 @@ export function wireBoardDrag(plan: ApplicationPlan, node: SurfaceNodePlan, boar
   }
 }
 
+/**
+ * A calendar or timeline that could not read while a save ran reads once it is done: one waiting
+ * retry per screen, and only if that screen is still the one shown, still unread at this file
+ * revision, and holds no unsaved typing (a read redraws the record beside it).
+ */
+const waitingRetries = new Set<string>();
+function retryAfterSave(key: string, surfaceId: string, read: () => void): void {
+  if (waitingRetries.has(key)) return;
+  waitingRetries.add(key);
+  const attempt = (): void => {
+    if (state.actionInFlight) { window.setTimeout(attempt, 150); return; }
+    waitingRetries.delete(key);
+    const shown = content.querySelector(`[data-surface-id="${CSS.escape(surfaceId)}"]`) !== null
+      || activePlan() !== null && selectedSurfaceNode(activePlan()!)?.semanticId === surfaceId;
+    const accumulated = accumulatedWindows.get(key);
+    const unread = accumulated === undefined || accumulated.changeSequence !== state.session.manifest?.changeSequence;
+    if (shown && unread && !recordFormIsDirty()) read();
+  };
+  window.setTimeout(attempt, 150);
+}
+
 export function wireCalendar(plan: ApplicationPlan, node: SurfaceNodePlan): void {
   const surfaceId = node.semanticId;
   const reload = (): void => {
-    if (state.actionInFlight || refuseWhileDirty('reading the calendar again')) return;
+    // A save beside the calendar emptied its pages; it reads again once the save is done (WDV-14).
+    if (state.actionInFlight) { retryAfterSave(calendarKeyFor(node), surfaceId, reload); return; }
+    if (refuseWhileDirty('reading the calendar again')) return;
     state.actionInFlight = true;
     setBusy(true);
     void loadCalendarPage(plan, node, false)
@@ -488,6 +507,7 @@ export function wireCalendar(plan: ApplicationPlan, node: SurfaceNodePlan): void
 export function wireTimeline(plan: ApplicationPlan, node: SurfaceNodePlan): void {
   const surfaceId = node.semanticId;
   const read = (append: boolean): void => {
+    if (state.actionInFlight && !append) { retryAfterSave(timelineKeyFor(node), surfaceId, () => read(false)); return; }
     if (state.actionInFlight || refuseWhileDirty(append ? 'loading more of the timeline' : 'reading the timeline again')) return;
     state.actionInFlight = true;
     setBusy(true);
